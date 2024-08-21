@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
     $confirmPassword = $_POST['confirm_password'];
     $accountCreationPassword = $_POST['account_creation_password'];
+    $userType = $_POST['user_type'];
 
     if ($accountCreationPassword !== ACCOUNT_CREATION_PASSWORD) {
         $error = translate('invalid_account_creation_password');
@@ -28,9 +29,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             
-            $stmt = $pdo->prepare("INSERT INTO users (email, password, is_verified) VALUES (?, ?, FALSE)");
-            if ($stmt->execute([$email, $hashedPassword])) {
-                $success = translate('registration_successful_await_verification');
+            // Set is_verified to TRUE for parent users
+            $isVerified = ($userType === 'parent') ? TRUE : FALSE;
+            
+            $stmt = $pdo->prepare("INSERT INTO users (email, password, is_verified, role) VALUES (?, ?, ?, ?)");
+            if ($stmt->execute([$email, $hashedPassword, $isVerified, $userType])) {
+                if ($isVerified) {
+                    $success = translate('registration_successful_parent');
+                } else {
+                    $success = translate('registration_successful_await_verification');
+                }
             } else {
                 $error = translate('error_creating_account');
             }
@@ -69,6 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         <label for="account_creation_password"><?php echo translate('account_creation_password'); ?>:</label>
         <input type="password" id="account_creation_password" name="account_creation_password" required>
+        
+        <label for="user_type"><?php echo translate('user_type'); ?>:</label>
+        <select id="user_type" name="user_type" required>
+            <option value="parent"><?php echo translate('parent'); ?></option>
+            <option value="animation"><?php echo translate('animation'); ?></option>
+        </select>
         
         <input type="submit" value="<?php echo translate('register'); ?>">
     </form>

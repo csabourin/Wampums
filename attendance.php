@@ -8,10 +8,10 @@ $pdo = getDbConnection();
 
 // Fetch all groups and names
 $query = "
-    SELECT g.id AS group_id, g.name AS group_name, n.id AS name_id, n.first_name
-    FROM groups g
-    LEFT JOIN names n ON g.id = n.group_id
-    ORDER BY g.name, n.first_name
+    SELECT p.id AS name_id, p.first_name, g.id AS group_id, g.name AS group_name
+    FROM participants p
+    LEFT JOIN groups g ON p.group_id = g.id
+    ORDER BY g.name, p.first_name
 ";
 $stmt = $pdo->query($query);
 $groupsAndNames = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -88,7 +88,7 @@ $currentAttendance = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     </div>
 
     <p><a href="dashboard.php"><?php echo translate('back_to_dashboard'); ?></a></p>
-
+    <script src="js/functions.js"></script>
             <script type="module" src="js/app.js"></script>
 
         <script>

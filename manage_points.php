@@ -12,13 +12,13 @@ $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch all names with their associated group and total points
 $query = "
-    SELECT n.id, n.first_name, g.id AS group_id, g.name AS group_name, 
-           COALESCE(SUM(p.value), 0) AS total_points
-    FROM names n 
-    JOIN groups g ON n.group_id = g.id 
-    LEFT JOIN points p ON n.id = p.name_id
-    GROUP BY n.id, g.id
-    ORDER BY g.name, n.first_name";
+    SELECT p.id, p.first_name, g.id AS group_id, g.name AS group_name, 
+           COALESCE(SUM(pt.value), 0) AS total_points
+    FROM participants p 
+    JOIN groups g ON p.group_id = g.id 
+    LEFT JOIN points pt ON p.id = pt.name_id
+    GROUP BY p.id, g.id
+    ORDER BY g.name, p.first_name";
 
 $stmt = $pdo->query($query);
 $names = $stmt->fetchAll(PDO::FETCH_ASSOC);

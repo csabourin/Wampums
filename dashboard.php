@@ -5,20 +5,24 @@ requireLogin();
 
 $pdo = getDbConnection();
 
+// Check user role and redirect if parent
+if ($_SESSION['user_role'] === 'parent') {
+    header('Location: index.php');
+    exit;
+}
+
 // Fetch all groups and their associated names
 $query = "
-    SELECT g.id AS group_id, g.name AS group_name, 
-           n.id AS name_id, n.first_name,
-           COALESCE(SUM(p.value), 0) AS total_points
-    FROM groups g
-    LEFT JOIN names n ON g.id = n.group_id
-    LEFT JOIN points p ON n.id = p.name_id
-    GROUP BY g.id, g.name, n.id, n.first_name
-    ORDER BY g.name, n.first_name
-";
+SELECT p.id AS name_id, p.first_name, g.id AS group_id, g.name AS group_name, 
+       COALESCE(SUM(pt.value), 0) AS total_points
+FROM participants p
+LEFT JOIN groups g ON p.group_id = g.id
+LEFT JOIN points pt ON p.id = pt.name_id
+GROUP BY p.id, g.id, g.name
+ORDER BY g.name, p.first_name";
 
 $stmt = $pdo->query($query);
-$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Organize results by group
 $groups = [];
@@ -97,6 +101,9 @@ foreach ($results as $row) {
     </style>
 </head>
 <body>
+    <div id="offline-indicator" style="display: none;">
+        <?php echo translate('you_are_offline'); ?>
+    </div>
     <h1><?php echo translate('dashboard_title'); ?></h1>
     <div class="manage-items">
         <a href="manage_points.php"><?php echo translate('manage_points'); ?></a>
@@ -107,28 +114,31 @@ foreach ($results as $row) {
         <img width="335" style="max-width:100%;height:auto" src="./images/6eASt-Paul.png" alt="6e A St-Paul d'Aylmer">
     </div>
     <div class="manage-items">
-        <a href="manage_names.php"><?php echo translate('manage_names'); ?></a>
+        <a href="manage_participants.php"><?php echo translate('manage_names'); ?></a>
         <a href="manage_groups.php"><?php echo translate('manage_groups'); ?></a>
+         <a href="view_participant_documents.php"><?php echo translate('view_participant_documents'); ?></a>
     </div>
 
-    <?php foreach ($groups as $group): ?>
-        <div class="group">
-            <h2><?php echo htmlspecialchars($group['name']); ?></h2>
+    <div id="points-list">
+        <?php foreach ($groups as $groupId => $group): ?>
+            <div class="group-header" data-group-id="<?php echo $groupId; ?>">
+                <?php echo htmlspecialchars($group['name']); ?>
+            </div>
             <?php if (!empty($group['names'])): ?>
-                <div class="name-list">
-                    <?php foreach ($group['names'] as $name): ?>
-                        <div class="name-item">
-                            <span><?php echo htmlspecialchars($name['name']); ?></span>
-                            <span class="points"><?php echo $name['points']; ?> <?php echo translate('points'); ?></span>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+                <?php foreach ($group['names'] as $name): ?>
+                    <div class="list-item" data-name-id="<?php echo $name['id']; ?>" data-points="<?php echo $name['points']; ?>">
+                        <span><?php echo htmlspecialchars($name['name']); ?></span>
+                        <span id="name-points-<?php echo $name['id']; ?>"><?php echo $name['points']; ?> <?php echo translate('points'); ?></span>
+                    </div>
+                <?php endforeach; ?>
             <?php else: ?>
                 <p><?php echo translate('no_names_in_group'); ?></p>
             <?php endif; ?>
-        </div>
-    <?php endforeach; ?>
+        <?php endforeach; ?>
+    </div>
+
     <p><a href="logout.php"><?php echo translate('logout'); ?></a></p>
+    <script src="js/functions.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>

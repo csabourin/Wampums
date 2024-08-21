@@ -1,5 +1,5 @@
 // Cache name
-const CACHE_NAME = 'points-app-v1.37';
+const CACHE_NAME = 'points-app-v1.57';
 
 // Files to cache
 const urlsToCache = [
@@ -15,7 +15,8 @@ const urlsToCache = [
   '/js/points_script.js',
   '/js/indexedDB.js',
   '/manifest.json',
-  '/offline.html'
+  '/offline.html',
+  '/images/6eASt-Paul.png'
 ];
 
 // Install event
@@ -31,7 +32,7 @@ self.addEventListener('install', (event) => {
 // Helper function to check if a request's URL is supported for caching
 function isRequestCacheable(request) {
   const url = new URL(request.url);
-  return url.protocol === 'http:' || url.protocol === 'https:';
+  return url.origin === self.location.origin && (url.protocol === 'http:' || url.protocol === 'https:');
 }
 
 // Fetch event
@@ -40,44 +41,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const url = new URL(event.request.url);
-
-  // Network-first strategy with cache fallback for dynamic content
-  if (url.pathname.includes('get_points_data.php') || url.pathname.includes('update_points.php')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // Clone the response before caching it
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseToCache);
-          });
+  event.respondWith(
+    caches.match(event.request)
+      .then((response) => {
+        if (response) {
           return response;
-        })
-        .catch(() => {
-          return caches.match(event.request);
-        })
-    );
-  } else {
-    // Cache-first strategy with network update for other requests
-    event.respondWith(
-      caches.match(event.request)
-        .then((response) => {
-          const fetchPromise = fetch(event.request).then(
-            (networkResponse) => {
-              if (networkResponse && networkResponse.status === 200) {
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME).then(cache => {
-                  cache.put(event.request, responseToCache);
-                });
-              }
-              return networkResponse;
+        }
+
+        return fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME).then(cache => {
+                cache.put(event.request, responseToCache);
+              });
             }
-          );
-          return response || fetchPromise;
-        })
-    );
-  }
+            return networkResponse;
+          })
+          .catch(() => {
+            // If both cache match and network fetch fail, return the offline page
+            return caches.match('/offline.html');
+          });
+      })
+  );
 });
 
 // Add a new message event listener to handle cache updates

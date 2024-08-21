@@ -6,6 +6,15 @@ function ensureSessionStarted() {
     }
 }
 
+function calculateAge($dateOfBirth) {
+    // Convert the date of birth to a DateTime object
+    $dob = new DateTime($dateOfBirth);
+    // Get the current date
+    $today = new DateTime('today');
+    // Calculate the difference between the current date and the date of birth
+    $age = $dob->diff($today)->y;
+    return $age;
+}
 
 
 function sanitizeInput($input) {
@@ -17,7 +26,10 @@ function isLoggedIn() {
 }
 
 function requireLogin() {
-    if (!isLoggedIn()) {
+    if (session_status() == PHP_SESSION_NONE) {
+        session_start();
+    }
+    if (!isset($_SESSION['user_id'])) {
         header('Location: login.php');
         exit();
     }

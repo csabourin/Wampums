@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         SELECT n.id AS name_id, n.first_name, g.id AS group_id, g.name AS group_name,
                COALESCE(hc.total_honors, 0) AS total_honors,
                CASE WHEN h.date IS NOT NULL THEN TRUE ELSE FALSE END AS honored_today
-        FROM names n
+        FROM participants n
         JOIN groups g ON n.group_id = g.id
         LEFT JOIN honor_counts hc ON n.id = hc.name_id
         LEFT JOIN honors h ON n.id = h.name_id AND h.date = :date

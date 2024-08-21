@@ -1,38 +1,47 @@
 <?php
 require_once 'config.php';
+require_once 'functions.php';
+initializeApp();
 
 $error = '';
 $message = '';
+
+// Start the session if it's not already active
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    // Set session to expire next September 1st
+    $now = new DateTime();
+    $nextSeptember = new DateTime($now->format('Y') . '-09-01');
+    if ($now >= $nextSeptember) {
+        $nextSeptember->modify('+1 year');
+    }
+    $sessionDuration = $nextSeptember->getTimestamp() - time();
+
+    // Set session cookie parameters before starting the session
+    session_set_cookie_params($sessionDuration);
+    session_start();
+}
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = sanitizeInput($_POST['email']);
     $password = $_POST['password'];
 
     $pdo = getDbConnection();
-    $stmt = $pdo->prepare("SELECT id, email, password, is_verified FROM users WHERE email = ?");
+    $stmt = $pdo->prepare("SELECT id, email, password, is_verified, role FROM users WHERE email = ?");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
     if ($user && password_verify($password, $user['password'])) {
         if (!$user['is_verified']) {
-            $message = translate('account_not_verified_warning');
+            $message = 'Votre compte n\'est pas encore vérifié. Veuillez attendre la vérification par un administrateur.';
         } else {
-            // Set session to expire next September 1st
-            $now = new DateTime();
-            $nextSeptember = new DateTime($now->format('Y') . '-09-01');
-            if ($now >= $nextSeptember) {
-                $nextSeptember->modify('+1 year');
-            }
-            $sessionDuration = $nextSeptember->getTimestamp() - time();
-            
-            session_set_cookie_params($sessionDuration);
-            session_start();
-            
             $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_role'] = $user['role'];  // Set the user role in the session
             $_SESSION['last_activity'] = time();
-            
-            // Redirect admin to admin panel, others to dashboard
-            if ($user['email'] === 'info@christisansabourin.com') {
+
+            // Redirect based on user role
+            if ($user['role'] === 'parent') {
+                header('Location: index.php');
+            } elseif ($user['email'] === 'info@christiansabourin.com') {
                 header('Location: admin.php');
             } else {
                 header('Location: dashboard.php');
@@ -40,13 +49,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             exit;
         }
     } else {
-        $error = translate('invalid_credentials');
+        $error = 'Adresse courriel ou mot de passe invalide.';
     }
 }
 
 // Check if user is already logged in
 if (isset($_SESSION['user_id'])) {
-    header('Location: dashboard.php');
+    if ($_SESSION['user_role'] === 'parent') {
+        header('Location: index.php');
+    } else {
+        header('Location: dashboard.php');
+    }
     exit;
 }
 ?>

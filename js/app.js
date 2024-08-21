@@ -576,7 +576,7 @@ setInterval(() => {
   if (navigator.onLine) {
     refreshPointsData();
   }
-}, 30000);  // Refresh every 30 seconds
+}, 300000);  // Refresh every 5 minutes
 
 // Translation function (placeholder - implement actual translation logic)
 function translate(key) {

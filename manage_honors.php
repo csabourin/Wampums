@@ -11,47 +11,39 @@ $currentMonth = date('n');
 $currentYear = date('Y');
 $academicYearStart = ($currentMonth >= 9) ? "$currentYear-09-01" : ($currentYear - 1) . "-09-01";
 
-// Fetch groups
+// Set the current date
+$date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
+
+// Fetch all groups
 $groupQuery = "SELECT id, name FROM groups ORDER BY name";
 $groupStmt = $pdo->query($groupQuery);
 $groups = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Fetch names with honors count
-$query = "
-    SELECT n.id AS name_id, n.first_name, g.id AS group_id, g.name AS group_name,
-           COALESCE(honor_counts.total_honors, 0) AS total_honors
-    FROM names n
-    JOIN groups g ON n.group_id = g.id
-    LEFT JOIN (
-        SELECT name_id, COUNT(*) as total_honors
-        FROM honors
-        WHERE date >= :academic_year_start AND date <= CURRENT_DATE
-        GROUP BY name_id
-    ) honor_counts ON n.id = honor_counts.name_id
-    ORDER BY g.name, n.first_name
-";
+$query = "WITH honor_counts AS (
+    SELECT name_id, COUNT(*) as total_honors
+    FROM honors
+    WHERE date >= :academic_year_start AND date <= CURRENT_DATE
+    GROUP BY name_id
+)
+SELECT p.id AS name_id, p.first_name, p.group_id, g.name AS group_name,
+       COALESCE(hc.total_honors, 0) AS total_honors,
+       CASE WHEN h.date IS NOT NULL THEN TRUE ELSE FALSE END AS honored_today
+FROM participants p
+JOIN groups g ON p.group_id = g.id
+LEFT JOIN honor_counts hc ON p.id = hc.name_id
+LEFT JOIN honors h ON p.id = h.name_id AND h.date = :date
+WHERE (:date = CURRENT_DATE OR h.date = :date)
+ORDER BY g.name, p.first_name";
 
 $stmt = $pdo->prepare($query);
 $stmt->execute([
+    'date' => $date,
     'academic_year_start' => $academicYearStart
 ]);
-
 $names = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Organize names by group
-$namesByGroup = [];
-foreach ($names as $name) {
-    $groupId = $name['group_id'];
-    if (!isset($namesByGroup[$groupId])) {
-        $namesByGroup[$groupId] = [];
-    }
-    $namesByGroup[$groupId][] = $name;
-}
-
-// Get current date for JavaScript
-$currentDate = date('Y-m-d');
-
-// Fetch honor dates (you might need to adjust this query based on your needs)
+// Fetch honor dates
 $honorDatesQuery = "
     SELECT DISTINCT date
     FROM honors
@@ -61,75 +53,78 @@ $honorDatesQuery = "
 ";
 $honorDatesStmt = $pdo->query($honorDatesQuery);
 $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
+
 ?>
 <!DOCTYPE html>
-<html lang="<?php echo $lang; ?>">
+<html lang="<?php echo htmlspecialchars($lang); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#4c65ae">
     <link rel="apple-touch-icon" href="/images/icon-192x192.png">
-    <title><?php echo translate('manage_honors'); ?></title>
+    <title><?php echo htmlspecialchars(translate('manage_honors')); ?></title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <div id="offline-indicator" style="display: none;">
-      <?php echo translate('you_are_offline'); ?>
+        <?php echo htmlspecialchars(translate('you_are_offline')); ?>
     </div>
-    <p><a href="dashboard.php"><?php echo translate('back_to_dashboard'); ?></a></p>
-    <h1><?php echo translate('manage_honors'); ?></h1>
+    <p><a href="dashboard.php"><?php echo htmlspecialchars(translate('back_to_dashboard')); ?></a></p>
+    <h1><?php echo htmlspecialchars(translate('manage_honors')); ?></h1>
 
     <div class="date-navigation">
-        <button id="prevDate">&larr; <?php echo translate('previous'); ?></button>
+        <button id="prevDate">&larr; <?php echo htmlspecialchars(translate('previous')); ?></button>
         <h2 id="currentDate"></h2>
-        <button id="nextDate"><?php echo translate('next'); ?> &rarr;</button>
+        <button id="nextDate"><?php echo htmlspecialchars(translate('next')); ?> &rarr;</button>
     </div>
 
     <div class="sort-options">
-        <button onclick="sortItems('name')"><?php echo translate('sort_by_name'); ?></button>
-        <button onclick="sortItems('honors')"><?php echo translate('sort_by_honors'); ?></button>
+        <button onclick="sortItems('name')"><?php echo htmlspecialchars(translate('sort_by_name')); ?></button>
+        <button onclick="sortItems('honors')"><?php echo htmlspecialchars(translate('sort_by_honors')); ?></button>
     </div>
 
     <div id="honors-list">
         <?php foreach ($groups as $group): ?>
-            <div class="group-header" data-id="<?php echo $group['id']; ?>">
+            <div class="group-header" data-id="<?php echo htmlspecialchars($group['id']); ?>">
                 <?php echo htmlspecialchars($group['name']); ?>
             </div>
-            <?php if (isset($namesByGroup[$group['id']])): ?>
-                <?php foreach ($namesByGroup[$group['id']] as $name): ?>
-                    <div class="list-item" data-id="<?php echo $name['name_id']; ?>" data-type="individual" 
-                         data-group-id="<?php echo $name['group_id']; ?>" 
-                         data-honors="<?php echo $name['total_honors']; ?>"
-                         data-name="<?php echo htmlspecialchars($name['first_name']); ?>">
-                        <span><?php echo htmlspecialchars($name['first_name']); ?></span>
-                        <span class="honor-count"><?php echo $name['total_honors']; ?> <?php echo translate('honors'); ?></span>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
+            <?php 
+            $groupNames = array_filter($names, function($name) use ($group) {
+                return $name['group_id'] == $group['id'];
+            });
+            foreach ($groupNames as $name): 
+            ?>
+                <div class="list-item" data-id="<?php echo htmlspecialchars($name['name_id']); ?>" data-type="individual" 
+                     data-group-id="<?php echo htmlspecialchars($name['group_id']); ?>" 
+                     data-honors="<?php echo htmlspecialchars($name['total_honors']); ?>"
+                     data-name="<?php echo htmlspecialchars($name['first_name']); ?>">
+                    <span><?php echo htmlspecialchars($name['first_name']); ?></span>
+                    <span class="honor-count"><?php echo htmlspecialchars($name['total_honors']); ?> <?php echo htmlspecialchars(translate('honors')); ?></span>
+                </div>
+            <?php endforeach; ?>
         <?php endforeach; ?>
     </div>
 
     <div class="fixed-bottom">
-        <button class="honor-btn" onclick="awardHonor()"><?php echo translate('award_honor'); ?></button>
+        <button class="honor-btn" onclick="awardHonor()"><?php echo htmlspecialchars(translate('award_honor')); ?></button>
     </div>
 
-    <p><a href="dashboard.php"><?php echo translate('back_to_dashboard'); ?></a></p>
-
+    <p><a href="dashboard.php"><?php echo htmlspecialchars(translate('back_to_dashboard')); ?></a></p>
+    <script src="js/functions.js"></script>
     <script type="module" src="js/app.js"></script>
     <script>
         // Translations
         const translations = {
             honors: <?php echo json_encode(translate('honors')); ?>,
-            points: <?php echo json_encode(translate('points')); ?>,
             selectIndividuals: <?php echo json_encode(translate('select_individuals')); ?>,
             errorAwardingHonor: <?php echo json_encode(translate('error_awarding_honor')); ?>,
             honorAwardedSuccessfully: <?php echo json_encode(translate('honor_awarded_successfully')); ?>,
             noHonorsOnThisDate: <?php echo json_encode(translate('no_honors_on_this_date')); ?>,
-            errorLoadingHonors: <?php echo json_encode(translate('error_loading_honors')); ?>
+            errorLoadingHonors: <?php echo json_encode(translate('error_loading_honors')); ?>,
         };
 
-        let currentDate = '<?php echo $currentDate; ?>';
+        let currentDate = '<?php echo htmlspecialchars($date); ?>';
         const honorDates = <?php echo json_encode($honorDates); ?>;
         let selectedItems = new Set();
 
@@ -151,7 +146,7 @@ $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
 
         function formatDate(dateString) {
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            return new Date(dateString + 'T00:00:00').toLocaleDateString('<?php echo $lang; ?>', options);
+            return new Date(dateString + 'T00:00:00').toLocaleDateString('<?php echo htmlspecialchars($lang); ?>', options);
         }
 
         function changeDate(direction) {
@@ -242,14 +237,14 @@ $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
             groupHeader.textContent = '<?php echo addslashes($group['name']); ?>';
             honorsList.appendChild(groupHeader);
 
-            <?php if (isset($namesByGroup[$group['id']])): ?>
-            <?php foreach ($namesByGroup[$group['id']] as $name): ?>
+            <?php foreach ($names as $name): ?>
+            <?php if ($name['group_id'] == $group['id']): ?>
             item = document.createElement('div');
             item.className = 'list-item';
-            item.dataset.id = '<?php echo $name['name_id']; ?>';
+            item.dataset.id = '<?php echo htmlspecialchars($name['name_id']); ?>';
             item.dataset.type = 'individual';
-            item.dataset.groupId = '<?php echo $name['group_id']; ?>';
-            item.dataset.honors = '<?php echo $name['total_honors']; ?>';
+            item.dataset.groupId = '<?php echo htmlspecialchars($name['group_id']); ?>';
+            item.dataset.honors = '<?php echo htmlspecialchars($name['total_honors']); ?>';
             item.dataset.name = '<?php echo addslashes($name['first_name']); ?>';
             item.innerHTML = `
                 <span><?php echo addslashes($name['first_name']); ?></span>
@@ -257,8 +252,8 @@ $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
             `;
             item.addEventListener('click', toggleSelection);
             honorsList.appendChild(item);
-            <?php endforeach; ?>
             <?php endif; ?>
+            <?php endforeach; ?>
             <?php endforeach; ?>
 
             selectedItems.clear();
@@ -331,8 +326,6 @@ $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
             });
         }
 
-
-
         function sortItems(key) {
             const list = document.getElementById('honors-list');
             const items = Array.from(list.querySelectorAll('.list-item'));
@@ -343,8 +336,6 @@ $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
                     return a.dataset.name.localeCompare(b.dataset.name);
                 } else if (key === 'honors') {
                     return parseInt(b.dataset.honors) - parseInt(a.dataset.honors);
-                } else if (key === 'points') {
-                    return parseInt(b.dataset.points) - parseInt(a.dataset.points);
                 } else { // group
                     return a.dataset.groupId.localeCompare(b.dataset.groupId);
                 }
@@ -380,7 +371,6 @@ $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
                 }
             });
         }
-
 
         function saveOfflineData(action, data) {
             let offlineData = JSON.parse(localStorage.getItem('offlineData')) || [];
@@ -425,7 +415,7 @@ $honorDates = $honorDatesStmt->fetchAll(PDO::FETCH_COLUMN);
         }
 
         // Initial load
-        if (currentDate === '<?php echo $currentDate; ?>') {
+        if (currentDate === '<?php echo htmlspecialchars($date); ?>') {
             showAllNames();
         } else {
             loadHonorsForDate(currentDate);

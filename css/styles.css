@@ -418,6 +418,55 @@ body.online .pending-update {
   display: none;
 }
 
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 15% auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%;
+  max-width: 500px;
+  border-radius: 5px;
+  text-align: center;
+}
+
+.modal-content button {
+  margin-top: 20px;
+}
+
+#offline-indicator {
+  background-color: var(--primary-color); /* Red color to indicate offline status */
+  color: white;
+  text-align: center;
+  padding: 10px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+@media (min-width: 768px) {
+  #offline-indicator {
+      font-size: 16px; /* Slightly larger font for tablets and desktops */
+      padding: 15px;
+  }
+}
+
+
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
   * {
