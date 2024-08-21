@@ -11,7 +11,7 @@ if (isLoggedIn()) {
     $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
-    $is_animation = ($user['role'] === 'animation');
+    $is_animation = ($user['role'] === 'animation' || $user['role'] === 'admin');
 
     // Fetch participants
     if ($is_animation) {
@@ -56,15 +56,92 @@ if (isLoggedIn()) {
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#4c65ae">
     <link rel="apple-touch-icon" href="/images/icon-192x192.png">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+
+        body {
+            background-image: url('images/Loups_6eA.png');
+            background-repeat: no-repeat;
+            background-size: contain;
+            background-position: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        h1, h2 {
+            text-align: center;
+            margin: 0.5em 0;
+            font-size: 1.5em;
+        }
+
+        nav ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        nav ul li {
+            margin: 0.5em 0;
+        }
+
+        nav ul li a {
+            text-decoration: none;
+            color: #4c65ae;
+            font-size: 1.2em;
+            padding: 0.5em;
+            border: 1px solid #4c65ae;
+            border-radius: 5px;
+            display: block;
+            width: 100%;
+            text-align: center;
+            max-width: 300px;
+            background-color: #ffffff88;
+            transition: background-color 0.3s;
+        }
+
+        nav ul li a:hover {
+            background-color: #4c65ae;
+            color: #fff;
+        }
+
+        /* Media queries for larger screens */
+        @media (min-width: 600px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            h2 {
+                font-size: 1.8em;
+            }
+
+            nav ul li a {
+                font-size: 1.4em;
+            }
+        }
+
+    </style>
 </head>
 <body>
     <h1><?php echo translate('bienvenue'); ?></h1>
+    <h2>6e A St-Paul d'Aylmer</h2>
 
     <nav>
         <ul>
-            <?php if (!$is_animation): ?>
+            
                 <li><a href="formulaire_inscription.php"><?php echo translate('ajouter_participant'); ?></a></li>
-            <?php endif; ?>
+            
             <?php foreach ($participants as $participant): ?>
                 <li>
                     <?php echo htmlspecialchars($participant['first_name'] . ' ' . $participant['last_name']); ?>

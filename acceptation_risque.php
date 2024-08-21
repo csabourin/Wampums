@@ -65,53 +65,94 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $error = "Une erreur est survenue lors de l'enregistrement: " . htmlspecialchars($e->getMessage());
     }
 }
+
 ?>
-<!DOCTYPE html>
-<html lang="<?php echo htmlspecialchars($lang); ?>">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo translate('acceptation_risque'); ?></title>
-    <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-    <h1><?php echo translate('acceptation_risque'); ?></h1>
-    <?php if (isset($error)): ?>
-        <div class="error"><?php echo $error; ?></div>
-    <?php endif; ?>
-    <form method="post">
-        <h2><?php echo translate('informations_participant'); ?></h2>
-        <p><?php echo translate('nom_participant'); ?>: <?php echo htmlspecialchars($participant['first_name'] . ' ' . $participant['last_name']); ?></p>
-        <p><?php echo translate('age_participant'); ?>: <?php echo calculateAge($participant['date_naissance']); ?></p>
+    <!DOCTYPE html>
+    <html lang="<?php echo htmlspecialchars($lang); ?>">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title><?php echo translate('formulaire_acceptation_risque'); ?></title>
+        <link rel="stylesheet" href="css/styles.css">
+    </head>
+    <body>
+        <h1><?php echo translate('formulaire_acceptation_risque'); ?></h1>
+        <?php if (isset($error)): ?>
+            <div class="error"><?php echo $error; ?></div>
+        <?php endif; ?>
+        <form method="post">
+            <!-- Participant Information Section -->
+            <h2><?php echo translate('informations_participant'); ?></h2>
+            <p><?php echo translate('nom_participant'); ?>: <?php echo htmlspecialchars($participant['first_name'] . ' ' . $participant['last_name']); ?></p>
+            <p><?php echo translate('age_participant'); ?>: <?php echo calculateAge($participant['date_naissance']); ?></p>
 
-        <label for="groupe_district"><?php echo translate('groupe_district'); ?>:</label>
-        <input type="text" id="groupe_district" name="groupe_district" value="<?php echo htmlspecialchars($acceptation_risque['groupe_district'] ?? ''); ?>" required>
+            <label for="groupe_district"><?php echo translate('groupe_district'); ?>:</label>
+            <input type="text" id="groupe_district" name="groupe_district" value="<?php echo htmlspecialchars($acceptation_risque['groupe_district'] ?? ''); ?>" required>
 
-        <h2><?php echo translate('acceptation_risques_activites'); ?></h2>
-        <p><?php echo translate('texte_risques_activites'); ?></p>
-        <label for="accepte_risques">
-            <input type="checkbox" id="accepte_risques" name="accepte_risques" <?php echo ($acceptation_risque['accepte_risques'] ?? false) ? 'checked' : ''; ?> required>
-            <?php echo translate('jaccepte_risques_activites'); ?>
-        </label>
+            <!-- Inherent Risks Section -->
+            <h2><?php echo translate('risques_inherents'); ?></h2>
+            <p><?php echo translate('paragraphe_acceptation_risque'); ?></p>
+            <ul>
+                <li><?php echo translate('risque_blessures_chutes'); ?></li>
+                <li><?php echo translate('risque_blessures_objets'); ?></li>
+                <li><?php echo translate('risque_blessures_contact'); ?></li>
+                <li><?php echo translate('risque_hypothermie'); ?></li>
+                <li><?php echo translate('risque_brulures'); ?></li>
+                <li><?php echo translate('risque_allergies'); ?></li>
+                <li><?php echo translate('risque_animaux_plantes'); ?></li>
+                <li><?php echo translate('risque_vol_perte_objets'); ?></li>
+                <li><?php echo translate('risque_defaillance_equipements'); ?></li>
+                <li><?php echo translate('risque_comportements_negligents'); ?></li>
+                <li><?php echo translate('risque_deces'); ?></li>
+            </ul>
+            <label for="accepte_risques">
+                <input type="checkbox" id="accepte_risques" name="accepte_risques" <?php echo ($acceptation_risque['accepte_risques'] ?? false) ? 'checked' : ''; ?> required>
+                <?php echo translate('jaccepte_risques_activites'); ?>
+            </label>
 
-        <h2><?php echo translate('covid19_autres_maladies'); ?></h2>
-        <p><?php echo translate('texte_covid19'); ?></p>
-        <label for="accepte_covid19">
-            <input type="checkbox" id="accepte_covid19" name="accepte_covid19" <?php echo ($acceptation_risque['accepte_covid19'] ?? false) ? 'checked' : ''; ?> required>
-            <?php echo translate('jaccepte_risques_covid19'); ?>
-        </label>
+            <!-- COVID-19 and Other Diseases Section -->
+            <h2><?php echo translate('covid19_et_autres_maladies'); ?></h2>
+            <p><?php echo translate('texte_covid19'); ?></p>
 
-        <h2><?php echo translate('signature'); ?></h2>
-        <label for="nom_parent_tuteur"><?php echo translate('nom_parent_tuteur'); ?>:</label>
-        <input type="text" id="nom_parent_tuteur" name="nom_parent_tuteur" value="<?php echo htmlspecialchars($acceptation_risque['nom_parent_tuteur'] ?? ''); ?>" required>
+            <!-- Additional Declarations with Checkboxes -->
+            <p>
+            <label for="participation_volontaire">
+                <input type="checkbox" id="participation_volontaire" name="participation_volontaire" <?php echo ($acceptation_risque['participation_volontaire'] ?? false) ? 'checked' : ''; ?> required>
+                <?php echo translate('participation_volontaire'); ?>
+            </label></p>
 
-        <label for="date_signature"><?php echo translate('date_signature'); ?>:</label>
-        <input type="date" id="date_signature" name="date_signature" value="<?php echo htmlspecialchars($acceptation_risque['date_signature'] ?? date('Y-m-d')); ?>" required>
+           <p>
+            <label for="declaration_sante">
+                <input type="checkbox" id="declaration_sante" name="declaration_sante" <?php echo ($acceptation_risque['declaration_sante'] ?? false) ? 'checked' : ''; ?> required>
+                <?php echo translate('declaration_sante'); ?>
+            </label>
+               </p>
+<p>
+            <label for="declaration_voyage">
+                <input type="checkbox" id="declaration_voyage" name="declaration_voyage" <?php echo ($acceptation_risque['declaration_voyage'] ?? false) ? 'checked' : ''; ?> required>
+                <?php echo translate('declaration_voyage'); ?>
+            </label></p>
+<p>
+            <label for="accepte_covid19">
+                <input type="checkbox" id="accepte_covid19" name="accepte_covid19" <?php echo ($acceptation_risque['accepte_covid19'] ?? false) ? 'checked' : ''; ?> required>
+                <?php echo translate('jaccepte_risques_covid19'); ?>
+            </label>
+    </p>
 
-        <input type="submit" value="<?php echo translate('soumettre_acceptation_risque'); ?>">
-    </form>
-    <p><a href="dashboard.php"><?php echo translate('retour_tableau_bord'); ?></a></p>
+            <!-- Signature Section -->
 
-    <script src="js/acceptation_risque.js"></script>
-</body>
-</html>
+            <h2><?php echo translate('signature'); ?></h2>
+            <p><?php echo translate( 'parent_tuteur_confirmation');?></p>
+            <label for="nom_parent_tuteur"><?php echo translate('nom_parent_tuteur'); ?>:</label>
+            <input type="text" id="nom_parent_tuteur" name="nom_parent_tuteur" value="<?php echo htmlspecialchars($acceptation_risque['nom_parent_tuteur'] ?? ''); ?>" required>
+
+            <label for="date_signature"><?php echo translate('date_signature'); ?>:</label>
+            <input type="date" id="date_signature" name="date_signature" value="<?php echo htmlspecialchars($acceptation_risque['date_signature'] ?? date('Y-m-d')); ?>" required>
+
+            <input type="submit" value="<?php echo translate('soumettre_acceptation_risque'); ?>">
+        </form>
+        <p><a href="dashboard.php"><?php echo translate('retour_tableau_bord'); ?></a></p>
+
+        <script src="js/acceptation_risque.js"></script>
+    </body>
+    </html>

@@ -50,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'code_postal' => $_POST['code_postal'],
             'courriel' => $_POST['courriel'],
             'telephone' => $_POST['telephone'],
-            'groupe_id' => $_POST['groupe_id'],
             'user_id' => $_SESSION['user_id']
         ];
 
@@ -58,14 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Update existing participant
             $stmt = $pdo->prepare("UPDATE participants SET first_name = :first_name, last_name = :last_name, 
                 date_naissance = :date_naissance, sexe = :sexe, adresse = :adresse, ville = :ville, 
-                province = :province, code_postal = :code_postal, courriel = :courriel, telephone = :telephone, 
-                groupe_id = :groupe_id WHERE id = :id AND user_id = :user_id");
+                province = :province, code_postal = :code_postal, courriel = :courriel, telephone = :telephone");
             $stmt->execute(array_merge($participantData, ['id' => $participant_id]));
         } else {
             // Insert new participant
             $stmt = $pdo->prepare("INSERT INTO participants (first_name, last_name, date_naissance, sexe, adresse, 
-                ville, province, code_postal, courriel, telephone, groupe_id, user_id) VALUES (:first_name, :last_name, 
-                :date_naissance, :sexe, :adresse, :ville, :province, :code_postal, :courriel, :telephone, :groupe_id, :user_id)");
+                ville, province, code_postal, courriel, telephone, user_id) VALUES (:first_name, :last_name, 
+                :date_naissance, :sexe, :adresse, :ville, :province, :code_postal, :courriel, :telephone, :user_id)");
             $stmt->execute($participantData);
             $participant_id = $pdo->lastInsertId();
         }
@@ -187,15 +185,6 @@ $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <label for="telephone"><?php echo translate('telephone'); ?>:</label>
         <input type="tel" id="telephone" name="telephone" value="<?php echo htmlspecialchars($participant['telephone'] ?? ''); ?>" required>
 
-        <label for="groupe_id"><?php echo translate('groupe'); ?>:</label>
-        <select id="groupe_id" name="groupe_id" required>
-            <?php foreach ($groups as $group): ?>
-                <option value="<?php echo htmlspecialchars($group['id']); ?>" <?php echo ($participant['groupe_id'] ?? '') == $group['id'] ? 'selected' : ''; ?>>
-                    <?php echo htmlspecialchars($group['name']); ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-
         <h2><?php echo translate('informations_parents'); ?></h2>
         <?php for ($i = 0; $i < 2; $i++): ?>
             <h3><?php echo translate('parent_tuteur') . ' ' . ($i + 1); ?></h3>
@@ -226,7 +215,7 @@ $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <input type="text" id="district" name="district" value="<?php echo htmlspecialchars($inscription['district'] ?? 'District des Trois-Rives'); ?>" required>
 
         <label for="unite"><?php echo translate('unite'); ?>:</label>
-        <input type="text" id="unite" name="unite" value="<?php echo htmlspecialchars($inscription['unite'] ?? '6e At St-Paul d\'Aylmer'); ?>" required>
+        <input type="text" id="unite" name="unite" value="<?php echo htmlspecialchars($inscription['unite'] ?? '6e A St-Paul d\'Aylmer'); ?>" required>
 
         <label for="demeure_chez"><?php echo translate('demeure_chez'); ?>:</label>
         <select id="demeure_chez" name="demeure_chez">

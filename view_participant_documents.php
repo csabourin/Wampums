@@ -38,6 +38,70 @@ $participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo translate('view_participant_documents'); ?></title>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1em;
+        }
+
+        thead {
+            display: none;
+        }
+
+        tbody, tr, td {
+            display: block;
+            width: 100%;
+        }
+
+        tr {
+            margin-bottom: 1em;
+            border-bottom: 2px solid #ddd;
+        }
+
+        td {
+            padding: 0.5em;
+            text-align: left;
+            border: none;
+            position: relative;
+            padding-left: 50%;
+        }
+
+        td:before {
+            content: attr(data-label);
+            position: absolute;
+            left: 0;
+            top: 0;
+            padding: 0.5em;
+            background: #f5f5f5;
+            font-weight: bold;
+            width: 45%;
+            height: 100%;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        @media (min-width: 600px) {
+            thead {
+                display: table-header-group;
+            }
+
+            tbody, tr, td {
+                display: table-row-group;
+                width: auto;
+            }
+
+            td {
+                padding-left: 0;
+            }
+
+            td:before {
+                display: none;
+            }
+        }
+
+    </style>
 </head>
 <body>
     <h1><?php echo translate('view_participant_documents'); ?></h1>
@@ -55,24 +119,32 @@ $participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <tbody>
             <?php foreach ($participants as $participant): ?>
                 <tr>
-                    <td><?php echo htmlspecialchars($participant['first_name'] . ' ' . $participant['last_name']); ?></td>
-                    <td>
+                    <td data-label="<?php echo translate('name'); ?>">
+                        <?php echo htmlspecialchars($participant['first_name'] . ' ' . $participant['last_name']); ?>
+                    </td>
+                    <td data-label="<?php echo translate('fiche_sante'); ?>">
                         <?php if ($participant['has_fiche_sante']): ?>
-                            <a href="view_document.php?type=fiche_sante&id=<?php echo $participant['id']; ?>"><?php echo translate('view'); ?></a>
+                            <a href="view_document.php?type=fiche_sante&id=<?php echo $participant['id']; ?>">
+                                <?php echo translate('view'); ?>
+                            </a>
                         <?php else: ?>
                             ❌
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td data-label="<?php echo translate('acceptation_risque'); ?>">
                         <?php if ($participant['has_acceptation_risque']): ?>
-                            <a href="view_document.php?type=acceptation_risque&id=<?php echo $participant['id']; ?>"><?php echo translate('view'); ?></a>
+                            <a href="view_document.php?type=acceptation_risque&id=<?php echo $participant['id']; ?>">
+                                <?php echo translate('view'); ?>
+                            </a>
                         <?php else: ?>
                             ❌
                         <?php endif; ?>
                     </td>
-                    <td>
+                    <td data-label="<?php echo translate('inscription'); ?>">
                         <?php if ($participant['has_inscription']): ?>
-                            <a href="view_document.php?type=inscription&id=<?php echo $participant['id']; ?>"><?php echo translate('view'); ?></a>
+                            <a href="view_document.php?type=inscription&id=<?php echo $participant['id']; ?>">
+                                <?php echo translate('view'); ?>
+                            </a>
                         <?php else: ?>
                             ❌
                         <?php endif; ?>
@@ -81,5 +153,6 @@ $participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <?php endforeach; ?>
         </tbody>
     </table>
+
 </body>
 </html>

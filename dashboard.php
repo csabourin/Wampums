@@ -136,7 +136,7 @@ foreach ($results as $row) {
             <?php endif; ?>
         <?php endforeach; ?>
     </div>
-
+    <p><a href="index.php"><?php echo translate('ajouter_participant'); ?></a></p>
     <p><a href="logout.php"><?php echo translate('logout'); ?></a></p>
     <script src="js/functions.js"></script>
     <script type="module" src="js/app.js"></script>

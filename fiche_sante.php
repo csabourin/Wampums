@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'participant_id' => $participant_id,
             'nom_fille_mere' => $_POST['nom_fille_mere'],
             'medecin_famille' => isset($_POST['medecin_famille']) ? 1 : 0,
-            'nom_medecin' => $_POST['nom_medecin'],
+            'nom_medecin' => isset($_POST['medecin_famille']) ? $_POST['nom_medecin'] : null,
             'contact_urgence_1_nom' => $_POST['contact_urgence_1_nom'],
             'contact_urgence_1_telephone' => $_POST['contact_urgence_1_telephone'],
             'contact_urgence_1_lien' => $_POST['contact_urgence_1_lien'],
