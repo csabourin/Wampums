@@ -157,6 +157,7 @@ if (isLoggedIn()) {
                         <?php echo translate('acceptation_risque'); ?>
                     </a>
                 </li>
+    <li><a href="badge_form.php?id=<?php echo $participant['id']; ?>"><?php echo translate('badge_progress'); ?></a></li>
             <?php endforeach; ?>
             <?php if ($is_animation): ?>
                 <li><a href="dashboard.php"><?php echo translate('tableau_de_bord'); ?></a></li>

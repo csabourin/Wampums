@@ -1,5 +1,7 @@
 // Cache name
-const CACHE_NAME = 'points-app-v1.57';
+const CACHE_NAME = 'points-app-v1.63';
+
+import { openDB, saveOfflineData, getOfflineData, clearOfflineData } from './js/indexedDB.js';
 
 // Files to cache
 const urlsToCache = [
@@ -14,9 +16,19 @@ const urlsToCache = [
   '/js/functions.js',
   '/js/points_script.js',
   '/js/indexedDB.js',
+  '/js/health_contact_report.js',
+  '/js/attendance_report.js',
   '/manifest.json',
   '/offline.html',
-  '/images/6eASt-Paul.png'
+  '/images/6eASt-Paul.png',
+  '/images/icon-192x192.png',
+  '/health_contact_report.php',
+  '/attendance_report.php',
+  '/generate_attendance_report.php',
+  '/generate_health_contact_report.php',
+  '/get_translations.php',
+  '/lang/fr.php',
+  '/lang/en.php'
 ];
 
 // Install event
@@ -48,23 +60,31 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
 
-        return fetch(event.request)
+        return fetch(event.request, { redirect: 'follow' }) // Ensures redirects are followed
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
               const responseToCache = networkResponse.clone();
               caches.open(CACHE_NAME).then(cache => {
                 cache.put(event.request, responseToCache);
               });
+              return networkResponse;
+            } else {
+              return caches.match('/offline.html');
             }
-            return networkResponse;
           })
           .catch(() => {
-            // If both cache match and network fetch fail, return the offline page
-            return caches.match('/offline.html');
+            return caches.match('/offline.html').then((fallbackResponse) => {
+              return fallbackResponse || new Response('You are offline and the requested resource is not available.', {
+                headers: { 'Content-Type': 'text/plain' }
+              });
+            });
           });
       })
   );
 });
+
+
+
 
 // Add a new message event listener to handle cache updates
 self.addEventListener('message', (event) => {
@@ -79,25 +99,53 @@ self.addEventListener('message', (event) => {
 function clearCache() {
   caches.delete(CACHE_NAME).then(() => {
     console.log('Cache cleared');
+    // Rebuild the cache after clearing
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(urlsToCache).then(() => {
+        console.log('Cache rebuilt');
+      }).catch((error) => {
+        console.error('Error rebuilding cache:', error);
+      });
+    });
   });
 }
 
+function updateCache() {
+  return caches.open(CACHE_NAME).then((cache) => {
+    // Step 1: Add new resources to the cache
+    return cache.addAll(urlsToCache).then(() => {
+      console.log('Cache updated with new resources');
+
+      // Step 2: Now clear out old entries that are no longer needed
+      return cache.keys().then((cacheKeys) => {
+        const deletionPromises = cacheKeys.map((cacheKey) => {
+          const requestUrl = new URL(cacheKey.url).pathname;
+          if (!urlsToCache.includes(requestUrl)) {
+            console.log(`Deleting outdated cache entry: ${requestUrl}`);
+            return cache.delete(cacheKey);
+          }
+        });
+
+        return Promise.all(deletionPromises); // Ensure all deletions are completed
+      });
+    });
+  }).catch((error) => {
+    console.error('Error updating cache:', error);
+  });
+}
+
+
+
 // Activate event
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
-
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
+    updateCache().then(() => {
+      console.log('Cache has been updated and old entries removed');
+      return self.clients.claim();
     })
   );
 });
+
 
 // Sync event
 self.addEventListener('sync', (event) => {
@@ -106,41 +154,6 @@ self.addEventListener('sync', (event) => {
   }
 });
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('PointsAppDB', 1);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      db.createObjectStore('offlineData', { autoIncrement: true });
-    };
-  });
-}
-
-function getOfflineData() {
-  return openDB().then(db => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(['offlineData'], 'readonly');
-      const store = transaction.objectStore('offlineData');
-      const request = store.getAll();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-  });
-}
-
-function clearOfflineData() {
-  return openDB().then(db => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(['offlineData'], 'readwrite');
-      const store = transaction.objectStore('offlineData');
-      const request = store.clear();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
-  });
-}
 
 function syncPoints() {
   return getOfflineData()
@@ -177,5 +190,11 @@ function syncPoints() {
 self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') {
     self.skipWaiting();
+  }
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'updateCache') {
+     console.log('Cache update triggered via message, not updating');
   }
 });

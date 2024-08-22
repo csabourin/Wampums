@@ -6,19 +6,16 @@ const STORE_NAME = 'offlineData';
 
 let db;
 
-function openDB() {
+export function openDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
+        const request = indexedDB.open('PointsAppDB', 1);
         request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-            db = request.result;
-            resolve(db);
-        };
-
+        request.onsuccess = () => resolve(request.result);
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
-            db.createObjectStore(STORE_NAME, { autoIncrement: true });
+            if (!db.objectStoreNames.contains('offlineData')) {
+                db.createObjectStore('offlineData', { keyPath: 'action' });
+            }
         };
     });
 }

@@ -117,6 +117,10 @@ foreach ($results as $row) {
         <a href="manage_participants.php"><?php echo translate('manage_names'); ?></a>
         <a href="manage_groups.php"><?php echo translate('manage_groups'); ?></a>
          <a href="view_participant_documents.php"><?php echo translate('view_participant_documents'); ?></a>
+         <a href="approve_badges.php"><?php echo translate('approve_badges'); ?></a>
+        <a href="index.php"><?php echo translate('vue_parents'); ?></a>
+        <a href="attendance_report.php"><?php echo translate('attendance_report'); ?></a>
+        <a href="health_contact_report.php"><?php echo translate('health_contact_report'); ?></a>
     </div>
 
     <div id="points-list">
@@ -136,9 +140,31 @@ foreach ($results as $row) {
             <?php endif; ?>
         <?php endforeach; ?>
     </div>
-    <p><a href="index.php"><?php echo translate('ajouter_participant'); ?></a></p>
     <p><a href="logout.php"><?php echo translate('logout'); ?></a></p>
+    <script src="get_translations.php"></script>">
     <script src="js/functions.js"></script>
     <script type="module" src="js/app.js"></script>
+    <script type="module">
+        import { fetchAndStoreAttendanceReport, fetchAndStoreHealthContactReport } from './js/app.js';
+
+        async function loadOfflineData() {
+            try {
+                console.log('Starting to load offline data...');
+                await Promise.all([
+                    fetchAndStoreAttendanceReport(),
+                    fetchAndStoreHealthContactReport()
+                ]);
+                console.log('All offline data loaded successfully');
+            } catch (error) {
+                console.error('Error loading offline data:', error);
+            }
+        }
+
+        // Load offline data when the page loads
+        document.addEventListener('DOMContentLoaded', loadOfflineData);
+
+        // Also load offline data when the user comes back online
+        window.addEventListener('online', loadOfflineData);
+    </script>
 </body>
 </html>

@@ -1,13 +1,14 @@
 // app.js
 
 import { saveOfflineData, getOfflineData, clearOfflineData } from './indexedDB.js';
+import { openDB } from './indexedDB.js';
 
 let newWorker;
 let selectedItem = null;
 let pendingUpdates = new Map();
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js')
+  navigator.serviceWorker.register('/service-worker.js',{ type: 'module' } )
     .then((registration) => {
       console.log('Service Worker registered with scope:', registration.scope);
 
@@ -65,43 +66,56 @@ function updateOnlineStatus() {
   }
 }
 
-function syncData() {
+async function syncData() {
   if (isSyncing) return;
   isSyncing = true;
 
-  getOfflineData()
-    .then(offlineData => {
-      if (offlineData.length > 0) {
-        return fetch('/sync_data.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(offlineData),
-        });
-      } else {
-        return Promise.resolve(null);
-      }
-    })
-    .then(response => response ? response.json() : null)
-    .then(data => {
-      if (data && data.success) {
-        clearOfflineData();
-        console.log('Data synced successfully');
-        applyServerUpdates(data.serverUpdates);
-      } else if (data) {
-        console.error('Error syncing data:', data.error);
-        alert(translate('failed_to_sync_data'));
-      }
-    })
-    .catch(error => {
-      console.error('Error syncing data:', error);
-      alert(translate('failed_to_sync_data'));
-    })
-    .finally(() => {
-      isSyncing = false;
+  try {
+    const offlineData = await getOfflineData();
+
+    if (offlineData.length === 0) {
+      console.log('No offline data to sync');
+      return; // No sync needed
+    }
+
+    const response = await fetch('/sync_data.php', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(offlineData),
     });
+
+    if (!response.ok) {
+      console.error('Network response was not ok', response);
+      throw new Error('Network response was not ok');
+    }
+
+    const data = await response.json();
+
+    if (data && data.success) {
+      await clearOfflineData();
+      console.log('Data synced successfully');
+      applyServerUpdates(data.serverUpdates || []);
+    } else {
+      console.error('Error syncing data:', data.error);
+      throw new Error(data.error || 'Failed to sync data');
+    }
+  } catch (error) {
+    console.error('Error syncing data:', error);
+
+    // Avoid redundant alerts
+    if (!error.message.includes('No offline data to sync')) {
+      alert(translate('failed_to_sync_data'));
+    }
+  } finally {
+    isSyncing = false;
+  }
 }
+
+
+
+
 
 function applyServerUpdates(updates) {
   updates.forEach(update => {
@@ -250,7 +264,7 @@ function getCurrentDate() {
 
 function clearCache() {
   if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage('clearCache');
+    navigator.serviceWorker.controller.postMessage('updateCache');
   }
 }
 
@@ -413,6 +427,91 @@ function updatePointsUI(type, id, points) {
   }, 2000);
 }
 
+export async function fetchAndStoreAttendanceReport() {
+    if (!navigator.onLine) {
+        console.log('Cannot fetch attendance report while offline');
+        return;
+    }
+
+    try {
+        console.log('Fetching attendance report...');
+        const response = await fetch('/generate_attendance_report.php');
+        if (!response.ok) {
+            throw new Error(`Failed to fetch attendance report: ${response.status} ${response.statusText}`);
+        }
+        const reportData = await response.json();
+        console.log('Fetched report data:', reportData);
+
+        const db = await openDB();
+        const tx = db.transaction('offlineData', 'readwrite');
+        const store = tx.objectStore('offlineData');
+
+        console.log('Clearing existing data...');
+        await store.clear();
+
+        console.log('Storing new report...');
+        await store.put({
+            action: 'attendanceReport',
+            data: reportData,
+            timestamp: new Date().toISOString()
+        });
+
+        await tx.complete;
+        console.log('Attendance report stored offline');
+
+        // Retrieve and log all stored data
+        const allDataRequest = store.getAll();
+        const allData = await new Promise((resolve) => {
+            allDataRequest.onsuccess = () => resolve(allDataRequest.result);
+        });
+        console.log('All stored data:', allData);
+
+        return reportData;
+    } catch (error) {
+        console.error('Error fetching and storing attendance report:', error);
+        throw error;
+    }
+}
+
+export async function fetchAndStoreHealthContactReport() {
+    if (!navigator.onLine) {
+        console.log('Cannot fetch health and contact report while offline');
+        return;
+    }
+
+    try {
+        console.log('Fetching health and contact report...');
+        const response = await fetch('/generate_health_contact_report.php');
+        if (!response.ok) {
+            throw new Error(`Failed to fetch health and contact report: ${response.status} ${response.statusText}`);
+        }
+        const reportData = await response.json();
+        console.log('Fetched health and contact data:', reportData);
+
+        const db = await openDB();
+        const tx = db.transaction('offlineData', 'readwrite');
+        const store = tx.objectStore('offlineData');
+
+        await store.put({
+            action: 'healthContactReport',
+            data: reportData,
+            timestamp: new Date().toISOString()
+        });
+
+        await tx.complete;
+        console.log('Health and contact report stored offline');
+
+        // Verify stored data
+        const storedData = await store.get('healthContactReport');
+        console.log('Verified stored health and contact report:', storedData);
+
+        return reportData;
+    } catch (error) {
+        console.error('Error fetching and storing health and contact report:', error);
+        throw error;
+    }
+}
+
 function updateSingleItem(type, id, totalPoints) {
   console.log(`Updating single ${type} with id ${id} to ${totalPoints} points`);
   const selector = type === 'group' ? `[data-group-id="${id}"]` : `[data-name-id="${id}"]`;
@@ -570,11 +669,14 @@ window.removePendingUpdate = removePendingUpdate;
 window.applyPendingUpdates = applyPendingUpdates;
 window.refreshPointsData = refreshPointsData;
 window.updatePointsDisplay = updatePointsDisplay;
+window.fetchAndStoreAttendanceReport = fetchAndStoreAttendanceReport;
+window.fetchAndStoreHealthContactReport = fetchAndStoreHealthContactReport;
 
 // Refresh points data periodically when online
 setInterval(() => {
   if (navigator.onLine) {
     refreshPointsData();
+    fetchAndStoreAttendanceReport();
   }
 }, 300000);  // Refresh every 5 minutes
 
