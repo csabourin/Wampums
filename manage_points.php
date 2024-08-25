@@ -6,35 +6,28 @@ requireLogin();
 
 $pdo = getDbConnection();
 
-// Fetch all groups
-$stmt = $pdo->query("SELECT id, name FROM groups ORDER BY name");
-$groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Fetch all groups with their points
+$groupQuery = "
+    SELECT g.id, g.name, COALESCE(SUM(p.value), 0) AS total_points
+    FROM groups g
+    LEFT JOIN points p ON g.id = p.group_id
+    GROUP BY g.id, g.name
+    ORDER BY g.name
+";
+$groupStmt = $pdo->query($groupQuery);
+$groups = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch all names with their associated group and total points
-$query = "
-    SELECT p.id, p.first_name, g.id AS group_id, g.name AS group_name, 
-           COALESCE(SUM(pt.value), 0) AS total_points
-    FROM participants p 
-    JOIN groups g ON p.group_id = g.id 
+// Fetch all participants with their points
+$participantQuery = "
+    SELECT p.id, p.first_name, p.group_id, g.name AS group_name, COALESCE(SUM(pt.value), 0) AS total_points
+    FROM participants p
+    LEFT JOIN groups g ON p.group_id = g.id
     LEFT JOIN points pt ON p.id = pt.name_id
-    GROUP BY p.id, g.id
-    ORDER BY g.name, p.first_name";
-
-$stmt = $pdo->query($query);
-$names = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Calculate total points for each group
-$groupPoints = [];
-foreach ($groups as $group) {
-    $stmt = $pdo->prepare("
-        SELECT COALESCE(SUM(value), 0) AS total_points
-        FROM points
-        WHERE group_id = ?
-    ");
-    $stmt->execute([$group['id']]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    $groupPoints[$group['id']] = $result['total_points'];
-}
+    GROUP BY p.id, p.first_name, p.group_id, g.name
+    ORDER BY g.name, p.first_name
+";
+$participantStmt = $pdo->query($participantQuery);
+$participants = $participantStmt->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 <!DOCTYPE html>
@@ -42,9 +35,6 @@ foreach ($groups as $group) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#4c65ae">
-    <link rel="apple-touch-icon" href="/images/icon-192x192.png">
     <title><?php echo translate('manage_points'); ?></title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -75,20 +65,25 @@ foreach ($groups as $group) {
 
     <div id="points-list">
         <?php foreach ($groups as $group): ?>
-            <div class="group-header" data-group-id="<?php echo $group['id']; ?>" data-type="group">
+            <div class="group-header" data-group-id="<?php echo $group['id']; ?>" data-type="group" data-points="<?php echo $group['total_points']; ?>">
                 <?php echo htmlspecialchars($group['name']); ?> - 
-                <span id="group-points-<?php echo $group['id']; ?>"><?php echo $groupPoints[$group['id']]; ?> <?php echo translate('points'); ?></span>
+                <span id="group-points-<?php echo $group['id']; ?>"><?php echo $group['total_points']; ?> <?php echo translate('points'); ?></span>
             </div>
-            <?php foreach ($names as $name): ?>
-                <?php if ($name['group_id'] == $group['id']): ?>
-                    <div class="list-item" data-name-id="<?php echo $name['id']; ?>" data-type="individual" 
-                         data-group-id="<?php echo $name['group_id']; ?>" data-points="<?php echo $name['total_points']; ?>"
-                         data-name="<?php echo htmlspecialchars($name['first_name']); ?>">
-                        <span><?php echo htmlspecialchars($name['first_name']); ?></span>
-                        <span id="name-points-<?php echo $name['id']; ?>"><?php echo $name['total_points']; ?> <?php echo translate('points'); ?></span>
+            <div class="group-content">
+                <?php 
+                $groupParticipants = array_filter($participants, function($p) use ($group) {
+                    return $p['group_id'] == $group['id'];
+                });
+                foreach ($groupParticipants as $participant): 
+                ?>
+                    <div class="list-item" data-name-id="<?php echo $participant['id']; ?>" data-type="individual" 
+                         data-group-id="<?php echo $participant['group_id']; ?>" data-points="<?php echo $participant['total_points']; ?>"
+                         data-name="<?php echo htmlspecialchars($participant['first_name']); ?>">
+                        <span><?php echo htmlspecialchars($participant['first_name']); ?></span>
+                        <span id="name-points-<?php echo $participant['id']; ?>"><?php echo $participant['total_points']; ?> <?php echo translate('points'); ?></span>
                     </div>
-                <?php endif; ?>
-            <?php endforeach; ?>
+                <?php endforeach; ?>
+            </div>
         <?php endforeach; ?>
     </div>
 
@@ -104,6 +99,6 @@ foreach ($groups as $group) {
     <p><a href="dashboard.php"><?php echo translate('back_to_dashboard'); ?></a></p>
     <script src="js/functions.js"></script>
     <script type="module" src="js/app.js"></script>
-      <script type="module" src="js/points_script.js"></script>
+    <script type="module" src="js/points_manager.js"></script>
 </body>
 </html>

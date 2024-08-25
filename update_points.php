@@ -6,84 +6,90 @@ requireLogin();
 
 header('Content-Type: application/json');
 
+$pdo = getDbConnection();
+
 try {
-    if ($_SERVER['REQUEST_METHOD'] != 'POST') {
-        throw new Exception('Invalid request method');
-    }
-
-    $json = file_get_contents('php://input');
-    $data = json_decode($json, true);
-
-    if (!$data) {
-        throw new Exception('Invalid JSON data');
-    }
-
-    $type = $data['type'];
-    $id = (int)$data['id'];
-    $points = (int)$data['points'];
-    $timestamp = $data['timestamp'];
-
-    $pdo = getDbConnection();
     $pdo->beginTransaction();
 
-    if ($type === 'group') {
-        // Insert points for the group
-        $stmt = $pdo->prepare("INSERT INTO points (group_id, value, created_at) VALUES (?, ?, ?)");
-        $stmt->execute([$id, $points, $timestamp]);
+    $updateStmt = $pdo->prepare("
+        INSERT INTO points (name_id, group_id, value, created_at) 
+        VALUES (:name_id, :group_id, :value, :created_at)
+    ");
 
-        // Fetch all members of the group
-        $stmt = $pdo->prepare("SELECT id FROM names WHERE group_id = ?");
-        $stmt->execute([$id]);
-        $members = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $getGroupMembersStmt = $pdo->prepare("
+        SELECT id FROM participants WHERE group_id = :group_id
+    ");
 
-        // Insert points for each member
-        $stmt = $pdo->prepare("INSERT INTO points (name_id, value, created_at) VALUES (?, ?, ?)");
-        foreach ($members as $memberId) {
-            $stmt->execute([$memberId, $points, $timestamp]);
+    $data = json_decode(file_get_contents('php://input'), true);
+    $responses = [];
+
+    foreach ($data as $update) {
+        if ($update['type'] === 'group') {
+            // For group updates, add points to the group and all its members
+            $updateStmt->execute([
+                ':name_id' => null,
+                ':group_id' => $update['id'],
+                ':value' => $update['points'],
+                ':created_at' => $update['timestamp']
+            ]);
+
+            $getGroupMembersStmt->execute([':group_id' => $update['id']]);
+            $members = $getGroupMembersStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            foreach ($members as $memberId) {
+                $updateStmt->execute([
+                    ':name_id' => $memberId,
+                    ':group_id' => null,
+                    ':value' => $update['points'],
+                    ':created_at' => $update['timestamp']
+                ]);
+            }
+
+            // Fetch updated group total
+            $groupTotalStmt = $pdo->prepare("
+                SELECT COALESCE(SUM(value), 0) as total_points 
+                FROM points 
+                WHERE group_id = :group_id
+            ");
+            $groupTotalStmt->execute([':group_id' => $update['id']]);
+            $groupTotal = $groupTotalStmt->fetchColumn();
+
+            $responses[] = [
+                'type' => 'group',
+                'id' => $update['id'],
+                'totalPoints' => $groupTotal,
+                'memberIds' => $members
+            ];
+        } else {
+            // For individual updates, only add points to the individual
+            $updateStmt->execute([
+                ':name_id' => $update['id'],
+                ':group_id' => null,
+                ':value' => $update['points'],
+                ':created_at' => $update['timestamp']
+            ]);
+
+            // Fetch updated individual total
+            $individualTotalStmt = $pdo->prepare("
+                SELECT COALESCE(SUM(value), 0) as total_points 
+                FROM points 
+                WHERE name_id = :name_id
+            ");
+            $individualTotalStmt->execute([':name_id' => $update['id']]);
+            $individualTotal = $individualTotalStmt->fetchColumn();
+
+            $responses[] = [
+                'type' => 'individual',
+                'id' => $update['id'],
+                'totalPoints' => $individualTotal
+            ];
         }
-
-        // Fetch updated total points for the group
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(value), 0) as total_points FROM points WHERE group_id = ?");
-        $stmt->execute([$id]);
-        $totalPoints = $stmt->fetchColumn();
-
-        // Fetch updated points for all members of the group
-        $stmt = $pdo->prepare("
-            SELECT n.id, COALESCE(SUM(p.value), 0) as total_points
-            FROM names n
-            LEFT JOIN points p ON n.id = p.name_id
-            WHERE n.group_id = ?
-            GROUP BY n.id
-        ");
-        $stmt->execute([$id]);
-        $memberPoints = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-
-        $response = [
-            'status' => 'success',
-            'totalPoints' => $totalPoints,
-            'memberPoints' => $memberPoints
-        ];
-    } else {
-        // Insert points for the individual
-        $stmt = $pdo->prepare("INSERT INTO points (name_id, value, created_at) VALUES (?, ?, ?)");
-        $stmt->execute([$id, $points, $timestamp]);
-
-        // Fetch updated total points for the individual
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(value), 0) as total_points FROM points WHERE name_id = ?");
-        $stmt->execute([$id]);
-        $totalPoints = $stmt->fetchColumn();
-
-        $response = [
-            'status' => 'success',
-            'totalPoints' => $totalPoints
-        ];
     }
 
     $pdo->commit();
-    echo json_encode($response);
+
+    echo json_encode(['status' => 'success', 'updates' => $responses]);
 } catch (Exception $e) {
-    if (isset($pdo) && $pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
+    $pdo->rollBack();
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }

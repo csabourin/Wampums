@@ -9,6 +9,23 @@ $pdo = getDbConnection();
 $participant_id = $_GET['id'] ?? null;
 $participant = null;
 
+// Check if the participant exists and belongs to the current user
+if ($participant_id) {
+    $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ? AND user_id = ?");
+    $stmt->execute([$participant_id, $_SESSION['user_id']]);
+    $participant = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // If the participant doesn't exist or doesn't belong to the current user, redirect to index.php
+    if (!$participant) {
+        header('Location: index.php');
+        exit;
+    }
+} else {
+    // If no participant_id is provided, redirect to index.php
+    header('Location: index.php');
+    exit;
+}
+
 function getCurrentStars($pdo, $participant_id, $territoire_chasse) {
     $stmt = $pdo->prepare("
         SELECT MAX(etoiles) as current_stars 
@@ -219,7 +236,7 @@ if (!$participant_id) {
         <?php endforeach; ?>
     </div>
 
-    <p><a href="dashboard.php"><?php echo translate('back_to_dashboard'); ?></a></p>
+    <p><a href="index.php"><?php echo translate('back_to_dashboard'); ?></a></p>
     <script>
     const participantId = <?php echo json_encode($participant_id); ?>;
     </script>

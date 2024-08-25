@@ -121,12 +121,13 @@ foreach ($results as $row) {
         <a href="index.php"><?php echo translate('vue_parents'); ?></a>
         <a href="attendance_report.php"><?php echo translate('attendance_report'); ?></a>
         <a href="health_contact_report.php"><?php echo translate('health_contact_report'); ?></a>
+        <a href="parent_contact_list.php"><?php echo translate('parent_contact_list'); ?></a>
     </div>
 
     <div id="points-list">
         <?php foreach ($groups as $groupId => $group): ?>
             <div class="group-header" data-group-id="<?php echo $groupId; ?>">
-                <?php echo htmlspecialchars($group['name']); ?>
+                <?php echo htmlspecialchars($group['name'] ?? translate('no_group')); ?>
             </div>
             <?php if (!empty($group['names'])): ?>
                 <?php foreach ($group['names'] as $name): ?>
@@ -141,7 +142,7 @@ foreach ($results as $row) {
         <?php endforeach; ?>
     </div>
     <p><a href="logout.php"><?php echo translate('logout'); ?></a></p>
-    <script src="get_translations.php"></script>">
+    <script src="get_translations.php"></script>
     <script src="js/functions.js"></script>
     <script type="module" src="js/app.js"></script>
     <script type="module">
@@ -166,5 +167,9 @@ foreach ($results as $row) {
         // Also load offline data when the user comes back online
         window.addEventListener('online', loadOfflineData);
     </script>
+    <div id="cache-progress-container" style="display: none;">
+        <div id="cache-progress-bar"></div>
+        <div id="cache-progress-text">Téléchargement des fichiers hors-ligne...</div>
+    </div>
 </body>
 </html>

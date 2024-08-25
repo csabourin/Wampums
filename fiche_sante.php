@@ -9,17 +9,35 @@ $pdo = getDbConnection();
 $participant_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 $participant = null;
 $fiche_sante = null;
+$parents = [];
 
 if ($participant_id) {
     // Fetch participant data
-    $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ?");
-    $stmt->execute([$participant_id]);
+    $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ? AND user_id = ?");
+    $stmt->execute([$participant_id, $_SESSION['user_id']]);
     $participant = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$participant) {
+        // Redirect if the participant doesn't belong to the user
+        header('Location: index.php');
+        exit;
+    }
 
     // Fetch fiche_sante data
     $stmt = $pdo->prepare("SELECT * FROM fiche_sante WHERE participant_id = ?");
     $stmt->execute([$participant_id]);
     $fiche_sante = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Fetch parents/guardians data
+    $stmt = $pdo->prepare("
+        SELECT pg.* 
+        FROM parents_guardians pg
+        JOIN participant_guardians pgp ON pg.id = pgp.parent_guardian_id
+        WHERE pgp.participant_id = ?
+        ORDER BY pg.is_primary DESC
+    ");
+    $stmt->execute([$participant_id]);
+    $parents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -31,12 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             'nom_fille_mere' => $_POST['nom_fille_mere'],
             'medecin_famille' => isset($_POST['medecin_famille']) ? 1 : 0,
             'nom_medecin' => isset($_POST['medecin_famille']) ? $_POST['nom_medecin'] : null,
-            'contact_urgence_1_nom' => $_POST['contact_urgence_1_nom'],
-            'contact_urgence_1_telephone' => $_POST['contact_urgence_1_telephone'],
-            'contact_urgence_1_lien' => $_POST['contact_urgence_1_lien'],
-            'contact_urgence_2_nom' => $_POST['contact_urgence_2_nom'],
-            'contact_urgence_2_telephone' => $_POST['contact_urgence_2_telephone'],
-            'contact_urgence_2_lien' => $_POST['contact_urgence_2_lien'],
             'probleme_sante' => $_POST['probleme_sante'],
             'allergie' => $_POST['allergie'],
             'epipen' => isset($_POST['epipen']) ? 1 : 0,
@@ -56,12 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 nom_fille_mere = :nom_fille_mere,
                 medecin_famille = :medecin_famille,
                 nom_medecin = :nom_medecin,
-                contact_urgence_1_nom = :contact_urgence_1_nom,
-                contact_urgence_1_telephone = :contact_urgence_1_telephone,
-                contact_urgence_1_lien = :contact_urgence_1_lien,
-                contact_urgence_2_nom = :contact_urgence_2_nom,
-                contact_urgence_2_telephone = :contact_urgence_2_telephone,
-                contact_urgence_2_lien = :contact_urgence_2_lien,
                 probleme_sante = :probleme_sante,
                 allergie = :allergie,
                 epipen = :epipen,
@@ -78,15 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Insert new fiche_sante
             $stmt = $pdo->prepare("INSERT INTO fiche_sante (
                 participant_id, nom_fille_mere, medecin_famille, nom_medecin,
-                contact_urgence_1_nom, contact_urgence_1_telephone, contact_urgence_1_lien,
-                contact_urgence_2_nom, contact_urgence_2_telephone, contact_urgence_2_lien,
                 probleme_sante, allergie, epipen, medicament, limitation,
                 vaccins_a_jour, blessures_operations, niveau_natation, doit_porter_vfi,
                 regles, renseignee
             ) VALUES (
                 :participant_id, :nom_fille_mere, :medecin_famille, :nom_medecin,
-                :contact_urgence_1_nom, :contact_urgence_1_telephone, :contact_urgence_1_lien,
-                :contact_urgence_2_nom, :contact_urgence_2_telephone, :contact_urgence_2_lien,
                 :probleme_sante, :allergie, :epipen, :medicament, :limitation,
                 :vaccins_a_jour, :blessures_operations, :niveau_natation, :doit_porter_vfi,
                 :regles, :renseignee
@@ -95,12 +97,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $stmt->execute($ficheSanteData);
 
+        // Update emergency contact status for parents/guardians
+        if (isset($_POST['is_emergency_contact'])) {
+            // First, reset all emergency contacts for this participant
+            $stmt = $pdo->prepare("
+                UPDATE parents_guardians 
+                SET is_emergency_contact = false 
+                WHERE id IN (
+                    SELECT parent_guardian_id 
+                    FROM participant_guardians 
+                    WHERE participant_id = ?
+                )
+            ");
+            $stmt->execute([$participant_id]);
+
+            // Then, set the selected guardians as emergency contacts
+            foreach ($_POST['is_emergency_contact'] as $parent_id) {
+                $stmt = $pdo->prepare("UPDATE parents_guardians SET is_emergency_contact = true WHERE id = ?");
+                $stmt->execute([$parent_id]);
+            }
+        }
+
         $pdo->commit();
-        header("Location: dashboard.php");
+        header("Location: index.php");
         exit();
     } catch (Exception $e) {
         $pdo->rollBack();
-        $error = "Une erreur est survenue lors de l'enregistrement: " . htmlspecialchars($e->getMessage());
+        $error = "Une erreur est survenue lors de l'enregistrement: " . $e->getMessage();
     }
 }
 ?>
@@ -133,25 +156,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <input type="text" id="nom_medecin" name="nom_medecin" value="<?php echo htmlspecialchars($fiche_sante['nom_medecin'] ?? ''); ?>">
 
         <h2><?php echo translate('urgence'); ?></h2>
-        <h3><?php echo translate('contact_1'); ?></h3>
-        <label for="contact_urgence_1_nom"><?php echo translate('nom'); ?>:</label>
-        <input type="text" id="contact_urgence_1_nom" name="contact_urgence_1_nom" value="<?php echo htmlspecialchars($fiche_sante['contact_urgence_1_nom'] ?? ''); ?>" required>
-
-        <label for="contact_urgence_1_telephone"><?php echo translate('telephone'); ?>:</label>
-        <input type="tel" id="contact_urgence_1_telephone" name="contact_urgence_1_telephone" value="<?php echo htmlspecialchars($fiche_sante['contact_urgence_1_telephone'] ?? ''); ?>" required>
-
-        <label for="contact_urgence_1_lien"><?php echo translate('lien'); ?>:</label>
-        <input type="text" id="contact_urgence_1_lien" name="contact_urgence_1_lien" value="<?php echo htmlspecialchars($fiche_sante['contact_urgence_1_lien'] ?? ''); ?>" required>
-
-        <h3><?php echo translate('contact_2'); ?></h3>
-        <label for="contact_urgence_2_nom"><?php echo translate('nom'); ?>:</label>
-        <input type="text" id="contact_urgence_2_nom" name="contact_urgence_2_nom" value="<?php echo htmlspecialchars($fiche_sante['contact_urgence_2_nom'] ?? ''); ?>">
-
-        <label for="contact_urgence_2_telephone"><?php echo translate('telephone'); ?>:</label>
-        <input type="tel" id="contact_urgence_2_telephone" name="contact_urgence_2_telephone" value="<?php echo htmlspecialchars($fiche_sante['contact_urgence_2_telephone'] ?? ''); ?>">
-
-        <label for="contact_urgence_2_lien"><?php echo translate('lien'); ?>:</label>
-        <input type="text" id="contact_urgence_2_lien" name="contact_urgence_2_lien" value="<?php echo htmlspecialchars($fiche_sante['contact_urgence_2_lien'] ?? ''); ?>">
+        <?php foreach ($parents as $index => $parent): ?>
+            <h3><?php echo translate('contact') . ' ' . ($index + 1); ?></h3>
+            <p><?php echo htmlspecialchars($parent['prenom'] . ' ' . $parent['nom']); ?></p>
+            <p><?php echo translate('telephone'); ?>: <?php echo htmlspecialchars($parent['telephone_cellulaire']); ?></p>
+            <label>
+                <input type="checkbox" name="is_emergency_contact[]" value="<?php echo $parent['id']; ?>" 
+                       <?php echo $parent['is_emergency_contact'] ? 'checked' : ''; ?>>
+                <?php echo translate('is_emergency_contact'); ?>
+            </label>
+        <?php endforeach; ?>
 
         <h2><?php echo translate('informations_medicales'); ?></h2>
         <label for="probleme_sante"><?php echo translate('probleme_sante'); ?>:</label>
@@ -195,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         <input type="submit" value="<?php echo translate('enregistrer_fiche_sante'); ?>">
     </form>
-    <p><a href="dashboard.php"><?php echo translate('retour_tableau_bord'); ?></a></p>
+    <p><a href="index.php"><?php echo translate('retour_tableau_bord'); ?></a></p>
 
     <script src="js/fiche_sante.js"></script>
 </body>

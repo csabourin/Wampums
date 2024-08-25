@@ -29,12 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             
-            // Set is_verified to TRUE for parent users
-            $isVerified = ($userType === 'parent') ? TRUE : FALSE;
-            
+            $isVerified = ($userType === 'parent') ? 'TRUE' : 'FALSE';
+
             $stmt = $pdo->prepare("INSERT INTO users (email, password, is_verified, role) VALUES (?, ?, ?, ?)");
             if ($stmt->execute([$email, $hashedPassword, $isVerified, $userType])) {
-                if ($isVerified) {
+                if ($isVerified === 'TRUE') {
                     $success = translate('registration_successful_parent');
                 } else {
                     $success = translate('registration_successful_await_verification');

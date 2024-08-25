@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->execute($acceptationRisqueData);
 
         $pdo->commit();
-        header("Location: dashboard.php");
+        header("Location: index.php");
         exit();
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             <input type="submit" value="<?php echo translate('soumettre_acceptation_risque'); ?>">
         </form>
-        <p><a href="dashboard.php"><?php echo translate('retour_tableau_bord'); ?></a></p>
+        <p><a href="index.php"><?php echo translate('retour_tableau_bord'); ?></a></p>
 
         <script src="js/acceptation_risque.js"></script>
     </body>

@@ -510,6 +510,43 @@ details p {
   text-align: left;
 }
 
+.parent-item {
+  background-color: #fff;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.parent-item h2 {
+  color: var(--primary-color);
+  margin-top: 0;
+}
+
+#cache-progress-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 5px;
+  font-size: 12px;
+  text-align: center;
+  z-index: 9999;
+}
+
+#cache-progress-bar {
+  height: 3px;
+  background-color: #4CAF50;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+#cache-progress-text {
+  margin-top: 2px;
+}
+
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {

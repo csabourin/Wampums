@@ -4,11 +4,11 @@ date_default_timezone_set('America/Toronto');
 
 // Database connection function
 function getDbConnection() {
-    if (!isset($_ENV['DATABASE_URL'])) {
-        die("Error: DATABASE_URL environment variable not set.");
+    if (!isset($_ENV['SB_URL'])) {
+        die("Error: SB_URL environment variable not set.");
     }
 
-    $dbUrl = parse_url($_ENV['DATABASE_URL']);
+    $dbUrl = parse_url($_ENV['SB_URL']);
 
     if (!$dbUrl) {
         die("Error: Unable to parse DATABASE_URL.");
@@ -98,7 +98,7 @@ try {
 }
 
 // Other configuration constants
-define('SITE_URL', 'http://localhost'); // Change this to your actual site URL
+define('SITE_URL', 'http://wampum.replit.app'); // Change this to your actual site URL
 define('DEFAULT_LANG', 'fr');
 
 // Set language

@@ -29,11 +29,20 @@ function requireLogin() {
     if (session_status() == PHP_SESSION_NONE) {
         session_start();
     }
+
     if (!isset($_SESSION['user_id'])) {
-        header('Location: login.php');
-        exit();
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+            // Respond with a JSON error message instead of redirecting
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'User not logged in']);
+            exit();
+        } else {
+            header('Location: login.php');
+            exit();
+        }
     }
 }
+
 
 function loadLanguage($lang) {
     global $translations;
