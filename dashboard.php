@@ -101,6 +101,9 @@ foreach ($results as $row) {
     </style>
 </head>
 <body>
+    <div id="loading-indicator" style="display: none;">
+        <?php echo translate('loading'); ?>...
+    </div>
     <div id="offline-indicator" style="display: none;">
         <?php echo translate('you_are_offline'); ?>
     </div>
@@ -119,53 +122,59 @@ foreach ($results as $row) {
          <a href="view_participant_documents.php"><?php echo translate('view_participant_documents'); ?></a>
          <a href="approve_badges.php"><?php echo translate('approve_badges'); ?></a>
         <a href="index.php"><?php echo translate('vue_parents'); ?></a>
-        <a href="attendance_report.php"><?php echo translate('attendance_report'); ?></a>
-        <a href="health_contact_report.php"><?php echo translate('health_contact_report'); ?></a>
         <a href="parent_contact_list.php"><?php echo translate('parent_contact_list'); ?></a>
+        <a href="manage_users_participants.php"><?php echo translate('manage_participants'); ?></a>
     </div>
 
-    <div id="points-list">
-        <?php foreach ($groups as $groupId => $group): ?>
-            <div class="group-header" data-group-id="<?php echo $groupId; ?>">
-                <?php echo htmlspecialchars($group['name'] ?? translate('no_group')); ?>
-            </div>
-            <?php if (!empty($group['names'])): ?>
-                <?php foreach ($group['names'] as $name): ?>
-                    <div class="list-item" data-name-id="<?php echo $name['id']; ?>" data-points="<?php echo $name['points']; ?>">
-                        <span><?php echo htmlspecialchars($name['name']); ?></span>
-                        <span id="name-points-<?php echo $name['id']; ?>"><?php echo $name['points']; ?> <?php echo translate('points'); ?></span>
-                    </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <p><?php echo translate('no_names_in_group'); ?></p>
-            <?php endif; ?>
-        <?php endforeach; ?>
-    </div>
+    <div id="points-list"></div>
+    
     <p><a href="logout.php"><?php echo translate('logout'); ?></a></p>
     <script src="get_translations.php"></script>
     <script src="js/functions.js"></script>
+    <script src="js/ajax-functions.js"></script>
     <script type="module" src="js/app.js"></script>
-    <script type="module">
-        import { fetchAndStoreAttendanceReport, fetchAndStoreHealthContactReport } from './js/app.js';
-
-        async function loadOfflineData() {
-            try {
-                console.log('Starting to load offline data...');
-                await Promise.all([
-                    fetchAndStoreAttendanceReport(),
-                    fetchAndStoreHealthContactReport()
-                ]);
-                console.log('All offline data loaded successfully');
-            } catch (error) {
-                console.error('Error loading offline data:', error);
-            }
+    <script type="module" src="js/points_manager.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        try {
+            const participants = await getParticipants();
+            const groups = await getGroups();
+            updateDashboard(participants, groups);
+        } catch (error) {
+            console.error('Error loading dashboard data:', error);
         }
+    });
 
-        // Load offline data when the page loads
-        document.addEventListener('DOMContentLoaded', loadOfflineData);
+    function updateDashboard(participants, groups) {
+        const pointsList = document.getElementById('points-list');
+        let html = '';
 
-        // Also load offline data when the user comes back online
-        window.addEventListener('online', loadOfflineData);
+        groups.forEach(group => {
+            html += `
+                <div class="group-header" data-group-id="${group.id}">
+                    ${group.name} - 
+                    <span id="group-points-${group.id}">${group.total_points} ${translations.points}</span>
+                </div>
+                <div class="group-content">
+            `;
+
+            const groupParticipants = participants.filter(p => p.group_id == group.id);
+            groupParticipants.forEach(participant => {
+                html += `
+                    <div class="list-item" data-name-id="${participant.id}" data-type="individual" 
+                         data-group-id="${participant.group_id}" data-points="${participant.total_points}"
+                         data-name="${participant.first_name}">
+                        <span>${participant.first_name} ${participant.last_name}</span>
+                        <span id="name-points-${participant.id}">${participant.total_points} ${translations.points}</span>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+        });
+
+        pointsList.innerHTML = html;
+    }
     </script>
     <div id="cache-progress-container" style="display: none;">
         <div id="cache-progress-bar"></div>

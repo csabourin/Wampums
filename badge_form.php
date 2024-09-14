@@ -9,13 +9,23 @@ $pdo = getDbConnection();
 $participant_id = $_GET['id'] ?? null;
 $participant = null;
 
-// Check if the participant exists and belongs to the current user
+// Check if the participant exists and the current user has access
 if ($participant_id) {
-    $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ? AND user_id = ?");
-    $stmt->execute([$participant_id, $_SESSION['user_id']]);
-    $participant = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($_SESSION['user_role'] === 'animation' || $_SESSION['user_role'] === 'admin') {
+        // Animation and admin roles have access to all participants
+        $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ?");
+        $stmt->execute([$participant_id]);
+        $participant = $stmt->fetch(PDO::FETCH_ASSOC);
+    } else {
+        // For parent users, check access using the user_participants table
+        if (userHasAccessToParticipant($pdo, $_SESSION['user_id'], $participant_id)) {
+            $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ?");
+            $stmt->execute([$participant_id]);
+            $participant = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+    }
 
-    // If the participant doesn't exist or doesn't belong to the current user, redirect to index.php
+    // If the participant doesn't exist or the user doesn't have access, redirect to index.php
     if (!$participant) {
         header('Location: index.php');
         exit;
@@ -138,6 +148,9 @@ if (!$participant_id) {
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <div id="loading-indicator" style="display: none;">
+        <?php echo translate('loading'); ?>...
+    </div>
     <h1><?php echo translate('badge_progress_form'); ?></h1>
     <?php if (isset($success)): ?>
         <div class="success"><?php echo $success; ?></div>

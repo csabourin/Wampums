@@ -89,6 +89,12 @@ if (!$document) {
     </style>
 </head>
 <body>
+    <div id="loading-indicator" style="display: none;">
+        <?php echo translate('loading'); ?>...
+    </div>
+    <div id="offline-indicator" style="display: none;">
+      <?php echo translate('you_are_offline'); ?>
+    </div>
     <h1><?php echo translate($type); ?> - <?php echo htmlspecialchars($participant['first_name'] . ' ' . $participant['last_name']); ?></h1>
     <p><a href="view_participant_documents.php"><?php echo translate('back_to_participant_documents'); ?></a></p>
 

@@ -114,6 +114,12 @@ uasort($children, function($a, $b) {
     </style>
 </head>
 <body>
+    <div id="loading-indicator" style="display: none;">
+        <?php echo translate('loading'); ?>...
+    </div>
+    <div id="offline-indicator" style="display: none;">
+        <?php echo translate('you_are_offline'); ?>
+    </div>
     <h1><?php echo translate('parent_contact_list'); ?></h1>
     <ul class="child-list" id="childList">
         <?php 

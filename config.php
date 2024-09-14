@@ -1,6 +1,9 @@
 <?php
 require 'functions.php';
 date_default_timezone_set('America/Toronto');
+// Account creation password
+define('ACCOUNT_CREATION_PASSWORD', $_ENV['ACCOUNT_CREATION_PASSWORD']);
+
 
 // Database connection function
 function getDbConnection() {
@@ -40,47 +43,6 @@ function createTables($pdo) {
             is_verified BOOLEAN DEFAULT FALSE,
             verification_token VARCHAR(255),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-
-        // Groups table
-        "CREATE TABLE IF NOT EXISTS groups (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-
-        // Names table
-        "CREATE TABLE IF NOT EXISTS names (
-            id SERIAL PRIMARY KEY,
-            first_name VARCHAR(255) NOT NULL,
-            group_id INTEGER REFERENCES groups(id),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-
-        // Points table
-        "CREATE TABLE IF NOT EXISTS points (
-            id SERIAL PRIMARY KEY,
-            name_id INTEGER REFERENCES names(id),
-            group_id INTEGER REFERENCES groups(id),
-            value INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-
-        // Languages table
-        "CREATE TABLE IF NOT EXISTS languages (
-            id SERIAL PRIMARY KEY,
-            code VARCHAR(5) NOT NULL,
-            name VARCHAR(50) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )",
-
-        // Translations table
-        "CREATE TABLE IF NOT EXISTS translations (
-            id SERIAL PRIMARY KEY,
-            language_id INTEGER REFERENCES languages(id),
-            key VARCHAR(255) NOT NULL,
-            value TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"
     ];
 
@@ -98,7 +60,7 @@ try {
 }
 
 // Other configuration constants
-define('SITE_URL', 'http://wampum.replit.app'); // Change this to your actual site URL
+define('SITE_URL', 'https://meute6a.app'); // Change this to your actual site URL
 define('DEFAULT_LANG', 'fr');
 
 // Set language

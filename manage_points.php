@@ -39,6 +39,9 @@ $participants = $participantStmt->fetchAll(PDO::FETCH_ASSOC);
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <div id="loading-indicator" style="display: none;">
+        <?php echo translate('loading'); ?>...
+    </div>
     <div id="offline-indicator" style="display: none;">
       <?php echo translate('you_are_offline'); ?>
     </div>

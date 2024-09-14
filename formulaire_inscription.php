@@ -17,12 +17,23 @@ $stmt->execute([$_SESSION['user_id']]);
 $all_parents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if ($participant_id) {
-    // Fetch participant data
-    $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ? AND user_id = ?");
-    $stmt->execute([$participant_id, $_SESSION['user_id']]);
+    // Check if the user has access to this participant
+    if ($_SESSION['user_role'] === 'animation' || $_SESSION['user_role'] === 'admin') {
+        $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ?");
+        $stmt->execute([$participant_id]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT p.* 
+            FROM participants p
+            JOIN user_participants up ON p.id = up.participant_id
+            WHERE p.id = ? AND up.user_id = ?
+        ");
+        $stmt->execute([$participant_id, $_SESSION['user_id']]);
+    }
     $participant = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$participant) {
+        // Redirect if the participant doesn't exist or the user doesn't have access
         header('Location: index.php');
         exit;
     }
@@ -75,7 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 ville, province, code_postal, courriel, telephone, user_id) VALUES (:first_name, :last_name, 
                 :date_naissance, :sexe, :adresse, :ville, :province, :code_postal, :courriel, :telephone, :user_id)");
             $stmt->execute($participantData);
-            $participant_id = $pdo->lastInsertId();
+            $participantId = $pdo->lastInsertId();
+            $stmt = $pdo->prepare("INSERT INTO user_participants (user_id, participant_id) VALUES (?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $participantId]);
         }
 
         // Process parents/guardians data
@@ -107,9 +120,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt->execute([$participant_id, $parent_guardian_id]);
         }
 
-        // Process inscription data
-        // ... (keep the existing inscription processing code)
-
         $pdo->commit();
         header("Location: index.php");
         exit();
@@ -128,6 +138,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <div id="loading-indicator" style="display: none;">
+        <?php echo translate('loading'); ?>...
+    </div>
     <h1><?php echo translate('formulaire_inscription'); ?></h1>
     <?php if (isset($error)): ?>
         <div class="error"><?php echo htmlspecialchars($error); ?></div>

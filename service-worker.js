@@ -1,242 +1,158 @@
-// Cache name
-const CACHE_NAME = 'points-app-v2.6';
+const CACHE_NAME = 'wampums-app-v1.1';
+const STATIC_CACHE_NAME = 'wampums-static-v1.1';
+const API_CACHE_NAME = 'wampums-api-v1.1';
 
-import { openDB, saveOfflineData, getOfflineData, clearOfflineData } from './js/indexedDB.js';
-
-const cacheOnlyUrls = [
-  '/images/icon-192x192.png',
-  '/images/6eASt-Paul.png',
-  '/manifest.json',
-  '/css/styles.css',
-  '/js/indexedDB.js',
-  '/js/app.js',
-  '/js/functions.js',
-  '/js/points_manager.js',
-  '/js/health_contact_report.js',
-  '/js/attendance_report.js',
-  '/lang/fr.php',
-  '/lang/en.php',
-  '/favicon.ico'
-  // add more static files
+const staticAssets = [
+    '/',
+    '/index.php',
+    '/css/styles.css',
+    '/spa/app.js',
+    '/spa/dashboard.js',
+    '/spa/parent_dashboard.js',
+    '/spa/indexedDB.js',
+    '/spa/ajax-functions.js',
+    '/manifest.json',
+    '/images/icon-192x192.png',
+    '/images/icon-512x512.png',
+    '/images/6eASt-Paul.png',
 ];
 
-const urlsToCache = [
-  '/',
-  '/index.php',
-  '/dashboard.php',
-  '/manage_points.php',
-  '/manage_honors.php',
-  '/attendance.php',
-  '/approve_badges.php',
-  '/badge_form.php',
-  '/fiche_sante.php',
-  '/formulaire_inscription.php',
-  '/acceptation_risque.php',
-  '/view_participant_documents.php',
-  '/health_contact_report.php',
-  '/attendance_report.php',
-  '/parent_contact_list.php',
-  '/css/styles.css',
-  '/js/app.js',
-  '/js/functions.js',
-  '/js/indexedDB.js',
-  '/js/points_manager.js',
-  '/js/attendance_report.js',
-  '/js/health_contact_report.js',
-  '/js/parent_contact_list.js',
-  '/js/inscription.js',
-  '/js/fiche_sante.js',
-  '/js/acceptation_risque.js',
-  '/js/inactivity-timer.js',
-  '/get_translations.php',
-  '/lang/fr.php',
-  '/lang/en.php',
-  '/manifest.json',
-  '/images/icon-192x192.png',
-  '/images/icon-512x512.png',
-  '/images/6eASt-Paul.png',
-  '/images/kaa.jpg',
-  '/images/baloo.jpg',
-  '/images/rikki.jpg',
-  '/images/bagheera.jpg',
-  '/images/ferao.jpg',
-  '/images/frereGris.jpg',
-  '/offline.html'
+const apiRoutes = [
+    '/api.php',
+    '/get_translations.php',
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return Promise.all(
-          urlsToCache.map((url, index) => {
-            return cache.add(url).then(() => {
-              const progress = Math.round(((index + 1) / urlsToCache.length) * 100);
-              self.clients.matchAll().then(clients => {
-                clients.forEach(client => client.postMessage({
-                  type: 'cacheProgress',
-                  progress: progress
-                }));
-              });
-            });
-          })
-        );
-      })
-  );
+    event.waitUntil(
+        caches.open(STATIC_CACHE_NAME)
+            .then((cache) => cache.addAll(staticAssets))
+    );
 });
 
-// Helper function to check if a request's URL is supported for caching
-function isRequestCacheable(request) {
-  const url = new URL(request.url);
-  return url.origin === self.location.origin && (url.protocol === 'http:' || url.protocol === 'https:');
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((cacheNames) => {
+            return Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName !== CACHE_NAME && cacheName !== STATIC_CACHE_NAME && cacheName !== API_CACHE_NAME) {
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        })
+    );
+});
+
+self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+
+    // Skip requests with unsupported schemes like 'chrome-extension'
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        return; // Exit early if the scheme is not supported
+    }
+
+    // Handle POST requests separately
+    if (event.request.method === 'POST') {
+        event.respondWith(networkFirst(event.request));
+        return;
+    }
+
+    if (staticAssets.includes(url.pathname)) {
+        event.respondWith(cacheFirst(event.request));
+    } else if (apiRoutes.some(route => url.pathname.includes(route))) {
+        event.respondWith(networkFirst(event.request));
+    } else {
+        event.respondWith(networkFirst(event.request));
+    }
+});
+
+
+async function cacheFirst(request) {
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+        return cachedResponse;
+    }
+    return fetch(request).then((response) => {
+        if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(STATIC_CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+            });
+        }
+        return response;
+    });
 }
 
-// Fetch event
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
-    return;
-  }
-
-  const url = new URL(event.request.url);
-
-  // Skip caching for dynamic pages
-  if (url.pathname.startsWith('/dashboard.php') || url.pathname.endsWith('.php')) {
-    event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request);
-      })
-    );
-    return;
-  }
-
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
-      }
-
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+async function networkFirst(request) {
+    try {
+        const networkResponse = await fetch(request);
+        if (networkResponse.ok && request.method !== 'POST') {
+            const responseClone = networkResponse.clone();
+            caches.open(API_CACHE_NAME).then((cache) => {
+                cache.put(request, responseClone);
+            });
         }
         return networkResponse;
-      }).catch(() => {
-        return caches.match('/offline.html');
-      });
-    })
-  );
-});
-
-
-
-
-
-
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-points') {
-      event.waitUntil(syncPoints());
-  }
-});
-
-async function syncPoints() {
-  const offlineData = await getOfflineData();
-  if (offlineData.length === 0) return;
-
-  try {
-      const response = await fetch('sync_data.php', {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(offlineData)
-      });
-      const result = await response.json();
-      if (result.success) {
-          await clearOfflineData();
-          console.log('Offline data synced successfully');
-      } else {
-          throw new Error('Sync failed');
-      }
-  } catch (error) {
-      console.error('Error syncing offline data:', error);
-  }
+    } catch (error) {
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) {
+            return cachedResponse;
+        }
+        throw error;
+    }
 }
 
-
-
-
-
-
-// Add a new message event listener to handle cache updates
+// Handle cache updates
 self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') {
-    self.skipWaiting();
-  } else if (event.data === 'clearCache') {
-    console.log('Clearing cache...');
-    clearCache();
-  } else if (event.data === 'updateCache') {
-    console.log('Cache update triggered via message');
-    updateCache();
-  }
+    if (event.data === 'skipWaiting') {
+        self.skipWaiting();
+    }
 });
 
+// Sync event for background syncing
+self.addEventListener('sync', (event) => {
+    if (event.tag === 'sync-data') {
+        event.waitUntil(syncData());
+    }
+});
 
-// Function to clear the entire cache
-function clearCache() {
-  caches.delete(CACHE_NAME).then(() => {
-    console.log('Cache cleared');
-    // Rebuild the cache after clearing
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache).then(() => {
-        console.log('Cache rebuilt');
-      }).catch((error) => {
-        console.error('Error rebuilding cache:', error);
-      });
-    });
-  });
-}
+async function syncData() {
+    try {
+        const offlineData = await getOfflineData();
+        if (offlineData.length > 0) {
+            for (let item of offlineData) {
+                // Implement your sync logic here for each item
+                console.log('Syncing item:', item);
+                // Example: POST the data to your server
+                const response = await fetch('/api.php?action=' + item.action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(item.data)
+                });
 
-function updateCache() {
-  return caches.open(CACHE_NAME).then((cache) => {
-    return cache.addAll(urlsToCache).then(() => {
-      console.log('Cache updated with new resources');
-
-      // Now clear out old entries that are no longer needed
-      return cache.keys().then((cacheKeys) => {
-        const deletionPromises = cacheKeys.map((cacheKey) => {
-          const requestUrl = new URL(cacheKey.url).pathname;
-          return cache.match(cacheKey).then((cachedResponse) => {
-            if (cachedResponse && cachedResponse.type === 'opaqueredirect') {
-              console.log(`Deleting cached redirect entry: ${requestUrl}`);
-              return cache.delete(cacheKey);
+                if (response.ok) {
+                    // Optionally remove the item from IndexedDB after a successful sync
+                    await clearOfflineData(item.id);
+                } else {
+                    console.error('Failed to sync item:', item, response.statusText);
+                }
             }
-            if (!urlsToCache.includes(requestUrl)) {
-              console.log(`Deleting outdated cache entry: ${requestUrl}`);
-              return cache.delete(cacheKey);
-            }
-          });
-        });
-
-        return Promise.all(deletionPromises); // Ensure all deletions are completed
-      });
-    });
-  }).catch((error) => {
-    console.error('Error updating cache:', error);
-  });
+            console.log('All data synced successfully');
+        }
+    } catch (error) {
+        console.error('Error during data sync:', error);
+    }
 }
 
 
-
-
-// Activate event
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    updateCache().then(() => {
-      console.log('Cache has been updated and old entries removed');
-      return self.clients.claim();
-    })
-  );
-});
+async function staleWhileRevalidate(request) {
+    const cache = await caches.open(API_CACHE_NAME);
+    const cachedResponse = await cache.match(request);
+    const networkFetch = fetch(request).then((response) => {
+        cache.put(request, response.clone());
+        return response;
+    });
+    return cachedResponse || networkFetch;
+}

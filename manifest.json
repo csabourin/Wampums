@@ -1,6 +1,6 @@
 {
-  "name": "Wampums 6e A St-Paul",
-  "short_name": "Wampums",
+  "name": "Meute 6A St-Paul",
+  "short_name": "Meute 6A",
   "description": "Application de points pour la meute 6e A St-Paul d'Aylmer",
   "start_url": "/index.php",
   "display": "standalone",

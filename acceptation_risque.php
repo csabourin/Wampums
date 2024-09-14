@@ -11,15 +11,35 @@ $participant = null;
 $acceptation_risque = null;
 
 if ($participant_id) {
-    // Fetch participant data
-    $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ?");
-    $stmt->execute([$participant_id]);
+    // Check if the user has access to this participant
+    if ($_SESSION['user_role'] === 'animation' || $_SESSION['user_role'] === 'admin') {
+        $stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ?");
+        $stmt->execute([$participant_id]);
+    } else {
+        $stmt = $pdo->prepare("
+            SELECT p.* 
+            FROM participants p
+            JOIN user_participants up ON p.id = up.participant_id
+            WHERE p.id = ? AND up.user_id = ?
+        ");
+        $stmt->execute([$participant_id, $_SESSION['user_id']]);
+    }
     $participant = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$participant) {
+        // Redirect if the participant doesn't exist or the user doesn't have access
+        header('Location: index.php');
+        exit;
+    }
 
     // Fetch acceptation_risque data
     $stmt = $pdo->prepare("SELECT * FROM acceptation_risque WHERE participant_id = ?");
     $stmt->execute([$participant_id]);
     $acceptation_risque = $stmt->fetch(PDO::FETCH_ASSOC);
+} else {
+    // If no participant_id is provided, redirect to index.php
+    header('Location: index.php');
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -76,6 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <link rel="stylesheet" href="css/styles.css">
     </head>
     <body>
+        <div id="loading-indicator" style="display: none;">
+            <?php echo translate('loading'); ?>...
+        </div>
         <h1><?php echo translate('formulaire_acceptation_risque'); ?></h1>
         <?php if (isset($error)): ?>
             <div class="error"><?php echo $error; ?></div>

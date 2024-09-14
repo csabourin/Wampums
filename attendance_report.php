@@ -19,6 +19,12 @@ if ($_SESSION['user_role'] !== 'animation' && $_SESSION['user_role'] !== 'admin'
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <div id="loading-indicator" style="display: none;">
+        <?php echo translate('loading'); ?>...
+    </div>
+    <div id="offline-indicator" style="display: none;">
+      <?php echo translate('you_are_offline'); ?>
+    </div>
     <h1><?php echo translate('attendance_report'); ?></h1>
     <div id="report-container">
         <p><?php echo translate('loading_report'); ?>...</p>

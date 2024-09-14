@@ -6,6 +6,16 @@ function ensureSessionStarted() {
     }
 }
 
+function userHasAccessToParticipant($pdo, $userId, $participantId) {
+    $stmt = $pdo->prepare("
+        SELECT 1 
+        FROM user_participants 
+        WHERE user_id = ? AND participant_id = ?
+    ");
+    $stmt->execute([$userId, $participantId]);
+    return $stmt->fetchColumn() !== false;
+}
+
 function calculateAge($dateOfBirth) {
     // Convert the date of birth to a DateTime object
     $dob = new DateTime($dateOfBirth);
@@ -71,4 +81,5 @@ function setLanguage() {
 function initializeApp() {
     ensureSessionStarted();
     setLanguage();
+    header("Cache-Control: max-age=3600, public");
 }

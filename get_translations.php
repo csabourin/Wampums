@@ -12,4 +12,4 @@ $lang = $_SESSION['lang'] ?? 'fr';
 $translations = include "lang/{$lang}.php";
 
 // Create a JavaScript object with our translations
-echo "const translations = " . json_encode($translations) . ";";
+echo json_encode($translations);

@@ -24,18 +24,7 @@ session_destroy();
 // Clear the output buffer and disable output buffering
 ob_end_clean();
 
-// Ensure no output has been sent before this point
-if (!headers_sent()) {
-    // Redirect to login page
-    header('Location: login.php');
-    exit;
-} else {
-    // If headers have already been sent, use JavaScript to redirect
-    echo '<script type="text/javascript">';
-    echo 'window.location.href="login.php";';
-    echo '</script>';
-    echo '<noscript>';
-    echo '<meta http-equiv="refresh" content="0;url=login.php">';
-    echo '</noscript>';
-    exit;
-}
+// Return JSON response
+header('Content-Type: application/json');
+echo json_encode(['success' => true, 'message' => 'Logged out successfully']);
+exit;
