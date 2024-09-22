@@ -5,7 +5,8 @@ body {
   padding: 20px;
   background-color: #f4f4f4;
 }
-h1, h2 {
+h1,
+h2 {
   color: #333;
 }
 form {
@@ -13,13 +14,14 @@ form {
   padding: 0;
   border-radius: 5px;
   margin-bottom: 0px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 label {
   display: block;
   margin-bottom: 5px;
 }
-input[type="text"], select {
+input[type="text"],
+select {
   width: 100%;
   padding: 8px;
   margin-bottom: 10px;
@@ -27,7 +29,7 @@ input[type="text"], select {
   border-radius: 4px;
 }
 input[type="submit"] {
-  background-color: #4CAF50;
+  background-color: #4caf50;
   color: white;
   padding: 10px 15px;
   border: none;
@@ -41,9 +43,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   background-color: #fff;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-th, td {
+th,
+td {
   text-align: left;
   padding: 12px;
   border-bottom: 1px solid #ddd;
@@ -53,48 +56,54 @@ th {
 }
 .message {
   background-color: #e7f3fe;
-  border-left: 6px solid #2196F3;
+  border-left: 6px solid #2196f3;
   margin-bottom: 15px;
   padding: 10px;
   color: #000;
 }
 @media (max-width: 600px) {
-  table, thead, tbody, td, tr {
+  table,
+  thead,
+  tbody,
+  td,
+  tr {
     display: block;
   }
-  th{
+  th {
     display: none;
   }
-  table, tr, td {
-      display: block;
+  table,
+  tr,
+  td {
+    display: block;
   }
   tr {
-      margin-bottom: 10px;
+    margin-bottom: 10px;
   }
   td {
-      border: none;
-      position: relative;
-      padding-left: 0;
+    border: none;
+    position: relative;
+    padding-left: 0;
   }
   td:before {
-      content: attr(data-label);
-      position: relative;
-      left: 6px;
-      width: 45%;
-      padding-right: 10px;
-      white-space: nowrap;
-      font-weight: bold;
+    content: attr(data-label);
+    position: relative;
+    left: 6px;
+    width: 45%;
+    padding-right: 10px;
+    white-space: nowrap;
+    font-weight: bold;
   }
 }
 
 .editable {
-    border: 1px solid #ddd;
-    padding: 5px;
-    border-radius: 4px;
-    min-width: 100px;
-    display: inline-block;
+  border: 1px solid #ddd;
+  padding: 5px;
+  border-radius: 4px;
+  min-width: 100px;
+  display: inline-block;
 }
 
-tr:nth-child(odd) td{
-    background-color: #b2bfc7;
+tr:nth-child(odd) td {
+  background-color: #b2bfc7;
 }

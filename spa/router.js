@@ -15,9 +15,32 @@ import { FicheSante } from "./fiche_sante.js";
 import { AcceptationRisque } from "./acceptation_risque.js";
 import { BadgeForm } from "./badge_form.js";
 import { Register } from "./register.js";
+import { Admin } from "./admin.js";
+import { MailingList } from "./mailing_list.js";
+import { Calendars } from './calendars.js';
+import {ResetPassword} from './reset_password.js';
+
+const debugMode =
+  window.location.hostname === "localhost" ||
+  window.location.hostname.includes("replit.dev")
+    ? true
+    : false;
+
+function debugLog(...args) {
+  if (debugMode) {
+    console.log(...args);
+  }
+}
+
+function debugError(...args) {
+  if (debugMode) {
+    console.error(...args);
+  }
+}
 
 const routes = {
   "/": "dashboard",
+  "/admin": "admin",
   "/dashboard": "dashboard",
   "/index.php": "dashboard",
   "/login": "login",
@@ -37,6 +60,7 @@ const routes = {
   "/view_participant_documents.php": "viewParticipantDocuments",
   "/approve_badges.php": "approveBadges",
   "/parent_contact_list.php": "parentContactList",
+  "/mailing_list": "mailingList",
   "/manage_users_participants.php": "manageUsersParticipants",
   "/manage_points": "managePoints",
   "/manage_points.php": "managePoints",
@@ -55,7 +79,9 @@ const routes = {
   "/acceptation_risque/:id": "acceptationRisque",
   "/badge_form/:id": "badgeForm",
   "/register": "register",
-    "/register.php": "register",
+  "/register.php": "register",
+  "/calendars": "calendars",
+  "/reset_password": "resetPassword",
 };
 
 export class Router {
@@ -64,13 +90,13 @@ export class Router {
   }
 
   navigate(path) {
-    console.log("Navigating to:", path);
+    debugLog("Navigating to:", path);
     history.pushState(null, "", path);
     this.route(path);
   }
 
   async route(path) {
-    console.log("Routing to:", path);
+    debugLog("Routing to:", path);
     const [routeName, param] = this.getRouteNameAndParam(path);
 
     // Check session
@@ -81,11 +107,14 @@ export class Router {
 
     try {
       // Allow access to login, register, and index pages without being logged in
-      if (!this.app.isLoggedIn && !['login', 'register', ''].includes(routeName)) {
-          // Redirect to login if not logged in and not trying to access allowed pages
-          history.pushState(null, "", "/login");
-          await this.loadLoginPage();
-          return;
+      if (
+        !this.app.isLoggedIn &&
+        !["login", "register","resetPassword" ,""].includes(routeName)
+      ) {
+        // Redirect to login if not logged in and not trying to access allowed pages
+        history.pushState(null, "", "/login");
+        await this.loadLoginPage();
+        return;
       }
 
       switch (routeName) {
@@ -94,6 +123,20 @@ export class Router {
             await this.loadParentDashboard();
           } else {
             await this.loadDashboard();
+          }
+          break;
+          case "admin":
+          if (this.app.userRole !== "admin") {
+            this.loadNotAuthorizedPage();
+          } else {
+            await this.loadAdminPage();
+          }
+          break;
+        case "calendars":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation"){
+            this.loadNotAuthorizedPage();
+          } else {
+            await this.loadCalendarsPage();
           }
           break;
         case "parentDashboard":
@@ -114,11 +157,17 @@ export class Router {
         case "logout":
           await this.handleLogout();
           break;
+          case "resetPassword":
+          await this.loadResetPasswordPage();
+          break;
         case "attendance":
           await this.loadAttendance();
           break;
         case "formulaireInscription":
           await this.loadFormulaireInscription(param);
+          break;
+          case "mailingList":
+          await this.loadMailingList();
           break;
         case "managePoints":
           await this.loadManagePoints();
@@ -154,13 +203,17 @@ export class Router {
           await this.loadBadgeForm(param);
           break;
         case "register":
-        if (this.app.isLoggedIn) {
+          if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
-            this.route(this.app.userRole === "parent" ? "/parent_dashboard" : "/dashboard");
-        } else {
+            this.route(
+              this.app.userRole === "parent"
+                ? "/parent_dashboard"
+                : "/dashboard"
+            );
+          } else {
             await this.loadRegisterPage();
-        }
-        break;
+          }
+          break;
         // ... other cases ...
         default:
           this.loadNotFoundPage();
@@ -169,6 +222,11 @@ export class Router {
       console.error("Routing error:", error);
       this.app.renderError("An error occurred while loading the page.");
     }
+  }
+
+  async loadCalendarsPage() {
+    const calendars= new Calendars(this.app);
+    await calendars.init();
   }
 
   getRouteNameAndParam(path) {
@@ -182,6 +240,15 @@ export class Router {
   async loadDashboard() {
     const dashboard = new Dashboard(this.app);
     await dashboard.init();
+  }
+
+  async loadAdminPage() {
+    const admin = new Admin(this.app);
+    await admin.init();
+  }
+
+  loadNotAuthorizedPage() {
+    document.getElementById("app").innerHTML = "<h1>403 - Accès interdit</h1>";
   }
 
   async loadParentDashboard() {
@@ -219,6 +286,11 @@ export class Router {
     await manageGroups.init();
   }
 
+  async loadResetPasswordPage() {
+      const resetPassword = new ResetPassword(this.app);
+      resetPassword.render();
+  }
+
   async loadManageParticipants() {
     if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
       this.route("/");
@@ -248,6 +320,11 @@ export class Router {
     await parentContactList.init();
   }
 
+  async loadMailingList(){
+    const mailingList = new MailingList(this.app);
+    await mailingList.init();
+  }
+
   async loadApproveBadges() {
     const approveBadges = new ApproveBadges(this.app);
     await approveBadges.init();
@@ -272,8 +349,8 @@ export class Router {
   }
 
   async loadRegisterPage() {
-      const register = new Register(this.app);
-      register.render();
+    const register = new Register(this.app);
+    register.render();
   }
 
   async handleLogout() {
@@ -300,7 +377,7 @@ export function initRouter(app) {
   const router = new Router(app);
 
   // Handle initial route
-  router.route(window.location.pathname);
+  // router.route(window.location.pathname);
 
   // Handle navigation
   document.addEventListener("click", (e) => {

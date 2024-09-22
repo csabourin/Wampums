@@ -1,3 +1,10 @@
+import {
+  saveParticipants,
+  getParticipantsFromCache,
+  saveGroups,
+  getGroupsFromCache,
+} from "./indexedDB.js";
+
 // Utility function to get the JWT token from local storage
 export function getAuthHeader() {
   const token = localStorage.getItem("jwtToken");
@@ -22,7 +29,26 @@ async function handleResponse(response) {
   }
 }
 
+const debugMode =
+  window.location.hostname === "localhost" ||
+  window.location.hostname.includes("replit.dev")
+    ? true
+    : false;
+
+function debugLog(...args) {
+  if (debugMode) {
+    console.log(...args);
+  }
+}
+
+function debugError(...args) {
+  if (debugMode) {
+    console.error(...args);
+  }
+}
+
 export async function fetchParticipant(participantId) {
+  debugLog("Fetching participant with ID:", participantId);
   try {
     const response = await fetch(
       `/api.php?action=get_participant&id=${participantId}`,
@@ -31,13 +57,238 @@ export async function fetchParticipant(participantId) {
       }
     );
     const data = await handleResponse(response);
+    debugLog("API response for fetchParticipant:", data); // Log the full response
     if (data.success) {
-      return data.participant;
+      return data.data.participant; // Access 'data.participant'
     } else {
       throw new Error(data.message || "Failed to fetch participant");
     }
   } catch (error) {
     console.error("Error fetching participant:", error);
+    throw error;
+  }
+}
+
+export async function approveUser(userId) {
+  try {
+    const response = await fetch("/api.php?action=approve_user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ user_id: userId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Error approving user:", error);
+    throw error;
+  }
+}
+
+export async function updateUserRole(userId, newRole) {
+  try {
+    const response = await fetch("/api.php?action=update_user_role", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ user_id: userId, new_role: newRole }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Error updating user role:", error);
+    throw error;
+  }
+}
+
+export async function getCalendars() {
+  try {
+    const response = await fetch("/api.php?action=get_calendars", {
+      headers: getAuthHeader(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.calendars;
+  } catch (error) {
+    console.error("Error fetching calendars:", error);
+    throw error;
+  }
+}
+
+export async function getGuestsByDate(date) {
+    try {
+        const response = await fetch(`/api.php?action=get_guests_by_date&date=${date}`, {
+            method: 'GET',
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
+          }
+        });
+
+        const result = await response.json();
+        console.log("Guests fetched for date:", date, result);  // Add this to verify the response
+
+        if (result.success) {
+            return result.guests;
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        console.error("Error fetching guests:", error);
+        alert("error_fetching_guests");
+        return [];
+    }
+}
+
+
+
+export async function saveGuest(guest) {
+      try {
+          const response = await fetch('/api.php?action=save_guest', {
+              method: 'POST',
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeader(),
+            },
+              body: JSON.stringify(guest)
+          });
+
+          const result = await response.json();
+          if (result.success) {
+              console.log(result.message);
+          } else {
+              throw new Error(result.message);
+          }
+      } catch (error) {
+          console.error("Error saving guest:", error);
+      }
+  }
+
+export async function updateCalendar(participantId, amount) {
+  try {
+    const response = await fetch("/api.php?action=update_calendar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ participant_id: participantId, amount: amount }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.success;
+  } catch (error) {
+    console.error("Error updating calendar:", error);
+    throw error;
+  }
+}
+
+export async function updateCalendarPaid(participantId, paidStatus) {
+  try {
+    const response = await fetch("/api.php?action=update_calendar_paid", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ participant_id: participantId, paid_status: paidStatus }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.success;
+  } catch (error) {
+    console.error("Error updating calendar paid status:", error);
+    throw error;
+  }
+}
+
+export async function getParticipantCalendar(participantId) {
+  try {
+    const response = await fetch(`/api.php?action=get_participant_calendar&participant_id=${participantId}`, {
+      headers: getAuthHeader(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.calendar;
+  } catch (error) {
+    console.error("Error fetching participant calendar:", error);
+    throw error;
+  }
+}
+
+export async function getUsers() {
+  try {
+    const response = await fetch("/api.php?action=get_users", {
+      headers: getAuthHeader(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const users = await response.json();
+    return users.map(user => ({
+      id: user.id,
+      email: user.email,
+      isVerified: user.is_verified === true, // Convert string to boolean
+      role: user.role,
+      fullName: user.full_name,
+      createdAt: new Date(user.created_at)
+    }));
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    throw error;
+  }
+}
+
+export async function getSubscribers() {
+  try {
+    const response = await fetch("/api.php?action=get_subscribers", {
+      headers: getAuthHeader(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const subscribers = await response.json();
+    return subscribers.map(subscriber => ({
+      id: subscriber.id,
+      email: subscriber.email || `User ${subscriber.user_id}`, // Fallback if email is not provided
+      userId: subscriber.user_id
+    }));
+  } catch (error) {
+    console.error("Error fetching subscribers:", error);
     throw error;
   }
 }
@@ -58,6 +309,33 @@ export async function register(registerData) {
     throw error;
   }
 }
+
+export async function getMailingList() {
+  try {
+    const response = await fetch("/api.php?action=get_mailing_list", {
+      headers: {
+        ...getAuthHeader(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch mailing list. HTTP Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("API response for getMailingList:", data); // Log the full response
+
+    if (data.success) {
+      return data;
+    } else {
+      throw new Error(data.message || "Failed to retrieve mailing list", data);
+    }
+  } catch (error) {
+    console.error("Error fetching mailing list:", error);
+    throw error;
+  }
+}
+
 
 export async function fetchFicheSante(participantId) {
   try {
@@ -155,29 +433,61 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
   }
 }
 
+// Fetch participants from the API or from IndexedDB when offline
 export async function getParticipants() {
   try {
     const response = await fetch("/api.php?action=get_participants", {
       headers: getAuthHeader(),
     });
-    const data = await response.json();
-    return data;
+
+    if (response.ok) {
+      const data = await response.json();
+
+      // Save the fetched participants to IndexedDB
+      await saveParticipants(data);
+      return data;
+    }
   } catch (error) {
-    console.error("Error fetching participants:", error);
-    throw error;
+    console.error("Error fetching participants, falling back to cache:", error);
+
+    // Retrieve participants from IndexedDB when offline
+    const cachedParticipants = await getParticipantsFromCache();
+    if (cachedParticipants.length > 0) {
+      debugLog("Serving participants from IndexedDB cache");
+      return cachedParticipants;
+    }
+
+    throw new Error(
+      "No cached participants available and failed to fetch online."
+    );
   }
 }
 
+// Fetch groups from the API or from IndexedDB when offline
 export async function getGroups() {
   try {
     const response = await fetch("/api.php?action=get_groups", {
       headers: getAuthHeader(),
     });
-    const data = await response.json();
-    return data;
+
+    if (response.ok) {
+      const data = await response.json();
+
+      // Save the fetched groups to IndexedDB
+      await saveGroups(data);
+      return data;
+    }
   } catch (error) {
-    console.error("Error fetching groups:", error);
-    throw error;
+    console.error("Error fetching groups, falling back to cache:", error);
+
+    // Retrieve groups from IndexedDB when offline
+    const cachedGroups = await getGroupsFromCache();
+    if (cachedGroups.length > 0) {
+      debugLog("Serving groups from IndexedDB cache");
+      return cachedGroups;
+    }
+
+    throw new Error("No cached groups available and failed to fetch online.");
   }
 }
 
@@ -194,27 +504,48 @@ export async function getAttendance(date) {
   }
 }
 
-export async function updateAttendance(nameId, newStatus, date, previousStatus) {
-    try {
-        const response = await fetch('/api.php?action=update_attendance', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeader()
-            },
-            body: JSON.stringify({
-                name_id: nameId,
-                status: newStatus,
-                date: date,
-                previous_status: previousStatus
-            })
-        });
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error updating attendance:', error);
-        throw error;
+export async function updateAttendance(
+  nameId,
+  newStatus,
+  date,
+  previousStatus
+) {
+  try {
+    const response = await fetch("/api.php?action=update_attendance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({
+        name_id: nameId,
+        status: newStatus,
+        date: date,
+        previous_status: previousStatus,
+      }),
+    });
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error updating attendance:", error);
+    throw error;
+  }
+}
+
+// Fetches all participants and honors from the server
+export async function getHonorsAndParticipants() {
+  try {
+    const response = await fetch("/api.php?action=get_honors", {
+      headers: getAuthHeader(),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to fetch honors data");
     }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching honors and participants:", error);
+    throw error;
+  }
 }
 
 export async function getHonors(date) {
@@ -331,10 +662,6 @@ export async function login(email, password) {
       }),
     });
 
-    // Log the raw response text
-    const responseText = await response.text();
-    console.log("Raw response:", responseText);
-
     // Try to parse the response as JSON
     let data;
     try {
@@ -370,7 +697,7 @@ export async function getAllParents() {
 
 export async function fetchParents(participantId) {
   try {
-    console.log("Fetching parents for participantId:", participantId);
+    debugLog("Fetching parents for participantId:", participantId);
     const response = await fetch(
       `/api.php?action=get_parents_guardians&participant_id=${participantId}`,
       {
@@ -378,13 +705,12 @@ export async function fetchParents(participantId) {
       }
     );
     const textResponse = await response.text(); // Log the raw text response
-    console.log("Raw response:", textResponse);
     const data = JSON.parse(textResponse); // Parse the response manually
 
-    console.log("Parsed response:", data);
+    debugLog("Parsed response:", data);
 
     if (data.success) {
-      console.log("Returning parents/guardians:", data.parents_guardians);
+      debugLog("Returning parents/guardians:", data.parents_guardians);
       return data.parents_guardians;
     } else {
       console.error("Error in fetchParents:", data.message);
@@ -419,7 +745,7 @@ export async function linkParentToParticipant(participantId, parentId) {
 
 export async function saveParent(parentData) {
   try {
-    console.log("Sending Parent Data to API:", parentData);
+    debugLog("Sending Parent Data to API:", parentData);
     const response = await fetch("/api.php?action=save_parent", {
       method: "POST",
       headers: {
@@ -429,9 +755,9 @@ export async function saveParent(parentData) {
       body: JSON.stringify(parentData),
     });
     const responseText = await response.text();
-    console.log("Raw API Response:", responseText);
+    debugLog("Raw API Response:", responseText);
     const data = JSON.parse(responseText);
-    console.log("Parsed API Response:", data);
+    debugLog("Parsed API Response:", data);
     return data;
   } catch (error) {
     console.error("Error saving parent:", error);
@@ -746,7 +1072,7 @@ export async function getParentsGuardians(participantId) {
       }
     );
     const textResponse = await response.text(); // Log the raw text response
-    console.log("Raw response:", textResponse);
+    debugLog("Raw response:", textResponse);
     const data = JSON.parse(textResponse); // Parse the response manually
 
     if (data.success) {
@@ -774,9 +1100,9 @@ export async function saveFicheSante(ficheSanteData) {
       },
       body: JSON.stringify(ficheSanteData),
     });
-    console.log("Fiche sante save response status:", response.status);
+    debugLog("Fiche sante save response status:", response.status);
     const responseText = await response.text();
-    console.log("Fiche sante save response text:", responseText);
+    debugLog("Fiche sante save response text:", responseText);
     let data;
     try {
       data = JSON.parse(responseText);

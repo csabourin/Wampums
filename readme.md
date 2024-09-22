@@ -1,9 +1,11 @@
 # Points Tally App
 
 ## Description
+
 The Points Tally App is a web-based application designed for scout groups to manage and track points for individual scouts and groups. It offers features like attendance tracking, honor awards, and offline functionality.
 
 ## Features
+
 - User authentication and registration
 - Dashboard to view points for individuals and groups
 - Manage scouts and groups
@@ -15,6 +17,7 @@ The Points Tally App is a web-based application designed for scout groups to man
 - Mobile-responsive design
 
 ## Technologies Used
+
 - PHP
 - JavaScript
 - HTML5
@@ -24,6 +27,7 @@ The Points Tally App is a web-based application designed for scout groups to man
 - PostgreSQL database
 
 ## Setup Instructions
+
 1. Clone the repository
 2. Set up a PHP environment (e.g., XAMPP, WAMP, or a web server with PHP support)
 3. Create a PostgreSQL database and update the connection details in `config.php`
@@ -33,6 +37,7 @@ The Points Tally App is a web-based application designed for scout groups to man
 7. Access the application through your web browser
 
 ## File Structure
+
 - `config.php`: Database and app configuration
 - `functions.php`: Common PHP functions
 - `index.php`: Entry point of the application
@@ -44,18 +49,23 @@ The Points Tally App is a web-based application designed for scout groups to man
 - `lang/`: Language files (en.php and fr.php)
 
 ## Offline Functionality
+
 The app uses Service Workers and IndexedDB to provide offline functionality. Data is synced with the server when the connection is re-established.
 
 ## Multi-language Support
+
 The app supports English and French. Language files are located in the `lang/` directory.
 
 ## Security
+
 - User passwords are hashed before storage
 - Input sanitization is implemented to prevent XSS attacks
 - HTTPS is recommended for production use
 
 ## Contributing
+
 Contributions to the Points Tally App are welcome. Please follow these steps:
+
 1. Fork the repository
 2. Create a new branch
 3. Make your changes and commit them

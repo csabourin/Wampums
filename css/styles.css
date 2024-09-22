@@ -12,6 +12,10 @@
   box-sizing: border-box;
 }
 
+#app{
+  width:100%;
+}
+
 [disabled] {
   opacity: 0.5;
   cursor: not-allowed;
@@ -20,6 +24,22 @@
 .highlight {
   background-color: yellow;
   transition: background-color 0.5s ease;
+}
+
+.hidden {
+  display: none;
+}
+
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.logo {
+  width: 335px;
+  max-width: 100%;
+  height: auto;
 }
 
 html {
@@ -68,7 +88,8 @@ table {
   margin: 0 auto;
   padding: 20px;
 }
-h1, h2 {
+h1,
+h2 {
   text-align: center;
 }
 .dashboard-menu {
@@ -119,13 +140,13 @@ h1, h2 {
 }
 @media (max-width: 480px) {
   .parent-dashboard {
-      padding: 10px;
+    padding: 10px;
   }
   .participant-actions {
-      flex-direction: column;
+    flex-direction: column;
   }
   .participant-actions a {
-      margin-bottom: 5px;
+    margin-bottom: 5px;
   }
 }
 
@@ -284,7 +305,7 @@ td {
 /* Attendance specific styles */
 .attendance-list {
   margin-bottom: 6rem;
-  margin-top:6rem;
+  margin-top: 6rem;
 }
 
 .name-item {
@@ -486,7 +507,6 @@ td {
   td {
     border: none;
     position: relative;
-    padding-left: 50%;
   }
 
   td:before {
@@ -498,6 +518,84 @@ td {
     white-space: nowrap;
     font-weight: bold;
   }
+}
+#news-widget{
+  width:100%;
+}
+
+.news-accordion {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.news-accordion-header {
+  background-color: #f1f1f1;
+  padding: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.news-accordion-content {
+  padding: 10px;
+  display: none;
+}
+.news-accordion.open .news-accordion-content {
+  display: block;
+}
+
+.calendars-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.calendars-table th,
+.calendars-table td {
+  padding: 10px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.calendars-table th {
+  background-color: #f2f2f2;
+}
+
+.amount-input {
+  width: 60px;
+}
+
+@media screen and (max-width: 600px) {
+  .calendars-table, .calendars-table thead, .calendars-table tbody, .calendars-table th, .calendars-table td, .calendars-table tr {
+    display: block;
+  }
+
+  .calendars-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+
+  .calendars-table tr {
+    border: 1px solid #ccc;
+    margin-bottom: 10px;
+  }
+
+  .calendars-table td {
+    border: none;
+    position: relative;
+    padding-left: 50%;
+  }
+
+  .calendars-table td:before {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 45%;
+    padding-right: 10px;
+    white-space: nowrap;
+  }
+
+  .calendars-table td:nth-of-type(1):before { content: "Nom"; }
+  .calendars-table td:nth-of-type(2):before { content: "Quantité"; }
+  .calendars-table td:nth-of-type(3):before { content: "Payé"; }
 }
 
 .pending-update {
@@ -541,6 +639,7 @@ body.online .pending-update {
 }
 
 #offline-indicator {
+  display: none;
   background-color: var(
     --primary-color
   ); /* Red color to indicate offline status */
@@ -557,7 +656,11 @@ body.online .pending-update {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
-#points-list{
+.offline #offline-indicator {
+  display: block;
+}
+
+#points-list {
   margin-bottom: 5rem;
 }
 
@@ -565,18 +668,17 @@ body.online .pending-update {
   max-width: 600px;
   margin: 0 auto;
   padding: 10px;
-  padding-bottom: 7rem; /* Make room for the fixed footer */
-  padding-top: 5rem; /* Make room for the fixed header */
 }
 
-.fixed-header, .fixed-footer {
+.fixed-header,
+.fixed-footer {
   position: fixed;
   left: 0;
   right: 0;
   background-color: white;
   z-index: 1000;
   padding: 5px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .fixed-header {
@@ -639,7 +741,7 @@ body.online .pending-update {
 
 .participant-row.selected {
   background-color: var(--primary-color);
-  color:white;
+  color: white;
 }
 
 .participant-name {
@@ -650,13 +752,30 @@ body.online .pending-update {
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 12px;
-  margin-left:1rem;
+  margin-left: 1rem;
 }
 
-.participant-status.present { background-color: #4CAF50; color: white; }
-.participant-status.absent { background-color: #F44336; color: white; }
-.participant-status.late { background-color: #FFC107; }
-.participant-status.excused { background-color: #2196F3; color: white; }
+.participant-status.present {
+  background-color: #4caf50;
+  color: white;
+}
+
+.participant-status.present.gray {
+  background-color: #7d7d7d;
+  color: white;
+}
+
+.participant-status.absent {
+  background-color: #f44336;
+  color: white;
+}
+.participant-status.late {
+  background-color: #ffc107;
+}
+.participant-status.excused {
+  background-color: #2196f3;
+  color: white;
+}
 
 .status-btn {
   padding: 10px;
@@ -667,32 +786,40 @@ body.online .pending-update {
   cursor: pointer;
 }
 
-.status-btn.present { background-color: #4CAF50; }
-.status-btn.absent { background-color: #F44336; }
-.status-btn.late { background-color: #FFC107; }
-.status-btn.excused { background-color: #2196F3; }
+.status-btn.present {
+  background-color: #4caf50;
+}
+.status-btn.absent {
+  background-color: #f44336;
+}
+.status-btn.late {
+  background-color: #ffc107;
+}
+.status-btn.excused {
+  background-color: #2196f3;
+}
 
 @media (max-width: 480px) {
   .nav-btn {
-      padding: 3px 8px;
-      font-size: 14px;
+    padding: 3px 8px;
+    font-size: 14px;
   }
 
   .date-select {
-      font-size: 12px;
+    font-size: 12px;
   }
 
   .group-card h3 {
-      font-size: 14px;
+    font-size: 14px;
   }
 
   .participant-row {
-      font-size: 14px;
+    font-size: 14px;
   }
 
   .status-btn {
-      font-size: 12px;
-      padding: 8px;
+    font-size: 12px;
+    padding: 8px;
   }
 }
 
@@ -702,6 +829,31 @@ body.online .pending-update {
     padding: 15px;
   }
 }
+
+.guest-entry {
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #f9f9f9;
+}
+
+.guest-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+}
+
+.guest-name {
+  font-weight: bold;
+}
+
+.guest-email {
+  color: #555;
+}
+
+.guest-date {
+  color: #888;
+}
+
 
 .badge-grid {
   display: grid;
@@ -746,6 +898,109 @@ details p {
   text-align: left;
 }
 
+.participant-documents {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.participant-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+  background-color: #f9f9f9;
+}
+.participant-name {
+  font-weight: bold;
+  font-size: 1.1em;
+  margin-bottom: 0.5rem;
+}
+.document-link {
+  display: block;
+  margin: 0.5rem 0;
+}
+.document-link a {
+  color: #0066cc;
+  text-decoration: none;
+}
+.document-link a:hover {
+  text-decoration: underline;
+}
+@media (min-width: 768px) {
+  .participant-documents {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+  }
+}
+
+.parent-dashboard {
+  font-family: Arial, sans-serif;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+h1,
+h2 {
+  text-align: center;
+}
+.dashboard-menu {
+  list-style-type: none;
+  padding: 0;
+}
+.dashboard-menu li {
+  margin-bottom: 10px;
+}
+.dashboard-button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  background-color: var(--primary-color);
+  color: white;
+  text-align: center;
+  text-decoration: none;
+  border-radius: 5px;
+}
+.logout-button {
+  background-color: #dc3545;
+}
+.participant-item {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.participant-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+.participant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.participant-actions a {
+  flex: 1;
+  padding: 5px;
+  text-align: center;
+  background-color: #28a745;
+  color: white;
+  text-decoration: none;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+@media (max-width: 480px) {
+  .parent-dashboard {
+    padding: 10px;
+  }
+  .participant-actions {
+    flex-direction: column;
+  }
+  .participant-actions a {
+    margin-bottom: 5px;
+  }
+}
+
 .parent-item {
   background-color: #fff;
   border-radius: 0.5rem;
@@ -774,7 +1029,6 @@ details p {
 }
 
 .group-content {
-  display: none;
   padding: 10px;
 }
 
@@ -847,4 +1101,77 @@ details p {
   * {
     transition: none !important;
   }
+}
+
+.fiche-sante-form {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+.form-group {
+  margin-bottom: 20px;
+}
+label {
+  display: block;
+  margin-bottom: 5px;
+}
+input[type="text"],
+input[type="email"],
+select,
+textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+textarea {
+  height: 100px;
+  resize: vertical;
+}
+.checkbox-group {
+  display: flex;
+  align-items: center;
+}
+.checkbox-group input[type="checkbox"] {
+  margin-right: 10px;
+}
+@media (max-width: 600px) {
+  .fiche-sante-form {
+    padding: 10px;
+  }
+}
+
+.visible {
+  display: block;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid #ddd;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.list-item:nth-of-type(even) {
+  background-color: #f9f9f9;
+}
+
+.list-item.selected {
+  background-color: var(--selected-color);
+  color: white;
+}
+
+.list-item.disabled {
+  background-color: var(--primary-color);
+  cursor: not-allowed;
+}
+
+#honors-list input[type="checkbox"] {
+  /* Hide the checkbox but keep it accessible */
+  position: absolute;
+  left: -9999px;
 }

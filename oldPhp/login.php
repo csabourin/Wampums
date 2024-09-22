@@ -48,6 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <button type="submit"><?php echo translate('submit_login'); ?></button>
     </form>
     <p><a href="register.php"><?php echo translate('create_account'); ?></a></p>
+<p><fb:login-button 
+  scope="public_profile,email"
+  onlogin="checkLoginState();">
+</fb:login-button></p>
+    
 
     <script type="module" src="js/login.js"></script>
 </body>

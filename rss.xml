@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+		 xmlns:content="http://purl.org/rss/1.0/modules/content/"
+		 xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+		 xmlns:dc="http://purl.org/dc/elements/1.1/"
+		 xmlns:atom="http://www.w3.org/2005/Atom"
+		 xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+		 xmlns:slash="http://purl.org/rss/1.0/modules/slash/">
+
+<channel>
+		<title>Meute 6 A</title>
+		<link>https://meute6a.app/</link>
+		<description>News and updates from Meute 6 A</description>
+		<language>fr-CA</language>
+		<lastBuildDate>Sun, 15 Sep 2024 11:30:00 +0000</lastBuildDate>
+		<atom:link href="https://meute6a.app/rss.xml" rel="self" type="application/rss+xml" />
+
+		<item>
+				<title>Prochaine réunion</title>
+				<link>https://meute6a.app/articles</link>
+				<description>Prochaine réunion le 17 septembre à 18h45</description>
+				<pubDate>Sun, 15 Sep 2024 11:30:00 +0000</pubDate>
+				<guid isPermaLink="false">https://meute6a.app/articles</guid>
+		</item>
+
+</channel>
+</rss>
