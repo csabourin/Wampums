@@ -34,6 +34,7 @@ if ("serviceWorker" in navigator) {
 		});
 }
 
+
 // news-accordion
 document.addEventListener('DOMContentLoaded', function() {
 		const accordion = document.querySelector('.news-accordion');
@@ -72,6 +73,7 @@ document.addEventListener('DOMContentLoaded', function() {
 		// Load initial state
 		loadAccordionState();
 });
+
 
 
 // Add this function to your app object or as a separate utility function
@@ -175,7 +177,7 @@ async function sendSubscriptionToServer(subscription) {
 // For example, you might call this after a user logs in or gives permission
 
 
-const app = {
+export const app = {
 	isLoggedIn: false,
 	userRole: null,
 	userFullName: null,
@@ -186,6 +188,8 @@ const app = {
 	router: null,
 
 	 async init() {
+			await this.loadTranslations();
+		 this.initLanguageToggle();
 		debugLog("App init started");
 		 console.count("App init started");
 			this.createMessageBanner();
@@ -232,6 +236,16 @@ const app = {
 		}
 	},
 
+	async loadTranslations() {
+		try {
+			const response = await fetch("/get_translations.php");
+			this.translations = await response.json();
+		} catch (error) {
+			console.error("Error loading translations:", error);
+			this.translations = {};
+		}
+	},
+	
 	async handlePostLoginActions() {
 					if ('Notification' in window) {
 									if (Notification.permission === 'granted') {
@@ -277,6 +291,34 @@ const app = {
 		document.body.appendChild(banner);
 	},
 
+	setLanguage(lang) {
+			this.lang = lang;
+			document.documentElement.lang = lang;
+			localStorage.setItem('lang', lang);
+			this.loadTranslations().then(() => {
+					if (this.router) {
+							this.router.reloadCurrentRoute();
+					}
+			});
+	},
+
+	initLanguageToggle() {
+			const toggleButtons = document.querySelectorAll('.lang-btn');
+			toggleButtons.forEach(btn => {
+					btn.addEventListener('click', () => {
+							const newLang = btn.dataset.lang;
+							this.setLanguage(newLang);
+							toggleButtons.forEach(b => b.classList.remove('active'));
+							btn.classList.add('active');
+							this.router.reloadCurrentRoute();
+					});
+			});
+
+			// Set initial language
+			const savedLang = localStorage.getItem('lang') || 'fr';
+			this.setLanguage(savedLang);
+			document.querySelector(`.lang-btn[data-lang="${savedLang}"]`).classList.add('active');
+	},
 
 	async loadTranslations() {
 		debugLog("Loading translations");
@@ -329,7 +371,8 @@ const app = {
 	},
 
 	translate(key) {
-		return this.translations[key] || key;
+			const lang = this.lang || 'fr';
+			return this.translations[lang]?.[key] || key;
 	},
 	
 		async syncOfflineData() {

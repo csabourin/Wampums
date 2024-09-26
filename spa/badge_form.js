@@ -3,6 +3,7 @@ import {
   getBadgeProgress,
   saveBadgeProgress,
   getCurrentStars,
+  fetchParticipant
 } from "./ajax-functions.js";
 
 export class BadgeForm {
@@ -12,6 +13,7 @@ export class BadgeForm {
     this.badgeProgress = [];
     this.currentStars = 0;
     this.hasPending = false;
+    this.formData = {};
   }
 
   async init(participantId) {
@@ -27,19 +29,39 @@ export class BadgeForm {
   }
 
   async fetchParticipant(participantId) {
-    // Implement this method to fetch participant data
-    // You might need to add a new API endpoint for this
-    this.participant = { id: participantId }; // Placeholder
+    try {
+      this.participant = await fetchParticipant(participantId);
+      if (!this.participant) {
+        throw new Error("Participant not found");
+      }
+    } catch (error) {
+      console.error("Error fetching participant:", error);
+      throw new Error(`Failed to fetch participant: ${error.message}`);
+    }
   }
 
   async fetchBadgeProgress() {
     this.badgeProgress = await getBadgeProgress(this.participant.id);
   }
 
+  updateFormData() {
+    const form = document.getElementById('badge-form');
+    this.formData = {
+      territoire_chasse: form.querySelector('#territoire_chasse').value,
+      objectif: form.querySelector('#objectif').value,
+      description: form.querySelector('#description').value,
+      fierte: form.querySelector('#fierte').checked,
+      raison: form.querySelector('#raison').value,
+      date_obtention: form.querySelector('#date_obtention').value,
+    };
+  }
+
   render() {
     const content = `
             <h1>${translate("badge_progress_form")}</h1>
+            <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate("participant_name")}</h2>
             <div id="success-message" style="display: none;"></div>
+            <button id="print-view-btn">${translate("print_badge_form")}</button>
             <form id="badge-form">
                 <label for="territoire_chasse">${translate(
                   "territoire_chasse"
@@ -99,6 +121,105 @@ export class BadgeForm {
         `;
 
     document.getElementById("app").innerHTML = content;
+  }
+
+  renderPrintView() {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${translate("badge_application_form")}</title>
+          <style>
+            @page {
+              size: letter;
+              margin: 0.5in;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              font-size: 14pt;
+            }
+            h1, h2 {
+              text-align: center;
+            }
+            .form-field {
+              margin-bottom: 20px;
+            }
+            .form-field label {
+              display: block;
+              font-weight: bold;
+              margin-bottom: 5px;
+            }
+            .form-field .input-line {
+              border-bottom: 1px solid black;
+              min-height: 30px;
+              width: 100%;
+              word-wrap: break-word;
+            }
+            .long-input {
+              min-height: 90px;
+            }
+            .signature-line {
+              border-top: 1px solid black;
+              width: 50%;
+              margin-top: 50px;
+            }
+            .checkbox-field {
+              display: flex;
+              align-items: center;
+            }
+            .checkbox-field input {
+              margin-right: 10px;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>${translate("badge_application_form")}</h1>
+          <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate("participant_name")}</h2>
+
+          <div class="form-field">
+            <label>${translate("territoire_chasse")}:</label>
+            <div class="input-line">${this.formData.territoire_chasse || ''}</div>
+          </div>
+
+          <div class="form-field">
+            <label>${translate("objectif_proie")}:</label>
+            <div class="input-line long-input">${this.formData.objectif || ''}</div>
+          </div>
+
+          <div class="form-field">
+            <label>${translate("description")}:</label>
+            <div class="input-line long-input">${this.formData.description || ''}</div>
+          </div>
+
+          <div class="form-field checkbox-field">
+            <input type="checkbox" ${this.formData.fierte ? 'checked' : ''} disabled>
+            <label>${translate("fierte")}</label>
+          </div>
+
+          <div class="form-field">
+            <label>${translate("raison")}:</label>
+            <div class="input-line long-input">${this.formData.raison || ''}</div>
+          </div>
+
+          <div class="form-field">
+            <label>${translate("date_obtention")}:</label>
+            <div class="input-line">${this.formData.date_obtention || ''}</div>
+          </div>
+
+          <div class="form-field">
+            <label>${translate("signature_participant")}:</label>
+            <div class="signature-line"></div>
+          </div>
+
+          <div class="form-field">
+            <label>${translate("signature_parent")}:</label>
+            <div class="signature-line"></div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
   }
 
   renderBadgeGrid() {
@@ -188,6 +309,15 @@ export class BadgeForm {
     const raisonTextarea = document.getElementById("raison");
     const territoireSelect = document.getElementById("territoire_chasse");
     const submitButton = document.getElementById("submitButton");
+
+    document.getElementById('badge-form').addEventListener('input', (e) => {
+      this.updateFormData();
+    });
+
+    document.getElementById('print-view-btn').addEventListener('click', () => {
+      this.updateFormData();
+      this.renderPrintView();
+    });
 
     fierteCheckbox.addEventListener("change", () => {
       raisonTextarea.required = fierteCheckbox.checked;

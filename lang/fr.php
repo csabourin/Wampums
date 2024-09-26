@@ -467,4 +467,16 @@ return [
     'passwords_do_not_match' => 'Les mots de passe ne correspondent pas',
     'password_reset_successful' => 'Mot de passe réinitialisé avec succès',
     'error_resetting_password' => 'Erreur lors de la réinitialisation du mot de passe',
+    // New translations for the badge application form
+    "badge_application_form" => "Formulaire de demande de badge",
+    "print_badge_form" => "Imprimer le formulaire de badge",
+    "participant_name" => "Nom du participant",
+    "territoire_chasse" => "Territoire de chasse",
+    "objectif_proie" => "Objectif / Proie",
+    "description" => "Description",
+    "fierte" => "Es-tu fier? (oui / non)",
+    "raison" => "Pourquoi?",
+    "date_obtention" => "Date de demande",
+    "signature_participant" => "Signature du participant",
+    "signature_parent" => "Signature du parent/tuteur",
     ];

@@ -1,5 +1,12 @@
 <?php
 // api.php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+function logDebug($message) {
+		error_log(date('[Y-m-d H:i:s] ') . $message . PHP_EOL, 3, 'debug.log');
+}
 require_once 'config.php';
 require_once 'functions.php';
 initializeApp();
@@ -44,7 +51,7 @@ $action = $_GET['action'] ?? '';
 $pdo = getDbConnection();
 
 // Only verify JWT for non-login and non-register actions
-if ($action !== 'login' && $action !== 'register') {
+if ($action !== 'login' && $action !== 'register' && $action !=="request_reset" && $action!=="reset_password") {
 	$headers = getallheaders();
 	$token = null;
 	if (isset($headers['Authorization'])) {
@@ -137,21 +144,22 @@ try {
 	break;
 
 		case 'get_calendars':
-				$stmt = $pdo->query("
-						SELECT 
-								p.id AS participant_id,
-								p.first_name,
-								p.last_name,
-								COALESCE(c.amount, 0) AS calendar_amount,
-								COALESCE(c.paid, FALSE) AS paid,
-								c.updated_at
-						FROM 
-								participants p
-						LEFT JOIN 
-								calendars c ON p.id = c.participant_id
-						ORDER BY 
-								p.last_name, p.first_name
-				");
+		$stmt = $pdo->query("
+				SELECT 
+						p.id AS participant_id,
+						p.first_name,
+						p.last_name,
+						COALESCE(c.amount, 0) AS calendar_amount,
+						COALESCE(c.amount_paid, 0) AS amount_paid,
+						COALESCE(c.paid, FALSE) AS paid,
+						c.updated_at
+				FROM 
+						participants p
+				LEFT JOIN 
+						calendars c ON p.id = c.participant_id
+				ORDER BY 
+						p.last_name, p.first_name
+		");
 				$calendars = $stmt->fetchAll(PDO::FETCH_ASSOC);
 				echo json_encode(['success' => true, 'calendars' => $calendars]);
 				break;
@@ -160,23 +168,45 @@ try {
 				$data = json_decode(file_get_contents('php://input'), true);
 				$participantId = $data['participant_id'];
 				$amount = $data['amount'];
-				$stmt = $pdo->prepare("
-						INSERT INTO calendars (participant_id, amount, paid)
-						VALUES (:participant_id, :amount, FALSE)
-						ON CONFLICT (participant_id) 
-						DO UPDATE SET 
-								amount = EXCLUDED.amount,
-								updated_at = CURRENT_TIMESTAMP
-				");
+		$stmt = $pdo->prepare("
+				INSERT INTO calendars (participant_id, amount, amount_paid, paid)
+				VALUES (:participant_id, :amount, :amount_paid, FALSE)
+				ON CONFLICT (participant_id) 
+				DO UPDATE SET 
+						amount = EXCLUDED.amount,
+						amount_paid = EXCLUDED.amount_paid,
+						updated_at = CURRENT_TIMESTAMP
+		");
+		$result = $stmt->execute([
+				':participant_id' => $participantId, 
+				':amount' => $amount,
+				':amount_paid' => $data['amount_paid'] ?? 0
+		]);
 				$result = $stmt->execute([':participant_id' => $participantId, ':amount' => $amount]);
 				echo json_encode(['success' => $result]);
 				break;
+
+		case 'update_calendar_amount_paid':
+		$data = json_decode(file_get_contents('php://input'), true);
+		$participantId = $data['participant_id'];
+		$amountPaid = $data['amount_paid'];
+		$stmt = $pdo->prepare("
+				UPDATE calendars
+				SET 
+						amount_paid = :amount_paid,
+						updated_at = CURRENT_TIMESTAMP
+				WHERE 
+						participant_id = :participant_id
+		");
+		$result = $stmt->execute([':participant_id' => $participantId, ':amount_paid' => $amountPaid]);
+		echo json_encode(['success' => $result]);
+		break;
 
 		case 'save_guest':
 		$data = json_decode(file_get_contents('php://input'), true);
 		$guestName = $data['name'];
 		$guestEmail = $data['email'] ?? null;
-		$attendanceDate = $data['date'];
+		$attendanceDate = $data['attendance_date'];
 
 		try {
 				$stmt = $pdo->prepare("
@@ -209,80 +239,99 @@ try {
 		break;
 
 		case 'request_reset':
-				$data = json_decode(file_get_contents('php://input'), true);
-				$email = $data['email'];
-				$token = bin2hex(random_bytes(32)); // Generate a secure token
-				$expiry = date('Y-m-d H:i:s', strtotime('+1 hour')); // Token expires in 1 hour
+		$data = json_decode(file_get_contents('php://input'), true);
+		$email = $data['email'];
+		$token = bin2hex(random_bytes(32)); // Generate a secure token
+		$expiry = date('Y-m-d H:i:s', strtotime('+24 hour')); // Token expires in 24 hour
+
+		try {
+				// Check if the email exists in the database
+				$checkStmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+				$checkStmt->execute([$email]);
+				$user = $checkStmt->fetch();
+
+				if (!$user) {
+						throw new Exception('User not found');
+				}
 
 				// Save the token in the database
 				$stmt = $pdo->prepare("UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE email = ?");
-				if ($stmt->execute([$token, $expiry, $email])) {
-						// Send email with reset link
-						$resetLink = "https://meute6a.app/reset_password?token=" . $token;
-						$to = $email;
-						$subject = "Réinitialisation de votre mot de passe";
-						$message = "Cliquez sur ce lien pour réinitialiser votre mot de passe: $resetLink";
-						$headers = "From: noreply@meute6a.app";
+				$updateResult = $stmt->execute([$token, $expiry, $email]);
 
-						if (sendResetEmail($to, $subject, $message)) {
-								echo json_encode(['success' => true, 'message' => 'Email de réinitialisation envoyé']);
-						} else {
-								echo json_encode(['success' => false, 'message' => 'Erreur lors de l\'envoi de l\'email']);
-						}
-				} else {
-						echo json_encode(['success' => false, 'message' => 'Erreur lors de la génération du token']);
+				if (!$updateResult) {
+						throw new Exception('Failed to update user with reset token');
 				}
-				break;
+
+				// Send email with reset link
+				$resetLink = "https://meute6a.app/reset_password?token=" . $token;
+				$to = $email;
+				$subject = "Réinitialisation de votre mot de passe";
+				$message = "Cliquez sur ce lien pour réinitialiser votre mot de passe: $resetLink";
+
+				$emailResult = sendResetEmail($to, $subject, $message);
+
+				if (!$emailResult) {
+						throw new Exception('Failed to send reset email');
+				}
+
+				echo json_encode(['success' => true, 'message' => 'Email de réinitialisation envoyé']);
+		} catch (Exception $e) {
+				error_log('Password reset error: ' . $e->getMessage());
+				echo json_encode(['success' => false, 'message' => 'Erreur lors de l\'envoi du lien de réinitialisation: ' . $e->getMessage()]);
+		}
+		break;
 
 		case 'reset_password':
-				$data = json_decode(file_get_contents('php://input'), true);
-				$token = $data['token'];
-				$newPassword = $data['new_password'];
+		$data = json_decode(file_get_contents('php://input'), true);
+		$token = $data['token'] ?? '';
+		$newPassword = $data['new_password'] ?? '';
+
+		logDebug("Attempting password reset with token: " . substr($token, 0, 10) . "...");
+
+		try {
+				if (empty($token) || empty($newPassword)) {
+						throw new Exception('Token or new password is missing');
+				}
 
 				// Verify token and update password
-				$stmt = $pdo->prepare("SELECT id FROM users WHERE reset_token = ? AND reset_token_expiry > NOW()");
+				$stmt = $pdo->prepare("SELECT id, reset_token, reset_token_expiry FROM users WHERE reset_token = ?");
 				$stmt->execute([$token]);
-				$user = $stmt->fetch();
+				$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-				if ($user) {
-						$hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
-						$updateStmt = $pdo->prepare("UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?");
-						if ($updateStmt->execute([$hashedPassword, $user['id']])) {
-								echo json_encode(['success' => true, 'message' => 'Mot de passe réinitialisé avec succès']);
-						} else {
-								echo json_encode(['success' => false, 'message' => 'Erreur lors de la réinitialisation du mot de passe']);
-						}
-				} else {
-						echo json_encode(['success' => false, 'message' => 'Token invalide ou expiré']);
-				}
-				break;
+				logDebug("User fetch result: " . json_encode($user));
 
-		// Add this function to send emails using SendGrid
-		function sendResetEmail($to, $subject, $message) {
-				require 'vendor/autoload.php'; // Make sure you have the SendGrid PHP library installed
-				$email = new \SendGrid\Mail\Mail();
-				$email->setFrom("noreply@meute6a.app", "Meute 6A");
-				$email->setSubject($subject);
-				$email->addTo($to);
-				$email->addContent("text/plain", $message);
-
-				// Read the API key from the environment variable
-				$sendgridApiKey = getenv('SENDGRID_API_KEY');
-
-				if (!$sendgridApiKey) {
-						error_log('SendGrid API key not found in environment variables');
-						return false;
+				if (!$user) {
+						logDebug("No user found with the provided token.");
+						throw new Exception('Invalid token');
 				}
 
-				$sendgrid = new \SendGrid($sendgridApiKey);
-				try {
-						$response = $sendgrid->send($email);
-						return $response->statusCode() == 202;
-				} catch (Exception $e) {
-						error_log('Caught exception: '. $e->getMessage() ."\n");
-						return false;
+				// Get the current time in UTC
+				$now = new DateTime('now', new DateTimeZone('UTC'));
+				$expiry = new DateTime($user['reset_token_expiry'], new DateTimeZone('UTC'));
+
+				logDebug("Current time (UTC): " . $now->format('Y-m-d H:i:s'));
+				logDebug("Token expiry (UTC): " . $expiry->format('Y-m-d H:i:s'));
+				logDebug("Time difference: " . $now->diff($expiry)->format('%R%a days %H hours %I minutes %S seconds'));
+
+				if ($now > $expiry) {
+						logDebug("Token has expired.");
+						throw new Exception('Token has expired');
 				}
+
+				$hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+				$updateStmt = $pdo->prepare("UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?");
+				if (!$updateStmt->execute([$hashedPassword, $user['id']])) {
+						logDebug("Failed to update password for user ID: " . $user['id']);
+						throw new Exception('Failed to update password');
+				}
+
+				logDebug("Password reset successful for user ID: " . $user['id']);
+				echo json_encode(['success' => true, 'message' => 'Mot de passe réinitialisé avec succès']);
+		} catch (Exception $e) {
+				logDebug('Password reset error: ' . $e->getMessage());
+				echo json_encode(['success' => false, 'message' => 'Erreur lors de la réinitialisation du mot de passe: ' . $e->getMessage()]);
 		}
+		break;
 
 		case 'update_calendar_paid':
 				$data = json_decode(file_get_contents('php://input'), true);

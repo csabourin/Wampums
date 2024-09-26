@@ -1,4 +1,4 @@
-import { getCalendars, updateCalendar, updateCalendarPaid } from './ajax-functions.js';
+import { getCalendars, updateCalendar, updateCalendarPaid, updateCalendarAmountPaid } from './ajax-functions.js';
 import { translate } from "./app.js";
 
 export class Calendars {
@@ -25,7 +25,7 @@ export class Calendars {
 
 	render() {
 		const content = `
-		<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+			<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
 			<h1>${this.app.translate('calendar_sales')}</h1>
 			<div id="calendars-table-container">
 				${this.renderCalendarsTable()}
@@ -43,6 +43,7 @@ export class Calendars {
 					<tr>
 						<th>${this.app.translate('name')}</th>
 						<th>${this.app.translate('amount')}</th>
+						<th>${this.app.translate('amount_paid')}</th>
 						<th>${this.app.translate('paid')}</th>
 					</tr>
 				</thead>
@@ -52,6 +53,9 @@ export class Calendars {
 							<td>${calendar.first_name} ${calendar.last_name}</td>
 							<td>
 								<input type="number" class="amount-input" data-participant-id="${calendar.participant_id}" value="${calendar.calendar_amount}" min="0">
+							</td>
+							<td>
+								<input type="number" step="0.01" class="amount-paid-input" data-participant-id="${calendar.participant_id}" value="${calendar.amount_paid}" min="0">
 							</td>
 							<td>
 								<input type="checkbox" class="paid-checkbox" data-participant-id="${calendar.participant_id}" ${calendar.paid ? 'checked' : ''}>
@@ -68,7 +72,12 @@ export class Calendars {
 			if (event.target.classList.contains('amount-input')) {
 				const participantId = event.target.dataset.participantId;
 				const amount = event.target.value;
-				await this.updateCalendarAmount(participantId, amount);
+				const amountPaid = document.querySelector(`.amount-paid-input[data-participant-id="${participantId}"]`).value;
+				await this.updateCalendarAmount(participantId, amount, amountPaid);
+			} else if (event.target.classList.contains('amount-paid-input')) {
+				const participantId = event.target.dataset.participantId;
+				const amountPaid = event.target.value;
+				await this.updateCalendarAmountPaid(participantId, amountPaid);
 			} else if (event.target.classList.contains('paid-checkbox')) {
 				const participantId = event.target.dataset.participantId;
 				const paid = event.target.checked;
@@ -81,13 +90,23 @@ export class Calendars {
 		});
 	}
 
-	async updateCalendarAmount(participantId, amount) {
+	async updateCalendarAmount(participantId, amount, amountPaid) {
 		try {
-			await updateCalendar(participantId, amount);
+			await updateCalendar(participantId, amount, amountPaid);
 			this.app.showMessage('calendar_amount_updated', 'success');
 		} catch (error) {
 			console.error('Error updating calendar amount:', error);
 			this.app.showMessage('error_updating_calendar_amount', 'error');
+		}
+	}
+
+	async updateCalendarAmountPaid(participantId, amountPaid) {
+		try {
+			await updateCalendarAmountPaid(participantId, amountPaid);
+			this.app.showMessage('calendar_amount_paid_updated', 'success');
+		} catch (error) {
+			console.error('Error updating calendar amount paid:', error);
+			this.app.showMessage('error_updating_calendar_amount_paid', 'error');
 		}
 	}
 
@@ -101,81 +120,83 @@ export class Calendars {
 		}
 	}
 
-	 showPrintView() {
-			const printWindow = window.open('', '_blank');
-			printWindow.document.write(`
-				<html>
-					<head>
-						<title>Vente de calendriers</title>
-						<style>
-							@page {
-								size: letter;
-								margin: 0.5in;
-							}
-							body {
-								font-family: Arial, sans-serif;
-								font-size: 12pt;
-							}
-							h1 {
-								text-align: center;
-								margin-bottom: 20px;
-							}
-							.print-table {
-								width: 100%;
-								border-collapse: collapse;
-							}
-							.print-table th, .print-table td {
-								border: 1px solid black;
-								padding: 5px;
-								text-align: left;
-							}
-							.print-table th {
-								background-color: #f2f2f2;
-							}
-							.amount-box {
-								width: 50px;
-								height: 25px;
-								border: 1px solid black;
-								display: inline-block;
-								text-align: center;
-								line-height: 30px;
-								font-size: 16px;
-							}
-							.paid-box {
-								width: 30px;
-								height: 25px;
-								border: 1px solid black;
-								display: inline-block;
-								text-align: center;
-								line-height: 25px;
-								font-size: 16px;
-							}
-						</style>
-					</head>
-					<body>
-						<h1>Vente de calendriers</h1>
-						<table class="print-table">
-							<thead>
+	showPrintView() {
+		const printWindow = window.open('', '_blank');
+		printWindow.document.write(`
+			<html>
+				<head>
+					<title>Vente de calendriers</title>
+					<style>
+						@page {
+							size: letter;
+							margin: 0.5in;
+						}
+						body {
+							font-family: Arial, sans-serif;
+							font-size: 12pt;
+						}
+						h1 {
+							text-align: center;
+							margin-bottom: 20px;
+						}
+						.print-table {
+							width: 100%;
+							border-collapse: collapse;
+						}
+						.print-table th, .print-table td {
+							border: 1px solid black;
+							padding: 5px;
+							text-align: left;
+						}
+						.print-table th {
+							background-color: #f2f2f2;
+						}
+						.amount-box, .amount-paid-box {
+							width: 50px;
+							height: 25px;
+							border: 1px solid black;
+							display: inline-block;
+							text-align: center;
+							line-height: 30px;
+							font-size: 16px;
+						}
+						.paid-box {
+							width: 30px;
+							height: 25px;
+							border: 1px solid black;
+							display: inline-block;
+							text-align: center;
+							line-height: 25px;
+							font-size: 16px;
+						}
+					</style>
+				</head>
+				<body>
+					<h1>Vente de calendriers</h1>
+					<table class="print-table">
+						<thead>
+							<tr>
+								<th>Nom</th>
+								<th>Quantité</th>
+								<th>Montant payé</th>
+								<th>Payé</th>
+							</tr>
+						</thead>
+						<tbody>
+							${this.calendars.map(calendar => `
 								<tr>
-									<th>Nom</th>
-									<th>Quantité</th>
-									<th>Payé</th>
+									<td>${calendar.first_name} ${calendar.last_name}</td>
+									<td><div class="amount-box">${calendar.calendar_amount || ''}</div></td>
+									<td><div class="amount-paid-box">${calendar.amount_paid || '0.00'}</div></td>
+									<td><div class="paid-box">${calendar.paid ? '✓' : ''}</div></td>
 								</tr>
-							</thead>
-							<tbody>
-								${this.calendars.map(calendar => `
-									<tr>
-										<td>${calendar.first_name} ${calendar.last_name}</td>
-										<td><div class="amount-box">${calendar.calendar_amount || ''}</div></td>
-										<td><div class="paid-box">${calendar.paid ? '✓' : ''}</div></td>
-									</tr>
-								`).join('')}
-							</tbody>
-						</table>
-					</body>
-				</html>
-			`);
-			printWindow.document.close();
-			printWindow.print();
-		}
+							`).join('')}
+						</tbody>
+					</table>
+				</body>
+			</html>
+		`);
+		printWindow.document.close();
+		printWindow.print();
 	}
+}

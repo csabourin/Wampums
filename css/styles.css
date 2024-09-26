@@ -12,8 +12,29 @@
   box-sizing: border-box;
 }
 
+.language-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+}
+
+.lang-btn {
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.lang-btn.active {
+  background-color: #4c65ae;
+  color: white;
+}
+
 #app{
   width:100%;
+  margin-top:.5em;
 }
 
 [disabled] {

@@ -42,7 +42,10 @@ try {
     <link rel="apple-touch-icon" href="/images/icon-192x192.png">
 </head>
 <body>
-    <script  async defer crossorigin="anonymous" src="/spa/facebook.js"></script>
+    <div id="language-toggle" class="language-toggle">
+        <button id="lang-fr" class="lang-btn active" data-lang="fr">FR</button>
+        <button id="lang-en" class="lang-btn" data-lang="en">EN</button>
+    </div>
 
     <div id="app">
         <?php echo translate('loading'); ?>...

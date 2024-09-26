@@ -89,7 +89,7 @@ export class Router {
     this.app = app;
   }
 
-  navigate(path) {
+   navigate(path) {
     debugLog("Navigating to:", path);
     history.pushState(null, "", path);
     this.route(path);
@@ -97,6 +97,10 @@ export class Router {
 
   async route(path) {
     debugLog("Routing to:", path);
+    // Check if the path ends with .html
+    if (path.endsWith('.html')) {
+      // Do nothing, let the server handle this request
+      return;}
     const [routeName, param] = this.getRouteNameAndParam(path);
 
     // Check session
@@ -109,7 +113,7 @@ export class Router {
       // Allow access to login, register, and index pages without being logged in
       if (
         !this.app.isLoggedIn &&
-        !["login", "register","resetPassword" ,""].includes(routeName)
+        !["login", "register","reset_password", "resetPassword" ,""].includes(routeName)
       ) {
         // Redirect to login if not logged in and not trying to access allowed pages
         history.pushState(null, "", "/login");
@@ -287,8 +291,10 @@ export class Router {
   }
 
   async loadResetPasswordPage() {
-      const resetPassword = new ResetPassword(this.app);
-      resetPassword.render();
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const resetPassword = new ResetPassword(this.app);
+    resetPassword.render(token);
   }
 
   async loadManageParticipants() {
@@ -351,6 +357,10 @@ export class Router {
   async loadRegisterPage() {
     const register = new Register(this.app);
     register.render();
+  }
+
+  reloadCurrentRoute() {
+      this.route(window.location.pathname);
   }
 
   async handleLogout() {

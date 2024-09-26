@@ -142,12 +142,22 @@ export class Attendance {
 
   attachEventListeners() {
     document.getElementById("dateSelect").addEventListener("change", (e) => this.changeDate(e.target.value));
-    document.querySelectorAll(".participant-row").forEach((row) => {
-      row.addEventListener("click", (e) => this.selectParticipant(e.currentTarget));
+
+    const participantList = document.getElementById("attendance-list");
+    participantList.addEventListener("click", (e) => {
+      const participantRow = e.target.closest(".participant-row");
+      if (participantRow) {
+        this.selectParticipant(participantRow);
+      }
     });
-    document.querySelectorAll(".status-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => this.handleStatusChange(e.currentTarget.dataset.status));
+
+    const statusButtonsContainer = document.querySelector(".status-buttons");
+    statusButtonsContainer.addEventListener("click", (e) => {
+      if (e.target.classList.contains("status-btn")) {
+        this.handleStatusChange(e.target.dataset.status);
+      }
     });
+
     document.getElementById("addGuestButton").addEventListener("click", () => this.addGuest());
   }
 

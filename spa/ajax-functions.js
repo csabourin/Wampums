@@ -133,6 +133,53 @@ export async function getCalendars() {
   }
 }
 
+export async function updateCalendar(participantId, amount, amountPaid) {
+  try {
+    const response = await fetch("/api.php?action=update_calendar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ participant_id: participantId, amount: amount, amount_paid: amountPaid }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.success;
+  } catch (error) {
+    console.error("Error updating calendar:", error);
+    throw error;
+  }
+}
+
+export async function updateCalendarAmountPaid(participantId, amountPaid) {
+  try {
+    const response = await fetch("/api.php?action=update_calendar_amount_paid", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ participant_id: participantId, amount_paid: amountPaid }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.success;
+  } catch (error) {
+    console.error("Error updating calendar amount paid:", error);
+    throw error;
+  }
+}
+
+
 export async function getGuestsByDate(date) {
     try {
         const response = await fetch(`/api.php?action=get_guests_by_date&date=${date}`, {
@@ -172,6 +219,7 @@ export async function saveGuest(guest) {
           });
 
           const result = await response.json();
+        console.log("Guest saved:", result);  // Add this to verify the response
           if (result.success) {
               console.log(result.message);
           } else {
@@ -182,28 +230,6 @@ export async function saveGuest(guest) {
       }
   }
 
-export async function updateCalendar(participantId, amount) {
-  try {
-    const response = await fetch("/api.php?action=update_calendar", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-      },
-      body: JSON.stringify({ participant_id: participantId, amount: amount }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-    return result.success;
-  } catch (error) {
-    console.error("Error updating calendar:", error);
-    throw error;
-  }
-}
 
 export async function updateCalendarPaid(participantId, paidStatus) {
   try {
