@@ -52,7 +52,7 @@ function isLoggedIn() {
     function sendResetEmail($to, $subject, $message) {
             require 'vendor/autoload.php'; // Make sure you have the SendGrid PHP library installed
             $email = new \SendGrid\Mail\Mail();
-            $email->setFrom("noreply@meute6a.app", "Meute 6A");
+            $email->setFrom("noreply@meute6a.app", "Meute 6B");
             $email->setSubject($subject);
             $email->addTo($to);
             $email->addContent("text/plain", $message);
