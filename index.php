@@ -30,11 +30,11 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://meute6a.app">
-    <meta property="og:title" content="Meute 6a d'Aylmer">
-    <meta property="og:description" content="Application pour la gestion des informations d'inscription, la fiche santé et l'acceptation des risques des louveteaux de la Meute 6A St-Paul d'Aylmer. Permet aux parents de suivre les nouvelles, s'inscrire aux alertes et aux enfants de demander la progression des badges.">
+    <meta property="og:title" content="Meute 6B d'Aylmer">
+    <meta property="og:description" content="Application pour la gestion des informations d'inscription, la fiche santé et l'acceptation des risques des louveteaux de la Meute 6B St-Paul d'Aylmer. Permet aux parents de suivre les nouvelles, s'inscrire aux alertes et aux enfants de demander la progression des badges.">
     <meta property="og:image" content="https://meute6a.app/images/android-chrome-512x512.png">
     <meta property="fb:app_id" content="2012826655814548">
-    <title>Meute 6e A St-Paul</title>
+    <title>Meute 6e B St-Paul</title>
     <link rel="stylesheet" href="/css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <link rel="manifest" href="/manifest.json">
     <link rel="alternate" type="application/rss+xml" href="/rss.xml" title="Meute 6e A St-Paul">
