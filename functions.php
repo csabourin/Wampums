@@ -162,19 +162,31 @@ function getCurrentOrganizationId() {
         }
     }
 
-    // Retrieve the current domain (handling dev environments)
+    // Retrieve the current domain
     $currentHost = $_SERVER['HTTP_HOST'];
+    
+    // Log the current host for debugging
+    error_log("Current host: " . $currentHost);
 
-    // Check if there's an exact match or wildcard match in the organization_domains table
+    // Prepare the query to match both exact and wildcard domains
     $stmt = $pdo->prepare("
         SELECT organization_id 
         FROM organization_domains 
-        WHERE domain = :domain OR domain = :wildcard 
+        WHERE domain = :domain
+        OR :current_host LIKE REPLACE(domain, '*', '%')
         LIMIT 1
     ");
-    $wildcardDomain = '*.' . implode('.', array_slice(explode('.', $currentHost), 1));
-    $stmt->execute([':domain' => $currentHost, ':wildcard' => $wildcardDomain]);
+
+    // Execute the query
+    $stmt->execute([
+        ':domain' => $currentHost,
+        ':current_host' => $currentHost
+    ]);
+
     $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Log the query result for debugging
+    error_log("Query result: " . print_r($organization, true));
 
     if ($organization) {
         // Store in session for future requests
@@ -182,7 +194,8 @@ function getCurrentOrganizationId() {
         return $organization['organization_id'];
     }
 
-    // If no valid organization ID is found, return the default (1)
+    // If no valid organization ID is found, log this occurrence and return the default (1)
+    error_log("No matching organization found for domain: " . $currentHost);
     return 1;
 }
 
