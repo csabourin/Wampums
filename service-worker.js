@@ -1,6 +1,6 @@
-const CACHE_NAME = "wampums-app-v3.1";
-const STATIC_CACHE_NAME = "wampums-static-v3.1";
-const API_CACHE_NAME = "wampums-api-v3.1";
+const CACHE_NAME = "wampums-app-v3.6.0";
+const STATIC_CACHE_NAME = "wampums-static-v3.6.0";
+const API_CACHE_NAME = "wampums-api-v3.6.0";
 
 const staticAssets = [
   "/",

@@ -22,6 +22,7 @@
 .lang-btn {
   background-color: #f0f0f0;
   border: 1px solid #ccc;
+  color:var(--text-color);
   padding: 5px 10px;
   cursor: pointer;
   font-size: 14px;
@@ -530,16 +531,21 @@ td {
     position: relative;
   }
 
-  td:before {
-    content: attr(data-label);
-    position: absolute;
-    left: 6px;
-    width: 45%;
-    padding-right: 10px;
-    white-space: nowrap;
-    font-weight: bold;
+  @media (max-width: 600px) {
+    td:before {
+      content: attr(data-label);
+      padding-right: 10px;
+      white-space: nowrap;
+      font-weight: bold;
+    }
   }
-}
+
+  /* Ensure that the data-label is not shown for larger screens */
+  @media (min-width: 601px) {
+    td:before {
+      content: none;
+    }
+  }
 #news-widget{
   width:100%;
 }
@@ -617,6 +623,7 @@ td {
   .calendars-table td:nth-of-type(1):before { content: "Nom"; }
   .calendars-table td:nth-of-type(2):before { content: "Quantité"; }
   .calendars-table td:nth-of-type(3):before { content: "Payé"; }
+}
 }
 
 .pending-update {
@@ -1196,3 +1203,123 @@ textarea {
   position: absolute;
   left: -9999px;
 }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 5px;
+    font-size: 0.8em;
+    font-weight: bold;
+    border-radius: 3px;
+    margin-left: 5px;
+  }
+
+  .badge.leader {
+    background-color: #ffd700;
+    color: #000;
+  }
+
+  .badge.second-leader {
+    background-color: #c0c0c0;
+    color: #000;
+  }
+
+  /* Modal styles */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+  }
+
+  .modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 600px;
+  }
+
+  .close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .close:hover,
+  .close:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  /* Participant list styles */
+  .participant-card {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+
+  .participant-card h2 {
+    margin-top: 0;
+  }
+
+  .form-status {
+    margin-bottom: 10px;
+  }
+
+  .form-status .filled {
+    color: green;
+  }
+
+  .form-status .missing {
+    color: red;
+  }
+
+  .view-form {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 12px;
+    margin: 2px 2px;
+    cursor: pointer;
+    border-radius: 3px;
+  }
+
+  /* Form content styles */
+  #form-content {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  #form-content label {
+    display: block;
+    margin-top: 10px;
+  }
+
+  #form-content input[type="text"],
+  #form-content input[type="email"],
+  #form-content input[type="tel"],
+  #form-content textarea,
+  #form-content select {
+    width: 100%;
+    padding: 5px;
+    margin-top: 5px;
+  }
+
+  #form-content input[type="checkbox"] {
+    margin-right: 5px;
+  }

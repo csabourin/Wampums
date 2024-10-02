@@ -121,6 +121,9 @@ export class Calendars {
 	}
 
 	showPrintView() {
+		const totalAmount = this.calendars.reduce((sum, calendar) => sum + parseFloat(calendar.calendar_amount || 0), 0);
+		const totalAmountPaid = this.calendars.reduce((sum, calendar) => sum + parseFloat(calendar.amount_paid || 0), 0);
+
 		const printWindow = window.open('', '_blank');
 		printWindow.document.write(`
 			<html>
@@ -169,6 +172,9 @@ export class Calendars {
 							line-height: 25px;
 							font-size: 16px;
 						}
+						.total-row {
+							font-weight: bold;
+						}
 					</style>
 				</head>
 				<body>
@@ -191,6 +197,12 @@ export class Calendars {
 									<td><div class="paid-box">${calendar.paid ? '✓' : ''}</div></td>
 								</tr>
 							`).join('')}
+							<tr class="total-row">
+								<td>Total</td>
+								<td>${totalAmount.toFixed(2)}</td>
+								<td>${totalAmountPaid.toFixed(2)}</td>
+								<td></td>
+							</tr>
 						</tbody>
 					</table>
 				</body>
@@ -199,4 +211,5 @@ export class Calendars {
 		printWindow.document.close();
 		printWindow.print();
 	}
+
 }

@@ -3,6 +3,7 @@ import {
   getGroups,
   updatePoints,
   getAuthHeader,
+  getCurrentOrganizationId,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import {
@@ -42,15 +43,43 @@ export class ManagePoints {
 
   async fetchData() {
     try {
-      [this.participants, this.groups] = await Promise.all([
+      const [participantsResponse, groupsResponse] = await Promise.all([
         getParticipants(),
         getGroups(),
       ]);
 
-      // Separate participants without a group
-      this.unassignedParticipants = this.participants.filter(
-        (p) => !p.group_id
-      );
+      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
+        this.participants = participantsResponse.participants;
+      } else {
+        console.error("Unexpected participants data structure:", participantsResponse);
+        throw new Error("Invalid participants data");
+      }
+
+      if (groupsResponse.success && Array.isArray(groupsResponse.groups)) {
+        this.groups = groupsResponse.groups;
+      } else {
+        console.error("Unexpected groups data structure:", groupsResponse);
+        throw new Error("Invalid groups data");
+      }
+
+      // Organize participants by group
+      this.groupedParticipants = this.groups.reduce((acc, group) => {
+        acc[group.id] = [];
+        return acc;
+      }, {});
+
+      this.unassignedParticipants = [];
+
+      this.participants.forEach(participant => {
+        if (participant.group_id) {
+          if (this.groupedParticipants[participant.group_id]) {
+            this.groupedParticipants[participant.group_id].push(participant);
+          }
+        } else {
+          this.unassignedParticipants.push(participant);
+        }
+      });
+
     } catch (error) {
       console.error("Error fetching manage points data:", error);
       throw error;
@@ -300,6 +329,7 @@ export class ManagePoints {
           headers: {
             "Content-Type": "application/json",
             ...getAuthHeader(),
+            'X-Organization-ID': getCurrentOrganizationId()
           },
           body: JSON.stringify(updates),
         });

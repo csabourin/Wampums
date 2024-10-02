@@ -24,8 +24,12 @@ export class ManageGroups {
   }
 
   async fetchGroups() {
-    this.groups = await getGroups();
+    const fetchedGroup = await getGroups();
+    if (fetchedGroup.success) {
+      this.groups = fetchedGroup.groups;
+    }
   }
+
 
   render() {
     const content = `

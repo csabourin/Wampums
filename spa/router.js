@@ -19,6 +19,8 @@ import { Admin } from "./admin.js";
 import { MailingList } from "./mailing_list.js";
 import { Calendars } from './calendars.js';
 import {ResetPassword} from './reset_password.js';
+import { DynamicFormHandler } from "./dynamicFormHandler.js";
+import { Reports } from "./reports.js";
 
 const debugMode =
   window.location.hostname === "localhost" ||
@@ -82,6 +84,7 @@ const routes = {
   "/register.php": "register",
   "/calendars": "calendars",
   "/reset_password": "resetPassword",
+   "/reports": "reports",
 };
 
 export class Router {
@@ -102,6 +105,13 @@ export class Router {
       // Do nothing, let the server handle this request
       return;}
     const [routeName, param] = this.getRouteNameAndParam(path);
+    const dynamicFormMatch = path.match(/^\/dynamic-form\/([^\/]+)\/(\d+)$/);
+      if (dynamicFormMatch) {
+        const formType = dynamicFormMatch[1];
+        const participantId = dynamicFormMatch[2];
+        await this.loadDynamicForm(formType, participantId);
+        return;
+      }
 
     // Check session
     const session = Login.checkSession();
@@ -194,6 +204,9 @@ export class Router {
         case "parentContactList":
           await this.loadParentContactList();
           break;
+          case 'reports':
+          await this.loadReports();
+          break;
         case "approveBadges":
           await this.loadApproveBadges();
           break;
@@ -226,6 +239,11 @@ export class Router {
       console.error("Routing error:", error);
       this.app.renderError("An error occurred while loading the page.");
     }
+  }
+
+  async loadDynamicForm(formType, participantId) {
+    const dynamicFormHandler = new DynamicFormHandler(this.app);
+    await dynamicFormHandler.init(formType, participantId);
   }
 
   async loadCalendarsPage() {
@@ -278,6 +296,11 @@ export class Router {
   async loadLoginPage() {
     const login = new Login(this.app);
     login.render();
+  }
+
+  async loadReports() {
+    const reports = new Reports(this.app);
+    await reports.init();
   }
 
   async loadManageHonors() {

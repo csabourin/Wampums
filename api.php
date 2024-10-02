@@ -68,80 +68,220 @@ if ($action !== 'login' && $action !== 'register' && $action !=="request_reset" 
 }
 
 try {
+	$organization_id = getCurrentOrganizationId();
+	$organizationId = $organization_id;
+	if (!$organization_id) {
+		throw new Exception("Organization ID not found.");
+	}
 	switch ($action) {
-		case 'get_mailing_list':
+		case 'switch_organization':
+		$newOrgId = $_POST['organization_id'] ?? null;
+		$userId = getUserIdFromToken($token);
+		$userOrgs = getUserOrganizations($userId);
 
-	// Get emails from users, grouped by role
-	$stmt = $pdo->prepare("SELECT email, role FROM users WHERE email IS NOT NULL AND email != ''");
-	$stmt->execute();
-	$usersEmails = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-	$emailsByRole = [];
-	foreach ($usersEmails as $user) {
-		$role = $user['role'];
-		$email = strtolower($user['email']);  // Convert email to lowercase
-		if (!isset($emailsByRole[$role])) {
-			$emailsByRole[$role] = [];
-		}
-		$emailsByRole[$role][] = $email;
-	}
-
-	// Get emails from parents_guardians and the participants they are linked to
-	$stmt = $pdo->query("
-		SELECT LOWER(pg.courriel) as courriel, string_agg(p.first_name || ' ' || p.last_name, ', ') AS participants
-		FROM parents_guardians pg
-		LEFT JOIN participant_guardians pgp ON pg.id = pgp.parent_guardian_id
-		LEFT JOIN participants p ON p.id = pgp.participant_id
-		WHERE pg.courriel IS NOT NULL AND pg.courriel != ''
-		GROUP BY pg.courriel
-	");
-	$parentEmails = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-	// Format the parent emails with linked participants
-	$emailsByRole['parent'] = [];
-	foreach ($parentEmails as $parent) {
-		$emailsByRole['parent'][] = [
-			'email' => $parent['courriel'],
-			'participants' => $parent['participants'] ?? ''  // Ensure participants is a string
-		];
-	}
-
-	// Get emails from participants (grouped separately if needed)
-	$stmt = $pdo->prepare("SELECT LOWER(courriel) FROM participants WHERE courriel IS NOT NULL AND courriel != ''");
-	$stmt->execute();
-	$participantEmails = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-	// Collect all unique emails without unpacking
-	$allEmails = [];
-
-	// Collect user emails
-	foreach ($emailsByRole as $role => $emails) {
-		if ($role === 'parent') {
-			// For parent role, check if the 'courriel' key exists before using it
-			foreach ($emails as $parentEmail) {
-				$allEmails[] = strtolower($parentEmail['email']);
-			}
+		if ($newOrgId && in_array($newOrgId, array_column($userOrgs, 'organization_id'))) {
+				$_SESSION['current_organization_id'] = $newOrgId;
+				echo json_encode(['success' => true, 'message' => 'Organization switched successfully']);
 		} else {
-			// For other roles, add the emails as they are
-			$allEmails = array_merge($allEmails, $emails);
+				echo json_encode(['success' => false, 'message' => 'Invalid organization ID']);
 		}
-	}
+		break;
+		case 'get_mailing_list':
+		$organizationId = getCurrentOrganizationId();
 
-	// Add participant emails directly
-	$allEmails = array_merge($allEmails, $participantEmails);
+		// Fetch emails and roles from the user_organizations table for the current organization
+		$stmt = $pdo->prepare("
+				SELECT u.email, uo.role 
+				FROM user_organizations uo
+				JOIN users u ON u.id = uo.user_id
+				WHERE uo.organization_id = :organization_id
+				AND u.email IS NOT NULL 
+				AND u.email != ''
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$usersEmails = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	// Get unique email addresses (case-insensitive)
-	$uniqueEmails = array_unique($allEmails);
+		$emailsByRole = [];
+		foreach ($usersEmails as $user) {
+				$role = $user['role'];
+				$email = strtolower($user['email']);  // Convert email to lowercase
+				if (!isset($emailsByRole[$role])) {
+						$emailsByRole[$role] = [];
+				}
+				$emailsByRole[$role][] = $email;
+		}
 
-	// Output the result
-	echo json_encode([
-		'success' => true,
-		'emails_by_role' => $emailsByRole,  // User emails grouped by role
-		'participant_emails' => array_values($participantEmails),  // Unique participant emails
-		'unique_emails' => array_values($uniqueEmails)  // All unique emails combined
-	]);
+		// Get guardian emails from form_submissions
+		$stmt = $pdo->prepare("
+				SELECT 
+						LOWER(fs.submission_data->>'guardian_courriel_0') AS courriel, 
+						string_agg(p.first_name || ' ' || p.last_name, ', ') AS participants
+				FROM form_submissions fs
+				JOIN participants p ON fs.participant_id = p.id
+				WHERE 
+						(fs.submission_data->>'guardian_courriel_0') IS NOT NULL 
+						AND (fs.submission_data->>'guardian_courriel_0') != ''
+						AND fs.organization_id = :organization_id
+				GROUP BY fs.submission_data->>'guardian_courriel_0'
 
-	break;
+				UNION
+
+				SELECT 
+						LOWER(fs.submission_data->>'guardian_courriel_1') AS courriel, 
+						string_agg(p.first_name || ' ' || p.last_name, ', ') AS participants
+				FROM form_submissions fs
+				JOIN participants p ON fs.participant_id = p.id
+				WHERE 
+						(fs.submission_data->>'guardian_courriel_1') IS NOT NULL 
+						AND (fs.submission_data->>'guardian_courriel_1') != ''
+						AND fs.organization_id = :organization_id
+				GROUP BY fs.submission_data->>'guardian_courriel_1'
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$parentEmails = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		// Format the parent emails with linked participants
+		$emailsByRole['parent'] = [];
+		foreach ($parentEmails as $parent) {
+				$emailsByRole['parent'][] = [
+						'email' => $parent['courriel'],
+						'participants' => $parent['participants'] ?? ''  // Ensure participants is a string
+				];
+		}
+
+		// Get emails from participants
+		$stmt = $pdo->prepare("
+				SELECT LOWER(fs.submission_data->>'courriel') AS courriel
+				FROM form_submissions fs
+				WHERE 
+						(fs.submission_data->>'courriel') IS NOT NULL 
+						AND (fs.submission_data->>'courriel') != ''
+						AND fs.organization_id = :organization_id
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$participantEmails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+		// Collect all unique emails without unpacking
+		$allEmails = [];
+
+		// Collect user emails
+		foreach ($emailsByRole as $role => $emails) {
+				if ($role === 'parent') {
+						// For parent role, check if the 'courriel' key exists before using it
+						foreach ($emails as $parentEmail) {
+								$allEmails[] = strtolower($parentEmail['email']);
+						}
+				} else {
+						// For other roles, add the emails as they are
+						$allEmails = array_merge($allEmails, $emails);
+				}
+		}
+
+		// Add participant emails directly
+		$allEmails = array_merge($allEmails, $participantEmails);
+
+		// Get unique email addresses (case-insensitive)
+		$uniqueEmails = array_unique($allEmails);
+
+		// Output the result
+		echo json_encode([
+				'success' => true,
+				'emails_by_role' => $emailsByRole,  // User emails grouped by role
+				'participant_emails' => array_values($participantEmails),  // Unique participant emails
+				'unique_emails' => array_values($uniqueEmails)  // All unique emails combined
+		]);
+		break;
+
+		case 'get_organization_form_formats':
+		// Ensure the user is authenticated
+		$user = requireAuth();
+
+		// Get the organization ID from the user's session or JWT
+		$organizationId = getCurrentOrganizationId();
+
+		if (!$organizationId) {
+				echo json_encode(['success' => false, 'message' => 'No organization selected']);
+				exit;
+		}
+
+		try {
+				// Fetch all form formats associated with the organization
+				$stmt = $pdo->prepare("
+						SELECT form_type, form_structure 
+						FROM organization_form_formats 
+						 WHERE organization_id = ?
+				");
+				$stmt->execute([$organizationId]);
+				$formFormats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+				// Map the form formats to make them accessible by their form_type
+				$formattedData = [];
+				foreach ($formFormats as $form) {
+						$formattedData[$form['form_type']] = json_decode($form['form_structure'], true);
+				}
+
+				echo json_encode([
+						'success' => true,
+						'formFormats' => $formattedData
+				]);
+		} catch (PDOException $e) {
+				error_log('Database error: ' . $e->getMessage());
+				echo json_encode([
+						'success' => false,
+						'message' => 'Error fetching form formats'
+				]);
+		}
+		break;
+
+
+
+
+		case 'get_organization_settings':
+		// Ensure the user is authenticated
+		$user = requireAuth();
+
+		// Get the organization ID from the user's session or JWT
+		$organizationId = getCurrentOrganizationId();
+
+		if (!$organizationId) {
+				echo json_encode(['success' => false, 'message' => 'No organization selected']);
+				exit;
+		}
+
+		try {
+				$stmt = $pdo->prepare("
+						SELECT setting_key, setting_value 
+						FROM organization_settings 
+						WHERE organization_id = ?
+				");
+			$stmt->execute([$organizationId]);
+			$settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+			// Decode JSON-encoded settings and filter form structures
+			$formStructures = [];
+				foreach ($settings as $key => $value) {
+					$decodedValue = json_decode($value, true);
+					if (json_last_error() === JSON_ERROR_NONE) {
+						$settings[$key] = $decodedValue;
+						// Identify form structures by naming convention (e.g., ending in '_structure')
+						if (str_ends_with($key, '_structure')) {
+							$formStructures[$key] = $decodedValue;
+						}
+					}
+				} // Close the foreach loop here
+
+				echo json_encode([
+					'success' => true,
+					'settings' => $settings,
+					'form_structures' => $formStructures // Include all form structures in the response
+				]);
+		} catch (PDOException $e) {
+				error_log('Database error: ' . $e->getMessage());
+				echo json_encode([
+						'success' => false, 
+						'message' => 'Error fetching organization settings'
+				]);
+		}
+		break;
 
 		case 'get_calendars':
 		$stmt = $pdo->query("
@@ -497,13 +637,14 @@ try {
 				$data = json_decode(file_get_contents('php://input'), true);
 		$groupName = sanitizeInput($data['group_name']);
 
-		$stmt = $pdo->prepare("INSERT INTO groups (name) VALUES (?)");
-		if ($stmt->execute([$groupName])) {
-			echo json_encode(['status' => 'success', 'message' => translate('group_added_successfully')]);
-		} else {
-			echo json_encode(['status' => 'error', 'message' => translate('error_adding_group')]);
-		}
-		break;
+		$stmt = $pdo->prepare("INSERT INTO groups (name, organization_id) VALUES (?, ?)");
+
+			if ($stmt->execute([$groupName, $organization_id])) {
+					echo json_encode(['status' => 'success', 'message' => translate('group_added_successfully')]);
+			} else {
+					echo json_encode(['status' => 'error', 'message' => translate('error_adding_group')]);
+			}
+			break;
 
 		case 'update_group_name':
 			$data = json_decode(file_get_contents('php://input'), true);
@@ -557,351 +698,637 @@ try {
 				'has_pending' => $result['pending_count'] > 0
 			]);
 			break;
+
 		case 'get_participants':
-			$stmt = $pdo->query("
-				SELECT p.id, p.first_name, p.last_name, p.group_id, g.name AS group_name,
-								COALESCE(SUM(pt.value), 0) AS total_points
-				FROM participants p
-				LEFT JOIN groups g ON p.group_id = g.id
-				LEFT JOIN points pt ON p.id = pt.name_id
-				GROUP BY p.id, g.id
-				ORDER BY g.name, p.last_name, p.first_name
-			");
-			$participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
-			echo json_encode($participants);
+		$organizationId = getCurrentOrganizationId();
+		if (!$organizationId) {
+			echo json_encode(['success' => false, 'message' => 'No organization selected']);
 			break;
+		}
+
+		$stmt = $pdo->prepare("
+			SELECT 
+				p.id, 
+				p.first_name, 
+				p.last_name, 
+				COALESCE(SUM(pt.value), 0) AS total_points,
+				pg.group_id,
+				g.name AS group_name,
+				pg.is_leader,
+				pg.is_second_leader
+			FROM participants p
+			LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organizationId
+			LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organizationId
+			LEFT JOIN points pt ON p.id = pt.name_id AND pt.organization_id = :organizationId
+			WHERE p.organization_id = :organizationId
+			GROUP BY p.id, pg.group_id, g.name, pg.is_leader, pg.is_second_leader
+			ORDER BY g.name, p.last_name, p.first_name
+		");
+
+		$stmt->execute(['organizationId' => $organizationId]);
+		$participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		echo json_encode(['success' => true, 'participants' => $participants]);
+		break;
+
+		case 'remove_participant_from_group':
+		$data = json_decode(file_get_contents('php://input'), true);
+		$participantId = (int)$data['participant_id'];
+		$groupId = (int)$data['group_id'];
+		$organizationId = getCurrentOrganizationId();
+
+		$stmt = $pdo->prepare("DELETE FROM participant_groups WHERE participant_id = ? AND group_id = ? AND organization_id = ?");
+		if ($stmt->execute([$participantId, $groupId, $organizationId])) {
+				echo json_encode(['status' => 'success', 'message' => 'Participant removed from group successfully']);
+		} else {
+				echo json_encode(['status' => 'error', 'message' => 'Error removing participant from group']);
+		}
+		break;
+
 
 		case 'get_participants_with_documents':
-		$query = "
-			SELECT p.id, p.first_name, p.last_name, 
-							CASE WHEN fs.id IS NOT NULL THEN 1 ELSE 0 END AS has_fiche_sante,
-							CASE WHEN ar.id IS NOT NULL THEN 1 ELSE 0 END AS has_acceptation_risque,
-							CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END AS has_inscription
-			FROM participants p
-			LEFT JOIN fiche_sante fs ON p.id = fs.participant_id
-			LEFT JOIN acceptation_risque ar ON p.id = ar.participant_id
-			ORDER BY p.last_name, p.first_name
-		";
-		$stmt = $pdo->query($query);
-		$participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
-		echo json_encode(['participants' => $participants]);
+		try {
+				// Retrieve form structures from organization_settings
+				$organizationId = getCurrentOrganizationId();
+
+				$settingsQuery = "
+						SELECT form_type 
+						FROM organization_form_formats 
+						WHERE organization_id = :organization_id
+				";
+
+				$settingsStmt = $pdo->prepare($settingsQuery);
+				$settingsStmt->execute(['organization_id' => $organizationId]);
+				$formStructures = $settingsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+				// Build dynamic SELECT fields and JOIN statements
+				$selectFields = "p.id, p.first_name, p.last_name";
+				$joinClauses = "";
+				$params = ['organization_id' => $organizationId];
+
+			$usedAliases = []; // Track used aliases
+
+			foreach ($formStructures as $formStructure) {
+					$formType = str_replace('_structure', '', $formStructure); // Extract the form type
+					$baseAlias = 'fs_' . preg_replace('/[^a-zA-Z0-9]/', '', $formType);
+
+					// Ensure the alias is unique
+					$tableAlias = $baseAlias;
+					$counter = 1;
+					while (in_array($tableAlias, $usedAliases)) {
+							$tableAlias = $baseAlias . $counter;
+							$counter++;
+					}
+					$usedAliases[] = $tableAlias; // Store the alias to prevent future collisions
+
+					// Add the dynamic SELECT field
+					$selectFields .= ", CASE WHEN {$tableAlias}.id IS NOT NULL THEN 1 ELSE 0 END AS has_{$formType}";
+
+					// Add the LEFT JOIN clause and parameter placeholders
+					$joinClauses .= " 
+							LEFT JOIN form_submissions {$tableAlias} 
+							ON p.id = {$tableAlias}.participant_id 
+							AND {$tableAlias}.form_type = :form_type_{$formType} 
+							AND {$tableAlias}.organization_id = :organization_id";
+
+					// Bind the form_type parameter for this specific form structure
+					$params["form_type_{$formType}"] = $formType;
+			}
+
+
+				// Construct the final query
+				$query = "
+						SELECT {$selectFields}
+						FROM participants p
+						{$joinClauses}
+						WHERE p.organization_id = :organization_id
+						ORDER BY p.last_name, p.first_name
+				";
+
+			error_log(print_r($query, true));
+			error_log(print_r($params, true));
+
+
+				$stmt = $pdo->prepare($query);
+				$stmt->execute($params);
+				$participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+				if ($participants === false) {
+						throw new Exception("Error fetching participants");
+				}
+
+				echo json_encode(['success' => true, 'participants' => $participants]);
+		} catch (Exception $e) {
+				error_log('Error in get_participants_with_documents: ' . $e->getMessage());
+				echo json_encode(['success' => false, 'message' => 'Error fetching participants with documents: ' . $e->getMessage()]);
+		}
 		break;
 
 		case 'get_parent_contact_list':
 		$query = "
-			SELECT 
-				p.id, 
-				p.first_name, 
-				p.last_name,
-				COALESCE(g.name, '" . translate('no_group') . "') AS group_name,
-				pg.nom, 
-				pg.prenom, 
-				pg.telephone_residence, 
-				pg.telephone_cellulaire, 
-				pg.telephone_travail,
-				pg.is_emergency_contact
-			FROM participants p
-			LEFT JOIN groups g ON p.group_id = g.id
-			LEFT JOIN participant_guardians pgp ON p.id = pgp.participant_id
-			LEFT JOIN parents_guardians pg ON pgp.parent_guardian_id = pg.id
-			ORDER BY p.last_name NULLS LAST, p.first_name, pg.is_primary DESC
+				SELECT 
+						p.id, 
+						p.first_name, 
+						p.last_name,
+						COALESCE(g.name, '" . translate('no_group') . "') AS group_name,
+						pg.nom, 
+						pg.prenom, 
+						pg.telephone_residence, 
+						pg.telephone_cellulaire, 
+						pg.telephone_travail,
+						pg.is_emergency_contact,
+						pg.is_primary
+				FROM participants p
+				LEFT JOIN participant_groups pgroups ON p.id = pgroups.participant_id 
+						AND pgroups.organization_id = :organization_id
+				LEFT JOIN groups g ON pgroups.group_id = g.id
+				LEFT JOIN participant_guardians pgp ON p.id = pgp.participant_id
+				LEFT JOIN parents_guardians pg ON pgp.parent_guardian_id = pg.id
+				WHERE pgroups.organization_id = :organization_id
+				ORDER BY p.first_name, p.last_name, pg.is_primary DESC
 		";
-		$stmt = $pdo->query($query);
+
+		$stmt = $pdo->prepare($query);
+		$stmt->execute(['organization_id' => $organization_id]);
 		$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 		// Organize data by child
 		$children = [];
 		foreach ($result as $row) {
-			$childId = $row['id'];
-			if (!isset($children[$childId])) {
-				$children[$childId] = [
-					'name' => $row['first_name'] . ' ' . $row['last_name'],
-					'group' => $row['group_name'],
-					'contacts' => []
+				$childId = $row['id'];
+				if (!isset($children[$childId])) {
+						$children[$childId] = [
+								'name' => $row['first_name'] . ' ' . $row['last_name'],
+								'groups' => [],
+								'contacts' => []
+						];
+				}
+
+				// Add group if not already present
+				if (!in_array($row['group_name'], $children[$childId]['groups'])) {
+						$children[$childId]['groups'][] = $row['group_name'];
+				}
+
+				// Only add unique contact entries
+				$contactEntry = [
+						'name' => $row['prenom'] . ' ' . $row['nom'],
+						'phone_home' => $row['telephone_residence'],
+						'phone_cell' => $row['telephone_cellulaire'],
+						'phone_work' => $row['telephone_travail'],
+						'is_emergency' => $row['is_emergency_contact']
 				];
-			}
-			if ($row['nom'] && $row['prenom']) {
-				$children[$childId]['contacts'][] = [
-					'name' => $row['prenom'] . ' ' . $row['nom'],
-					'phone_home' => $row['telephone_residence'],
-					'phone_cell' => $row['telephone_cellulaire'],
-					'phone_work' => $row['telephone_travail'],
-					'is_emergency' => $row['is_emergency_contact']
-				];
-			}
+
+				if ($row['nom'] && $row['prenom'] && !in_array($contactEntry, $children[$childId]['contacts'])) {
+						$children[$childId]['contacts'][] = $contactEntry;
+				}
 		}
 
-		// Sort children alphabetically by group then by name
-		uasort($children, function($a, $b) {
-			$groupCompare = strcmp($a['group'], $b['group']);
-			if ($groupCompare === 0) {
-				return strcmp($a['name'], $b['name']);
-			}
-			return $groupCompare;
-		});
-
+		// Send back JSON response
 		echo json_encode($children);
 		break;
 
+
+
 		case 'get_pending_badges':
-			$stmt = $pdo->query("SELECT bp.*, p.first_name, p.last_name 
-									FROM badge_progress bp 
-									JOIN participants p ON bp.participant_id = p.id 
-									WHERE bp.status = 'pending' 
-									ORDER BY bp.date_obtention");
-			$pending_badges = $stmt->fetchAll(PDO::FETCH_ASSOC);
-			echo json_encode($pending_badges);
-			break;
+		$organizationId = getCurrentOrganizationId();
+		$stmt = $pdo->prepare("
+				SELECT bp.*, p.first_name, p.last_name 
+				FROM badge_progress bp 
+				JOIN participants p ON bp.participant_id = p.id 
+				WHERE bp.status = 'pending' 
+				AND p.organization_id = :organization_id
+				ORDER BY bp.date_obtention
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$pending_badges = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		echo json_encode($pending_badges);
+		break;
+
 
 		case 'update_badge_status':
-			$data = json_decode(file_get_contents('php://input'), true);
-			$badge_id = $data['badge_id'];
-			$action = $data['action'];
-			$user_id = $_SESSION['user_id'];
+		$data = json_decode(file_get_contents('php://input'), true);
+		$badge_id = $data['badge_id'];
+		$action = $data['action'];
+		$user_id = getUserIdFromToken($token); // Ensure proper token handling
+		$organization_id = getCurrentOrganizationId(); // Assuming this function fetches the correct organization_id
 
-			$stmt = $pdo->prepare("UPDATE badge_progress SET status = ?, approved_by = ?, approval_date = NOW() WHERE id = ?");
-			$result = $stmt->execute([$action, $user_id, $badge_id]);
+		$stmt = $pdo->prepare("UPDATE badge_progress 
+													 SET status = ?, approved_by = ?, approval_date = NOW() 
+													 WHERE id = ? AND organization_id = ?");
+		$result = $stmt->execute([$action, $user_id, $badge_id, $organization_id]);
 
-			if ($result) {
+		if ($result) {
 				echo json_encode(['success' => true, 'message' => translate('badge_status_updated')]);
-			} else {
+		} else {
 				echo json_encode(['success' => false, 'message' => translate('error_updating_badge_status')]);
-			}
+		}
 			break;
 
 		case 'get_groups':
-			$stmt = $pdo->query("
-				SELECT g.id, g.name, COALESCE(SUM(p.value), 0) AS total_points
-				FROM groups g
-				LEFT JOIN points p ON g.id = p.group_id
-				GROUP BY g.id, g.name
-				ORDER BY g.name
-			");
-			$groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
-			echo json_encode($groups);
-			break;
-
-		case 'get_attendance':
-			$date = $_GET['date'] ?? date('Y-m-d');
-			$stmt = $pdo->prepare("
-				SELECT a.name_id, a.status
-				FROM attendance a
-				WHERE a.date = ?
-			");
-			$stmt->execute([$date]);
-			$attendance = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-			echo json_encode($attendance);
-			break;
-
-		case 'update_attendance':
-		$data = json_decode(file_get_contents('php://input'), true);
-		$nameId = $data['name_id'];
-		$newStatus = $data['status'];
-		$date = $data['date'];
-		$previousStatus = $data['previous_status'];
-
-		try {
-			$pdo->beginTransaction();
-
-			// Update attendance
-			$stmt = $pdo->prepare("
-				INSERT INTO attendance (name_id, date, status)
-				VALUES (:name_id, :date, :status)
-				ON CONFLICT (name_id, date) DO UPDATE SET status = EXCLUDED.status
-			");
-			$stmt->execute([
-				':name_id' => $nameId,
-				':date' => $date,
-				':status' => $newStatus
-			]);
-
-			// Handle point adjustment
-			$pointAdjustment = 0;
-			if ($previousStatus !== 'absent' && $newStatus === 'absent') {
-				$pointAdjustment = -1;
-			} elseif ($previousStatus === 'absent' && $newStatus !== 'absent') {
-				$pointAdjustment = 1;
-			}
-
-			if ($pointAdjustment !== 0) {
-				// Insert individual point
-				$stmt = $pdo->prepare("
-					INSERT INTO points (name_id, value, created_at)
-					VALUES (:name_id, :value, CURRENT_TIMESTAMP)
-				");
-				$stmt->execute([
-					':name_id' => $nameId,
-					':value' => $pointAdjustment
-				]);
-			}
-
-			$pdo->commit();
-			echo json_encode(['status' => 'success', 'point_adjustment' => $pointAdjustment]);
-		} catch (PDOException $e) {
-			$pdo->rollBack();
-			echo json_encode(['status' => 'error', 'message' => 'Error updating attendance: ' . $e->getMessage()]);
-		}
+		$organizationId = getCurrentOrganizationId();
+		$stmt = $pdo->prepare("
+				SELECT DISTINCT g.id, g.name
+FROM groups g
+WHERE g.organization_id = :organization_id;
+");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		echo json_encode(['success' => true, 'groups' => $groups]);
 		break;
 
-		// Fetch honors for all participants
-		case 'get_honors':
-		$stmt = $pdo->prepare("
-						SELECT p.id AS name_id, p.first_name, p.last_name, p.group_id, 
-													COALESCE(g.name, 'no_group') AS group_name
-						FROM participants p
-						LEFT JOIN groups g ON p.group_id = g.id
-						ORDER BY g.name, p.first_name
-		");
-		$stmt->execute();
-		$participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		$stmt = $pdo->prepare("
-						SELECT name_id, date
-						FROM honors
-						WHERE date >= ? AND date <= CURRENT_DATE
+
+	case 'get_attendance':
+    $date = $_GET['date'] ?? date('Y-m-d');
+    $organizationId = getCurrentOrganizationId();
+    $stmt = $pdo->prepare("
+        SELECT a.name_id, a.status
+        FROM attendance a
+        JOIN participants p ON a.name_id = p.id 
+        WHERE a.date = ? AND p.organization_id = ?
+    ");
+    $stmt->execute([$date, $organizationId]);
+    $attendance = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    echo json_encode($attendance);
+    break;
+
+
+case 'update_attendance':
+    $data = json_decode(file_get_contents('php://input'), true);
+    $nameId = $data['name_id'];
+    $newStatus = $data['status'];
+    $date = $data['date'];
+    $previousStatus = $data['previous_status'];
+    $organizationId = getCurrentOrganizationId();
+
+    try {
+        $pdo->beginTransaction();
+
+        // Ensure the participant is part of the organization
+        $stmt = $pdo->prepare("
+            SELECT id FROM participants 
+            WHERE id = :name_id AND organization_id = :organization_id
+        ");
+        $stmt->execute([':name_id' => $nameId, ':organization_id' => $organizationId]);
+        if (!$stmt->fetch()) {
+            throw new Exception('Participant not found in the current organization');
+        }
+
+        // Update attendance
+        $stmt = $pdo->prepare("
+            INSERT INTO attendance (name_id, date, status, organization_id)
+            VALUES (:name_id, :date, :status, :organization_id)
+            ON CONFLICT (name_id, date) DO UPDATE SET status = EXCLUDED.status
+        ");
+        $stmt->execute([
+            ':name_id' => $nameId,
+            ':date' => $date,
+            ':status' => $newStatus,
+            ':organization_id' => $organizationId
+        ]);
+
+        // Point adjustment logic
+        $pointAdjustment = 0;
+        if ($previousStatus !== 'absent' && $newStatus === 'absent') {
+            $pointAdjustment = -1;
+        } elseif ($previousStatus === 'absent' && $newStatus !== 'absent') {
+            $pointAdjustment = 1;
+        }
+
+        if ($pointAdjustment !== 0) {
+            // Insert individual point adjustment
+            $stmt = $pdo->prepare("
+                INSERT INTO points (name_id, value, created_at, organization_id)
+                VALUES (:name_id, :value, CURRENT_TIMESTAMP, :organization_id)
+            ");
+            $stmt->execute([
+                ':name_id' => $nameId,
+                ':value' => $pointAdjustment,
+                ':organization_id' => $organizationId
+            ]);
+        }
+
+        $pdo->commit();
+        echo json_encode(['status' => 'success', 'point_adjustment' => $pointAdjustment]);
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        echo json_encode(['status' => 'error', 'message' => 'Error updating attendance: ' . $e->getMessage()]);
+    }
+    break;
+
+
+
+		case 'get_honors':
+		$organizationId = getCurrentOrganizationId();
+		$date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
+		$academicYearStart = (date('n') >= 9) ? date('Y-09-01') : date('Y-09-01', strtotime('-1 year'));
+
+		// Fetch participants with their group information
+		$participantsStmt = $pdo->prepare("
+				SELECT p.id AS name_id, p.first_name, p.last_name, 
+							 pg.group_id, COALESCE(g.name, 'no_group') AS group_name
+				FROM participants p
+				LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+				LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+				WHERE p.organization_id = :organization_id
+				ORDER BY g.name, p.last_name, p.first_name
 		");
-		$academicYearStart = (date('n') >= 9) ? date('Y') . "-09-01" : (date('Y') - 1) . "-09-01";
-		$stmt->execute([$academicYearStart]);
-		$honors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$participantsStmt->execute([':organization_id' => $organizationId]);
+		$participants = $participantsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+		// Fetch honors for the academic year
+		$honorsStmt = $pdo->prepare("
+				SELECT name_id, date
+				FROM honors
+				WHERE date >= :academic_year_start 
+				AND date <= :current_date
+				AND organization_id = :organization_id
+		");
+		$honorsStmt->execute([
+				':academic_year_start' => $academicYearStart,
+				':current_date' => $date,
+				':organization_id' => $organizationId
+		]);
+		$honors = $honorsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+		// Fetch available dates
+		$datesStmt = $pdo->prepare("
+				SELECT DISTINCT date
+				FROM honors
+				WHERE organization_id = :organization_id
+				AND date >= :academic_year_start AND date <= CURRENT_DATE
+				ORDER BY date DESC
+		");
+		$datesStmt->execute([
+				':organization_id' => $organizationId,
+				':academic_year_start' => $academicYearStart
+		]);
+		$availableDates = $datesStmt->fetchAll(PDO::FETCH_COLUMN);
 
 		echo json_encode([
-						'participants' => $participants,
-						'honors' => $honors
+				'participants' => $participants,
+				'honors' => $honors,
+				'availableDates' => $availableDates
 		]);
 		break;
 
-		case 'award_honor':
-			$honors = json_decode(file_get_contents('php://input'), true);
-			$pdo->beginTransaction();
-			$awards = [];
 
-			foreach ($honors as $honor) {
+		case 'award_honor':
+		$honors = json_decode(file_get_contents('php://input'), true);
+		$organizationId = getCurrentOrganizationId();
+		$pdo->beginTransaction();
+		$awards = [];
+
+		foreach ($honors as $honor) {
 				$nameId = $honor['nameId'];
 				$date = $honor['date'];
 
+				// Ensure the participant belongs to the current organization
 				$stmt = $pdo->prepare("
-					INSERT INTO honors (name_id, date)
-					VALUES (?, ?)
-					ON CONFLICT (name_id, date) DO NOTHING
-					RETURNING id
+						INSERT INTO honors (name_id, date, organization_id)
+						VALUES (?, ?, ?)
+						ON CONFLICT (name_id, date, organization_id) DO NOTHING
+						RETURNING id
 				");
-				$stmt->execute([$nameId, $date]);
+				$stmt->execute([$nameId, $date, $organizationId]);
 				$result = $stmt->fetch(PDO::FETCH_ASSOC);
 
 				if ($result !== false) {
-					$pointStmt = $pdo->prepare("
-						INSERT INTO points (name_id, value, created_at)
-						VALUES (?, 5, ?)
-					");
-					$pointStmt->execute([$nameId, $date]);
+						$pointStmt = $pdo->prepare("
+								INSERT INTO points (name_id, value, created_at, organization_id)
+								VALUES (?, 5, ?, ?)
+						");
+						$pointStmt->execute([$nameId, $date, $organizationId]);
 
-					$awards[] = [
-						'nameId' => $nameId,
-						'awarded' => true
-					];
+						$awards[] = ['nameId' => $nameId, 'awarded' => true];
 				} else {
-					$awards[] = [
-						'nameId' => $nameId,
-						'awarded' => false,
-						'message' => 'Honor already awarded for this date'
-					];
+						$awards[] = [
+								'nameId' => $nameId,
+								'awarded' => false,
+								'message' => 'Honor already awarded for this date'
+						];
 				}
-			}
-
-			$pdo->commit();
-			echo json_encode(['status' => 'success', 'awards' => $awards]);
-			break;
-
-		case 'get_badge_progress':
-			$participantId = $_GET['participant_id'] ?? null;
-			if ($participantId) {
-				$stmt = $pdo->prepare("
-					SELECT * FROM badge_progress 
-					WHERE participant_id = ? 
-					ORDER BY created_at DESC
-				");
-				$stmt->execute([$participantId]);
-				$badgeProgress = $stmt->fetchAll(PDO::FETCH_ASSOC);
-				echo json_encode($badgeProgress);
-			} else {
-				echo json_encode(['error' => 'Invalid participant ID']);
-			}
-			break;
-
-		case 'get_parent_dashboard_data':
-		$userId = getUserIdFromToken($token);
-		if (!$userId) {
-			echo json_encode(['success' => false, 'message' => 'Invalid user']);
-			exit;
 		}
 
-		// Get user role
-		$stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
-		$stmt->execute([$userId]);
-		$userRole = $stmt->fetchColumn();
-
-		if ($userRole === 'animation' || $userRole === 'admin') {
-			// For animation and admin roles, fetch all participants
-			$stmt = $pdo->prepare("
-				SELECT p.*, 
-								CASE WHEN fs.id IS NOT NULL THEN 1 ELSE 0 END as has_fiche_sante,
-								CASE WHEN ar.id IS NOT NULL THEN 1 ELSE 0 END as has_acceptation_risque
-				FROM participants p
-				LEFT JOIN fiche_sante fs ON p.id = fs.participant_id
-				LEFT JOIN acceptation_risque ar ON p.id = ar.participant_id
-			");
-			$stmt->execute();
-		} else {
-			// For parent role, fetch only linked participants
-			$stmt = $pdo->prepare("
-				SELECT p.*, 
-								CASE WHEN fs.id IS NOT NULL THEN 1 ELSE 0 END as has_fiche_sante,
-								CASE WHEN ar.id IS NOT NULL THEN 1 ELSE 0 END as has_acceptation_risque
-				FROM participants p
-				LEFT JOIN user_participants up ON p.id = up.participant_id
-				LEFT JOIN fiche_sante fs ON p.id = fs.participant_id
-				LEFT JOIN acceptation_risque ar ON p.id = ar.participant_id
-				WHERE up.user_id = ?
-			");
-			$stmt->execute([$userId]);
-		}
-
-		$participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
-		echo json_encode(['success' => true, 'participants' => $participants]);
+		$pdo->commit();
+		echo json_encode(['status' => 'success', 'awards' => $awards]);
 		break;
 
-		case 'save_badge_progress':
-	$data = json_decode(file_get_contents('php://input'), true);
-	
-	// Convert boolean to integer (1 for true, 0 for false)
-	$fierte = isset($data['fierte']) && $data['fierte'] ? true : false;
-	
-	$stmt = $pdo->prepare("
-		INSERT INTO badge_progress (
-			participant_id, territoire_chasse, objectif, description, 
-			fierte, raison, date_obtention, etoiles, status
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	");
-	
-	$result = $stmt->execute([
-		$data['participant_id'], 
-		$data['territoire_chasse'], 
-		$data['objectif'],
-		$data['description'], 
-		$fierte, // Use the converted value
-		$data['raison'],
-		$data['date_obtention'], 
-		$data['etoiles'], 
-		'pending'
-	]);
 
-	if ($result) {
-		echo json_encode(['status' => 'success', 'message' => 'Badge progress saved successfully']);
-	} else {
-		$errorInfo = $stmt->errorInfo();
-		echo json_encode(['status' => 'error', 'message' => 'Failed to save badge progress', 'error' => $errorInfo[2]]);
-	}
-	break;
+		case 'get_badge_progress':
+		$participantId = $_GET['participant_id'] ?? null;
+		$organizationId = getCurrentOrganizationId();
+
+		if ($participantId) {
+				$stmt = $pdo->prepare("
+						SELECT * FROM badge_progress 
+						WHERE participant_id = ? 
+						AND organization_id = ?
+						ORDER BY created_at DESC
+				");
+				$stmt->execute([$participantId, $organizationId]);
+				$badgeProgress = $stmt->fetchAll(PDO::FETCH_ASSOC);
+				echo json_encode($badgeProgress);
+		} else {
+				echo json_encode(['error' => 'Invalid participant ID']);
+		}
+		break;
+
+		case 'get_form_submission':
+		// Verify JWT token and get user ID
+		$token = getJWTFromHeader();
+		if (!$token || !verifyJWT($token)) {
+				echo json_encode(['success' => false, 'message' => 'Invalid or missing token']);
+				exit;
+		}
+		$userId = getUserIdFromToken($token);
+
+		$participantId = filter_input(INPUT_GET, 'participant_id', FILTER_VALIDATE_INT);
+		$formType = filter_input(INPUT_GET, 'form_type', FILTER_UNSAFE_RAW);
+		$formType = trim(htmlspecialchars($formType, ENT_QUOTES, 'UTF-8'));
+
+		if (!$participantId || !$formType) {
+				echo json_encode(['success' => false, 'message' => 'Invalid participant ID or form type']);
+				exit;
+		}
+
+		try {
+				// Ensure the user has permission to access this participant's data
+				if (!userHasAccessToParticipant($pdo, $userId, $participantId)) {
+						echo json_encode(['success' => false, 'message' => 'You do not have permission to access this participant\'s data']);
+						exit;
+				}
+
+				$stmt = $pdo->prepare("
+						SELECT fs.submission_data
+						FROM form_submissions fs
+						WHERE fs.participant_id = :participant_id AND fs.form_type = :form_type
+						ORDER BY fs.created_at DESC
+						LIMIT 1
+				");
+				$stmt->execute([
+						':participant_id' => $participantId,
+						':form_type' => $formType
+				]);
+
+				$result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+			if ($result) {
+					$formData = json_decode($result['submission_data'], true);
+					// Include form_type in the response
+					echo json_encode([
+							'success' => true,
+							'form_data' => $formData,
+							'form_type' => $formType // Include the form type here
+					]);
+			} else {
+					echo json_encode(['success' => false, 'message' => 'Form submission not found']);
+			}
+
+		} catch (PDOException $e) {
+				error_log('Database error: ' . $e->getMessage());
+				echo json_encode(['success' => false, 'message' => 'An error occurred while fetching the form submission']);
+		}
+		break;
+
+
+	case 'get_parent_dashboard_data':
+    $userId = getUserIdFromToken($token);
+    if (!$userId) {
+        echo json_encode(['success' => false, 'message' => 'Invalid user']);
+        exit;
+    }
+
+    $organizationId = getCurrentOrganizationId();
+    error_log("User ID: $userId, Organization ID: $organizationId");
+
+    $stmt = $pdo->prepare("
+        SELECT role 
+        FROM user_organizations 
+        WHERE user_id = ? 
+        AND organization_id = ?
+    ");
+    $stmt->execute([$userId, $organizationId]);
+    $userRole = $stmt->fetchColumn();
+    error_log("User Role: $userRole");
+
+    if ($userRole === 'animation' || $userRole === 'admin') {
+        $query = "
+            SELECT p.*, 
+                CASE WHEN fs.id IS NOT NULL THEN 1 ELSE 0 END as has_fiche_sante,
+                CASE WHEN ar.id IS NOT NULL THEN 1 ELSE 0 END as has_acceptation_risque
+            FROM participants p
+            LEFT JOIN (
+                SELECT DISTINCT participant_id, id 
+                FROM form_submissions 
+                WHERE form_type = 'fiche_sante' AND organization_id = :organization_id
+            ) fs ON p.id = fs.participant_id
+            LEFT JOIN (
+                SELECT DISTINCT participant_id, id 
+                FROM form_submissions 
+                WHERE form_type = 'acceptation_risque' AND organization_id = :organization_id
+            ) ar ON p.id = ar.participant_id
+            WHERE p.organization_id = :organization_id
+        ";
+        $params = [':organization_id' => $organizationId];
+    } else {
+        $query = "
+            SELECT p.*, 
+                CASE WHEN fs.id IS NOT NULL THEN 1 ELSE 0 END as has_fiche_sante,
+                CASE WHEN ar.id IS NOT NULL THEN 1 ELSE 0 END as has_acceptation_risque
+            FROM participants p
+            LEFT JOIN user_participants up ON p.id = up.participant_id
+            LEFT JOIN (
+                SELECT DISTINCT participant_id, id 
+                FROM form_submissions 
+                WHERE form_type = 'fiche_sante' AND organization_id = :organization_id
+            ) fs ON p.id = fs.participant_id
+            LEFT JOIN (
+                SELECT DISTINCT participant_id, id 
+                FROM form_submissions 
+                WHERE form_type = 'acceptation_risque' AND organization_id = :organization_id
+            ) ar ON p.id = ar.participant_id
+            WHERE p.organization_id = :organization_id
+                AND (up.user_id = :user_id 
+                    OR EXISTS (
+                        SELECT 1 
+                        FROM form_submissions fs 
+                        WHERE fs.participant_id = p.id 
+                        AND fs.form_type = 'participant_registration'
+                        AND fs.submission_data->>'courriel' = (SELECT email FROM users WHERE id = :user_id)
+                    ))
+        ";
+        $params = [':organization_id' => $organizationId, ':user_id' => $userId];
+    }
+
+    error_log("Query: " . $query);
+    error_log("Params: " . json_encode($params));
+
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $participants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    error_log("Participants count: " . count($participants));
+
+    if (count($participants) === 0) {
+        $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM participants WHERE organization_id = ?");
+        $checkStmt->execute([$organizationId]);
+        $totalParticipants = $checkStmt->fetchColumn();
+        error_log("Total participants in organization: " . $totalParticipants);
+    }
+
+    echo json_encode(['success' => true, 'participants' => $participants]);
+    break;
+
+		case 'save_badge_progress':
+		$data = json_decode(file_get_contents('php://input'), true);
+
+		// Fetch the current max stars for the given participant and territoire_chasse
+		$stmt = $pdo->prepare("
+				SELECT MAX(etoiles) as max_stars
+				FROM badge_progress
+				WHERE participant_id = ? AND territoire_chasse = ?
+		");
+		$stmt->execute([$data['participant_id'], $data['territoire_chasse']]);
+		$maxStarsResult = $stmt->fetch(PDO::FETCH_ASSOC);
+
+		// Calculate the next star
+		$nextStar = $maxStarsResult['max_stars'] ? $maxStarsResult['max_stars'] + 1 : 1;
+
+		// Ensure it doesn't exceed 3
+		if ($nextStar > 3) {
+				echo json_encode(['status' => 'error', 'message' => 'Maximum stars already reached for this badge.']);
+				exit;
+		}
+
+		// Insert the badge progress with the correct star count
+		$stmt = $pdo->prepare("
+				INSERT INTO badge_progress (
+						participant_id, territoire_chasse, objectif, description, 
+						fierte, raison, date_obtention, etoiles, status, organization_id
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		");
+
+		$result = $stmt->execute([
+				$data['participant_id'], 
+				$data['territoire_chasse'], 
+				$data['objectif'],
+				$data['description'], 
+				isset($data['fierte']) && $data['fierte'] ? 't' : 'f',
+				$data['raison'],
+				$data['date_obtention'], 
+				$nextStar, 
+				'pending',
+				$organization_id
+		]);
+
+		if ($result) {
+				echo json_encode(['status' => 'success', 'message' => 'Badge progress saved successfully', 'etoiles' => $nextStar]);
+		} else {
+				$errorInfo = $stmt->errorInfo();
+				echo json_encode(['status' => 'error', 'message' => 'Failed to save badge progress', 'error' => $errorInfo[2]]);
+		}
+		break;
+
 
 		case 'get_health_contact_report':
 			$stmt = $pdo->query("
@@ -922,49 +1349,295 @@ try {
 			break;
 
 		case 'get_attendance_report':
-			$endDate = $_GET['end_date'] ?? date('Y-m-d');
-			$startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
+		try {
+				$endDate = $_GET['end_date'] ?? date('Y-m-d');
+				$startDate = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
 
-			$stmt = $pdo->prepare("
-				SELECT COUNT(DISTINCT date) as total_days
-				FROM attendance
-				WHERE date BETWEEN ? AND ?
-			");
-			$stmt->execute([$startDate, $endDate]);
-			$totalDays = $stmt->fetchColumn();
+				// Get total days
+				$stmt = $pdo->prepare("
+						SELECT COUNT(DISTINCT date) as total_days
+						FROM attendance
+						WHERE date BETWEEN :start_date AND :end_date
+						AND organization_id = :organization_id
+				");
+				$stmt->execute([
+						':start_date' => $startDate,
+						':end_date' => $endDate,
+						':organization_id' => $organizationId
+				]);
+				$totalDays = $stmt->fetchColumn();
 
-			$stmt = $pdo->prepare("
-				WITH attendance_days AS (
-					SELECT DISTINCT date
-					FROM attendance
-					WHERE date BETWEEN ? AND ?
-				)
+				// Get attendance data
+				$stmt = $pdo->prepare("
+						WITH attendance_days AS (
+								SELECT DISTINCT date
+								FROM attendance
+								WHERE date BETWEEN :start_date AND :end_date
+								AND organization_id = :organization_id
+						)
+						SELECT 
+								p.id, 
+								p.first_name, 
+								p.last_name, 
+								g.name AS group_name,
+								COUNT(DISTINCT ad.date) AS total_days,
+								SUM(CASE WHEN a.status IN ('absent', 'non-motivated') THEN 1 ELSE 0 END) AS days_absent,
+								SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) AS days_late
+						FROM participants p
+						LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+						LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+						CROSS JOIN attendance_days ad
+						LEFT JOIN attendance a ON p.id = a.name_id AND a.date = ad.date AND a.organization_id = :organization_id
+						WHERE p.organization_id = :organization_id
+						GROUP BY p.id, p.first_name, p.last_name, g.name
+						ORDER BY g.name, p.last_name, p.first_name
+				");
+				$stmt->execute([
+						':start_date' => $startDate,
+						':end_date' => $endDate,
+						':organization_id' => $organizationId
+				]);
+				$attendanceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+				$reportData = [
+						'success' => true,
+						'start_date' => $startDate,
+						'end_date' => $endDate,
+						'total_days' => $totalDays,
+						'attendance_data' => $attendanceData
+				];
+				echo json_encode($reportData);
+		} catch (PDOException $e) {
+				error_log("Database error in get_attendance_report: " . $e->getMessage());
+				echo json_encode([
+						'success' => false,
+						'error' => 'An error occurred while fetching the attendance report'
+				]);
+		}
+		break;
+
+		case 'get_health_contact_report':
+			$stmt = $pdo->query("
 				SELECT 
-					p.id, 
-					p.first_name, 
-					p.last_name, 
+					p.id AS participant_id,
+					p.first_name,
+					p.last_name,
+					p.date_naissance,
 					g.name AS group_name,
-					COUNT(DISTINCT ad.date) AS total_days,
-					SUM(CASE WHEN a.status IN ('absent', 'non-motivated') THEN 1 ELSE 0 END) AS days_absent,
-					SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) AS days_late
+					fs.*
 				FROM participants p
 				LEFT JOIN groups g ON p.group_id = g.id
-				CROSS JOIN attendance_days ad
-				LEFT JOIN attendance a ON p.id = a.name_id AND a.date = ad.date
-				GROUP BY p.id, p.first_name, p.last_name, g.name
+				LEFT JOIN fiche_sante fs ON p.id = fs.participant_id
 				ORDER BY g.name, p.last_name, p.first_name
 			");
-			$stmt->execute([$startDate, $endDate]);
-			$attendanceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-			$reportData = [
-				'start_date' => $startDate,
-				'end_date' => $endDate,
-				'total_days' => $totalDays,
-				'attendance_data' => $attendanceData
-			];
-			echo json_encode($reportData);
+			$healthContactData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			echo json_encode($healthContactData);
 			break;
+
+		// Update these queries in your api.php file
+
+		case 'get_allergies_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										p.first_name || ' ' || p.last_name AS name,
+										g.name AS group_name,
+										fs.submission_data->>'allergie' AS allergies,
+										(fs.submission_data->>'epipen')::boolean AS epipen
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = :organization_id
+								WHERE fs.form_type = 'fiche_sante'
+								AND p.organization_id = :organization_id
+								AND (fs.submission_data->>'allergie' IS NOT NULL AND fs.submission_data->>'allergie' != '')
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_allergies_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the allergies report']);
+				}
+				break;
+
+		case 'get_medication_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										p.first_name || ' ' || p.last_name AS name,
+										g.name AS group_name,
+										fs.submission_data->>'medicament' AS medication
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = :organization_id
+								WHERE fs.form_type = 'fiche_sante'
+								AND p.organization_id = :organization_id
+								AND (fs.submission_data->>'medicament' IS NOT NULL AND fs.submission_data->>'medicament' != '')
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_medication_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the medication report']);
+				}
+				break;
+
+		case 'get_vaccine_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										p.first_name || ' ' || p.last_name AS name,
+										g.name AS group_name,
+										(fs.submission_data->>'vaccins_a_jour')::boolean AS vaccines_up_to_date
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = :organization_id
+								WHERE fs.form_type = 'fiche_sante'
+								AND p.organization_id = :organization_id
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_vaccine_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the vaccine report']);
+				}
+				break;
+
+		case 'get_leave_alone_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										p.first_name || ' ' || p.last_name AS name,
+										g.name AS group_name,
+										(fs.submission_data->>'peut_partir_seul')::boolean AS can_leave_alone
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = :organization_id
+								WHERE fs.form_type = 'participant_registration'
+								AND p.organization_id = :organization_id
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_leave_alone_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the leave alone report']);
+				}
+				break;
+
+		case 'get_media_authorization_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										p.first_name || ' ' || p.last_name AS name,
+										g.name AS group_name,
+										(fs.submission_data->>'consentement_photos_videos')::boolean AS media_authorized
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = :organization_id
+								WHERE fs.form_type = 'participant_registration'
+								AND p.organization_id = :organization_id
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_media_authorization_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the media authorization report']);
+				}
+				break;
+
+		case 'get_missing_documents_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										p.first_name || ' ' || p.last_name AS name,
+										g.name AS group_name,
+										CASE WHEN fs_fiche.id IS NULL THEN 'Fiche Santé' ELSE NULL END AS missing_fiche_sante,
+										CASE WHEN fs_risque.id IS NULL THEN 'Acceptation Risque' ELSE NULL END AS missing_acceptation_risque
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN form_submissions fs_fiche ON p.id = fs_fiche.participant_id AND fs_fiche.form_type = 'fiche_sante' AND fs_fiche.organization_id = :organization_id
+								LEFT JOIN form_submissions fs_risque ON p.id = fs_risque.participant_id AND fs_risque.form_type = 'acceptation_risque' AND fs_risque.organization_id = :organization_id
+								WHERE p.organization_id = :organization_id
+								AND (fs_fiche.id IS NULL OR fs_risque.id IS NULL)
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+						foreach ($results as &$result) {
+								$result['missing_documents'] = array_filter([$result['missing_fiche_sante'], $result['missing_acceptation_risque']]);
+								unset($result['missing_fiche_sante'], $result['missing_acceptation_risque']);
+						}
+						echo json_encode(['success' => true, 'data' => $results]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_missing_documents_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the missing documents report']);
+				}
+				break;
+
+
+		case 'get_honors_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										p.first_name || ' ' || p.last_name AS name,
+										g.name AS group_name,
+										COUNT(h.id) AS honors_count
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN honors h ON p.id = h.name_id AND h.organization_id = :organization_id
+								WHERE p.organization_id = :organization_id
+								GROUP BY p.id, g.name
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_honors_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the honors report']);
+				}
+				break;
+
+		case 'get_points_report':
+				try {
+						$stmt = $pdo->prepare("
+								SELECT 
+										g.name AS group_name,
+										p.first_name || ' ' || p.last_name AS name,
+										COALESCE(SUM(pt.value), 0) AS points
+								FROM participants p
+								LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = :organization_id
+								LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = :organization_id
+								LEFT JOIN points pt ON p.id = pt.name_id AND pt.organization_id = :organization_id
+								WHERE p.organization_id = :organization_id
+								GROUP BY g.id, p.id
+								ORDER BY g.name, p.last_name, p.first_name
+						");
+						$stmt->execute([':organization_id' => $organizationId]);
+						$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+						$groupedResults = [];
+						foreach ($results as $result) {
+								$groupedResults[$result['group_name']][] = [
+										'name' => $result['name'],
+										'points' => $result['points']
+								];
+						}
+						echo json_encode(['success' => true, 'data' => $groupedResults]);
+				} catch (PDOException $e) {
+						error_log("Database error in get_points_report: " . $e->getMessage());
+						echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the points report']);
+				}
+				break;
 
 					case 'logout':
 				// Unset all of the session variables
@@ -988,100 +1661,157 @@ try {
 			default:
 				echo json_encode(['error' => 'Invalid action']);
 				break;
-		case 'get_participant':
-		$participantId = $_GET['id'] ?? null;
-		if ($participantId) {
-				$stmt = $pdo->prepare("SELECT * FROM participants WHERE id = ?");
-				$stmt->execute([$participantId]);
-				$participant = $stmt->fetch(PDO::FETCH_ASSOC);
-				if ($participant) {
-						jsonResponse(true, ['participant' => $participant]);
-				} else {
-						jsonResponse(false, null, "Participant not found");
-				}
-		} else {
-				jsonResponse(false, null, "Participant ID missing");
+   case 'get_participant':
+        $participantId = $_GET['id'] ?? null;
+        if ($participantId) {
+            $stmt = $pdo->prepare("
+                SELECT p.*, fs.submission_data
+                FROM participants p
+                LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration'
+                WHERE p.id = ?");
+            $stmt->execute([$participantId]);
+            $participant = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($participant) {
+                $participant = array_merge($participant, json_decode($participant['submission_data'], true));
+                unset($participant['submission_data']);
+                echo json_encode(['success' => true, 'participant' => $participant]);
+            } else {
+                echo json_encode(['success' => false, 'message' => "Participant not found"]);
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => "Participant ID missing"]);
+        }
+        break;
+
+		case 'save_form_submission':
+		$data = json_decode(file_get_contents('php://input'), true);
+		$formType = $data['form_type'];
+		$participantId = $data['participant_id'];
+		$submissionData = $data['submission_data'];
+		$userId = getUserIdFromToken($token);
+
+		try {
+			$stmt = $pdo->prepare("
+				INSERT INTO form_submissions (organization_id, user_id, participant_id, form_type, submission_data)
+				VALUES (:organization_id, :user_id, :participant_id, :form_type, :submission_data)
+				ON CONFLICT (participant_id, form_type, organization_id) 
+				DO UPDATE SET submission_data = EXCLUDED.submission_data, updated_at = CURRENT_TIMESTAMP
+			");
+
+			$result = $stmt->execute([
+				':organization_id' => $organization_id,
+				':user_id' => $userId,
+				':participant_id' => $participantId,
+				':form_type' => $formType,
+				':submission_data' => json_encode($submissionData),
+			]);
+
+			if ($result) {
+				echo json_encode(['success' => true, 'message' => 'Form submission saved successfully']);
+			} else {
+				throw new Exception('Failed to save form submission');
+			}
+		} catch (Exception $e) {
+			echo json_encode(['success' => false, 'message' => 'Error saving form submission: ' . $e->getMessage()]);
 		}
 		break;
 
 
 		case 'save_participant':
-		$participantData = json_decode(file_get_contents('php://input'), true);
-		$userId = getUserIdFromToken($token);
-		if (!$userId) {
-			echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
-			exit;
-		}
+		$data = json_decode(file_get_contents('php://input'), true);
 
-		// Add user_id to participantData
-		$participantData['user_id'] = $userId;
+		// Log incoming data for debugging
+		error_log("Received data for save_participant: " . json_encode($data));
 
-		// Convert boolean values to PostgreSQL format
-		$booleanFields = [
-			'peut_partir_seul', 'consentement_soins_medicaux', 'consentement_photos_videos',
-			'protection_renseignements_personnels', 'autorisation_participer'
-		];
-		foreach ($booleanFields as $field) {
-			if (isset($participantData[$field])) {
-				$participantData[$field] = $participantData[$field] ? 'TRUE' : 'FALSE';
-			}
+		$userId = getUserIdFromToken($token);  // Retrieve the current user ID
+		
+
+		if (!$userId || !$organizationId) {
+				echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
+				exit;
 		}
 
 		$pdo->beginTransaction();
 		try {
-			if (isset($participantData['id']) && !empty($participantData['id'])) {
-				// Update existing participant
-				$stmt = $pdo->prepare("UPDATE participants SET 
-					first_name = :first_name, last_name = :last_name, 
-					date_naissance = :date_naissance, sexe = :sexe, adresse = :adresse, 
-					ville = :ville, province = :province, code_postal = :code_postal, 
-					courriel = :courriel, telephone = :telephone, user_id = :user_id,
-					district = :district, unite = :unite, demeure_chez = :demeure_chez,
-					peut_partir_seul = :peut_partir_seul, langue_maison = :langue_maison,
-					autres_langues = :autres_langues, particularites = :particularites,
-					consentement_soins_medicaux = :consentement_soins_medicaux,
-					consentement_photos_videos = :consentement_photos_videos,
-					protection_renseignements_personnels = :protection_renseignements_personnels,
-					autorisation_participer = :autorisation_participer,
-					signature = :signature, signature_date = :signature_date,
-					source_information = :source_information
-					WHERE id = :id");
-				$participantId = $participantData['id'];
-			} else {
-				// Insert new participant
-				$stmt = $pdo->prepare("INSERT INTO participants 
-					(first_name, last_name, date_naissance, sexe, adresse, 
-					ville, province, code_postal, courriel, telephone, user_id,
-					district, unite, demeure_chez, peut_partir_seul, langue_maison,
-					autres_langues, particularites, consentement_soins_medicaux,
-					consentement_photos_videos, protection_renseignements_personnels,
-					autorisation_participer, signature, signature_date, source_information) 
-					VALUES 
-					(:first_name, :last_name, :date_naissance, :sexe, :adresse, 
-					:ville, :province, :code_postal, :courriel, :telephone, :user_id,
-					:district, :unite, :demeure_chez, :peut_partir_seul, :langue_maison,
-					:autres_langues, :particularites, :consentement_soins_medicaux,
-					:consentement_photos_videos, :protection_renseignements_personnels,
-					:autorisation_participer, :signature, :signature_date, :source_information)");
+				// Prepare basic participant data, including organization_id
+				$participantData = [
+						'first_name' => $data['first_name'],
+						'last_name' => $data['last_name'],
+						'date_naissance' => $data['date_naissance'],
+						'organization_id' => $organizationId
+				];
 
-				// Remove 'id' from $participantData if it exists
-				unset($participantData['id']);
-			}
+				if (isset($data['id']) && !empty($data['id'])) {
+						// Check if the participant exists in the database
+						$checkStmt = $pdo->prepare("SELECT id FROM participants WHERE id = :id AND organization_id = :organization_id");
+						$checkStmt->execute([':id' => $data['id'], ':organization_id' => $organizationId]);
+						$existingParticipant = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
-			$stmt->execute($participantData);
-			$participantId = $participantId ?? $pdo->lastInsertId();
+						if ($existingParticipant) {
+								// Update existing participant
+								$participantData['id'] = $data['id'];
+								$stmt = $pdo->prepare("UPDATE participants SET 
+																first_name = :first_name, last_name = :last_name, 
+																date_naissance = :date_naissance
+																WHERE id = :id AND organization_id = :organization_id");
+								$stmt->execute($participantData);
+								$participantId = $data['id'];
+						} else {
+								throw new Exception("Participant not found or does not belong to this organization.");
+						}
+				} else {
+						// Insert new participant
+						$stmt = $pdo->prepare("INSERT INTO participants 
+														(first_name, last_name, date_naissance, organization_id) 
+														VALUES (:first_name, :last_name, :date_naissance, :organization_id)");
+						$stmt->execute($participantData);
+						$participantId = $pdo->lastInsertId();
+				}
 
-			// Link participant to user
-			$linkStmt = $pdo->prepare("INSERT INTO user_participants (user_id, participant_id) VALUES (?, ?) ON CONFLICT DO NOTHING");
-			$linkStmt->execute([$userId, $participantId]);
+				// Log successful participant insertion
+				error_log("Participant inserted/updated with ID: " . $participantId);
 
-			$pdo->commit();
-			echo json_encode(['success' => true, 'participant_id' => $participantId]);
+				// Link the participant to the current user in the user_participants table
+				$linkStmt = $pdo->prepare("INSERT INTO user_participants (user_id, participant_id) VALUES (:user_id, :participant_id)
+																	 ON CONFLICT (user_id, participant_id) DO NOTHING");
+				$linkStmt->execute([
+						':user_id' => $userId,
+						':participant_id' => $participantId
+				]);
+
+				// Log successful user-participant linking
+				error_log("Linked participant ID $participantId to user ID $userId");
+
+				// Handle form submission data as before
+				$formSubmissionData = [
+						'organization_id' => $organizationId,
+						'user_id' => $userId,
+						'participant_id' => $participantId,
+						'form_type' => 'participant_registration',
+						'submission_data' => json_encode($data),
+				];
+
+				// Insert or update form submission
+				$stmt = $pdo->prepare("INSERT INTO form_submissions 
+												(organization_id, user_id, participant_id, form_type, submission_data, created_at, updated_at) 
+												VALUES (:organization_id, :user_id, :participant_id, :form_type, :submission_data, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+												ON CONFLICT (participant_id, form_type, organization_id) DO UPDATE SET
+																submission_data = EXCLUDED.submission_data,
+																updated_at = CURRENT_TIMESTAMP");
+				$stmt->execute($formSubmissionData);
+
+				$pdo->commit();
+				echo json_encode(['success' => true, 'participant_id' => $participantId]);
 		} catch (Exception $e) {
-			$pdo->rollBack();
-			echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+				$pdo->rollBack();
+				error_log("Error in save_participant: " . $e->getMessage());
+				echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 		}
 		break;
+;
+
+
+
 
 		case 'remove_guardians':
 		$data = json_decode(file_get_contents('php://input'), true);
@@ -1300,18 +2030,69 @@ try {
 			echo json_encode(['success' => false, 'message' => 'Error saving fiche sante: ' . $e->getMessage()]);
 		}
 		break;
+
+		
 		case 'update_participant_group':
 		$data = json_decode(file_get_contents('php://input'), true);
 		$participantId = (int)$data['participant_id'];
-		$groupId = (int)$data['group_id'];
+		$groupId = isset($data['group_id']) ? (int)$data['group_id'] : null;
+		$isLeader = isset($data['is_leader']) && $data['is_leader'] !== '' ? (bool)$data['is_leader'] : false;
+		$isSecondLeader = isset($data['is_second_leader']) && $data['is_second_leader'] !== '' ? (bool)$data['is_second_leader'] : false;
+		$organizationId = getCurrentOrganizationId();
 
-		$stmt = $pdo->prepare("UPDATE participants SET group_id = ? WHERE id = ?");
-		if ($stmt->execute([$groupId, $participantId])) {
-			echo json_encode(['status' => 'success', 'message' => translate('group_updated_successfully')]);
-		} else {
-			echo json_encode(['status' => 'error', 'message' => translate('error_updating_group')]);
+		try {
+				$pdo->beginTransaction();
+
+				if ($groupId !== null) {
+						// Use UPSERT to update if exists or insert if not
+						$upsertStmt = $pdo->prepare("
+								INSERT INTO participant_groups 
+								(participant_id, group_id, organization_id, is_leader, is_second_leader)
+								VALUES (:participant_id, :group_id, :organization_id, :is_leader, :is_second_leader)
+								ON CONFLICT (participant_id, organization_id)
+								DO UPDATE SET 
+										group_id = EXCLUDED.group_id,
+										is_leader = EXCLUDED.is_leader,
+										is_second_leader = EXCLUDED.is_second_leader
+						");
+						$upsertStmt->execute([
+								':participant_id' => $participantId,
+								':group_id' => $groupId,
+								':organization_id' => $organizationId,
+								':is_leader' => $isLeader,
+								':is_second_leader' => $isSecondLeader
+						]);
+				} else {
+						// If no groupId is provided, just delete the entry
+						$deleteStmt = $pdo->prepare("
+								DELETE FROM participant_groups 
+								WHERE participant_id = :participant_id AND organization_id = :organization_id
+						");
+						$deleteStmt->execute([
+								':participant_id' => $participantId,
+								':organization_id' => $organizationId
+						]);
+				}
+
+				$pdo->commit();
+
+				echo json_encode([
+						'status' => 'success', 
+						'message' => translate('group_updated_successfully')
+				]);
+		} catch (Exception $e) {
+				$pdo->rollBack();
+				error_log('Error in update_participant_group: ' . $e->getMessage());
+				echo json_encode([
+						'status' => 'error', 
+						'message' => translate('error_updating_group') . ': ' . $e->getMessage()
+				]);
 		}
 		break;
+
+
+
+		
 		// In api.php
 
 		case 'get_fiche_sante':
@@ -1417,35 +2198,30 @@ try {
 		echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
 		break;
 
-	case 'delete_participant':
+		case 'delete_participant':
 		$data = json_decode(file_get_contents('php://input'), true);
-		$participant_id = (int)$data['participant_id'];
+		$participantId = $data['participant_id'] ?? null;
+
+		if (!$participantId) {
+				echo json_encode(['success' => false, 'message' => 'Missing participant ID']);
+				break;
+		}
 
 		$pdo->beginTransaction();
-
 		try {
-			// Delete associated records
-			$stmt = $pdo->prepare("DELETE FROM user_participants WHERE participant_id = ?");
-			$stmt->execute([$participant_id]);
+				// Delete from form_submissions first
+				$stmt = $pdo->prepare("DELETE FROM form_submissions WHERE participant_id = ?");
+				$stmt->execute([$participantId]);
 
-			$stmt = $pdo->prepare("DELETE FROM fiche_sante WHERE participant_id = ?");
-			$stmt->execute([$participant_id]);
+				// Then delete from participants
+				$stmt = $pdo->prepare("DELETE FROM participants WHERE id = ?");
+				$stmt->execute([$participantId]);
 
-			$stmt = $pdo->prepare("DELETE FROM acceptation_risque WHERE participant_id = ?");
-			$stmt->execute([$participant_id]);
-
-			$stmt = $pdo->prepare("DELETE FROM inscriptions WHERE participant_id = ?");
-			$stmt->execute([$participant_id]);
-
-			// Finally, delete the participant
-			$stmt = $pdo->prepare("DELETE FROM participants WHERE id = ?");
-			$stmt->execute([$participant_id]);
-
-			$pdo->commit();
-			echo json_encode(['status' => 'success', 'message' => translate('participant_deleted_successfully')]);
+				$pdo->commit();
+				echo json_encode(['status' => 'success', 'message' => 'Participant deleted successfully']);
 		} catch (Exception $e) {
-			$pdo->rollBack();
-			echo json_encode(['status' => 'error', 'message' => translate('error_deleting_participant') . ': ' . $e->getMessage()]);
+				$pdo->rollBack();
+				echo json_encode(['status' => 'error', 'message' => 'Error deleting participant: ' . $e->getMessage()]);
 		}
 		break;
 
@@ -1586,48 +2362,61 @@ try {
 	
 		case 'update_points':
 		$data = json_decode(file_get_contents('php://input'), true);
+		$organizationId = getCurrentOrganizationId();
 		$pdo->beginTransaction();
 
 		$updateStmt = $pdo->prepare("
-			INSERT INTO points (name_id, group_id, value, created_at) 
-			VALUES (:name_id, :group_id, :value, :created_at)
+			INSERT INTO points (name_id, group_id, value, created_at, organization_id) 
+			VALUES (:name_id, :group_id, :value, :created_at, :organization_id)
 		");
 
 		$getGroupMembersStmt = $pdo->prepare("
-			SELECT id FROM participants WHERE group_id = :group_id
+			SELECT p.id 
+			FROM participants p
+			JOIN participant_groups pg ON p.id = pg.participant_id
+			WHERE pg.group_id = :group_id AND pg.organization_id = :organization_id
 		");
 
 		$responses = [];
 
 		foreach ($data as $update) {
 			if ($update['type'] === 'group') {
-				// For group updates, add points to the group and all its members
+				// Add points to the group itself
 				$updateStmt->execute([
 					':name_id' => null,
 					':group_id' => $update['id'],
 					':value' => $update['points'],
-					':created_at' => $update['timestamp']
+					':created_at' => $update['timestamp'],
+					':organization_id' => $organizationId
 				]);
 
-				$getGroupMembersStmt->execute([':group_id' => $update['id']]);
+				// Add points to all group members individually
+				$getGroupMembersStmt->execute([
+					':group_id' => $update['id'],
+					':organization_id' => $organizationId
+				]);
 				$members = $getGroupMembersStmt->fetchAll(PDO::FETCH_COLUMN);
 
 				foreach ($members as $memberId) {
 					$updateStmt->execute([
 						':name_id' => $memberId,
-						':group_id' => null,
+						':group_id' => null, // This ensures it's counted as an individual point assignment
 						':value' => $update['points'],
-						':created_at' => $update['timestamp']
+						':created_at' => $update['timestamp'],
+						':organization_id' => $organizationId
 					]);
 				}
 
-				// Fetch updated group total
+				// Fetch updated group total (only points directly assigned to the group)
 				$groupTotalStmt = $pdo->prepare("
 					SELECT COALESCE(SUM(value), 0) as total_points 
 					FROM points 
-					WHERE group_id = :group_id
+					WHERE group_id = :group_id AND name_id IS NULL AND organization_id = :organization_id
 				");
-				$groupTotalStmt->execute([':group_id' => $update['id']]);
+				$groupTotalStmt->execute([
+					':group_id' => $update['id'],
+					':organization_id' => $organizationId
+				]);
 				$groupTotal = $groupTotalStmt->fetchColumn();
 
 				$responses[] = [
@@ -1642,16 +2431,20 @@ try {
 					':name_id' => $update['id'],
 					':group_id' => null,
 					':value' => $update['points'],
-					':created_at' => $update['timestamp']
+					':created_at' => $update['timestamp'],
+					':organization_id' => $organizationId
 				]);
 
 				// Fetch updated individual total
 				$individualTotalStmt = $pdo->prepare("
 					SELECT COALESCE(SUM(value), 0) as total_points 
 					FROM points 
-					WHERE name_id = :name_id
+					WHERE name_id = :name_id AND organization_id = :organization_id
 				");
-				$individualTotalStmt->execute([':name_id' => $update['id']]);
+				$individualTotalStmt->execute([
+					':name_id' => $update['id'],
+					':organization_id' => $organizationId
+				]);
 				$individualTotal = $individualTotalStmt->fetchColumn();
 
 				$responses[] = [
@@ -1665,9 +2458,9 @@ try {
 		$pdo->commit();
 		echo json_encode(['status' => 'success', 'updates' => $responses]);
 		break;
-		}
+}
 } catch (Exception $e) {
-	echo json_encode(['error' => $e->getMessage()]);
+echo json_encode(['error' => $e->getMessage()]);
 }
 
 function calculatePointAdjustment($oldStatus, $newStatus) {
@@ -1679,3 +2472,66 @@ function calculatePointAdjustment($oldStatus, $newStatus) {
 	}
 	return 0;  // No point adjustment for other status changes
 }
+
+function getUserOrganizations($userId) {
+		global $pdo;
+		try {
+				$stmt = $pdo->prepare("SELECT organization_id, role FROM user_organizations WHERE user_id = ?");
+				$stmt->execute([$userId]);
+				return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		} catch (PDOException $e) {
+				// Log or handle the error as needed
+				error_log("Error fetching user organizations: " . $e->getMessage());
+				return [];
+		}
+}
+
+// function getCurrentOrganizationId() {
+//     // Ensure session is started
+//     if (session_status() == PHP_SESSION_NONE) {
+//         session_start();
+//     }
+
+//     // Retrieve headers correctly
+//     $headers = getallheaders();
+//     $token = null;
+
+//     if (isset($headers['Authorization'])) {
+//         $authHeader = $headers['Authorization'];
+//         $token = str_replace('Bearer ', '', $authHeader);
+//     }
+
+//     // Check if an organization ID is set in the session
+//     if (isset($_SESSION['current_organization_id'])) {
+//         return $_SESSION['current_organization_id'];
+//     }
+
+//     // Log if no organization ID is found in session
+//     error_log("============================================================== No organization ID found in session");
+
+//     // Check if the organization ID is passed as a header or query parameter, default to 1
+//     $orgId = $_SERVER['HTTP_X_ORGANIZATION_ID'] ?? $_GET['organization_id'] ?? 1;
+
+//     if ($orgId) {
+//         // Validate that the user has access to this organization
+//         $userId = getUserIdFromToken($token); // Implement this based on your JWT handling
+//         $userOrgs = getUserOrganizations($userId);
+
+//         if (in_array($orgId, array_column($userOrgs, 'organization_id'))) {
+//             // Store in session for future requests
+//             $_SESSION['current_organization_id'] = $orgId;
+//             return $orgId;
+//         }
+//     }
+
+//     // If no valid organization ID is found, return the first organization the user is part of
+//     $userOrgs = getUserOrganizations($userId);
+//     if (!empty($userOrgs)) {
+//         $orgId = $userOrgs[0]['organization_id'];
+//         $_SESSION['current_organization_id'] = $orgId;
+//         return $orgId;
+//     }
+
+//     // If we get here, the user isn't part of any organization
+//     throw new Exception("User is not associated with any organization");
+// }

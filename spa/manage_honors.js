@@ -4,7 +4,7 @@ import { translate } from "./app.js";
 export class ManageHonors {
   constructor(app) {
     this.app = app;
-    this.currentDate = new Date().toLocaleDateString("en-CA"); // Local date in YYYY-MM-DD format
+    this.currentDate = new Date().toLocaleDateString("en-CA");
     this.honorsData = { groups: [], names: [] };
     this.availableDates = [];
     this.allHonors = [];
@@ -25,20 +25,26 @@ export class ManageHonors {
 
   async fetchData() {
     try {
-      const { participants, honors } = await getHonorsAndParticipants();
-      this.allParticipants = participants; // Cache all participants
-      this.allHonors = honors; // Cache all honors
+      const data = await getHonorsAndParticipants(this.currentDate);
+      console.log('API Response:', data); // Add this line for debugging
 
-      // Sort available dates in descending order
-      this.availableDates = [...new Set(honors.map((h) => h.date))].sort(
-        (a, b) => new Date(b) - new Date(a)
-      );
+      this.allParticipants = data.participants || [];
+      this.allHonors = data.honors || [];
+      this.availableDates = data.availableDates || [];
 
-      // Ensure today is included in availableDates
       const today = new Date().toLocaleDateString("en-CA");
       if (!this.availableDates.includes(today)) {
-        this.availableDates.unshift(today); // Add today's date at the beginning
+        this.availableDates.unshift(today);
       }
+
+      if (!this.availableDates.includes(this.currentDate)) {
+        this.availableDates.push(this.currentDate);
+      }
+
+      // Sort the dates in descending order
+      this.availableDates.sort((a, b) => new Date(b) - new Date(a));
+
+      console.log('Processed availableDates:', this.availableDates); // Add this line for debugging
     } catch (error) {
       console.error("Error fetching honors data:", error);
       throw error;
@@ -47,59 +53,39 @@ export class ManageHonors {
 
   processHonors() {
     const today = new Date().toLocaleDateString("en-CA");
+    const isCurrentDate = this.currentDate === today;
 
-    if (this.currentDate === today) {
-      // Show all participants on today's date
-      this.honorsData.names = this.allParticipants.map((participant) => {
-        const honorsForToday = this.allHonors.some(
-          (honor) =>
-            honor.name_id === participant.name_id && honor.date === today
-        );
-        const totalHonors = this.allHonors.filter(
-          (honor) => honor.name_id === participant.name_id
-        ).length;
+    const participantMap = new Map();
 
-        return {
-          ...participant,
-          honored_today: honorsForToday,
-          total_honors: totalHonors,
-        };
-      });
-    } else {
-      // For past dates, only show participants who received honors on the selected date
-      this.honorsData.names = this.allHonors
-        .filter((honor) => honor.date === this.currentDate)
-        .map((honor) => {
-          const participant = this.allParticipants.find(
-            (p) => p.name_id === honor.name_id
-          );
-          const totalHonors = this.allHonors.filter(
-            (h) => h.name_id === honor.name_id
-          ).length;
+    this.allParticipants.forEach(participant => {
+      const honorsForDate = this.allHonors.filter(
+        honor => honor.name_id === participant.name_id && honor.date === this.currentDate
+      );
+      const totalHonors = this.allHonors.filter(
+        honor => honor.name_id === participant.name_id && new Date(honor.date) <= new Date(this.currentDate)
+      ).length;
 
-          return {
-            ...participant,
-            honored_today: true,
-            total_honors: totalHonors,
-          };
+      const processedParticipant = {
+        ...participant,
+        honored_today: honorsForDate.length > 0,
+        total_honors: totalHonors,
+        visible: isCurrentDate || honorsForDate.length > 0
+      };
+
+      if (!participantMap.has(participant.group_id)) {
+        participantMap.set(participant.group_id, {
+          id: participant.group_id,
+          name: participant.group_name === "no_group" ? translate("no_group") : participant.group_name,
+          participants: []
         });
-    }
+      }
 
-    // Group participants by their group_id, and translate "no_group"
-    this.honorsData.groups = [
-      ...new Map(
-        this.honorsData.names.map((part) => [
-          part.group_id,
-          {
-            id: part.group_id,
-            name:
-              part.group_name === "no_group"
-                ? translate("no_group")
-                : part.group_name,
-          },
-        ])
-      ).values(),
-    ];
+      if (processedParticipant.visible) {
+        participantMap.get(participant.group_id).participants.push(processedParticipant);
+      }
+    });
+
+    this.honorsData.groups = Array.from(participantMap.values());
   }
 
   render() {
@@ -128,106 +114,80 @@ export class ManageHonors {
   }
 
   renderHonorsList() {
-    if (this.honorsData.names.length === 0) {
+    if (this.honorsData.groups.length === 0) {
       return `<p>${translate("no_honors_on_this_date")}</p>`;
     }
 
-    let html = "";
-    this.honorsData.groups.forEach((group) => {
-      html += `<div class="group-header">${group.name}</div>`;
-      const groupNames = this.honorsData.names.filter(
-        (name) => name.group_id === group.id
-      );
-      groupNames.forEach((name) => {
-        const isDisabled = this.isPastDate() || name.honored_today;
-        const selectedClass = name.honored_today ? "selected" : "";
-        const disabledClass = isDisabled ? "disabled" : "";
+    return this.honorsData.groups.map(group => `
+      <div class="group-header">${group.name}</div>
+      ${group.participants.map(participant => this.renderParticipantItem(participant)).join('')}
+    `).join('');
+  }
 
-        html += `
-          <div class="list-item ${selectedClass} ${disabledClass}" data-name-id="${
-          name.name_id
-        }" data-group-id="${name.group_id}">
-            <input type="checkbox" id="name-${name.name_id}" ${
-          isDisabled ? "disabled" : ""
-        } ${name.honored_today ? "checked" : ""}>
-            <label for="name-${name.name_id}">${name.first_name} ${
-          name.last_name
-        } (${name.total_honors} ${translate("honors")})</label>
-          </div>
-        `;
-      });
-    });
-    return html;
+  renderParticipantItem(participant) {
+    const isDisabled = this.isPastDate() || participant.honored_today;
+    const selectedClass = participant.honored_today ? "selected" : "";
+    const disabledClass = isDisabled ? "disabled" : "";
+
+    return `
+      <div class="list-item ${selectedClass} ${disabledClass}" data-name-id="${participant.name_id}" data-group-id="${participant.group_id}">
+        <input type="checkbox" id="name-${participant.name_id}" ${isDisabled ? "disabled" : ""} ${participant.honored_today ? "checked" : ""}>
+        <label for="name-${participant.name_id}">
+          ${participant.first_name} ${participant.last_name} 
+          (${participant.total_honors} ${translate("honors")})
+        </label>
+      </div>
+    `;
   }
 
   attachEventListeners() {
     document.querySelectorAll(".list-item").forEach((item) => {
-      item.addEventListener("click", (event) => {
-        const checkbox = item.querySelector('input[type="checkbox"]');
-
-        // Ignore clicks if the item is disabled
-        if (checkbox.disabled) return;
-
-        // Toggle checkbox checked state and add/remove the 'selected' class
-        checkbox.checked = !checkbox.checked;
-        item.classList.toggle("selected", checkbox.checked);
-      });
+      item.addEventListener("click", (event) => this.handleItemClick(event));
     });
-    document
-      .getElementById("prevDate")
-      .addEventListener("click", () => this.changeDate("prev"));
-    document
-      .getElementById("nextDate")
-      .addEventListener("click", () => this.changeDate("next"));
+    document.getElementById("prevDate").addEventListener("click", () => this.changeDate("prev"));
+    document.getElementById("nextDate").addEventListener("click", () => this.changeDate("next"));
     document.querySelectorAll(".sort-options button").forEach((button) => {
-      button.addEventListener("click", () =>
-        this.sortItems(button.dataset.sort)
-      );
+      button.addEventListener("click", () => this.sortItems(button.dataset.sort));
     });
-    document
-      .getElementById("awardHonorButton")
-      .addEventListener("click", () => this.awardHonor());
+    document.getElementById("awardHonorButton").addEventListener("click", () => this.awardHonor());
+  }
+
+  handleItemClick(event) {
+    const item = event.currentTarget;
+    const checkbox = item.querySelector('input[type="checkbox"]');
+    if (checkbox.disabled) return;
+    checkbox.checked = !checkbox.checked;
+    item.classList.toggle("selected", checkbox.checked);
   }
 
   async changeDate(direction) {
     const currentIndex = this.availableDates.indexOf(this.currentDate);
-
     if (direction === "next" && currentIndex > 0) {
-      // Move forward to a more recent date
       this.currentDate = this.availableDates[currentIndex - 1];
-    } else if (
-      direction === "prev" &&
-      currentIndex < this.availableDates.length - 1
-    ) {
-      // Move backward to an older date
+    } else if (direction === "prev" && currentIndex < this.availableDates.length - 1) {
       this.currentDate = this.availableDates[currentIndex + 1];
     }
-    document.getElementById("currentDate").textContent = this.formatDate(
-      this.currentDate
-    );
+    await this.fetchData();
     this.processHonors();
     this.updateHonorsListUI();
   }
 
   updateHonorsListUI() {
-    const honorsList = document.getElementById("honors-list");
-    honorsList.innerHTML = this.renderHonorsList();
-    document.getElementById("awardHonorButton").disabled = this.isPastDate(); // Disable award button for past dates
+    document.getElementById("currentDate").textContent = this.formatDate(this.currentDate);
+    document.getElementById("honors-list").innerHTML = this.renderHonorsList();
+    document.getElementById("awardHonorButton").disabled = this.isPastDate();
+    this.attachEventListeners();
   }
 
   isPastDate() {
-    const today = new Date().toLocaleDateString("en-CA"); // Today's date in YYYY-MM-DD
-    return this.currentDate < today; // Return true if the selected date is earlier than today
+    const today = new Date().toLocaleDateString("en-CA");
+    return this.currentDate < today;
   }
 
-  // Functionality to award honors to selected participants
   async awardHonor() {
-    const selectedItems = document.querySelectorAll(
-      '.list-item input[type="checkbox"]:checked:not(:disabled)'
-    );
-
+    const selectedItems = document.querySelectorAll('.list-item input[type="checkbox"]:checked:not(:disabled)');
     if (selectedItems.length === 0) {
-      alert(translate("select_individuals"));
+      this.app.showMessage(translate("select_individuals"), "error");
       return;
     }
 
@@ -239,51 +199,42 @@ export class ManageHonors {
     try {
       const result = await awardHonor(honors);
       if (result.status === "success") {
-        await this.fetchData(); // Fetch the updated data after awarding the honor
-        this.updateHonorsListUI(); // Update the honors list with new values
+        await this.fetchData();
+        this.processHonors();
+        this.updateHonorsListUI();
+        this.app.showMessage(translate("honors_awarded_successfully"), "success");
       } else {
         throw new Error(result.message || "Unknown error occurred");
       }
     } catch (error) {
       console.error("Error:", error);
-      alert(`${translate("error_awarding_honor")}: ${error.message}`);
+      this.app.showMessage(`${translate("error_awarding_honor")}: ${error.message}`, "error");
     }
   }
 
   sortItems(sortBy) {
-    const honorsList = document.getElementById("honors-list");
-    const items = Array.from(honorsList.querySelectorAll(".list-item"));
-
-    items.sort((a, b) => {
-      const aValue = a.querySelector("label").textContent;
-      const bValue = b.querySelector("label").textContent;
-      if (sortBy === "name") {
-        return aValue.localeCompare(bValue);
-      } else if (sortBy === "honors") {
-        const aHonors = parseInt(aValue.match(/\((\d+)/)[1]);
-        const bHonors = parseInt(bValue.match(/\((\d+)/)[1]);
-        return bHonors - aHonors;
-      }
+    this.honorsData.groups.forEach(group => {
+      group.participants.sort((a, b) => {
+        if (sortBy === "name") {
+          return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
+        } else if (sortBy === "honors") {
+          return b.total_honors - a.total_honors;
+        }
+      });
     });
-
-    items.forEach((item) => honorsList.appendChild(item));
+    this.updateHonorsListUI();
   }
 
   formatDate(dateString) {
-    const options = {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "America/Toronto", // Ensure correct timezone
-    };
-    const localDate = new Date(dateString + "T00:00:00"); // Ensure it's interpreted as local
+    const options = { day: "numeric", month: "short", year: "numeric", timeZone: "America/Toronto" };
+    const localDate = new Date(dateString + "T00:00:00");
     return localDate.toLocaleDateString(this.app.lang, options);
   }
 
   renderError() {
     const errorMessage = `
-        <h1>${translate("error")}</h1>
-        <p>${translate("error_loading_honors")}</p>
+      <h1>${translate("error")}</h1>
+      <p>${translate("error_loading_honors")}</p>
     `;
     document.getElementById("app").innerHTML = errorMessage;
   }

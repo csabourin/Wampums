@@ -3,6 +3,7 @@ import {
   getParticipantsFromCache,
   saveGroups,
   getGroupsFromCache,
+  saveOfflineData,
 } from "./indexedDB.js";
 
 // Utility function to get the JWT token from local storage
@@ -47,6 +48,99 @@ function debugError(...args) {
   }
 }
 
+async function fetchFromApi(action) {
+  try {
+    const response = await fetch(`/api.php?action=${action}`, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching ${action}:`, error);
+    throw new Error(`Failed to fetch ${action}: ${error.message}`);
+  }
+}
+
+export async function getAllergiesReport() {
+  try {
+    return await fetchFromApi('get_allergies_report');
+  } catch (error) {
+    console.error('Error fetching allergies report:', error);
+    throw new Error('Failed to fetch allergies report');
+  }
+}
+
+export async function getMedicationReport() {
+  try {
+    return await fetchFromApi('get_medication_report');
+  } catch (error) {
+    console.error('Error fetching medication report:', error);
+    throw new Error('Failed to fetch medication report');
+  }
+}
+
+export async function getVaccineReport() {
+  try {
+    return await fetchFromApi('get_vaccine_report');
+  } catch (error) {
+    console.error('Error fetching vaccine report:', error);
+    throw new Error('Failed to fetch vaccine report');
+  }
+}
+
+export async function getLeaveAloneReport() {
+  try {
+    return await fetchFromApi('get_leave_alone_report');
+  } catch (error) {
+    console.error('Error fetching leave alone report:', error);
+    throw new Error('Failed to fetch leave alone report');
+  }
+}
+
+export async function getMediaAuthorizationReport() {
+  try {
+    return await fetchFromApi('get_media_authorization_report');
+  } catch (error) {
+    console.error('Error fetching media authorization report:', error);
+    throw new Error('Failed to fetch media authorization report');
+  }
+}
+
+export async function getMissingDocumentsReport() {
+  try {
+    return await fetchFromApi('get_missing_documents_report');
+  } catch (error) {
+    console.error('Error fetching missing documents report:', error);
+    throw new Error('Failed to fetch missing documents report');
+  }
+}
+
+export async function getHonorsReport() {
+  try {
+    return await fetchFromApi('get_honors_report');
+  } catch (error) {
+    console.error('Error fetching honors report:', error);
+    throw new Error('Failed to fetch honors report');
+  }
+}
+
+export async function getPointsReport() {
+  try {
+    return await fetchFromApi('get_points_report');
+  } catch (error) {
+    console.error('Error fetching points report:', error);
+    throw new Error('Failed to fetch points report');
+  }
+}
+
 export async function fetchParticipant(participantId) {
   debugLog("Fetching participant with ID:", participantId);
   try {
@@ -59,7 +153,7 @@ export async function fetchParticipant(participantId) {
     const data = await handleResponse(response);
     debugLog("API response for fetchParticipant:", data); // Log the full response
     if (data.success) {
-      return data.data.participant; // Access 'data.participant'
+      return data.participant; // Access 'data.participant'
     } else {
       throw new Error(data.message || "Failed to fetch participant");
     }
@@ -76,6 +170,7 @@ export async function approveUser(userId) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ user_id: userId }),
     });
@@ -99,6 +194,7 @@ export async function updateUserRole(userId, newRole) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ user_id: userId, new_role: newRole }),
     });
@@ -140,6 +236,7 @@ export async function updateCalendar(participantId, amount, amountPaid) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ participant_id: participantId, amount: amount, amount_paid: amountPaid }),
     });
@@ -163,6 +260,7 @@ export async function updateCalendarAmountPaid(participantId, amountPaid) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ participant_id: participantId, amount_paid: amountPaid }),
     });
@@ -187,6 +285,7 @@ export async function getGuestsByDate(date) {
           headers: {
             "Content-Type": "application/json",
             ...getAuthHeader(),
+            'X-Organization-ID': getCurrentOrganizationId()
           }
         });
 
@@ -214,6 +313,7 @@ export async function saveGuest(guest) {
             headers: {
               "Content-Type": "application/json",
               ...getAuthHeader(),
+              'X-Organization-ID': getCurrentOrganizationId()
             },
               body: JSON.stringify(guest)
           });
@@ -238,6 +338,7 @@ export async function updateCalendarPaid(participantId, paidStatus) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ participant_id: participantId, paid_status: paidStatus }),
     });
@@ -341,6 +442,7 @@ export async function getMailingList() {
     const response = await fetch("/api.php?action=get_mailing_list", {
       headers: {
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
     });
 
@@ -369,6 +471,7 @@ export async function fetchFicheSante(participantId) {
       `/api.php?action=get_fiche_sante&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       }
     );
     const data = await response.json();
@@ -385,11 +488,13 @@ export async function fetchFicheSante(participantId) {
 
 export async function saveParticipant(participantData) {
   try {
+    console.log("Saving participant with data:", participantData); // Add this log to see the exact data being sent
     const response = await fetch("/api.php?action=save_participant", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify(participantData),
     });
@@ -401,12 +506,14 @@ export async function saveParticipant(participantData) {
   }
 }
 
+
 export async function fetchGuardians(participantId) {
   try {
     const response = await fetch(
       `/api.php?action=get_guardians&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       }
     );
     const data = await response.json();
@@ -424,6 +531,7 @@ export async function saveGuardian(guardianData) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify(guardianData),
     });
@@ -463,57 +571,94 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
 export async function getParticipants() {
   try {
     const response = await fetch("/api.php?action=get_participants", {
-      headers: getAuthHeader(),
+      headers: {
+        ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
+      }
     });
 
-    if (response.ok) {
-      const data = await response.json();
-
-      // Save the fetched participants to IndexedDB
-      await saveParticipants(data);
-      return data;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+
+    const data = await response.json();
+    return data;
   } catch (error) {
-    console.error("Error fetching participants, falling back to cache:", error);
-
-    // Retrieve participants from IndexedDB when offline
-    const cachedParticipants = await getParticipantsFromCache();
-    if (cachedParticipants.length > 0) {
-      debugLog("Serving participants from IndexedDB cache");
-      return cachedParticipants;
-    }
-
-    throw new Error(
-      "No cached participants available and failed to fetch online."
-    );
+    console.error("Error fetching participants:", error);
+    throw error;
   }
 }
+
 
 // Fetch groups from the API or from IndexedDB when offline
 export async function getGroups() {
   try {
     const response = await fetch("/api.php?action=get_groups", {
-      headers: getAuthHeader(),
+      headers: {
+        ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
+      }
     });
 
-    if (response.ok) {
-      const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-      // Save the fetched groups to IndexedDB
-      await saveGroups(data);
-      return data;
+    const data = await handleResponse(response);
+    // Cache the fetched groups
+    await saveOfflineData('groups', data);
+    return data;
+  } catch (error) {
+    console.error("Error fetching groups:", error);
+    // If offline, try to retrieve cached data
+    if (!navigator.onLine) {
+      const cachedGroups = await getOfflineData('groups');
+      if (cachedGroups.length > 0) {
+        console.log("Serving groups from IndexedDB cache");
+        return cachedGroups;
+      }
+    }
+    throw error;
+  }
+}
+
+export async function getOrganizationSettings() {
+  try {
+    const response = await fetch('/api.php?action=get_organization_settings', {
+      method: 'GET',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Check if the response includes the new structure
+      if (data.form_structures) {
+        return {
+          settings: data.settings,
+          formStructures: data.form_structures
+        };
+      } else {
+        // Backward compatibility: return just the settings if form_structures is not present
+        return {
+          success: true,
+          settings: data.settings,
+          formStructures: {}
+        };
+      }
+    } else {
+      throw new Error(data.message || 'Failed to fetch organization settings');
     }
   } catch (error) {
-    console.error("Error fetching groups, falling back to cache:", error);
-
-    // Retrieve groups from IndexedDB when offline
-    const cachedGroups = await getGroupsFromCache();
-    if (cachedGroups.length > 0) {
-      debugLog("Serving groups from IndexedDB cache");
-      return cachedGroups;
-    }
-
-    throw new Error("No cached groups available and failed to fetch online.");
+    console.error('Error fetching organization settings:', error);
+    throw error;
   }
 }
 
@@ -521,7 +666,9 @@ export async function getAttendance(date) {
   try {
     const response = await fetch(
       `/api.php?action=get_attendance&date=${date}`,
-      { headers: getAuthHeader() }
+      { headers: getAuthHeader(),
+      'X-Organization-ID': getCurrentOrganizationId()
+      }
     );
     const data = await response.json();
     return data;
@@ -542,6 +689,7 @@ export async function updateAttendance(
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({
         name_id: nameId,
@@ -559,15 +707,34 @@ export async function updateAttendance(
 }
 
 // Fetches all participants and honors from the server
-export async function getHonorsAndParticipants() {
+export async function getHonorsAndParticipants(date = null) {
   try {
-    const response = await fetch("/api.php?action=get_honors", {
-      headers: getAuthHeader(),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to fetch honors data");
+    const url = new URL("/api.php", window.location.origin);
+    url.searchParams.append("action", "get_honors");
+    if (date) {
+      url.searchParams.append("date", date);
     }
-    return await response.json();
+
+    const response = await fetch(url, {
+      headers: {
+        ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('API raw response:', data); // Add this line for debugging
+
+    if (!data.participants || !data.honors || !data.availableDates) {
+      console.error('Unexpected data structure from get_honors:', data);
+      throw new Error("Unexpected data structure from get_honors");
+    }
+
+    return data;
   } catch (error) {
     console.error("Error fetching honors and participants:", error);
     throw error;
@@ -578,6 +745,7 @@ export async function getHonors(date) {
   try {
     const response = await fetch(`/api.php?action=get_honors&date=${date}`, {
       headers: getAuthHeader(),
+      'X-Organization-ID': getCurrentOrganizationId()
     });
     const data = await response.json();
     return data;
@@ -593,6 +761,7 @@ export async function awardHonor(honors) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify(honors),
     });
@@ -609,6 +778,7 @@ export async function getBadgeProgress(participantId) {
       `/api.php?action=get_badge_progress&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       }
     );
     const data = await response.json();
@@ -625,7 +795,8 @@ export async function saveBadgeProgress(badgeData) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeader(), // Spread the result of getAuthHeader here
+        ...getAuthHeader(), 
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify(badgeData),
     });
@@ -647,15 +818,30 @@ export async function getHealthContactReport() {
   }
 }
 
-export async function getAttendanceReport(startDate, endDate) {
+export async function getAttendanceReport(startDate = null, endDate = null) {
   try {
-    const response = await fetch(
-      `/api.php?action=get_attendance_report&start_date=${startDate}&end_date=${endDate}`
-    );
+    let url = '/api.php?action=get_attendance_report';
+    if (startDate && endDate) {
+      url += `&start_date=${startDate}&end_date=${endDate}`;
+    }
+
+    console.log("Fetching attendance report from URL:", url); // Add this line for debugging
+
+    const response = await fetch(url, {
+      headers: getAuthHeader()
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     const data = await response.json();
+    console.log("Received attendance report data:", data); // Add this line for debugging
+
     return data;
   } catch (error) {
     console.error("Error fetching attendance report:", error);
+    throw error;
   }
 }
 
@@ -791,6 +977,27 @@ export async function saveParent(parentData) {
   }
 }
 
+export async function saveFormSubmission(formType, participantId, submissionData) {
+  try {
+    const response = await fetch("/api.php?action=save_form_submission", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({
+        form_type: formType,
+        participant_id: participantId,
+        submission_data: submissionData,
+      }),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("Error saving form submission:", error);
+    throw error;
+  }
+}
+
 export async function fetchParticipants() {
   try {
     const response = await fetch("/api.php?action=get_parent_dashboard_data", {
@@ -799,6 +1006,8 @@ export async function fetchParticipants() {
     const data = await response.json();
 
     if (data.success && Array.isArray(data.participants)) {
+      // Sort participants by first name in alphabetical order
+      data.participants.sort((a, b) => a.first_name.localeCompare(b.first_name));
       return data.participants;
     } else {
       console.error("Unexpected API response:", data);
@@ -809,6 +1018,7 @@ export async function fetchParticipants() {
     return [];
   }
 }
+
 
 export async function updatePoints(updates) {
   try {
@@ -827,21 +1037,28 @@ export async function updatePoints(updates) {
   }
 }
 
-export async function updateParticipantGroup(participantId, groupId) {
+export async function updateParticipantGroup(participantId, groupId, isLeader = false, isSecondLeader = false) {
   try {
     const response = await fetch("/api.php?action=update_participant_group", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({
         participant_id: participantId,
         group_id: groupId,
+        is_leader: isLeader,
+        is_second_leader: isSecondLeader
       }),
     });
-    const data = await response.json();
-    return data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return handleResponse(response);
   } catch (error) {
     console.error("Error updating participant group:", error);
     throw error;
@@ -871,6 +1088,7 @@ export async function getParentUsers() {
     const response = await fetch("/api.php?action=get_parent_users", {
       headers: {
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
     });
     const data = await response.json();
@@ -888,6 +1106,7 @@ export async function deleteParticipant(participantId) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ participant_id: participantId }),
     });
@@ -905,7 +1124,8 @@ export async function associateUser(participantId, userId) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeader(), // Added auth header here
+        ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ participant_id: participantId, user_id: userId }),
     });
@@ -1002,22 +1222,114 @@ export async function updateGroupName(groupId, newName) {
 
 export async function getParticipantsWithDocuments() {
   try {
-    const response = await fetch(
-      "/api.php?action=get_participants_with_documents",
-      {
-        headers: getAuthHeader(),
+    // Fetch participant documents
+    const response = await fetch('/api.php?action=get_participants_with_documents', {
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
       }
-    );
+    });
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
+
     const data = await response.json();
+    console.log('Received data:', data); // Add this line to log the received data
+
+    if (!data || !Array.isArray(data.participants)) {
+      console.error('Invalid data structure:', data); // Add this line to log the invalid structure
+      throw new Error('Invalid data structure: participants list is missing or not an array');
+    }
+
+    // Fetch organization settings to determine which form types to look for
+    const organizationSettingsResponse = await getOrganizationSettings();
+    if (!organizationSettingsResponse || !organizationSettingsResponse.settings) {
+      throw new Error('Failed to fetch or parse organization settings');
+    }
+
+    // Extract form types dynamically from settings keys ending with '_structure'
+    const formTypes = Object.keys(organizationSettingsResponse.settings)
+      .filter(key => key.endsWith('_structure'))
+      .map(key => key.replace('_structure', ''));
+
+    // Process the data to identify form submissions for each participant
+    data.participants = data.participants.map(participant => {
+      const updatedParticipant = { ...participant };
+
+      // Loop through all form types and set the `has_*` property for each
+      formTypes.forEach(formType => {
+        // Handle the different data types that might be returned (1/0, true/false, etc.)
+        updatedParticipant[`has_${formType}`] = !!participant[`has_${formType}`];
+      });
+
+      return updatedParticipant;
+    });
+
+
     return data;
   } catch (error) {
-    console.error("Error fetching participants with documents:", error);
+    console.error('Error fetching participants with documents:', error);
     throw error;
   }
 }
+
+
+export async function getOrganizationFormFormats() {
+  try {
+    const response = await fetch('/api.php?action=get_organization_form_formats', {
+      method: 'GET',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      return data.formFormats;
+    } else {
+      throw new Error(data.message || 'Failed to fetch organization form formats');
+    }
+  } catch (error) {
+    console.error('Error fetching organization form formats:', error);
+    throw error;
+  }
+}
+
+
+export async function getFormSubmission(participantId, formType) {
+  try {
+    const response = await fetch(`/api.php?action=get_form_submission&participant_id=${participantId}&form_type=${formType}`, {
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.form_data) {
+      return { success: true, form_data: data.form_data };
+    } else {
+      console.warn("No form submission found:", data.message);
+      return { success: false, message: data.message || 'No form data found' };
+    }
+  } catch (error) {
+    console.error('Error fetching form submission:', error);
+    throw error;
+  }
+}
+
 
 export async function getParentContactList() {
   try {
@@ -1078,6 +1390,7 @@ export async function updateBadgeStatus(badgeId, action) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({ badge_id: badgeId, action: action }),
     });
@@ -1180,6 +1493,7 @@ export async function removeGuardians(participantId, guardianIds) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({
         participant_id: participantId,
@@ -1201,6 +1515,7 @@ export async function saveAcceptationRisque(acceptationRisqueData) {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
+        'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify(acceptationRisqueData),
     });
@@ -1239,5 +1554,47 @@ export async function getCurrentStars(participantId, territoire) {
   } catch (error) {
     console.error("Error fetching current stars:", error);
     throw error;
+  }
+}
+
+// Utility function to get the current organization ID
+export function getCurrentOrganizationId() {
+  // Check if the organization ID is stored in local storage
+  const organizationId = localStorage.getItem('currentOrganizationId');
+
+  // If not found, set it to the default ID of 1
+  if (!organizationId) {
+    localStorage.setItem('currentOrganizationId', '1');
+    return '1';
+  }
+
+  return organizationId;
+}
+
+// Utility function to set the current organization ID
+function setCurrentOrganizationId(organizationId) {
+  localStorage.setItem('currentOrganizationId', organizationId);
+}
+
+// Function to sync offline data
+export async function syncOfflineData() {
+  if (navigator.onLine) {
+    try {
+      const offlineData = await getOfflineData();
+      for (const item of offlineData) {
+        switch (item.action) {
+          case 'saveParticipant':
+            await saveParticipant(item.data);
+            break;
+          case 'updateAttendance':
+            await updateAttendance(item.data.nameId, item.data.newStatus, item.data.date, item.data.previousStatus);
+            break;
+          // Add cases for other offline actions
+        }
+      }
+      await clearOfflineData();
+    } catch (error) {
+      console.error("Error syncing offline data:", error);
+    }
   }
 }

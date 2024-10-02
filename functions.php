@@ -20,14 +20,31 @@ function setLanguage() {
 }
 
 function userHasAccessToParticipant($pdo, $userId, $participantId) {
+    // First, check if the user is a guardian of the participant
     $stmt = $pdo->prepare("
         SELECT 1 
         FROM user_participants 
         WHERE user_id = ? AND participant_id = ?
     ");
     $stmt->execute([$userId, $participantId]);
+    if ($stmt->fetchColumn() !== false) {
+        return true;
+    }
+
+    // If not a guardian, check if the user has the 'animation' or 'admin' role in the same organization as the participant
+    $stmt = $pdo->prepare("
+        SELECT 1 
+        FROM user_organizations uo
+        JOIN participants p ON uo.organization_id = p.organization_id
+        WHERE uo.user_id = ? 
+          AND p.id = ?
+          AND uo.role IN ('animation', 'admin')
+    ");
+    $stmt->execute([$userId, $participantId]);
+
     return $stmt->fetchColumn() !== false;
 }
+
 
 function calculateAge($dateOfBirth) {
     // Convert the date of birth to a DateTime object
@@ -115,6 +132,80 @@ function loadTranslations() {
         // Fallback to French if the requested language file doesn't exist
         $translations = include __DIR__ . "/lang/fr.php";
     }
+}
+
+function getCurrentOrganizationId() {
+    global $pdo; // Ensure you have access to your PDO instance
+
+    // Ensure session is started
+    if (session_status() == PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Check if an organization ID is set in the session
+    if (isset($_SESSION['current_organization_id'])) {
+        return $_SESSION['current_organization_id'];
+    }
+
+    // Check if the organization ID is passed as a header or query parameter
+    $orgId = $_SERVER['HTTP_X_ORGANIZATION_ID'] ?? $_GET['organization_id'] ?? null;
+
+    if ($orgId) {
+        // Validate that the user has access to this organization
+        $userId = getUserIdFromToken(getJWTFromHeader());
+        $userOrgs = getUserOrganizations($userId);
+
+        if (in_array($orgId, array_column($userOrgs, 'organization_id'))) {
+            // Store in session for future requests
+            $_SESSION['current_organization_id'] = $orgId;
+            return $orgId;
+        }
+    }
+
+    // Retrieve the current domain (handling dev environments)
+    $currentHost = $_SERVER['HTTP_HOST'];
+
+    // Check if there's an exact match or wildcard match in the organization_domains table
+    $stmt = $pdo->prepare("
+        SELECT organization_id 
+        FROM organization_domains 
+        WHERE domain = :domain OR domain = :wildcard 
+        LIMIT 1
+    ");
+    $wildcardDomain = '*.' . implode('.', array_slice(explode('.', $currentHost), 1));
+    $stmt->execute([':domain' => $currentHost, ':wildcard' => $wildcardDomain]);
+    $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($organization) {
+        // Store in session for future requests
+        $_SESSION['current_organization_id'] = $organization['organization_id'];
+        return $organization['organization_id'];
+    }
+
+    // If no valid organization ID is found, return the default (1)
+    return 1;
+}
+
+
+
+function getJWTPayload() {
+    $headers = getallheaders();
+    $token = null;
+
+    if (isset($headers['Authorization'])) {
+        $authHeader = $headers['Authorization'];
+        $token = str_replace('Bearer ', '', $authHeader);
+    }
+
+    if ($token) {
+        $tokenParts = explode('.', $token);
+        if (count($tokenParts) === 3) {
+            $payload = json_decode(base64_decode($tokenParts[1]), true);
+            return $payload;
+        }
+    }
+
+    return null;
 }
 
 

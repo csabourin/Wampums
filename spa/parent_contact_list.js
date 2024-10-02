@@ -44,26 +44,30 @@ export class ParentContactList {
   }
 
   renderGroupsAndChildren() {
-    let html = "";
-    let currentGroup = null;
-    for (const [childId, child] of Object.entries(this.children)) {
-      if (currentGroup !== child.group) {
-        if (currentGroup !== null) {
-          html += `</div></div>`;
-        }
-        currentGroup = child.group;
-        html += `
-                    <div class="group">
-                        <div class="group-header" data-group="${currentGroup}">${currentGroup}</div>
-                        <div class="group-content">
-                `;
+      // Extract unique groups from the children list
+      const allGroups = new Set();
+      for (const child of Object.values(this.children)) {
+          child.groups.forEach(group => allGroups.add(group));
       }
-      html += this.renderChildCard(childId, child);
-    }
-    if (currentGroup !== null) {
-      html += `</div></div>`;
-    }
-    return html;
+      const sortedGroups = Array.from(allGroups).sort(); // Sort groups alphabetically
+
+      let html = "";
+      for (const group of sortedGroups) {
+          html += `
+              <div class="group">
+                  <div class="group-header" data-group="${group}">${group}</div>
+                  <div class="group-content">
+          `;
+          // Render all children belonging to this group
+          for (const [childId, child] of Object.entries(this.children)) {
+              if (child.groups.includes(group)) {
+                  html += this.renderChildCard(childId, child);
+              }
+          }
+          html += `</div></div>`;
+      }
+
+      return html;
   }
 
   renderChildCard(childId, child) {

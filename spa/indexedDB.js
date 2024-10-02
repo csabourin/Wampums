@@ -1,5 +1,5 @@
 const DB_NAME = "WampumsAppDB";
-const DB_VERSION = 6; // Make sure the version is incremented correctly
+const DB_VERSION = 8; // Make sure the version is incremented correctly
 const STORE_PARTICIPANTS = "participants";
 const STORE_GROUPS = "groups";
 const STORE_NAME = "offlineData"; // This store is for offline data

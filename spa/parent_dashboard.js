@@ -1,4 +1,4 @@
-import { fetchParticipants } from "./ajax-functions.js";
+import { fetchParticipants, getOrganizationFormFormats, getOrganizationSettings } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
 
@@ -6,12 +6,13 @@ export class ParentDashboard {
 	constructor(app) {
 		this.app = app;
 		this.participants = [];
+		this.formStructures = {};
 	}
 
 	async init() {
 		try {
-			console.log("ParentDashboard init, app:", this.app);
 			await this.fetchParticipants();
+			await this.fetchFormFormats();
 			this.render();
 			this.attachEventListeners();
 		} catch (error) {
@@ -22,6 +23,15 @@ export class ParentDashboard {
 
 	async fetchParticipants() {
 		this.participants = await fetchParticipants();
+	}
+
+	async fetchFormFormats() {
+		const response = await getOrganizationFormFormats();
+		if (response && typeof response === 'object') {
+			this.formFormats = response;
+		} else {
+			console.error("Invalid form formats response:", response);
+		}
 	}
 
 	async fetchUserFullName() {
@@ -90,36 +100,33 @@ export class ParentDashboard {
 
 	renderParticipantsList() {
 		if (!Array.isArray(this.participants) || this.participants.length === 0) {
-			return `<li>${translate("no_participants")}</li>`;
+			return `<p>${translate("no_participants")}</p>`;
 		}
 
-		return this.participants
-			.map(
-				(participant) => `
-						<li class="participant-item">
-								<div class="participant-name">${participant.first_name} ${
-					participant.last_name
-				}</div>
-								<div class="participant-actions">
-										<a href="/formulaire_inscription/${
-											participant.id
-										}">${translate("modifier")}</a>
-										<a href="/fiche_sante/${participant.id}">
-												${participant.has_fiche_sante ? "✅" : "❌"}
-												${translate("fiche_sante")}
-										</a>
-										<a href="/acceptation_risque/${participant.id}">
-												${participant.has_acceptation_risque ? "✅" : "❌"}
-												${translate("acceptation_risque")}
-										</a>
-										<a href="#/badge_form/${participant.id}">${translate(
-					"badge_progress"
-				)}</a>
-								</div>
-						</li>
-				`
-			)
-			.join("");
+		return this.participants.map(participant => `
+			<div class="participant-card">
+				<h3>${participant.first_name} ${participant.last_name}</h3>
+				<a href="/formulaire_inscription/${participant.id}" class="dashboard-button">${translate("modifier")}</a>
+				<div class="participant-actions">
+				${this.renderFormButtons(participant)}
+				</div>
+			</div>
+		`).join("");
+	}
+
+	renderFormButtons(participant) {
+			return Object.keys(this.formFormats)
+					.filter(formType => formType !== 'participant_registration')
+					.map(formType => {
+							const formLabel = translate(formType);
+							const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
+							const status = isCompleted ? "✅" : "❌";
+							return `
+									<a href="/dynamic-form/${formType}/${participant.id}">
+											${status} ${formLabel}
+									</a>
+							`;
+					}).join("");
 	}
 
 	attachEventListeners() {

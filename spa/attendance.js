@@ -19,6 +19,7 @@ export class Attendance {
     this.availableDates = [];
     this.saveGuest = saveGuest;
     this.getGuestsByDate = getGuestsByDate;
+    this.groups = [];
   }
 
   async init() {
@@ -50,9 +51,28 @@ export class Attendance {
 
   async fetchData() {
     try {
-      this.participants = await getParticipants();
+      const participantsResponse = await getParticipants();
+      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
+        this.participants = participantsResponse.participants;
+      } else {
+        throw new Error("Invalid participants data structure");
+      }
+
       this.attendanceData = await getAttendance(this.currentDate);
       this.guests = await this.getGuestsByDate(this.currentDate);
+
+      // Group participants
+      this.groups = this.participants.reduce((acc, participant) => {
+        if (!acc[participant.group_id]) {
+          acc[participant.group_id] = {
+            id: participant.group_id,
+            name: participant.group_name,
+            participants: []
+          };
+        }
+        acc[participant.group_id].participants.push(participant);
+        return acc;
+      }, {});
     } catch (error) {
       console.error("Error fetching attendance data:", error);
       throw error;
@@ -101,32 +121,20 @@ export class Attendance {
 
   renderGroupsAndNames() {
     let html = "";
-    let currentGroup = null;
-
-    this.participants.forEach((participant) => {
-      if (currentGroup !== participant.group_id) {
-        if (currentGroup !== null) {
-          html += "</div>";
-        }
-        currentGroup = participant.group_id;
-        html += `<div class="group-card"><h3>${participant.group_name}</h3>`;
-      }
-
-      const status = this.attendanceData[participant.id] || "present";
-      const statusClass = status === "present" && !this.attendanceData[participant.id] ? "gray" : "present";
-
-      html += `
-        <div class="participant-row" data-id="${participant.id}">
-          <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
-          <span class="participant-status ${status} ${statusClass}">${translate(status)}</span>
-        </div>
-      `;
-    });
-
-    if (currentGroup !== null) {
+    Object.values(this.groups).forEach(group => {
+      html += `<div class="group-card"><h3>${group.name}</h3>`;
+      group.participants.forEach(participant => {
+        const status = this.attendanceData[participant.id] || "present";
+        const statusClass = status === "present" && !this.attendanceData[participant.id] ? "gray" : status;
+        html += `
+          <div class="participant-row" data-id="${participant.id}">
+            <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
+            <span class="participant-status ${statusClass}">${translate(status)}</span>
+          </div>
+        `;
+      });
       html += "</div>";
-    }
-
+    });
     return html;
   }
 
@@ -171,7 +179,7 @@ export class Attendance {
 
   async handleStatusChange(newStatus) {
     if (!this.selectedParticipant) {
-      alert(translate("select_participant"));
+      this.app.showMessage(translate("select_participant"), "error");
       return;
     }
 
@@ -186,24 +194,15 @@ export class Attendance {
         statusSpan.classList.add(newStatus);
         statusSpan.textContent = translate(newStatus);
 
-        let pointAdjustment = 0;
-        if (previousStatus !== "absent" && newStatus === "absent") {
-          pointAdjustment = -1;
-        } else if (previousStatus === "absent" && newStatus !== "absent") {
-          pointAdjustment = 1;
-        }
+        this.attendanceData[participantId] = newStatus;
 
-        if (pointAdjustment !== 0) {
-          this.updatePointsUI(participantId, pointAdjustment);
-        }
-
-        console.log(`Status changed from ${previousStatus} to ${newStatus}. Point adjustment: ${pointAdjustment}`);
+        this.app.showMessage(translate("attendance_updated_successfully"), "success");
       } else {
         throw new Error(result.message || "Unknown error occurred");
       }
     } catch (error) {
       console.error("Error:", error);
-      alert(`${translate("error_updating_attendance")}: ${error.message}`);
+      this.app.showMessage(`${translate("error_updating_attendance")}: ${error.message}`, "error");
     }
   }
 
@@ -221,7 +220,7 @@ export class Attendance {
       this.updateAttendanceUIForDate();
     } catch (error) {
       console.error("Error:", error);
-      alert(translate("error_loading_attendance"));
+      this.app.showMessage(translate("error_loading_attendance"), "error");
     }
   }
 
@@ -230,17 +229,13 @@ export class Attendance {
       const participantId = row.dataset.id;
       const statusSpan = row.querySelector(".participant-status");
       const status = this.attendanceData[participantId] || "present";
-      const statusClass = status === "present" && !this.attendanceData[participantId] ? "gray" : "present";
+      const statusClass = status === "present" && !this.attendanceData[participantId] ? "gray" : status;
 
-      statusSpan.className = `participant-status ${status} ${statusClass}`;
+      statusSpan.className = `participant-status ${statusClass}`;
       statusSpan.textContent = translate(status);
     });
 
     document.getElementById("guestList").innerHTML = this.renderGuests();
-  }
-
-  updatePointsUI(participantId, pointAdjustment) {
-    console.log(`Points updated for ${participantId}: ${pointAdjustment}`);
   }
 
   formatDate(dateString) {
@@ -261,7 +256,7 @@ export class Attendance {
     const guestName = document.getElementById("guestName").value.trim();
     const guestEmail = document.getElementById("guestEmail").value.trim();
     if (guestName === "") {
-      alert(translate("guest_name_required"));
+      this.app.showMessage(translate("guest_name_required"), "error");
       return;
     }
 
@@ -277,9 +272,10 @@ export class Attendance {
       document.getElementById("guestList").innerHTML = this.renderGuests();
       document.getElementById("guestName").value = "";
       document.getElementById("guestEmail").value = "";
+      this.app.showMessage(translate("guest_added_successfully"), "success");
     } catch (error) {
       console.error("Error saving guest:", error);
-      alert(translate("error_saving_guest"));
+      this.app.showMessage(translate("error_saving_guest"), "error");
     }
   }
 }
