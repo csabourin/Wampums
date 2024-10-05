@@ -4,6 +4,7 @@ import {
   saveGroups,
   getGroupsFromCache,
   saveOfflineData,
+  setCachedData, getCachedData 
 } from "./indexedDB.js";
 
 // Utility function to get the JWT token from local storage
@@ -133,11 +134,32 @@ export async function getHonorsReport() {
 }
 
 export async function getPointsReport() {
+  const cacheKey = "get_points_report";
+
+  // Try to retrieve from cache first
+  const cachedPointsReport = await getCachedData(cacheKey);
+  if (cachedPointsReport) {
+    return cachedPointsReport; // Return cached data if available
+  }
+
   try {
-    return await fetchFromApi('get_points_report');
+    const response = await fetch("/api.php?action=get_points_report", {
+      headers: getAuthHeader(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Cache points report in IndexedDB
+    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+
+    return data;
   } catch (error) {
-    console.error('Error fetching points report:', error);
-    throw new Error('Failed to fetch points report');
+    console.error("Error fetching points report:", error);
+    throw error;
   }
 }
 
@@ -304,7 +326,104 @@ export async function getGuestsByDate(date) {
     }
 }
 
+export async function getActivitesRencontre() {
+  try {
+    const response = await fetch("/api.php?action=get_activites_rencontre", {
+      headers: getAuthHeader(),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.activites;
+  } catch (error) {
+    console.error("Error fetching activites rencontre:", error);
+    throw error;
+  }
+}
 
+export async function getAnimateurs() {
+  try {
+    const response = await fetch("/api.php?action=get_animateurs", {
+      headers: getAuthHeader(),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.animateurs;
+  } catch (error) {
+    console.error("Error fetching animateurs:", error);
+    throw error;
+  }
+}
+
+export async function getRecentHonors() {
+  try {
+    const response = await fetch("/api.php?action=get_recent_honors", {
+      headers: getAuthHeader(),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.honors;
+  } catch (error) {
+    console.error("Error fetching recent honors:", error);
+    throw error;
+  }
+}
+
+
+export async function saveReunionPreparation(formData) {
+  try {
+    const response = await fetch("/api.php?action=save_reunion_preparation", {
+      method: "POST",
+      headers: {
+        ...getAuthHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formData),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error saving reunion preparation:", error);
+    throw error;
+  }
+}
+
+export async function getReunionPreparation(date) {
+  const cacheKey = `get_reunion_preparation_${date}`;
+
+  // Try to retrieve from cache first
+  const cachedPreparation = await getCachedData(cacheKey);
+  if (cachedPreparation) {
+    return cachedPreparation; // Return cached data if available
+  }
+
+  try {
+    const response = await fetch(`/api.php?action=get_reunion_preparation&date=${date}`, {
+      headers: getAuthHeader(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Cache reunion preparation data in IndexedDB
+    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+
+    return data;
+  } catch (error) {
+    console.error("Error fetching reunion preparation:", error);
+    throw error;
+  }
+}
 
 export async function saveGuest(guest) {
       try {
@@ -569,12 +688,20 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
 
 // Fetch participants from the API or from IndexedDB when offline
 export async function getParticipants() {
+  const cacheKey = "get_participants";
+
+  // Try to retrieve from cache first
+  const cachedParticipants = await getCachedData(cacheKey);
+  if (cachedParticipants) {
+    return cachedParticipants; // Return cached participants if available
+  }
+
   try {
     const response = await fetch("/api.php?action=get_participants", {
       headers: {
         ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      }
+        'X-Organization-ID': getCurrentOrganizationId(),
+      },
     });
 
     if (!response.ok) {
@@ -582,6 +709,10 @@ export async function getParticipants() {
     }
 
     const data = await response.json();
+
+    // Cache participants in IndexedDB for future use
+    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+
     return data;
   } catch (error) {
     console.error("Error fetching participants:", error);
@@ -624,12 +755,31 @@ export async function getGroups() {
 
 export async function getOrganizationSettings() {
   try {
-    const response = await fetch('/api.php?action=get_organization_settings', {
-      method: 'GET',
-      headers: {
-        ...getAuthHeader(),
-        'Content-Type': 'application/json'
-      }
+    const response = await fetch("/api.php?action=get_organization_settings", {
+      headers: getAuthHeader(),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json(); // Return the entire response, including 'success' and 'settings'
+  } catch (error) {
+    console.error("Error fetching organization settings:", error);
+    throw error;
+  }
+}
+
+export async function getAttendance(date) {
+  const cacheKey = `get_attendance_${date}`;
+
+  // Try to retrieve from cache first
+  const cachedAttendance = await getCachedData(cacheKey);
+  if (cachedAttendance) {
+    return cachedAttendance; // Return cached data if available
+  }
+
+  try {
+    const response = await fetch(`/api.php?action=get_attendance&date=${date}`, {
+      headers: getAuthHeader(),
     });
 
     if (!response.ok) {
@@ -638,42 +788,13 @@ export async function getOrganizationSettings() {
 
     const data = await response.json();
 
-    if (data.success) {
-      // Check if the response includes the new structure
-      if (data.form_structures) {
-        return {
-          settings: data.settings,
-          formStructures: data.form_structures
-        };
-      } else {
-        // Backward compatibility: return just the settings if form_structures is not present
-        return {
-          success: true,
-          settings: data.settings,
-          formStructures: {}
-        };
-      }
-    } else {
-      throw new Error(data.message || 'Failed to fetch organization settings');
-    }
-  } catch (error) {
-    console.error('Error fetching organization settings:', error);
-    throw error;
-  }
-}
+    // Cache attendance data in IndexedDB
+    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
 
-export async function getAttendance(date) {
-  try {
-    const response = await fetch(
-      `/api.php?action=get_attendance&date=${date}`,
-      { headers: getAuthHeader(),
-      'X-Organization-ID': getCurrentOrganizationId()
-      }
-    );
-    const data = await response.json();
     return data;
   } catch (error) {
     console.error("Error fetching attendance:", error);
+    throw error;
   }
 }
 
@@ -890,21 +1011,15 @@ export async function login(email, password) {
   }
 }
 
-export async function getAllParents() {
-  try {
-    const response = await fetch("/api.php?action=get_all_parents", {
-      headers: getAuthHeader(),
+export async function getReunionDates() {
+    const response = await fetch('/api.php?action=get_reunion_dates', {
+        headers: getAuthHeader(),
     });
-    const data = await response.json();
-    if (data.success) {
-      return data.parents;
-    } else {
-      throw new Error("Failed to fetch all parents");
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
     }
-  } catch (error) {
-    console.error("Error fetching all parents:", error);
-    throw error;
-  }
+    const data = await response.json();
+    return data.dates;
 }
 
 export async function fetchParents(participantId) {
@@ -1155,16 +1270,29 @@ export async function addGroup(groupName) {
 }
 
 export async function getAttendanceDates() {
+  const cacheKey = "get_attendance_dates";
+
+  // Try to retrieve from cache first
+  const cachedAttendanceDates = await getCachedData(cacheKey);
+  if (cachedAttendanceDates) {
+    return cachedAttendanceDates; // Return cached data if available
+  }
+
   try {
     const response = await fetch("/api.php?action=get_attendance_dates", {
       headers: getAuthHeader(),
     });
-    const data = await response.json();
-    if (data.success) {
-      return data.dates;
-    } else {
-      throw new Error(data.message || "Failed to fetch attendance dates");
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
+
+    const data = await response.json();
+
+    // Cache attendance dates in IndexedDB
+    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+
+    return data;
   } catch (error) {
     console.error("Error fetching attendance dates:", error);
     throw error;
@@ -1330,22 +1458,36 @@ export async function getFormSubmission(participantId, formType) {
   }
 }
 
-
 export async function getParentContactList() {
+  const cacheKey = "get_parent_contact_list";
+
+  // Try to retrieve from cache first
+  const cachedParentContactList = await getCachedData(cacheKey);
+  if (cachedParentContactList) {
+    return cachedParentContactList; // Return cached data if available
+  }
+
   try {
     const response = await fetch("/api.php?action=get_parent_contact_list", {
       headers: getAuthHeader(),
     });
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
+
     const data = await response.json();
+
+    // Cache parent contact list in IndexedDB
+    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+
     return data;
   } catch (error) {
     console.error("Error fetching parent contact list:", error);
     throw error;
   }
 }
+
 
 function addCacheBuster(url) {
   const separator = url.includes("?") ? "&" : "?";

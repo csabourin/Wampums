@@ -21,6 +21,7 @@ import { Calendars } from './calendars.js';
 import {ResetPassword} from './reset_password.js';
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { Reports } from "./reports.js";
+import { PreparationReunions } from './preparation_reunions.js';
 
 const debugMode =
   window.location.hostname === "localhost" ||
@@ -44,47 +45,28 @@ const routes = {
   "/": "dashboard",
   "/admin": "admin",
   "/dashboard": "dashboard",
-  "/index.php": "dashboard",
   "/login": "login",
-  "/login.php": "login",
   "/logout": "logout",
   "/parent_dashboard": "parentDashboard",
   "/formulaire_inscription": "formulaireInscription",
   "/formulaire_inscription/:id": "formulaireInscription",
   "/attendance": "attendance",
-  "/manage_points.php": "managePoints",
   "/managePoints": "managePoints",
-  "/manage_honors.php": "manageHonors",
-  "/attendance.php": "attendance",
-  "/manage_participants": "manageParticipants",
-  "/manage_participants.php": "manageParticipants",
-  "/manage_groups.php": "manageGroups",
-  "/view_participant_documents.php": "viewParticipantDocuments",
-  "/approve_badges.php": "approveBadges",
-  "/parent_contact_list.php": "parentContactList",
-  "/mailing_list": "mailingList",
-  "/manage_users_participants.php": "manageUsersParticipants",
-  "/manage_points": "managePoints",
-  "/manage_points.php": "managePoints",
-  "/manage_honors": "manageHonors",
-  "/manage_honors.php": "manageHonors",
-  "/manage_users_participants": "manageUsersParticipants",
-  "/manage_users_participants.php": "manageUsersParticipants",
-  "/manage_groups": "manageGroups",
-  "/parent_contact_list": "parentContactList",
-  "/parent_contact_list.php": "parentContactList",
+  "/manageHonors": "manageHonors",
+  "/manageParticipants": "manageParticipants",
+  "/manageGroups": "manageGroups",
   "/view_participant_documents": "viewParticipantDocuments",
-  "/view_participant_documents.php": "viewParticipantDocuments",
-  "/approve_badges": "approveBadges",
-  "/approve_badges.php": "approveBadges",
+  "/approveBadges": "approveBadges",
+  "/parentContactList": "parentContactList",
+  "/mailingList": "mailingList",
   "/fiche_sante/:id": "ficheSante",
   "/acceptation_risque/:id": "acceptationRisque",
   "/badge_form/:id": "badgeForm",
   "/register": "register",
-  "/register.php": "register",
   "/calendars": "calendars",
   "/reset_password": "resetPassword",
-   "/reports": "reports",
+  "/reports": "reports",
+  "/preparation_reunions": "preparation_reunions"
 };
 
 export class Router {
@@ -121,15 +103,14 @@ export class Router {
 
     try {
       // Allow access to login, register, and index pages without being logged in
-      if (
-        !this.app.isLoggedIn &&
-        !["login", "register","reset_password", "resetPassword" ,""].includes(routeName)
-      ) {
-        // Redirect to login if not logged in and not trying to access allowed pages
-        history.pushState(null, "", "/login");
+      if (!this.app.isLoggedIn && !["login", "register", "reset_password"].includes(routeName)) {
+        if (path !== "/login") { // Add this check to prevent redirecting to the login page again if already on it
+          history.pushState(null, "", "/login");
+        }
         await this.loadLoginPage();
         return;
       }
+
 
       switch (routeName) {
         case "dashboard":
@@ -219,6 +200,9 @@ export class Router {
         case "badgeForm":
           await this.loadBadgeForm(param);
           break;
+          case 'preparation_reunions':
+          await this.loadPreparationReunions();
+          break;
         case "register":
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
@@ -235,6 +219,16 @@ export class Router {
         default:
           this.loadNotFoundPage();
       }
+      if (
+        this.app.isLoggedIn &&
+        (this.app.userRole === 'admin' || this.app.userRole === 'animation') &&
+        !this.activityWidgetInitialized  // Check if the widget is already initialized
+      ) {
+        import('./init-activity-widget.js').then(module => {
+          module.initActivityWidget(this.app);
+        });
+        this.activityWidgetInitialized = true;  // Mark the widget as initialized
+      }      
     } catch (error) {
       console.error("Routing error:", error);
       this.app.renderError("An error occurred while loading the page.");
@@ -301,6 +295,11 @@ export class Router {
   async loadReports() {
     const reports = new Reports(this.app);
     await reports.init();
+  }
+
+  async loadPreparationReunions() {
+    const preparationReunions = new PreparationReunions(this.app);
+    await preparationReunions.init();
   }
 
   async loadManageHonors() {

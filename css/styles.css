@@ -1128,3 +1128,360 @@ textarea {
 #form-content input[type="checkbox"] {
   margin-right: 5px;
 }
+
+/* Preparation Reunions Styles */
+
+.activity-container {
+  display: flex;
+  align-items: center;
+}
+
+.activity-select,
+.activity-input {
+  flex-grow: 1;
+  margin-right: 5px;
+}
+
+.edit-activity-btn,
+.save-activity-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 5px;
+}
+
+.edit-activity-btn:hover,
+.save-activity-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.preparation-reunions {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.preparation-reunions h1 {
+  text-align: center;
+  color: #4c65ae;
+  margin-bottom: 20px;
+}
+
+.preparation-reunions form {
+  display: grid;
+  gap: 15px;
+}
+
+.preparation-reunions label {
+  font-weight: bold;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.preparation-reunions input[type="text"],
+.preparation-reunions input[type="date"],
+.preparation-reunions select,
+.preparation-reunions textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.preparation-reunions button {
+  background-color: #4c65ae;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.preparation-reunions button:hover {
+  background-color: #3a4f8a;
+}
+
+#activities-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#activities-table th,
+#activities-table td {
+  border: 1px solid #ccc;
+  padding: 8px;
+}
+
+#activities-table th {
+  background-color: #f2f2f2;
+}
+
+@media (max-width: 768px) {
+  #activities-table th,
+  #activities-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  #activities-table th {
+    text-align: center;
+  }
+
+  #activities-table td {
+    border: none;
+  }
+
+  #activities-table tr {
+    margin-bottom: 15px;
+    display: block;
+    border: 0;
+    border-bottom: 1px solid black;
+  }
+}
+
+@media (max-width: 768px) {
+
+  form, .group, table {
+    background-color: #fff;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 0.5rem;
+    box-shadow: none;
+  }
+  
+  .preparation-reunions {
+    padding: 10px 5px;
+  }
+
+  .form-group {
+    margin-bottom: 10px;
+  }
+
+  #activities-table {
+    font-size: 14px;
+    width: 100%;
+  }
+
+  #activities-table th,
+  #activities-table td {
+    padding: 5px 2px;
+  }
+
+  .activity-time-container {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .activity-time,
+  .activity-duration {
+    width: 48%;
+  }
+
+  .activity-container {
+    display: flex;
+    align-items: center;
+  }
+
+  .activity-select {
+    flex-grow: 1;
+    margin-right: 5px;
+  }
+
+  .edit-activity-btn {
+    font-size: 14px;
+    padding: 5px 10px;
+    background-color: #4c65ae;
+    color: white;
+    border: none;
+    border-radius: 3px;
+  }
+
+  .activity-responsable,
+  .activity-materiel {
+    width: 100%;
+    margin-top: 5px;
+  }
+
+  input[type="text"],
+  input[type="date"],
+  select,
+  textarea {
+    width: 100%;
+    padding: 8px 5px;
+    font-size: 14px;
+  }
+}
+
+.date-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.date-navigation button,
+.date-navigation select {
+  padding: 5px 10px;
+  background-color: #4c65ae;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.date-navigation select {
+  flex-grow: 1;
+  margin: 0 10px;
+}
+
+@media (max-width: 768px) {
+  .date-navigation {
+      flex-wrap: wrap;
+  }
+
+  .date-navigation button,
+  .date-navigation select {
+      flex: 1 0 40%;
+      margin: 2px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .preparation-reunions {
+    padding: 0;
+  }
+
+  .preparation-reunions button {
+    display: none;
+  }
+
+  #activities-table {
+    font-size: 12px;
+  }
+
+  #activities-table th,
+  #activities-table td {
+    padding: 4px;
+  }
+
+  textarea {
+    border: none;
+  }
+
+  @page {
+    size: letter;
+    margin: 1cm;
+  }
+}
+
+.activity-widget {
+  background-color: #f5f5f5;
+  padding: 15px;
+  border: 1px solid #ccc;
+  margin-top: 2em;
+  margin-bottom: 20px;
+  border-radius: 5px;
+  text-align: center;
+  display: none;  /* Hidden by default */
+}
+
+.activity-widget h3 {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.activity-widget p {
+  margin: 5px 0 0;
+  font-size: 1em;
+  color: #333;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4); /* Dim background */
+}
+
+.modal-content {
+  background-color: var(--secondary-color); /* Using your secondary color */
+  margin: 15% auto;
+  padding: 20px;
+  border: 1px solid var(--primary-color); /* Primary color for border */
+  width: 80%;
+  max-width: 500px;
+  border-radius: 5px;
+  text-align: center;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
+}
+
+.close {
+  color: var(--text-color); /* Matches your text color */
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.close:hover, .close:focus {
+  color: var(--primary-color); /* Primary color on hover */
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#description-text {
+  font-size: 16px;
+  color: var(--text-color); /* Ensures consistent text color */
+}
+
+.modal-content button {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.modal-content button:hover {
+  background-color: var(--selected-color); /* Slightly different color on hover */
+}
+
+.skeleton {
+  opacity: 0.7;
+}
+
+.skeleton-text {
+  background-color: #e0e0e0;
+  color: transparent;
+}
+
+.skeleton-button {
+  background-color: #e0e0e0;
+  color: transparent;
+  border: none;
+}
+
+.skeleton-guest-list .guest-row,
+.skeleton .participant-row {
+  background-color: #e0e0e0;
+  height: 1.5em;
+  margin: 0.5em 0;
+}
+
+.skeleton .participant-name,
+.skeleton .participant-status {
+  background-color: #e0e0e0;
+}

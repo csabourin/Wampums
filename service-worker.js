@@ -1,6 +1,6 @@
-const CACHE_NAME = "wampums-app-v3.6.0";
-const STATIC_CACHE_NAME = "wampums-static-v3.6.0";
-const API_CACHE_NAME = "wampums-api-v3.6.0";
+const CACHE_NAME = "wampums-app-v3.6.3";
+const STATIC_CACHE_NAME = "wampums-static-v3.6.3";
+const API_CACHE_NAME = "wampums-api-v3.6.3";
 
 const staticAssets = [
   "/",
@@ -143,6 +143,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Check for API routes to cache in IndexedDB
+  if (apiRoutes.some((route) => url.pathname.includes(route))) {
+    event.respondWith(fetchAndCacheInIndexedDB(event.request));
+  } else if (staticAssets.includes(url.pathname)) {
+    event.respondWith(cacheFirst(event.request));
+  } else {
+    event.respondWith(networkFirst(event.request));
+  }
+
   // Serve static assets from cache
   if (staticAssets.includes(url.pathname)) {
     event.respondWith(cacheFirst(event.request));
@@ -190,6 +199,33 @@ async function networkFirst(request) {
     }
     throw error;
   }
+}
+
+async function fetchAndCacheInIndexedDB(request) {
+  const cacheKey = request.url; // Use the request URL as the cache key
+
+  try {
+    // Try to fetch from the network first
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const responseClone = networkResponse.clone();
+      const data = await networkResponse.json();
+
+      // Save the response data in IndexedDB
+      await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+      return new Response(JSON.stringify(data)); // Return the response
+    }
+  } catch (error) {
+    console.error("Network request failed, serving from cache:", error);
+    // If the network fails, try to get the cached response from IndexedDB
+    const cachedData = await getCachedData(cacheKey);
+    if (cachedData) {
+      return new Response(JSON.stringify(cachedData));
+    }
+  }
+
+  // If both network and cache fail, return a generic fallback (you can customize this)
+  return new Response(JSON.stringify({ error: "No data available" }), { status: 503 });
 }
 
 // Handle cache updates

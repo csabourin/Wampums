@@ -1,72 +1,154 @@
-# Points Tally App
+# Meute 6A Scout Management Application
 
-## Description
+## Overview
+This application is a comprehensive scout management system designed specifically for Meute 6A St-Paul d'Aylmer. It provides a centralized platform for managing scout activities, tracking progress, and facilitating communication between scout leaders, parents, and scouts.
 
-The Points Tally App is a web-based application designed for scout groups to manage and track points for individual scouts and groups. It offers features like attendance tracking, honor awards, and offline functionality.
+## Features and Advantages
 
-## Features
+### From the Organization's Perspective:
 
-- User authentication and registration
-- Dashboard to view points for individuals and groups
-- Manage scouts and groups
-- Award and track points
-- Attendance tracking
-- Honor awards system
-- Offline functionality with data syncing
-- Multi-language support (English and French)
-- Mobile-responsive design
+1. **Centralized Management**
+   - Manage all scout-related activities from a single platform
+   - Maintain a database of all scouts, leaders, and parents
 
-## Technologies Used
+2. **Group Management**
+   - Create and manage scout groups (dens)
+   - Assign scouts to specific groups
+   - Designate group leaders and second leaders
 
-- PHP
-- JavaScript
-- HTML5
-- CSS3
-- IndexedDB for offline data storage
-- Service Workers for offline functionality
-- PostgreSQL database
+3. **Activity Planning**
+   - Plan and schedule scout meetings and activities
+   - Create detailed activity logs with responsibilities and materials needed
 
-## Setup Instructions
+4. **Progress Tracking**
+   - Monitor individual and group progress
+   - Track badge achievements and honors
 
-1. Clone the repository
-2. Set up a PHP environment (e.g., XAMPP, WAMP, or a web server with PHP support)
-3. Create a PostgreSQL database and update the connection details in `config.php`
-4. Run the SQL scripts to create the necessary tables (not provided in the current codebase)
-5. Ensure that the `DATABASE_URL` environment variable is set with your database connection string
-6. Configure your web server to point to the project's root directory
-7. Access the application through your web browser
+5. **Attendance Management**
+   - Record and track attendance for all activities
+   - Generate attendance reports
 
-## File Structure
+6. **Point System**
+   - Implement a customizable point system for achievements and participation
+   - Track individual and group points
 
-- `config.php`: Database and app configuration
-- `functions.php`: Common PHP functions
-- `index.php`: Entry point of the application
-- `dashboard.php`: Main dashboard
-- `manage_points.php`, `manage_names.php`, `manage_groups.php`, `manage_honors.php`: Management pages
-- `attendance.php`: Attendance tracking
-- `js/`: JavaScript files including app.js, functions.js, indexedDB.js, and points_script.js
-- `css/`: CSS files including styles.css and manage_names.css
-- `lang/`: Language files (en.php and fr.php)
+7. **Document Management**
+   - Store and manage important documents like health forms and risk acceptance forms
+   - Ensure all required paperwork is up-to-date
 
-## Offline Functionality
+8. **Communication Tools**
+   - Send notifications to parents and scouts
+   - Share news and updates through the platform
 
-The app uses Service Workers and IndexedDB to provide offline functionality. Data is synced with the server when the connection is re-established.
+9. **Reporting**
+   - Generate various reports including attendance, progress, and participation
+   - Export data for further analysis
 
-## Multi-language Support
+10. **Multi-language Support**
+    - Support for both English and French interfaces
 
-The app supports English and French. Language files are located in the `lang/` directory.
+11. **User Management**
+    - Manage different user roles (admin, animation team, parents)
+    - Control access to sensitive information
 
-## Security
+12. **Calendar Management**
+    - Manage scout calendar sales
+    - Track calendar distribution and payments
 
-- User passwords are hashed before storage
-- Input sanitization is implemented to prevent XSS attacks
-- HTTPS is recommended for production use
+### Advantages for the Animation Team:
 
-## Contributing
+1. **Streamlined Planning**
+   - Easy-to-use interface for planning meetings and activities
+   - Templates for common activities
 
-Contributions to the Points Tally App are welcome. Please follow these steps:
+2. **Real-time Updates**
+   - Access up-to-date information on scouts' progress and attendance
+   - Immediate visibility of any changes or updates made by parents
 
-1. Fork the repository
-2. Create a new branch
-3. Make your changes and commit them
-4. Push to your fork and submit a pull request
+3. **Efficient Communication**
+   - Quickly send messages or alerts to all parents or specific groups
+   - Maintain a log of all communications
+
+4. **Progress Monitoring**
+   - Track each scout's progress towards badges and achievements
+   - Identify areas where scouts may need additional support
+
+5. **Resource Management**
+   - Keep track of required materials for activities
+   - Assign responsibilities to team members
+
+6. **Attendance Tracking**
+   - Easily mark attendance for each meeting or event
+   - View attendance trends and patterns
+
+7. **Point Management**
+   - Award points for participation and achievements
+   - View leaderboards and group standings
+
+8. **Document Access**
+   - Quick access to important documents like health forms
+   - Ensure all necessary paperwork is completed and up-to-date
+
+9. **Reporting Tools**
+   - Generate reports on various aspects of the scout program
+   - Use data to inform decision-making and program improvements
+
+10. **Mobile Access**
+    - Access the system on-the-go via mobile devices
+    - Update information in real-time during scout activities
+
+### From the Parents' Perspective:
+
+1. **Easy Registration**
+   - Register children for scout activities online
+   - Update personal information as needed
+
+2. **Activity Tracking**
+   - View upcoming activities and events
+   - Access details about each activity (time, location, required materials)
+
+3. **Progress Monitoring**
+   - Track child's progress in the scout program
+   - View badges earned and points accumulated
+
+4. **Communication**
+   - Receive important notifications and updates
+   - Easy communication with scout leaders
+
+5. **Document Submission**
+   - Submit required documents electronically (health forms, permission slips)
+   - Receive reminders for document updates
+
+6. **Attendance Visibility**
+   - View child's attendance record
+   - Notify leaders of planned absences
+
+7. **Calendar Management**
+   - Purchase and manage scout calendars
+   - Track calendar sales progress
+
+8. **Multi-child Management**
+   - Manage multiple children in the scout program from a single account
+
+9. **Badge Progress Requests**
+   - Submit requests for badge progress on behalf of their child
+
+10. **Health and Safety**
+    - Update health information as needed
+    - Complete risk acceptance forms electronically
+
+11. **Offline Access**
+    - Access key information even without an internet connection
+
+12. **Language Preference**
+    - Choose between English and French interfaces
+
+13. **Emergency Contact Management**
+    - Update emergency contact information easily
+    - Designate primary and secondary contacts
+
+14. **Secure Access**
+    - Secure login to protect personal and child's information
+    - Control over personal data sharing
+
+This comprehensive system provides a robust platform for managing all aspects of the Meute 6A scout program, enhancing communication, streamlining processes, and improving the overall experience for scouts, parents, and leaders alike.

@@ -35,46 +35,6 @@ if ("serviceWorker" in navigator) {
 }
 
 
-// news-accordion
-document.addEventListener('DOMContentLoaded', function() {
-		const accordion = document.querySelector('.news-accordion');
-		const accordionHeader = accordion.querySelector('.news-accordion-header');
-		const accordionContent = accordion.querySelector('.news-accordion-content');
-
-		// Function to toggle accordion
-		function toggleAccordion() {
-				accordion.classList.toggle('open');
-				saveAccordionState();
-		}
-
-		// Function to save accordion state
-		function saveAccordionState() {
-				localStorage.setItem('newsAccordionOpen', accordion.classList.contains('open'));
-				localStorage.setItem('lastNewsTimestamp', accordion.dataset.latestTimestamp);
-		}
-
-		// Function to load accordion state
-	function loadAccordionState() {
-			const isOpen = localStorage.getItem('newsAccordionOpen');
-			const lastTimestamp = localStorage.getItem('lastNewsTimestamp');
-			const latestNewsTimestamp = accordion.dataset.latestTimestamp;
-
-			// Open accordion if no localStorage key exists or if there's new news
-			if (isOpen === null || (lastTimestamp && latestNewsTimestamp > lastTimestamp)) {
-					accordion.classList.add('open');
-			} else if (isOpen === 'true') {
-					accordion.classList.add('open');
-			}
-	}
-
-		// Add click event listener to header
-		accordionHeader.addEventListener('click', toggleAccordion);
-
-		// Load initial state
-		loadAccordionState();
-});
-
-
 
 // Add this function to your app object or as a separate utility function
 function urlBase64ToUint8Array(base64String) {

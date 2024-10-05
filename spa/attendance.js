@@ -20,10 +20,12 @@ export class Attendance {
     this.saveGuest = saveGuest;
     this.getGuestsByDate = getGuestsByDate;
     this.groups = [];
+    this.freshContent=``;
   }
 
   async init() {
     try {
+      this.renderSkeleton(); 
       await this.fetchAttendanceDates();
       await this.fetchData();
       this.render();
@@ -36,7 +38,13 @@ export class Attendance {
 
   async fetchAttendanceDates() {
     try {
-      this.availableDates = await getAttendanceDates();
+      const response = await getAttendanceDates(); // Call the API
+      if (response.success && response.dates) {
+        this.availableDates = response.dates; // Extract the dates array
+      } else {
+        throw new Error("Failed to fetch attendance dates or no dates available.");
+      }
+
       this.availableDates.sort((a, b) => new Date(b) - new Date(a));
       const today = new Date().toLocaleDateString("en-CA");
       if (!this.availableDates.includes(today)) {
@@ -51,15 +59,20 @@ export class Attendance {
 
   async fetchData() {
     try {
-      const participantsResponse = await getParticipants();
+      const [participantsResponse, attendanceData, guests] = await Promise.all([
+        getParticipants(),
+        getAttendance(this.currentDate),
+        this.getGuestsByDate(this.currentDate)
+      ]);
+
       if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
         this.participants = participantsResponse.participants;
       } else {
         throw new Error("Invalid participants data structure");
       }
 
-      this.attendanceData = await getAttendance(this.currentDate);
-      this.guests = await this.getGuestsByDate(this.currentDate);
+      this.attendanceData = attendanceData;
+      this.guests = guests;
 
       // Group participants
       this.groups = this.participants.reduce((acc, participant) => {
@@ -79,8 +92,66 @@ export class Attendance {
     }
   }
 
-  render() {
+  renderSkeleton() {
     const content = `
+      <div class="attendance-container skeleton">
+        <div class="date-navigation fixed-header">
+          <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+          <select id="skeleton-dateSelect" class="date-select skeleton-text"></select>
+        </div>
+        <div id="skeleton-attendance-list" class="attendance-list">
+          ${this.renderSkeletonGroups()}
+        </div>
+        <div class="guest-entry">
+          <h3>${translate("add_guest")}</h3>
+          <input type="text" id="skeleton-guestName" class="skeleton-text" disabled>
+          <input type="email" id="skeleton-guestEmail" class="skeleton-text" disabled>
+          <button id="skeleton-addGuestButton" class="skeleton-button" disabled>${translate("add_guest_button")}</button>
+          <div id="skeleton-guestList" class="skeleton-guest-list">
+            ${this.renderSkeletonGuests()}
+          </div>
+        </div>
+        <div class="status-buttons fixed-footer">
+          <button class="status-btn skeleton-button"></button>
+          <button class="status-btn skeleton-button"></button>
+          <button class="status-btn skeleton-button"></button>
+          <button class="status-btn skeleton-button"></button>
+        </div>
+      </div>
+    `;
+    document.getElementById("app").innerHTML = content;
+  }
+
+
+  renderSkeletonGroups() {
+    // Mock structure of group and participant rows
+    return `
+      <div class="group-card skeleton">
+        <h3 class="skeleton-text">Loading...</h3>
+        <div class="participant-row skeleton">
+          <span class="participant-name skeleton-text"></span>
+          <span class="participant-status skeleton-text"></span>
+        </div>
+        <div class="participant-row skeleton">
+          <span class="participant-name skeleton-text"></span>
+          <span class="participant-status skeleton-text"></span>
+        </div>
+      </div>
+    `;
+  }
+
+  renderSkeletonGuests() {
+    return `
+      <div class="guest-row skeleton">
+        <span class="guest-name skeleton-text"></span>
+        <span class="guest-email skeleton-text"></span>
+      </div>
+    `;
+  }
+
+
+  render() {
+    this.FreshContent = `
       <div class="attendance-container">
         <div class="date-navigation fixed-header">
           <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
@@ -89,7 +160,6 @@ export class Attendance {
           </select>
         </div>
         <div id="attendance-list" class="attendance-list">
-          ${this.renderGroupsAndNames()}
         </div>
         <div class="guest-entry">
           <h3>${translate("add_guest")}</h3>
@@ -108,7 +178,10 @@ export class Attendance {
         </div>
       </div>
     `;
-    document.getElementById("app").innerHTML = content;
+    document.querySelector("#app").innerHTML = this.FreshContent;
+    const attendanceList = document.getElementById("attendance-list");
+    attendanceList.innerHTML = ""; // Clear any existing content
+    attendanceList.appendChild(this.renderGroupsAndNames()); // Append the fragment directly
   }
 
   renderDateOptions() {
@@ -121,22 +194,34 @@ export class Attendance {
 
   renderGroupsAndNames() {
     let html = "";
+    const fragment = document.createDocumentFragment();
+
     Object.values(this.groups).forEach(group => {
-      html += `<div class="group-card"><h3>${group.name}</h3>`;
+      let groupDiv = document.createElement('div');
+      groupDiv.classList.add('group-card');
+      groupDiv.innerHTML = `<h3>${group.name}</h3>`;
+
       group.participants.forEach(participant => {
         const status = this.attendanceData[participant.id] || "present";
         const statusClass = status === "present" && !this.attendanceData[participant.id] ? "gray" : status;
-        html += `
-          <div class="participant-row" data-id="${participant.id}">
-            <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
-            <span class="participant-status ${statusClass}">${translate(status)}</span>
-          </div>
+
+        const participantRow = document.createElement('div');
+        participantRow.classList.add('participant-row');
+        participantRow.dataset.id = participant.id;
+        participantRow.innerHTML = `
+          <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
+          <span class="participant-status ${statusClass}">${translate(status)}</span>
         `;
+
+        groupDiv.appendChild(participantRow);
       });
-      html += "</div>";
+
+      fragment.appendChild(groupDiv);
     });
-    return html;
+
+    return fragment;
   }
+
 
   renderGuests() {
     return this.guests.map(guest => `

@@ -10,18 +10,6 @@ header("X-Frame-Options: DENY");
 header("X-XSS-Protection: 1; mode=block");
 header("Referrer-Policy: no-referrer");
 header("Set-Cookie: cookieName=PHPSESSID; Secure; HttpOnly");
-
-// Connect to PostgreSQL using the getDbConnection function from config.php
-try {
-    $pdo = getDbConnection();
-
-    // Fetch latest news (limit to 3 latest posts)
-    $stmt = $pdo->query("SELECT title, content, created_at FROM news ORDER BY created_at DESC LIMIT 3");
-    $newsItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    die("Error fetching news from database: " . $e->getMessage());
-}
-
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo $lang; ?>">
@@ -40,6 +28,7 @@ try {
     <link rel="alternate" type="application/rss+xml" href="/rss.xml" title="Meute 6e A St-Paul">
     <meta name="theme-color" content="#4c65ae">
     <link rel="apple-touch-icon" href="/images/icon-192x192.png">
+      <script type="module" defer src="/spa/activity-widget.js"></script>
 </head>
 <body>
     <div id="language-toggle" class="language-toggle">
@@ -48,60 +37,35 @@ try {
     </div>
 
     <div id="app">
-        <?php echo translate('loading'); ?>...
+                <h1>Connexion</h1>
+        <form id="login-form">
+            <input disabled type="email" name="email" placeholder="Adresse e-mail" required="">
+            <input disabled type="password" name="password" placeholder="Mot de passe" required="">
+            <button disabled type="submit">Se connecter</button>
+        </form>
+        <p><a href="#">Créer un compte</a></p>
+         <p><a href="#">Mot de passe oublié ?</a></p>
     </div>
-     <div id="news-widget">
-        
-        <div class="news-accordion" data-latest-timestamp="<?php echo $newsItems[0]['created_at'] ?? ''; ?>">
-            <div class="news-accordion-header">
-                <h2><?php echo translate('latest_news'); ?></h2>
-            </div>
-            <div class="news-accordion-content">
-                <?php if (!empty($newsItems)): ?>
-                    <?php foreach ($newsItems as $news): ?>
-                        <div class="news-item">
-                            <h3><?php echo htmlspecialchars($news['title']); ?></h3>
-                            <p><?php echo nl2br(htmlspecialchars($news['content'])); ?></p>
-                            <?php
-                            // Set the locale for the date formatter based on the language
-                            $locale = $lang === 'fr' ? 'fr_FR' : 'en_US';
-
-                            // Check if the news array is not null and contains a valid created_at value
-                            if (isset($news['created_at']) && !empty($news['created_at'])) {
-                                // Create a new DateTime object from the news created_at timestamp
-                                try {
-                                    $date = new DateTime($news['created_at']);
-                                    // Use IntlDateFormatter for locale-aware date formatting
-                                    $formatter = new IntlDateFormatter($locale, IntlDateFormatter::LONG, IntlDateFormatter::NONE);
-                                    echo '<small>' . $formatter->format($date) . '</small>';
-                                } catch (Exception $e) {
-                                    echo '<small>' . translate('invalid_date') . '</small>';
-                                }
-                            } else {
-                                // If the date is missing or invalid, display a fallback message
-                                echo '<small>' . translate('no_date_available') . '</small>';
-                            }
-                            ?>
-                        </div>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <p><?php echo translate('no_news'); ?></p>
-                <?php endif; ?>
-            </div>
+    
+    <div id="news-widget" data-lazy-load="/get-news.php">
+        <div class="news-accordion-header">
+                <h2>Dernières nouvelles</h2>
         </div>
     </div>
 
     
-    <div id="loading-indicator" class="hidden">
-        <?php echo translate('loading'); ?>...
-    </div>
     <div id="offline-indicator">
         <?php echo translate('you_are_offline'); ?>
     </div>
-    <script src="/initial-data.php"></script>
-    <script type="module" src="/spa/app.js"></script>
+    
+    <script type="module" defer src="/spa/app.js"></script>
+    <script type="module" defer src="/initial-data.php"></script>
+    <script type="module" defer src="/spa/init-activity-widget.js"></script>
     <!-- Clarity tracking code for https://meute6a.app/ -->
-    <script src="/spa/clarity-init.js"></script>
+    <script async src="/spa/clarity-init.js"></script>
     <a href="/politique-de-confidentialite.html" target="_blank" class="privacy-policy-link">Politique de confidentialit&eacute;</a>
+    <div id="loading-indicator" class="hidden">
+        <?php echo translate('loading'); ?>...
+    </div>
 </body>
 </html>

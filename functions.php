@@ -15,8 +15,7 @@ function translate($key) {
 
 function setLanguage() {
     $lang = $_COOKIE['lang'] ?? 'fr';
-    // We don't need to call loadLanguage() here anymore
-    // as loadTranslations() will be called in initializeApp()
+    // loadTranslations() will be called in initializeApp()
 }
 
 function userHasAccessToParticipant($pdo, $userId, $participantId) {
@@ -107,18 +106,6 @@ function requireLogin() {
             header('Location: login.php');
             exit();
         }
-    }
-}
-
-
-function loadLanguage($lang) {
-    global $translations;
-    $langFile = __DIR__ . "/lang/{$lang}.php";
-    if (file_exists($langFile)) {
-        $translations = include $langFile;
-    } else {
-        // Fallback to English if the requested language file doesn't exist
-        $translations = include __DIR__ . "/lang/en.php";
     }
 }
 

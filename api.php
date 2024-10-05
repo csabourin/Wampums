@@ -233,20 +233,117 @@ try {
 		}
 		break;
 
+		case 'get_activites_rencontre':
+			$stmt = $pdo->query("SELECT * FROM activites_rencontre ORDER BY activity");
+			$activites = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			echo json_encode(['success' => true, 'activites' => $activites]);
+			break;
 
+		case 'get_animateurs':
+		$organizationId = getCurrentOrganizationId();
+		$stmt = $pdo->prepare("
+				SELECT u.id, u.full_name 
+				FROM users u
+				JOIN user_organizations uo ON u.id = uo.user_id
+				WHERE uo.organization_id = :organization_id 
+				AND uo.role IN ('animation')
+				ORDER BY u.full_name
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$animateurs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		echo json_encode(['success' => true, 'animateurs' => $animateurs]);
+		break;
+
+		case 'get_recent_honors':
+		$organizationId = getCurrentOrganizationId(); 
+		$stmt = $pdo->prepare("
+				SELECT p.id, p.first_name, p.last_name 
+				FROM participants p 
+				JOIN honors h ON p.id = h.name_id 
+				WHERE h.date = (SELECT MAX(h2.date) FROM honors h2 WHERE h2.organization_id = ?) 
+					AND h.organization_id = ?
+				ORDER BY h.date DESC
+		");
+		$stmt->execute([$organizationId, $organizationId]);
+		$honors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		echo json_encode(['success' => true, 'honors' => $honors]);
+		break;
+
+
+
+		case 'save_reunion_preparation':
+				$user = requireAuth();
+				$organizationId = getCurrentOrganizationId();
+				$data = json_decode(file_get_contents('php://input'), true);
+
+				try {
+						$stmt = $pdo->prepare("
+								INSERT INTO reunion_preparations (
+										organization_id, date, animateur_responsable, louveteau_dhonneur, 
+										endroit, activities, notes
+								) VALUES (?, ?, ?, ?, ?, ?, ?)
+								ON CONFLICT (organization_id, date) DO UPDATE SET
+										animateur_responsable = EXCLUDED.animateur_responsable,
+										louveteau_dhonneur = EXCLUDED.louveteau_dhonneur,
+										endroit = EXCLUDED.endroit,
+										activities = EXCLUDED.activities,
+										notes = EXCLUDED.notes,
+										updated_at = CURRENT_TIMESTAMP
+						");
+
+						$stmt->execute([
+								$organizationId,
+								$data['date'],
+								$data['animateur_responsable'],
+								json_encode($data['louveteau_dhonneur']),
+								$data['endroit'],
+								json_encode($data['activities']),
+								$data['notes']
+						]);
+
+						echo json_encode(['success' => true, 'message' => 'Reunion preparation saved successfully']);
+				} catch (PDOException $e) {
+						error_log('Database error: ' . $e->getMessage());
+						echo json_encode([
+								'success' => false, 
+								'message' => 'Error saving reunion preparation'
+						]);
+				}
+				break;
+
+		case 'get_reunion_preparation':
+				$user = requireAuth();
+				$organizationId = getCurrentOrganizationId();
+				$date = $_GET['date'] ?? date('Y-m-d');
+
+				try {
+						$stmt = $pdo->prepare("
+								SELECT * FROM reunion_preparations
+								WHERE organization_id = ? AND date = ?
+						");
+						$stmt->execute([$organizationId, $date]);
+						$preparation = $stmt->fetch(PDO::FETCH_ASSOC);
+
+						if ($preparation) {
+								$preparation['louveteau_dhonneur'] = json_decode($preparation['louveteau_dhonneur'], true);
+								$preparation['activities'] = json_decode($preparation['activities'], true);
+								echo json_encode(['success' => true, 'preparation' => $preparation]);
+						} else {
+								echo json_encode(['success' => false, 'message' => 'No reunion preparation found for this date']);
+						}
+				} catch (PDOException $e) {
+						error_log('Database error: ' . $e->getMessage());
+						echo json_encode([
+								'success' => false, 
+								'message' => 'Error retrieving reunion preparation'
+						]);
+				}
+				break;
 
 
 		case 'get_organization_settings':
-		// Ensure the user is authenticated
 		$user = requireAuth();
-
-		// Get the organization ID from the user's session or JWT
 		$organizationId = getCurrentOrganizationId();
-
-		if (!$organizationId) {
-				echo json_encode(['success' => false, 'message' => 'No organization selected']);
-				exit;
-		}
 
 		try {
 				$stmt = $pdo->prepare("
@@ -254,25 +351,20 @@ try {
 						FROM organization_settings 
 						WHERE organization_id = ?
 				");
-			$stmt->execute([$organizationId]);
-			$settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-			// Decode JSON-encoded settings and filter form structures
-			$formStructures = [];
-				foreach ($settings as $key => $value) {
-					$decodedValue = json_decode($value, true);
-					if (json_last_error() === JSON_ERROR_NONE) {
-						$settings[$key] = $decodedValue;
-						// Identify form structures by naming convention (e.g., ending in '_structure')
-						if (str_ends_with($key, '_structure')) {
-							$formStructures[$key] = $decodedValue;
+				$stmt->execute([$organizationId]);
+				$settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+
+				// Decode JSON-encoded settings
+				foreach ($settings as $key => &$value) {
+						$decodedValue = json_decode($value, true);
+						if (json_last_error() === JSON_ERROR_NONE) {
+								$value = $decodedValue;
 						}
-					}
-				} // Close the foreach loop here
+				}
 
 				echo json_encode([
-					'success' => true,
-					'settings' => $settings,
-					'form_structures' => $formStructures // Include all form structures in the response
+						'success' => true,
+						'settings' => $settings
 				]);
 		} catch (PDOException $e) {
 				error_log('Database error: ' . $e->getMessage());
@@ -544,45 +636,47 @@ try {
 
 		case 'login':
 		try {
-			$email = $_POST['email'] ?? '';
-			$password = $_POST['password'] ?? '';
+				$email = $_POST['email'] ?? '';
+				$password = $_POST['password'] ?? '';
 
-			error_log("Login attempt for email: $email");
+				error_log("Login attempt for email: $email");
 
-			$stmt = $pdo->prepare("SELECT id, email, password, is_verified, role, full_name FROM users WHERE email = ?");
-			$stmt->execute([$email]);
-			$user = $stmt->fetch(PDO::FETCH_ASSOC);
+				$stmt = $pdo->prepare("SELECT u.id, u.email, u.password, u.is_verified, u.full_name, uo.role 
+															 FROM users u
+															 JOIN user_organizations uo ON u.id = uo.user_id
+															 WHERE u.email = ? AND uo.organization_id = ?");
+				$stmt->execute([$email, $organizationId]);
+				$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-			if ($user && password_verify($password, $user['password'])) {
-				if (!$user['is_verified']) {
-					echo json_encode(['success' => false, 'message' => 'Your account is not yet verified. Please wait for admin verification.']);
+				if ($user && password_verify($password, $user['password'])) {
+						if (!$user['is_verified']) {
+								echo json_encode(['success' => false, 'message' => 'Your account is not yet verified. Please wait for admin verification.']);
+						} else {
+								$_SESSION['user_id'] = $user['id'];
+								$_SESSION['user_role'] = $user['role'];
+								$_SESSION['user_full_name'] = $user['full_name'];
+
+								$token = generateJWT($user['id'], $user['role']);
+								if ($token === null) {
+										throw new Exception('Failed to generate JWT');
+								}
+
+								$response = [
+										'success' => true,
+										'message' => 'login_successful',
+										'token' => $token,
+										'user_role' => $user['role'],
+										'user_full_name' => $user['full_name']
+								];
+								error_log("Login response: " . json_encode($response));
+								echo json_encode($response);
+						}
 				} else {
-					$_SESSION['user_id'] = $user['id'];
-					$_SESSION['user_role'] = $user['role'];
-					$_SESSION['user_full_name'] = $user['full_name'];
-
-					$token = generateJWT($user['id'], $user['role']);
-					if ($token === null) {
-						throw new Exception('Failed to generate JWT');
-					}
-					
-
-					$response = [
-						'success' => true,
-						'message' => 'login_successful',
-						'token' => $token,
-						'user_role' => $user['role'],
-						'user_full_name' => $user['full_name']
-					];
-					error_log("Login response: " . json_encode($response));
-					echo json_encode($response);
+						echo json_encode(['success' => false, 'message' => 'Invalid email or password.']);
 				}
-			} else {
-				echo json_encode(['success' => false, 'message' => 'Invalid email or password.']);
-			}
 		} catch (Exception $e) {
-			error_log("Login error: " . $e->getMessage());
-			echo json_encode(['success' => false, 'message' => 'An error occurred during login: ' . $e->getMessage()]);
+				error_log("Login error: " . $e->getMessage());
+				echo json_encode(['success' => false, 'message' => 'An error occurred during login: ' . $e->getMessage()]);
 		}
 		break;
 
@@ -2280,26 +2374,35 @@ case 'update_attendance':
 		$userType = $data['user_type'];
 
 		if ($accountCreationPassword !== ACCOUNT_CREATION_PASSWORD) {
-			echo json_encode(['success' => false, 'message' => translate('invalid_account_creation_password')]);
-			exit;
+				echo json_encode(['success' => false, 'message' => translate('invalid_account_creation_password')]);
+				exit;
 		}
 
 		$stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
 		$stmt->execute([$email]);
 		if ($stmt->fetch()) {
-			echo json_encode(['success' => false, 'message' => translate('email_already_exists')]);
-			exit;
+				echo json_encode(['success' => false, 'message' => translate('email_already_exists')]);
+				exit;
 		}
 
 		$hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 		$isVerified = ($userType === 'parent') ? 'TRUE' : 'FALSE';
 
-		$stmt = $pdo->prepare("INSERT INTO users (email, password, is_verified, role, full_name) VALUES (?, ?, ?, ?, ?)");
-		if ($stmt->execute([$email, $hashedPassword, $isVerified, $userType, $fullName])) {
-			$message = ($isVerified === 'TRUE') ? translate('registration_successful_parent') : translate('registration_successful_await_verification');
-			echo json_encode(['success' => true, 'message' => $message]);
-		} else {
-			echo json_encode(['success' => false, 'message' => translate('error_creating_account')]);
+		$pdo->beginTransaction();
+		try {
+				$stmt = $pdo->prepare("INSERT INTO users (email, password, is_verified, full_name) VALUES (?, ?, ?, ?)");
+				$stmt->execute([$email, $hashedPassword, $isVerified, $fullName]);
+				$userId = $pdo->lastInsertId();
+
+				$stmt = $pdo->prepare("INSERT INTO user_organizations (user_id, organization_id, role) VALUES (?, ?, ?)");
+				$stmt->execute([$userId, $organizationId, $userType]);
+
+				$pdo->commit();
+				$message = ($isVerified === 'TRUE') ? translate('registration_successful_parent') : translate('registration_successful_await_verification');
+				echo json_encode(['success' => true, 'message' => $message]);
+		} catch (Exception $e) {
+				$pdo->rollBack();
+				echo json_encode(['success' => false, 'message' => translate('error_creating_account')]);
 		}
 		break;
 
@@ -2340,24 +2443,29 @@ case 'update_attendance':
 		// Validate the new role
 		$validRoles = ['parent', 'animation', 'admin'];
 		if (!in_array($newRole, $validRoles)) {
-			echo json_encode(['success' => false, 'message' => 'Invalid role']);
-			break;
+				echo json_encode(['success' => false, 'message' => 'Invalid role']);
+				break;
 		}
 
-		$stmt = $pdo->prepare("UPDATE users SET role = ? WHERE id = ?");
-		if ($stmt->execute([$newRole, $userId])) {
-			echo json_encode(['success' => true, 'message' => 'User role updated successfully']);
+		$stmt = $pdo->prepare("UPDATE user_organizations SET role = ? WHERE user_id = ? AND organization_id = ?");
+		if ($stmt->execute([$newRole, $userId, $organizationId])) {
+				echo json_encode(['success' => true, 'message' => 'User role updated successfully']);
 		} else {
-			echo json_encode(['success' => false, 'message' => 'Failed to update user role']);
+				echo json_encode(['success' => false, 'message' => 'Failed to update user role']);
 		}
 		break;
 
-		case 'get_all_parents':
-		$userId = getUserIdFromToken($token);  // Implement this function in jwt_auth.php
-		$stmt = $pdo->prepare("SELECT * FROM parents_guardians WHERE user_id = ? ORDER BY is_primary DESC");
-		$stmt->execute([$userId]);
-		$all_parents = $stmt->fetchAll(PDO::FETCH_ASSOC);
-		echo json_encode(['success' => true, 'parents' => $all_parents]);
+		case 'get_reunion_dates':
+		$organizationId = getCurrentOrganizationId();
+		$stmt = $pdo->prepare("
+				SELECT DISTINCT date 
+				FROM reunion_preparations 
+				WHERE organization_id = :organization_id 
+				ORDER BY date DESC
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
+		echo json_encode(['success' => true, 'dates' => $dates]);
 		break;
 	
 		case 'update_points':

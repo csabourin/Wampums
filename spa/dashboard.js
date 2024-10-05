@@ -58,13 +58,14 @@ export class Dashboard {
       <h1>${translate("dashboard_title")}</h1>
       <div class="manage-items">
         <a href="/managePoints">${translate("manage_points")}</a>
-        <a href="/manage_honors">${translate("manage_honors")}</a>
+        <a href="/manageHonors">${translate("manage_honors")}</a>
         <a href="/attendance">${translate("attendance")}</a>
       </div>
       <div class="logo-container">
-        <img class="logo" src="./images/6eASt-Paul.png" alt="6e A St-Paul d'Aylmer">
+        <img class="logo" src="./images/6eASt-Paul.png" width="335" heigth="366" alt="6e A St-Paul d'Aylmer">
       </div>
       <div class="manage-items">
+      <a href="/preparation_reunions">${translate("preparation_reunions")}</a>
         <a href="/manage_participants">${translate("manage_names")}</a>
         <a href="/manage_groups">${translate("manage_groups")}</a>
         <a href="/view_participant_documents">${translate("view_participant_documents")}</a>

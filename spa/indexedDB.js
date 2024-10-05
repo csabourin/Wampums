@@ -1,5 +1,5 @@
 const DB_NAME = "WampumsAppDB";
-const DB_VERSION = 8; // Make sure the version is incremented correctly
+const DB_VERSION = 9; // Make sure the version is incremented correctly
 const STORE_PARTICIPANTS = "participants";
 const STORE_GROUPS = "groups";
 const STORE_NAME = "offlineData"; // This store is for offline data
@@ -152,12 +152,13 @@ export function setCachedData(key, data, expirationTime = 5 * 60 * 1000) {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     return store.put({
-      key: key, // Save data with a specific key
+      key: key, // Save data with a specific key (like API URL)
       data: data,
       expiration: Date.now() + expirationTime, // Set expiration time
     });
   });
 }
+
 
 export function getCachedData(key) {
   return openDB().then((db) => {
@@ -170,7 +171,7 @@ export function getCachedData(key) {
       request.onsuccess = () => {
         const result = request.result;
         if (result && result.expiration > Date.now()) {
-          resolve(result.data);
+          resolve(result.data); // Return cached data if not expired
         } else {
           resolve(null); // Return null if data has expired or is not found
         }
