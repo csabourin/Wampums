@@ -176,8 +176,11 @@ export class ManageHonors {
     document.getElementById("currentDate").textContent = this.formatDate(this.currentDate);
     document.getElementById("honors-list").innerHTML = this.renderHonorsList();
     document.getElementById("awardHonorButton").disabled = this.isPastDate();
-    this.attachEventListeners();
+
+    // Attach event listeners to list items only
+    this.attachEventListenersToListItems();
   }
+
 
   isPastDate() {
     const today = new Date().toLocaleDateString("en-CA");
@@ -213,6 +216,7 @@ export class ManageHonors {
   }
 
   sortItems(sortBy) {
+    // Sort participants by name or honors
     this.honorsData.groups.forEach(group => {
       group.participants.sort((a, b) => {
         if (sortBy === "name") {
@@ -222,7 +226,18 @@ export class ManageHonors {
         }
       });
     });
-    this.updateHonorsListUI();
+
+    // Directly update the UI without reattaching event listeners
+    document.getElementById("honors-list").innerHTML = this.renderHonorsList();
+
+    // Only reattach event listeners for the updated list items
+    this.attachEventListenersToListItems();
+  }
+
+  attachEventListenersToListItems() {
+    document.querySelectorAll(".list-item").forEach((item) => {
+      item.addEventListener("click", (event) => this.handleItemClick(event));
+    });
   }
 
   formatDate(dateString) {

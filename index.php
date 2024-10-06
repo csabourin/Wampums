@@ -19,10 +19,10 @@ header("Set-Cookie: cookieName=PHPSESSID; Secure; HttpOnly");
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://meute6a.app">
     <meta property="og:title" content="Meute 6a d'Aylmer">
-    <meta property="og:description" content="Application pour la gestion des informations d'inscription, la fiche santé et l'acceptation des risques des louveteaux de la Meute 6A St-Paul d'Aylmer. Permet aux parents de suivre les nouvelles, s'inscrire aux alertes et aux enfants de demander la progression des badges.">
+    <meta property="og:description" content="Application pour la gestion des informations d'un groupe Scout">
     <meta property="og:image" content="https://meute6a.app/images/android-chrome-512x512.png">
     <meta property="fb:app_id" content="2012826655814548">
-    <title>Meute 6e A St-Paul</title>
+    <title>Scouts au bout des doigts</title>
     <link rel="stylesheet" href="/css/styles.css?v=<?php echo filemtime('css/styles.css'); ?>">
     <link rel="manifest" href="/manifest.json">
     <link rel="alternate" type="application/rss+xml" href="/rss.xml" title="Meute 6e A St-Paul">
@@ -37,19 +37,19 @@ header("Set-Cookie: cookieName=PHPSESSID; Secure; HttpOnly");
     </div>
 
     <div id="app">
-                <h1>Connexion</h1>
+                <h1></h1>
         <form id="login-form">
             <input disabled type="email" name="email" placeholder="Adresse e-mail" required="">
             <input disabled type="password" name="password" placeholder="Mot de passe" required="">
-            <button disabled type="submit">Se connecter</button>
+            <button disabled type="submit"> </button>
         </form>
-        <p><a href="#">Créer un compte</a></p>
-         <p><a href="#">Mot de passe oublié ?</a></p>
+        <p><a href="#"> </a></p>
+         <p><a href="#"> </a></p>
     </div>
     
     <div id="news-widget" data-lazy-load="/get-news.php">
         <div class="news-accordion-header">
-                <h2>Dernières nouvelles</h2>
+                <h2> </h2>
         </div>
     </div>
 

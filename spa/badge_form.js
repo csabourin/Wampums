@@ -341,7 +341,6 @@ export class BadgeForm {
       this.updateSubmitButton();
     } catch (error) {
       console.error("Error fetching current stars:", error);
-      alert("An error occurred while fetching star data. Please try again.");
     }
   }
 

@@ -1,4 +1,4 @@
-import { fetchParticipants, getOrganizationFormFormats, getOrganizationSettings } from "./ajax-functions.js";
+import { getCurrentOrganizationId, fetchParticipants, getOrganizationFormFormats, getOrganizationSettings } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
 
@@ -22,7 +22,7 @@ export class ParentDashboard {
 	}
 
 	async fetchParticipants() {
-		this.participants = await fetchParticipants();
+		this.participants = await fetchParticipants(getCurrentOrganizationId());
 	}
 
 	async fetchFormFormats() {
@@ -31,6 +31,30 @@ export class ParentDashboard {
 			this.formFormats = response;
 		} else {
 			console.error("Invalid form formats response:", response);
+		}
+	}
+
+	async fetchOrganizationInfo() {
+		try {
+			// Fetch all organization settings
+			const response = await getOrganizationSettings();
+
+			// Check if the response is successful and contains settings
+			if (response && response.success && response.settings) {
+				// Get the organization_info setting
+				const organizationInfo = response.settings.organization_info;
+
+				// If the setting exists, extract the name, otherwise set a default
+				if (organizationInfo && organizationInfo.name) {
+					this.organizationName = organizationInfo.name;
+				} else {
+					this.organizationName = translate("organization_name_default");
+				}
+			} else {
+				console.error("Invalid organization info response:", response);
+			}
+		} catch (error) {
+			console.error("Error fetching organization info:", error);
 		}
 	}
 
@@ -52,6 +76,7 @@ export class ParentDashboard {
 	}
 
 	render() {
+		 const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
 		const notificationButton = this.shouldShowNotificationButton()
 			? `<li>
 					<button id="enableNotifications" class="dashboard-button">
@@ -71,14 +96,15 @@ export class ParentDashboard {
 			? `<a href="/dashboard">${translate("back_to_dashboard")}</a>`
 			: ``;
 
+		// Dynamically replace the title with the organization name
 		const content = `
 			<div class="parent-dashboard">
 				<h1>${translate("bienvenue")} ${this.app.userFullName}</h1>
-				<h2>6e A St-Paul d'Aylmer</h2>
+				<h2>${organizationName}</h2>
 				${backLink}
 				<nav>
 					<ul class="dashboard-menu">
-						<li><a href="/formulaire_inscription" class="dashboard-button">${translate("ajouter_participant")}</a></li>
+						<li><a href="/formulaire-inscription" class="dashboard-button">${translate("ajouter_participant")}</a></li>
 						${this.renderParticipantsList()}
 						${notificationButton}
 						${installButton}
@@ -106,7 +132,7 @@ export class ParentDashboard {
 		return this.participants.map(participant => `
 			<div class="participant-card">
 				<h3>${participant.first_name} ${participant.last_name}</h3>
-				<a href="/formulaire_inscription/${participant.id}" class="dashboard-button">${translate("modifier")}</a>
+				<a href="/formulaire-inscription/${participant.id}" class="dashboard-button">${translate("modifier")}</a>
 				<div class="participant-actions">
 				${this.renderFormButtons(participant)}
 				</div>
@@ -115,8 +141,26 @@ export class ParentDashboard {
 	}
 
 	renderFormButtons(participant) {
+
+		console.log("======================================",this.formmFormats);
+			// If the participant is not part of the current organization, don't render any buttons
+			if (!participant || participant.organization_id !== getCurrentOrganizationId()) {
+					return ''; 
+			}
+
+			// Admin or animation can see all buttons, not just parents
+			const isAdminOrAnimation = this.app.userRole === 'admin' || this.app.userRole === 'animation';
+
+		
+
 			return Object.keys(this.formFormats)
-					.filter(formType => formType !== 'participant_registration')
+					.filter(formType => {
+							// Customize which forms are shown to specific roles
+							if (!isAdminOrAnimation && (formType === 'participant_registration' || formType === 'parent_guardian')) {
+									return false; // Don't show these forms to parents
+							}
+							return true; // Show the form for admin/animation or other roles
+					})
 					.map(formType => {
 							const formLabel = translate(formType);
 							const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
@@ -126,8 +170,11 @@ export class ParentDashboard {
 											${status} ${formLabel}
 									</a>
 							`;
-					}).join("");
+					})
+					.join("");
 	}
+
+
 
 	attachEventListeners() {
 		const notificationButton = document.getElementById('enableNotifications');

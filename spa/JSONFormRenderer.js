@@ -3,10 +3,11 @@ export class JSONFormRenderer {
 	constructor(formStructure, formData = {}) {
 		this.formStructure = typeof formStructure === 'string' ? JSON.parse(formStructure) : formStructure;
 		this.formData = formData;
+		console.log("Form structure:", this.formStructure, "Form data:", this.formData);
 	}
 
 		render(formData = this.formData) {
-				console.log("Rendering with formData:", formData);
+				console.log('\x1b[33m%s\x1b[0m',"Rendering with formData:", formData);
 				if (!this.formStructure.fields || !Array.isArray(this.formStructure.fields)) {
 						console.warn("Invalid form structure:", this.formStructure);
 						return '<p>Invalid form structure</p>';
@@ -20,7 +21,6 @@ export class JSONFormRenderer {
 						if (field.type === 'infoText') {
 								return `<div class="info-text">${translate(field.infoText)}</div>`;
 						}
-						console.log(`Rendering field: ${field.name}`);
 						return this.renderField(field);
 				});
 
@@ -32,9 +32,7 @@ export class JSONFormRenderer {
 
 				// Get the value from this.formData using the field's name
 				const value = this.formData[name] || '';
-				console.log(`Field: ${name}, Type: ${type}, Value: ${value}`);
-
-				const requiredAttr = required ? 'required' : '';
+								const requiredAttr = required ? 'required' : '';
 
 				let output = `<div class="form-group">`;
 				output += `<label for="${name}">${translate(label || name)}</label>`;
@@ -71,7 +69,6 @@ export class JSONFormRenderer {
 				}
 
 				output += '</div>';
-				console.log(`Rendered output for ${name}:`, output);
 				return output;
 		}
 

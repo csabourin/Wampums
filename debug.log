@@ -1,0 +1,6 @@
+[2024-10-05 21:51:24] Attempting password reset with token: c22a7ae506...
+[2024-10-05 21:51:24] User fetch result: {"id":46,"reset_token":"c22a7ae5069ab5cb28615dfc4e39dfe590d62df05c43a509e1e8970f678100ad","reset_token_expiry":"2024-10-06 21:50:12+00"}
+[2024-10-05 21:51:24] Current time (UTC): 2024-10-06 01:51:24
+[2024-10-05 21:51:24] Token expiry (UTC): 2024-10-06 21:50:12
+[2024-10-05 21:51:24] Time difference: +0 days 19 hours 58 minutes 47 seconds
+[2024-10-05 21:51:24] Password reset successful for user ID: 46

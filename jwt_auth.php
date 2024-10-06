@@ -44,7 +44,7 @@ function generateJWT($userId, $userRole) {
 }
 
 function verifyJWT($token) {
-    error_log("Verifying JWT: " . $token);
+    // error_log("Verifying JWT: " . $token);
     if ($token === null) {
         error_log('Null token provided to verifyJWT');
         return false;

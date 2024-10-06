@@ -54,25 +54,35 @@ export class DynamicFormHandler {
 			}
 		}
 
-		async fetchFormData() {
+	async fetchFormData() {
 			if (this.participantId) {
-				try {
-					const response = await getFormSubmission(this.participantId, this.formType);
-					if (response.success && response.form_data) {
-						this.formData = response.form_data;
-						console.log("Fetched form data:", this.formData);
-					} else {
-						console.warn(`No form data found for ${this.formType} and participant ${this.participantId}`);
-						this.formData = {};
+					try {
+							const response = await getFormSubmission(this.participantId, this.formType);
+							console.log("Full response from API:", response);
+
+							// If the API response is successful and form data exists
+							if (response.success && response.form_data) {
+									// Include core participant fields and submission data
+									this.formData = {
+											...response.form_data, // Include all fields from form submission
+											first_name: response.first_name, // Core participant data
+											last_name: response.last_name,
+											date_naissance: response.date_naissance
+									};
+									console.log("Fetched form data:", this.formData);
+							} else {
+									console.warn(`No form data found for ${this.formType} and participant ${this.participantId}`);
+									this.formData = {};
+							}
+					} catch (error) {
+							console.error("Error fetching form data:", error);
+							this.formData = {};
 					}
-				} catch (error) {
-					console.error("Error fetching form data:", error);
-					this.formData = {};
-				}
 			} else {
-				this.formData = {};
+					this.formData = {};
 			}
-		}
+	}
+
 
 	async saveFormData(formData) {
 			console.log("Saving form data", { formType: this.formType, participantId: this.participantId, formData });
@@ -165,7 +175,7 @@ export class DynamicFormHandler {
 							const result = await saveFormSubmission(this.formType, this.participantId, submissionData);
 							if (result.success) {
 									this.app.showMessage(translate("form_saved_successfully"));
-									this.app.router.navigate("/parent_dashboard");
+									this.app.router.navigate("/parent-dashboard");
 							} else {
 									throw new Error(result.message || translate("error_saving_form"));
 							}

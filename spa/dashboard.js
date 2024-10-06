@@ -1,4 +1,5 @@
-import { getParticipants, getGroups } from "./ajax-functions.js";
+import { getParticipants, getGroups, getCurrentOrganizationId,
+       getOrganizationSettings } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { ManagePoints } from "./manage_points.js";
 import { ParentDashboard } from "./parent_dashboard.js";
@@ -15,11 +16,37 @@ export class Dashboard {
   async init() {
     try {
       await this.fetchData();
+      await this.fetchOrganizationInfo();
       this.render();
       this.attachEventListeners();
     } catch (error) {
       console.error("Error initializing dashboard:", error);
       this.renderError();
+    }
+  }
+
+  async fetchOrganizationInfo() {
+    try {
+      // Fetch all organization settings
+      const response = await getOrganizationSettings();
+
+      // Check if the response is successful and contains settings
+      if (response && response.success && response.settings) {
+        // Get the organization_info setting
+        const organizationInfo = response.settings.organization_info;
+
+        // If the setting exists, extract the name, otherwise set a default
+        if (organizationInfo && organizationInfo.name) {
+          this.organizationName = organizationInfo.name;
+          this.organizationLogo = organizationInfo.logo;
+        } else {
+          this.organizationName = translate("organization_name_default");
+        }
+      } else {
+        console.error("Invalid organization info response:", response);
+      }
+    } catch (error) {
+      console.error("Error fetching organization info:", error);
     }
   }
 
@@ -56,24 +83,25 @@ export class Dashboard {
 
     const content = `
       <h1>${translate("dashboard_title")}</h1>
+      <h2>${this.organizationName}</h2>
       <div class="manage-items">
         <a href="/managePoints">${translate("manage_points")}</a>
         <a href="/manageHonors">${translate("manage_honors")}</a>
         <a href="/attendance">${translate("attendance")}</a>
       </div>
       <div class="logo-container">
-        <img class="logo" src="./images/6eASt-Paul.png" width="335" heigth="366" alt="6e A St-Paul d'Aylmer">
+        <img class="logo" src=".${this.organizationLogo}" width="335" heigth="366" alt="6e A St-Paul d'Aylmer">
       </div>
       <div class="manage-items">
-      <a href="/preparation_reunions">${translate("preparation_reunions")}</a>
-        <a href="/manage_participants">${translate("manage_names")}</a>
-        <a href="/manage_groups">${translate("manage_groups")}</a>
-        <a href="/view_participant_documents">${translate("view_participant_documents")}</a>
-        <a href="/approve_badges">${translate("approve_badges")}</a>
-        <a href="/parent_dashboard">${translate("vue_parents")}</a>
-        <a href="/parent_contact_list">${translate("parent_contact_list")}</a>
-        <a href="/manage_users_participants">${translate("manage_participants")}</a>
-        <a href="/mailing_list">${translate("mailing_list")}</a>
+      <a href="/preparation-reunions">${translate("preparation_reunions")}</a>
+        <a href="/manage-participants">${translate("manage_names")}</a>
+        <a href="/manage-groups">${translate("manage_groups")}</a>
+        <a href="/view-participant-documents">${translate("view_participant_documents")}</a>
+        <a href="/approve-badges">${translate("approve_badges")}</a>
+        <a href="/parent-dashboard">${translate("vue_parents")}</a>
+        <a href="/parent-contact-list">${translate("parent_contact_list")}</a>
+        <a href="/manage-users-participants">${translate("manage_participants")}</a>
+        <a href="/mailing-list">${translate("mailing_list")}</a>
         <a href="/calendars">${translate("calendars")}</a>
         <a href="/reports">${translate("reports")}</a>
         ${adminLink}

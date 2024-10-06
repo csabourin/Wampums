@@ -5,6 +5,7 @@ export class ResetPassword {
 		}
 
 		render(token = null) {
+			alert("loaded");
 				const content = `
 						<h1>${translate("reset_password")}</h1>
 						<form id="reset-password-form">

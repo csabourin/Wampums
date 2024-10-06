@@ -6,6 +6,7 @@ import {
 } from "./indexedDB.js";
 import { initRouter, Router } from "./router.js";
 import { Login } from "./login.js";
+import { getOrganizationSettings } from "./ajax-functions.js";
 
 const debugMode =
 	window.location.hostname === "localhost" ||
@@ -146,6 +147,7 @@ export const app = {
 	translations: {},
 	db: null,
 	router: null,
+	organizationSettings: null, 
 
 	 async init() {
 			await this.loadTranslations();
@@ -157,6 +159,9 @@ export const app = {
 			this.db = await initializeDB();
 			await this.loadTranslations();
 			this.registerServiceWorker();
+
+			// Fetch organization settings early on during initialization
+			await this.fetchOrganizationSettings();
 
 
 			// Check localStorage
@@ -193,6 +198,21 @@ export const app = {
 			debugLog("App init completed");
 		} catch (error) {
 			console.error("Initialization error:", error);
+		}
+	},
+
+	async fetchOrganizationSettings() {
+		try {
+			debugLog("Fetching organization settings...");
+			const response = await getOrganizationSettings();
+			if (response.success) {
+				this.organizationSettings = response.settings; // Store the settings in the app object
+				debugLog("Organization settings fetched:", this.organizationSettings);
+			} else {
+				debugError("Failed to fetch organization settings:", response.message);
+			}
+		} catch (error) {
+			debugError("Error fetching organization settings:", error);
 		}
 	},
 

@@ -9,7 +9,8 @@ import {
 	getMissingDocumentsReport,
 	getAttendanceReport,
 	getHonorsReport,
-	getPointsReport
+	getPointsReport,
+	getParticipantAgeReport
 } from "./ajax-functions.js";
 
 export class Reports {
@@ -35,7 +36,7 @@ export class Reports {
 				<button class="report-btn" data-report="medication">${translate("medication_report")}</button>
 				<button class="report-btn" data-report="vaccines">${translate("vaccine_report")}</button>
 				<button class="report-btn" data-report="leave-alone">${translate("leave_alone_report")}</button>
-				<button class="report-btn" data-report="media-authorization">${translate("media_authorization_report")}</button>
+				<button class="report-btn" data-report="media-authorization">${translate("media_authorization_report")}</button> <button class="report-btn" data-report="participant-age">${translate("participant_age_report")}</button>
 				<button class="report-btn" data-report="missing-documents">${translate("missing_documents_report")}</button>
 				<button class="report-btn" data-report="attendance">${translate("attendance_report")}</button>
 				<button class="report-btn" data-report="honors">${translate("honors_report")}</button>
@@ -98,6 +99,10 @@ export class Reports {
 					reportData = await getHonorsReport();
 					reportContent = this.renderHonorsReport(reportData.data);
 					break;
+case 'participant-age':
+					reportData = await getParticipantAgeReport(); // Fetch the report data
+					reportContent = this.renderParticipantAgeReport(reportData.participants);
+					break;
 				case 'points':
 					reportData = await getPointsReport();
 					reportContent = this.renderPointsReport(reportData.data);
@@ -119,7 +124,7 @@ export class Reports {
 
 	renderAllergiesReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return '<p>No data available for allergies report.</p>';
+			return `<p>${translate('no_data_available')} for allergies report.</p>`;
 		}
 
 		return `
@@ -149,7 +154,7 @@ export class Reports {
 
 	renderMedicationReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return '<p>No data available for medication report.</p>';
+			return `<p>${translate('no_data_available')} for medication report.</p>`;
 		}
 
 		return `
@@ -177,7 +182,7 @@ export class Reports {
 
 	renderVaccineReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return '<p>No data available for vaccine report.</p>';
+			return `<p>${translate('no_data_available')} report.</p>`;
 		}
 
 		return `
@@ -202,6 +207,35 @@ export class Reports {
 			</table>
 		`;
 	}
+
+	renderParticipantAgeReport(data) {
+		if (!Array.isArray(data) || data.length === 0) {
+			return '<p>No data available for participants age report.</p>';
+		}
+
+		return `
+			<h2>${translate("participant_age_report")}</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>${translate("name")}</th>
+						<th>${translate("birthdate")}</th>
+						<th>${translate("age")}</th>
+					</tr>
+				</thead>
+				<tbody>
+					${data.map(item => `
+						<tr>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.date_naissance ? new Date(item.date_naissance).toLocaleDateString() : translate("unknown")}</td>
+							<td>${item.age !== null ? item.age : translate("unknown")}</td>
+						</tr>
+					`).join('')}
+				</tbody>
+			</table>
+		`;
+	}
+
 
 	renderLeaveAloneReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
@@ -297,46 +331,166 @@ export class Reports {
 		}
 	}
 
+	// renderAttendanceReport(data) {
+	// 	console.log("Rendering attendance report with data:", data); // Add this line for debugging
+
+	// 	if (!data || typeof data !== 'object') {
+	// 		console.error("Invalid data received in renderAttendanceReport:", data);
+	// 		return '<p>Error: Invalid data received for attendance report.</p>';
+	// 	}
+
+	// 	if (!data.success || !Array.isArray(data.attendance_data) || data.attendance_data.length === 0) {
+	// 		return '<p>No data available for attendance report.</p>';
+	// 	}
+
+	// 	return `
+	// 		<h2>${translate("attendance_report")}</h2>
+	// 		<p>${translate("report_period")}: ${data.start_date} to ${data.end_date}</p>
+	// 		<p>${translate("total_days")}: ${data.total_days}</p>
+	// 		<table>
+	// 			<thead>
+	// 				<tr>
+	// 					<th>${translate("name")}</th>
+	// 					<th>${translate("group")}</th>
+	// 					<th>${translate("total_days")}</th>
+	// 					<th>${translate("days_absent")}</th>
+	// 					<th>${translate("days_late")}</th>
+	// 				</tr>
+	// 			</thead>
+	// 			<tbody>
+	// 				${data.attendance_data.map(item => `
+	// 					<tr>
+	// 						<td>${item.first_name} ${item.last_name}</td>
+	// 						<td>${item.group_name || translate("no_group")}</td>
+	// 						<td>${item.total_days}</td>
+	// 						<td>${item.days_absent}</td>
+	// 						<td>${item.days_late}</td>
+	// 					</tr>
+	// 				`).join('')}
+	// 			</tbody>
+	// 		</table>
+	// 	`;
+	// }
 	renderAttendanceReport(data) {
-		console.log("Rendering attendance report with data:", data); // Add this line for debugging
+			if (!data || typeof data !== 'object') {
+					return '<p>Error: Invalid data received for attendance report.</p>';
+			}
 
-		if (!data || typeof data !== 'object') {
-			console.error("Invalid data received in renderAttendanceReport:", data);
-			return '<p>Error: Invalid data received for attendance report.</p>';
-		}
+			if (!data.success || !Array.isArray(data.attendance_data) || data.attendance_data.length === 0) {
+					return '<p>No data available for attendance report.</p>';
+			}
 
-		if (!data.success || !Array.isArray(data.attendance_data) || data.attendance_data.length === 0) {
-			return '<p>No data available for attendance report.</p>';
-		}
+			// Define color codes for the attendance statuses
+			const statusColors = {
+					'P': '#FFFFFF',  // No color for Present
+					'A': '#FF0000',  // Red for Absent
+					'M': '#00BFFF',  // Blue for Motivated (excused)
+					'R': '#FFFF00'   // Yellow for Late
+			};
 
-		return `
-			<h2>${translate("attendance_report")}</h2>
-			<p>${translate("report_period")}: ${data.start_date} to ${data.end_date}</p>
-			<p>${translate("total_days")}: ${data.total_days}</p>
-			<table>
-				<thead>
-					<tr>
-						<th>${translate("name")}</th>
-						<th>${translate("group")}</th>
-						<th>${translate("total_days")}</th>
-						<th>${translate("days_absent")}</th>
-						<th>${translate("days_late")}</th>
-					</tr>
-				</thead>
-				<tbody>
-					${data.attendance_data.map(item => `
-						<tr>
-							<td>${item.first_name} ${item.last_name}</td>
-							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.total_days}</td>
-							<td>${item.days_absent}</td>
-							<td>${item.days_late}</td>
-						</tr>
-					`).join('')}
-				</tbody>
-			</table>
-		`;
+			// Normalize status mappings
+			const normalizeStatus = (status) => {
+					switch (status) {
+							case 'present':
+									return 'P'; // Present
+							case 'absent':
+									return 'A'; // Absent
+							case 'excused':
+							case 'motivated':
+									return 'M'; // Motivated
+							case 'late':
+									return 'R'; // Late
+							default:
+									return '';  // Unknown status
+					}
+			};
+
+			// Get unique dates from attendance data
+			let uniqueDates = new Set();
+			data.attendance_data.forEach(item => {
+					let attendanceArray;
+					try {
+							// Parse the attendance JSON string into an array
+							attendanceArray = JSON.parse(item.attendance);
+					} catch (e) {
+							console.error(`Failed to parse attendance for ${item.first_name} ${item.last_name}:`, item.attendance);
+							return;
+					}
+
+					if (Array.isArray(attendanceArray)) {
+							attendanceArray.forEach(attendance => {
+									if (attendance.date) {
+											uniqueDates.add(attendance.date);
+									}
+							});
+					} else {
+							console.error(`Invalid attendance data for ${item.first_name} ${item.last_name}:`, item.attendance);
+					}
+			});
+			uniqueDates = Array.from(uniqueDates).sort(); // Convert Set to Array and sort the dates
+
+			// Create the header
+			let header = `
+					<h2>${translate("attendance_report")}</h2>
+					<p>${translate("report_period")}: ${data.start_date} to ${data.end_date}</p>
+					<p>${translate("total_days")}: ${data.total_days}</p>
+					<table class="attendance-table">
+							<thead>
+									<tr>
+											<th>${translate("name")}</th>
+											<th>${translate("group")}</th>
+											${uniqueDates.map(date => `<th>${date}</th>`).join('')} <!-- Display date as string -->
+									</tr>
+							</thead>
+							<tbody>
+			`;
+
+			// Iterate through the attendance data
+			let rows = data.attendance_data.map(item => {
+					let attendanceMap = {};
+					let attendanceArray;
+
+					try {
+							// Parse the attendance JSON string into an array
+							attendanceArray = JSON.parse(item.attendance);
+					} catch (e) {
+							console.error(`Failed to parse attendance for ${item.first_name} ${item.last_name}:`, item.attendance);
+							return '';
+					}
+
+					if (Array.isArray(attendanceArray)) {
+							attendanceArray.forEach(attendance => {
+									if (attendance.date) {
+											attendanceMap[attendance.date] = normalizeStatus(attendance.status);
+									}
+							});
+					}
+
+					// Create a row for each participant
+					return `
+							<tr>
+									<td>${item.first_name} ${item.last_name}</td>
+									<td>${item.group_name || translate("no_group")}</td>
+									${uniqueDates.map(date => `
+											<td style="background-color: ${statusColors[attendanceMap[date]] || '#FFFFFF'};">
+													${attendanceMap[date] || ''}
+											</td>
+									`).join('')}
+							</tr>
+					`;
+			}).join('');
+
+			// Close the table and return the result
+			let footer = `
+							</tbody>
+					</table>
+			`;
+
+			return header + rows + footer;
 	}
+
+
+
 
 	renderHonorsReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
@@ -368,7 +522,7 @@ export class Reports {
 
 	renderPointsReport(data) {
 		if (typeof data !== 'object' || Object.keys(data).length === 0) {
-			return '<p>No data available for points report.</p>';
+			return `<p>${translate('no_data_available')} for points report.</p>`;
 		}
 
 		return `

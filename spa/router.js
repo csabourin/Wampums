@@ -22,6 +22,7 @@ import {ResetPassword} from './reset_password.js';
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { Reports } from "./reports.js";
 import { PreparationReunions } from './preparation_reunions.js';
+import { RegisterOrganization } from './register_organization.js';
 
 const debugMode =
   window.location.hostname === "localhost" ||
@@ -47,26 +48,28 @@ const routes = {
   "/dashboard": "dashboard",
   "/login": "login",
   "/logout": "logout",
-  "/parent_dashboard": "parentDashboard",
-  "/formulaire_inscription": "formulaireInscription",
-  "/formulaire_inscription/:id": "formulaireInscription",
+  "/parent-dashboard": "parentDashboard",
+  "/formulaire-inscription": "formulaireInscription",
+  "/formulaire-inscription/:id": "formulaireInscription",
   "/attendance": "attendance",
   "/managePoints": "managePoints",
   "/manageHonors": "manageHonors",
-  "/manageParticipants": "manageParticipants",
-  "/manageGroups": "manageGroups",
-  "/view_participant_documents": "viewParticipantDocuments",
-  "/approveBadges": "approveBadges",
-  "/parentContactList": "parentContactList",
-  "/mailingList": "mailingList",
-  "/fiche_sante/:id": "ficheSante",
-  "/acceptation_risque/:id": "acceptationRisque",
-  "/badge_form/:id": "badgeForm",
+  "/manage-participants": "manageParticipants",
+  "/manage-groups": "manageGroups",
+  "/view-participant-documents": "viewParticipantDocuments",
+  "/approve-badges": "approveBadges",
+  "/parent-contact-list": "parentContactList",
+  "/mailing-list": "mailingList",
+  "/fiche-sante/:id": "ficheSante",
+  "/acceptation-risque/:id": "acceptationRisque",
+  "/badge-form/:id": "badgeForm",
   "/register": "register",
   "/calendars": "calendars",
-  "/reset_password": "resetPassword",
+  "/reset-password": "resetPassword",
   "/reports": "reports",
-  "/preparation_reunions": "preparation_reunions"
+  "/preparation-reunions": "preparation_reunions",
+   "/register-organization": "registerOrganization",
+  "/manage-users-participants": "manageUsersParticipants",
 };
 
 export class Router {
@@ -103,12 +106,14 @@ export class Router {
 
     try {
       // Allow access to login, register, and index pages without being logged in
-      if (!this.app.isLoggedIn && !["login", "register", "reset_password"].includes(routeName)) {
-        if (path !== "/login") { // Add this check to prevent redirecting to the login page again if already on it
-          history.pushState(null, "", "/login");
-        }
-        await this.loadLoginPage();
-        return;
+      if (!this.app.isLoggedIn && !["login", "register", "resetPassword"].includes(routeName)) {
+          if (path !== "/login") { 
+              console.trace(`Redirecting to login from route: ${routeName}`);
+              history.pushState(null, "", "/login");
+          }
+          await this.loadLoginPage();
+          return;
+
       }
 
 
@@ -142,12 +147,16 @@ export class Router {
             // Redirect to appropriate dashboard if already logged in
             this.route(
               this.app.userRole === "parent"
-                ? "/parent_dashboard"
+                ? "/parent-dashboard"
                 : "/dashboard"
             );
           } else {
             await this.loadLoginPage();
           }
+          break;
+          case "registerOrganization":
+          const registerOrganization = new RegisterOrganization(this.app);
+          await registerOrganization.init();
           break;
         case "logout":
           await this.handleLogout();
@@ -208,7 +217,7 @@ export class Router {
             // Redirect to appropriate dashboard if already logged in
             this.route(
               this.app.userRole === "parent"
-                ? "/parent_dashboard"
+                ? "/parent-dashboard"
                 : "/dashboard"
             );
           } else {
@@ -246,12 +255,14 @@ export class Router {
   }
 
   getRouteNameAndParam(path) {
-    const parts = path.split("/");
-    if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
-      return [routes[`/${parts[1]}/:id`], parts[2]];
-    }
-    return [routes[path] || "notFound", null];
+      const parts = path.split("/");
+      if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
+        return [routes[`/${parts[1]}/:id`], parts[2]];
+      }
+      console.log(`Path: ${path}, RouteName: ${routes[path]}`);
+      return [routes[path] || "notFound", null];
   }
+
 
   async loadDashboard() {
     const dashboard = new Dashboard(this.app);
@@ -289,7 +300,7 @@ export class Router {
 
   async loadLoginPage() {
     const login = new Login(this.app);
-    login.render();
+    login.init();
   }
 
   async loadReports() {
@@ -401,7 +412,7 @@ export class Router {
 
   async loadLoginPage() {
     const login = new Login(this.app);
-    login.render();
+    login.init();
   }
 }
 

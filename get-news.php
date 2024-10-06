@@ -2,12 +2,23 @@
 require_once 'config.php';
 require_once 'functions.php';
 initializeApp();
+
+// Get the current organization ID
+$organizationId = getCurrentOrganizationId();
+
 // Connect to PostgreSQL using the getDbConnection function from config.php
 try {
 		$pdo = getDbConnection();
 
-		// Fetch latest news (limit to 3 latest posts)
-		$stmt = $pdo->query("SELECT title, content, created_at FROM news ORDER BY created_at DESC LIMIT 3");
+	 // Fetch the latest news for the current organization (limit to 3 latest posts)
+		$stmt = $pdo->prepare("
+				SELECT title, content, created_at 
+				FROM news 
+				WHERE organization_id = :organization_id 
+				ORDER BY created_at DESC 
+				LIMIT 3
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
 		$newsItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
 		die("Error fetching news from database: " . $e->getMessage());

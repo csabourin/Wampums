@@ -32,12 +32,13 @@ function userHasAccessToParticipant($pdo, $userId, $participantId) {
 
     // If not a guardian, check if the user has the 'animation' or 'admin' role in the same organization as the participant
     $stmt = $pdo->prepare("
-        SELECT 1 
-        FROM user_organizations uo
-        JOIN participants p ON uo.organization_id = p.organization_id
-        WHERE uo.user_id = ? 
-          AND p.id = ?
-          AND uo.role IN ('animation', 'admin')
+      SELECT 1 
+FROM user_organizations uo
+JOIN participant_organizations po ON uo.organization_id = po.organization_id
+WHERE uo.user_id = ? 
+  AND po.participant_id = ?
+  AND uo.role IN ('animation', 'admin')
+
     ");
     $stmt->execute([$userId, $participantId]);
 
@@ -121,73 +122,6 @@ function loadTranslations() {
     }
 }
 
-function getCurrentOrganizationId() {
-    global $pdo; // Ensure you have access to your PDO instance
-
-    // Ensure session is started
-    if (session_status() == PHP_SESSION_NONE) {
-        session_start();
-    }
-
-    // Check if an organization ID is set in the session
-    if (isset($_SESSION['current_organization_id'])) {
-        return $_SESSION['current_organization_id'];
-    }
-
-    // Check if the organization ID is passed as a header or query parameter
-    $orgId = $_SERVER['HTTP_X_ORGANIZATION_ID'] ?? $_GET['organization_id'] ?? null;
-
-    if ($orgId) {
-        // Validate that the user has access to this organization
-        $userId = getUserIdFromToken(getJWTFromHeader());
-        $userOrgs = getUserOrganizations($userId);
-
-        if (in_array($orgId, array_column($userOrgs, 'organization_id'))) {
-            // Store in session for future requests
-            $_SESSION['current_organization_id'] = $orgId;
-            return $orgId;
-        }
-    }
-
-    // Retrieve the current domain
-    $currentHost = $_SERVER['HTTP_HOST'];
-    
-    // Log the current host for debugging
-    error_log("Current host: " . $currentHost);
-
-    // Prepare the query to match both exact and wildcard domains
-    $stmt = $pdo->prepare("
-        SELECT organization_id 
-        FROM organization_domains 
-        WHERE domain = :domain
-        OR :current_host LIKE REPLACE(domain, '*', '%')
-        LIMIT 1
-    ");
-
-    // Execute the query
-    $stmt->execute([
-        ':domain' => $currentHost,
-        ':current_host' => $currentHost
-    ]);
-
-    $organization = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // Log the query result for debugging
-    error_log("Query result: " . print_r($organization, true));
-
-    if ($organization) {
-        // Store in session for future requests
-        $_SESSION['current_organization_id'] = $organization['organization_id'];
-        return $organization['organization_id'];
-    }
-
-    // If no valid organization ID is found, log this occurrence and return the default (1)
-    error_log("No matching organization found for domain: " . $currentHost);
-    return 1;
-}
-
-
-
 function getJWTPayload() {
     $headers = getallheaders();
     $token = null;
@@ -207,6 +141,72 @@ function getJWTPayload() {
 
     return null;
 }
+
+function determineOrganizationId($pdo, $currentHost) {
+    // Prepare the query to match exact and wildcard domains
+    $stmt = $pdo->prepare("
+        SELECT organization_id 
+        FROM organization_domains 
+        WHERE domain = :domain
+        OR :current_host LIKE REPLACE(domain, '*', '%')
+        LIMIT 1
+    ");
+
+    // Execute the query
+    $stmt->execute([
+        ':domain' => $currentHost,
+        ':current_host' => $currentHost
+    ]);
+
+    $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Log the query result for debugging
+    error_log("Query result: " . print_r($organization, true));
+
+    // Return the organization_id if found, otherwise null
+    return $organization ? $organization['organization_id'] : null;
+}
+
+function setCurrentOrganizationId() {
+    global $pdo; // Ensure you have access to your PDO instance
+
+    // Retrieve the current domain
+    $currentHost = $_SERVER['HTTP_HOST'];
+
+    // Log the current host for debugging
+    error_log("Current host: " . $currentHost);
+
+    // Call the pure function to determine the organization ID
+    $organizationId = determineOrganizationId($pdo, $currentHost);
+
+    if ($organizationId !== null) {
+        // Store in session for future requests
+        $_SESSION['current_organization_id'] = $organizationId;
+        return $organizationId;
+    }
+
+    // If no valid organization ID is found, return the default (1)
+    error_log("No matching organization found for domain: " . $currentHost);
+    return 1;
+}
+
+
+function getCurrentOrganizationId() {
+    // Ensure session is started
+    if (session_status() == PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Check if the organization ID is already stored in the session
+    if (isset($_SESSION['current_organization_id'])) {
+        return $_SESSION['current_organization_id'];
+    }
+
+    // If not found in session, use side-effect function to determine and set it
+    return setCurrentOrganizationId();
+}
+
+
 
 
 // Add more helper functions as needed

@@ -49,24 +49,116 @@ function debugError(...args) {
   }
 }
 
-async function fetchFromApi(action) {
+export async function fetchFromApi(action, method = 'GET', body = null) {
   try {
     const response = await fetch(`/api.php?action=${action}`, {
-      method: 'GET',
+      method,
       headers: {
         ...getAuthHeader(),
-        'Content-Type': 'application/json'
-      }
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : null,
     });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    if (result.success) {
+      return result;
+    } else {
+      throw new Error(result.message || `Failed to fetch action ${action}`);
+    }
   } catch (error) {
     console.error(`Error fetching ${action}:`, error);
     throw new Error(`Failed to fetch ${action}: ${error.message}`);
+  }
+}
+
+export async function getParticipantAgeReport() {
+  return fetchFromApi('participant-age', 'GET');
+}
+
+
+export async function getGuardians(participantId) {
+    try {
+        console.log("Fetching guardians for participant ID:", participantId); // Log participant ID
+        const response = await fetch(`/api.php?action=get_guardians&participant_id=${participantId}`, {
+            headers: getAuthHeader(), // Add any necessary headers, such as authentication
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error fetching guardians: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("Raw response from get_guardians API:", data); // Log the raw response
+
+        if (data.success) {
+            console.log("Guardians fetched:", data.guardians); // Log guardians data
+            return data.guardians; // Assuming the response contains a `guardians` field
+        } else {
+            throw new Error(data.message || "Failed to fetch guardians.");
+        }
+    } catch (error) {
+        console.error("Error fetching guardians:", error);
+        throw error;
+    }
+}
+
+
+export async function getGuardianCoreInfo(guardianId) {
+  try {
+    const response = await fetch(
+      `/api.php?action=get_guardian_info&guardian_id=${guardianId}`,
+      {
+        headers: getAuthHeader(),
+      }
+    );
+    const textResponse = await response.text(); // Log raw text
+    debugLog("Raw response:", textResponse);
+    const data = JSON.parse(textResponse);
+
+    if (data.success) {
+      return data.guardian_info;
+    } else {
+      throw new Error(data.message || "Failed to fetch guardian info");
+    }
+  } catch (error) {
+    console.error("Error fetching guardian info:", error);
+    throw error;
+  }
+}
+
+export async function saveFormSubmission(formType, participantId, formData) {
+  try {
+    const response = await fetch("/api.php?action=save_form_submission", {
+      method: "POST",
+      headers: {
+        ...getAuthHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        form_type: formType,
+        participant_id: participantId,
+        submission_data: formData,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (result.success) {
+      return result;
+    } else {
+      throw new Error(result.message || "Failed to save form submission");
+    }
+  } catch (error) {
+    console.error(`Error saving form submission for ${formType}:`, error);
+    throw new Error(`Failed to save form submission: ${error.message}`);
   }
 }
 
@@ -321,7 +413,6 @@ export async function getGuestsByDate(date) {
         }
     } catch (error) {
         console.error("Error fetching guests:", error);
-        alert("error_fetching_guests");
         return [];
     }
 }
@@ -607,21 +698,24 @@ export async function fetchFicheSante(participantId) {
 
 export async function saveParticipant(participantData) {
   try {
-    console.log("Saving participant with data:", participantData); // Add this log to see the exact data being sent
     const response = await fetch("/api.php?action=save_participant", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(participantData),
     });
-    const data = await response.json();
-    return data;
+
+    const result = await response.json();
+    if (result.success) {
+      return result; // This will contain either the updated participant_id or the newly created one
+    } else {
+      throw new Error(result.message || "Failed to save participant");
+    }
   } catch (error) {
     console.error("Error saving participant:", error);
-    throw error;
+    throw new Error("Failed to save participant: " + error.message);
   }
 }
 
@@ -755,9 +849,7 @@ export async function getGroups() {
 
 export async function getOrganizationSettings() {
   try {
-    const response = await fetch("/api.php?action=get_organization_settings", {
-      headers: getAuthHeader(),
-    });
+    const response = await fetch("/api.php?action=get_organization_settings");
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -1011,6 +1103,35 @@ export async function login(email, password) {
   }
 }
 
+export async function registerForOrganization(registrationData) {
+  try {
+    const response = await fetch("/api.php?action=register_for_organization", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader()
+      },
+      body: JSON.stringify(registrationData)
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("Error registering for organization:", error);
+    throw error;
+  }
+}
+
+export async function getUserChildren(userId) {
+  try {
+    const response = await fetch(`/api.php?action=get_user_children&user_id=${userId}`, {
+      headers: getAuthHeader()
+    });
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching user's children:", error);
+    throw error;
+  }
+}
+
 export async function getReunionDates() {
     const response = await fetch('/api.php?action=get_reunion_dates', {
         headers: getAuthHeader(),
@@ -1092,30 +1213,9 @@ export async function saveParent(parentData) {
   }
 }
 
-export async function saveFormSubmission(formType, participantId, submissionData) {
+export async function fetchParticipants(organizationId) {
   try {
-    const response = await fetch("/api.php?action=save_form_submission", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-      },
-      body: JSON.stringify({
-        form_type: formType,
-        participant_id: participantId,
-        submission_data: submissionData,
-      }),
-    });
-    return await response.json();
-  } catch (error) {
-    console.error("Error saving form submission:", error);
-    throw error;
-  }
-}
-
-export async function fetchParticipants() {
-  try {
-    const response = await fetch("/api.php?action=get_parent_dashboard_data", {
+    const response = await fetch(`/api.php?action=get_parent_dashboard_data&organization_id=${organizationId}`, {
       headers: getAuthHeader(),
     });
     const data = await response.json();
@@ -1439,7 +1539,6 @@ export async function getFormSubmission(participantId, formType) {
         'Content-Type': 'application/json'
       }
     });
-
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

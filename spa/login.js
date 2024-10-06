@@ -5,9 +5,22 @@ export class Login {
     this.app = app;
   }
 
+  async init() {
+    // Wait until organization settings are fetched
+    while (!this.app.organizationSettings) {
+      await new Promise(resolve => setTimeout(resolve, 100));  // Poll every 100ms
+    }
+
+    this.render();
+  }
+
+
   render() {
+     const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
+
     const content = `
             <h1>${translate("login")}</h1>
+             <h2>${organizationName}</h2> 
             <form id="login-form">
                 <input type="email" name="email" placeholder="${translate(
                   "email"
@@ -18,7 +31,7 @@ export class Login {
                 <button type="submit">${translate("submit_login")}</button>
             </form>
             <p><a href="/register">${translate("create_account")}</a></p>
-             <p><a href="/reset_password">${translate("forgot_password")}</a></p>
+             <p><a href="/reset-password">${translate("forgot_password")}</a></p>
         `;
     document.getElementById("app").innerHTML = content;
     this.attachLoginFormListener();
@@ -88,7 +101,7 @@ export class Login {
 
     // Redirect based on user role
     if (result.user_role === "parent") {
-      this.app.router.route("/parent_dashboard");
+      this.app.router.route("/parent-dashboard");
     } else {
       this.app.router.route("/dashboard");
     }

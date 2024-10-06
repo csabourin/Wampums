@@ -1,6 +1,6 @@
-const CACHE_NAME = "wampums-app-v3.6.3";
-const STATIC_CACHE_NAME = "wampums-static-v3.6.3";
-const API_CACHE_NAME = "wampums-api-v3.6.3";
+const CACHE_NAME = "wampums-app-v3.7";
+const STATIC_CACHE_NAME = "wampums-static-v3.7";
+const API_CACHE_NAME = "wampums-api-v3.7";
 
 const staticAssets = [
   "/",
@@ -131,7 +131,7 @@ self.addEventListener("fetch", (event) => {
     return; // Exit early for unsupported schemes
   }
 
-  // Handle POST requests
+  // Handle POST requests with network-first
   if (event.request.method === "POST") {
     event.respondWith(networkFirst(event.request));
     return;
@@ -146,23 +146,17 @@ self.addEventListener("fetch", (event) => {
   // Check for API routes to cache in IndexedDB
   if (apiRoutes.some((route) => url.pathname.includes(route))) {
     event.respondWith(fetchAndCacheInIndexedDB(event.request));
-  } else if (staticAssets.includes(url.pathname)) {
-    event.respondWith(cacheFirst(event.request));
-  } else {
-    event.respondWith(networkFirst(event.request));
-  }
-
+  } 
   // Serve static assets from cache
-  if (staticAssets.includes(url.pathname)) {
+  else if (staticAssets.includes(url.pathname)) {
     event.respondWith(cacheFirst(event.request));
-  } else if (apiRoutes.some((route) => url.pathname.includes(route))) {
-    // API routes use network-first strategy
-    event.respondWith(networkFirst(event.request));
-  } else {
-    // Default to network-first for other requests
+  } 
+  // Default to network-first for all other requests
+  else {
     event.respondWith(networkFirst(event.request));
   }
 });
+
 
 // Cache-first strategy for static assets
 async function cacheFirst(request) {
@@ -205,7 +199,13 @@ async function fetchAndCacheInIndexedDB(request) {
   const cacheKey = request.url; // Use the request URL as the cache key
 
   try {
-    // Try to fetch from the network first
+    // First, check if the data exists in IndexedDB
+    const cachedData = await getCachedData(cacheKey);
+    if (cachedData) {
+      return new Response(JSON.stringify(cachedData));
+    }
+
+    // If not in IndexedDB, try to fetch from the network
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
       const responseClone = networkResponse.clone();
@@ -217,16 +217,15 @@ async function fetchAndCacheInIndexedDB(request) {
     }
   } catch (error) {
     console.error("Network request failed, serving from cache:", error);
-    // If the network fails, try to get the cached response from IndexedDB
-    const cachedData = await getCachedData(cacheKey);
-    if (cachedData) {
-      return new Response(JSON.stringify(cachedData));
-    }
+    // If the network fails, and no cache exists, return fallback error
+    const fallbackResponse = await caches.match("/offline.html");
+    if (fallbackResponse) return fallbackResponse;
   }
 
-  // If both network and cache fail, return a generic fallback (you can customize this)
+  // Return fallback if nothing is available
   return new Response(JSON.stringify({ error: "No data available" }), { status: 503 });
 }
+
 
 // Handle cache updates
 self.addEventListener("message", (event) => {
@@ -252,6 +251,58 @@ self.addEventListener("activate", (event) => {
     })
   );
 });
+
+const DB_NAME = 'wampums-cache';
+const DB_VERSION = 1;
+const STORE_NAME = 'api-cache';
+
+function openIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'url' });
+      }
+    };
+  });
+}
+
+async function setCachedData(key, data, expirationTime) {
+  const db = await openIndexedDB();
+  const transaction = db.transaction([STORE_NAME], 'readwrite');
+  const store = transaction.objectStore(STORE_NAME);
+  const cacheEntry = {
+    url: key,
+    data: data,
+    expiration: Date.now() + expirationTime, // Cache expiration time
+  };
+  store.put(cacheEntry);
+}
+
+async function getCachedData(key) {
+  const db = await openIndexedDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(key);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const result = request.result;
+      if (result && result.expiration > Date.now()) {
+        resolve(result.data); // Return data if not expired
+      } else {
+        resolve(null); // Return null if data is expired or not found
+      }
+    };
+  });
+}
+
 
 async function syncData() {
   try {

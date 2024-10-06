@@ -26,7 +26,6 @@ document.addEventListener("DOMContentLoaded", function() {
             // Now that the content is loaded, find the accordion
             const accordion = document.querySelector('.news-accordion');
             if (!accordion) {
-                alert('News accordion not found');
                 return; // Stop execution if the accordion is not found
             }
 
