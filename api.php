@@ -2246,94 +2246,112 @@ case 'get_leave_alone_report':
 		break;
 
 
-case 'save_participant':
-    $data = json_decode(file_get_contents("php://input"), true);
-    $method = $_SERVER['REQUEST_METHOD'];
-    
-    try {
-        $pdo->beginTransaction();
-        
-        // Validate required fields
-        if (!isset($data['first_name']) || !isset($data['last_name']) || !isset($data['date_naissance'])) {
-            throw new Exception('Missing required fields: first_name, last_name, or date_naissance.');
-        }
-        
-        // Step 1: Save or update participant core data
-        $participantData = [
-            'first_name' => $data['first_name'],
-            'last_name' => $data['last_name'],
-            'date_naissance' => $data['date_naissance'],
-        ];
-        
-        // Use the ID from the URL for PUT requests, otherwise use the one from the data
-        $participantId = ($method === 'PUT' && isset($_GET['id'])) ? intval($_GET['id']) : (isset($data['id']) ? intval($data['id']) : null);
-        
-        if ($participantId) {
-            // Update existing participant
-            $stmt = $pdo->prepare("
-                UPDATE participants 
-                SET first_name = :first_name, last_name = :last_name, date_naissance = :date_naissance
-                WHERE id = :participant_id
-            ");
-            $stmt->execute(array_merge($participantData, ['participant_id' => $participantId]));
-        } else {
-            // Insert new participant
-            $stmt = $pdo->prepare("
-                INSERT INTO participants (first_name, last_name, date_naissance) 
-                VALUES (:first_name, :last_name, :date_naissance)
-            ");
-            $stmt->execute($participantData);
-            $participantId = $pdo->lastInsertId();
-        }
-        
-        // Step 2: Link the participant to the organization
-        $organizationId = getCurrentOrganizationId();
-        $stmt = $pdo->prepare("
-            INSERT INTO participant_organizations (participant_id, organization_id)
-            VALUES (:participant_id, :organization_id)
-            ON CONFLICT (participant_id, organization_id) DO UPDATE SET organization_id = EXCLUDED.organization_id
-        ");
-        $stmt->execute([
-            'participant_id' => $participantId,
-            'organization_id' => $organizationId
-        ]);
-        
-        // Step 3: Handle custom fields for participant
-        if (isset($data['custom_fields'])) {
-            $customFields = json_encode($data['custom_fields']);
-            $stmt = $pdo->prepare("
-                INSERT INTO form_submissions (participant_id, form_type, submission_data, organization_id) 
-                VALUES (:participant_id, 'participant_registration', :submission_data, :organization_id)
-                ON CONFLICT (participant_id, form_type, organization_id) 
-                DO UPDATE SET submission_data = EXCLUDED.submission_data
-            ");
-            $stmt->execute([
-                'participant_id' => $participantId,
-                'submission_data' => $customFields,
-                'organization_id' => $organizationId
-            ]);
-        }
-        
-        // Step 4: Save guardians using save_parent endpoint
-        if (!empty($data['guardians'])) {
-            foreach ($data['guardians'] as $guardian) {
-                $guardian['participant_id'] = $participantId;
-                // Call save_parent endpoint
-                $saveParentResult = saveParent($guardian, $pdo);
-                if (!$saveParentResult['success']) {
-                    throw new Exception("Failed to save guardian: " . $saveParentResult['message']);
-                }
-            }
-        }
-        
-        $pdo->commit();
-        echo json_encode(['success' => true, 'participant_id' => $participantId]);
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        error_log("Error saving participant: " . $e->getMessage());
-        echo json_encode(['success' => false, 'message' => "Error saving participant: " . $e->getMessage()]);
-    }
-    break;
+		case 'save_participant':
+		$data = json_decode(file_get_contents("php://input"), true);
+		$method = $_SERVER['REQUEST_METHOD'];
+
+		// Assuming $token is already defined elsewhere in your code
+		$userId = getUserIdFromToken($token); // Fetch user ID from token
+
+		try {
+				$pdo->beginTransaction();
+
+				// Validate required fields
+				if (!isset($data['first_name']) || !isset($data['last_name']) || !isset($data['date_naissance'])) {
+						throw new Exception('Missing required fields: first_name, last_name, or date_naissance.');
+				}
+
+				// Step 1: Save or update participant core data
+				$participantData = [
+						'first_name' => $data['first_name'],
+						'last_name' => $data['last_name'],
+						'date_naissance' => $data['date_naissance'],
+				];
+
+				// Use the ID from the URL for PUT requests, otherwise use the one from the data
+				$participantId = ($method === 'PUT' && isset($_GET['id'])) ? intval($_GET['id']) : (isset($data['id']) ? intval($data['id']) : null);
+
+				if ($participantId) {
+						// Update existing participant
+						$stmt = $pdo->prepare("
+								UPDATE participants 
+								SET first_name = :first_name, last_name = :last_name, date_naissance = :date_naissance
+								WHERE id = :participant_id
+						");
+						$stmt->execute(array_merge($participantData, ['participant_id' => $participantId]));
+				} else {
+						// Insert new participant
+						$stmt = $pdo->prepare("
+								INSERT INTO participants (first_name, last_name, date_naissance) 
+								VALUES (:first_name, :last_name, :date_naissance)
+						");
+						$stmt->execute($participantData);
+						$participantId = $pdo->lastInsertId();
+				}
+
+				// Step 2: Link the participant to the organization
+				$organizationId = getCurrentOrganizationId();
+				$stmt = $pdo->prepare("
+						INSERT INTO participant_organizations (participant_id, organization_id)
+						VALUES (:participant_id, :organization_id)
+						ON CONFLICT (participant_id, organization_id) DO UPDATE SET organization_id = EXCLUDED.organization_id
+				");
+				$stmt->execute([
+						'participant_id' => $participantId,
+						'organization_id' => $organizationId
+				]);
+
+				// Step 3: Link the user (parent) to the participant in the user_participants table
+				if ($userId) {
+						$stmt = $pdo->prepare("
+								INSERT INTO user_participants (user_id, participant_id)
+								VALUES (:user_id, :participant_id)
+								ON CONFLICT (user_id, participant_id) DO NOTHING
+						");
+						$stmt->execute([
+								'user_id' => $userId,
+								'participant_id' => $participantId
+						]);
+				} else {
+						throw new Exception('User ID is missing or could not be determined.');
+				}
+
+				// Step 4: Handle custom fields for participant
+				if (isset($data['custom_fields'])) {
+						$customFields = json_encode($data['custom_fields']);
+						$stmt = $pdo->prepare("
+								INSERT INTO form_submissions (participant_id, form_type, submission_data, organization_id) 
+								VALUES (:participant_id, 'participant_registration', :submission_data, :organization_id)
+								ON CONFLICT (participant_id, form_type, organization_id) 
+								DO UPDATE SET submission_data = EXCLUDED.submission_data
+						");
+						$stmt->execute([
+								'participant_id' => $participantId,
+								'submission_data' => $customFields,
+								'organization_id' => $organizationId
+						]);
+				}
+
+				// Step 5: Save guardians using save_parent endpoint
+				if (!empty($data['guardians'])) {
+						foreach ($data['guardians'] as $guardian) {
+								$guardian['participant_id'] = $participantId;
+								// Call save_parent endpoint
+								$saveParentResult = saveParent($guardian, $pdo);
+								if (!$saveParentResult['success']) {
+										throw new Exception("Failed to save guardian: " . $saveParentResult['message']);
+								}
+						}
+				}
+
+				$pdo->commit();
+				echo json_encode(['success' => true, 'participant_id' => $participantId]);
+		} catch (Exception $e) {
+				$pdo->rollBack();
+				error_log("Error saving participant: " . $e->getMessage());
+				echo json_encode(['success' => false, 'message' => "Error saving participant: " . $e->getMessage()]);
+		}
+		break;
 
 
 

@@ -164,34 +164,35 @@ export class FormulaireInscription {
 
 
     renderGuardianForm(index, guardianData = {}) {
-        const formHandler = new DynamicFormHandler(this.app);
-        const formContainer = document.createElement('div');
-        formContainer.className = 'guardian-form';
-        formContainer.dataset.index = index;
+      const formHandler = new DynamicFormHandler(this.app, null, index); // Pass the formIndex here
+      const formContainer = document.createElement('div');
+      formContainer.className = 'guardian-form';
+      formContainer.dataset.index = index;
 
-        const guardianContainer = document.getElementById('guardians-container');
-        guardianContainer.appendChild(formContainer);
+      const guardianContainer = document.getElementById('guardians-container');
+      guardianContainer.appendChild(formContainer);
 
-        console.log(`Initializing guardian form at index ${index} with data:`, guardianData);
+      console.log(`Initializing guardian form at index ${index} with data:`, guardianData);
 
-        const defaultGuardianData = {
-            nom: '',
-            prenom: '',
-            lien: '',
-            courriel: '',
-            telephone_residence: '',
-            telephone_travail: '',
-            telephone_cellulaire: '',
-            is_primary: false,
-            is_emergency_contact: false,
-            ...guardianData  // Overwrite defaults with actual data if present
-        };
+      const defaultGuardianData = {
+        nom: '',
+        prenom: '',
+        lien: '',
+        courriel: '',
+        telephone_residence: '',
+        telephone_travail: '',
+        telephone_cellulaire: '',
+        is_primary: false,
+        is_emergency_contact: false,
+        ...guardianData  // Overwrite defaults with actual data if present
+      };
 
-         formHandler.init('parent_guardian', null, defaultGuardianData, formContainer, true, index);
+      // Initialize the form handler with the correct index
+      formHandler.init('parent_guardian', null, defaultGuardianData, formContainer, true, index);
 
-        
-        this.guardianFormHandlers.push(formHandler);
+      this.guardianFormHandlers.push(formHandler);
     }
+
 
 
 
@@ -237,53 +238,53 @@ export class FormulaireInscription {
 
 
     async handleSubmit(e) {
-        console.log("Form submission started");
-        e.preventDefault();
-        e.stopPropagation();
+      console.log("Form submission started");
+      e.preventDefault();
+      e.stopPropagation();
 
-        // Step 1: Get the participant data from the participant form
-        const participantData = this.participantFormHandler.getFormData();
+      // Step 1: Get the participant data from the participant form
+      const participantData = this.participantFormHandler.getFormData();
 
-        // **Ensure participant ID is passed for update**
-        const participantCoreData = {
-            first_name: participantData.first_name || null,
-            last_name: participantData.last_name || null,
-            date_naissance: participantData.date_naissance || null,
-            id: this.participantId || participantData.id // **Ensure ID is passed for update**
-        };
+      // **Ensure participant ID is passed for update**
+      const participantCoreData = {
+        first_name: participantData.first_name || null,
+        last_name: participantData.last_name || null,
+        date_naissance: participantData.date_naissance || null,
+        id: this.participantId || participantData.id // **Ensure ID is passed for update**
+      };
 
-        // Step 2: Validate participant core data before submission
-        if (!participantCoreData.first_name || !participantCoreData.last_name || !participantCoreData.date_naissance) {
-            console.error("Missing required participant core fields.");
-            this.showError(translate("missing_required_fields"));
-            return; // Stop submission if core data is missing
-        }
+      // Step 2: Validate participant core data before submission
+      if (!participantCoreData.first_name || !participantCoreData.last_name || !participantCoreData.date_naissance) {
+        console.error("Missing required participant core fields.");
+        this.showError(translate("missing_required_fields"));
+        return; // Stop submission if core data is missing
+      }
 
-        // Step 3: Get guardian data separately
-        const guardiansData = this.guardianFormHandlers.map(handler => handler.getFormData());
+      // Step 3: Get guardian data separately, ensuring each handler has the correct formIndex
+      const guardiansData = this.guardianFormHandlers.map(handler => handler.getFormData());
 
-        // Step 4: Prepare form submission data
-        const formSubmissionData = {
-            ...participantData,
-            guardians: guardiansData
-        };
+      // Step 4: Prepare form submission data
+      const formSubmissionData = {
+        ...participantData,
+        guardians: guardiansData
+      };
 
-        console.log("Full form data to be submitted:", { participantCoreData, formSubmissionData });
+      console.log("Full form data to be submitted:", { participantCoreData, formSubmissionData });
 
-        try {
-            await this.saveParticipantAndGuardians(participantCoreData, formSubmissionData);
-            this.showMessage(translate("form_saved_successfully"), "success");
+      try {
+        await this.saveParticipantAndGuardians(participantCoreData, formSubmissionData);
+        this.showMessage(translate("form_saved_successfully"), "success");
 
-            setTimeout(() => {
-                this.app.router.navigate("/parent-dashboard");  
-            }, 3000);  // Delay to allow users to see the success message
+        setTimeout(() => {
+          this.app.router.navigate("/parent-dashboard");  
+        }, 3000);  // Delay to allow users to see the success message
 
-            
-        } catch (error) {
-            console.error("Error during form submission:", error);
-            this.showError(translate("error_saving_data") + ": " + error.message);
-        }
+      } catch (error) {
+        console.error("Error during form submission:", error);
+        this.showError(translate("error_saving_data") + ": " + error.message);
+      }
     }
+
 
 
     async saveParticipantAndGuardians(participantCoreData, formSubmissionData) {

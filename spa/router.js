@@ -70,6 +70,8 @@ const routes = {
   "/preparation-reunions": "preparation_reunions",
    "/register-organization": "registerOrganization",
   "/manage-users-participants": "manageUsersParticipants",
+  "/dynamic-form/fiche_sante/:id": "ficheSante",
+
 };
 
 export class Router {
