@@ -605,6 +605,8 @@ return [
     "media_consent" => "Photos / Vidéos",
     "health_details" => "Détails de santé",
     "eau_peu_profonde" => "Eau peu profonde",
+  "manage_badge_progress" => "Faire une demande de badge",
 
     "logout" => "Déconnexion",
+  "acceptation_risque" => "Formulaire d'Acceptation de risque",
     ];

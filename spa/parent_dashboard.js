@@ -162,7 +162,11 @@ renderFormButtons(participant) {
                 </a>
             `;
         })
-        .join("");
+			.join("") + `
+				<a href="/badge-form/${participant.id}">
+					${translate("manage_badge_progress")}
+				</a>
+			`;
 }
 
 

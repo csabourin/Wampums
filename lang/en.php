@@ -595,5 +595,7 @@ return [
   'can_leave_alone' => 'Can leave alone',
   'no_media_consent' => 'No media consent',
   'health_issues' => 'Health Issues',
+  "acceptation_risque" => "Risk Acceptance Form",
+  "manage_badge_progress" => "Request a badge",
   
 ];

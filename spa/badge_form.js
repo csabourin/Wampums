@@ -117,7 +117,7 @@ export class BadgeForm {
                 ${this.renderBadgeGrid()}
             </div>
 
-            <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+            <p><a href="/parent-dashboard">${translate("back_to_dashboard")}</a></p>
         `;
 
     document.getElementById("app").innerHTML = content;
