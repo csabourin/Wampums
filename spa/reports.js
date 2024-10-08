@@ -1,6 +1,7 @@
 // reports.js
 import { translate } from "./app.js";
 import {
+	getHealthReport,
 	getAllergiesReport,
 	getMedicationReport,
 	getVaccineReport,
@@ -32,6 +33,7 @@ export class Reports {
 		const content = `
 			<h1>${translate("reports")}</h1>
 			<div class="reports-menu">
+			 <button class="report-btn" data-report="health">${translate("health_report")}</button>
 				<button class="report-btn" data-report="allergies">${translate("allergies_report")}</button>
 				<button class="report-btn" data-report="medication">${translate("medication_report")}</button>
 				<button class="report-btn" data-report="vaccines">${translate("vaccine_report")}</button>
@@ -63,6 +65,9 @@ export class Reports {
 			let reportContent;
 
 			switch (reportType) {
+					case 'health':
+					reportContent = await this.fetchAndRenderHealthReport(); // Now we get the report content
+					break;
 				case 'allergies':
 					reportData = await getAllergiesReport();
 					reportContent = this.renderAllergiesReport(reportData.data);
@@ -121,6 +126,95 @@ case 'participant-age':
 			document.getElementById('print-report').style.display = 'none';
 		}
 	}
+
+	async fetchAndRenderHealthReport() {
+		try {
+			// Fetch the health report data
+			const reportData = await getHealthReport(); // Assuming getHealthReport is defined in ajax-functions.js
+
+			if (!reportData.success) {
+				throw new Error(reportData.error || 'Failed to fetch health report');
+			}
+
+			// Filter out participants with all empty fields
+			const filteredParticipants = reportData.data.filter(participant => {
+				return !(
+					!participant.epipen &&
+					!participant.allergies &&
+					!participant.health_issues &&
+					!participant.injuries &&
+					!participant.swimming_level &&
+					!participant.leave_alone &&
+					!participant.media_consent
+				);
+			});
+
+			// Sort participants by last name
+			const sortedParticipants = filteredParticipants.sort((a, b) => a.last_name.localeCompare(b.last_name));
+
+			// Render the report and return the content
+			const reportContent = this.renderHealthReport(sortedParticipants);
+			return reportContent; // Return the generated reportContent
+
+		} catch (error) {
+			console.error("Error fetching and rendering health report:", error);
+			return `<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>`;
+		}
+	}
+
+	renderHealthReport(participants) {
+			let tableContent = `
+					<table class="health-report-table">
+							<thead>
+									<tr>
+											<th>${translate("name")}</th>
+											<th>${translate("leave_alone")}</th>
+											<th>${translate("media_consent")}</th>
+											<th>${translate("health_information")}</th>
+									</tr>
+							</thead>
+							<tbody>
+			`;
+
+			participants.forEach(participant => {
+					const epipen = participant.epipen === "1" || participant.epipen === "true" || participant.epipen === true ? "<strong> EPIPEN </strong>" : "";
+					const leaveAlone = participant.leave_alone === "1" || participant.leave_alone === "true" || participant.leave_alone === true ? "🗸" : "";
+					const mediaConsent = participant.media_consent === "1" || participant.media_consent === "true" || participant.media_consent === true ? "" : "🚫"; // Show 🚫 if no media consent
+
+					// Health information fields, only showing the ones that are not empty
+					let healthInfo = '';
+					if (participant.health_issues) healthInfo += `<strong>${translate('health_issues')}:</strong> ${participant.health_issues}<br>`;
+					if (participant.allergies) healthInfo += `<strong>${translate('allergies')}:</strong> ${participant.allergies} ${epipen}<br>`;
+					if (participant.injuries) healthInfo += `<strong>${translate('injuries')}:</strong> ${participant.injuries}<br>`;
+
+					// Show swimming level, but life jacket note only for "ne_sait_pas_nager"
+					if (participant.swimming_level === "ne_sait_pas_nager") {
+							healthInfo += `<strong>${translate('swimming_level')}:</strong> ${translate("doit_porter_vfi")}<br>`;
+					} else if (participant.swimming_level === "eau_peu_profonde") {
+							healthInfo += `<strong>${translate('swimming_level')}:</strong> ${translate("eau_peu_profonde")}<br>`;
+					}
+
+					// Only display rows where there's at least one relevant piece of info
+					if (leaveAlone || mediaConsent || healthInfo) {
+							tableContent += `
+									<tr>
+											<td><strong>${participant.first_name} ${participant.last_name}</strong></td>
+											<td>${leaveAlone}</td>
+											<td>${mediaConsent}</td>
+											<td>${healthInfo || ""}</td>
+									</tr>
+							`;
+					}
+			});
+
+			tableContent += `
+							</tbody>
+					</table>
+			`;
+
+			return tableContent;
+	}
+
 
 	renderAllergiesReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {

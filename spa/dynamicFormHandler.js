@@ -19,6 +19,7 @@ export class DynamicFormHandler {
         this.formRenderer = null;
         this.container = document.getElementById("app"); // Default to #app
         this.useUniqueIds = false;
+        this.uniqueIdPart = '';
     }
 
     async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null) {
@@ -29,9 +30,9 @@ export class DynamicFormHandler {
         // Merge URL query parameters with initialData
         const queryParams = this.getQueryParams();  // New function to get URL parameters
         this.formData = { ...initialData, ...queryParams };  // Merge URL parameters into formData
-
         this.useUniqueIds = useUniqueIds;
         this.formIndex = formIndex;
+        this.uniqueIdPart = this.useUniqueIds && this.formIndex !== null ? `-${this.formIndex}` : ''; 
         this.container = container ? 
             (typeof container === 'string' ? document.getElementById(container) : container) 
             : document.getElementById("app"); // Use #app if container is not specified
@@ -198,13 +199,13 @@ export class DynamicFormHandler {
         }
     }
     
-    attachEventListeners(uniqueIdPart) {
-        const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${uniqueIdPart}`);
+    attachEventListeners() {
+        const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${this.uniqueIdPart}`);
         if (formElement) {
             formElement.addEventListener("submit", (e) => this.handleSubmit(e));
             console.log(`Event listener attached for form: ${this.formType}`);
         } else {
-            console.error(`Form element for ${this.formType}${uniqueIdPart} not found.`);
+            console.error(`Form element for ${this.formType}${this.uniqueIdPart} not found.`);
         }
     }
 
@@ -232,11 +233,11 @@ export class DynamicFormHandler {
     }
 	getFormData() {
 		// Select the fieldset (or form) inside the container for this specific formType and formIndex
-		const formElement = this.container.querySelector(`#dynamic-form-${this.formType}-${this.formIndex}`);
+		const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${this.uniqueIdPart}`);
 
 		// Check if the form element exists
 		if (!formElement) {
-			console.error(`Form element for ${this.formType}-${this.formIndex} not found or is not a valid form.`);
+			console.error(`Form element for ${this.formType}${this.uniqueIdPart} not found or is not a valid form.`);
 			return {}; // Return an empty object if the form element is not found
 		}
 

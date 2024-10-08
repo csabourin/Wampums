@@ -228,6 +228,40 @@ break;
 
 		break;
 
+		case 'get_health_report':
+		$organizationId = getCurrentOrganizationId();
+		try {
+				$stmt = $pdo->prepare("
+						SELECT 
+								p.id as participant_id,
+								p.first_name,
+								p.last_name,
+								fs.submission_data->>'epipen' AS epipen,
+								fs.submission_data->>'allergie' AS allergies,
+								fs.submission_data->>'probleme_sante' AS health_issues,
+								fs.submission_data->>'niveau_natation' AS swimming_level,
+								fs.submission_data->>'blessures_operations' AS injuries,
+								fs2.submission_data->>'peut_partir_seul' AS leave_alone,
+								fs2.submission_data->>'consentement_photos_videos' AS media_consent
+						FROM 
+								participants p
+						JOIN 
+								form_submissions fs ON fs.participant_id = p.id AND fs.form_type = 'fiche_sante'
+						JOIN 
+								form_submissions fs2 ON fs2.participant_id = p.id AND fs2.form_type = 'participant_registration'
+						JOIN 
+								participant_organizations po ON po.participant_id = p.id
+						WHERE 
+								po.organization_id = :organization_id;
+				");
+				$stmt->execute([':organization_id' => $organizationId]);
+				$reportData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+				echo json_encode(['success' => true, 'data' => $reportData]);
+		} catch (PDOException $e) {
+				error_log("Database error in get_health_report: " . $e->getMessage());
+				echo json_encode(['success' => false, 'error' => 'An error occurred while fetching the health report']);
+		}
+		break;
 
 		case 'get_mailing_list':
 		$organizationId = getCurrentOrganizationId();

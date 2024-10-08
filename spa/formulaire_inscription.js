@@ -261,7 +261,7 @@ export class FormulaireInscription {
       }
 
       // Step 3: Get guardian data separately, ensuring each handler has the correct formIndex
-      const guardiansData = this.guardianFormHandlers.map(handler => handler.getFormData());
+      const guardiansData = this.guardianFormHandlers.map((handler, index) => handler.getFormData(index));
 
       // Step 4: Prepare form submission data
       const formSubmissionData = {

@@ -1042,6 +1042,34 @@ export async function saveBadgeProgress(badgeData) {
   }
 }
 
+export async function getHealthReport() {
+  try {
+    const response = await fetch("/api.php?action=get_health_report", {
+      method: "GET",
+      headers: {
+        ...getAuthHeader(),
+        "Content-Type": "application/json",
+        "X-Organization-ID": getCurrentOrganizationId(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (result.success) {
+      return result;
+    } else {
+      throw new Error(result.message || "Failed to fetch health report");
+    }
+  } catch (error) {
+    console.error("Error fetching health report:", error);
+    throw error;
+  }
+}
+
+
 export async function getHealthContactReport() {
   try {
     const response = await fetch("/api.php?action=get_health_contact_report");
