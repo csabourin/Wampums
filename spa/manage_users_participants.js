@@ -1,8 +1,7 @@
 import {
   getParticipantsWithUsers,
   getParentUsers,
-  deleteParticipant,
-  associateUser,
+  fetchFromApi
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 
@@ -33,7 +32,7 @@ export class ManageUsersParticipants {
     try {
       [this.participants, this.parentUsers] = await Promise.all([
         getParticipantsWithUsers(),
-        getParentUsers(),
+        getParentUsers()
       ]);
     } catch (error) {
       console.error("Error fetching manage users participants data:", error);
@@ -43,23 +42,23 @@ export class ManageUsersParticipants {
 
   render() {
     const content = `
-        <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
-            <h1>${translate("manage_users_participants")}</h1>
-            <div id="message"></div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>${translate("name")}</th>
-                        <th>${translate("associated_users")}</th>
-                        <th>${translate("actions")}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${this.renderParticipantRows()}
-                </tbody>
-            </table>
-            <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
-        `;
+      <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+      <h1>${translate("manage_users_participants")}</h1>
+      <div id="message"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>${translate("name")}</th>
+            <th>${translate("associated_users")}</th>
+            <th>${translate("actions")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${this.renderParticipantRows()}
+        </tbody>
+      </table>
+      <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+    `;
     document.getElementById("app").innerHTML = content;
   }
 
@@ -67,28 +66,22 @@ export class ManageUsersParticipants {
     return this.participants
       .map(
         (participant) => `
-            <tr>
-                <td>${participant.first_name} ${participant.last_name}</td>
-                <td>${participant.associated_users}</td>
-                <td>
-                    <button class="delete-participant" data-participant-id="${
-                      participant.id
-                    }">
-                        ${translate("delete")}
-                    </button>
-                    <select class="user-select" data-participant-id="${
-                      participant.id
-                    }">
-                        <option value="">${translate("select_parent")}</option>
-                        ${this.renderParentUserOptions()}
-                    </select>
-                    <button class="associate-user" data-participant-id="${
-                      participant.id
-                    }">
-                        ${translate("associate_user")}
-                    </button>
-                </td>
-            </tr>
+          <tr>
+            <td>${participant.first_name} ${participant.last_name}</td>
+            <td>${participant.associated_users}</td>
+            <td>
+              <button class="remove-from-organization" data-participant-id="${participant.id}">
+                ${translate("remove_from_organization")}
+              </button>
+              <select class="user-select" data-participant-id="${participant.id}">
+                <option value="">${translate("select_parent")}</option>
+                ${this.renderParentUserOptions()}
+              </select>
+              <button class="associate-user" data-participant-id="${participant.id}">
+                ${translate("associate_user")}
+              </button>
+            </td>
+          </tr>
         `
       )
       .join("");
@@ -98,16 +91,16 @@ export class ManageUsersParticipants {
     return this.parentUsers
       .map(
         (user) => `
-            <option value="${user.id}">${user.full_name}</option>
+          <option value="${user.id}">${user.full_name}</option>
         `
       )
       .join("");
   }
 
   attachEventListeners() {
-    document.querySelectorAll(".delete-participant").forEach((button) => {
+    document.querySelectorAll(".remove-from-organization").forEach((button) => {
       button.addEventListener("click", (event) =>
-        this.handleDeleteParticipant(event)
+        this.handleRemoveFromOrganization(event)
       );
     });
 
@@ -118,20 +111,24 @@ export class ManageUsersParticipants {
     });
   }
 
-  async handleDeleteParticipant(event) {
+  async handleRemoveFromOrganization(event) {
     const participantId = event.target.getAttribute("data-participant-id");
-    if (confirm(translate("confirm_delete_participant"))) {
+    if (confirm(translate("confirm_remove_participant_from_organization"))) {
       try {
-        const result = await deleteParticipant(participantId);
-        this.showMessage(result.message);
-        if (result.status === "success") {
+        const result = await fetchFromApi('remove_participant_from_organization', 'POST', {
+          participant_id: participantId
+        });
+        if (result.success) {
+          this.showMessage(translate("participant_removed_from_organization"));
           await this.fetchData();
           this.render();
           this.attachEventListeners();
+        } else {
+          this.showError(result.message || translate("error_removing_participant_from_organization"));
         }
       } catch (error) {
         console.error("Error:", error);
-        this.showMessage(translate("error_deleting_participant"));
+        this.showError(translate("error_removing_participant_from_organization"));
       }
     }
   }
@@ -141,36 +138,40 @@ export class ManageUsersParticipants {
     const userId = event.target.previousElementSibling.value;
     if (userId) {
       try {
-        const result = await associateUser(participantId, userId);
-        this.showMessage(result.message);
-        if (result.status === "success") {
+        const result = await fetchFromApi('associate_user', 'POST', {
+          participant_id: participantId,
+          user_id: userId
+        });
+        if (result.success) {
+          this.showMessage(translate("user_associated_successfully"));
           await this.fetchData();
           this.render();
           this.attachEventListeners();
+        } else {
+          this.showError(result.message || translate("error_associating_user"));
         }
       } catch (error) {
         console.error("Error:", error);
-        this.showMessage(translate("error_associating_user"));
+        this.showError(translate("error_associating_user"));
       }
     } else {
-      this.showMessage(translate("please_select_parent"));
+      this.showError(translate("please_select_parent"));
     }
   }
 
-  showMessage(message) {
-    const messageElement = document.getElementById("message");
-    messageElement.textContent = message;
-    messageElement.style.display = "block";
-    setTimeout(() => {
-      messageElement.style.display = "none";
-    }, 3000);
+  showMessage(message, type = 'success') {
+    this.app.showMessage(message, type);
+  }
+
+  showError(message) {
+    this.app.showMessage(message, 'error');
   }
 
   renderError() {
     const errorMessage = `
-            <h1>${translate("error")}</h1>
-            <p>${translate("error_loading_manage_users_participants")}</p>
-        `;
+      <h1>${translate("error")}</h1>
+      <p>${translate("error_loading_manage_users_participants")}</p>
+    `;
     document.getElementById("app").innerHTML = errorMessage;
   }
 }

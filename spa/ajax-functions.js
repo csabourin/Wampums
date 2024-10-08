@@ -83,9 +83,9 @@ export async function getParticipantAgeReport() {
 
 export async function getGuardians(participantId) {
     try {
-        console.log("Fetching guardians for participant ID:", participantId); // Log participant ID
+        console.log("Fetching guardians for participant ID:", participantId);
         const response = await fetch(`/api.php?action=get_guardians&participant_id=${participantId}`, {
-            headers: getAuthHeader(), // Add any necessary headers, such as authentication
+            headers: getAuthHeader(),
         });
 
         if (!response.ok) {
@@ -93,34 +93,49 @@ export async function getGuardians(participantId) {
         }
 
         const data = await response.json();
-        console.log("Raw response from get_guardians API:", data); // Log the raw response
+        console.log("Raw response from get_guardians API:", data);
 
-        if (data.success) {
-            console.log("Guardians fetched:", data.guardians); // Log guardians data
-            return data.guardians; // Assuming the response contains a `guardians` field
+        if (data.success && Array.isArray(data.guardians)) {
+            console.log("Guardians fetched:", data.guardians);
+            return data.guardians;
         } else {
-            throw new Error(data.message || "Failed to fetch guardians.");
+            console.warn("No guardians found or invalid response structure");
+            return [];
         }
     } catch (error) {
         console.error("Error fetching guardians:", error);
-        throw error;
+        return [];
     }
 }
 
 
 export async function getGuardianCoreInfo(guardianId) {
   try {
+    console.log(`Fetching core info for guardian ID: ${guardianId}`);
     const response = await fetch(
       `/api.php?action=get_guardian_info&guardian_id=${guardianId}`,
       {
         headers: getAuthHeader(),
       }
     );
-    const textResponse = await response.text(); // Log raw text
-    debugLog("Raw response:", textResponse);
-    const data = JSON.parse(textResponse);
 
-    if (data.success) {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const textResponse = await response.text();
+    console.log("Raw response:", textResponse);
+
+    let data;
+    try {
+      data = JSON.parse(textResponse);
+    } catch (parseError) {
+      console.error("Error parsing JSON:", parseError);
+      throw new Error("Invalid JSON response from server");
+    }
+
+    if (data.success && data.guardian_info) {
+      console.log("Guardian core info fetched successfully:", data.guardian_info);
       return data.guardian_info;
     } else {
       throw new Error(data.message || "Failed to fetch guardian info");
@@ -265,9 +280,9 @@ export async function fetchParticipant(participantId) {
       }
     );
     const data = await handleResponse(response);
-    debugLog("API response for fetchParticipant:", data); // Log the full response
+    debugLog("#####################  API response for fetchParticipant:", data); // Log the full response
     if (data.success) {
-      return data.participant; // Access 'data.participant'
+      return data; // Return the entire data object
     } else {
       throw new Error(data.message || "Failed to fetch participant");
     }
@@ -698,8 +713,14 @@ export async function fetchFicheSante(participantId) {
 
 export async function saveParticipant(participantData) {
   try {
-    const response = await fetch("/api.php?action=save_participant", {
-      method: "POST",
+    const url = "/api.php?action=save_participant";
+    const method = participantData.id ? "PUT" : "POST";
+
+    // If updating, include the ID in the URL
+    const fullUrl = participantData.id ? `${url}&id=${participantData.id}` : url;
+
+    const response = await fetch(fullUrl, {
+      method: method,
       headers: {
         ...getAuthHeader(),
         "Content-Type": "application/json",
@@ -709,7 +730,7 @@ export async function saveParticipant(participantData) {
 
     const result = await response.json();
     if (result.success) {
-      return result; // This will contain either the updated participant_id or the newly created one
+      return result;
     } else {
       throw new Error(result.message || "Failed to save participant");
     }
@@ -739,7 +760,7 @@ export async function fetchGuardians(participantId) {
 
 export async function saveGuardian(guardianData) {
   try {
-    const response = await fetch("/api.php?action=save_guardian", {
+    const response = await fetch("/api.php?action=save_parent", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -891,7 +912,7 @@ export async function getAttendance(date) {
 }
 
 export async function updateAttendance(
-  nameId,
+  participantId,
   newStatus,
   date,
   previousStatus
@@ -905,7 +926,7 @@ export async function updateAttendance(
         'X-Organization-ID': getCurrentOrganizationId()
       },
       body: JSON.stringify({
-        name_id: nameId,
+        participant_id: participantId,
         status: newStatus,
         date: date,
         previous_status: previousStatus,
@@ -1253,32 +1274,37 @@ export async function updatePoints(updates) {
 }
 
 export async function updateParticipantGroup(participantId, groupId, isLeader = false, isSecondLeader = false) {
+  const requestData = {
+    participant_id: participantId,
+    group_id: groupId,
+    is_leader: isLeader,
+    is_second_leader: isSecondLeader,
+  };
+
+  console.log("Request data to be sent:", JSON.stringify(requestData));
+
   try {
     const response = await fetch("/api.php?action=update_participant_group", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
+        'X-Organization-ID': getCurrentOrganizationId(),
       },
-      body: JSON.stringify({
-        participant_id: participantId,
-        group_id: groupId,
-        is_leader: isLeader,
-        is_second_leader: isSecondLeader
-      }),
+      body: JSON.stringify(requestData), // Sending the data as JSON
     });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return handleResponse(response);
+    return await response.json();
   } catch (error) {
-    console.error("Error updating participant group:", error);
+    console.error("Error in updateParticipantGroup:", error);
     throw error;
   }
 }
+
 
 export async function getParticipantsWithUsers() {
   try {
@@ -1314,24 +1340,6 @@ export async function getParentUsers() {
   }
 }
 
-export async function deleteParticipant(participantId) {
-  try {
-    const response = await fetch("/api.php?action=delete_participant", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      },
-      body: JSON.stringify({ participant_id: participantId }),
-    });
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("Error deleting participant:", error);
-    throw error;
-  }
-}
 
 export async function associateUser(participantId, userId) {
   try {
@@ -1828,7 +1836,7 @@ export async function syncOfflineData() {
             await saveParticipant(item.data);
             break;
           case 'updateAttendance':
-            await updateAttendance(item.data.nameId, item.data.newStatus, item.data.date, item.data.previousStatus);
+            await updateAttendance(item.data.participantId, item.data.newStatus, item.data.date, item.data.previousStatus);
             break;
           // Add cases for other offline actions
         }

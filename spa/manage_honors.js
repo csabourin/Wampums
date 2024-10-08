@@ -59,10 +59,10 @@ export class ManageHonors {
 
     this.allParticipants.forEach(participant => {
       const honorsForDate = this.allHonors.filter(
-        honor => honor.name_id === participant.name_id && honor.date === this.currentDate
+        honor => honor.participant_id === participant.participant_id && honor.date === this.currentDate
       );
       const totalHonors = this.allHonors.filter(
-        honor => honor.name_id === participant.name_id && new Date(honor.date) <= new Date(this.currentDate)
+        honor => honor.participant_id === participant.participant_id && new Date(honor.date) <= new Date(this.currentDate)
       ).length;
 
       const processedParticipant = {
@@ -130,9 +130,9 @@ export class ManageHonors {
     const disabledClass = isDisabled ? "disabled" : "";
 
     return `
-      <div class="list-item ${selectedClass} ${disabledClass}" data-name-id="${participant.name_id}" data-group-id="${participant.group_id}">
-        <input type="checkbox" id="name-${participant.name_id}" ${isDisabled ? "disabled" : ""} ${participant.honored_today ? "checked" : ""}>
-        <label for="name-${participant.name_id}">
+      <div class="list-item ${selectedClass} ${disabledClass}" data-participant-id="${participant.participant_id}" data-group-id="${participant.group_id}">
+        <input type="checkbox" id="participant-${participant.participant_id}" ${isDisabled ? "disabled" : ""} ${participant.honored_today ? "checked" : ""}>
+        <label for="participant-${participant.participant_id}">
           ${participant.first_name} ${participant.last_name} 
           (${participant.total_honors} ${translate("honors")})
         </label>
@@ -195,7 +195,7 @@ export class ManageHonors {
     }
 
     const honors = Array.from(selectedItems).map((item) => ({
-      nameId: item.closest(".list-item").dataset.nameId,
+        participantId: item.closest(".list-item").dataset.participantId,
       date: this.currentDate,
     }));
 

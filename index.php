@@ -37,14 +37,6 @@ header("Set-Cookie: cookieName=PHPSESSID; Secure; HttpOnly");
     </div>
 
     <div id="app">
-                <h1></h1>
-        <form id="login-form">
-            <input disabled type="email" name="email" placeholder="Adresse e-mail" required="">
-            <input disabled type="password" name="password" placeholder="Mot de passe" required="">
-            <button disabled type="submit"> </button>
-        </form>
-        <p><a href="#"> </a></p>
-         <p><a href="#"> </a></p>
     </div>
     
     <div id="news-widget" data-lazy-load="/get-news.php">

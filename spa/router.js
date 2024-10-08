@@ -340,6 +340,7 @@ export class Router {
   }
 
   async loadFormulaireInscription(participantId = null) {
+    console.log("Initializing FormulaireInscription with participantId:", participantId);
     const formulaireInscription = new FormulaireInscription(this.app);
     await formulaireInscription.init(participantId);
   }

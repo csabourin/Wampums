@@ -131,31 +131,32 @@ self.addEventListener("fetch", (event) => {
     return; // Exit early for unsupported schemes
   }
 
-  // Handle POST requests with network-first
-  if (event.request.method === "POST") {
-    event.respondWith(networkFirst(event.request));
-    return;
-  }
+  // Only handle GET requests for caching
+  if (event.request.method === "GET") {
+    // Handle offline-only pages
+    if (offlinePages.includes(url.pathname) && !navigator.onLine) {
+      event.respondWith(caches.match("/offline.html"));
+      return;
+    }
 
-  // Handle offline-only pages
-  if (offlinePages.includes(url.pathname) && !navigator.onLine) {
-    event.respondWith(caches.match("/offline.html"));
-    return;
-  }
-
-  // Check for API routes to cache in IndexedDB
-  if (apiRoutes.some((route) => url.pathname.includes(route))) {
-    event.respondWith(fetchAndCacheInIndexedDB(event.request));
-  } 
-  // Serve static assets from cache
-  else if (staticAssets.includes(url.pathname)) {
-    event.respondWith(cacheFirst(event.request));
-  } 
-  // Default to network-first for all other requests
-  else {
-    event.respondWith(networkFirst(event.request));
+    // Check for API routes to cache in IndexedDB
+    if (apiRoutes.some((route) => url.pathname.includes(route))) {
+      event.respondWith(fetchAndCacheInIndexedDB(event.request));
+    } 
+    // Serve static assets from cache
+    else if (staticAssets.includes(url.pathname)) {
+      event.respondWith(cacheFirst(event.request));
+    } 
+    // Default to network-first for all other requests
+    else {
+      event.respondWith(networkFirst(event.request));
+    }
+  } else {
+    // If it's not a GET request, do network-first without caching
+    event.respondWith(fetch(event.request));
   }
 });
+
 
 
 // Cache-first strategy for static assets

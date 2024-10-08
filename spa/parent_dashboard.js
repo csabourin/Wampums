@@ -140,39 +140,31 @@ export class ParentDashboard {
 		`).join("");
 	}
 
-	renderFormButtons(participant) {
+renderFormButtons(participant) {
+    console.log("Forms type: ", this.formFormats);
 
-		console.log("======================================",this.formmFormats);
-			// If the participant is not part of the current organization, don't render any buttons
-			if (!participant || participant.organization_id !== getCurrentOrganizationId()) {
-					return ''; 
-			}
+    return Object.keys(this.formFormats)
+        .filter(formType => {
+            // Exclude 'participant_registration' and 'parent_guardian' for all users
+            if (formType === 'participant_registration' || formType === 'parent_guardian') {
+                return false; // Hide these forms
+            }
+            return true; // Show all other forms
+        })
+        .map(formType => {
+            const formLabel = translate(formType);
+            const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
+            const status = isCompleted ? "✅" : "❌";
+            
+            return `
+                <a href="/dynamic-form/${formType}/${participant.id}">
+                    ${status} ${formLabel}
+                </a>
+            `;
+        })
+        .join("");
+}
 
-			// Admin or animation can see all buttons, not just parents
-			const isAdminOrAnimation = this.app.userRole === 'admin' || this.app.userRole === 'animation';
-
-		
-
-			return Object.keys(this.formFormats)
-					.filter(formType => {
-							// Customize which forms are shown to specific roles
-							if (!isAdminOrAnimation && (formType === 'participant_registration' || formType === 'parent_guardian')) {
-									return false; // Don't show these forms to parents
-							}
-							return true; // Show the form for admin/animation or other roles
-					})
-					.map(formType => {
-							const formLabel = translate(formType);
-							const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
-							const status = isCompleted ? "✅" : "❌";
-							return `
-									<a href="/dynamic-form/${formType}/${participant.id}">
-											${status} ${formLabel}
-									</a>
-							`;
-					})
-					.join("");
-	}
 
 
 

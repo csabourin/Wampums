@@ -9,21 +9,26 @@ import {
 } from "./ajax-functions.js";
 
 export class DynamicFormHandler {
-	constructor(app) {
+	 constructor(app, customSaveHandler = null, formIndex = null) {
 			this.app = app;
+		  this.customSaveHandler = customSaveHandler; 
 			this.formFormats = {};
 			this.formData = {};
 			this.participantId = null;
 			this.formType = null;
 			this.formRenderer = null;
 			this.container = document.getElementById("app"); // Default to #app
+		 this.useUniqueIds = false;
+		 
 	}
 
-	async init(formType, participantId = null, initialData = {}, container = null) {
+	async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null) {
 			console.log("Initializing DynamicFormHandler", { formType, participantId, initialData, container });
 			this.formType = formType;
 			this.participantId = participantId;
 			this.formData = initialData;
+		this.useUniqueIds = useUniqueIds;
+		this.formIndex = formIndex;
 			this.container = container ? 
 					(typeof container === 'string' ? document.getElementById(container) : container) 
 					: document.getElementById("app"); // Use #app if container is not specified
@@ -39,7 +44,7 @@ export class DynamicFormHandler {
 					if (this.participantId) {
 							await this.fetchFormData();
 					}
-					this.formRenderer = new JSONFormRenderer(this.formFormats[this.formType], this.formData);
+					this.formRenderer = new JSONFormRenderer(this.formFormats[this.formType], this.formData, this.formType, this.useUniqueIds, this.formIndex);
 					this.render(); // Call render here to display the form
 			} catch (error) {
 					console.error("Error initializing dynamic form:", error);
@@ -54,47 +59,59 @@ export class DynamicFormHandler {
 			}
 		}
 
-	async fetchFormData() {
-			if (this.participantId) {
-					try {
-							const response = await getFormSubmission(this.participantId, this.formType);
-							console.log("Full response from API:", response);
+async fetchFormData() {
+    if (this.participantId) {
+        try {
+            const response = await getFormSubmission(this.participantId, this.formType);
+            console.log("Full response from API:", response);
 
-							// If the API response is successful and form data exists
-							if (response.success && response.form_data) {
-									// Include core participant fields and submission data
-									this.formData = {
-											...response.form_data, // Include all fields from form submission
-											first_name: response.first_name, // Core participant data
-											last_name: response.last_name,
-											date_naissance: response.date_naissance
-									};
-									console.log("Fetched form data:", this.formData);
-							} else {
-									console.warn(`No form data found for ${this.formType} and participant ${this.participantId}`);
-									this.formData = {};
-							}
-					} catch (error) {
-							console.error("Error fetching form data:", error);
-							this.formData = {};
-					}
-			} else {
-					this.formData = {};
-			}
-	}
+            if (response.success && response.form_data) {
+                this.formData = { ...response.form_data };
+                console.log("Fetched form data:", this.formData);
+            } else {
+                console.warn(`No form data found for ${this.formType} and participant ${this.participantId}`);
+                this.formData = {};
+            }
+        } catch (error) {
+            console.error("Error fetching form data:", error);
+            this.formData = {};
+        }
+    } else {
+        this.formData = {};
+    }
+
+    // Add a check to ensure critical fields are present
+    this.validateFormData();
+}
+
+validateFormData() {
+    const criticalFields = ['first_name', 'last_name', 'date_naissance'];
+    for (const field of criticalFields) {
+        if (this.formData[field] === undefined) {
+            console.warn(`Critical field '${field}' is missing from form data`);
+            // You could set a default value or handle this case as needed
+            // this.formData[field] = '';
+        }
+    }
+}
 
 
 	async saveFormData(formData) {
-			console.log("Saving form data", { formType: this.formType, participantId: this.participantId, formData });
-			try {
-					let result;
-					if (this.formType === 'participant_registration') {
-							// Directly pass the formData to saveParticipant
-							result = await saveParticipant(formData); // Removed this.participantId as we want to pass only formData
-					} else {
-							// Use saveFormSubmission for other forms
-							result = await saveFormSubmission(this.formType, this.participantId, formData);
-					}
+	console.log("Saving form data", { formType: this.formType, participantId: this.participantId, formData });
+
+	try {
+			let result;
+
+			// If a custom save handler is provided, use that instead of the default logic
+			if (this.customSaveHandler) {
+					console.log("Using custom save handler");
+					result = await this.customSaveHandler(formData); // Use custom save handler
+			} else {
+					// Default save behavior
+					console.log("Using default save handler");
+					result = await saveFormSubmission(this.formType, this.participantId, formData);
+			}
+
 					console.log("Form save result:", result);
 					if (result.success) {
 							this.showMessage(translate("form_saved_successfully"));
@@ -108,6 +125,7 @@ export class DynamicFormHandler {
 					throw error;
 			}
 	}
+
 
 
 	render() {
@@ -124,23 +142,38 @@ export class DynamicFormHandler {
 			}
 
 			console.log("Rendering form structure for type:", this.formType);
+			console.log("Form data:", this.formData);
 
-			const formRenderer = new JSONFormRenderer(formStructure, this.formData);
+			let fields = formStructure.fields;
+
+			// If there's a custom form structure, add those fields
+			if (this.formData.custom_form && Array.isArray(this.formData.custom_form.fields)) {
+				// Merge formStructure fields and custom_form fields, removing duplicates
+				fields = [
+						...fields,
+						...this.formData.custom_form.fields.filter(customField => 
+								!fields.some(field => field.name === customField.name)
+						)
+				];
+			}
+
+			const formRenderer = new JSONFormRenderer({ fields }, this.formData, this.formType, this.useUniqueIds, this.formIndex);
+
+			const formContent = formRenderer.render();
 
 			// Check if this handler is standalone or embedded within another form
 			const content = this.isStandalone() 
 					? `
-							<h1>${translate(this.formType)}</h1>
-							<p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
+							<h2>${translate(this.formType)}</h2>
 							<form id="dynamic-form-${this.formType}">
-									${formRenderer.render()}
+									${formContent}
 									<button type="submit">${translate("save")}</button>
 							</form>
 					`
 					: `
-							<fieldset id="dynamic-form-${this.formType}">
+							<fieldset id="dynamic-form-${this.formType}-${this.formIndex}">
 									<legend>${translate(this.formType)}</legend>
-									${formRenderer.render()}
+									${formContent}
 							</fieldset>
 					`;
 
@@ -151,9 +184,6 @@ export class DynamicFormHandler {
 					this.attachEventListeners();
 			}
 	}
-
-
-
 		
 	attachEventListeners() {
 			const formElement = this.container.querySelector(`#dynamic-form-${this.formType}`);
@@ -190,17 +220,31 @@ export class DynamicFormHandler {
 			}
 
 	getFormData() {
-			const formElement = this.container.querySelector(
-					this.isStandalone() ? `#dynamic-form-${this.formType}` : `#dynamic-form-${this.formType}`
-			);
+			// Select the fieldset (or form) inside the container for this specific formType
+			const formElement = this.container.querySelector(`#dynamic-form-${this.formType}`);
 
+			// Check if the form element exists
 			if (!formElement) {
-					console.error(`Form/fieldset element for ${this.formType} not found.`);
-					return new FormData(); // Return empty form data if the element is not found
+					console.error(`Form element for ${this.formType} not found or is not a valid form.`);
+					return {}; // Return an empty object if the form element is not found
 			}
 
-			// Collect data from fieldset or form
-			return new FormData(formElement.closest('form'));
+			// Collect data directly from input, select, and textarea elements within this specific formElement
+			const filteredData = {};
+			formElement.querySelectorAll('input, select, textarea').forEach(field => {
+					if (field.type === 'checkbox') {
+							filteredData[field.name] = field.checked;
+					} else if (field.type === 'radio') {
+							// Only add the value of the selected radio button
+							if (field.checked) {
+									filteredData[field.name] = field.value;
+							}
+					} else {
+							filteredData[field.name] = field.value;
+					}
+			});
+
+			return filteredData; // Return all the form data as an object
 	}
 
 

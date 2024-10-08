@@ -274,17 +274,18 @@ export class Attendance {
 
     try {
       const result = await updateAttendance(participantId, newStatus, this.currentDate, previousStatus);
-      if (result.status === "success") {
+      if (result.success) {
+        // Proceed with updating the UI
         statusSpan.classList.remove(previousStatus);
         statusSpan.classList.add(newStatus);
         statusSpan.textContent = translate(newStatus);
 
         this.attendanceData[participantId] = newStatus;
-
         this.app.showMessage(translate("attendance_updated_successfully"), "success");
       } else {
         throw new Error(result.message || "Unknown error occurred");
       }
+
     } catch (error) {
       console.error("Error:", error);
       this.app.showMessage(`${translate("error_updating_attendance")}: ${error.message}`, "error");

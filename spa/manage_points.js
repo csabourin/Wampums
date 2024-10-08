@@ -45,7 +45,7 @@ export class ManagePoints {
     try {
       const [participantsResponse, groupsResponse] = await Promise.all([
         getParticipants(),
-        getGroups(),
+        getGroups(), // This should now include total_points for each group
       ]);
 
       if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
@@ -56,7 +56,7 @@ export class ManagePoints {
       }
 
       if (groupsResponse.success && Array.isArray(groupsResponse.groups)) {
-        this.groups = groupsResponse.groups;
+        this.groups = groupsResponse.groups; // Groups should now include total_points
       } else {
         console.error("Unexpected groups data structure:", groupsResponse);
         throw new Error("Invalid groups data");
@@ -84,7 +84,8 @@ export class ManagePoints {
       console.error("Error fetching manage points data:", error);
       throw error;
     }
-  }
+}
+
 
   render() {
     const content = `
@@ -123,31 +124,32 @@ export class ManagePoints {
   }
 
   renderPointsList() {
-    return this.groups
-      .filter((group) => {
-        // Check if group has participants or non-zero points
-        const groupParticipants = this.participants.filter(
-          (p) => p.group_id == group.id
-        );
-        return groupParticipants.length > 0 || group.total_points > 0;
-      })
-      .map(
-        (group) => `
-          <div class="group-header" data-group-id="${
-            group.id
-          }" data-type="group" data-points="${group.total_points}">
-            ${group.name}
-          </div>
-          <div class="group-content">
-            ${this.renderParticipantsForGroup(group.id)}
-            <div class="group-points" id="group-points-${group.id}">
-              ${translate("total_points")}: ${group.total_points}
+      return this.groups
+        .filter((group) => {
+          // Check if group has participants or non-zero points
+          const groupParticipants = this.participants.filter(
+            (p) => p.group_id == group.id
+          );
+          return groupParticipants.length > 0 || group.total_points > 0;
+        })
+        .map(
+          (group) => `
+            <div class="group-header" data-group-id="${
+              group.id
+            }" data-type="group" data-points="${group.total_points}">
+              ${group.name} - ${group.total_points} ${translate("points")}
             </div>
-          </div>
-        `
-      )
-      .join("");
+            <div class="group-content">
+              ${this.renderParticipantsForGroup(group.id)}
+              <div class="group-points" id="group-points-${group.id}">
+                ${translate("total_points")}: ${group.total_points}
+              </div>
+            </div>
+          `
+        )
+        .join("");
   }
+
 
   renderUnassignedParticipants() {
     if (this.unassignedParticipants.length === 0) {
@@ -162,7 +164,7 @@ export class ManagePoints {
         ${this.unassignedParticipants
           .map(
             (participant) => `
-              <div class="list-item" data-name-id="${participant.id}" 
+              <div class="list-item" data-participant-id="${participant.id}" 
                 data-type="individual" 
                 data-group-id="null" data-points="${participant.total_points}"
                 data-name="${participant.first_name}">
@@ -189,7 +191,7 @@ export class ManagePoints {
     return groupParticipants
       .map(
         (participant) => `
-          <div class="list-item" data-name-id="${
+          <div class="list-item" data-participant-id="${
             participant.id
           }" data-type="individual" 
             data-group-id="${participant.group_id}" data-points="${
@@ -282,7 +284,7 @@ export class ManagePoints {
     const id =
       type === "group"
         ? this.selectedItem.dataset.groupId
-        : this.selectedItem.dataset.nameId;
+        : this.selectedItem.dataset.participantId;
 
     if (type === "no-group") {
       alert(translate("cannot_assign_points_to_no_group"));
@@ -394,7 +396,7 @@ export class ManagePoints {
     // Update individual members' points immediately
     memberIds.forEach((memberId) => {
       const memberElement = document.querySelector(
-        `.list-item[data-name-id="${memberId}"]`
+        `.list-item[data-participant-id="${memberId}"]`
       );
       if (memberElement) {
         const memberPointsElement = memberElement.querySelector(
@@ -411,12 +413,12 @@ export class ManagePoints {
     });
   }
 
-  updateIndividualPoints(nameId, totalPoints) {
+  updateIndividualPoints(participantId, totalPoints) {
     const nameElement = document.querySelector(
-      `.list-item[data-name-id="${nameId}"]`
+      `.list-item[data-participant-id="${participantId}"]`
     );
     if (nameElement) {
-      const pointsElement = nameElement.querySelector(`#name-points-${nameId}`);
+      const pointsElement = nameElement.querySelector(`#name-points-${participantId}`);
       if (pointsElement) {
         pointsElement.textContent = `${totalPoints} ${translate("points")}`;
       }
@@ -429,7 +431,7 @@ export class ManagePoints {
     const selector =
       type === "group"
         ? `.group-header[data-group-id="${id}"]`
-        : `.list-item[data-name-id="${id}"]`;
+        : `.list-item[data-participant-id="${id}"]`;
     const element = document.querySelector(selector);
     if (!element) return;
 

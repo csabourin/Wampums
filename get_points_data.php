@@ -24,7 +24,7 @@ try {
     $nameQuery = "
         SELECT n.id, n.first_name, n.group_id, COALESCE(SUM(p.value), 0) AS total_points
         FROM names n 
-        LEFT JOIN points p ON n.id = p.name_id
+        LEFT JOIN points p ON n.id = p.participant_id
         GROUP BY n.id, n.first_name, n.group_id
         ORDER BY n.first_name
     ";

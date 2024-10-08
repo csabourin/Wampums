@@ -219,3 +219,19 @@ function initializeApp() {
     loadTranslations();
     header("Cache-Control: max-age=3600, public");
 }
+
+function toBool($value) {
+    if (is_bool($value)) {
+        return $value ? 't' : 'f';
+    }
+    if (is_string($value)) {
+        $lower = strtolower($value);
+        if ($lower === 'true' || $lower === '1' || $lower === 'yes' || $lower === 'on') {
+            return 't';
+        }
+    }
+    if (is_numeric($value)) {
+        return $value ? 't' : 'f';
+    }
+    return 'f'; // Default to false for any other input
+}

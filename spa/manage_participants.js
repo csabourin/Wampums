@@ -78,7 +78,7 @@ export class ManageParticipants {
           <td>${participant.first_name} ${participant.last_name}</td>
           <td>
             <select class="group-select" data-participant-id="${participant.id}">
-              <option value="" ${!participant.group_id ? "selected" : ""}>${translate("no_group")}</option>
+              <option value="none" ${!participant.group_id ? "selected" : ""}>${translate("no_group")}</option>
               ${this.renderGroupOptions(participant.group_id)}
             </select>
           </td>
@@ -122,11 +122,33 @@ export class ManageParticipants {
     const groupId = event.target.value;
     const roleSelect = event.target.closest("tr").querySelector(".role-select");
 
+    // Default values for roles when only changing the group
+    const isLeader = false;
+    const isSecondLeader = false;
+
+    // Log the data that will be sent
+    const requestData = {
+      participant_id: participantId,
+      group_id: groupId,
+      is_leader: isLeader,
+      is_second_leader: isSecondLeader,
+    };
+
+    console.log("Sending group change data to backend:", JSON.stringify(requestData));
+
     try {
-      const result = await updateParticipantGroup(participantId, groupId);
+      // Send the data to the backend wrapped in JSON
+      const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader);
+
       if (result.status === "success") {
-        roleSelect.disabled = !groupId;
-        roleSelect.value = "none";
+        // Enable or disable role select based on whether a group is selected
+        if (groupId && groupId !== "none") {
+          roleSelect.disabled = false; // Enable the role select field
+        } else {
+          roleSelect.disabled = true;  // Disable the role select field if no group
+          roleSelect.value = "none";   // Reset role to "none" if no group is selected
+        }
+
         this.app.showMessage(translate("group_updated_successfully"), "success");
       } else {
         this.app.showMessage(result.message || translate("error_updating_group"), "error");
@@ -137,24 +159,35 @@ export class ManageParticipants {
     }
   }
 
+
   async handleRoleChange(event) {
     const participantId = event.target.getAttribute("data-participant-id");
     const role = event.target.value;
     const groupId = event.target.closest("tr").querySelector(".group-select").value;
 
-    if (!groupId) {
+    if (!groupId || groupId === "none") {
       this.app.showMessage(translate("assign_group_before_role"), "error");
       event.target.value = "none";
       return;
     }
 
+    // Ensure we are passing valid boolean values (true/false) for is_leader and is_second_leader
+    const isLeader = role === "leader" ? true : false;
+    const isSecondLeader = role === "second_leader" ? true : false;
+
+    // Log the data that will be sent
+    const requestData = {
+      participant_id: participantId,
+      group_id: groupId,
+      is_leader: isLeader,
+      is_second_leader: isSecondLeader,
+    };
+
+    console.log("Sending role change data to backend:", JSON.stringify(requestData));
+
     try {
-      const result = await updateParticipantGroup(
-        participantId, 
-        groupId, 
-        role === "leader", 
-        role === "second_leader"
-      );
+      const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader);
+
       if (result.status === "success") {
         this.app.showMessage(translate("role_updated_successfully"), "success");
       } else {
@@ -165,6 +198,9 @@ export class ManageParticipants {
       this.app.showMessage(translate("error_updating_role"), "error");
     }
   }
+
+
+
 
   renderError() {
     const errorMessage = `

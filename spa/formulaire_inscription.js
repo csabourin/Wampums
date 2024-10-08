@@ -1,6 +1,8 @@
+import { app } from "./app.js";
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { translate } from "./app.js";
 import {
+    getAuthHeader,
   fetchParticipant,
   saveFormSubmission,
   getOrganizationFormFormats,
@@ -8,7 +10,9 @@ import {
      getGuardianCoreInfo,
     getGuardians,
       saveGuardian, // NEW: For saving guardian info
-      linkGuardianToParticipant // NEW: For linking guardians to participants
+      linkGuardianToParticipant, // NEW: For linking guardians to participants
+    getCurrentOrganizationId,
+    fetchFromApi
 } from "./ajax-functions.js";
 
 export class FormulaireInscription {
@@ -37,59 +41,57 @@ export class FormulaireInscription {
     this.renderGuardianForms();
   }
 
-  async init(participantId = null) {
-      console.log("Initializing FormulaireInscription");
-      this.participantId = participantId;
-      try {
-          // Step 1: Fetch necessary data
-          await this.fetchFormStructures();
-          if (this.participantId) {
-              await this.fetchParticipantData();
-              await this.fetchGuardianData();
-          } else {
-              this.formData = { guardians: [] };
-          }
+    async init(participantId = null) {
+        console.log("Initializing FormulaireInscription with ID:", participantId);
+        this.participantId = participantId;
+        try {
+            // Check if participant ID exists and fetch participant data accordingly
+            if (this.participantId) {
+                console.log("Fetching participant data for ID:", this.participantId);
+                await this.fetchParticipantData(); // Fetching participant data
+                await this.fetchGuardianData(); // Fetching associated guardian data
+            } else {
+                console.log("No participant ID provided, initializing empty form");
+                this.formData = { guardians: [] }; // Initialize empty form data
+            }
 
-          // Step 2: Create the form structure
-          this.createInitialStructure();
+            // Create the form structure and initialize the form handlers
+            this.createInitialStructure();
 
-          // Step 3: Initialize DynamicFormHandler for participant form
-          this.participantFormHandler = new DynamicFormHandler(this.app);
-          await this.participantFormHandler.init('participant_registration', this.participantId, this.formData, 'participant-form'); // Specify container
+            // Initialize DynamicFormHandler for participant form, passing the correct participant ID
+            this.participantFormHandler = new DynamicFormHandler(this.app, this.saveParticipantAndGuardians.bind(this));
+            await this.participantFormHandler.init('participant_registration', this.participantId, this.formData, 'participant-form');
 
-          // Step 4: Render and attach event listeners
-          this.render();
-          this.attachEventListeners();
-      } catch (error) {
-          console.error("Error initializing form:", error);
-          this.showError(translate("error_loading_form"));
-      }
-  }
-
-  async fetchFormStructures() {
-    try {
-      this.formStructures = await getOrganizationFormFormats();
-    } catch (error) {
-      console.error("Error fetching form structures:", error);
-      throw error;
+            // Render the form and attach event listeners
+            this.render();
+            this.attachEventListeners();
+        } catch (error) {
+            console.error("Error initializing form:", error);
+            this.showError(translate("error_loading_form"));
+        }
     }
-  }
+
+
 
     async fetchParticipantData() {
         try {
-            const participantData = await fetchParticipant(this.participantId);
-            console.log("&&&&&&&&&&&&&&&&&&&&&&  Fetched participant data:", participantData); // Ensure it has the full participant data
+            const response = await fetchParticipant(this.participantId);
+            console.log("Fetched participant data:", response);
 
-            // Ensure the data includes these fields
-            this.formData = {
-                ...participantData.submission_data, // Include the rest of the submission data
-                first_name: participantData.first_name, // Add or overwrite with specific fields
-                last_name: participantData.last_name,
-                date_naissance: participantData.date_naissance
-            };
+            if (response.success && response.participant) {
+                this.formData = {
+                    ...response.participant,
+                    first_name: response.participant.first_name,
+                    last_name: response.participant.last_name,
+                    date_naissance: response.participant.date_naissance
+                };
 
-            this.formData.guardians = this.formData.guardians || [];
-            console.log("Assigned formData:", this.formData);
+                this.participantId = response.participant.id; // **Ensure participantId is captured here**
+                this.formData.guardians = response.participant.guardians || [];
+                console.log("Assigned formData:", this.formData);
+            } else {
+                throw new Error("Invalid participant data received");
+            }
         } catch (error) {
             console.error("Error fetching participant data:", error);
             throw error;
@@ -97,84 +99,98 @@ export class FormulaireInscription {
     }
 
 
+
     async fetchGuardianData() {
         try {
-            const guardianData = await getGuardians(this.participantId); // Call the function from ajax-functions.js
-            this.formData.guardians = guardianData || [];
-            console.log("Fetched guardian data:", this.formData.guardians);
+            const guardianData = await getGuardians(this.participantId);
+            if (Array.isArray(guardianData)) {
+                this.formData.guardians = guardianData;
+            } else {
+                console.warn("No guardians found or invalid guardian data received");
+                this.formData.guardians = [];
+            }
         } catch (error) {
-            console.error("Error fetching guardian data:", error);
+            console.warn("Error fetching guardian data:", error.message);
+            this.formData.guardians = [];
         }
+        console.log("Guardian data after fetch:", this.formData.guardians);
     }
 
-  createInitialStructure() {
-      console.log("Creating initial structure");
-      const content = `
-        <h1>${this.participantId ? translate("edit_participant") : translate("add_participant")}</h1>
-        <div id="error-message" class="error hidden"></div>
-        <div id="success-message" class="success hidden"></div>
-        <form id="inscription-form">
-          <fieldset id="participant-form"></fieldset>  <!-- Changed to a fieldset -->
-          <h2>${translate("informations_parents")}</h2>
-          <div id="guardians-container"></div>
-          <button type="button" id="add-guardian">${translate("add_parent_guardian")}</button>
-          <button type="submit" id="submit-form">${translate("save")}</button>
-        </form>
-      `;
-      document.getElementById("app").innerHTML = content;
-  }
+      createInitialStructure() {
+        console.log("Creating initial structure");
+        const content = `
+         <button type="button" id="go-to-dashboard">${translate("go_to_dashboard")}</button>
+          <h1>${this.participantId ? translate("edit_participant") : translate("add_participant")}</h1>
+          <form id="inscription-form">
+            <fieldset id="participant-form"></fieldset>  <!-- Changed to a fieldset -->
+
+            <h2>${translate("informations_parents")}</h2>
+            <button type="button" id="add-guardian">${translate("add_parent_guardian")}</button>
+            <div id="guardians-container"></div>
+            <button type="submit" id="submit-form">${translate("save")}</button>
+          </form>
+          <div id="error-message" class="error hidden"></div>
+            <div id="success-message" class="success hidden"></div>
+        `;
+        document.getElementById("app").innerHTML = content;
+      }
+
 
 
     renderGuardianForms() {
         console.log("Rendering guardian forms");
-
         const container = document.getElementById('guardians-container');
         if (!container) {
             console.error("Guardians container not found");
             return;
         }
         container.innerHTML = '';  // Clear the container
-        this.guardianFormHandlers = [];
 
-        // Log current guardian form data
+        this.guardianFormHandlers = [];  // Reset handlers to avoid duplicate form handling
+
         console.log("Guardian form data:", this.formData.guardians);
 
-        const renderGuardian = async (index, guardianData = {}) => {
-            console.log("Rendering guardian at index:", index);
-            const formHandler = new DynamicFormHandler(this.app);
+        if (Array.isArray(this.formData.guardians) && this.formData.guardians.length > 0) {
+            this.formData.guardians.forEach((guardian, index) => {
+                console.log(`Rendering guardian at index: ${index}`, guardian);
+                this.renderGuardianForm(index, guardian);
+             
+            });
+        } else {
+            // Render an empty form if no guardians exist
+            this.renderGuardianForm(0);
+        }
+    }
 
-            // Fetch core guardian info if available
-            let coreGuardianInfo = {};
-            if (guardianData.guardian_id) {
-                try {
-                    coreGuardianInfo = await getGuardianCoreInfo(guardianData.guardian_id);
-                    console.log("Core guardian info fetched:", coreGuardianInfo);
-                } catch (error) {
-                    console.error("Failed to fetch guardian info:", error);
-                }
-            }
 
-            // Merge core info with the initial guardian data
-            const mergedGuardianData = { ...coreGuardianInfo, ...guardianData };
-            console.log("Merged guardian data:", mergedGuardianData);
+    renderGuardianForm(index, guardianData = {}) {
+        const formHandler = new DynamicFormHandler(this.app);
+        const formContainer = document.createElement('div');
+        formContainer.className = 'guardian-form';
+        formContainer.dataset.index = index;
 
-            // Create a container for each guardian form
-            const formContainer = document.createElement('div');
-            formContainer.className = 'guardian-form';
-            formContainer.dataset.index = index;
-            container.appendChild(formContainer);
+        const guardianContainer = document.getElementById('guardians-container');
+        guardianContainer.appendChild(formContainer);
 
-            // Initialize the formHandler and assign it to render within formContainer
-            await formHandler.init('parent_guardian', null, mergedGuardianData, formContainer);
-            this.guardianFormHandlers.push(formHandler);
+        console.log(`Initializing guardian form at index ${index} with data:`, guardianData);
+
+        const defaultGuardianData = {
+            nom: '',
+            prenom: '',
+            lien: '',
+            courriel: '',
+            telephone_residence: '',
+            telephone_travail: '',
+            telephone_cellulaire: '',
+            is_primary: false,
+            is_emergency_contact: false,
+            ...guardianData  // Overwrite defaults with actual data if present
         };
 
-        // Render each guardian's form or an empty one if no guardians exist
-        if (this.formData.guardians && this.formData.guardians.length > 0) {
-            this.formData.guardians.forEach((guardian, index) => renderGuardian(index, guardian));
-        } else {
-            renderGuardian(0); // Render an empty form if no guardians exist
-        }
+         formHandler.init('parent_guardian', null, defaultGuardianData, formContainer, true, index);
+
+        
+        this.guardianFormHandlers.push(formHandler);
     }
 
 
@@ -185,6 +201,15 @@ export class FormulaireInscription {
       console.log("Attaching event listeners");
       const form = document.getElementById("inscription-form");
       const addGuardianButton = document.getElementById("add-guardian");
+       const dashboardButton = document.getElementById("go-to-dashboard");
+
+      if (dashboardButton) {
+          dashboardButton.addEventListener("click", () => {
+              this.app.router.navigate("/parent-dashboard");
+          });
+      } else {
+          console.error("Go to dashboard button not found");
+      }
 
       if (form) {
           form.addEventListener("submit", (e) => this.handleSubmit(e));
@@ -210,91 +235,185 @@ export class FormulaireInscription {
     this.renderGuardianForms();
   }
 
-                             async handleSubmit(e) {
-                                 console.log("Form submission started");
-                                 e.preventDefault();
-                                 e.stopPropagation();
 
-                                 // Retrieve participant data
-                                 const participantData = this.participantFormHandler.getFormData();
-                                 console.log("Participant data:", Object.fromEntries(participantData.entries())); // Debug output
+    async handleSubmit(e) {
+        console.log("Form submission started");
+        e.preventDefault();
+        e.stopPropagation();
 
-                                 // Retrieve guardians' data
-                                 const guardiansData = this.guardianFormHandlers.map(handler => {
-                                     const formData = handler.getFormData();
-                                     console.log("Guardian form data:", Object.fromEntries(formData.entries())); // Debug output
-                                     return Object.fromEntries(formData.entries());
-                                 });
+        // Step 1: Get the participant data from the participant form
+        const participantData = this.participantFormHandler.getFormData();
 
-                                 // Extracting basic participant fields including ID
-                                 const participantBasicData = {
-                                     id: this.participantId,  // Ensure you pass the correct participant ID for editing
-                                     first_name: participantData.get('first_name'),
-                                     last_name: participantData.get('last_name'),
-                                     date_naissance: participantData.get('date_naissance')
-                                 };
+        // **Ensure participant ID is passed for update**
+        const participantCoreData = {
+            first_name: participantData.first_name || null,
+            last_name: participantData.last_name || null,
+            date_naissance: participantData.date_naissance || null,
+            id: this.participantId || participantData.id // **Ensure ID is passed for update**
+        };
 
-                                 // Organizing full form data, excluding the extracted participant basic data
-                                 const formSubmissionData = {
-                                     ...Object.fromEntries(participantData.entries()), // All participant data
-                                     guardians: guardiansData // Including guardians' data
-                                 };
+        // Step 2: Validate participant core data before submission
+        if (!participantCoreData.first_name || !participantCoreData.last_name || !participantCoreData.date_naissance) {
+            console.error("Missing required participant core fields.");
+            this.showError(translate("missing_required_fields"));
+            return; // Stop submission if core data is missing
+        }
 
-                                 console.log("Full form data to be submitted:", formSubmissionData);
+        // Step 3: Get guardian data separately
+        const guardiansData = this.guardianFormHandlers.map(handler => handler.getFormData());
 
-                                 try {
-                                     // Step 1: Save to the `participants` table
-                                     const saveParticipantResult = await saveParticipant(participantBasicData);
-                                     if (!saveParticipantResult.success) {
-                                         throw new Error(saveParticipantResult.message || translate("error_saving_participant"));
-                                     }
+        // Step 4: Prepare form submission data
+        const formSubmissionData = {
+            ...participantData,
+            guardians: guardiansData
+        };
 
-                                     const participantId = saveParticipantResult.participant_id;
-                                     console.log("Participant saved with ID:", participantId);
+        console.log("Full form data to be submitted:", { participantCoreData, formSubmissionData });
 
-                                     // Step 2: Save the remaining data in `form_submissions`
-                                     const result = await saveFormSubmission('participant_registration', participantId, formSubmissionData);
-                                     console.log("Form submission result:", result);
+        try {
+            await this.saveParticipantAndGuardians(participantCoreData, formSubmissionData);
+            this.showMessage(translate("form_saved_successfully"), "success");
 
-                                     if (result.success) {
-                                         this.showMessage(translate("inscription_saved_successfully"));
-                                         setTimeout(() => {
-                                             this.app.router.navigate("/parent-dashboard");
-                                         }, 2000); // Delay navigation to allow user to see the success message
-                                     } else {
-                                         throw new Error(result.message || translate("error_saving_form"));
-                                     }
-                                 } catch (error) {
-                                     console.error("Error saving form:", error);
-                                     this.showError(translate("error_saving_data") + ": " + error.message);
-                                 }
+            setTimeout(() => {
+                this.app.router.navigate("/parent-dashboard");  
+            }, 3000);  // Delay to allow users to see the success message
 
-                                 return false; // Ensure the form doesn't submit traditionally
-                             }
-
-
-
-  showMessage(message) {
-    console.log("Showing success message:", message);
-    const messageElement = document.getElementById("success-message");
-    if (messageElement) {
-      messageElement.textContent = message;
-      messageElement.classList.remove("hidden");
-    } else {
-      console.error("Success message element not found");
-      alert(message); // Fallback to alert if the success element is not found
+            
+        } catch (error) {
+            console.error("Error during form submission:", error);
+            this.showError(translate("error_saving_data") + ": " + error.message);
+        }
     }
-  }
 
-  showError(message) {
-    console.log("Showing error message:", message);
-    const errorElement = document.getElementById("error-message");
-    if (errorElement) {
-      errorElement.textContent = message;
-      errorElement.classList.remove("hidden");
-    } else {
-      console.error("Error message element not found");
-      alert(message); // Fallback to alert if the error element is not found
+
+    async saveParticipantAndGuardians(participantCoreData, formSubmissionData) {
+      console.log("Saving participant registration", {
+        participantData: participantCoreData,
+        guardiansData: formSubmissionData.guardians
+      });
+
+      try {
+        // Step 1: Save participant core data
+        const saveParticipantResult = await saveParticipant(participantCoreData);
+        if (!saveParticipantResult.success) {
+          throw new Error(saveParticipantResult.message || translate("error_saving_participant"));
+        }
+
+        const participantId = saveParticipantResult.participant_id || participantCoreData.id;
+        this.participantId = participantId; // Update the current participantId
+        console.log("Participant saved with ID:", participantId);
+
+        // Step 2: Save the remaining fields in `form_submissions` for the participant
+        const participantSubmissionData = { ...formSubmissionData };
+        delete participantSubmissionData.guardians;
+
+        const formSubmissionResult = await saveFormSubmission('participant_registration', participantId, participantSubmissionData);
+        if (!formSubmissionResult.success) {
+          throw new Error(formSubmissionResult.message || translate("error_saving_form"));
+        }
+
+        // Step 3: Save guardians and link them to the participant
+        await this.saveGuardians(participantId, formSubmissionData.guardians);
+
+        // Step 4: Link participant to organization (if not already linked)
+        await this.linkParticipantToOrganization(participantId);
+
+        console.log("Participant and guardians saved successfully");
+        this.showMessage(translate("form_saved_successfully"));
+      } catch (error) {
+        console.error("Error saving participant and guardians:", error);
+        this.showError(translate("error_saving_data") + ": " + error.message);
+        throw error;
+      }
     }
-  }
+
+    async linkParticipantToOrganization(participantId) {
+      try {
+        const organizationId = getCurrentOrganizationId();
+        const response = await fetch("/api.php?action=link_participant_to_organization", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify({ participant_id: participantId, organization_id: organizationId }),
+        });
+        const result = await response.json();
+        if (!result.success) {
+          throw new Error(result.message || "Failed to link participant to organization");
+        }
+      } catch (error) {
+        console.error("Error linking participant to organization:", error);
+        throw error;
+      }
+    }
+    
+    async saveGuardians(participantId, guardians) {
+      if (guardians && guardians.length > 0) {
+          console.log("Guardians data before saving:", guardians);
+        for (let guardian of guardians) {
+          const guardianData = {
+            participant_id: participantId,
+            nom: guardian.nom,
+            prenom: guardian.prenom,
+            lien: guardian.lien,
+            courriel: guardian.courriel,
+            telephone_residence: guardian.telephone_residence,
+            telephone_travail: guardian.telephone_travail,
+            telephone_cellulaire: guardian.telephone_cellulaire,
+            is_primary: guardian.is_primary,
+            is_emergency_contact: guardian.is_emergency_contact
+          };
+
+          try {
+            const result = await saveGuardian(guardianData);
+            if (!result.success) {
+              throw new Error(result.message || "Failed to save guardian");
+            }
+            console.log("Guardian saved successfully:", result);
+
+            // Link the guardian to the participant
+            await linkGuardianToParticipant(participantId, result.parent_id);
+
+            // If there are custom fields, save them using form submission
+            const guardianCustomFields = { ...guardian };
+            delete guardianCustomFields.nom;
+            delete guardianCustomFields.prenom;
+            delete guardianCustomFields.lien;
+            delete guardianCustomFields.courriel;
+            delete guardianCustomFields.telephone_residence;
+            delete guardianCustomFields.telephone_travail;
+            delete guardianCustomFields.telephone_cellulaire;
+            delete guardianCustomFields.is_primary;
+            delete guardianCustomFields.is_emergency_contact;
+
+            if (Object.keys(guardianCustomFields).length > 0) {
+              const guardianFormSubmissionResult = await saveFormSubmission('parent_guardian', result.parent_id, guardianCustomFields);
+              if (!guardianFormSubmissionResult.success) {
+                throw new Error("Error saving guardian custom fields: " + guardianFormSubmissionResult.message);
+              }
+            }
+          } catch (error) {
+            console.error("Error saving guardian:", error);
+            throw error;
+          }
+        }
+      }
+    }
+
+
+    showMessage(message, type = 'success') {
+        app.showMessage(message, type);
+    }
+
+    showError(message) {
+        app.showMessage(message, 'error');
+    }
+
+      hideMessageAfterDelay(element, delay = 50000) {
+        setTimeout(() => {
+          element.classList.add("hidden");
+        }, delay);
+      }
+
 }

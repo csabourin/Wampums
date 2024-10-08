@@ -545,5 +545,25 @@ return [
   "current_activity_found" => "Current activity found",
   "next_activity_found" => "Next activity found",
   "no_current_or_upcoming_activities_found" => "No current or upcoming activities found",
-  "no_next_activity" => "No next activity"
+  "no_next_activity" => "No next activity",
+  'back_to_dashboard' => 'Back to Dashboard',
+  'manage_users_participants' => 'Manage Users and Participants',
+  'name' => 'Name',
+  'associated_users' => 'Associated Users',
+  'actions' => 'Actions',
+  'delete' => 'Delete',
+  'select_parent' => 'Select Parent',
+  'associate_user' => 'Associate User',
+  'confirm_delete_participant' => 'Are you sure you want to delete this participant?',
+  'error_deleting_participant' => 'Error deleting participant',
+  'error_associating_user' => 'Error associating user',
+  'please_select_parent' => 'Please select a parent',
+  'error_loading_manage_users_participants' => 'Error loading manage users and participants',
+  'participant_removed_successfully' => 'Participant removed successfully',
+  'error_removing_participant' => 'Error removing participant',
+  'user_associated_successfully' => 'User associated successfully',
+  'remove_from_organization' => 'Remove from Organization',
+  'confirm_remove_participant_from_organization' => 'Are you sure you want to remove this participant from the organization?',
+  'error_removing_participant_from_organization' => 'Error removing participant from organization'
+
 ];
