@@ -25,58 +25,108 @@ export class JSONFormRenderer {
 			if (field.type === 'infoText') {
 				return `<div class="info-text">${translate(field.infoText)}</div>`;
 			}
-			return this.renderField(field, this.formOrigin, index);
+			const fieldHtml = this.renderField(field, this.formOrigin, index);
+			return fieldHtml;
 		});
 
 		return renderedFields.join('');
 	}
 
 	renderField(field, formOrigin, index) {
-		const { type = 'text', name, label, required, infoText, options } = field;
-		const value = this.formData[name] || '';
-		const requiredAttr = required ? 'required' : '';
+			const { type = 'text', name, label, required, infoText, options, dependsOn } = field;
+			const value = this.formData[name] || '';
+			const requiredAttr = required ? 'required' : '';
 
-		// Generate a unique ID if useUniqueIds is true
-		const fieldId = this.useUniqueIds ? `${name}-${this.formIndex}-${index}` : name;
+			// If the field has a dependsOn attribute, include it as a data-depends-on attribute in the HTML
+			const dependsOnAttr = dependsOn ? `data-depends-on='${JSON.stringify(dependsOn)}'` : '';
+			const disabled = dependsOn ? 'disabled' : '';
 
-		let output = `<div class="form-group" data-form-origin="${formOrigin}">`;
-		output += `<label for="${fieldId}">${translate(label || name)}</label>`;
+			const fieldId = this.useUniqueIds ? `${name}-${this.formIndex}-${index}` : name;
 
-		switch (type) {
-			case 'textarea':
-				output += `<textarea id="${fieldId}" name="${name}" ${requiredAttr}>${value}</textarea>`;
-				break;
-			case 'select':
-				output += `<select id="${fieldId}" name="${name}" ${requiredAttr}>`;
-				options.forEach(option => {
-					const selected = value === option.value ? 'selected' : '';
-					output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
-				});
-				output += `</select>`;
-				break;
-			case 'checkbox':
-				const checked = value === '1' || value === true || value === 'on' ? 'checked' : '';
-				output += `<input type="checkbox" id="${fieldId}" name="${name}" value="1" ${checked} ${requiredAttr}>`;
-				break;
-			case 'radio':
-				options.forEach(option => {
-					const radioId = this.useUniqueIds ? `${name}_${option.value}-${index}` : `${name}_${option.value}`;
-					const checked = value === option.value ? 'checked' : '';
-					output += `<input type="radio" id="${radioId}" name="${name}" value="${option.value}" ${checked} ${requiredAttr}>`;
-					output += `<label for="${radioId}">${translate(option.label)}</label>`;
-				});
-				break;
-			default:
-				output += `<input type="${type}" id="${fieldId}" name="${name}" value="${value}" ${requiredAttr}>`;
-		}
+			let output = `<div class="form-group" data-form-origin="${formOrigin}">`;
+			output += `<label for="${fieldId}">${translate(label || name)}</label>`;
 
-		if (infoText) {
-			output += `<div class="field-info">${translate(infoText)}</div>`;
-		}
+			switch (type) {
+					case 'textarea':
+							output += `<textarea id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>${value}</textarea>`;
+							break;
+					case 'select':
+							output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${dependsOnAttr}>`;
+							options.forEach(option => {
+									const selected = value === option.value ? 'selected' : '';
+									output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
+							});
+							output += `</select>`;
+							break;
+					case 'checkbox':
+							const checked = value === '1' || value === true || value === 'on' ? 'checked' : '';
+							output += `<input type="checkbox" id="${fieldId}" name="${name}" value="1" ${checked} ${requiredAttr} ${disabled} ${dependsOnAttr}>`;
+							break;
+					case 'radio':
+							options.forEach(option => {
+									const radioId = this.useUniqueIds ? `${name}_${option.value}-${index}` : `${name}_${option.value}`;
+									const checked = value === option.value ? 'checked' : '';
+									output += `<input type="radio" id="${radioId}" name="${name}" value="${option.value}" ${checked} ${requiredAttr} ${dependsOnAttr}>`;
+									output += `<label for="${radioId}">${translate(option.label)}</label>`;
+							});
+							break;
+					default:
+							output += `<input type="${type}" id="${fieldId}" name="${name}" value="${value}" ${requiredAttr} ${dependsOnAttr} ${disabled}>`;
+			}
 
-		output += '</div>';
-		return output;
+			if (infoText) {
+					output += `<div class="field-info">${translate(infoText)}</div>`;
+			}
+
+			output += '</div>';
+			return output;
 	}
+
+	
+
+	// Get the appropriate event type based on field type
+	getEventType(fieldType) {
+			switch (fieldType) {
+					case 'text':
+					case 'textarea':
+					case 'select':
+							return 'input';
+					case 'checkbox':
+					case 'radio':
+							return 'change';
+					default:
+							return 'input';
+			}
+	}
+
+	// Get the current value of a field based on its type
+	getFieldValue(field, element) {
+			switch (field.type) {
+					case 'checkbox':
+							return element.checked ? 'yes' : 'no'; // Normalizing value for checkboxes
+					case 'radio':
+							return element.checked ? element.value : '';
+					default:
+							return element.value;
+			}
+	}
+
+
+	// Modify this function to toggle dependent fields dynamically
+	toggleDependentFields(dependentField, controllingValue) {
+			const dependentElement = document.getElementsByName(dependentField.name)[0]; // Find the dependent field in the DOM
+			const dependsOnValue = dependentField.dependsOn.value; // The value it depends on
+
+			if (controllingValue === dependsOnValue) {
+					dependentElement.disabled = false;
+					dependentElement.setAttribute('required', 'true'); // Enable the field and make it required
+			} else {
+					dependentElement.disabled = true;
+					dependentElement.removeAttribute('required'); // Disable the field and remove required
+			}
+	}
+
+
 
 	getFormData(formElement) {
 		if (!(formElement instanceof HTMLFormElement)) {

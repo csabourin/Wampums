@@ -6,7 +6,8 @@ import {
 	getOrganizationSettings,
 	saveReunionPreparation,
 	getReunionDates,
-	getReunionPreparation
+	getReunionPreparation,
+	fetchFromApi
 } from "./ajax-functions.js";
 
 export class PreparationReunions {
@@ -22,30 +23,43 @@ export class PreparationReunions {
 	}
 
 	async init() {
-			try {
-					await this.fetchData();
-					await this.fetchAvailableDates();
+		try {
+			await this.fetchData();
+			await this.fetchAvailableDates();
 
-					// Fetch or determine the current meeting data
-					const currentMeeting = await this.determineCurrentMeeting();
-					this.currentMeetingData = currentMeeting;
-
-					// If no saved data or empty activities, initialize with placeholder activities
-					if (!currentMeeting || !currentMeeting.activities || currentMeeting.activities.length === 0) {
-							this.selectedActivities = this.initializePlaceholderActivities();
-					} else {
-							this.selectedActivities = currentMeeting.activities;
-					}
-
-					// Render the form
-					this.render();
-					this.populateForm(currentMeeting);
-			} catch (error) {
-					console.error("Error initializing preparation reunions:", error);
-					this.app.showMessage(translate("error_loading_preparation_reunions"), "error");
+			const reminder = await this.fetchReminder();
+			if (reminder) {
+				document.getElementById('reminder-text').value = reminder.reminder_text;
+				document.getElementById('reminder-date').value = reminder.reminder_date;
+				document.getElementById('recurring-reminder').checked = reminder.is_recurring;
 			}
+
+			const currentMeeting = await this.determineCurrentMeeting();
+			this.currentMeetingData = currentMeeting;
+
+			if (!currentMeeting || !currentMeeting.activities || currentMeeting.activities.length === 0) {
+				this.selectedActivities = this.initializePlaceholderActivities();
+			} else {
+				this.selectedActivities = currentMeeting.activities;
+			}
+
+			this.render();
+			this.populateForm(currentMeeting);
+		} catch (error) {
+			console.error("Error initializing preparation reunions:", error);
+			this.app.showMessage(translate("error_loading_preparation_reunions"), "error");
+		}
 	}
 
+	async fetchReminder() {
+		try {
+			const data = await fetchFromApi(`get_reminder`);
+			return data.success ? data.reminder : null;
+		} catch (error) {
+			console.error("Error fetching reminder:", error);
+			return null;
+		}
+	}
 
 	async fetchMeetingData(date) {
 			try {
@@ -74,12 +88,13 @@ export class PreparationReunions {
 			this.renderActivitiesTable();
 	}
 
-	populateForm(meetingData) {
+	async populateForm(meetingData) {
 			if (!meetingData) {
 					this.resetForm();
 					return;
 			}
 
+		 
 			this.currentDate = meetingData.date;
 			document.getElementById("animateur-responsable").value = meetingData.animateur_responsable || '';
 			document.getElementById("date").value = meetingData.date || this.currentDate;
@@ -94,7 +109,26 @@ export class PreparationReunions {
 			}
 
 			document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';
-			document.getElementById("notes").value = meetingData.notes || '';
+		// Prepopulate the reminder text
+		const notes = meetingData.notes || '';
+
+		// Fetch the reminder and append it to the notes if it is still valid
+		const reminder = await this.fetchReminder();
+		if (reminder) {
+			const currentDate = new Date();
+			const reminderDate = new Date(reminder.reminder_date);
+
+			// If reminder is valid (either recurring or before the reminder date)
+			if (reminder.is_recurring || reminderDate >= currentDate) {
+				const reminderText = `\n\n${translate("reminder_text")}: ${reminder.reminder_text}`;
+				document.getElementById('notes').value = notes + reminderText;
+			} else {
+				document.getElementById('notes').value = notes; // Keep the notes without the reminder
+			}
+		} else {
+			document.getElementById('notes').value = notes; // No reminder found
+		}
+
 
 			// Use the activities from meetingData directly and ensure position is properly handled
 			if (meetingData.activities && meetingData.activities.length > 0) {
@@ -288,6 +322,28 @@ export class PreparationReunions {
 						<button type="button" id="print-button">${translate("print")}</button> <button id="toggle-quick-edit">${translate("toggle_quick_edit_mode")}</button>
 					</div>
 				</form>
+<h2>${translate("set_reminder")}</h2>
+<form id="reminder-form">
+  <div class="form-group">
+    <label for="reminder-text">${translate("reminder_text")}:</label>
+    <textarea id="reminder-text" rows="3"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="reminder-date">${translate("reminder_date")}:</label>
+    <input type="date" id="reminder-date" required>
+  </div>
+
+  <div class="form-group">
+    <label for="recurring-reminder">
+      <input type="checkbox" id="recurring-reminder">
+      ${translate("recurring_reminder")}
+    </label>
+  </div>
+
+  <button type="submit">${translate("save_reminder")}</button>
+</form>
+
 				<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
 			</div>
 			<div id="description-modal" class="modal hidden">
@@ -369,12 +425,37 @@ updateActivityDetails(selectElement) {
 }
 
 
+	async handleReminderSubmit(e) {
+		e.preventDefault();
+		e.stopPropagation();
+
+		const reminderText = document.getElementById('reminder-text').value;
+		const reminderDate = document.getElementById('reminder-date').value;
+		const isRecurring = document.getElementById('recurring-reminder').checked;
+
+		const reminderData = {
+			reminder_text: reminderText,
+			reminder_date: reminderDate,
+			is_recurring: isRecurring,
+			organization_id: this.app.organizationId, // Get the current organization ID
+		};
+
+		try {
+			// Save the reminder using the existing fetchFromApi function
+			const result = await fetchFromApi('save_reminder', 'POST', reminderData);
+			this.app.showMessage(translate("reminder_saved_successfully"), "success");
+		} catch (error) {
+			this.app.showMessage(translate("error_saving_reminder"), "error");
+		}
+	}
 
 
 
 	attachEventListeners() {
 		// Add listeners for form submission, date navigation, activity editing, etc.
 
+		document.getElementById('reminder-form').addEventListener('submit', (e) => this.handleReminderSubmit(e));
+		
 		document.querySelector('#activities-table').addEventListener('change', (e) => {
 			if (e.target.classList.contains('activity-select')) {
 					this.updateActivityDetails(e.target);
@@ -742,6 +823,11 @@ async loadMeeting(date) {
 			e.stopPropagation();
 
 			const activitiesContainer = document.querySelector('#activities-table');
+		const reminderDate = document.getElementById('reminder-date').value;
+		const isRecurring = document.getElementById('recurring-reminder').checked;
+
+		 await this.saveReminderSettings(reminderDate, isRecurring);
+
 
 			// Filter activities that have been modified (isDefault is false)
 		const updatedActivities = Array.from(activitiesContainer.querySelectorAll('.activity-row'))

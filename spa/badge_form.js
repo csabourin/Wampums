@@ -30,15 +30,17 @@ export class BadgeForm {
 
   async fetchParticipant(participantId) {
     try {
-      this.participant = await fetchParticipant(participantId);
-      if (!this.participant) {
+      const result = await fetchParticipant(participantId);
+      if (!result || !result.participant) {  // Check if the participant exists in the response
         throw new Error("Participant not found");
       }
+      this.participant = result.participant; // Assign the participant object correctly
     } catch (error) {
       console.error("Error fetching participant:", error);
       throw new Error(`Failed to fetch participant: ${error.message}`);
     }
   }
+
 
   async fetchBadgeProgress() {
     this.badgeProgress = await getBadgeProgress(this.participant.id);

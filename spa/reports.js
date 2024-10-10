@@ -11,7 +11,10 @@ import {
 	getAttendanceReport,
 	getHonorsReport,
 	getPointsReport,
-	getParticipantAgeReport
+	getParticipantAgeReport,
+	getFormStructure,
+	getFormSubmissions,
+	getFormTypes
 } from "./ajax-functions.js";
 
 export class Reports {
@@ -26,6 +29,7 @@ export class Reports {
 		}
 
 		this.render();
+		await this.loadFormTypes(); // Load form types after rendering the page
 		this.attachEventListeners();
 	}
 
@@ -44,6 +48,13 @@ export class Reports {
 				<button class="report-btn" data-report="honors">${translate("honors_report")}</button>
 				<button class="report-btn" data-report="points">${translate("points_report")}</button>
 			</div>
+			<div id="form-type-container">
+					<h3>${translate("select_form_type")}</h3>
+					<select id="form-type-select">
+						<option value="">${translate("select_form_type")}</option>
+							<!-- Form types will be dynamically loaded here -->
+					</select>
+			</div>
 			<div id="report-content"></div>
 			<button id="print-report" style="display: none;">${translate("print_report")}</button>
 			<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
@@ -59,7 +70,43 @@ export class Reports {
 		document.getElementById('print-report').addEventListener('click', () => this.printReport());
 	}
 
-	async loadReport(reportType) {
+	async loadFormTypes() {
+		try {
+			const formTypes = await getFormTypes(); // Fetch form types
+
+			console.log("Fetched form types:", formTypes);  // Check if data is correctly fetched
+
+			const selectElement = document.getElementById("form-type-select");
+			selectElement.innerHTML = ''; // Clear previous options
+
+			if (!formTypes || formTypes.length === 0) {
+				selectElement.innerHTML = `<option value="">${translate('no_form_types_available')}</option>`;
+				return;
+			}
+
+			formTypes.forEach(formType => {
+				const option = document.createElement("option");
+				option.value = formType;
+				option.textContent = formType; // You may use a translated or user-friendly name here
+				selectElement.appendChild(option);
+			});
+
+			// Add event listener to handle report loading when form type is selected
+			selectElement.addEventListener('change', async () => {
+				const selectedFormType = selectElement.value;
+				if (selectedFormType) {
+					await this.loadReport('missing-fields', selectedFormType);
+				}
+			});
+		} catch (error) {
+			console.error("Error loading form types:", error);
+			document.getElementById("form-type-container").innerHTML = `<p>${translate("error_loading_form_types")}</p>`;
+		}
+	}
+
+
+
+	async loadReport(reportType,formType=null) {
 		try {
 			let reportData;
 			let reportContent;
@@ -68,6 +115,9 @@ export class Reports {
 					case 'health':
 					reportContent = await this.fetchAndRenderHealthReport(); // Now we get the report content
 					break;
+				case 'missing-fields':
+				reportContent = await this.fetchAndRenderMissingFieldsReport(formType); // Pass the form type
+				break;
 				case 'allergies':
 					reportData = await getAllergiesReport();
 					reportContent = this.renderAllergiesReport(reportData.data);
@@ -213,6 +263,108 @@ case 'participant-age':
 			`;
 
 			return tableContent;
+	}
+
+	async fetchAndRenderMissingFieldsReport(formType) {
+			try {
+					if (!formType) {
+							throw new Error('Form type is required');
+					}
+
+					const response = await getFormSubmissions(null, formType); // Fetch submissions for all participants for the selected form type
+
+					if (!response) {
+							throw new Error('No form submissions found');
+					}
+
+					const formStructure = await getFormStructure(formType); // Get the form structure based on the selected form type
+					const missingFieldsReport = this.generateMissingFieldsReport(response, formStructure, formType);
+
+					return missingFieldsReport;
+			} catch (error) {
+					console.error('Error fetching or rendering missing fields report:', error);
+					return `<p>${translate('error_loading_report')}: ${error.message}</p>`;
+			}
+	}
+
+
+generateMissingFieldsReport(submissions, formStructures, formType) {
+    let reportContent = '<h2>' + translate('missing_fields_report') + '</h2>';
+    reportContent += '<table><thead><tr><th>' + translate('name') + '</th><th>' + translate('missing_fields') + '</th></tr></thead><tbody>';
+
+    submissions.forEach(submission => {
+        const formStructure = formStructures[formType]; // Get the correct form structure for the submission
+
+        if (!formStructure || !formStructure.fields) {
+            console.error('Invalid form structure for form type:', formType);
+            return; // Skip this submission if form structure is invalid
+        }
+
+        // Get the participant's first and last name (assuming they're available in the submission_data)
+        const firstName = submission.first_name || '-';
+        const lastName = submission.last_name || '-';
+
+        // Get missing fields
+        const missingFields = this.getMissingFields(submission.submission_data, formStructure).map(field => translate(field));
+
+        if (missingFields.length > 0) {
+            reportContent += `<tr><td>${firstName} ${lastName}</td><td>${missingFields.join(', ')}</td></tr>`;
+        }
+    });
+
+    reportContent += '</tbody></table>';
+    return reportContent;
+}
+
+
+	getMissingFields(submissionData, formStructure) {
+			const missingFields = [];
+
+			formStructure.fields.forEach(field => {
+					// Check if the field is required and missing in the submission data
+					if (field.required && !submissionData[field.name]) {
+							// If the field has a dependency, only add it if the dependency condition is met
+							if (field.dependsOn) {
+									const dependencyField = submissionData[field.dependsOn.field];
+									if (dependencyField === field.dependsOn.value) {
+											missingFields.push(field.name);
+									}
+							} else {
+									// If no dependency, simply add it as missing
+									missingFields.push(field.name);
+							}
+					}
+			});
+
+			return missingFields;
+	}
+
+
+
+	checkRequiredFields(formStructure, submissionData) {
+		const missingFields = [];
+
+		formStructure.fields.forEach(field => {
+			const fieldName = field.name;
+			const required = field.required;
+
+			// Check if field depends on another field
+			if (field.dependsOn) {
+				const dependsOnField = field.dependsOn.field;
+				const dependsOnValue = field.dependsOn.value;
+				// If the condition is not met, the field is not required
+				if (submissionData[dependsOnField] !== dependsOnValue) {
+					return;
+				}
+			}
+
+			// Check if required field is missing in submission
+			if (required && !submissionData[fieldName]) {
+				missingFields.push(fieldName);
+			}
+		});
+
+		return missingFields;
 	}
 
 

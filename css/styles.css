@@ -974,6 +974,8 @@ h1,h2 {
 }
 .form-group {
   margin-bottom: 20px;
+  display: flex;
+  gap: 1em;
 }
 label {
   display: block;

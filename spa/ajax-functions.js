@@ -1484,6 +1484,105 @@ export async function updateGroupName(groupId, newName) {
   }
 }
 
+export async function getFormTypes() {
+  try {
+    const response = await fetch("/api.php?action=get_form_types", {
+      headers: {
+        ...getAuthHeader(),
+        "Content-Type": "application/json",
+        'X-Organization-ID': getCurrentOrganizationId() // Send organization ID to filter forms
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      return data.data;
+    } else {
+      throw new Error(data.message || "Failed to fetch form types");
+    }
+  } catch (error) {
+    console.error("Error fetching form types:", error);
+    return [];
+  }
+}
+
+
+// Fetch the structure of the forms for the organization
+export async function getFormStructure() {
+  try {
+    const response = await fetch('/api.php?action=get_organization_form_formats', {
+      method: 'GET',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      return data.formFormats;
+    } else {
+      throw new Error(data.message || 'Failed to fetch organization form formats');
+    }
+  } catch (error) {
+    console.error('Error fetching form structure:', error);
+    throw error;
+  }
+}
+
+// Fetch all form submissions for a specific form type and participant
+export async function getFormSubmissions(participantId = null, formType) {
+  if (!formType) {
+    throw new Error('Form type is required');
+  }
+
+  // Construct the URL with the appropriate query parameters
+  let url = `/api.php?action=get_form_submissions&form_type=${encodeURIComponent(formType)}`;
+
+  if (participantId) {
+    url += `&participant_id=${encodeURIComponent(participantId)}`;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      return data.data;
+    } else {
+      throw new Error(data.message || 'Failed to fetch form submissions');
+    }
+  } catch (error) {
+    console.error('Error fetching form submissions:', error);
+    throw error;
+  }
+}
+
+
+
+
+
 export async function getParticipantsWithDocuments() {
   try {
     // Fetch participant documents

@@ -124,6 +124,52 @@ if (!$organization_id) {
 		}
 		break;
 
+		case 'get_form_types':
+		try {
+				$organizationId = getCurrentOrganizationId();
+					// Get organization ID from headers
+				$stmt = $pdo->prepare("SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = ?");
+				$stmt->execute([$organizationId]);
+				$formTypes = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+				if ($formTypes) {
+						jsonResponse(true, $formTypes);
+				} else {
+						jsonResponse(false, null, 'No form types found for this organization');
+				}
+		} catch (Exception $e) {
+				jsonResponse(false, null, 'Failed to retrieve form types');
+		}
+		break;
+
+
+		case 'get_form_structure':
+				if (!isset($_GET['form_type'])) {
+						jsonResponse(false, null, 'Form type is required');
+				} else {
+						$formType = $_GET['form_type'];
+						getFormStructure($pdo, $formType);
+				}
+				break;
+
+		case 'get_form_submissions':
+		$organizationId = getCurrentOrganizationId();
+
+		// Check if participant_id is provided, otherwise, fetch all participants for the organization
+		if (!isset($_GET['form_type'])) {
+				jsonResponse(false, null, 'Form type is required');
+		} else {
+				$formType = $_GET['form_type'];
+				if (isset($_GET['participant_id'])) {
+						$participantId = $_GET['participant_id'];
+						getFormSubmissions($pdo, $participantId, $formType);
+				} else {
+						getAllParticipantsFormSubmissions($pdo, $organizationId, $formType);
+				}
+		}
+		break;
+
+
 case 'get_guardians':
 if (isset($_GET['participant_id'])) {
     $participantId = intval($_GET['participant_id']);
@@ -444,6 +490,44 @@ break;
 		echo json_encode(['success' => true, 'honors' => $honors]);
 		break;
 
+		case 'save_reminder':
+		$data = json_decode(file_get_contents('php://input'), true);
+
+		$organization_id = getCurrentOrganizationId(); 
+		$reminder_date = $data['reminder_date'];
+		$is_recurring = boolval($data['is_recurring']);
+		$reminder_text = $data['reminder_text'];
+
+		$query = "INSERT INTO rappel_reunion (organization_id, reminder_date, is_recurring, reminder_text) 
+							VALUES (:organization_id, :reminder_date, :is_recurring, :reminder_text)";
+
+		$stmt = $pdo->prepare($query);
+		$stmt->execute([
+				':organization_id' => $organization_id,
+				':reminder_date' => $reminder_date,
+				':is_recurring' => $is_recurring,
+				':reminder_text' => $reminder_text
+		]);
+
+		echo json_encode(['success' => true]);
+
+		break;
+
+		case 'get_reminder':		
+		$organization_id = getCurrentOrganizationId(); 
+
+		$query = "SELECT * FROM rappel_reunion WHERE organization_id = :organization_id ORDER BY creation_time DESC LIMIT 1";
+		$stmt = $pdo->prepare($query);
+		$stmt->execute([':organization_id' => $organization_id]);
+
+		$reminder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+		if ($reminder) {
+				echo json_encode(['success' => true, 'reminder' => $reminder]);
+		} else {
+				echo json_encode(['success' => false, 'message' => 'No reminder found']);
+		}
+		break;
 
 
 		case 'save_reunion_preparation':
@@ -3077,6 +3161,78 @@ function linkUserToGuardian($userId, $guardianData, $pdo) {
 
 		return $guardianId;
 }
+
+function getAllParticipantsFormSubmissions($pdo, $organizationId, $formType) {
+    try {
+        // Query to get all participants from the organization along with their form submissions
+        $stmt = $pdo->prepare("
+            SELECT fs.participant_id, fs.submission_data, p.first_name, p.last_name
+            FROM form_submissions fs
+            JOIN participant_organizations po ON fs.participant_id = po.participant_id
+            JOIN participants p ON fs.participant_id = p.id
+            WHERE po.organization_id = ? AND fs.form_type = ?
+        ");
+        $stmt->execute([$organizationId, $formType]);
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($result) {
+            $submissions = [];
+            foreach ($result as $row) {
+                $submissions[] = [
+                    'participant_id' => $row['participant_id'],
+                    'first_name' => $row['first_name'],  // Add first name
+                    'last_name' => $row['last_name'],    // Add last name
+                    'submission_data' => json_decode($row['submission_data'], true)
+                ];
+            }
+            jsonResponse(true, $submissions);
+        } else {
+            jsonResponse(false, null, 'No form submissions found for organization');
+        }
+    } catch (Exception $e) {
+        logDebug("Error in getAllParticipantsFormSubmissions: " . $e->getMessage());
+        jsonResponse(false, null, 'Failed to retrieve form submissions');
+    }
+}
+
+
+
+function getFormStructure($pdo, $formType) {
+		try {
+				$stmt = $pdo->prepare("SELECT form_structure FROM organization_form_formats WHERE form_type = ? AND organization_id = ?");
+				$stmt->execute([$formType, getCurrentOrganizationId()]);
+				$result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+				if ($result) {
+						$formStructure = json_decode($result['form_structure'], true);
+						jsonResponse(true, $formStructure);
+				} else {
+						jsonResponse(false, null, 'Form structure not found');
+				}
+		} catch (Exception $e) {
+				logDebug("Error in getFormStructure: " . $e->getMessage());
+				jsonResponse(false, null, 'Failed to retrieve form structure');
+		}
+}
+
+function getFormSubmissions($pdo, $participantId, $formType) {
+		try {
+				$stmt = $pdo->prepare("SELECT submission_data FROM form_submissions WHERE participant_id = ? AND form_type = ? AND organization_id = ?");
+				$stmt->execute([$participantId, $formType, getCurrentOrganizationId()]);
+				$result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+				if ($result) {
+						$submissionData = json_decode($result['submission_data'], true);
+						jsonResponse(true, $submissionData);
+				} else {
+						jsonResponse(false, null, 'No submission data found');
+				}
+		} catch (Exception $e) {
+				logDebug("Error in getFormSubmissions: " . $e->getMessage());
+				jsonResponse(false, null, 'Failed to retrieve form submissions');
+		}
+}
+
 
 function linkGuardianToParticipant($participantId, $guardianId, $pdo) {
 		$stmt = $pdo->prepare("

@@ -164,7 +164,7 @@ renderFormButtons(participant) {
         })
 			.join("") + `
 				<a href="/badge-form/${participant.id}">
-					${translate("manage_badge_progress")}
+					${translate('manage_badge_progress')}
 				</a>
 			`;
 }
