@@ -128,7 +128,7 @@ if (!$organization_id) {
 		try {
 				$organizationId = getCurrentOrganizationId();
 					// Get organization ID from headers
-				$stmt = $pdo->prepare("SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = ?");
+				$stmt = $pdo->prepare("SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = ? AND display_type = 'public'");
 				$stmt->execute([$organizationId]);
 				$formTypes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
@@ -416,21 +416,15 @@ break;
 		break;
 
 		case 'get_organization_form_formats':
-				
-		// Get the organization ID from the user's session or JWT
-		$organizationId = getCurrentOrganizationId();
-
-		if (!$organizationId) {
-				echo json_encode(['success' => false, 'message' => 'No organization selected']);
-				exit;
-		}
+		// Get the organization ID from the request or use the current organization
+		$organizationId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : getCurrentOrganizationId();
 
 		try {
 				// Fetch all form formats associated with the organization
 				$stmt = $pdo->prepare("
 						SELECT form_type, form_structure 
 						FROM organization_form_formats 
-						 WHERE organization_id = ?
+						WHERE organization_id = ?
 				");
 				$stmt->execute([$organizationId]);
 				$formFormats = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -650,26 +644,32 @@ break;
 case 'get_calendars':
     $organizationId = getCurrentOrganizationId(); // Get the current organization ID
 
-    $stmt = $pdo->prepare("
-        SELECT 
-            p.id AS participant_id,
-            p.first_name,
-            p.last_name,
-            COALESCE(c.amount, 0) AS calendar_amount,
-            COALESCE(c.amount_paid, 0) AS amount_paid,
-            COALESCE(c.paid, FALSE) AS paid,
-            c.updated_at
-        FROM 
-            calendars c
-        LEFT JOIN 
-            participants p ON p.id = c.participant_id
-        LEFT JOIN 
-            participant_organizations po ON po.participant_id = p.id AND po.organization_id = :organization_id
-        ORDER BY 
-            p.last_name, p.first_name
-    ");
-    $stmt->execute([':organization_id' => $organizationId]);
-    $calendars = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$stmt = $pdo->prepare("
+				SELECT 
+						p.id AS participant_id,
+						p.first_name,
+						p.last_name,
+						COALESCE(c.amount, 0) AS calendar_amount,
+						COALESCE(c.amount_paid, 0) AS amount_paid,
+						COALESCE(c.paid, FALSE) AS paid,
+						c.updated_at
+				FROM 
+						participants p
+				LEFT JOIN 
+						calendars c ON p.id = c.participant_id
+				LEFT JOIN 
+						participant_organizations po ON po.participant_id = p.id AND po.organization_id = :organization_id
+				WHERE 
+						p.id IN (
+								SELECT participant_id FROM participant_organizations WHERE organization_id = :organization_id
+								UNION
+								SELECT participant_id FROM calendars
+						)
+				ORDER BY 
+						p.last_name, p.first_name
+		");
+		$stmt->execute([':organization_id' => $organizationId]);
+		$calendars = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode(['success' => true, 'calendars' => $calendars]);
     break;
@@ -2724,48 +2724,50 @@ case 'get_leave_alone_report':
 break;
 		
 	
-		case 'associate_user':
-		$data = json_decode(file_get_contents('php://input'), true);
-		$participantId = (int)$data['participant_id'];
-		$userId = (int)$data['user_id'];
-		$organizationId = getCurrentOrganizationId();
+case 'associate_user':
+    $data = json_decode(file_get_contents('php://input'), true);
+    // Remove the (int) cast, treat them as strings (UUIDs)
+    $participantId = $data['participant_id'];
+    $userId = $data['user_id'];
+    $organizationId = getCurrentOrganizationId();
 
-		try {
-				$pdo->beginTransaction();
+    try {
+        $pdo->beginTransaction();
 
-				// Check if the participant belongs to the current organization
-				$stmt = $pdo->prepare("
-						SELECT 1 FROM participant_organizations 
-						WHERE participant_id = :participant_id AND organization_id = :organization_id
-				");
-				$stmt->execute([':participant_id' => $participantId, ':organization_id' => $organizationId]);
-				if (!$stmt->fetch()) {
-						throw new Exception('Participant does not belong to the current organization');
-				}
+        // Check if the participant belongs to the current organization
+        $stmt = $pdo->prepare("
+            SELECT 1 FROM participant_organizations 
+            WHERE participant_id = :participant_id AND organization_id = :organization_id
+        ");
+        $stmt->execute([':participant_id' => $participantId, ':organization_id' => $organizationId]);
+        if (!$stmt->fetch()) {
+            throw new Exception('Participant does not belong to the current organization');
+        }
 
-				// Associate the user with the participant
-				$stmt = $pdo->prepare("
-						INSERT INTO user_participants (user_id, participant_id) 
-						VALUES (:user_id, :participant_id) 
-						ON CONFLICT (user_id, participant_id) DO NOTHING
-				");
-				$stmt->execute([':user_id' => $userId, ':participant_id' => $participantId]);
+        // Associate the user with the participant
+        $stmt = $pdo->prepare("
+            INSERT INTO user_participants (user_id, participant_id) 
+            VALUES (:user_id, :participant_id) 
+            ON CONFLICT (user_id, participant_id) DO NOTHING
+        ");
+        $stmt->execute([':user_id' => $userId, ':participant_id' => $participantId]);
 
-				// Ensure the user has a role in the organization
-				$stmt = $pdo->prepare("
-						INSERT INTO user_organizations (user_id, organization_id, role)
-						VALUES (:user_id, :organization_id, 'parent')
-						ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'parent'
-				");
-				$stmt->execute([':user_id' => $userId, ':organization_id' => $organizationId]);
+        // Ensure the user has a role in the organization
+        $stmt = $pdo->prepare("
+            INSERT INTO user_organizations (user_id, organization_id, role)
+            VALUES (:user_id, :organization_id, 'parent')
+            ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'parent'
+        ");
+        $stmt->execute([':user_id' => $userId, ':organization_id' => $organizationId]);
 
-				$pdo->commit();
-				echo json_encode(['success' => true, 'message' => translate('user_associated_successfully')]);
-		} catch (Exception $e) {
-				$pdo->rollBack();
-				echo json_encode(['success' => false, 'message' => translate('error_associating_user') . ': ' . $e->getMessage()]);
-		}
-		break;
+        $pdo->commit();
+        echo json_encode(['success' => true, 'message' => translate('user_associated_successfully')]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['success' => false, 'message' => translate('error_associating_user') . ': ' . $e->getMessage()]);
+    }
+    break;
+
 
 		case 'get_participants_with_users':
 		$organizationId = getCurrentOrganizationId();
@@ -2882,46 +2884,59 @@ break;
 		}
 		break;
 
-		case 'register':
-		$data = json_decode(file_get_contents('php://input'), true);
-		$email = sanitizeInput($data['email']);
-		$fullName = sanitizeInput($data['full_name']);
-		$password = $data['password'];
-		$accountCreationPassword = $data['account_creation_password'];
-		$userType = $data['user_type'];
+case 'register':
+    $data = json_decode(file_get_contents('php://input'), true);
+    $email = sanitizeInput($data['email']);
+    $fullName = sanitizeInput($data['full_name']);
+    $password = $data['password'];
+    $accountCreationPassword = $data['account_creation_password'];
+    $userType = $data['user_type'];
 
-		if ($accountCreationPassword !== ACCOUNT_CREATION_PASSWORD) {
-				echo json_encode(['success' => false, 'message' => translate('invalid_account_creation_password')]);
-				exit;
-		}
+    // Fetch the account creation password from the organization_settings table
+    $stmt = $pdo->prepare("
+        SELECT setting_value->>'account_creation_password' as account_creation_password
+        FROM organization_settings
+        WHERE organization_id = ? AND setting_key = 'organization_info'
+    ");
+    $stmt->execute([$organizationId]);
+    $dbAccountCreationPassword = $stmt->fetchColumn();
 
-		$stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-		$stmt->execute([$email]);
-		if ($stmt->fetch()) {
-				echo json_encode(['success' => false, 'message' => translate('email_already_exists')]);
-				exit;
-		}
+    if (!$dbAccountCreationPassword || $accountCreationPassword !== $dbAccountCreationPassword) {
+        echo json_encode(['success' => false, 'message' => translate('invalid_account_creation_password')]);
+        exit;
+    }
 
-		$hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-		$isVerified = ($userType === 'parent') ? 'TRUE' : 'FALSE';
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+    $stmt->execute([$email]);
+    if ($stmt->fetch()) {
+        echo json_encode(['success' => false, 'message' => translate('email_already_exists')]);
+        exit;
+    }
 
-		$pdo->beginTransaction();
-		try {
-				$stmt = $pdo->prepare("INSERT INTO users (email, password, is_verified, full_name) VALUES (?, ?, ?, ?)");
-				$stmt->execute([$email, $hashedPassword, $isVerified, $fullName]);
-				$userId = $pdo->lastInsertId();
+    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+    $isVerified = ($userType === 'parent') ? 'TRUE' : 'FALSE';
 
-				$stmt = $pdo->prepare("INSERT INTO user_organizations (user_id, organization_id, role) VALUES (?, ?, ?)");
-				$stmt->execute([$userId, $organizationId, $userType]);
+    $pdo->beginTransaction();
+    try {
+        // Insert the new user and return the generated UUID
+        $stmt = $pdo->prepare("INSERT INTO users (email, password, is_verified, full_name) VALUES (?, ?, ?, ?) RETURNING id");
+        $stmt->execute([$email, $hashedPassword, $isVerified, $fullName]);
+        // Fetch the generated UUID
+        $userId = $stmt->fetchColumn();
 
-				$pdo->commit();
-				$message = ($isVerified === 'TRUE') ? translate('registration_successful_parent') : translate('registration_successful_await_verification');
-				echo json_encode(['success' => true, 'message' => $message]);
-		} catch (Exception $e) {
-				$pdo->rollBack();
-				echo json_encode(['success' => false, 'message' => translate('error_creating_account')]);
-		}
-		break;
+        // Now insert into the user_organizations table using the UUID
+        $stmt = $pdo->prepare("INSERT INTO user_organizations (user_id, organization_id, role) VALUES (?, ?, ?)");
+        $stmt->execute([$userId, $organizationId, $userType]);
+
+        $pdo->commit();
+        $message = ($isVerified === 'TRUE') ? translate('registration_successful_parent') : translate('registration_successful_await_verification');
+        echo json_encode(['success' => true, 'message' => $message]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(['success' => false, 'message' => translate('error_creating_account')]);
+        error_log('Error in register: ' . $e->getMessage());
+    }
+    break;
 
 		case 'link_parent_to_participant':
 		$data = json_decode(file_get_contents('php://input'), true);
@@ -2983,6 +2998,55 @@ break;
 		$stmt->execute([':organization_id' => $organizationId]);
 		$dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
 		echo json_encode(['success' => true, 'dates' => $dates]);
+		break;
+
+		case 'create_organization':
+		$userId = getUserIdFromToken($token);
+		$data = json_decode(file_get_contents('php://input'), true);
+
+		try {
+				$pdo->beginTransaction();
+
+				// Create new organization
+				$stmt = $pdo->prepare("INSERT INTO organizations (name) VALUES (:name) RETURNING id");
+				$stmt->execute([':name' => $data['name']]);
+				$newOrganizationId = $stmt->fetchColumn();
+
+				// Copy organization_form_formats from template
+				$stmt = $pdo->prepare("
+						INSERT INTO organization_form_formats (organization_id, form_type, form_structure, display_type)
+						SELECT :new_org_id, form_type, form_structure, 'public'
+						FROM organization_form_formats
+						WHERE organization_id = 0
+				");
+				$stmt->execute([':new_org_id' => $newOrganizationId]);
+
+				// Insert organization settings
+				$stmt = $pdo->prepare("
+						INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+						VALUES (:org_id, 'organization_info', :org_info)
+				");
+				$stmt->execute([
+						':org_id' => $newOrganizationId,
+						':org_info' => json_encode($data)
+				]);
+
+				// Link current user to the new organization
+				$stmt = $pdo->prepare("
+						INSERT INTO user_organizations (user_id, organization_id, role)
+						VALUES (:user_id, :org_id, 'admin')
+				");
+				$stmt->execute([
+						':user_id' => $userId,
+						':org_id' => $newOrganizationId
+				]);
+
+				$pdo->commit();
+				echo json_encode(['success' => true, 'message' => 'Organization created successfully']);
+		} catch (Exception $e) {
+				$pdo->rollBack();
+				echo json_encode(['success' => false, 'message' => 'Error creating organization: ' . $e->getMessage()]);
+		}
 		break;
 
 		case 'update_points':

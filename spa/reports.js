@@ -77,7 +77,6 @@ export class Reports {
 			console.log("Fetched form types:", formTypes);  // Check if data is correctly fetched
 
 			const selectElement = document.getElementById("form-type-select");
-			selectElement.innerHTML = ''; // Clear previous options
 
 			if (!formTypes || formTypes.length === 0) {
 				selectElement.innerHTML = `<option value="">${translate('no_form_types_available')}</option>`;

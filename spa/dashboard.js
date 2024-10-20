@@ -1,6 +1,7 @@
 import { getParticipants, getGroups, getCurrentOrganizationId,
        getOrganizationSettings } from "./ajax-functions.js";
 import { translate } from "./app.js";
+import { getCachedData, setCachedData } from "./indexedDB.js";
 import { ManagePoints } from "./manage_points.js";
 import { ParentDashboard } from "./parent_dashboard.js";
 import { Login } from "./login.js";
@@ -15,10 +16,12 @@ export class Dashboard {
 
   async init() {
     try {
-      await this.fetchData();
+       await this.preloadDashboardData();
+      // await this.fetchData();
       await this.fetchOrganizationInfo();
       this.render();
       this.attachEventListeners();
+       this.preloadAttendanceData();
     } catch (error) {
       console.error("Error initializing dashboard:", error);
       this.renderError();
@@ -50,6 +53,23 @@ export class Dashboard {
     }
   }
 
+  async preloadDashboardData() {
+    const [cachedGroups, cachedParticipants] = await Promise.all([
+      getCachedData('dashboard_groups'),
+      getCachedData('dashboard_participants')
+    ]);
+
+    if (cachedGroups && cachedParticipants) {
+      this.groups = cachedGroups;
+      this.participants = cachedParticipants;
+    }
+
+    // Fetch fresh data in the background
+    this.fetchData().then(() => {
+      this.render(); // Re-render with fresh data
+    });
+  }
+
   async fetchData() {
     try {
       const [participantsData, groupsData] = await Promise.all([
@@ -57,16 +77,15 @@ export class Dashboard {
         getGroups()
       ]);
 
-      if (!Array.isArray(participantsData.participants)) {
-        throw new Error("Expected participants to be an array, but got: " + typeof participantsData.participants);
+      if (Array.isArray(participantsData.participants)) {
+        this.participants = participantsData.participants;
+        await setCachedData('dashboard_participants', this.participants, 5 * 60 * 1000); // 5 minutes cache
       }
 
-      if (!Array.isArray(groupsData.groups)) {
-        throw new Error("Expected groups to be an array, but got: " + typeof groupsData.groups);
+      if (Array.isArray(groupsData.groups)) {
+        this.groups = groupsData.groups;
+        await setCachedData('dashboard_groups', this.groups, 60 * 60 * 1000); // 1 hour cache
       }
-
-      this.participants = participantsData.participants;
-      this.groups = groupsData.groups;
 
       // Sort the groups alphabetically by name
       this.groups.sort((a, b) => a.name.localeCompare(b.name));
@@ -74,6 +93,34 @@ export class Dashboard {
       console.error("Error fetching dashboard data:", error);
       throw error;
     }
+  }
+
+  async preloadAttendanceData() {
+    const today = new Date().toISOString().split('T')[0];
+    const nextFewDays = this.getNextFewDays(today, 0); // Get today and next 3 days
+
+    for (const date of nextFewDays) {
+      const cachedAttendance = await getCachedData(`attendance_${date}`);
+      if (!cachedAttendance) {
+        try {
+          const attendanceData = await getAttendance(date);
+          await setCachedData(`attendance_${date}`, attendanceData, 24 * 60 * 60 * 1000); // Cache for 24 hours
+          console.log(`Preloaded attendance data for ${date}`);
+        } catch (error) {
+          console.error(`Error preloading attendance data for ${date}:`, error);
+        }
+      }
+    }
+  }
+
+  getNextFewDays(startDate, numDays) {
+    const dates = [];
+    let currentDate = new Date(startDate);
+    for (let i = 0; i < numDays; i++) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    return dates;
   }
 
   render() {
@@ -88,6 +135,7 @@ export class Dashboard {
         <a href="/managePoints">${translate("manage_points")}</a>
         <a href="/manageHonors">${translate("manage_honors")}</a>
         <a href="/attendance">${translate("attendance")}</a>
+        <a href="/upcoming-meeting">${translate("upcoming_meeting")}</a>
       </div>
       <div class="logo-container">
         <img class="logo" src=".${this.organizationLogo}" width="335" heigth="366" alt="6e A St-Paul d'Aylmer">
@@ -104,6 +152,7 @@ export class Dashboard {
         <a href="/mailing-list">${translate("mailing_list")}</a>
         <a href="/calendars">${translate("calendars")}</a>
         <a href="/reports">${translate("reports")}</a>
+        <a href="/group-participant-report">${translate("feuille_participants")}</a>
         ${adminLink}
       </div>
       <div id="points-list">
@@ -112,6 +161,7 @@ export class Dashboard {
       <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
     `;
     document.getElementById("app").innerHTML = content;
+    this.updatePointsList();
   }
 
   renderPointsList() {
@@ -162,6 +212,13 @@ export class Dashboard {
     }
 
     return groupsList;
+  }
+
+  updatePointsList() {
+    const pointsList = document.getElementById("points-list");
+    if (pointsList) {
+      pointsList.innerHTML = this.renderPointsList();
+    }
   }
 
   renderParticipantsForGroup(participants) {

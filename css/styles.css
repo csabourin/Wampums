@@ -11,23 +11,29 @@
   box-sizing: border-box;
 }
 .language-toggle {
-  position: fixed;
+  position: absolute;
   top: 10px;
   right: 10px;
   z-index: 1000;
+  display: flex;
+  flex-direction: column; /* Stacks the buttons vertically by default */
 }
+
 .lang-btn {
   background-color: #f0f0f0;
   border: 1px solid #ccc;
-  color:var(--text-color);
-  padding: 5px 10px;
+  color: var(--text-color);
+  padding: 2px 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 10px;
+  transition: all 0.3s ease;
 }
+
 .lang-btn.active {
   background-color: #4c65ae;
-  color: white;
+  color: white;  
 }
+
 #app{
   width:100%;
   margin-top:.5em;
@@ -1113,6 +1119,18 @@ textarea {
   cursor: pointer;
   border-radius: 3px;
 }
+
+
+.activity-time-container { 
+  display: flex;
+  justify-content: space-between;
+}
+
+.activity-time,
+.activity-duration {
+  width: 48%;
+}
+
 /* Form content styles */
 #form-content {
   max-height: 70vh;
@@ -1271,16 +1289,6 @@ textarea {
   #activities-table th,
   #activities-table td {
     padding: 5px 2px;
-  }
-
-  .activity-time-container {
-    display: flex;
-    justify-content: space-between;
-  }
-
-  .activity-time,
-  .activity-duration {
-    width: 48%;
   }
 
   .activity-container {
@@ -1487,3 +1495,79 @@ textarea {
 .skeleton .participant-status {
   background-color: #e0e0e0;
 }
+
+/* Activity List Styles */
+.meeting-details{display:flex;
+                gap:1em;}
+.upcoming-meeting ul {
+  list-style: none; /* Remove bullets */
+  padding-left: 0; /* Remove default indentation */
+}
+
+.upcoming-meeting li {
+  font-size: 1.3rem; /* Increase font size for readability */
+  padding: 10px 0; /* Add padding between lines */
+  border-bottom: 1px solid #ddd; /* Add subtle separator */
+}
+
+.upcoming-meeting li:last-child {
+  border-bottom: none; /* Remove bottom border for last item */
+}
+
+.upcoming-meeting p,
+.upcoming-meeting h2 {
+  font-size: 1.1rem; /* Adjust other text sizes for better hierarchy */
+  margin: 10px 0;
+}
+
+.upcoming-meeting h1 {
+  font-size: 1.5rem; /* Slightly larger heading */
+  margin-bottom: 15px;
+  color: var(--primary-color);
+}
+
+.upcoming-meeting .actions {
+  display: flex;
+  justify-content: space-around; /* Space buttons evenly */
+  margin-top: 20px;
+}
+
+.upcoming-meeting .button {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 1rem;
+  display: inline-block;
+  text-align: center;
+  min-width: 120px;
+}
+
+.upcoming-meeting .button:hover {
+  background-color: var(--selected-color); /* Darken on hover */
+}
+
+/* Ensure everything is responsive */
+@media (max-width: 600px) {
+  .upcoming-meeting h1 {
+    font-size: 1.4rem;
+  }
+
+  .upcoming-meeting p,
+  .upcoming-meeting h2 {
+    font-size: 1rem;
+  }
+
+  .upcoming-meeting li {
+    font-size: 1.8rem;
+    padding: 8px 0;
+  }
+
+  .upcoming-meeting .button {
+    font-size: 0.9rem;
+    padding: 8px 10px;
+    min-width: 100px;
+  }
+}
+

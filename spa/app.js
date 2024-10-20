@@ -142,7 +142,7 @@ export const app = {
 	isLoggedIn: false,
 	userRole: null,
 	userFullName: null,
-	lang: "fr", // Default language
+	lang: null,
 	currentPage: "",
 	translations: {},
 	db: null,

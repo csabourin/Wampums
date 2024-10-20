@@ -24,14 +24,16 @@ export class PreparationReunions {
 
 	async init() {
 		try {
-			await this.fetchData();
 			await this.fetchAvailableDates();
+			this.animateurs= await getAnimateurs();
+			this.render();
+			await this.fetchData();			
 
-			const reminder = await this.fetchReminder();
-			if (reminder) {
-				document.getElementById('reminder-text').value = reminder.reminder_text;
-				document.getElementById('reminder-date').value = reminder.reminder_date;
-				document.getElementById('recurring-reminder').checked = reminder.is_recurring;
+			this.reminder = await this.fetchReminder();
+			if (this.reminder) {
+				document.getElementById('reminder-text').value = this.reminder.reminder_text;
+				document.getElementById('reminder-date').value = this.reminder.reminder_date;
+				document.getElementById('recurring-reminder').checked = this.reminder.is_recurring;
 			}
 
 			const currentMeeting = await this.determineCurrentMeeting();
@@ -43,7 +45,6 @@ export class PreparationReunions {
 				this.selectedActivities = currentMeeting.activities;
 			}
 
-			this.render();
 			this.populateForm(currentMeeting);
 		} catch (error) {
 			console.error("Error initializing preparation reunions:", error);
@@ -89,78 +90,116 @@ export class PreparationReunions {
 	}
 
 	async populateForm(meetingData) {
-			if (!meetingData) {
-					this.resetForm();
-					return;
-			}
+		if (!meetingData) {
+			this.resetForm();
+			return;
+		}
 
-		 
-			this.currentDate = meetingData.date;
-			document.getElementById("animateur-responsable").value = meetingData.animateur_responsable || '';
-			document.getElementById("date").value = meetingData.date || this.currentDate;
+		this.currentDate = meetingData.date;
+		document.getElementById("animateur-responsable").value = meetingData.animateur_responsable || '';
+		document.getElementById("date").value = meetingData.date || this.currentDate;
 
-			const louveteauxDHonneur = document.getElementById("louveteau-dhonneur");
-			if (Array.isArray(meetingData.louveteau_dhonneur)) {
-					louveteauxDHonneur.innerHTML = meetingData.louveteau_dhonneur.map(honor => `<li>${honor}</li>`).join('');
-			} else if (typeof meetingData.louveteau_dhonneur === 'string') {
-					louveteauxDHonneur.innerHTML = `<li>${meetingData.louveteau_dhonneur}</li>`;
-			} else {
-					louveteauxDHonneur.innerHTML = this.recentHonors.map(h => `<li>${h.first_name} ${h.last_name}</li>`).join('');
-			}
+		// Handle Louveteau d'honneur
+		const louveteauxDHonneur = document.getElementById("louveteau-dhonneur");
+		if (Array.isArray(meetingData.louveteau_dhonneur)) {
+			louveteauxDHonneur.innerHTML = meetingData.louveteau_dhonneur.map(honor => `<li>${honor}</li>`).join('');
+		} else if (typeof meetingData.louveteau_dhonneur === 'string') {
+			louveteauxDHonneur.innerHTML = `<li>${meetingData.louveteau_dhonneur}</li>`;
+		} else {
+			louveteauxDHonneur.innerHTML = this.recentHonors.map(h => `<li>${h.first_name} ${h.last_name}</li>`).join('');
+		}
 
-			document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';
-		// Prepopulate the reminder text
+		document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';
+
+		// Prepopulate the notes and fetch reminders
 		const notes = meetingData.notes || '';
-
-		// Fetch the reminder and append it to the notes if it is still valid
-		const reminder = await this.fetchReminder();
-		if (reminder) {
+		if (this.reminder) {
 			const currentDate = new Date();
 			const reminderDate = new Date(reminder.reminder_date);
-
-			// If reminder is valid (either recurring or before the reminder date)
-			if (reminder.is_recurring || reminderDate >= currentDate) {
-				const reminderText = `\n\n${translate("reminder_text")}: ${reminder.reminder_text}`;
+			if (this.reminder.is_recurring || reminderDate >= currentDate) {
+				const reminderText = `\n\n${translate("reminder_text")}: ${this.reminder.reminder_text}`;
 				document.getElementById('notes').value = notes + reminderText;
 			} else {
-				document.getElementById('notes').value = notes; // Keep the notes without the reminder
+				document.getElementById('notes').value = notes;  // Keep the notes without the reminder if it expired
 			}
 		} else {
 			document.getElementById('notes').value = notes; // No reminder found
 		}
 
+		// Combine default and saved activities
+		const defaultActivities = this.initializePlaceholderActivities();
+		const loadedActivities = meetingData.activities || [];
+		const totalActivities = Math.max(defaultActivities.length, loadedActivities.length);
 
-			// Use the activities from meetingData directly and ensure position is properly handled
-			if (meetingData.activities && meetingData.activities.length > 0) {
-					this.selectedActivities = meetingData.activities.map((savedActivity) => {
-							const defaultActivity = this.initializePlaceholderActivities().find(a => a.position === savedActivity.position) || {};
+		this.selectedActivities = [];
 
-							// Use saved activity, and only fall back to defaults if necessary
-							return {
-									...defaultActivity,  // Defaults can fill any missing fields
-									...savedActivity,    // Saved data overrides defaults
-									position: parseInt(savedActivity.position, 10),  // Ensure position is an integer
-									isDefault: savedActivity.isDefault === undefined ? false : savedActivity.isDefault  // Default to false if modified
-							};
-					});
-			} else {
-					// Fallback to default activities if none are saved
-					this.selectedActivities = this.initializePlaceholderActivities().map(activity => ({
-							...activity,
-							isDefault: true
-					}));
-			}
+		for (let i = 0; i < totalActivities; i++) {
+			const defaultActivity = defaultActivities[i] || {};  // Default activity if available
+			const savedActivity = loadedActivities[i] || {};     // Loaded activity if available
 
-			this.renderActivitiesTable();  // Render the activities with the correct positions
+			this.selectedActivities.push({
+				...defaultActivity,  // Fill with default values
+				...savedActivity,    // Overwrite with saved values
+				position: i,         // Ensure position is assigned correctly
+				isDefault: savedActivity.isDefault === undefined ? true : savedActivity.isDefault
+			});
+		}
+
+		this.renderActivitiesTable();  // Render the activities with their correct positions
 	}
+
+	// Function to dynamically add extra fields if they are present in meetingData but not in the default form
+	addExtraField(key, value) {
+		// Example of adding a dynamic field as an input (this can be customized based on the field type)
+		const formGroup = document.createElement('div');
+		formGroup.classList.add('form-group');
+
+		const label = document.createElement('label');
+		label.setAttribute('for', key);
+		label.textContent = translate(key);  // Assuming a translation function is available
+
+		const input = document.createElement('input');
+		input.setAttribute('type', 'text');
+		input.setAttribute('id', key);
+		input.setAttribute('value', value);
+		input.classList.add('dynamic-field');  // Class to identify dynamically added fields
+
+		formGroup.appendChild(label);
+		formGroup.appendChild(input);
+
+		// Insert the new field into the form (adjust the position if necessary)
+		const form = document.getElementById('reunion-form');
+		form.appendChild(formGroup);
+	}
+
+
+
+	async saveReminderSettings(reminderDate, isRecurring) {
+			const reminderText = document.getElementById('reminder-text').value;
+
+			const reminderData = {
+					reminder_text: reminderText,
+					reminder_date: reminderDate,
+					is_recurring: isRecurring,
+					organization_id: this.app.organizationId, // Assuming organizationId is available in this.app
+			};
+
+			try {
+					const result = await fetchFromApi('save_reminder', 'POST', reminderData);
+					this.app.showMessage(translate("reminder_saved_successfully"), "success");
+			} catch (error) {
+					console.error("Error saving reminder:", error);
+					this.app.showMessage(translate("error_saving_reminder"), "error");
+			}
+	}
+
 
 
 	 async fetchData() {
 		 const settingsResponse = await getOrganizationSettings();
-		[this.activities, this.animateurs, this.recentHonors] = await Promise.all([
+		[this.activities, this.recentHonors] = await Promise.all([
 			getActivitesRencontre(),
-			getAnimateurs(),
-			getRecentHonors(),
+			getRecentHonors()
 		]);
 
 		this.organizationSettings = settingsResponse.settings || {};
@@ -261,21 +300,21 @@ export class PreparationReunions {
 			<div class="preparation-reunions">
 				<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
 				<h1>${translate("preparation_reunions")}</h1>
-				<p><button id="new-meeting">${translate("new_meeting")}</button></p>
-				 
-				<details>
-									<summary>${translate("Navigation")}</summary>
+		 
+				
+				
 					<div class="date-navigation">
-						<button id="next-meeting">‹ ${translate("previous_meeting")}</button>
 						<select id="date-select">
+						<option value="">${translate("select_date")}</option>
 							${this.availableDates.map(date => 
 								`<option value="${date}" ${date === this.currentMeetingData?.date ? 'selected' : ''}>${this.formatDate(date)}</option>`
 							).join('')}
 						</select>
-						<button id="prev-meeting">${translate("next_meeting")} ›</button>
+						
 						
 					</div>
-				</details>
+					<p><button id="new-meeting">${translate("new_meeting")}</button></p>
+				
 				<form id="reunion-form">
 					<div class="form-row">
 						<div class="form-group">
@@ -319,29 +358,29 @@ export class PreparationReunions {
 					</div>
 					<div class="form-actions">
 						<button type="submit">${translate("save")}</button>
-						<button type="button" id="print-button">${translate("print")}</button> <button id="toggle-quick-edit">${translate("toggle_quick_edit_mode")}</button>
+						<button type="button" id="print-button">${translate("print")}</button> <button type="button" id="toggle-quick-edit">${translate("toggle_quick_edit_mode")}</button>
 					</div>
 				</form>
 <h2>${translate("set_reminder")}</h2>
 <form id="reminder-form">
-  <div class="form-group">
-    <label for="reminder-text">${translate("reminder_text")}:</label>
-    <textarea id="reminder-text" rows="3"></textarea>
-  </div>
+	<div class="form-group">
+		<label for="reminder-text">${translate("reminder_text")}:</label>
+		<textarea id="reminder-text" rows="3"></textarea>
+	</div>
 
-  <div class="form-group">
-    <label for="reminder-date">${translate("reminder_date")}:</label>
-    <input type="date" id="reminder-date" required>
-  </div>
+	<div class="form-group">
+		<label for="reminder-date">${translate("reminder_date")}:</label>
+		<input type="date" id="reminder-date" required>
+	</div>
 
-  <div class="form-group">
-    <label for="recurring-reminder">
-      <input type="checkbox" id="recurring-reminder">
-      ${translate("recurring_reminder")}
-    </label>
-  </div>
+	<div class="form-group">
+		<label for="recurring-reminder">
+			<input type="checkbox" id="recurring-reminder">
+			${translate("recurring_reminder")}
+		</label>
+	</div>
 
-  <button type="submit">${translate("save_reminder")}</button>
+	<button type="submit">${translate("save_reminder")}</button>
 </form>
 
 				<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
@@ -365,6 +404,14 @@ export class PreparationReunions {
 			this.attachEventListeners();
 	}
 
+	// Function to format the duration into HH:MM
+	formatMinutesToHHMM(minutes) {
+			const hours = Math.floor(minutes / 60);
+			const mins = minutes % 60;
+			return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+	}
+
+	
 	toggleQuickEditMode() {
 			const rows = document.querySelectorAll('.activity-row');
 			rows.forEach(row => {
@@ -375,55 +422,66 @@ export class PreparationReunions {
 	}
 
 updateActivityDetails(selectElement) {
-    // Get the selected option
-    const selectedOption = selectElement.options[selectElement.selectedIndex];
+		// Get the selected option
+		const selectedOption = selectElement.options[selectElement.selectedIndex];
 
-    // Retrieve the activity ID from the data-id attribute
-    const activityId = selectedOption.getAttribute('data-id');
+		// Retrieve the activity ID from the data-id attribute
+		const activityId = selectedOption.getAttribute('data-id');
 
-    // Find the corresponding activity from this.activities using the activity ID
-    const activity = this.activities.find(a => a.id == activityId);
+		// Find the corresponding activity from this.activities using the activity ID
+		const activity = this.activities.find(a => a.id == activityId);
 
-    if (activity) {
-        const row = selectElement.closest('.activity-row');
-        const durationInput = row.querySelector('.activity-duration');
-        const materielInput = row.querySelector('.activity-materiel');
-        let descriptionButton = row.querySelector('.description-btn'); // Check if button already exists
+		if (activity) {
+				const row = selectElement.closest('.activity-row');
+				const durationInput = row.querySelector('.activity-duration');
+				const materielInput = row.querySelector('.activity-materiel');
+				let descriptionButton = row.querySelector('.description-btn'); // Check if button already exists
 
-        // Log the values of materiel and duration for debugging
-        console.log("Selected Activity:", activity.activity);
-        console.log("Duration (min-max):", activity.estimated_time_min, "-", activity.estimated_time_max);
-        console.log("Material:", activity.material);
+				// Log the values of materiel and duration for debugging
+				console.log("Selected Activity:", activity.activity);
+				console.log("Duration (min-max):", activity.estimated_time_min, "-", activity.estimated_time_max);
+				console.log("Material:", activity.material);
 
-        // Update the fields with the activity data or set defaults
-        durationInput.value = `${activity.estimated_time_min || ''}-${activity.estimated_time_max || ''} min`;
-        materielInput.value = activity.material || '';
+				// Update the fields with the activity data or set defaults
+			const totalMinutes = activity.estimated_time_max || 0;
+			durationInput.value = this.formatMinutesToHHMM(totalMinutes);
 
-        // Handle the description button
-        if (activity.description) {
-            // If a description exists and no button is present, create the button
-            if (!descriptionButton) {
-                descriptionButton = document.createElement('button');
-                descriptionButton.classList.add('description-btn');
-                descriptionButton.textContent = '?';
-                descriptionButton.setAttribute('data-description', activity.description);
+				// Handle the description button
+				if (activity.description) {
+						// If a description exists and no button is present, create the button
+						if (!descriptionButton) {
+								descriptionButton = document.createElement('button');
+								descriptionButton.classList.add('description-btn');
+								descriptionButton.textContent = '?';
+								descriptionButton.setAttribute('data-description', activity.description);
 									selectElement.insertAdjacentElement('afterend', descriptionButton); // Add the button next to the select
-            } else {
-                // If the button already exists, just update the description data
-                descriptionButton.setAttribute('data-description', activity.description);
-                descriptionButton.style.display = 'inline'; // Ensure it's visible
-            }
-        } else if (descriptionButton) {
-            // If no description, remove the button if it exists
-            descriptionButton.style.display = 'none';
-        }
+						} else {
+								// If the button already exists, just update the description data
+								descriptionButton.setAttribute('data-description', activity.description);
+								descriptionButton.style.display = 'inline'; // Ensure it's visible
+						}
+				} else if (descriptionButton) {
+						// If no description, remove the button if it exists
+						descriptionButton.style.display = 'none';
+				}
 
-        // Mark as modified
-        row.setAttribute('data-default', 'false');
-        selectElement.setAttribute('data-default', 'false');
-    }
+				// Mark as modified
+				row.setAttribute('data-default', 'false');
+				selectElement.setAttribute('data-default', 'false');
+		}
 }
 
+	preventEnterKeyDefault() {
+			const inputs = document.querySelectorAll('form, .activity-time, .activity-duration, .activity-select, .activity-responsable, .activity-materiel');
+
+			inputs.forEach(input => {
+					input.addEventListener('keydown', (e) => {
+							if (e.keyCode === 13) {  // 13 is the Enter key
+									e.preventDefault();  // Prevent form submission
+							}
+					});
+			});
+	}
 
 	async handleReminderSubmit(e) {
 		e.preventDefault();
@@ -452,6 +510,8 @@ updateActivityDetails(selectElement) {
 
 
 	attachEventListeners() {
+
+		 this.preventEnterKeyDefault();
 		// Add listeners for form submission, date navigation, activity editing, etc.
 
 		document.getElementById('reminder-form').addEventListener('submit', (e) => this.handleReminderSubmit(e));
@@ -499,17 +559,19 @@ updateActivityDetails(selectElement) {
 			}
 		});
 
-		document.addEventListener("change", (e) => {
+		document.addEventListener("input", (e) => {
 				if (e.target.matches(".activity-select, .activity-responsable, .activity-time, .activity-duration, .activity-materiel")) {
 						const row = e.target.closest(".activity-row");
+						console.log("Field input detected:", e.target);  // Debugging log to check if the listener is triggered
 						row.setAttribute("data-default", "false");
 						e.target.setAttribute("data-default", "false");
 				}
 		});
 
+
 			document.addEventListener("submit", (e) => {
-			if (e.target.matches("#reunion-form")) {
 				e.preventDefault();
+				if (e.target.matches("#reunion-form")) {				
 				this.handleSubmit(e);
 			}
 		});
@@ -517,10 +579,6 @@ updateActivityDetails(selectElement) {
 		document.addEventListener("click", (e) => {
 			if (e.target.matches("#print-button")) {
 				this.printPreparation();
-			} else if (e.target.matches("#prev-meeting")) {
-				this.navigateMeeting(-1);
-			} else if (e.target.matches("#next-meeting")) {
-				this.navigateMeeting(1);
 			} else if (e.target.matches("#new-meeting")) {
 				this.createAndLoadNewMeeting();
 			}
@@ -569,6 +627,9 @@ updateActivityDetails(selectElement) {
 						this.toggleResponsableEdit(e.target.closest('.activity-row'));
 				}
 		});
+
+		// Initial call to set up event listeners
+		this.addDurationListeners();
 		
 	}
 
@@ -584,27 +645,58 @@ updateActivityDetails(selectElement) {
 	}
 
 
-renderActivitiesTable() {
-    const activitiesHtml = this.selectedActivities.map((a, index) => {
-        if (Object.keys(a).length === 0) {
-            // This is a placeholder for a default activity
-            const defaultActivity = this.initializePlaceholderActivities()[index];
-            return this.renderActivityRow(defaultActivity, index, true);
-        } else {
-            return this.renderActivityRow(a, index, false);
-        }
-    }).join('');
+	renderActivitiesTable() {
+		// Combine default placeholder activities and loaded activities
+		const defaultActivities = this.initializePlaceholderActivities(); // Default placeholders
+		const totalActivities = Math.max(this.selectedActivities.length, defaultActivities.length);
 
-    document.querySelector('#activities-table').innerHTML = activitiesHtml;
-}
+		// Merge loaded activities with placeholders, or extend beyond placeholders if needed
+		const activitiesToRender = [];
+		for (let i = 0; i < totalActivities; i++) {
+			// Check if there's a saved activity at this position
+			const savedActivity = this.selectedActivities[i] || {};  // Loaded activity or empty if missing
+			const defaultActivity = defaultActivities[i] || {};      // Default activity (if available)
+
+			// Combine saved activity data with default placeholders
+			const activity = {
+				...defaultActivity,   // Fill with default values
+				...savedActivity,     // Overwrite with saved data
+				position: i,          // Ensure correct position
+				isDefault: savedActivity.isDefault === undefined ? true : savedActivity.isDefault  // Handle default flag
+			};
+
+			activitiesToRender.push(activity);
+		}
+
+		// Now render exactly the activities that need to be shown, no more, no less
+		const activitiesHtml = activitiesToRender.map((activity, index) => {
+			return this.renderActivityRow(activity, index);
+		}).join('');
+
+		// Insert the HTML into the activities table
+		document.querySelector('#activities-table tbody').innerHTML = activitiesHtml;
+		this.addDurationListeners();
+	}
+
+
+
+
 
 	renderActivityRow(a, index) {
+		// Convert duration to minutes if it isn't already
+		const durationMinutes = parseInt(a.duration.split(':')[0]) * 60 + parseInt(a.duration.split(':')[1]);
+		const formattedDuration = this.formatMinutesToHHMM(durationMinutes);  // Format duration into HH:MM
+
+			// Handle default values for missing fields
 			const isCustomActivity = !this.activities.some(activity => activity.activity === a.activity);
+			const activityName = a.activity || translate("default_activity_name");
+			const time = a.time || '18:30';
+			const duration = a.duration || '00:00';
+			const responsable = a.responsable || translate("default_responsable");
+			const materiel = a.materiel || '';
 
-			// Check if the responsable (animateur) exists in the animateurs list
-			const responsableExists = this.animateurs.some(animateur => animateur.full_name === a.responsable);
-
-			// If responsable doesn't exist, render a text field; otherwise, render a select field
+			// Render responsable field (dropdown or input)
+			const responsableExists = !a.responsable || this.animateurs.some(animateur => animateur.full_name === a.responsable);
 			const responsableField = responsableExists ? `
 					<select class="activity-responsable" data-default="${a.isDefault}">
 							<option value="">${translate("select_animateur")}</option>
@@ -614,39 +706,117 @@ renderActivitiesTable() {
 							<option value="other">${translate("other")}</option>
 					</select>
 			` : `
-					<input type="text" value="${a.responsable}" class="responsable-input" data-default="${a.isDefault}" readonly>
+					<input type="text" value="${a.responsable}" class="responsable-input" data-default="${a.isDefault}" contenteditable="true">
 			`;
 
-			// Modal trigger for the description
-			const descriptionIcon = a.description ? `<button class="description-btn" data-description="${a.description}">?</button>` : '';
-
 			return `
-					<div class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
-							<div class="activity-time-container">
-									<input type="time" value="${a.time || ''}" class="activity-time">
-									<input type="text" value="${a.duration || ''}" class="activity-duration">
-							</div>
+					<tr class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
+							<td><div class="activity-time-container">
+									<input type="time" value="${time}" class="activity-time">
+									<input type="text" value="${duration}" class="activity-duration">
+									</div>
+							</td>
+							<td>
 							<div class="activity-container">
 									<select class="activity-select" data-default="${a.isDefault}">
-											${isCustomActivity ? `<option>${a.activity}</option>` : ''}
+											${isCustomActivity ? `<option>${activityName}</option>` : ''}
 											<option value="">${translate("select_activity")}</option>
 											${this.activities.map(act => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
 									</select>
-									${descriptionIcon}
 									<button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
 							</div>
+							<div>
 							<div class="responsable-container">
 									${responsableField}
 							</div>
-							<input type="text" value="${a.materiel || ''}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
-							<div class="actions">
-									<button class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
-									<button class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
-							</div>
-					</div>
+							<input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
+								</div>
+								<div class="actions">
+										<button class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
+										<button class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
+								</div>
+							</td>
+					</tr>
 			`;
 	}
 
+	// Function to parse the time string (HH:MM)
+	 parseTime(timeString) {
+			const [hours, minutes] = timeString.split(':').map(Number);
+			return { hours, minutes };
+	}
+
+	// Function to format time back into HH:MM
+	formatTime(hours, minutes) {
+			return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+	}
+
+	// Function to add duration to a start time
+	addDurationToTime(startTime, duration) {
+			const timeParts = this.parseTime(startTime);
+			const durationParts = this.parseTime(duration);
+
+			let totalMinutes = timeParts.minutes + durationParts.minutes;
+			let totalHours = timeParts.hours + durationParts.hours + Math.floor(totalMinutes / 60);
+
+			totalMinutes = totalMinutes % 60;
+			totalHours = totalHours % 24;  // Ensure that we don't exceed 24-hour format
+
+			return this.formatTime(totalHours, totalMinutes);
+	}
+
+	// Function to update times for following rows based on the duration of the current row
+	updateFollowingTimes(rowIndex) {
+			const rows = document.querySelectorAll('.activity-row');
+
+			for (let i = rowIndex; i < rows.length - 1; i++) {
+					const currentRow = rows[i];
+					const nextRow = rows[i + 1];
+
+					const currentEndTime = this.addDurationToTime(
+							currentRow.querySelector('.activity-time').value,
+							currentRow.querySelector('.activity-duration').value
+					);
+
+					const nextTimeInput = nextRow.querySelector('.activity-time');
+					nextTimeInput.value = currentEndTime;  // Update the next row's start time
+			}
+	}
+
+	// Add event listeners either to all rows (if no newRow is passed) or just the newRow
+	addDurationListeners(newRow = null) {
+			const rows = newRow ? [newRow] : document.querySelectorAll('.activity-row');
+
+			rows.forEach(row => {
+					const durationInput = row.querySelector('.activity-duration');
+					const timeInput = row.querySelector('.activity-time');
+
+					durationInput.addEventListener('input', (event) => {
+							// Format the duration input
+							let inputValue = event.target.value;
+							let minutes = 0;
+
+							if (inputValue.includes(':')) {
+									const [hours, mins] = inputValue.split(':').map(Number);
+									minutes = hours * 60 + mins;
+							} else {
+									minutes = parseInt(inputValue, 10);
+							}
+
+							if (!isNaN(minutes)) {
+									event.target.value = this.formatMinutesToHHMM(minutes);
+									const rowIndex = Array.from(document.querySelectorAll('.activity-row')).indexOf(row);
+									this.updateFollowingTimes(rowIndex);
+							}
+					});
+
+					timeInput.addEventListener('input', (event) => {
+							const rowIndex = Array.from(document.querySelectorAll('.activity-row')).indexOf(row);
+							this.updateFollowingTimes(rowIndex);
+					});
+			});
+	}
+	
 
 	addActivityRow(position) {
 			// Insert a new activity row at the specified position
@@ -823,39 +993,42 @@ async loadMeeting(date) {
 			e.stopPropagation();
 
 			const activitiesContainer = document.querySelector('#activities-table');
-		const reminderDate = document.getElementById('reminder-date').value;
-		const isRecurring = document.getElementById('recurring-reminder').checked;
-
-		 await this.saveReminderSettings(reminderDate, isRecurring);
-
 
 			// Filter activities that have been modified (isDefault is false)
-		const updatedActivities = Array.from(activitiesContainer.querySelectorAll('.activity-row'))
-		.filter(row => row.getAttribute('data-default') === 'false')
-		.map((row) => {
-				const index = row.getAttribute('data-id').split('-')[1];
-				const activity = this.selectedActivities[index];
-				return {
-						...activity,
-						position: parseInt(row.getAttribute('data-position'), 10),  // Ensure position is an integer
-						id: row.getAttribute('data-id'),
-						time: row.querySelector('.activity-time').value,
-						duration: row.querySelector('.activity-duration').value,
-						activity: row.querySelector('.activity-input')?.value || row.querySelector('.activity-select')?.value,
-						responsable: row.querySelector('.responsable-input')?.value || row.querySelector('.activity-responsable')?.value,
-						materiel: row.querySelector('.activity-materiel').value,
-						isDefault: false  // Only modified activities are saved
-				};
-		});
+			const updatedActivities = Array.from(activitiesContainer.querySelectorAll('.activity-row'))
+					.filter(row => row.getAttribute('data-default') === 'false')
+					.map((row) => {
+							const index = row.getAttribute('data-id').split('-')[1];
+							const activity = this.selectedActivities[index];
+
+							// Check if the responsable field is a select or an input
+							const responsableInput = row.querySelector('.responsable-input');
+							const responsableSelect = row.querySelector('.activity-responsable');
+							const responsable = responsableInput ? responsableInput.value : responsableSelect ? responsableSelect.value : '';
+
+							console.log('Captured Responsable:', responsable); // Debugging log to verify responsable is captured
+
+							return {
+									...activity,
+									position: parseInt(row.getAttribute('data-position'), 10),  // Ensure position is an integer
+									id: row.getAttribute('data-id'),
+									time: row.querySelector('.activity-time').value,
+									duration: row.querySelector('.activity-duration').value,
+									activity: row.querySelector('.activity-input')?.value || row.querySelector('.activity-select')?.value,
+									responsable: responsable,  // Capture responsable from either select or input
+									materiel: row.querySelector('.activity-materiel').value,
+									isDefault: false  // Only modified activities are saved
+							};
+					});
 
 			const formData = {
 					organization_id: this.app.organizationId,
-					animateur_responsable: document.getElementById("animateur-responsable").value,
-					date: document.getElementById("date").value,
-					louveteau_dhonneur: Array.from(document.getElementById("louveteau-dhonneur").querySelectorAll('li')).map(li => li.textContent),
-					endroit: document.getElementById("endroit").value,
+					animateur_responsable: document.getElementById('animateur-responsable').value,
+					date: document.getElementById('date').value,
+					louveteau_dhonneur: Array.from(document.getElementById('louveteau-dhonneur').querySelectorAll('li')).map(li => li.textContent),
+					endroit: document.getElementById('endroit').value,
 					activities: updatedActivities,  // Only modified activities are saved
-					notes: document.getElementById("notes").value,
+					notes: document.getElementById('notes').value,
 			};
 
 			try {
@@ -869,8 +1042,6 @@ async loadMeeting(date) {
 
 			return false;
 	}
-
-
 
 
 	addActivityListeners() {
@@ -968,7 +1139,7 @@ async loadMeeting(date) {
 									<style>
 											body { 
 													font-family: Arial, sans-serif; 
-													line-height: 1.8;
+													line-height: 1.1;
 											}
 											.print-preparation { 
 													max-width: 800px; 
@@ -976,6 +1147,7 @@ async loadMeeting(date) {
 											}
 											h1, h2 { 
 													text-align: center; 
+													margin:auto;
 											}
 											.print-header { 
 													display: flex; 

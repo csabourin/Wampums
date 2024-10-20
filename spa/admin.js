@@ -4,6 +4,7 @@ import {
 	approveUser,
 	getSubscribers
 } from './ajax-functions.js';
+import { translate } from "./app.js";
 
 export class Admin {
 	constructor(app) {
@@ -32,6 +33,8 @@ export class Admin {
 		const content = `
 			<h1>${this.app.translate('admin_panel')}</h1>
 			<div id="message"></div>
+
+			 <button id="create-organization-btn">${translate("create_new_organization")}</button>
 
 <h2>${this.app.translate('send_notification')}</h2>
 <form id="notification-form">
@@ -101,6 +104,11 @@ export class Admin {
 	}
 
 	initEventListeners() {
+
+		document.getElementById("create-organization-btn").addEventListener("click", () => {
+				this.app.router.navigate("/create-organization");
+		});
+		
 		document.getElementById('users-table').addEventListener('change', async (event) => {
 			if (event.target.classList.contains('role-select')) {
 				const userId = event.target.dataset.userId;

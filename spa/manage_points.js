@@ -27,11 +27,10 @@ export class ManagePoints {
 
   async init() {
     try {
-      await this.fetchData();
+      await this.preloadManagePointsData();
       this.render();
-      this.attachEventListeners(); // Use event delegation
+      this.attachEventListeners();
       console.debug("init called");
-      console.log("attachEventListeners called");
       if (navigator.onLine) {
         await this.refreshPointsData();
       }
@@ -41,11 +40,24 @@ export class ManagePoints {
     }
   }
 
+  async preloadManagePointsData() {
+    const cachedData = await getCachedData('manage_points_data');
+    if (cachedData) {
+      this.participants = cachedData.participants;
+      this.groups = cachedData.groups;
+      this.groupedParticipants = cachedData.groupedParticipants;
+      this.unassignedParticipants = cachedData.unassignedParticipants;
+    } else {
+      await this.fetchData();
+    }
+  }
+
+
   async fetchData() {
     try {
       const [participantsResponse, groupsResponse] = await Promise.all([
         getParticipants(),
-        getGroups(), // This should now include total_points for each group
+        getGroups(),
       ]);
 
       if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
@@ -56,35 +68,26 @@ export class ManagePoints {
       }
 
       if (groupsResponse.success && Array.isArray(groupsResponse.groups)) {
-        this.groups = groupsResponse.groups; // Groups should now include total_points
+        this.groups = groupsResponse.groups;
       } else {
         console.error("Unexpected groups data structure:", groupsResponse);
         throw new Error("Invalid groups data");
       }
 
-      // Organize participants by group
-      this.groupedParticipants = this.groups.reduce((acc, group) => {
-        acc[group.id] = [];
-        return acc;
-      }, {});
+      this.organizeParticipants();
 
-      this.unassignedParticipants = [];
-
-      this.participants.forEach(participant => {
-        if (participant.group_id) {
-          if (this.groupedParticipants[participant.group_id]) {
-            this.groupedParticipants[participant.group_id].push(participant);
-          }
-        } else {
-          this.unassignedParticipants.push(participant);
-        }
-      });
-
+      // Cache the fetched data
+      await setCachedData('manage_points_data', {
+        participants: this.participants,
+        groups: this.groups,
+        groupedParticipants: this.groupedParticipants,
+        unassignedParticipants: this.unassignedParticipants
+      }, 5 * 60 * 1000); // Cache for 5 minutes
     } catch (error) {
       console.error("Error fetching manage points data:", error);
       throw error;
     }
-}
+  }
 
 
   render() {
@@ -619,6 +622,25 @@ export class ManagePoints {
       }
       throw error;
     }
+  }
+
+  organizeParticipants() {
+    this.groupedParticipants = this.groups.reduce((acc, group) => {
+      acc[group.id] = [];
+      return acc;
+    }, {});
+
+    this.unassignedParticipants = [];
+
+    this.participants.forEach(participant => {
+      if (participant.group_id) {
+        if (this.groupedParticipants[participant.group_id]) {
+          this.groupedParticipants[participant.group_id].push(participant);
+        }
+      } else {
+        this.unassignedParticipants.push(participant);
+      }
+    });
   }
 
   updatePointsDisplay(data) {

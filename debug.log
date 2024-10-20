@@ -4,3 +4,9 @@
 [2024-10-05 21:51:24] Token expiry (UTC): 2024-10-06 21:50:12
 [2024-10-05 21:51:24] Time difference: +0 days 19 hours 58 minutes 47 seconds
 [2024-10-05 21:51:24] Password reset successful for user ID: 46
+[2024-10-14 00:43:58] Attempting password reset with token: cb24ad8f85...
+[2024-10-14 00:43:59] User fetch result: {"id":"31ded735-1c7c-4630-810f-71c16e86f98f","reset_token":"cb24ad8f85d9a689155abf97a1dbbc169d3d39167b8a0799679bea265d8481f2","reset_token_expiry":"2024-10-15 00:43:39+00"}
+[2024-10-14 00:43:59] Current time (UTC): 2024-10-14 04:43:59
+[2024-10-14 00:43:59] Token expiry (UTC): 2024-10-15 00:43:39
+[2024-10-14 00:43:59] Time difference: +0 days 19 hours 59 minutes 39 seconds
+[2024-10-14 00:43:59] Password reset successful for user ID: 31ded735-1c7c-4630-810f-71c16e86f98f

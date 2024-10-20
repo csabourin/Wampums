@@ -23,6 +23,9 @@ import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { Reports } from "./reports.js";
 import { PreparationReunions } from './preparation_reunions.js';
 import { RegisterOrganization } from './register_organization.js';
+import { CreateOrganization } from './create_organization.js';
+import { PrintableGroupParticipantReport } from './group-participant-report.js';
+import { UpcomingMeeting } from './upcoming_meeting.js';
 
 const debugMode =
   window.location.hostname === "localhost" ||
@@ -43,6 +46,7 @@ function debugError(...args) {
 }
 
 const routes = {
+  "/index.php": "dashboard",
   "/": "dashboard",
   "/admin": "admin",
   "/dashboard": "dashboard",
@@ -71,6 +75,9 @@ const routes = {
    "/register-organization": "registerOrganization",
   "/manage-users-participants": "manageUsersParticipants",
   "/dynamic-form/fiche_sante/:id": "ficheSante",
+  "/create-organization": "createOrganization",
+  "/group-participant-report": "PrintableGroupParticipantReport",
+  "/upcoming-meeting": "UpcomingMeeting",
 
 };
 
@@ -127,6 +134,10 @@ export class Router {
             await this.loadDashboard();
           }
           break;
+          case 'PrintableGroupParticipantReport':
+          const report = new PrintableGroupParticipantReport(this.app);
+          await report.init();
+          break;
           case "admin":
           if (this.app.userRole !== "admin") {
             this.loadNotAuthorizedPage();
@@ -139,6 +150,14 @@ export class Router {
             this.loadNotAuthorizedPage();
           } else {
             await this.loadCalendarsPage();
+          }
+          break;
+          case "createOrganization":
+          if (this.app.userRole !== "admin") {
+              this.loadNotAuthorizedPage();
+          } else {
+              const createOrganization = new CreateOrganization(this.app);
+              await createOrganization.init();
           }
           break;
         case "parentDashboard":
@@ -169,7 +188,10 @@ export class Router {
         case "attendance":
           await this.loadAttendance();
           break;
-        case "formulaireInscription":
+          case "UpcomingMeeting":
+          await this.loadUpcomingMeeting();
+          break;
+          case "formulaireInscription":
           await this.loadFormulaireInscription(param);
           break;
           case "mailingList":
@@ -308,6 +330,11 @@ export class Router {
   async loadReports() {
     const reports = new Reports(this.app);
     await reports.init();
+  }
+
+  async loadUpcomingMeeting(){
+    const upcomingMeeting = new UpcomingMeeting(this.app);
+    upcomingMeeting.init();
   }
 
   async loadPreparationReunions() {

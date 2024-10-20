@@ -19,10 +19,11 @@ export class DynamicFormHandler {
         this.container = document.getElementById("app"); // Default to #app
         this.useUniqueIds = false;
         this.uniqueIdPart = '';
+         this.organizationId = null;
     }
 
-    async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null) {
-        console.log("Initializing DynamicFormHandler", { formType, participantId, initialData, container });
+    async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, formStructure = null,organizationId = null) {
+        console.log("Initializing DynamicFormHandler", { formType, participantId, initialData, container,organizationId});
         this.formType = formType;
         this.participantId = participantId;
 
@@ -32,6 +33,7 @@ export class DynamicFormHandler {
         this.useUniqueIds = useUniqueIds;
         this.formIndex = formIndex;
         this.uniqueIdPart = this.useUniqueIds && this.formIndex !== null ? `-${this.formIndex}` : ''; 
+        this.organizationId = organizationId;
         this.container = container ? 
             (typeof container === 'string' ? document.getElementById(container) : container) 
             : document.getElementById("app"); // Use #app if container is not specified
@@ -67,7 +69,7 @@ export class DynamicFormHandler {
     }
 
     async fetchFormFormats() {
-        this.formFormats = await getOrganizationFormFormats();
+        this.formFormats = await getOrganizationFormFormats(this.organizationId);
         if (!this.formFormats || !this.formFormats[this.formType]) {
             throw new Error("Failed to fetch form formats or form type not found");
         }

@@ -25,12 +25,12 @@ try {
 }
 
 ?>
+	<?php if (!empty($newsItems)): ?>
 <div class="news-accordion" data-latest-timestamp="<?php echo $newsItems[0]['created_at'] ?? ''; ?>">
 		<div class="news-accordion-header">
 				<h2><?php echo translate('latest_news'); ?></h2>
 		</div>
 		<div class="news-accordion-content">
-				<?php if (!empty($newsItems)): ?>
 						<?php foreach ($newsItems as $news): ?>
 								<div class="news-item">
 										<h3><?php echo htmlspecialchars($news['title']); ?></h3>
@@ -57,8 +57,8 @@ try {
 										?>
 								</div>
 						<?php endforeach; ?>
-				<?php else: ?>
-						<p><?php echo translate('no_news'); ?></p>
-				<?php endif; ?>
 		</div>
 </div>
+<?php else: ?>
+
+<?php endif; ?>

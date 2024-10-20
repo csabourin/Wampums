@@ -1638,31 +1638,31 @@ export async function getParticipantsWithDocuments() {
 }
 
 
-export async function getOrganizationFormFormats() {
-  try {
-    const response = await fetch('/api.php?action=get_organization_form_formats', {
-      method: 'GET',
-      headers: {
-        ...getAuthHeader(),
-        'Content-Type': 'application/json'
-      }
-    });
+export async function getOrganizationFormFormats(organizationId = null) {
+    try {
+        const response = await fetch('/api.php?action=get_organization_form_formats' + (organizationId !== null ? `&organization_id=${organizationId}` : ''), {
+            method: 'GET',
+            headers: {
+                ...getAuthHeader(),
+                'Content-Type': 'application/json'
+            }
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            return data.formFormats;
+        } else {
+            throw new Error(data.message || 'Failed to fetch organization form formats');
+        }
+    } catch (error) {
+        console.error('Error fetching organization form formats:', error);
+        throw error;
     }
-
-    const data = await response.json();
-
-    if (data.success) {
-      return data.formFormats;
-    } else {
-      throw new Error(data.message || 'Failed to fetch organization form formats');
-    }
-  } catch (error) {
-    console.error('Error fetching organization form formats:', error);
-    throw error;
-  }
 }
 
 

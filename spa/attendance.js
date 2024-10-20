@@ -7,6 +7,8 @@ import {
   getGuestsByDate
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
+import { getCachedData, setCachedData } from "./indexedDB.js";
+
 
 export class Attendance {
   constructor(app) {
@@ -25,14 +27,26 @@ export class Attendance {
 
   async init() {
     try {
-      this.renderSkeleton(); 
+      this.renderSkeleton();
       await this.fetchAttendanceDates();
-      await this.fetchData();
+      await this.preloadAttendanceData();
       this.render();
       this.attachEventListeners();
     } catch (error) {
       console.error("Error initializing attendance:", error);
       this.renderError();
+    }
+  }
+
+  async preloadAttendanceData() {
+    const cachedData = await getCachedData(`attendance_${this.currentDate}`);
+    if (cachedData) {
+      this.participants = cachedData.participants;
+      this.attendanceData = cachedData.attendanceData;
+      this.guests = cachedData.guests;
+      this.groups = cachedData.groups;
+    } else {
+      await this.fetchData();
     }
   }
 
@@ -86,6 +100,14 @@ export class Attendance {
         acc[participant.group_id].participants.push(participant);
         return acc;
       }, {});
+
+      // Cache the fetched data
+      await setCachedData(`attendance_${this.currentDate}`, {
+        participants: this.participants,
+        attendanceData: this.attendanceData,
+        guests: this.guests,
+        groups: this.groups
+      }, 24 * 60 * 60 * 1000); // Cache for 24 hours
     } catch (error) {
       console.error("Error fetching attendance data:", error);
       throw error;
@@ -296,7 +318,8 @@ export class Attendance {
     this.currentDate = newDate;
     document.getElementById("dateSelect").value = this.currentDate;
     console.log(`Changing date to ${this.currentDate}`);
-    await this.loadAttendanceForDate(this.currentDate);
+    await this.preloadAttendanceData();
+    this.updateAttendanceUIForDate();
   }
 
   async loadAttendanceForDate(date) {
