@@ -58,3 +58,6 @@ composer.phar
 # Replit specific files
 .replit
 .cache
+.config
+.local
+replit*
