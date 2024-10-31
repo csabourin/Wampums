@@ -597,5 +597,40 @@ return [
   'health_issues' => 'Health Issues',
   "acceptation_risque" => "Risk Acceptance Form",
   "manage_badge_progress" => "Request a badge",
+  'parent_name_label' => 'Print parent’s name',
+  'parent_name_label' => 'Print parent’s name',
+    'signed_parent_label' => 'Signed',
+    'date_signed_label' => 'Date',
+    'child_name_label' => 'Child’s name',
+    'permission_given_label' => 'I hereby give permission for my child to attend the 2024 Timberwolves Fall Camp',
+    'emergency_contact_name_label' => 'In case of emergency, please notify (name)',
+    'emergency_contact_phone_label' => 'In case of emergency, please notify (phone number)',
+    'medication_required_label' => 'Does your child require any medication during camp?',
+    'medication_details_label' => 'List medication, time, and dosage',
+    'additional_notes_label' => 'Additional notes or information',
+    'yes_label' => 'Yes',
+    'no_label' => 'No',
+    'infoText_permission' => 'In connection with scouting activities, experience has shown that there are times when illness or accidents may occur, and where immediate surgical or medical attention is necessary. This is my permission for the Leader-in-charge or his/her deputy to make arrangements for surgical or medical attention for my child/ward in the event of an emergency, without the necessity of my prior approval. I understand that I will be notified by the quickest means possible if this authority is exercised.',
+    'infoText_camp_details' => '<strong>2024 Timberwolves Fall Camp</strong><br><br>Cost: $25.00 for Registrations<br><br><strong>From:</strong> Friday, October 18<br><strong>Check-in:</strong> 6:30 PM at the CWP Longhouse, 4865 County Road 8<br><br><strong>To:</strong> Sunday, October 20<br><strong>Pick-up:</strong> 11:30 AM at the CWP Longhouse, 4865 County Road 8',
+  "link_existing_participants" => "Link Existing Participants",
+  "existing_participants_found" => "We found some participants associated with your email. Would you like to link them to your account?",
+  "link_selected_participants" => "Link Selected Participants",
+  "participants_linked_successfully" => "Participants linked successfully",
+  "error_linking_participants" => "Error occurred while linking participants",
+  "no_participants_selected" => "No participants selected",
+  "new_animator_registration_subject" => "New Animator Registration for {orgName}",
+  "new_animator_registration_body" => "
+  Dear Admin,
+
+  A new user has registered as an animator for {orgName} and requires verification:
+
+  Name: {animatorName}
+  Email: {animatorEmail}
+
+  Please log in to the admin dashboard to verify this user.
+
+  Best regards,
+  The System
+  ",
   
 ];

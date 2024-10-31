@@ -65,17 +65,85 @@ function isLoggedIn() {
     return isset($_SESSION['user_id']);
 }
 
+function sendAdminVerificationEmail($organizationId, $animatorName, $animatorEmail) {
+    global $pdo;
+
+    // Fetch admin emails for the organization
+    $stmt = $pdo->prepare("
+        SELECT u.email
+        FROM users u
+        JOIN user_organizations uo ON u.id = uo.user_id
+        WHERE uo.organization_id = ? AND uo.role = 'admin'
+    ");
+    $stmt->execute([$organizationId]);
+    $adminEmails = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    if (empty($adminEmails)) {
+        error_log("No admin emails found for organization ID: $organizationId");
+        return;
+    }
+
+    // Fetch organization name
+    $stmt = $pdo->prepare("
+        SELECT setting_value->>'name' as org_name
+        FROM organization_settings
+        WHERE organization_id = ? AND setting_key = 'organization_info'
+    ");
+    $stmt->execute([$organizationId]);
+    $orgName = $stmt->fetchColumn() ?: 'Wampums.app';
+
+        $subject = str_replace('{orgName}', $orgName, translate('new_animator_registration_subject'));
+        $message = str_replace(
+            ['{orgName}', '{animatorName}', '{animatorEmail}'],
+            [$orgName, $animatorName, $animatorEmail],
+            translate('new_animator_registration_body')
+        );
+
+        foreach ($adminEmails as $adminEmail) {
+            $result = sendEmail($adminEmail, $subject, $message);
+            if (!$result) {
+                error_log("Failed to send admin verification email to: $adminEmail");
+            }
+        }
+    }
+
+function sendEmail($to, $subject, $message) {
+    require 'vendor/autoload.php'; // Make sure you have the SendGrid PHP library installed
+    $email = new \SendGrid\Mail\Mail();
+    $email->setFrom("noreply@wampums.app", "Wampums.app");
+    $email->setSubject($subject);
+    $email->addTo($to);
+    $email->addContent("text/plain", $message);
+
+    $sendgridApiKey = getenv('SENDGRID_API_KEY');
+
+    if (!$sendgridApiKey) {
+        error_log('SendGrid API key not found in environment variables');
+        return false;
+    }
+
+    $sendgrid = new \SendGrid($sendgridApiKey);
+    try {
+        $response = $sendgrid->send($email);
+        return $response->statusCode() == 202;
+    } catch (Exception $e) {
+        error_log('Caught exception: '. $e->getMessage() ."\n");
+        return false;
+    }
+}
+
+
 // Add this function to send emails using SendGrid
     function sendResetEmail($to, $subject, $message) {
             require 'vendor/autoload.php'; // Make sure you have the SendGrid PHP library installed
             $email = new \SendGrid\Mail\Mail();
-            $email->setFrom("noreply@meute6a.app", "Meute 6A");
+            $email->setFrom("noreply@wampums.app", "Wampums App");
             $email->setSubject($subject);
             $email->addTo($to);
             $email->addContent("text/plain", $message);
 
             // Read the API key from the environment variable
-            $sendgridApiKey = getenv('SENDGRID_API_KEY');
+            $sendgridApiKey = getenv('WAMPUMS_SENDGRID');
 
             if (!$sendgridApiKey) {
                     error_log('SendGrid API key not found in environment variables');
@@ -143,7 +211,6 @@ function getJWTPayload() {
 }
 
 function determineOrganizationId($pdo, $currentHost) {
-    // Prepare the query to match exact and wildcard domains
     $stmt = $pdo->prepare("
         SELECT organization_id 
         FROM organization_domains 
@@ -151,59 +218,29 @@ function determineOrganizationId($pdo, $currentHost) {
         OR :current_host LIKE REPLACE(domain, '*', '%')
         LIMIT 1
     ");
-
-    // Execute the query
     $stmt->execute([
         ':domain' => $currentHost,
         ':current_host' => $currentHost
     ]);
-
-    $organization = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // Log the query result for debugging
-    error_log("Query result: " . print_r($organization, true));
-
-    // Return the organization_id if found, otherwise null
-    return $organization ? $organization['organization_id'] : null;
-}
-
-function setCurrentOrganizationId() {
-    global $pdo; // Ensure you have access to your PDO instance
-
-    // Retrieve the current domain
-    $currentHost = $_SERVER['HTTP_HOST'];
-
-    // Log the current host for debugging
-    error_log("Current host: " . $currentHost);
-
-    // Call the pure function to determine the organization ID
-    $organizationId = determineOrganizationId($pdo, $currentHost);
-
-    if ($organizationId !== null) {
-        // Store in session for future requests
-        $_SESSION['current_organization_id'] = $organizationId;
-        return $organizationId;
-    }
-
-    // If no valid organization ID is found, return the default (1)
-    error_log("No matching organization found for domain: " . $currentHost);
-    return 1;
+    return $stmt->fetchColumn();
 }
 
 
 function getCurrentOrganizationId() {
-    // Ensure session is started
-    if (session_status() == PHP_SESSION_NONE) {
-        session_start();
-    }
+if (isset($_SESSION['current_organization_id'])) {
+    return $_SESSION['current_organization_id'];
+}
 
-    // Check if the organization ID is already stored in the session
-    if (isset($_SESSION['current_organization_id'])) {
-        return $_SESSION['current_organization_id'];
-    }
+$currentHost = $_SERVER['HTTP_HOST'];
+$pdo = getDbConnection();
+$organizationId = determineOrganizationId($pdo, $currentHost);
 
-    // If not found in session, use side-effect function to determine and set it
-    return setCurrentOrganizationId();
+if ($organizationId) {
+    $_SESSION['current_organization_id'] = $organizationId;
+    return $organizationId;
+}
+    // If no organization is found, you might want to throw an error or handle this case
+    throw new Exception("No organization found for the current host");
 }
 
 

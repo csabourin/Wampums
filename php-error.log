@@ -1,0 +1,16 @@
+[21-Oct-2024 18:34:56 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729549635,"exp":1761085635,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:39 America/Toronto] Login attempt for email: info@christiansabourin.com
+[21-Oct-2024 18:35:39 America/Toronto] JWT Payload: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:39 America/Toronto] Generated JWT: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3YW1wdW1fYXBwIiwiYXVkIjoid2FtcHVtX2FwcF91c2VycyIsImlhdCI6MTcyOTU1MDEzOSwiZXhwIjoxNzYxMDg2MTM5LCJ1c2VyX2lkIjoiMGRmM2JmMjctNGIwMC00YzY5LWI4ZmUtMDRhZDQ4ZDFjNjMxIiwidXNlcl9yb2xlIjoiYWRtaW4ifQ.BPmFgGW9T00UBCxfSI4rD-SqwLClltB2lR8qYUFDEG8
+[21-Oct-2024 18:35:39 America/Toronto] Login response: {"success":true,"message":"login_successful","token":"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3YW1wdW1fYXBwIiwiYXVkIjoid2FtcHVtX2FwcF91c2VycyIsImlhdCI6MTcyOTU1MDEzOSwiZXhwIjoxNzYxMDg2MTM5LCJ1c2VyX2lkIjoiMGRmM2JmMjctNGIwMC00YzY5LWI4ZmUtMDRhZDQ4ZDFjNjMxIiwidXNlcl9yb2xlIjoiYWRtaW4ifQ.BPmFgGW9T00UBCxfSI4rD-SqwLClltB2lR8qYUFDEG8","user_role":"admin","user_full_name":"Admin Csabourin"}
+[21-Oct-2024 18:35:40 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:42 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:43 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:45 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:46 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:47 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:48 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[21-Oct-2024 18:35:54 America/Toronto] Decoded JWT: {"iss":"wampum_app","aud":"wampum_app_users","iat":1729550139,"exp":1761086139,"user_id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","user_role":"admin"}
+[22-Oct-2024 22:54:40 America/Toronto] Password reset error: Failed to send reset email
+[22-Oct-2024 22:56:37 America/Toronto] Password reset error: Failed to send reset email
+[22-Oct-2024 22:56:52 America/Toronto] Password reset error: Failed to send reset email

@@ -1,9 +1,6 @@
 import {
-  saveParticipants,
-  getParticipantsFromCache,
-  saveGroups,
-  getGroupsFromCache,
   saveOfflineData,
+  getOfflineData,
   setCachedData, getCachedData 
 } from "./indexedDB.js";
 
@@ -73,6 +70,14 @@ export async function fetchFromApi(action, method = 'GET', body = null) {
   } catch (error) {
     console.error(`Error fetching ${action}:`, error);
     throw new Error(`Failed to fetch ${action}: ${error.message}`);
+  }
+}
+
+export async function LinkUserParticipants(data) {
+  try {
+    return await fetchFromApi('link_user_participants', 'POST', data);
+  } catch (error) {
+    console.error("Error linking participants:", error);
   }
 }
 
@@ -292,52 +297,48 @@ export async function fetchParticipant(participantId) {
   }
 }
 
-export async function approveUser(userId) {
-  try {
-    const response = await fetch("/api.php?action=approve_user", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      },
-      body: JSON.stringify({ user_id: userId }),
-    });
+export async function approveUser(userId, organizationId) {
+    try {
+        const response = await fetch("/api.php?action=approve_user", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader(),
+            },
+            body: JSON.stringify({ user_id: userId, organization_id: organizationId }),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Error approving user:", error);
+        throw error;
     }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error("Error approving user:", error);
-    throw error;
-  }
 }
 
-export async function updateUserRole(userId, newRole) {
-  try {
-    const response = await fetch("/api.php?action=update_user_role", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      },
-      body: JSON.stringify({ user_id: userId, new_role: newRole }),
-    });
+export async function updateUserRole(userId, newRole, organizationId) {
+    try {
+        const response = await fetch("/api.php?action=update_user_role", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader(),
+            },
+            body: JSON.stringify({ user_id: userId, new_role: newRole, organization_id: organizationId }),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Error updating user role:", error);
+        throw error;
     }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error("Error updating user role:", error);
-    throw error;
-  }
 }
 
 export async function getCalendars() {
@@ -598,51 +599,51 @@ export async function getParticipantCalendar(participantId) {
   }
 }
 
-export async function getUsers() {
-  try {
-    const response = await fetch("/api.php?action=get_users", {
-      headers: getAuthHeader(),
-    });
+export async function getUsers(organizationId) {
+    try {
+        const response = await fetch(`/api.php?action=get_users&organization_id=${organizationId}`, {
+            headers: getAuthHeader(),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const users = await response.json();
+        return users.map(user => ({
+            id: user.id,
+            email: user.email,
+            isVerified: user.is_verified === true,
+            role: user.role,
+            fullName: user.full_name,
+            createdAt: new Date(user.created_at)
+        }));
+    } catch (error) {
+        console.error("Error fetching users:", error);
+        throw error;
     }
-
-    const users = await response.json();
-    return users.map(user => ({
-      id: user.id,
-      email: user.email,
-      isVerified: user.is_verified === true, // Convert string to boolean
-      role: user.role,
-      fullName: user.full_name,
-      createdAt: new Date(user.created_at)
-    }));
-  } catch (error) {
-    console.error("Error fetching users:", error);
-    throw error;
-  }
 }
 
-export async function getSubscribers() {
-  try {
-    const response = await fetch("/api.php?action=get_subscribers", {
-      headers: getAuthHeader(),
-    });
+export async function getSubscribers(organizationId) {
+    try {
+        const response = await fetch(`/api.php?action=get_subscribers&organization_id=${organizationId}`, {
+            headers: getAuthHeader(),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const subscribers = await response.json();
+        return subscribers.map(subscriber => ({
+            id: subscriber.id,
+            email: subscriber.email || `User ${subscriber.user_id}`,
+            userId: subscriber.user_id
+        }));
+    } catch (error) {
+        console.error("Error fetching subscribers:", error);
+        throw error;
     }
-
-    const subscribers = await response.json();
-    return subscribers.map(subscriber => ({
-      id: subscriber.id,
-      email: subscriber.email || `User ${subscriber.user_id}`, // Fallback if email is not provided
-      userId: subscriber.user_id
-    }));
-  } catch (error) {
-    console.error("Error fetching subscribers:", error);
-    throw error;
-  }
 }
 
 export async function register(registerData) {
@@ -801,17 +802,13 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
   }
 }
 
-// Fetch participants from the API or from IndexedDB when offline
 export async function getParticipants() {
-  const cacheKey = "get_participants";
-
-  // Try to retrieve from cache first
-  const cachedParticipants = await getCachedData(cacheKey);
-  if (cachedParticipants) {
-    return cachedParticipants; // Return cached participants if available
-  }
-
+  const PARTICIPANT_INFO_CACHE_KEY = "participant_info";
   try {
+    // First, get the cached participant info (everything except points)
+    const cachedParticipantInfo = await getCachedData(PARTICIPANT_INFO_CACHE_KEY);
+
+    // Always fetch fresh data to get current points
     const response = await fetch("/api.php?action=get_participants", {
       headers: {
         ...getAuthHeader(),
@@ -823,14 +820,61 @@ export async function getParticipants() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
+    const freshData = await response.json();
 
-    // Cache participants in IndexedDB for future use
-    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+    if (!freshData.success) {
+      throw new Error(freshData.message || 'Failed to fetch participants');
+    }
 
-    return data;
+    // If we have cached info, merge it with fresh points data
+    if (cachedParticipantInfo) {
+      const mergedParticipants = freshData.participants.map(freshParticipant => {
+        const cachedParticipant = cachedParticipantInfo.find(p => p.id === freshParticipant.id);
+        if (cachedParticipant) {
+          return {
+            ...cachedParticipant,
+            total_points: freshParticipant.total_points,
+            group_total_points: freshParticipant.group_total_points
+          };
+        }
+        return freshParticipant;
+      });
+
+      return { success: true, participants: mergedParticipants };
+    }
+
+    // If no cache exists, create it with everything except points
+    const participantInfoToCache = freshData.participants.map(participant => ({
+      id: participant.id,
+      first_name: participant.first_name,
+      last_name: participant.last_name,
+      group_id: participant.group_id,
+      group_name: participant.group_name,
+      is_leader: participant.is_leader,
+      is_second_leader: participant.is_second_leader
+    }));
+
+    // Cache the participant info (without points) for 24 hours
+    await setCachedData(PARTICIPANT_INFO_CACHE_KEY, participantInfoToCache, 24 * 60 * 60 * 1000);
+
+    return freshData;
   } catch (error) {
     console.error("Error fetching participants:", error);
+    // If we're offline, try to use cached data with a warning
+    if (!navigator.onLine) {
+      const cachedParticipantInfo = await getCachedData(PARTICIPANT_INFO_CACHE_KEY);
+      if (cachedParticipantInfo) {
+        console.warn('Using cached participant data with potentially stale points');
+        return {
+          success: true,
+          participants: cachedParticipantInfo.map(p => ({
+            ...p,
+            total_points: 0, // Reset points when using cached data offline
+            group_total_points: 0
+          }))
+        };
+      }
+    }
     throw error;
   }
 }
@@ -869,27 +913,38 @@ export async function getGroups() {
 }
 
 export async function getOrganizationSettings() {
+  const cacheKey = "organization_settings";
+  const expirationTime = 60 * 60 * 1000; // Cache expires after 60 minutes (adjust as needed)
+
+  // Step 1: Try to get cached data from IndexedDB
+  const cachedData = await getCachedData(cacheKey);
+  if (cachedData) {
+    return cachedData; // Return cached data if available and not expired
+  }
+
+  // Step 2: Fetch from API if no valid cached data is found
   try {
-    const response = await fetch("/api.php?action=get_organization_settings");
+    const response = await fetch("/api.php?action=get_organization_settings", {
+      headers: getAuthHeader(),
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return await response.json(); // Return the entire response, including 'success' and 'settings'
+
+    const data = await response.json(); // Get the settings from the response
+
+    // Step 3: Save the new data to IndexedDB for future use
+    await setCachedData(cacheKey, data, expirationTime);
+
+    console.log("Returning fresh organization settings");
+    return data; // Return the newly fetched data
   } catch (error) {
     console.error("Error fetching organization settings:", error);
-    throw error;
+    throw error; // Propagate the error
   }
 }
 
 export async function getAttendance(date) {
-  const cacheKey = `get_attendance_${date}`;
-
-  // Try to retrieve from cache first
-  const cachedAttendance = await getCachedData(cacheKey);
-  if (cachedAttendance) {
-    return cachedAttendance; // Return cached data if available
-  }
-
   try {
     const response = await fetch(`/api.php?action=get_attendance&date=${date}`, {
       headers: getAuthHeader(),
@@ -900,10 +955,6 @@ export async function getAttendance(date) {
     }
 
     const data = await response.json();
-
-    // Cache attendance data in IndexedDB
-    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
-
     return data;
   } catch (error) {
     console.error("Error fetching attendance:", error);
@@ -943,37 +994,26 @@ export async function updateAttendance(
 // Fetches all participants and honors from the server
 export async function getHonorsAndParticipants(date = null) {
   try {
-    const url = new URL("/api.php", window.location.origin);
-    url.searchParams.append("action", "get_honors");
+    const params = new URLSearchParams();
+    params.append("action", "get_honors");
     if (date) {
-      url.searchParams.append("date", date);
+      params.append("date", date);
     }
 
-    const response = await fetch(url, {
-      headers: {
-        ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      }
-    });
+    const result = await fetchFromApi(`get_honors&${params.toString()}`, 'GET', null);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('API raw response:', data); // Add this line for debugging
-
-    if (!data.participants || !data.honors || !data.availableDates) {
-      console.error('Unexpected data structure from get_honors:', data);
+    if (!result.participants || !result.honors || !result.availableDates) {
+      console.error('Unexpected data structure from get_honors:', result);
       throw new Error("Unexpected data structure from get_honors");
     }
 
-    return data;
+    return result;
   } catch (error) {
     console.error("Error fetching honors and participants:", error);
     throw error;
   }
 }
+
 
 export async function getHonors(date) {
   try {
@@ -1260,6 +1300,38 @@ export async function saveParent(parentData) {
     console.error("Error saving parent:", error);
     throw error;
   }
+}
+
+export async function fetchOrganizationId() {
+    const storedId = localStorage.getItem('organizationId');
+    if (storedId) {
+        return parseInt(storedId, 10);
+    }
+
+    try {
+        const response = await fetch("/api.php?action=get_organization_id", {
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader()
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.organizationId) {
+            localStorage.setItem('organizationId', data.organizationId);
+            return data.organizationId;
+        } else {
+            throw new Error("Failed to fetch organization ID");
+        }
+    } catch (error) {
+        console.error("Error fetching organization ID:", error);
+        throw error;
+    }
 }
 
 export async function fetchParticipants(organizationId) {
@@ -1935,16 +2007,7 @@ export async function getCurrentStars(participantId, territoire) {
 
 // Utility function to get the current organization ID
 export function getCurrentOrganizationId() {
-  // Check if the organization ID is stored in local storage
-  const organizationId = localStorage.getItem('currentOrganizationId');
-
-  // If not found, set it to the default ID of 1
-  if (!organizationId) {
-    localStorage.setItem('currentOrganizationId', '1');
-    return '1';
-  }
-
-  return organizationId;
+    return app.organizationId || localStorage.getItem('currentOrganizationId');
 }
 
 // Utility function to set the current organization ID

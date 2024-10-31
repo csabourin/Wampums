@@ -2,7 +2,8 @@ import {
 	getUsers,
 	updateUserRole,
 	approveUser,
-	getSubscribers
+	getSubscribers,
+	getCurrentOrganizationId
 } from './ajax-functions.js';
 import { translate } from "./app.js";
 
@@ -11,22 +12,24 @@ export class Admin {
 		this.app = app;
 		this.users = [];
 		this.subscribers = [];
+		this.currentOrganizationId = null;
 	}
 
 	async init() {
-		await this.fetchData();
-		this.render();
-		this.initEventListeners();
+			this.currentOrganizationId = await getCurrentOrganizationId();
+			await this.fetchData();
+			this.render();
+			this.initEventListeners();
 	}
 
 	async fetchData() {
-		try {
-			this.users = await getUsers();
-			this.subscribers = await getSubscribers();
-		} catch (error) {
-			console.error('Error fetching data:', error);
-			this.app.showMessage('Error loading data. Please try again.', 'error');
-		}
+			try {
+					this.users = await getUsers(this.currentOrganizationId);
+					this.subscribers = await getSubscribers(this.currentOrganizationId);
+			} catch (error) {
+					console.error('Error fetching data:', error);
+					this.app.showMessage('Error loading data. Please try again.', 'error');
+			}
 	}
 
 	render() {
@@ -76,9 +79,10 @@ export class Admin {
 	}
 
 	renderUsers() {
+		console.log(this.users);
 		return this.users.map(user => `
 			<tr>
-				<td>${user.email}</td>
+				<td>${user.fullName} - ${user.email}</td>
 				<td>
 					<select class="role-select" data-user-id="${user.id}">
 						<option value="parent" ${user.role === 'parent' ? 'selected' : ''}>${this.app.translate('parent')}</option>
@@ -128,35 +132,35 @@ export class Admin {
 	}
 
 	async updateUserRole(userId, newRole) {
-		try {
-			const result = await updateUserRole(userId, newRole);
-			if (result.success) {
-				this.app.showMessage(this.app.translate('role_updated_successfully'), 'success');
-				await this.fetchData();
-				this.render();
-			} else {
-				this.app.showMessage(this.app.translate('error_updating_role'), 'error');
+			try {
+					const result = await updateUserRole(userId, newRole, this.currentOrganizationId);
+					if (result.success) {
+							this.app.showMessage(this.app.translate('role_updated_successfully'), 'success');
+							await this.fetchData();
+							this.render();
+					} else {
+							this.app.showMessage(this.app.translate('error_updating_role'), 'error');
+					}
+			} catch (error) {
+					console.error('Error updating user role:', error);
+					this.app.showMessage(this.app.translate('error_updating_role'), 'error');
 			}
-		} catch (error) {
-			console.error('Error updating user role:', error);
-			this.app.showMessage(this.app.translate('error_updating_role'), 'error');
-		}
 	}
 
 	async approveUser(userId) {
-		try {
-			const result = await approveUser(userId);
-			if (result.success) {
-				this.app.showMessage(this.app.translate('user_approved_successfully'), 'success');
-				await this.fetchData();
-				this.render();
-			} else {
-				this.app.showMessage(this.app.translate('error_approving_user'), 'error');
+			try {
+					const result = await approveUser(userId, this.currentOrganizationId);
+					if (result.success) {
+							this.app.showMessage(this.app.translate('user_approved_successfully'), 'success');
+							await this.fetchData();
+							this.render();
+					} else {
+							this.app.showMessage(this.app.translate('error_approving_user'), 'error');
+					}
+			} catch (error) {
+					console.error('Error approving user:', error);
+					this.app.showMessage(this.app.translate('error_approving_user'), 'error');
 			}
-		} catch (error) {
-			console.error('Error approving user:', error);
-			this.app.showMessage(this.app.translate('error_approving_user'), 'error');
-		}
 	}
 
 	initNotificationForm() {

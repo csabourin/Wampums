@@ -41,48 +41,86 @@ export class ManagePoints {
   }
 
   async preloadManagePointsData() {
-    const cachedData = await getCachedData('manage_points_data');
-    if (cachedData) {
-      this.participants = cachedData.participants;
-      this.groups = cachedData.groups;
-      this.groupedParticipants = cachedData.groupedParticipants;
-      this.unassignedParticipants = cachedData.unassignedParticipants;
-    } else {
-      await this.fetchData();
+    try {
+      const cachedData = await getCachedData('manage_points_data');
+      if (cachedData) {
+        // Initialize arrays
+        this.groups = cachedData.groups || [];
+        this.groupedParticipants = cachedData.groupedParticipants || {};
+        this.unassignedParticipants = cachedData.unassignedParticipants || [];
+
+        // Get fresh points data
+        const freshData = await getParticipants();
+        if (freshData.success) {
+          this.participants = freshData.participants;
+          // Reorganize with fresh data
+          this.organizeParticipants();
+        }
+      } else {
+        await this.fetchData();
+      }
+    } catch (error) {
+      console.error("Error preloading manage points data:", error);
+      // Initialize with empty arrays/objects if there's an error
+      this.participants = [];
+      this.groups = [];
+      this.groupedParticipants = {};
+      this.unassignedParticipants = [];
+      throw error;
     }
   }
 
 
   async fetchData() {
     try {
+      // Initialize arrays to prevent undefined errors
+      this.participants = [];
+      this.groups = [];
+      this.groupedParticipants = {};
+      this.unassignedParticipants = [];
+
       const [participantsResponse, groupsResponse] = await Promise.all([
         getParticipants(),
         getGroups(),
       ]);
 
-      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
-        this.participants = participantsResponse.participants;
-      } else {
-        console.error("Unexpected participants data structure:", participantsResponse);
-        throw new Error("Invalid participants data");
-      }
-
+      // Handle groups first
       if (groupsResponse.success && Array.isArray(groupsResponse.groups)) {
         this.groups = groupsResponse.groups;
       } else {
         console.error("Unexpected groups data structure:", groupsResponse);
-        throw new Error("Invalid groups data");
+        this.groups = []; // Ensure groups is at least an empty array
       }
 
+      // Then handle participants
+      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
+        this.participants = participantsResponse.participants;
+      } else {
+        console.error("Unexpected participants data structure:", participantsResponse);
+        this.participants = []; // Ensure participants is at least an empty array
+      }
+
+      // Only organize participants after both are loaded
       this.organizeParticipants();
 
-      // Cache the fetched data
+      // Cache the non-points data
+      const participantsToCache = this.participants.map(participant => ({
+        id: participant.id,
+        first_name: participant.first_name,
+        last_name: participant.last_name,
+        group_id: participant.group_id,
+        group_name: participant.group_name,
+        is_leader: participant.is_leader,
+        is_second_leader: participant.is_second_leader
+      }));
+
       await setCachedData('manage_points_data', {
-        participants: this.participants,
+        participants: participantsToCache,
         groups: this.groups,
         groupedParticipants: this.groupedParticipants,
         unassignedParticipants: this.unassignedParticipants
-      }, 5 * 60 * 1000); // Cache for 5 minutes
+      }, 24 * 60 * 60 * 1000);
+
     } catch (error) {
       console.error("Error fetching manage points data:", error);
       throw error;
@@ -279,22 +317,19 @@ export class ManagePoints {
 
   async updatePoints(points) {
     if (!this.selectedItem) {
-      alert(translate("please_select_group_or_individual"));
+      this.app.showMessage(translate("please_select_group_or_individual"), "error");
       return;
     }
 
     const type = this.selectedItem.dataset.type;
-    const id =
-      type === "group"
-        ? this.selectedItem.dataset.groupId
-        : this.selectedItem.dataset.participantId;
+    const id = type === "group" 
+      ? this.selectedItem.dataset.groupId 
+      : this.selectedItem.dataset.participantId;
 
     if (type === "no-group") {
-      alert(translate("cannot_assign_points_to_no_group"));
+      this.app.showMessage(translate("cannot_assign_points_to_no_group"), "error");
       return;
     }
-
-    console.log(`Updating points for ${type} with id ${id}: ${points} points`);
 
     // Provide immediate visual feedback
     this.updatePointsUI(type, id, points);
@@ -305,21 +340,29 @@ export class ManagePoints {
       points,
       timestamp: new Date().toISOString(),
     };
+
+    // Add to pending updates
     this.pendingUpdates.push(updateData);
 
-    // Clear any existing timeout
-    if (this.updateTimeout) {
-      clearTimeout(this.updateTimeout);
-    }
+    // Process updates
+    try {
+      await this.sendBatchUpdate();
 
-    // Set a new timeout to send updates after a short delay
-    this.updateTimeout = setTimeout(() => this.sendBatchUpdate(), 300); // 300ms delay
+      // After successful update, refresh the data
+      await this.fetchData();
 
-    // If it's the first update in the batch, also trigger an immediate send
-    if (this.pendingUpdates.length === 1) {
-      this.sendBatchUpdate();
+      // Update the display with new data
+      this.updatePointsDisplay({
+        participants: this.participants,
+        groups: this.groups
+      });
+
+    } catch (error) {
+      console.error("Error updating points:", error);
+      this.app.showMessage(translate("error_updating_points"), "error");
     }
   }
+
 
   async sendBatchUpdate() {
     if (this.pendingUpdates.length === 0) return;
@@ -367,6 +410,9 @@ export class ManagePoints {
         } else {
           console.warn("Unexpected response format:", data);
         }
+
+        // Update the cache with the latest data
+        await this.updateCache();
       } catch (error) {
         console.error("Error in batch update:", error);
         // If there's an error, add the updates back to the pending list
@@ -380,6 +426,7 @@ export class ManagePoints {
       updates.forEach((update) => saveOfflineData("updatePoints", update));
     }
   }
+
 
   updateGroupPoints(groupId, totalPoints, memberIds) {
     const groupElement = document.querySelector(
@@ -431,62 +478,85 @@ export class ManagePoints {
   }
 
   updatePointsUI(type, id, points) {
-    const selector =
-      type === "group"
-        ? `.group-header[data-group-id="${id}"]`
-        : `.list-item[data-participant-id="${id}"]`;
+    const selector = type === "group" 
+      ? `.group-header[data-group-id="${id}"]`
+      : `.list-item[data-participant-id="${id}"]`;
     const element = document.querySelector(selector);
     if (!element) return;
 
-    // Group points
-    if (type === "group") {
-      const groupPointsElement = element.querySelector(`#group-points-${id}`);
-      if (groupPointsElement) {
-        const currentGroupPoints = parseInt(element.dataset.points) || 0;
-        const newGroupPoints = currentGroupPoints + points;
-        groupPointsElement.textContent = `${newGroupPoints} ${translate(
-          "points"
-        )}`;
-        element.dataset.points = newGroupPoints;
-      }
+    const currentPoints = parseInt(element.dataset.points) || 0;
+    const newPoints = currentPoints + points;
 
-      // Also update individual members' points immediately
-      const memberElements = document.querySelectorAll(
-        `.list-item[data-group-id="${id}"]`
-      );
-      memberElements.forEach((memberElement) => {
-        const memberPointsElement =
-          memberElement.querySelector(`[id^="name-points-"]`);
-        if (memberPointsElement) {
-          const currentMemberPoints =
-            parseInt(memberElement.dataset.points) || 0;
-          const newMemberPoints = currentMemberPoints + points;
-          memberPointsElement.textContent = `${newMemberPoints} ${translate(
-            "points"
-          )}`;
-          memberElement.dataset.points = newMemberPoints;
+    if (type === "group") {
+      // Update group points
+      const groupParticipants = this.participants.filter(p => p.group_id == id);
+      groupParticipants.forEach(participant => {
+        const memberElement = document.querySelector(
+          `.list-item[data-participant-id="${participant.id}"]`
+        );
+        if (memberElement) {
+          const memberPointsElement = memberElement.querySelector(
+            `#name-points-${participant.id}`
+          );
+          if (memberPointsElement) {
+            const currentMemberPoints = parseInt(participant.total_points) || 0;
+            const newMemberPoints = currentMemberPoints + points;
+            memberPointsElement.textContent = `${newMemberPoints} ${translate("points")}`;
+            memberElement.dataset.points = newMemberPoints;
+            participant.total_points = newMemberPoints;
+          }
         }
       });
-    } else {
-      // Individual points
-      const pointsElement = element.querySelector(`#name-points-${id}`);
-      if (!pointsElement) return;
 
-      const currentPoints = parseInt(element.dataset.points) || 0;
-      const newPoints = currentPoints + points;
-
-      pointsElement.textContent = `${newPoints} ${translate("points")}`;
+      // Update group total display
+      const groupPointsElement = document.querySelector(`#group-points-${id}`);
+      if (groupPointsElement) {
+        groupPointsElement.textContent = `${translate("total_points")}: ${newPoints}`;
+      }
       element.dataset.points = newPoints;
+    } else {
+      // Update individual points
+      const pointsElement = element.querySelector(`#name-points-${id}`);
+      if (pointsElement) {
+        pointsElement.textContent = `${newPoints} ${translate("points")}`;
+        element.dataset.points = newPoints;
+
+        // Update the participant's points in the data
+        const participant = this.participants.find(p => p.id == id);
+        if (participant) {
+          participant.total_points = newPoints;
+        }
+      }
     }
 
-    // Show the change with a temporary element
+    // Show point change animation
+    this.showPointChangeAnimation(element, points);
+  }
+
+  async updateCache() {
+    try {
+      await setCachedData('manage_points_data', {
+        participants: this.participants,
+        groups: this.groups,
+        groupedParticipants: this.groupedParticipants,
+        unassignedParticipants: this.unassignedParticipants
+      }, 5 * 60 * 1000); // Cache for 5 minutes
+      console.log("Cache updated with new points data.");
+    } catch (error) {
+      console.error("Error updating cache:", error);
+    }
+  }
+
+
+  // Add this new method for point change animation
+  showPointChangeAnimation(element, points) {
     const changeElement = document.createElement("span");
     changeElement.textContent = points > 0 ? `+${points}` : points;
     changeElement.className = "point-change";
     changeElement.style.color = points > 0 ? "green" : "red";
     element.appendChild(changeElement);
 
-    // Remove the change element after a short delay
+    // Remove the change element after animation
     setTimeout(() => {
       changeElement.remove();
     }, 2000);
@@ -586,7 +656,7 @@ export class ManagePoints {
   }
 
   async refreshPointsData() {
-    const cacheKey = "pointsData";
+    const cacheKey = "manage_points_data";
     try {
       // Try to get cached data first
       const cachedData = await getCachedData(cacheKey);
@@ -625,73 +695,100 @@ export class ManagePoints {
   }
 
   organizeParticipants() {
-    this.groupedParticipants = this.groups.reduce((acc, group) => {
-      acc[group.id] = [];
-      return acc;
-    }, {});
+    // Safety check for undefined groups
+    if (!Array.isArray(this.groups)) {
+      this.groups = [];
+    }
 
+    // Safety check for undefined participants
+    if (!Array.isArray(this.participants)) {
+      this.participants = [];
+    }
+
+    // Initialize groupedParticipants with empty arrays for each group
+    this.groupedParticipants = {};
+    this.groups.forEach(group => {
+      this.groupedParticipants[group.id] = [];
+    });
+
+    // Initialize unassignedParticipants
     this.unassignedParticipants = [];
 
+    // Organize participants into groups
     this.participants.forEach(participant => {
-      if (participant.group_id) {
-        if (this.groupedParticipants[participant.group_id]) {
-          this.groupedParticipants[participant.group_id].push(participant);
-        }
+      if (participant.group_id && this.groupedParticipants[participant.group_id]) {
+        this.groupedParticipants[participant.group_id].push(participant);
       } else {
         this.unassignedParticipants.push(participant);
       }
     });
+
+    // Sort participants within each group
+    Object.values(this.groupedParticipants).forEach(groupParticipants => {
+      groupParticipants.sort((a, b) => {
+        // Sort by leader status first
+        if (a.is_leader !== b.is_leader) return b.is_leader ? 1 : -1;
+        // Then by second leader status
+        if (a.is_second_leader !== b.is_second_leader) return b.is_second_leader ? 1 : -1;
+        // Finally by name
+        return a.first_name.localeCompare(b.first_name);
+      });
+    });
+
+    // Sort unassigned participants by name
+    this.unassignedParticipants.sort((a, b) => 
+      a.first_name.localeCompare(b.first_name)
+    );
   }
 
-  updatePointsDisplay(data) {
+  async updatePointsDisplay(data) {
     console.log("Updating points display with data:", data);
 
+    // Update points for all participants
+    this.participants.forEach(participant => {
+      const participantElement = document.querySelector(
+        `.list-item[data-participant-id="${participant.id}"]`
+      );
+      if (participantElement) {
+        const pointsElement = participantElement.querySelector(
+          `#name-points-${participant.id}`
+        );
+        if (pointsElement) {
+          pointsElement.textContent = `${participant.total_points} ${translate("points")}`;
+          participantElement.dataset.points = participant.total_points;
+        }
+      }
+    });
+
     // Update group points
-    data.groups.forEach((group) => {
+    this.groups.forEach(group => {
       const groupElement = document.querySelector(
         `.group-header[data-group-id="${group.id}"]`
       );
       if (groupElement) {
-        const pointsElement = groupElement.querySelector(
-          `#group-points-${group.id}`
-        );
-        if (pointsElement) {
-          pointsElement.textContent = `${group.total_points} ${translate(
-            "points"
-          )}`;
-        } else {
-          console.log(`Points element not found for group ${group.id}`);
+        // Calculate total points for the group
+        const groupParticipants = this.participants.filter(p => p.group_id == group.id);
+        const totalPoints = groupParticipants.reduce((sum, p) => sum + (parseInt(p.total_points) || 0), 0);
+
+        // Update group points display
+        const pointsDisplay = `${group.name} - ${totalPoints} ${translate("points")}`;
+        groupElement.innerHTML = pointsDisplay;
+        groupElement.dataset.points = totalPoints;
+
+        // Update the group points total if it exists
+        const groupPointsElement = document.querySelector(`#group-points-${group.id}`);
+        if (groupPointsElement) {
+          groupPointsElement.textContent = `${translate("total_points")}: ${totalPoints}`;
         }
-        groupElement.dataset.points = group.total_points;
-      } else {
-        console.log(`Group element not found for id ${group.id}`);
       }
     });
 
-    // Update individual points
-    data.names.forEach((name) => {
-      const nameElement = document.querySelector(
-        `.list-item[data-name-id="${name.id}"]`
-      );
-      if (nameElement) {
-        const pointsElement = nameElement.querySelector(
-          `#name-points-${name.id}`
-        );
-        if (pointsElement) {
-          pointsElement.textContent = `${name.total_points} ${translate(
-            "points"
-          )}`;
-        } else {
-          console.log(`Points element not found for name ${name.id}`);
-        }
-        nameElement.dataset.points = name.total_points;
-      } else {
-        console.log(`Name element not found for id ${name.id}`);
-      }
-    });
-
-    console.log("Finished updating points display");
+    // Refresh the sort if needed
+    if (this.currentSort.key === "points") {
+      this.sortItems("points");
+    }
   }
+
 
   async fetchWithCacheBusting(url) {
     const cacheBuster = new Date().getTime();

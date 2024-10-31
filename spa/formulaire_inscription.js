@@ -1,6 +1,5 @@
-import { app } from "./app.js";
+import { app, translate} from "./app.js";
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
-import { translate } from "./app.js";
 import {
     getAuthHeader,
   fetchParticipant,
@@ -303,7 +302,9 @@ export class FormulaireInscription {
         const participantId = saveParticipantResult.participant_id || participantCoreData.id;
         this.participantId = participantId; // Update the current participantId
         console.log("Participant saved with ID:", participantId);
-
+        //Step 1.5 Link the participant to the user
+        const result=await LinkUserParticipants({participant_ids:[participantId]}) ;
+console.log("LinkUserParticipants result:",result);
         // Step 2: Save the remaining fields in `form_submissions` for the participant
         const participantSubmissionData = { ...formSubmissionData };
         delete participantSubmissionData.guardians;

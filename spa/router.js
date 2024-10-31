@@ -1,3 +1,4 @@
+//router.js
 import { Dashboard } from "./dashboard.js";
 import { ParentDashboard } from "./parent_dashboard.js";
 import { Login } from "./login.js";
@@ -447,27 +448,24 @@ export class Router {
 }
 
 export function initRouter(app) {
-  const router = new Router(app);
+    const router = new Router(app);
 
-  // Handle initial route
-  // router.route(window.location.pathname);
+    // Handle navigation
+    document.addEventListener("click", (e) => {
+        if (e.target.matches("a")) {
+            e.preventDefault();
+            const url = e.target.getAttribute("href");
+            history.pushState(null, "", url);
+            router.route(url);
+        }
+    });
 
-  // Handle navigation
-  document.addEventListener("click", (e) => {
-    if (e.target.matches("a")) {
-      e.preventDefault();
-      const url = e.target.getAttribute("href");
-      history.pushState(null, "", url);
-      router.route(url);
-    }
-  });
+    // Handle back/forward browser buttons
+    window.addEventListener("popstate", () => {
+        router.route(window.location.pathname);
+    });
 
-  // Handle back/forward browser buttons
-  window.addEventListener("popstate", () => {
-    router.route(window.location.pathname);
-  });
-
-  return router;
+    return router;
 }
 
 export function navigate(path) {

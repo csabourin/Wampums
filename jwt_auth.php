@@ -21,7 +21,7 @@ function getSecretKey() {
     return $secret;
 }
 
-function generateJWT($userId, $userRole) {
+function generateJWT($userId, $userRole, $currentOrganization) {
     try {
         $issuedAt = time();
         $expirationTime = $issuedAt + (365 * 24 * 60 * 60); // 1 year in seconds
@@ -31,7 +31,8 @@ function generateJWT($userId, $userRole) {
             'iat' => $issuedAt,
             'exp' => $expirationTime,
             'user_id' => $userId,
-            'user_role' => $userRole
+            'user_role' => $userRole,
+            'current_organization' => $currentOrganization
         ];
         error_log("JWT Payload: " . json_encode($payload));
         $token = JWT::encode($payload, getSecretKey(), JWT_ALGORITHM);
@@ -68,6 +69,20 @@ function getUserIdFromToken($token) {
     try {
         $decoded = JWT::decode($token, new Key(getSecretKey(), JWT_ALGORITHM));
         return $decoded->user_id;
+    } catch (Exception $e) {
+        error_log('Error decoding token: ' . $e->getMessage());
+        return null;
+    }
+}
+
+function getOrganizationFromToken($token) {
+    if (!$token) {
+        error_log('No token provided to getOrganizationFromToken');
+        return null;
+    }
+    try {
+        $decoded = JWT::decode($token, new Key(getSecretKey(), JWT_ALGORITHM));
+        return $decoded->current_organization;
     } catch (Exception $e) {
         error_log('Error decoding token: ' . $e->getMessage());
         return null;

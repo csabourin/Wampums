@@ -40,12 +40,21 @@ composer.phar
 # you may install these packages with `oil package`.
 # http://fuelphp.com/docs/packages/oil/package.html
 # /fuel/packages/auth/
-# /fuel/packages/email/
-# /fuel/packages/oil/
-# /fuel/packages/orm/
-# /fuel/packages/parser/
+/fuel/packages/email/
+/fuel/packages/oil/
+/fuel/packages/orm/
+/fuel/packages/parser/
 
 # dynamically generated files
 /fuel/app/logs/*/*/*
 /fuel/app/cache/*/*
 /fuel/app/config/crypt.php
+
+# Node modules
+/node_modules/
+/npm-debug.log
+/yarn-error.log
+
+# Replit specific files
+.replit
+.cache
