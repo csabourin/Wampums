@@ -399,7 +399,7 @@ async function syncData() {
       for (let item of offlineData) {
         // Implement sync logic for each item
         console.log("Syncing item:", item);
-        const response = await fetch("/api.php?action=" + item.action, {
+        const response = await fetch("/api?action=" + item.action, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

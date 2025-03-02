@@ -18,6 +18,7 @@ function getApiUrl(action, direct=false) {
     return `${API_BASE_URL}/api?action=${action}`;
   }
   else{
+    debugger;
     return `${API_BASE_URL}/${action}`;
   }
 }
@@ -88,7 +89,7 @@ function debugError(...args) {
 
 // export async function fetchFromApi(action, method = 'GET', body = null) {
 //   try {
-//     const response = await fetch(`/api.php?action=${action}`, {
+//     const response = await fetch(`/api?action=${action}`, {
 //       method,
 //       headers: {
 //         ...getAuthHeader(),
@@ -1359,8 +1360,8 @@ export async function fetchOrganizationId() {
     const hostname = window.location.hostname;
 
     // Create the URL with the correct action parameter
-    const url = `${API_BASE_URL}/api.php?action=get_organization_id&hostname=${encodeURIComponent(hostname)}`;
-    
+    const url = `${getApiUrl('get_organization_id',false)}&hostname=${encodeURIComponent(hostname)}`;
+    console.log("URL to fetch organization ID:", url);
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json'
@@ -1368,6 +1369,7 @@ export async function fetchOrganizationId() {
     });
 
     if (!response.ok) {
+      console.warn("Failed to fetch organization ID from the server:", response.status);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
