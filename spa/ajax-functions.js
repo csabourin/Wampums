@@ -9,13 +9,13 @@ import {
 //     ? true
 //     : false;
 const debugMode=false;
-const API_BASE_URL = debugMode ? 'http://localhost' : 'https://wampums-api.replit.app';
+const API_BASE_URL = debugMode ? 'http://localhost:3000' : 'https://wampums-api.replit.app';
 console.log('API_BASE_URL:', API_BASE_URL);
 
 // Utility function to determine the base URL
 function getApiUrl(action, direct=false) {
   if(!direct){
-    return `${API_BASE_URL}/api.php?action=${action}`;
+    return `${API_BASE_URL}/api?action=${action}`;
   }
   else{
     return `${API_BASE_URL}/${action}`;

@@ -25,14 +25,14 @@ const staticImages = [
 ];
 
 const apiRoutes = [
-  "/api.php?action=get_attendance_dates",
-  "/api.php?action=get_participants",
-  "/api.php?action=get_participants_with_users",
-  "/api.php?action=get_parent_users",
-  "/api.php?action=get_parent_contact_list",
-  "/api.php?action=get_groups",
-  "/get_translations.php",
-  "/api.php?action=get_mailing_list"
+  "https://wampums-api.replit.app/api?action=get_attendance_dates",
+  "https://wampums-api.replit.app/api?action=get_participants",
+  "https://wampums-api.replit.app/api?action=get_participants_with_users",
+  "https://wampums-api.replit.app/api?action=get_parent_users",
+  "https://wampums-api.replit.app/api?action=get_parent_contact_list",
+  "https://wampums-api.replit.app/api?action=get_groups",
+  "https://wampums-api.replit.app/get_translations",
+  "https://wampums-api.replit.app/api?action=get_mailing_list"
 ];
 
 const offlinePages = [
