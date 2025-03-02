@@ -272,107 +272,20 @@ function getCurrentOrganizationId() {
         return $_SESSION['current_organization_id'];
     }
 
-    $apiKey = '71cdcaa0-c7c1-4947-90cc-a5316b0aa542'; // Replace with your actual API key
-
-    // Step 1: Authenticate and get the JWT token
-    $authUrl = 'https://wampums-api.replit.app/authenticate';
-    $authData = json_encode(['apiKey' => $apiKey]);
-    $authHeaders = [
-        'Content-Type: application/json',
-        'Content-Length: ' . strlen($authData)
-    ];
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $authUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $authHeaders);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $authData);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Set a timeout of 10 seconds
-
-    // Execute the authentication request
-    $authResponse = curl_exec($ch);
-    $httpStatus = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-
-    // Log the details
-    error_log("Authentication URL: $authUrl");
-    error_log("Authentication Headers: " . json_encode($authHeaders));
-    error_log("Authentication Data: $authData");
-    error_log("HTTP Status: $httpStatus");
-    error_log("Curl Error: $curlError");
-    error_log("Auth Response: $authResponse");
-
-    if ($authResponse === false) {
-        curl_close($ch);
-        throw new Exception('Authentication request failed: ' . $curlError);
-    }
-
-    if ($httpStatus !== 200) {
-        curl_close($ch);
-        throw new Exception("Authentication request failed with status code: $httpStatus");
-    }
-
-    $authResponseData = json_decode($authResponse, true);
-    if (!$authResponseData || !$authResponseData['success'] || !isset($authResponseData['token'])) {
-        curl_close($ch);
-        throw new Exception('Failed to obtain JWT token from /authenticate: ' . ($authResponseData['message'] ?? 'Unknown error'));
-    }
-
-    $jwtToken = $authResponseData['token'];
-    error_log("JWT Token: $jwtToken");
-
-    // Step 2: Use the JWT token to get the organization ID using the requester's hostname
-    $orgIdUrl = 'https://wampums-api.replit.app/get_organization_id';
-    $orgIdHeaders = [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . $jwtToken
-    ];
-
     $currentHost = $_SERVER['HTTP_HOST'];
-    $orgIdData = json_encode(['hostname' => $currentHost]);
+    $pdo = getDbConnection();
+    $organizationId = determineOrganizationId($pdo, $currentHost);
 
-    curl_setopt($ch, CURLOPT_URL, $orgIdUrl);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $orgIdHeaders);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $orgIdData);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Set a timeout of 10 seconds
-
-    // Execute the request for the organization ID
-    $orgIdResponse = curl_exec($ch);
-    $httpStatus = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-
-    // Log the details
-    error_log("Organization ID URL: $orgIdUrl");
-    error_log("Organization ID Headers: " . json_encode($orgIdHeaders));
-    error_log("Organization ID Data: $orgIdData");
-    error_log("HTTP Status: $httpStatus");
-    error_log("Curl Error: $curlError");
-    error_log("Organization ID Response: $orgIdResponse");
-
-    if ($orgIdResponse === false) {
-        curl_close($ch);
-        throw new Exception('Failed to fetch organization ID: ' . $curlError);
+    if ($organizationId) {
+        $_SESSION['current_organization_id'] = $organizationId;
+        return $organizationId;
     }
-
-    if ($httpStatus !== 200) {
-        curl_close($ch);
-        throw new Exception("Fetching organization ID failed with status code: $httpStatus");
-    }
-
-    curl_close($ch);
-    $orgIdResponseData = json_decode($orgIdResponse, true);
-
-    // Corrected: Accessing the organizationId from the data field
-    if (!$orgIdResponseData || !$orgIdResponseData['success'] || !isset($orgIdResponseData['data']['organizationId'])) {
-        throw new Exception('Failed to retrieve organization ID from the API: ' . ($orgIdResponseData['message'] ?? 'Unknown error'));
-    }
-
-    $organizationId = $orgIdResponseData['data']['organizationId'];
-    $_SESSION['current_organization_id'] = $organizationId;
-
-    return $organizationId;
+    
+    // Fallback to default organization
+    error_log("No organization found for the host: $currentHost, using default organization");
+    // Default to an organization ID (1 is typically the default in many systems)
+    $_SESSION['current_organization_id'] = 1;
+    return 1;
 }
 
 function authenticateAndGetToken($apiKey) {
