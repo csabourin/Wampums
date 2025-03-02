@@ -1,6 +1,7 @@
-const CACHE_NAME = "wampums-app-v4.3";
-const STATIC_CACHE_NAME = "wampums-static-v4.3";
-const API_CACHE_NAME = "wampums-api-v4.3";
+const CACHE_NAME = "wampums-app-v4.7";
+const STATIC_CACHE_NAME = "wampums-static-v4.7";
+const API_CACHE_NAME = "wampums-api-v4.7";
+const IMAGE_CACHE_NAME = "wampums-images-v4.7"; 
 
 const staticAssets = [
   "/",
@@ -15,6 +16,9 @@ const staticAssets = [
   "/spa/indexedDB.js",
   "/spa/ajax-functions.js",
   "/manifest.json",
+];
+
+const staticImages = [
   "/images/icon-192x192.png",
   "/images/icon-512x512.png",
   "/images/6eASt-Paul.png",
@@ -41,33 +45,115 @@ const offlinePages = [
 self.addEventListener("install", (event) => {
   self.skipWaiting(); // Forces the service worker to activate immediately after installation
   event.waitUntil(
-    caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(staticAssets))
+    caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(staticAssets)),
+    // Cache images separately
+    caches.open(IMAGE_CACHE_NAME)
+      .then(cache => cache.addAll(staticImages))
   );
 });
 
-// Activate event: Clear old caches and take control of clients immediately
-self.addEventListener("activate", (event) => {
+// Install event: cache static assets and images separately
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
-    caches
-      .keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (
-              cacheName !== CACHE_NAME &&
-              cacheName !== STATIC_CACHE_NAME &&
-              cacheName !== API_CACHE_NAME
-            ) {
-              return caches.delete(cacheName); // Delete old caches
-            }
-          })
-        );
-      })
-      .then(() => {
-        return self.clients.claim(); // Take control of clients immediately
-      })
+    Promise.all([
+      // Cache static assets
+      caches.open(STATIC_CACHE_NAME)
+        .then(cache => cache.addAll(staticAssets)),
+      // Cache images separately
+      caches.open(IMAGE_CACHE_NAME)
+        .then(cache => cache.addAll(staticImages))
+    ])
   );
 });
+
+// Activate event with improved cache cleanup
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (![CACHE_NAME, STATIC_CACHE_NAME, API_CACHE_NAME, IMAGE_CACHE_NAME].includes(cacheName)) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Enhanced fetch event handler with specific image handling
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return;
+  }
+
+  // Special handling for images
+  if (event.request.destination === 'image' || staticImages.includes(url.pathname)) {
+    event.respondWith(handleImageRequest(event.request));
+    return;
+  }
+
+  if (event.request.method === "GET") {
+    if (apiRoutes.some((route) => url.pathname.includes(route))) {
+      event.respondWith(fetchAndCacheInIndexedDB(event.request));
+    } else if (staticAssets.includes(url.pathname)) {
+      event.respondWith(cacheFirst(event.request));
+    } else {
+      event.respondWith(networkFirst(event.request));
+    }
+  } else {
+    event.respondWith(fetch(event.request));
+  }
+});
+
+// Specialized image handling function
+async function handleImageRequest(request) {
+  // Try cache first for images
+  const cachedResponse = await caches.match(request, {
+    cacheName: IMAGE_CACHE_NAME
+  });
+
+  if (cachedResponse) {
+    // If found in cache, return immediately
+    return cachedResponse;
+  }
+
+  // If not in cache, fetch from network
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(IMAGE_CACHE_NAME);
+      cache.put(request, networkResponse.clone());
+      return networkResponse;
+    }
+  } catch (error) {
+    console.error('Error fetching image:', error);
+    // Return a fallback image if available
+    return caches.match('/images/fallback.png') || new Response('Image not available', { status: 404 });
+  }
+}
+
+// Modified cache-first strategy with improved error handling
+async function cacheFirst(request) {
+  try {
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      const cache = await caches.open(STATIC_CACHE_NAME);
+      cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    console.error('Cache-first strategy error:', error);
+    return new Response('Resource not available', { status: 404 });
+  }
+}
 
 self.addEventListener('push', function(event) {
   let data = {};
@@ -122,40 +208,40 @@ self.addEventListener('notificationclick', function(event) {
 
 
 
-// Fetch event: handle requests
-self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
+// // Fetch event: handle requests
+// self.addEventListener("fetch", (event) => {
+//   const url = new URL(event.request.url);
 
-  // Skip requests with unsupported schemes
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return; // Exit early for unsupported schemes
-  }
+//   // Skip requests with unsupported schemes
+//   if (url.protocol !== "http:" && url.protocol !== "https:") {
+//     return; // Exit early for unsupported schemes
+//   }
 
-  // Only handle GET requests for caching
-  if (event.request.method === "GET") {
-    // Handle offline-only pages
-    if (offlinePages.includes(url.pathname) && !navigator.onLine) {
-      event.respondWith(caches.match("/offline.html"));
-      return;
-    }
+//   // Only handle GET requests for caching
+//   if (event.request.method === "GET") {
+//     // Handle offline-only pages
+//     if (offlinePages.includes(url.pathname) && !navigator.onLine) {
+//       event.respondWith(caches.match("/offline.html"));
+//       return;
+//     }
 
-    // Check for API routes to cache in IndexedDB
-    if (apiRoutes.some((route) => url.pathname.includes(route))) {
-      event.respondWith(fetchAndCacheInIndexedDB(event.request));
-    } 
-    // Serve static assets from cache
-    else if (staticAssets.includes(url.pathname)) {
-      event.respondWith(cacheFirst(event.request));
-    } 
-    // Default to network-first for all other requests
-    else {
-      event.respondWith(networkFirst(event.request));
-    }
-  } else {
-    // If it's not a GET request, do network-first without caching
-    event.respondWith(fetch(event.request));
-  }
-});
+//     // Check for API routes to cache in IndexedDB
+//     if (apiRoutes.some((route) => url.pathname.includes(route))) {
+//       event.respondWith(fetchAndCacheInIndexedDB(event.request));
+//     } 
+//     // Serve static assets from cache
+//     else if (staticAssets.includes(url.pathname)) {
+//       event.respondWith(cacheFirst(event.request));
+//     } 
+//     // Default to network-first for all other requests
+//     else {
+//       event.respondWith(networkFirst(event.request));
+//     }
+//   } else {
+//     // If it's not a GET request, do network-first without caching
+//     event.respondWith(fetch(event.request));
+//   }
+// });
 
 
 
@@ -247,7 +333,8 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     self.clients.claim().then(() => {
       return self.clients.matchAll({ type: "window" }).then((clients) => {
-        clients.forEach((client) => client.navigate(client.url)); // Reload all open pages
+        console.log("Clients:", clients);
+        // clients.forEach((client) => client.navigate(client.url)); // Reload all open pages
       });
     })
   );

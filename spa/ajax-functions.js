@@ -1,11 +1,53 @@
 import {
-  saveParticipants,
-  getParticipantsFromCache,
-  saveGroups,
-  getGroupsFromCache,
   saveOfflineData,
+  getOfflineData,
   setCachedData, getCachedData 
 } from "./indexedDB.js";
+// const debugMode =
+//   window.location.hostname === "localhost" ||
+//   window.location.hostname.includes("replit.dev")
+//     ? true
+//     : false;
+const debugMode=false;
+const API_BASE_URL = debugMode ? 'http://localhost' : 'https://wampums-api.replit.app';
+console.log('API_BASE_URL:', API_BASE_URL);
+
+// Utility function to determine the base URL
+function getApiUrl(action,direct=false) {
+  if(!direct){
+  return `${API_BASE_URL}/api?action=${action}`;
+  }
+  else{
+    return `${API_BASE_URL}/${action}`;
+  }
+}
+
+export async function fetchFromApi(action, method = 'GET', body = null) {
+  try {
+    const response = await fetch(getApiUrl(action), {
+      method,
+      headers: {
+        ...getAuthHeader(),
+        'Content-Type': 'application/json',
+      },
+      body: body ? JSON.stringify(body) : null,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await handleResponse(response);
+    if (result.success) {
+      return result;
+    } else {
+      throw new Error(result.message || `Failed to fetch action ${action}`);
+    }
+  } catch (error) {
+    console.error(`Error fetching ${action}:`, error);
+    throw new Error(`Failed to fetch ${action}: ${error.message}`);
+  }
+}
 
 // Utility function to get the JWT token from local storage
 export function getAuthHeader() {
@@ -31,11 +73,6 @@ async function handleResponse(response) {
   }
 }
 
-const debugMode =
-  window.location.hostname === "localhost" ||
-  window.location.hostname.includes("replit.dev")
-    ? true
-    : false;
 
 function debugLog(...args) {
   if (debugMode) {
@@ -49,30 +86,38 @@ function debugError(...args) {
   }
 }
 
-export async function fetchFromApi(action, method = 'GET', body = null) {
+// export async function fetchFromApi(action, method = 'GET', body = null) {
+//   try {
+//     const response = await fetch(`/api.php?action=${action}`, {
+//       method,
+//       headers: {
+//         ...getAuthHeader(),
+//         "Content-Type": "application/json",
+//       },
+//       body: body ? JSON.stringify(body) : null,
+//     });
+
+//     if (!response.ok) {
+//       throw new Error(`HTTP error! status: ${response.status}`);
+//     }
+
+//     const result = await response.json();
+//     if (result.success) {
+//       return result;
+//     } else {
+//       throw new Error(result.message || `Failed to fetch action ${action}`);
+//     }
+//   } catch (error) {
+//     console.error(`Error fetching ${action}:`, error);
+//     throw new Error(`Failed to fetch ${action}: ${error.message}`);
+//   }
+// }
+
+export async function LinkUserParticipants(data) {
   try {
-    const response = await fetch(`/api.php?action=${action}`, {
-      method,
-      headers: {
-        ...getAuthHeader(),
-        "Content-Type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : null,
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const result = await response.json();
-    if (result.success) {
-      return result;
-    } else {
-      throw new Error(result.message || `Failed to fetch action ${action}`);
-    }
+    return await fetchFromApi('link_user_participants', 'POST', data);
   } catch (error) {
-    console.error(`Error fetching ${action}:`, error);
-    throw new Error(`Failed to fetch ${action}: ${error.message}`);
+    console.error("Error linking participants:", error);
   }
 }
 
@@ -84,7 +129,7 @@ export async function getParticipantAgeReport() {
 export async function getGuardians(participantId) {
     try {
         console.log("Fetching guardians for participant ID:", participantId);
-        const response = await fetch(`/api.php?action=get_guardians&participant_id=${participantId}`, {
+        const response = await fetch(`${getApiUrl('get_guardians')}&participant_id=${participantId}`, {
             headers: getAuthHeader(),
         });
 
@@ -113,7 +158,7 @@ export async function getGuardianCoreInfo(guardianId) {
   try {
     console.log(`Fetching core info for guardian ID: ${guardianId}`);
     const response = await fetch(
-      `/api.php?action=get_guardian_info&guardian_id=${guardianId}`,
+      `${getApiUrl('get_guardian_info')}&guardian_id=${guardianId}`,
       {
         headers: getAuthHeader(),
       }
@@ -148,7 +193,7 @@ export async function getGuardianCoreInfo(guardianId) {
 
 export async function saveFormSubmission(formType, participantId, formData) {
   try {
-    const response = await fetch("/api.php?action=save_form_submission", {
+    const response = await fetch(getApiUrl(`save_form_submission`), {
       method: "POST",
       headers: {
         ...getAuthHeader(),
@@ -250,7 +295,7 @@ export async function getPointsReport() {
   }
 
   try {
-    const response = await fetch("/api.php?action=get_points_report", {
+    const response = await fetch(getApiUrl(`get_points_report`), {
       headers: getAuthHeader(),
     });
 
@@ -274,7 +319,7 @@ export async function fetchParticipant(participantId) {
   debugLog("Fetching participant with ID:", participantId);
   try {
     const response = await fetch(
-      `/api.php?action=get_participant&id=${participantId}`,
+      `${getApiUrl('get_participant')}&id=${participantId}`,
       {
         headers: getAuthHeader(),
       }
@@ -292,57 +337,53 @@ export async function fetchParticipant(participantId) {
   }
 }
 
-export async function approveUser(userId) {
-  try {
-    const response = await fetch("/api.php?action=approve_user", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      },
-      body: JSON.stringify({ user_id: userId }),
-    });
+export async function approveUser(userId, organizationId) {
+    try {
+        const response = await fetch(getApiUrl(`approve_user`), {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader(),
+            },
+            body: JSON.stringify({ user_id: userId, organization_id: organizationId }),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Error approving user:", error);
+        throw error;
     }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error("Error approving user:", error);
-    throw error;
-  }
 }
 
-export async function updateUserRole(userId, newRole) {
-  try {
-    const response = await fetch("/api.php?action=update_user_role", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      },
-      body: JSON.stringify({ user_id: userId, new_role: newRole }),
-    });
+export async function updateUserRole(userId, newRole, organizationId) {
+    try {
+        const response = await fetch(getApiUrl(`update_user_role`), {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader(),
+            },
+            body: JSON.stringify({ user_id: userId, new_role: newRole, organization_id: organizationId }),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Error updating user role:", error);
+        throw error;
     }
-
-    const result = await response.json();
-    return result;
-  } catch (error) {
-    console.error("Error updating user role:", error);
-    throw error;
-  }
 }
 
 export async function getCalendars() {
   try {
-    const response = await fetch("/api.php?action=get_calendars", {
+    const response = await fetch(getApiUrl(`get_calendars`), {
       headers: getAuthHeader(),
     });
 
@@ -360,7 +401,7 @@ export async function getCalendars() {
 
 export async function updateCalendar(participantId, amount, amountPaid) {
   try {
-    const response = await fetch("/api.php?action=update_calendar", {
+    const response = await fetch(getApiUrl(`update_calendar`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -384,7 +425,7 @@ export async function updateCalendar(participantId, amount, amountPaid) {
 
 export async function updateCalendarAmountPaid(participantId, amountPaid) {
   try {
-    const response = await fetch("/api.php?action=update_calendar_amount_paid", {
+    const response = await fetch(getApiUrl(`update_calendar_amount_paid`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -409,7 +450,7 @@ export async function updateCalendarAmountPaid(participantId, amountPaid) {
 
 export async function getGuestsByDate(date) {
     try {
-        const response = await fetch(`/api.php?action=get_guests_by_date&date=${date}`, {
+        const response = await fetch(`${getApiUrl('get_guests_by_date')}&date=${date}`, {
             method: 'GET',
           headers: {
             "Content-Type": "application/json",
@@ -434,7 +475,7 @@ export async function getGuestsByDate(date) {
 
 export async function getActivitesRencontre() {
   try {
-    const response = await fetch("/api.php?action=get_activites_rencontre", {
+    const response = await fetch(getApiUrl(`get_activites_rencontre`), {
       headers: getAuthHeader(),
     });
     if (!response.ok) {
@@ -450,7 +491,7 @@ export async function getActivitesRencontre() {
 
 export async function getAnimateurs() {
   try {
-    const response = await fetch("/api.php?action=get_animateurs", {
+    const response = await fetch(getApiUrl(`get_animateurs`), {
       headers: getAuthHeader(),
     });
     if (!response.ok) {
@@ -466,7 +507,7 @@ export async function getAnimateurs() {
 
 export async function getRecentHonors() {
   try {
-    const response = await fetch("/api.php?action=get_recent_honors", {
+    const response = await fetch(getApiUrl(`get_recent_honors`), {
       headers: getAuthHeader(),
     });
     if (!response.ok) {
@@ -483,7 +524,7 @@ export async function getRecentHonors() {
 
 export async function saveReunionPreparation(formData) {
   try {
-    const response = await fetch("/api.php?action=save_reunion_preparation", {
+    const response = await fetch(getApiUrl(`save_reunion_preparation`), {
       method: "POST",
       headers: {
         ...getAuthHeader(),
@@ -511,7 +552,7 @@ export async function getReunionPreparation(date) {
   }
 
   try {
-    const response = await fetch(`/api.php?action=get_reunion_preparation&date=${date}`, {
+    const response = await fetch(`${getApiUrl('get_reunion_preparation')}&date=${date}`, {
       headers: getAuthHeader(),
     });
 
@@ -533,7 +574,7 @@ export async function getReunionPreparation(date) {
 
 export async function saveGuest(guest) {
       try {
-          const response = await fetch('/api.php?action=save_guest', {
+          const response = await fetch(getApiUrl(`save_guest`), {
               method: 'POST',
             headers: {
               "Content-Type": "application/json",
@@ -558,7 +599,7 @@ export async function saveGuest(guest) {
 
 export async function updateCalendarPaid(participantId, paidStatus) {
   try {
-    const response = await fetch("/api.php?action=update_calendar_paid", {
+    const response = await fetch(getApiUrl(`update_calendar_paid`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -582,7 +623,7 @@ export async function updateCalendarPaid(participantId, paidStatus) {
 
 export async function getParticipantCalendar(participantId) {
   try {
-    const response = await fetch(`/api.php?action=get_participant_calendar&participant_id=${participantId}`, {
+    const response = await fetch(`${getApiUrl('get_participant_calendar')}&participant_id=${participantId}`, {
       headers: getAuthHeader(),
     });
 
@@ -598,56 +639,56 @@ export async function getParticipantCalendar(participantId) {
   }
 }
 
-export async function getUsers() {
-  try {
-    const response = await fetch("/api.php?action=get_users", {
-      headers: getAuthHeader(),
-    });
+export async function getUsers(organizationId) {
+    try {
+        const response = await fetch(`${getApiUrl('get_users')}&organization_id=${organizationId}`, {
+            headers: getAuthHeader(),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const users = await response.json();
+        return users.map(user => ({
+            id: user.id,
+            email: user.email,
+            isVerified: user.is_verified === true,
+            role: user.role,
+            fullName: user.full_name,
+            createdAt: new Date(user.created_at)
+        }));
+    } catch (error) {
+        console.error("Error fetching users:", error);
+        throw error;
     }
-
-    const users = await response.json();
-    return users.map(user => ({
-      id: user.id,
-      email: user.email,
-      isVerified: user.is_verified === true, // Convert string to boolean
-      role: user.role,
-      fullName: user.full_name,
-      createdAt: new Date(user.created_at)
-    }));
-  } catch (error) {
-    console.error("Error fetching users:", error);
-    throw error;
-  }
 }
 
-export async function getSubscribers() {
-  try {
-    const response = await fetch("/api.php?action=get_subscribers", {
-      headers: getAuthHeader(),
-    });
+export async function getSubscribers(organizationId) {
+    try {
+        const response = await fetch(`${getApiUrl('get_subscribers')}&organization_id=${organizationId}`, {
+            headers: getAuthHeader(),
+        });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const subscribers = await response.json();
+        return subscribers.map(subscriber => ({
+            id: subscriber.id,
+            email: subscriber.email || `User ${subscriber.user_id}`,
+            userId: subscriber.user_id
+        }));
+    } catch (error) {
+        console.error("Error fetching subscribers:", error);
+        throw error;
     }
-
-    const subscribers = await response.json();
-    return subscribers.map(subscriber => ({
-      id: subscriber.id,
-      email: subscriber.email || `User ${subscriber.user_id}`, // Fallback if email is not provided
-      userId: subscriber.user_id
-    }));
-  } catch (error) {
-    console.error("Error fetching subscribers:", error);
-    throw error;
-  }
 }
 
 export async function register(registerData) {
   try {
-    const response = await fetch("/api.php?action=register", {
+    const response = await fetch(getApiUrl(`register`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -664,7 +705,7 @@ export async function register(registerData) {
 
 export async function getMailingList() {
   try {
-    const response = await fetch("/api.php?action=get_mailing_list", {
+    const response = await fetch(getApiUrl(`get_mailing_list`), {
       headers: {
         ...getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId()
@@ -693,7 +734,7 @@ export async function getMailingList() {
 export async function fetchFicheSante(participantId) {
   try {
     const response = await fetch(
-      `/api.php?action=get_fiche_sante&participant_id=${participantId}`,
+      `${getApiUrl('get_fiche_sante')}&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId()
@@ -713,7 +754,7 @@ export async function fetchFicheSante(participantId) {
 
 export async function saveParticipant(participantData) {
   try {
-    const url = "/api.php?action=save_participant";
+    const url = getApiUrl(`save_participant`);
     const method = participantData.id ? "PUT" : "POST";
 
     // If updating, include the ID in the URL
@@ -744,7 +785,7 @@ export async function saveParticipant(participantData) {
 export async function fetchGuardians(participantId) {
   try {
     const response = await fetch(
-      `/api.php?action=get_guardians&participant_id=${participantId}`,
+      `${getApiUrl('get_guardians')}&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId()
@@ -760,7 +801,7 @@ export async function fetchGuardians(participantId) {
 
 export async function saveGuardian(guardianData) {
   try {
-    const response = await fetch("/api.php?action=save_parent", {
+    const response = await fetch(getApiUrl(`save_parent`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -780,7 +821,7 @@ export async function saveGuardian(guardianData) {
 export async function linkGuardianToParticipant(participantId, guardianId) {
   try {
     const response = await fetch(
-      "/api.php?action=link_guardian_to_participant",
+      getApiUrl(`link_guardian_to_participant`),
       {
         method: "POST",
         headers: {
@@ -801,18 +842,14 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
   }
 }
 
-// Fetch participants from the API or from IndexedDB when offline
 export async function getParticipants() {
-  const cacheKey = "get_participants";
-
-  // Try to retrieve from cache first
-  const cachedParticipants = await getCachedData(cacheKey);
-  if (cachedParticipants) {
-    return cachedParticipants; // Return cached participants if available
-  }
-
+  const PARTICIPANT_INFO_CACHE_KEY = "participant_info";
   try {
-    const response = await fetch("/api.php?action=get_participants", {
+    // First, get the cached participant info (everything except points)
+    const cachedParticipantInfo = await getCachedData(PARTICIPANT_INFO_CACHE_KEY);
+
+    // Always fetch fresh data to get current points
+    const response = await fetch(getApiUrl(`get_participants`), {
       headers: {
         ...getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId(),
@@ -823,14 +860,61 @@ export async function getParticipants() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
+    const freshData = await response.json();
 
-    // Cache participants in IndexedDB for future use
-    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+    if (!freshData.success) {
+      throw new Error(freshData.message || 'Failed to fetch participants');
+    }
 
-    return data;
+    // If we have cached info, merge it with fresh points data
+    if (cachedParticipantInfo) {
+      const mergedParticipants = freshData.participants.map(freshParticipant => {
+        const cachedParticipant = cachedParticipantInfo.find(p => p.id === freshParticipant.id);
+        if (cachedParticipant) {
+          return {
+            ...cachedParticipant,
+            total_points: freshParticipant.total_points,
+            group_total_points: freshParticipant.group_total_points
+          };
+        }
+        return freshParticipant;
+      });
+
+      return { success: true, participants: mergedParticipants };
+    }
+
+    // If no cache exists, create it with everything except points
+    const participantInfoToCache = freshData.participants.map(participant => ({
+      id: participant.id,
+      first_name: participant.first_name,
+      last_name: participant.last_name,
+      group_id: participant.group_id,
+      group_name: participant.group_name,
+      is_leader: participant.is_leader,
+      is_second_leader: participant.is_second_leader
+    }));
+
+    // Cache the participant info (without points) for 24 hours
+    await setCachedData(PARTICIPANT_INFO_CACHE_KEY, participantInfoToCache, 24 * 60 * 60 * 1000);
+
+    return freshData;
   } catch (error) {
     console.error("Error fetching participants:", error);
+    // If we're offline, try to use cached data with a warning
+    if (!navigator.onLine) {
+      const cachedParticipantInfo = await getCachedData(PARTICIPANT_INFO_CACHE_KEY);
+      if (cachedParticipantInfo) {
+        console.warn('Using cached participant data with potentially stale points');
+        return {
+          success: true,
+          participants: cachedParticipantInfo.map(p => ({
+            ...p,
+            total_points: 0, // Reset points when using cached data offline
+            group_total_points: 0
+          }))
+        };
+      }
+    }
     throw error;
   }
 }
@@ -839,7 +923,7 @@ export async function getParticipants() {
 // Fetch groups from the API or from IndexedDB when offline
 export async function getGroups() {
   try {
-    const response = await fetch("/api.php?action=get_groups", {
+    const response = await fetch(getApiUrl(`get_groups`), {
       headers: {
         ...getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId()
@@ -869,29 +953,40 @@ export async function getGroups() {
 }
 
 export async function getOrganizationSettings() {
+  const cacheKey = "organization_settings";
+  const expirationTime = 60 * 60 * 1000; // Cache expires after 60 minutes (adjust as needed)
+
+  // Step 1: Try to get cached data from IndexedDB
+  const cachedData = await getCachedData(cacheKey);
+  if (cachedData) {
+    return cachedData; // Return cached data if available and not expired
+  }
+
+  // Step 2: Fetch from API if no valid cached data is found
   try {
-    const response = await fetch("/api.php?action=get_organization_settings");
+    const response = await fetch(getApiUrl(`get_organization_settings`), {
+      headers: getAuthHeader(),
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return await response.json(); // Return the entire response, including 'success' and 'settings'
+
+    const data = await response.json(); // Get the settings from the response
+
+    // Step 3: Save the new data to IndexedDB for future use
+    await setCachedData(cacheKey, data, expirationTime);
+
+    console.log("Returning fresh organization settings");
+    return data; // Return the newly fetched data
   } catch (error) {
     console.error("Error fetching organization settings:", error);
-    throw error;
+    throw error; // Propagate the error
   }
 }
 
 export async function getAttendance(date) {
-  const cacheKey = `get_attendance_${date}`;
-
-  // Try to retrieve from cache first
-  const cachedAttendance = await getCachedData(cacheKey);
-  if (cachedAttendance) {
-    return cachedAttendance; // Return cached data if available
-  }
-
   try {
-    const response = await fetch(`/api.php?action=get_attendance&date=${date}`, {
+    const response = await fetch(`${getApiUrl('get_attendance')}&date=${date}`, {
       headers: getAuthHeader(),
     });
 
@@ -900,10 +995,6 @@ export async function getAttendance(date) {
     }
 
     const data = await response.json();
-
-    // Cache attendance data in IndexedDB
-    await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
-
     return data;
   } catch (error) {
     console.error("Error fetching attendance:", error);
@@ -918,7 +1009,7 @@ export async function updateAttendance(
   previousStatus
 ) {
   try {
-    const response = await fetch("/api.php?action=update_attendance", {
+    const response = await fetch(getApiUrl(`update_attendance`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -943,41 +1034,30 @@ export async function updateAttendance(
 // Fetches all participants and honors from the server
 export async function getHonorsAndParticipants(date = null) {
   try {
-    const url = new URL("/api.php", window.location.origin);
-    url.searchParams.append("action", "get_honors");
+    const params = new URLSearchParams();
+    params.append("action", "get_honors");
     if (date) {
-      url.searchParams.append("date", date);
+      params.append("date", date);
     }
 
-    const response = await fetch(url, {
-      headers: {
-        ...getAuthHeader(),
-        'X-Organization-ID': getCurrentOrganizationId()
-      }
-    });
+    const result = await fetchFromApi(`${params.toString()}`, 'GET', null);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log('API raw response:', data); // Add this line for debugging
-
-    if (!data.participants || !data.honors || !data.availableDates) {
-      console.error('Unexpected data structure from get_honors:', data);
+    if (!result.participants || !result.honors || !result.availableDates) {
+      console.error('Unexpected data structure from get_honors:', result);
       throw new Error("Unexpected data structure from get_honors");
     }
 
-    return data;
+    return result;
   } catch (error) {
     console.error("Error fetching honors and participants:", error);
     throw error;
   }
 }
 
+
 export async function getHonors(date) {
   try {
-    const response = await fetch(`/api.php?action=get_honors&date=${date}`, {
+    const response = await fetch(`${getApiUrl('get_honors')}&date=${date}`, {
       headers: getAuthHeader(),
       'X-Organization-ID': getCurrentOrganizationId()
     });
@@ -990,7 +1070,7 @@ export async function getHonors(date) {
 
 export async function awardHonor(honors) {
   try {
-    const response = await fetch("/api.php?action=award_honor", {
+    const response = await fetch(getApiUrl(`award_honor`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1009,7 +1089,7 @@ export async function awardHonor(honors) {
 export async function getBadgeProgress(participantId) {
   try {
     const response = await fetch(
-      `/api.php?action=get_badge_progress&participant_id=${participantId}`,
+      `${getApiUrl('get_badge_progress')}&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId()
@@ -1025,7 +1105,7 @@ export async function getBadgeProgress(participantId) {
 
 export async function saveBadgeProgress(badgeData) {
   try {
-    const response = await fetch("/api.php?action=save_badge_progress", {
+    const response = await fetch(getApiUrl(`save_badge_progress`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1044,7 +1124,7 @@ export async function saveBadgeProgress(badgeData) {
 
 export async function getHealthReport() {
   try {
-    const response = await fetch("/api.php?action=get_health_report", {
+    const response = await fetch(getApiUrl(`get_health_report`), {
       method: "GET",
       headers: {
         ...getAuthHeader(),
@@ -1072,7 +1152,7 @@ export async function getHealthReport() {
 
 export async function getHealthContactReport() {
   try {
-    const response = await fetch("/api.php?action=get_health_contact_report");
+    const response = await fetch(getApiUrl(`get_health_contact_report`));
     const data = await response.json();
     return data;
   } catch (error) {
@@ -1082,7 +1162,7 @@ export async function getHealthContactReport() {
 
 export async function getAttendanceReport(startDate = null, endDate = null) {
   try {
-    let url = '/api.php?action=get_attendance_report';
+    let url = getApiUrl(`get_attendance_report`);
     if (startDate && endDate) {
       url += `&start_date=${startDate}&end_date=${endDate}`;
     }
@@ -1109,7 +1189,7 @@ export async function getAttendanceReport(startDate = null, endDate = null) {
 
 export async function logout() {
   try {
-    const response = await fetch("/api.php?action=logout", {
+    const response = await fetch(getApiUrl(`logout`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1123,9 +1203,9 @@ export async function logout() {
   }
 }
 
-export async function login(email, password) {
+export async function login(email, password,organization_id) {
   try {
-    const response = await fetch("/api.php?action=login", {
+    const response = await fetch(getApiUrl(`login`,true), {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -1133,6 +1213,7 @@ export async function login(email, password) {
       body: new URLSearchParams({
         email: email,
         password: password,
+        organization_id: organization_id,
       }),
     });
 
@@ -1154,7 +1235,7 @@ export async function login(email, password) {
 
 export async function registerForOrganization(registrationData) {
   try {
-    const response = await fetch("/api.php?action=register_for_organization", {
+    const response = await fetch(getApiUrl(`register_for_organization`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1171,7 +1252,7 @@ export async function registerForOrganization(registrationData) {
 
 export async function getUserChildren(userId) {
   try {
-    const response = await fetch(`/api.php?action=get_user_children&user_id=${userId}`, {
+    const response = await fetch(`${getApiUrl('get_user_children')}&user_id=${userId}`, {
       headers: getAuthHeader()
     });
     return await response.json();
@@ -1182,7 +1263,7 @@ export async function getUserChildren(userId) {
 }
 
 export async function getReunionDates() {
-    const response = await fetch('/api.php?action=get_reunion_dates', {
+    const response = await fetch(getApiUrl(`get_reunion_dates`), {
         headers: getAuthHeader(),
     });
     if (!response.ok) {
@@ -1196,7 +1277,7 @@ export async function fetchParents(participantId) {
   try {
     debugLog("Fetching parents for participantId:", participantId);
     const response = await fetch(
-      `/api.php?action=get_parents_guardians&participant_id=${participantId}`,
+      `${getApiUrl('get_parents_guardians')}&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
       }
@@ -1221,7 +1302,7 @@ export async function fetchParents(participantId) {
 
 export async function linkParentToParticipant(participantId, parentId) {
   try {
-    const response = await fetch("/api.php?action=link_parent_to_participant", {
+    const response = await fetch(getApiUrl(`link_parent_to_participant`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1243,7 +1324,7 @@ export async function linkParentToParticipant(participantId, parentId) {
 export async function saveParent(parentData) {
   try {
     debugLog("Sending Parent Data to API:", parentData);
-    const response = await fetch("/api.php?action=save_parent", {
+    const response = await fetch(getApiUrl(`save_parent`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1262,9 +1343,46 @@ export async function saveParent(parentData) {
   }
 }
 
+export async function fetchOrganizationId() {
+  // Check if the organization ID is already in localStorage
+  const storedId = localStorage.getItem('organizationId');
+  if (storedId) {
+    console.log("Using stored organization ID from localStorage:", storedId);
+    return parseInt(storedId, 10);
+  }
+
+  // If not found in localStorage, fetch from the server
+  try {
+    console.log("Fetching organization ID from the server...");
+    const response = await fetch(getApiUrl('get_organization_id',true), {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.organizationId) {
+      // Store the organization ID in localStorage for future use
+      localStorage.setItem('organizationId', data.organizationId);
+      console.log("Organization ID fetched and stored:", data.organizationId);
+      return data.organizationId;
+    } else {
+      throw new Error("Failed to fetch organization ID from the server");
+    }
+  } catch (error) {
+    console.error("Error fetching organization ID:", error);
+    throw error;
+  }
+}
+
 export async function fetchParticipants(organizationId) {
   try {
-    const response = await fetch(`/api.php?action=get_parent_dashboard_data&organization_id=${organizationId}`, {
+    const response = await fetch(`${getApiUrl('get_parent_dashboard_data')}&organization_id=${organizationId}`, {
       headers: getAuthHeader(),
     });
     const data = await response.json();
@@ -1286,7 +1404,7 @@ export async function fetchParticipants(organizationId) {
 
 export async function updatePoints(updates) {
   try {
-    const response = await fetch("/api.php?action=update_points", {
+    const response = await fetch(getApiUrl(`update_points`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1312,7 +1430,7 @@ export async function updateParticipantGroup(participantId, groupId, isLeader = 
   console.log("Request data to be sent:", JSON.stringify(requestData));
 
   try {
-    const response = await fetch("/api.php?action=update_participant_group", {
+    const response = await fetch(getApiUrl(`update_participant_group`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1337,7 +1455,7 @@ export async function updateParticipantGroup(participantId, groupId, isLeader = 
 export async function getParticipantsWithUsers() {
   try {
     const response = await fetch(
-      "/api.php?action=get_participants_with_users",
+      getApiUrl(`get_participants_with_users`),
       {
         headers: {
           ...getAuthHeader(),
@@ -1354,7 +1472,7 @@ export async function getParticipantsWithUsers() {
 
 export async function getParentUsers() {
   try {
-    const response = await fetch("/api.php?action=get_parent_users", {
+    const response = await fetch(getApiUrl(`get_parent_users`), {
       headers: {
         ...getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId()
@@ -1371,7 +1489,7 @@ export async function getParentUsers() {
 
 export async function associateUser(participantId, userId) {
   try {
-    const response = await fetch("/api.php?action=associate_user", {
+    const response = await fetch(getApiUrl(`associate_user`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1390,7 +1508,7 @@ export async function associateUser(participantId, userId) {
 
 export async function addGroup(groupName) {
   try {
-    const response = await fetch("/api.php?action=add_group", {
+    const response = await fetch(getApiUrl(`add_group`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1415,7 +1533,7 @@ export async function getAttendanceDates() {
   }
 
   try {
-    const response = await fetch("/api.php?action=get_attendance_dates", {
+    const response = await fetch(getApiUrl(`get_attendance_dates`), {
       headers: getAuthHeader(),
     });
 
@@ -1437,7 +1555,7 @@ export async function getAttendanceDates() {
 
 export async function getAvailableDates() {
   try {
-    const response = await fetch("/api.php?action=getAvailableDates", {
+    const response = await fetch(getApiUrl(`getAvailableDates`), {
       headers: getAuthHeader(),
     });
     if (!response.ok) {
@@ -1452,7 +1570,7 @@ export async function getAvailableDates() {
 
 export async function removeGroup(groupId) {
   try {
-    const response = await fetch("/api.php?action=remove_group", {
+    const response = await fetch(getApiUrl(`remove_group`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1469,7 +1587,7 @@ export async function removeGroup(groupId) {
 
 export async function updateGroupName(groupId, newName) {
   try {
-    const response = await fetch("/api.php?action=update_group_name", {
+    const response = await fetch(getApiUrl(`update_group_name`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1486,7 +1604,7 @@ export async function updateGroupName(groupId, newName) {
 
 export async function getFormTypes() {
   try {
-    const response = await fetch("/api.php?action=get_form_types", {
+    const response = await fetch(getApiUrl(`get_form_types`), {
       headers: {
         ...getAuthHeader(),
         "Content-Type": "application/json",
@@ -1515,7 +1633,7 @@ export async function getFormTypes() {
 // Fetch the structure of the forms for the organization
 export async function getFormStructure() {
   try {
-    const response = await fetch('/api.php?action=get_organization_form_formats', {
+    const response = await fetch(getApiUrl(`get_organization_form_formats`), {
       method: 'GET',
       headers: {
         ...getAuthHeader(),
@@ -1547,7 +1665,7 @@ export async function getFormSubmissions(participantId = null, formType) {
   }
 
   // Construct the URL with the appropriate query parameters
-  let url = `/api.php?action=get_form_submissions&form_type=${encodeURIComponent(formType)}`;
+  let url = `${getApiUrl('get_form_submissions')}&form_type=${encodeURIComponent(formType)}`;
 
   if (participantId) {
     url += `&participant_id=${encodeURIComponent(participantId)}`;
@@ -1586,7 +1704,7 @@ export async function getFormSubmissions(participantId = null, formType) {
 export async function getParticipantsWithDocuments() {
   try {
     // Fetch participant documents
-    const response = await fetch('/api.php?action=get_participants_with_documents', {
+    const response = await fetch(getApiUrl(`get_participants_with_documents`), {
       headers: {
         ...getAuthHeader(),
         'Content-Type': 'application/json'
@@ -1640,7 +1758,7 @@ export async function getParticipantsWithDocuments() {
 
 export async function getOrganizationFormFormats(organizationId = null) {
     try {
-        const response = await fetch('/api.php?action=get_organization_form_formats' + (organizationId !== null ? `&organization_id=${organizationId}` : ''), {
+        const response = await fetch(getApiUrl(`get_organization_form_formats`) + (organizationId !== null ? `&organization_id=${organizationId}` : ''), {
             method: 'GET',
             headers: {
                 ...getAuthHeader(),
@@ -1668,7 +1786,7 @@ export async function getOrganizationFormFormats(organizationId = null) {
 
 export async function getFormSubmission(participantId, formType) {
   try {
-    const response = await fetch(`/api.php?action=get_form_submission&participant_id=${participantId}&form_type=${formType}`, {
+    const response = await fetch(`${getApiUrl('get_form_submission')}&participant_id=${participantId}&form_type=${formType}`, {
       headers: {
         ...getAuthHeader(),
         'Content-Type': 'application/json'
@@ -1702,7 +1820,7 @@ export async function getParentContactList() {
   }
 
   try {
-    const response = await fetch("/api.php?action=get_parent_contact_list", {
+    const response = await fetch(getApiUrl(`get_parent_contact_list`), {
       headers: getAuthHeader(),
     });
 
@@ -1731,7 +1849,7 @@ function addCacheBuster(url) {
 export async function getPendingBadges() {
   try {
     const response = await fetch(
-      addCacheBuster("/api.php?action=get_pending_badges"),
+      addCacheBuster(getApiUrl(`get_pending_badges`)),
       {
         headers: getAuthHeader(),
       }
@@ -1761,7 +1879,7 @@ export async function checkLoginStatus() {
 
 export async function updateBadgeStatus(badgeId, action) {
   try {
-    const response = await fetch("/api.php?action=update_badge_status", {
+    const response = await fetch(getApiUrl(`update_badge_status`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1781,7 +1899,7 @@ export async function updateBadgeStatus(badgeId, action) {
 export async function getParentsGuardians(participantId) {
   try {
     const response = await fetch(
-      `/api.php?action=get_parents_guardians&participant_id=${participantId}`,
+      `${getApiUrl('get_parents_guardians')}&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
       }
@@ -1807,7 +1925,7 @@ export async function saveFicheSante(ficheSanteData) {
     JSON.stringify(ficheSanteData, null, 2)
   );
   try {
-    const response = await fetch("/api.php?action=save_fiche_sante", {
+    const response = await fetch(getApiUrl(`save_fiche_sante`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1843,7 +1961,7 @@ export async function saveFicheSante(ficheSanteData) {
 export async function fetchAcceptationRisque(participantId) {
   try {
     const response = await fetch(
-      `/api.php?action=get_acceptation_risque&participant_id=${participantId}`,
+      `${getApiUrl('get_acceptation_risque')}&participant_id=${participantId}`,
       {
         headers: getAuthHeader(),
       }
@@ -1864,7 +1982,7 @@ export async function fetchAcceptationRisque(participantId) {
 
 export async function removeGuardians(participantId, guardianIds) {
   try {
-    const response = await fetch("/api.php?action=remove_guardians", {
+    const response = await fetch(getApiUrl(`remove_guardians`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1886,7 +2004,7 @@ export async function removeGuardians(participantId, guardianIds) {
 
 export async function saveAcceptationRisque(acceptationRisqueData) {
   try {
-    const response = await fetch("/api.php?action=save_acceptation_risque", {
+    const response = await fetch(getApiUrl(`save_acceptation_risque`), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1911,10 +2029,9 @@ export async function saveAcceptationRisque(acceptationRisqueData) {
 
 export async function getCurrentStars(participantId, territoire) {
   try {
-    const response = await fetch(
-      `api.php?action=get_current_stars&participant_id=${participantId}&territoire=${encodeURIComponent(
+    const response = await fetch(getApiUrl(`action=get_current_stars&participant_id=${participantId}&territoire=${encodeURIComponent(
         territoire
-      )}`,
+      )}`),
       {
         method: "GET",
         headers: getAuthHeader(),
@@ -1935,16 +2052,7 @@ export async function getCurrentStars(participantId, territoire) {
 
 // Utility function to get the current organization ID
 export function getCurrentOrganizationId() {
-  // Check if the organization ID is stored in local storage
-  const organizationId = localStorage.getItem('currentOrganizationId');
-
-  // If not found, set it to the default ID of 1
-  if (!organizationId) {
-    localStorage.setItem('currentOrganizationId', '1');
-    return '1';
-  }
-
-  return organizationId;
+    return app.organizationId || localStorage.getItem('currentOrganizationId');
 }
 
 // Utility function to set the current organization ID

@@ -1,12 +1,11 @@
 import {
-	initializeDB,
 	saveOfflineData,
 	getOfflineData,
 	clearOfflineData,
 } from "./indexedDB.js";
 import { initRouter, Router } from "./router.js";
 import { Login } from "./login.js";
-import { getOrganizationSettings } from "./ajax-functions.js";
+import { getOrganizationSettings, fetchOrganizationId } from "./ajax-functions.js";
 
 const debugMode =
 	window.location.hostname === "localhost" ||
@@ -148,20 +147,26 @@ export const app = {
 	db: null,
 	router: null,
 	organizationSettings: null, 
+	organizationId: null,
+	isOrganizationSettingsFetched:false,
 
 	 async init() {
-			await this.loadTranslations();
-		 this.initLanguageToggle();
+		 this.initialLoad = true;
 		debugLog("App init started");
 		 console.count("App init started");
 			this.createMessageBanner();
 		try {
-			this.db = await initializeDB();
-			await this.loadTranslations();
 			this.registerServiceWorker();
 
 			// Fetch organization settings early on during initialization
+			try {
+				this.organizationId = await fetchOrganizationId();
+				localStorage.setItem('currentOrganizationId', this.organizationId);
+			} catch (error) {
+				console.error("Error fetching organization ID:", error);
+			}
 			await this.fetchOrganizationSettings();
+			 this.initLanguageToggle();
 
 
 			// Check localStorage
@@ -191,39 +196,48 @@ export const app = {
 
 			this.router = initRouter(this);
 
-			// Instead of immediately navigating, let the router handle the initial route
-			this.router.route(window.location.pathname);
+					 // Instead of immediately navigating, let the router handle the initial route
+							if (!this.initialLoad) {
+									this.router.route(window.location.pathname);
+									this.initialLoad = true;
+							}
 
-			this.syncOfflineData();
-			debugLog("App init completed");
-		} catch (error) {
-			console.error("Initialization error:", error);
-		}
-	},
+							this.syncOfflineData();
+							console.log("App init completed");
+					} catch (error) {
+							console.error("Initialization error:", error);
+					}
+			},
 
 	async fetchOrganizationSettings() {
-		try {
-			debugLog("Fetching organization settings...");
-			const response = await getOrganizationSettings();
-			if (response.success) {
-				this.organizationSettings = response.settings; // Store the settings in the app object
-				debugLog("Organization settings fetched:", this.organizationSettings);
-			} else {
-				debugError("Failed to fetch organization settings:", response.message);
+			if (this.isOrganizationSettingsFetched) return; // Prevent multiple fetch calls
+
+			try {
+					debugLog("Fetching organization settings...");
+					const response = await getOrganizationSettings();
+					if (response.success) {
+							this.organizationSettings = response.settings;
+							this.isOrganizationSettingsFetched = true;  // Mark as fetched
+							debugLog("Organization settings fetched:", this.organizationSettings);
+					} else {
+							debugError("Failed to fetch organization settings:", response.message);
+					}
+			} catch (error) {
+					debugError("Error fetching organization settings:", error);
 			}
-		} catch (error) {
-			debugError("Error fetching organization settings:", error);
-		}
 	},
 
 	async loadTranslations() {
-		try {
-			const response = await fetch("/get_translations.php");
-			this.translations = await response.json();
-		} catch (error) {
-			console.error("Error loading translations:", error);
-			this.translations = {};
-		}
+			if (Object.keys(this.translations).length > 0) return; // Skip if already loaded
+
+			try {
+					const response = await fetch("/get_translations.php");
+					this.translations = await response.json();
+					debugLog("Translations loaded:", this.translations);
+			} catch (error) {
+					console.error("Error loading translations:", error);
+					this.translations = {};
+			}
 	},
 	
 	async handlePostLoginActions() {
@@ -312,7 +326,7 @@ export const app = {
 		}
 	},
 
-	registerServiceWorker() {
+	async registerServiceWorker() {
 		if ("serviceWorker" in navigator) {
 			window.addEventListener("load", () => {
 				navigator.serviceWorker
@@ -359,8 +373,6 @@ export const app = {
 		if (navigator.onLine) {
 			try {
 				// Ensure database is initialized
-				const db = await initializeDB();
-
 				const offlineData = await getOfflineData();
 				if (offlineData.length > 0) {
 					debugLog("Syncing offline data:", offlineData);
@@ -414,9 +426,5 @@ if (!navigator.onLine) {
 	app.showOfflineNotification("online");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-	debugLog("DOMContentLoaded event fired");
-	app.init();
-});
-
+app.init();
 export const translate = app.translate.bind(app);

@@ -54,41 +54,112 @@ export class Dashboard {
   }
 
   async preloadDashboardData() {
-    const [cachedGroups, cachedParticipants] = await Promise.all([
-      getCachedData('dashboard_groups'),
-      getCachedData('dashboard_participants')
-    ]);
-
-    if (cachedGroups && cachedParticipants) {
-      this.groups = cachedGroups;
-      this.participants = cachedParticipants;
-    }
-
-    // Fetch fresh data in the background
-    this.fetchData().then(() => {
-      this.render(); // Re-render with fresh data
-    });
-  }
-
-  async fetchData() {
     try {
-      const [participantsData, groupsData] = await Promise.all([
-        getParticipants(),
-        getGroups()
+      // Get cached data for non-points information only
+      const [cachedGroups, cachedParticipants] = await Promise.all([
+        getCachedData('dashboard_groups'),
+        getCachedData('dashboard_participant_info')
       ]);
 
-      if (Array.isArray(participantsData.participants)) {
-        this.participants = participantsData.participants;
-        await setCachedData('dashboard_participants', this.participants, 5 * 60 * 1000); // 5 minutes cache
+      let shouldRenderImmediately = false;
+      let needsFreshParticipants = false;
+      let needsFreshGroups = false;
+
+      // Initialize with cached basic info (excluding points)
+      if (cachedParticipants) {
+        // Only use cached non-points data
+        this.participants = cachedParticipants.map(p => ({
+          id: p.id,
+          first_name: p.first_name,
+          last_name: p.last_name,
+          group_id: p.group_id,
+          group_name: p.group_name,
+          is_leader: p.is_leader,
+          is_second_leader: p.is_second_leader
+        }));
+        shouldRenderImmediately = true;
+      } else {
+        needsFreshParticipants = true;
       }
 
-      if (Array.isArray(groupsData.groups)) {
-        this.groups = groupsData.groups;
-        await setCachedData('dashboard_groups', this.groups, 60 * 60 * 1000); // 1 hour cache
+      if (cachedGroups) {
+        this.groups = cachedGroups;
+        shouldRenderImmediately = true;
+      } else {
+        needsFreshGroups = true;
       }
 
-      // Sort the groups alphabetically by name
-      this.groups.sort((a, b) => a.name.localeCompare(b.name));
+      // Always fetch fresh points data
+      const participantsResponse = await getParticipants();
+      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
+        // Update points for existing participants or add new participants
+        participantsResponse.participants.forEach(freshParticipant => {
+          const existingParticipant = this.participants.find(p => p.id === freshParticipant.id);
+          if (existingParticipant) {
+            existingParticipant.total_points = freshParticipant.total_points;
+          } else {
+            this.participants.push(freshParticipant);
+          }
+        });
+      }
+
+      // If we need to fetch any other fresh data
+      if (needsFreshParticipants || needsFreshGroups) {
+        await this.fetchData(needsFreshParticipants, needsFreshGroups);
+      }
+
+      // Cache only non-points data
+      if (needsFreshParticipants) {
+        const participantsToCache = this.participants.map(p => ({
+          id: p.id,
+          first_name: p.first_name,
+          last_name: p.last_name,
+          group_id: p.group_id,
+          group_name: p.group_name,
+          is_leader: p.is_leader,
+          is_second_leader: p.is_second_leader
+        }));
+        await setCachedData('dashboard_participant_info', participantsToCache, 5 * 60 * 1000);
+      }
+
+      if (needsFreshGroups) {
+        await setCachedData('dashboard_groups', this.groups, 60 * 60 * 1000);
+      }
+
+      this.render();
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      this.render();
+    }
+  }
+
+  async fetchData(fetchParticipants = true, fetchGroups = true) {
+    try {
+      const promises = [];
+      if (fetchParticipants) {
+        promises.push(getParticipants());
+      }
+      if (fetchGroups) {
+        promises.push(getGroups());
+      }
+
+      const results = await Promise.all(promises);
+      let index = 0;
+
+      if (fetchParticipants) {
+        const participantsData = results[index++];
+        if (participantsData.success && Array.isArray(participantsData.participants)) {
+          this.participants = participantsData.participants;
+        }
+      }
+
+      if (fetchGroups) {
+        const groupsData = results[index];
+        if (groupsData.success && Array.isArray(groupsData.groups)) {
+          this.groups = groupsData.groups;
+          this.groups.sort((a, b) => a.name.localeCompare(b.name));
+        }
+      }
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       throw error;
@@ -97,7 +168,7 @@ export class Dashboard {
 
   async preloadAttendanceData() {
     const today = new Date().toISOString().split('T')[0];
-    const nextFewDays = this.getNextFewDays(today, 0); // Get today and next 3 days
+    const nextFewDays = this.getNextFewDays(today, 0); // Get today and next 0 days
 
     for (const date of nextFewDays) {
       const cachedAttendance = await getCachedData(`attendance_${date}`);
@@ -125,8 +196,7 @@ export class Dashboard {
 
   render() {
     const adminLink = this.app.userRole === "admin" ? 
-      `<a href="/admin" id="admin-link">${translate("administration")}</a>` :
-      `<a href="#">${translate("administration")}</a>`;
+      `<a href="/admin" id="admin-link">${translate("administration")}</a>` :``;
 
     const content = `
       <h1>${translate("dashboard_title")}</h1>
@@ -138,7 +208,15 @@ export class Dashboard {
         <a href="/upcoming-meeting">${translate("upcoming_meeting")}</a>
       </div>
       <div class="logo-container">
-        <img class="logo" src=".${this.organizationLogo}" width="335" heigth="366" alt="6e A St-Paul d'Aylmer">
+        <img 
+  class="logo" 
+  src="${this.organizationLogo}" 
+  width="335" 
+  height="366" 
+  alt="Logo"
+  loading="eager"
+  decoding="async"
+>
       </div>
       <div class="manage-items">
       <a href="/preparation-reunions">${translate("preparation_reunions")}</a>
@@ -224,10 +302,15 @@ export class Dashboard {
   renderParticipantsForGroup(participants) {
     // Sort participants: leader first, then second leader, then alphabetically by first name
     participants.sort((a, b) => {
-      if (a.is_leader) return -1;
-      if (b.is_leader) return 1;
-      if (a.is_second_leader) return -1;
-      if (b.is_second_leader) return 1;
+      // Sort leaders first
+      if (a.is_leader && !b.is_leader) return -1;
+      if (!a.is_leader && b.is_leader) return 1;
+
+      // Sort second leaders last
+      if (a.is_second_leader && !b.is_second_leader) return 1;
+      if (!a.is_second_leader && b.is_second_leader) return -1;
+
+      // Alphabetical sort by first name for non-leaders and non-second-leaders
       return a.first_name.localeCompare(b.first_name);
     });
 
@@ -235,9 +318,9 @@ export class Dashboard {
       <div class="list-item" data-name-id="${participant.id}" data-type="individual" 
            data-group-id="${participant.group_id || 'none'}" data-points="${participant.total_points}"
            data-name="${participant.first_name}">
-        <span>${participant.first_name} ${participant.last_name}</span>
-        ${participant.is_leader ? `<span class="badge leader">${translate("leader")}</span>` : ''}
-        ${participant.is_second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ''}
+        <span>${participant.first_name} ${participant.last_name}    ${participant.is_leader ? `<span class="badge leader">${translate("leader")}</span>` : ''}
+        ${participant.is_second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ''}</span>
+     
         <span id="name-points-${participant.id}">${participant.total_points} ${translate("points")}</span>
       </div>
     `).join("");

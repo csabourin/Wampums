@@ -15,14 +15,98 @@ export class ParentDashboard {
 			await this.fetchFormFormats();
 			this.render();
 			this.attachEventListeners();
+			 this.checkAndShowLinkParticipantsDialog();
 		} catch (error) {
 			console.error("Error initializing parent dashboard:", error);
 			this.app.renderError(translate("error_loading_parent_dashboard"));
 		}
 	}
 
+	checkAndShowLinkParticipantsDialog() {
+			const guardianParticipants = JSON.parse(localStorage.getItem("guardianParticipants"));
+			if (guardianParticipants && guardianParticipants.length > 0) {
+					this.showLinkParticipantsDialog(guardianParticipants);
+					localStorage.removeItem("guardianParticipants"); // Clear after showing
+			}
+	}
+
+	showLinkParticipantsDialog(guardianParticipants) {
+			const dialogContent = `
+					<h2>${translate("link_existing_participants")}</h2>
+					<p>${translate("existing_participants_found")}</p>
+					<form id="link-participants-form">
+							${guardianParticipants.map(participant => `
+									<label>
+											<input type="checkbox" name="link_participants" value="${participant.participant_id}">
+											${participant.first_name} ${participant.last_name}
+									</label>
+							`).join('')}
+							<button type="submit">${translate("link_selected_participants")}</button> 							<button id="cancel" type="button">${translate("cancel")}</button>
+					</form>
+			`;
+
+			const dialog = document.createElement('div');
+			dialog.innerHTML = dialogContent;
+			dialog.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
+			document.body.appendChild(dialog);
+
+		document.querySelector('#cancel').addEventListener('click', () => {
+				dialog.remove();
+		});
+
+			document.getElementById('link-participants-form').addEventListener('submit', async (e) => {
+					e.preventDefault();
+					const formData = new FormData(e.target);
+					const selectedParticipants = formData.getAll('link_participants');
+
+					try {
+							const response = await fetch('/api.php?action=link_user_participants', {
+									method: 'POST',
+									headers: {
+											'Content-Type': 'application/json',
+											'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`
+									},
+									body: JSON.stringify({ participant_ids: selectedParticipants })
+							});
+							const result = await response.json();
+							if (result.success) {
+									this.app.showMessage(translate("participants_linked_successfully"));
+									await this.fetchParticipants(); // Refresh the participants list
+									this.render(); // Re-render the dashboard
+							} else {
+									this.app.showMessage(translate("error_linking_participants"), "error");
+							}
+					} catch (error) {
+							console.error("Error linking participants:", error);
+							this.app.showMessage(translate("error_linking_participants"), "error");
+					}
+
+					document.body.removeChild(dialog);
+			});
+	}
+
 	async fetchParticipants() {
-		this.participants = await fetchParticipants(getCurrentOrganizationId());
+			try {
+					const response = await fetchParticipants(getCurrentOrganizationId());
+
+					// Use a Map to store unique participants
+					const uniqueParticipants = new Map();
+
+					response.forEach(participant => {
+							// If this participant isn't in our Map yet, add them
+							if (!uniqueParticipants.has(participant.id)) {
+									uniqueParticipants.set(participant.id, participant);
+							}
+					});
+
+					// Convert the Map values back to an array
+					this.participants = Array.from(uniqueParticipants.values());
+
+					console.log("Fetched participants:", this.participants);
+			} catch (error) {
+					console.error("Error fetching participants:", error);
+					this.participants = [];
+			}
 	}
 
 	async fetchFormFormats() {

@@ -5,6 +5,18 @@ initializeApp();
 
 header('Content-Type: application/javascript');
 
+// Ensure $jwtToken is set. Generate or fetch it based on your authentication logic.
+// For example:
+if (isset($_SESSION['jwtToken'])) {
+    $jwtToken = $_SESSION['jwtToken'];
+} else {
+    // Logic to generate or retrieve the token
+    // Here, use your own logic to authenticate and generate the token
+    $apiKey = "71cdcaa0-c7c1-4947-90cc-a5316b0aa542"; // Replace with your actual API key
+    $jwtToken = authenticateAndGetToken($apiKey); // Implement this function as needed
+    $_SESSION['jwtToken'] = $jwtToken;
+}
+
 $initialData = [
     'isLoggedIn' => isLoggedIn(),
     'userRole' => $_SESSION['user_role'] ?? null,
@@ -13,6 +25,10 @@ $initialData = [
 
 echo 'window.initialData = ' . json_encode($initialData) . ';';
 ?>
+
+  const jwtToken = "<?php echo $jwtToken; ?>";
+  localStorage.setItem("jwtToken", jwtToken);
+
 
 document.addEventListener("DOMContentLoaded", function() {
     let newsWidget = document.getElementById("news-widget");

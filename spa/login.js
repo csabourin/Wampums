@@ -37,6 +37,56 @@ export class Login {
     this.attachLoginFormListener();
   }
 
+  // showLinkParticipantsDialog(guardianParticipants) {
+  //     const dialogContent = `
+  //         <h2>${translate("link_existing_participants")}</h2>
+  //         <p>${translate("existing_participants_found")}</p>
+  //         <form id="link-participants-form">
+  //             ${guardianParticipants.map(participant => `
+  //                 <label>
+  //                     <input type="checkbox" name="link_participants" value="${participant.participant_id}">
+  //                     ${participant.first_name} ${participant.last_name}
+  //                 </label>
+  //             `).join('')}
+  //             <button type="submit">${translate("link_selected_participants")}</button>
+  //         </form>
+  //     `;
+
+  //     const dialog = document.createElement('div');
+  //     dialog.innerHTML = dialogContent;
+  //     dialog.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
+  //     document.body.appendChild(dialog);
+
+  //     document.getElementById('link-participants-form').addEventListener('submit', async (e) => {
+  //         e.preventDefault();
+  //         const formData = new FormData(e.target);
+  //         const selectedParticipants = formData.getAll('link_participants');
+
+  //         try {
+  //             const response = await fetch('/api.php?action=link_user_participants', {
+  //                 method: 'POST',
+  //                 headers: {
+  //                     'Content-Type': 'application/json',
+  //                     'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`
+  //                 },
+  //                 body: JSON.stringify({ participant_ids: selectedParticipants })
+  //             });
+  //             const result = await response.json();
+  //             if (result.success) {
+  //                 this.app.showMessage(translate("participants_linked_successfully"));
+  //             } else {
+  //                 this.app.showMessage(translate("error_linking_participants"), "error");
+  //             }
+  //         } catch (error) {
+  //             console.error("Error linking participants:", error);
+  //             this.app.showMessage(translate("error_linking_participants"), "error");
+  //         }
+
+  //         document.body.removeChild(dialog);
+  //         this.redirectAfterLogin(this.app.userRole);
+  //     });
+  // }
+
   async attachLoginFormListener() {
     const form = document.getElementById("login-form");
     form.addEventListener("submit", async (e) => {
@@ -83,40 +133,86 @@ export class Login {
   }
 
   handleLoginSuccess(result) {
-    console.log("Login successful:", result);
-    this.app.isLoggedIn = true;
-    this.app.userRole = result.user_role;
-    this.app.userFullName = result.user_full_name || "User";
+      console.log("Login successful:", result);
+      this.app.isLoggedIn = true;
+      this.app.userRole = result.user_role;
+      this.app.userFullName = result.user_full_name || "User";
 
-    // Store JWT token and user info
-    localStorage.setItem("jwtToken", result.token);
-    localStorage.setItem("userRole", result.user_role);
-    localStorage.setItem("userFullName", this.app.userFullName);
+      // Store JWT token and user info
+      localStorage.setItem("jwtToken", result.token);
+      localStorage.setItem("userRole", result.user_role);
+      localStorage.setItem("userFullName", this.app.userFullName);
 
-    console.log("LocalStorage after setting:", {
-      jwtToken: localStorage.getItem("jwtToken"),
-      userRole: localStorage.getItem("userRole"),
-      userFullName: localStorage.getItem("userFullName"),
-    });
+      // Store guardian participants if available
+      if (result.guardian_participants && result.guardian_participants.length > 0) {
+          localStorage.setItem("guardianParticipants", JSON.stringify(result.guardian_participants));
+      }
 
-    // Redirect based on user role
-    if (result.user_role === "parent") {
-      this.app.router.route("/parent-dashboard");
-    } else {
-      this.app.router.route("/dashboard");
-    }
+      console.log("LocalStorage after setting:", {
+          jwtToken: localStorage.getItem("jwtToken"),
+          userRole: localStorage.getItem("userRole"),
+          userFullName: localStorage.getItem("userFullName"),
+          guardianParticipants: localStorage.getItem("guardianParticipants"),
+      });
+
+      // Redirect based on user role
+      if (result.user_role === "parent") {
+          this.app.router.route("/parent-dashboard");
+      } else {
+          this.app.router.route("/dashboard");
+      }
+  }
+
+   decodeJwt(token) {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
   }
 
   static checkSession() {
     const jwtToken = localStorage.getItem("jwtToken");
-    const userRole = localStorage.getItem("userRole");
-    const userFullName = localStorage.getItem("userFullName");
+    if (!jwtToken) {
+      return { isLoggedIn: false, userRole: null, userFullName: null };
+    }
 
-    return {
-      isLoggedIn: !!jwtToken,
-      userRole: userRole,
-      userFullName: userFullName,
-    };
+    try {
+      // Decode the token to extract the payload
+      const decodedToken = this.decodeJwt(jwtToken);
+
+      // Check if the token is expired
+      const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+      if (decodedToken.exp && decodedToken.exp < currentTime) {
+        // Token has expired
+        console.warn("Token has expired");
+        localStorage.removeItem("jwtToken");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("userFullName");
+        return { isLoggedIn: false, userRole: null, userFullName: null };
+      }
+
+      // If token is valid, return user details
+      const userRole = localStorage.getItem("userRole");
+      const userFullName = localStorage.getItem("userFullName");
+
+      return {
+        isLoggedIn: true,
+        userRole: userRole,
+        userFullName: userFullName,
+      };
+    } catch (error) {
+      console.error("Invalid JWT token:", error);
+      // Clear any invalid token data from localStorage
+      localStorage.removeItem("jwtToken");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userFullName");
+      return { isLoggedIn: false, userRole: null, userFullName: null };
+    }
   }
 
   static logout() {

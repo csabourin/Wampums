@@ -1,181 +1,228 @@
 const DB_NAME = "WampumsAppDB";
-const DB_VERSION = 10; // Make sure the version is incremented correctly
-const STORE_PARTICIPANTS = "participants";
-const STORE_GROUPS = "groups";
-const STORE_NAME = "offlineData"; // This store is for offline data
+const DB_VERSION = 12;
+const STORE_NAME = "offlineData";
 
-// Function to initialize the database and create object stores
-export function initializeDB() {
+export function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => reject(request.error);
+    request.onerror = (event) => {
+      console.error("Error opening IndexedDB:", event.target.errorCode);
+      reject(event.target.errorCode);
+    };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = (event) => {
+      console.log("IndexedDB opened successfully");
+      resolve(event.target.result);
+    };
 
     request.onupgradeneeded = (event) => {
+      console.log("Upgrading IndexedDB...");
       const db = event.target.result;
-
-      // Create object store for participants if it doesn't exist
-      if (!db.objectStoreNames.contains(STORE_PARTICIPANTS)) {
-        db.createObjectStore(STORE_PARTICIPANTS, {
-          keyPath: "id",
-          autoIncrement: true,
-        });
-      }
-
-      // Create object store for groups if it doesn't exist
-      if (!db.objectStoreNames.contains(STORE_GROUPS)) {
-        db.createObjectStore(STORE_GROUPS, {
-          keyPath: "id",
-          autoIncrement: true,
-        });
-      }
-
-      // Create object store for offline data if it doesn't exist
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, {
-          keyPath: "id",
-          autoIncrement: true,
-        });
+        const store = db.createObjectStore(STORE_NAME, { keyPath: "key" });
+        store.createIndex("key_idx", "key", { unique: true });
+        store.createIndex("type_idx", "type", { unique: false });
+        store.createIndex("timestamp_idx", "timestamp", { unique: false });
       }
     };
   });
 }
 
-// Simplified openDB function
-export function openDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-// Save offline data function
-export function saveOfflineData(action, data) {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.add({
-        action,
-        data,
-        timestamp: new Date().toISOString(),
-      });
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-  });
-}
-
-export function getOfflineData() {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        // If the object store does not exist, throw an error or resolve with empty data
-        console.error(`Object store "${STORE_NAME}" not found.`);
-        return resolve([]); // Resolve with an empty array or handle as needed
-      }
-
-      const transaction = db.transaction([STORE_NAME], "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.getAll();
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-  });
-}
-
-// Clear offline data function
-export function clearOfflineData() {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.clear();
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
-  });
-}
-
-// Save participants to IndexedDB
-export function saveParticipants(participants) {
-  return openDB().then((db) => {
-    const transaction = db.transaction([STORE_PARTICIPANTS], "readwrite");
-    const store = transaction.objectStore(STORE_PARTICIPANTS);
-    store.clear(); // Clear old data before saving new data
-    participants.forEach((participant, index) => {
-      store.put({ id: index + 1, data: participant });
-    });
-    return transaction.complete;
-  });
-}
-
-// Get participants from cache
-export function getParticipantsFromCache() {
-  return openDB().then((db) => {
-    const transaction = db.transaction([STORE_PARTICIPANTS], "readonly");
-    const store = transaction.objectStore(STORE_PARTICIPANTS);
-    return store.getAll().then((result) => result.map((item) => item.data));
-  });
-}
-
-// Save groups to IndexedDB
-export function saveGroups(groups) {
-  return openDB().then((db) => {
-    const transaction = db.transaction([STORE_GROUPS], "readwrite");
-    const store = transaction.objectStore(STORE_GROUPS);
-    store.clear(); // Clear old data before saving new data
-    groups.forEach((group, index) => {
-      store.put({ id: index + 1, data: group });
-    });
-    return transaction.complete;
-  });
-}
-
-// Get groups from cache
-export function getGroupsFromCache() {
-  return openDB().then((db) => {
-    const transaction = db.transaction([STORE_GROUPS], "readonly");
-    const store = transaction.objectStore(STORE_GROUPS);
-    return store.getAll().then((result) => result.map((item) => item.data));
-  });
-}
-
 export function setCachedData(key, data, expirationTime = 5 * 60 * 1000) {
   return openDB().then((db) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    return store.put({
-      key: key, // Save data with a specific key (like API URL)
-      data: data,
-      expiration: Date.now() + expirationTime, // Set expiration time
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+
+      const record = {
+        key: key,
+        data: data,
+        type: 'cache',
+        timestamp: Date.now(),
+        expiration: Date.now() + expirationTime
+      };
+
+      const request = store.put(record);
+
+      request.onerror = () => {
+        console.error("Error storing data:", request.error);
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        console.log("Data stored successfully:", record);
+        resolve(request.result);
+      };
+
+      tx.oncomplete = () => {
+        db.close();
+      };
     });
   });
 }
-
 
 export function getCachedData(key) {
   return openDB().then((db) => {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readonly");
       const store = tx.objectStore(STORE_NAME);
+
       const request = store.get(key);
 
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        console.error("Error retrieving data:", request.error);
+        reject(request.error);
+      };
+
       request.onsuccess = () => {
-        const result = request.result;
-        if (result && result.expiration > Date.now()) {
-          resolve(result.data); // Return cached data if not expired
+        const record = request.result;
+        console.log("Retrieved record:", record);
+
+        if (record && record.expiration > Date.now()) {
+          console.log("Returning valid cached data:", record.data);
+          resolve(record.data);
         } else {
-          resolve(null); // Return null if data has expired or is not found
+          if (!record) {
+            console.log("No data found for key:", key);
+          } else {
+            console.log("Data expired for key:", key);
+            const cleanupTx = db.transaction(STORE_NAME, "readwrite");
+            const cleanupStore = cleanupTx.objectStore(STORE_NAME);
+            cleanupStore.delete(key);
+          }
+          resolve(null);
         }
+      };
+
+      tx.oncomplete = () => {
+        db.close();
       };
     });
   });
+}
+
+// Enhanced offline data handling
+export async function saveOfflineData(action, data) {
+  return openDB().then((db) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+
+      const record = {
+        key: `${action}`,
+        type: 'offline',
+        action,
+        data,
+        timestamp: Date.now(),
+        retryCount: 0
+      };
+
+      const request = store.put(record);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+  });
+}
+
+export async function getOfflineData() {
+  return openDB().then((db) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const index = store.index("type_idx");
+      const request = index.getAll("offline");
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const offlineData = request.result || [];
+        console.log("Retrieved offline data:", offlineData);
+        resolve(offlineData);
+      };
+    });
+  });
+}
+
+export async function clearOfflineData() {
+  return openDB().then((db) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const index = store.index("type_idx");
+      const request = index.getAll("offline");
+
+      request.onsuccess = () => {
+        const offlineRecords = request.result || [];
+        offlineRecords.forEach(record => {
+          store.delete(record.key);
+        });
+        resolve();
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  });
+}
+
+// Function to sync offline data with retry mechanism
+export async function syncOfflineData() {
+  if (!navigator.onLine) {
+    console.log("Device is offline, cannot sync");
+    return;
+  }
+
+  try {
+    const offlineData = await getOfflineData();
+    console.log("Found offline data to sync:", offlineData);
+
+    for (const item of offlineData) {
+      try {
+        switch (item.action) {
+          case 'updateAttendance':
+            await updateAttendance(
+              item.data.participantIds,
+              item.data.newStatus,
+              item.data.date
+            );
+            break;
+
+          case 'saveParticipant':
+            await saveParticipant(item.data);
+            break;
+
+          case 'saveGuest':
+            await saveGuest(item.data);
+            break;
+
+          // Add other cases as needed
+          default:
+            console.warn(`Unknown offline action type: ${item.action}`);
+        }
+
+        // If successful, remove the item from offline storage
+        await openDB().then(db => {
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          return store.delete(item.key);
+        });
+
+      } catch (error) {
+        console.error(`Error syncing offline data for action ${item.action}:`, error);
+
+        // Increment retry count and update the record
+        if (item.retryCount < 3) {
+          await openDB().then(db => {
+            const tx = db.transaction(STORE_NAME, "readwrite");
+            const store = tx.objectStore(STORE_NAME);
+            item.retryCount = (item.retryCount || 0) + 1;
+            return store.put(item);
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error during offline data sync:", error);
+    throw error;
+  }
 }

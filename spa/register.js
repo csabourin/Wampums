@@ -57,6 +57,9 @@ export class Register {
     const formData = new FormData(e.target);
     const registerData = Object.fromEntries(formData.entries());
 
+    // Convert email to lowercase
+    registerData.email = registerData.email.toLowerCase();
+
     if (registerData.password !== registerData.confirm_password) {
       this.showError(translate("passwords_do_not_match"));
       return;

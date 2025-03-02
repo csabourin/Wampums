@@ -54,11 +54,12 @@
   flex-direction: column;
   align-items: center;
 }
+
 .logo {
-  width: 335px;
-  max-width: 100%;
-  height: auto;
+  min-height: 366px;
+  aspect-ratio: 335/366;
 }
+
 html {
   height: 100%;
 }
@@ -286,7 +287,7 @@ th,td {
 /* Attendance specific styles */
 .attendance-list {
   margin-bottom: 6rem;
-  margin-top: 6rem;
+  margin-top: .5rem;
 }
 .name-item {
   display: flex;
@@ -1038,6 +1039,11 @@ textarea {
   position: absolute;
   left: -9999px;
 }
+
+#honors-list{
+  padding-bottom:8rem;
+}
+
 .badge {
   display: inline-block;
   padding: 2px 5px;
@@ -1331,6 +1337,8 @@ textarea {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
+  padding: 5px;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
 }
 
 .date-navigation button,
@@ -1568,6 +1576,29 @@ textarea {
     font-size: 0.9rem;
     padding: 8px 10px;
     min-width: 100px;
+  }
+}
+
+
+.participant-row.selected {
+  font-weight: bold;
+}
+
+.point-change {
+  position: absolute;
+  right: 10px;
+  animation: fadeUp 2s forwards;
+  font-weight: bold;
+}
+
+@keyframes fadeUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
   }
 }
 

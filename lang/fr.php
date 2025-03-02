@@ -704,5 +704,38 @@ return [
   'upcoming_meeting' => 'Prochaine réunion',
   'activities' => 'Activités',
   'location' => 'Emplacement',
+  "link_existing_participants" => "Lier les participants existants",
+  "existing_participants_found" => "Nous avons trouvé des participants associés à votre e-mail. Voulez-vous les lier à votre compte ?",
+  "link_selected_participants" => "Lier les participants sélectionnés",
+  "participants_linked_successfully" => "Participants liés avec succès",
+  "error_linking_participants" => "Une erreur s'est produite lors de la liaison des participants",
+  "no_participants_selected" => "Aucun participant sélectionné",
+  "new_animator_registration_subject" => "Nouvelle inscription d'animateur pour {orgName}",
+  "new_animator_registration_body" => "
+  Cher administrateur,
+
+  Un nouvel utilisateur s'est inscrit en tant qu'animateur pour {orgName} et nécessite une vérification :
+
+  Nom : {animatorName}
+  Email : {animatorEmail}
+
+  Veuillez vous connecter au tableau de bord d'administration pour vérifier cet utilisateur.
+
+  Cordialement,
+  Le Système
+  ",
+  "attendance_updated_successfully" => "La présence a été mise à jour avec succès.",
+    "error_updating_attendance" => "Erreur lors de la mise à jour de la présence.",
+    "select_participant" => "Veuillez sélectionner un participant.",
+    "attendance_updated" => "Présence mise à jour.",
+    "group_attendance_updated" => "La présence du groupe a été mise à jour.",
+    "error_updating_group_attendance" => "Erreur lors de la mise à jour de la présence du groupe.",
+    "no_participants_to_update" => "Aucun participant à mettre à jour.",
+    "no_selection" => "Aucune sélection.",
+    "error_loading_attendance" => "Erreur lors du chargement de la présence.",
+    "guest_name_required" => "Le nom de l'invité est requis.",
+    "guest_added_successfully" => "L'invité a été ajouté avec succès.",
+    "error_saving_guest" => "Erreur lors de l'enregistrement de l'invité.",
+    "error" => "Erreur",
 
     ];

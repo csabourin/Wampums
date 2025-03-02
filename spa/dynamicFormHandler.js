@@ -184,13 +184,14 @@ export class DynamicFormHandler {
                         ${formContent}
                         <button type="submit">${translate("save")}</button>
                     </form>
+
+                    <a href="/parent-dashboard" class="button">${translate("back_to_dashboard")}</a>
                 `
             : `
                    <fieldset id="dynamic-form-${this.formType}${uniqueIdPart}">
                     <legend>${translate(this.formType)}</legend>
                     ${formContent}
-                </fieldset>
-                `;
+                </fieldset>`;
 
           this.container.innerHTML = content;
 

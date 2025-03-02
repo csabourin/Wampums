@@ -3,6 +3,9 @@ import {
   getGroups,
   updateParticipantGroup,
 } from "./ajax-functions.js";
+import {
+  saveOfflineData
+} from "./indexedDB.js";
 import { translate } from "./app.js";
 
 export class ManageParticipants {
@@ -44,6 +47,8 @@ export class ManageParticipants {
 
       console.log("Fetched Participants:", this.participants);
       console.log("Fetched Groups:", this.groups);
+      await saveOfflineData('participants', this.participants);
+      await saveOfflineData('groups', this.groups);
     } catch (error) {
       console.error("Error fetching manage participants data:", error);
       throw error;
@@ -118,45 +123,44 @@ export class ManageParticipants {
   }
 
   async handleGroupChange(event) {
-    const participantId = event.target.getAttribute("data-participant-id");
-    const groupId = event.target.value;
-    const roleSelect = event.target.closest("tr").querySelector(".role-select");
+      const participantId = parseInt(event.target.getAttribute("data-participant-id"), 10);
+      const groupIdRaw = event.target.value;
+      const groupId = groupIdRaw === "none" ? null : parseInt(groupIdRaw, 10);
+      const roleSelect = event.target.closest("tr").querySelector(".role-select");
 
-    // Default values for roles when only changing the group
-    const isLeader = false;
-    const isSecondLeader = false;
+      const requestData = {
+          participant_id: participantId,
+          group_id: groupId,
+          is_leader: false,
+          is_second_leader: false
+      };
 
-    // Log the data that will be sent
-    const requestData = {
-      participant_id: participantId,
-      group_id: groupId,
-      is_leader: isLeader,
-      is_second_leader: isSecondLeader,
-    };
+      console.log("Sending group change data to backend:", JSON.stringify(requestData));
 
-    console.log("Sending group change data to backend:", JSON.stringify(requestData));
+      try {
+          const result = await updateParticipantGroup(
+              requestData.participant_id,
+              requestData.group_id,
+              requestData.is_leader,
+              requestData.is_second_leader
+          );
 
-    try {
-      // Send the data to the backend wrapped in JSON
-      const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader);
-
-      if (result.status === "success") {
-        // Enable or disable role select based on whether a group is selected
-        if (groupId && groupId !== "none") {
-          roleSelect.disabled = false; // Enable the role select field
-        } else {
-          roleSelect.disabled = true;  // Disable the role select field if no group
-          roleSelect.value = "none";   // Reset role to "none" if no group is selected
-        }
-
-        this.app.showMessage(translate("group_updated_successfully"), "success");
-      } else {
-        this.app.showMessage(result.message || translate("error_updating_group"), "error");
+          if (result.status === "success") {
+              roleSelect.disabled = !groupId;
+              if (!groupId) {
+                  roleSelect.value = "none";
+              }
+            await this.fetchData()
+              this.app.showMessage(translate("group_updated_successfully"), "success");
+          } else {
+              throw new Error(result.message || translate("error_updating_group"));
+          }
+      } catch (error) {
+          console.error("Error updating group membership:", error);
+          // Revert the select to its previous value if there was an error
+          event.target.value = event.target.getAttribute("data-previous-value") || "none";
+          this.app.showMessage(error.message || translate("error_updating_group"), "error");
       }
-    } catch (error) {
-      console.error("Error updating group membership:", error);
-      this.app.showMessage(translate("error_updating_group"), "error");
-    }
   }
 
 
@@ -167,7 +171,7 @@ export class ManageParticipants {
 
     if (!groupId || groupId === "none") {
       this.app.showMessage(translate("assign_group_before_role"), "error");
-      event.target.value = "none";
+      event.target.value = "no_group";
       return;
     }
 
@@ -189,6 +193,7 @@ export class ManageParticipants {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader);
 
       if (result.status === "success") {
+        await this.fetchData()
         this.app.showMessage(translate("role_updated_successfully"), "success");
       } else {
         this.app.showMessage(result.message || translate("error_updating_role"), "error");
