@@ -14,6 +14,7 @@ console.log('API_BASE_URL:', API_BASE_URL);
 
 // Utility function to determine the base URL
 function getApiUrl(action,direct=false) {
+  debugger;
   if(!direct){
   return `${API_BASE_URL}/api?action=${action}`;
   }
@@ -1354,7 +1355,16 @@ export async function fetchOrganizationId() {
   // If not found in localStorage, fetch from the server
   try {
     console.log("Fetching organization ID from the server...");
-    const response = await fetch(getApiUrl('get_organization_id',true), {
+
+    // Get the current hostname
+    const hostname = window.location.hostname;
+
+    // Create the URL using your utility function and append the hostname parameter
+      // For API action endpoint (/api?action=get_organization_id)
+    const url = `${getApiUrl('get_organization_id', false)}&hostname=${encodeURIComponent(hostname)}`;
+    
+
+    const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json'
       }
@@ -1366,11 +1376,15 @@ export async function fetchOrganizationId() {
 
     const data = await response.json();
 
-    if (data.success && data.organizationId) {
+    // Check for the organizationId in the response structure
+    // Handling both possible response formats for compatibility
+    const organizationId = data.data?.organizationId || data.organizationId;
+
+    if (data.success && organizationId) {
       // Store the organization ID in localStorage for future use
-      localStorage.setItem('organizationId', data.organizationId);
-      console.log("Organization ID fetched and stored:", data.organizationId);
-      return data.organizationId;
+      localStorage.setItem('organizationId', organizationId);
+      console.log("Organization ID fetched and stored:", organizationId);
+      return parseInt(organizationId, 10);
     } else {
       throw new Error("Failed to fetch organization ID from the server");
     }
