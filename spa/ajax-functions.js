@@ -13,10 +13,9 @@ const API_BASE_URL = debugMode ? 'http://localhost' : 'https://wampums-api.repli
 console.log('API_BASE_URL:', API_BASE_URL);
 
 // Utility function to determine the base URL
-function getApiUrl(action,direct=false) {
-  debugger;
+function getApiUrl(action, direct=false) {
   if(!direct){
-  return `${API_BASE_URL}/api?action=${action}`;
+    return `${API_BASE_URL}/api.php?action=${action}`;
   }
   else{
     return `${API_BASE_URL}/${action}`;
@@ -1359,11 +1358,9 @@ export async function fetchOrganizationId() {
     // Get the current hostname
     const hostname = window.location.hostname;
 
-    // Create the URL using your utility function and append the hostname parameter
-      // For API action endpoint (/api?action=get_organization_id)
-    const url = `${getApiUrl('get_organization_id', false)}&hostname=${encodeURIComponent(hostname)}`;
+    // Create the URL with the correct action parameter
+    const url = `${API_BASE_URL}/api.php?action=get_organization_id&hostname=${encodeURIComponent(hostname)}`;
     
-
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json'
