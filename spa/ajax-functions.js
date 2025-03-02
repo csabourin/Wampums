@@ -122,6 +122,14 @@ export async function LinkUserParticipants(data) {
   }
 }
 
+export async function LinkUserParticipants(data) {
+  try {
+    return await fetchFromApi('link_user_participants', 'POST', data);
+  } catch (error) {
+    console.error("Error linking participants:", error);
+  }
+}
+
 export async function getParticipantAgeReport() {
   return fetchFromApi('participant-age', 'GET');
 }
@@ -363,6 +371,7 @@ export async function approveUser(userId, organizationId) {
 export async function updateUserRole(userId, newRole, organizationId) {
     try {
         const response = await fetch(getApiUrl(`update_user_role`), {
+
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -643,6 +652,7 @@ export async function getParticipantCalendar(participantId) {
 export async function getUsers(organizationId) {
     try {
         const response = await fetch(`${getApiUrl('get_users')}&organization_id=${organizationId}`, {
+
             headers: getAuthHeader(),
         });
 
@@ -851,6 +861,7 @@ export async function getParticipants() {
 
     // Always fetch fresh data to get current points
     const response = await fetch(getApiUrl(`get_participants`), {
+
       headers: {
         ...getAuthHeader(),
         'X-Organization-ID': getCurrentOrganizationId(),
@@ -966,6 +977,7 @@ export async function getOrganizationSettings() {
   // Step 2: Fetch from API if no valid cached data is found
   try {
     const response = await fetch(getApiUrl(`get_organization_settings`), {
+
       headers: getAuthHeader(),
     });
     if (!response.ok) {
@@ -1042,6 +1054,7 @@ export async function getHonorsAndParticipants(date = null) {
     }
 
     const result = await fetchFromApi(`${params.toString()}`, 'GET', null);
+
 
     if (!result.participants || !result.honors || !result.availableDates) {
       console.error('Unexpected data structure from get_honors:', result);
@@ -1391,6 +1404,7 @@ export async function fetchOrganizationId() {
     console.error("Error fetching organization ID:", error);
     throw error;
   }
+
 }
 
 export async function fetchParticipants(organizationId) {

@@ -250,6 +250,7 @@ function determineOrganizationId($pdo, $currentHost) {
 }
 
 
+
 // function getCurrentOrganizationId() {
 // if (isset($_SESSION['current_organization_id'])) {
 //     return $_SESSION['current_organization_id'];
@@ -258,6 +259,7 @@ function determineOrganizationId($pdo, $currentHost) {
 // $currentHost = $_SERVER['HTTP_HOST'];
 // $pdo = getDbConnection();
 // $organizationId = determineOrganizationId($pdo, $currentHost);
+
 
 // if ($organizationId) {
 //     $_SESSION['current_organization_id'] = $organizationId;
@@ -268,6 +270,7 @@ function determineOrganizationId($pdo, $currentHost) {
 // }
 
 function getCurrentOrganizationId() {
+
     if (isset($_SESSION['current_organization_id'])) {
         return $_SESSION['current_organization_id'];
     }

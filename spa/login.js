@@ -175,7 +175,7 @@ export class Login {
     return JSON.parse(jsonPayload);
   }
 
-  static checkSession() {
+   static checkSession() {
     const jwtToken = localStorage.getItem("jwtToken");
     if (!jwtToken) {
       return { isLoggedIn: false, userRole: null, userFullName: null };
