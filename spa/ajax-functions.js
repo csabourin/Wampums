@@ -57,10 +57,21 @@ export async function fetchFromApi(action, method = 'GET', body = null) {
 	}
 }
 
-// Utility function to get the JWT token from local storage
+// This function returns the appropriate authorization header with JWT token
 export function getAuthHeader() {
 	const token = localStorage.getItem("jwtToken");
-	return token ? { Authorization: `Bearer ${token}` } : {};
+	const organizationId = localStorage.getItem("organizationId");
+	const headers = {};
+
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	if (organizationId) {
+		headers['X-Organization-ID'] = organizationId;
+	}
+
+	return headers;
 }
 
 async function handleResponse(response) {
@@ -1201,49 +1212,69 @@ export async function getAttendanceReport(startDate = null, endDate = null) {
 }
 
 export async function logout() {
-	try {
-		const response = await fetch(getApiUrl(`logout`), {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
-		const data = await response.json();
-		return data;
-	} catch (error) {
-		console.error("Error logging out:", error);
-		throw error;
-	}
+		try {
+				const response = await fetch(getApiUrl(`logout`), {
+						method: "POST",
+						headers: {
+								"Content-Type": "application/json",
+								...getAuthHeader(),
+						},
+				});
+
+				// Clear user-specific data but keep organization JWT
+				localStorage.removeItem("userRole");
+				localStorage.removeItem("userFullName");
+				localStorage.removeItem("userId");
+
+				// Get an organization-only JWT
+				const orgId = localStorage.getItem("currentOrganizationId");
+				const orgResponse = await fetch(`/get-organization-jwt.php?organization_id=${orgId}`);
+				const orgData = await orgResponse.json();
+
+				if (orgData.success && orgData.token) {
+						localStorage.setItem("jwtToken", orgData.token);
+				}
+
+				const data = await response.json();
+				return data;
+		} catch (error) {
+				console.error("Error logging out:", error);
+				throw error;
+		}
 }
 
-export async function login(email, password,organization_id) {
-	try {
-		const response = await fetch(getApiUrl(`login`,true), {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/x-www-form-urlencoded",
-			},
-			body: new URLSearchParams({
-				email: email,
-				password: password,
-				organization_id: organization_id,
-			}),
-		});
-
-		// Try to parse the response as JSON
-		let data;
+export async function login(email, password, organization_id) {
 		try {
-			data = JSON.parse(responseText);
-		} catch (error) {
-			console.error("Error parsing JSON:", error);
-			throw new Error("Invalid JSON response from server");
-		}
+				const formData = new FormData();
+				formData.append('email', email);
+				formData.append('password', password);
+				formData.append('organization_id', organization_id || getCurrentOrganizationId());
 
-		return data;
-	} catch (error) {
-		console.error("Error logging in:", error);
-		throw error;
-	}
+				const response = await fetch(getApiUrl(`login`), {
+						method: "POST",
+						headers: getAuthHeader(), // Include existing token for organization context
+						body: formData
+				});
+
+				if (!response.ok) {
+						throw new Error(`HTTP error! status: ${response.status}`);
+				}
+
+				const data = await response.json();
+
+				// If login successful, store the user JWT
+				if (data.success && data.token) {
+						localStorage.setItem("jwtToken", data.token);
+						localStorage.setItem("userRole", data.user_role);
+						localStorage.setItem("userFullName", data.user_full_name);
+						localStorage.setItem("userId", data.user_id);
+				}
+
+				return data;
+		} catch (error) {
+				console.error("Error logging in:", error);
+				throw error;
+		}
 }
 
 export async function registerForOrganization(registrationData) {
@@ -2078,12 +2109,12 @@ export async function getCurrentStars(participantId, territoire) {
 
 // Utility function to get the current organization ID
 export function getCurrentOrganizationId() {
-		return app.organizationId || localStorage.getItem('currentOrganizationId');
+		return localStorage.getItem('organizationId') || null;
 }
 
 // Utility function to set the current organization ID
 function setCurrentOrganizationId(organizationId) {
-	localStorage.setItem('currentOrganizationId', organizationId);
+	localStorage.setItem('organizationId', organizationId);
 }
 
 // Function to sync offline data

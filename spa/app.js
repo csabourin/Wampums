@@ -150,64 +150,83 @@ export const app = {
 	organizationId: null,
 	isOrganizationSettingsFetched:false,
 
-	 async init() {
-		 this.initialLoad = true;
-		debugLog("App init started");
-		 console.count("App init started");
+	// Update the init function in your app.js
+
+	async init() {
+			this.initialLoad = true;
+			debugLog("App init started");
+			console.count("App init started");
 			this.createMessageBanner();
-		try {
-			this.registerServiceWorker();
 
-			// Fetch organization settings early on during initialization
 			try {
-				this.organizationId = await fetchOrganizationId();
-				localStorage.setItem('currentOrganizationId', this.organizationId);
-			} catch (error) {
-				console.error("Error fetching organization ID:", error);
-			}
-			await this.fetchOrganizationSettings();
-			 this.initLanguageToggle();
+					this.registerServiceWorker();
 
+					// Check localStorage for organization ID
+					const storedOrgId = localStorage.getItem('currentOrganizationId');
+					if (storedOrgId) {
+							this.organizationId = storedOrgId;
+					} else {
+							// Fetch organization ID if not in localStorage
+							try {
+									this.organizationId = await fetchOrganizationId();
+									localStorage.setItem('currentOrganizationId', this.organizationId);
+							} catch (error) {
+									console.error("Error fetching organization ID:", error);
+							}
+					}
 
-			// Check localStorage
-			debugLog("LocalStorage at init:", {
-				jwtToken: localStorage.getItem("jwtToken"),
-				userRole: localStorage.getItem("userRole"),
-				userFullName: localStorage.getItem("userFullName"),
-			});
+					// Check for JWT token
+					const token = localStorage.getItem('jwtToken');
+					if (!token && this.organizationId) {
+							// If no token exists but we have organization ID, get an organization JWT
+							try {
+									const response = await fetch(`/get-organization-jwt.php?organization_id=${this.organizationId}`);
+									if (response.ok) {
+											const data = await response.json();
+											if (data.success && data.token) {
+													localStorage.setItem('jwtToken', data.token);
+													debugLog("Organization JWT obtained successfully");
+											}
+									}
+							} catch (error) {
+									console.error("Error getting organization JWT:", error);
+							}
+					}
 
-			// Check for existing session
-			const session = Login.checkSession();
-			this.isLoggedIn = session.isLoggedIn;
-			this.userRole = session.userRole;
-			this.userFullName = session.userFullName;
+					await this.fetchOrganizationSettings();
+					this.initLanguageToggle();
 
-						debugLog("Session checked:", {
-				isLoggedIn: this.isLoggedIn,
-				userRole: this.userRole,
-				userFullName: this.userFullName,
-			});
-			if (this.isLoggedIn) {
+					// Check for existing session
+					const session = Login.checkSession();
+					this.isLoggedIn = session.isLoggedIn;
+					this.userRole = session.userRole;
+					this.userFullName = session.userFullName;
+
+					debugLog("Session checked:", {
+							isLoggedIn: this.isLoggedIn,
+							userRole: this.userRole,
+							userFullName: this.userFullName,
+					});
+
+					if (this.isLoggedIn) {
 							// User is logged in, proceed with post-login actions
 							this.handlePostLoginActions();
-			}
-
-			
-
-			this.router = initRouter(this);
-
-					 // Instead of immediately navigating, let the router handle the initial route
-							if (!this.initialLoad) {
-									this.router.route(window.location.pathname);
-									this.initialLoad = true;
-							}
-
-							this.syncOfflineData();
-							console.log("App init completed");
-					} catch (error) {
-							console.error("Initialization error:", error);
 					}
-			},
+
+					this.router = initRouter(this);
+
+					// Handle initial route
+					if (!this.initialLoad) {
+							this.router.route(window.location.pathname);
+							this.initialLoad = true;
+					}
+
+					this.syncOfflineData();
+					console.log("App init completed");
+			} catch (error) {
+					console.error("Initialization error:", error);
+			}
+	},
 
 	async fetchOrganizationSettings() {
 			if (this.isOrganizationSettingsFetched) return; // Prevent multiple fetch calls

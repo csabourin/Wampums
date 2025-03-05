@@ -175,44 +175,26 @@ export class Login {
     return JSON.parse(jsonPayload);
   }
 
-   static checkSession() {
-    const jwtToken = localStorage.getItem("jwtToken");
-    if (!jwtToken) {
-      return { isLoggedIn: false, userRole: null, userFullName: null };
-    }
+  /**
+   * Check if user has a valid session
+   * @returns {Object} Session information: isLoggedIn, userRole, and userFullName
+   */
+  static checkSession() {
+      const token = localStorage.getItem('jwtToken');
+      const userRole = localStorage.getItem('userRole');
+      const userFullName = localStorage.getItem('userFullName');
+      const userId = localStorage.getItem('userId');
 
-    try {
-      // Decode the token to extract the payload
-      const decodedToken = this.decodeJwt(jwtToken);
-
-      // Check if the token is expired
-      const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
-      if (decodedToken.exp && decodedToken.exp < currentTime) {
-        // Token has expired
-        console.warn("Token has expired");
-        localStorage.removeItem("jwtToken");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("userFullName");
-        return { isLoggedIn: false, userRole: null, userFullName: null };
-      }
-
-      // If token is valid, return user details
-      const userRole = localStorage.getItem("userRole");
-      const userFullName = localStorage.getItem("userFullName");
+      // Simple check - we consider the user logged in if we have a token AND user ID
+      // The actual token validation happens on the server
+      const isLoggedIn = !!token && !!userId && !!userRole;
 
       return {
-        isLoggedIn: true,
-        userRole: userRole,
-        userFullName: userFullName,
+          isLoggedIn,
+          userRole,
+          userFullName,
+          userId
       };
-    } catch (error) {
-      console.error("Invalid JWT token:", error);
-      // Clear any invalid token data from localStorage
-      localStorage.removeItem("jwtToken");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userFullName");
-      return { isLoggedIn: false, userRole: null, userFullName: null };
-    }
   }
 
   static logout() {
