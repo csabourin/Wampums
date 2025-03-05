@@ -1,7 +1,7 @@
 <?php
 
 $translations = [];
-$apiKey="71cdcaa0-c7c1-4947-90cc-a5316b0aa542";
+$apiKey="1615c2ab-2c71-4b93-8e2e-03f1e6e6e331";
 
 function validateJwtToken($jwtToken) {
     $decodedToken = decodeJwt($jwtToken); // Replace with your JWT decoding logic
