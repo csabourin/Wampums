@@ -29,7 +29,7 @@ export function openDB() {
   });
 }
 
-export function setCachedData(key, data, expirationTime = 5 * 60 * 1000) {
+export function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000) {
   return openDB().then((db) => {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
@@ -77,7 +77,7 @@ export function getCachedData(key) {
 
       request.onsuccess = () => {
         const record = request.result;
-        console.log("Retrieved record:", record);
+        console.log(request," Retrieved record:", record);
 
         if (record && record.expiration > Date.now()) {
           console.log("Returning valid cached data:", record.data);
@@ -86,7 +86,7 @@ export function getCachedData(key) {
           if (!record) {
             console.log("No data found for key:", key);
           } else {
-            console.log("Data expired for key:", key);
+            console.log("Data expired for key:", key,Date.now(),` exp:`,record.expiration);
             const cleanupTx = db.transaction(STORE_NAME, "readwrite");
             const cleanupStore = cleanupTx.objectStore(STORE_NAME);
             cleanupStore.delete(key);

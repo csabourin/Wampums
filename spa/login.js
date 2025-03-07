@@ -6,123 +6,111 @@ export class Login {
   }
 
   async init() {
-    // Wait until organization settings are fetched
-    while (!this.app.organizationSettings) {
-      await new Promise(resolve => setTimeout(resolve, 100));  // Poll every 100ms
+    console.log("Login init started");
+
+    // Try to fetch organization settings if not already loaded
+    if (!this.app.organizationSettings && !this.app.isOrganizationSettingsFetched) {
+      console.log("Organization settings not loaded, attempting to fetch...");
+      try {
+        await this.app.fetchOrganizationSettings();
+      } catch (error) {
+        console.error("Failed to fetch organization settings in login:", error);
+      }
     }
 
+    // Set a maximum wait time of 3 seconds for organization settings
+    let attempts = 0;
+    const maxAttempts = 30; // 30 * 100ms = 3 seconds
+
+    while (!this.app.organizationSettings && attempts < maxAttempts) {
+      console.log(`Waiting for organization settings... Attempt ${attempts + 1}/${maxAttempts}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    // Render the login form even if we couldn't get organization settings
+    console.log("Rendering login form, organizationSettings:", 
+                this.app.organizationSettings ? "loaded" : "not loaded");
     this.render();
   }
 
-
   render() {
-     const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
+    console.log("Login.render() called");
+    // Get organization name with fallback
+    const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
+    console.log("Using organization name:", organizationName);
 
     const content = `
-            <h1>${translate("login")}</h1>
-             <h2>${organizationName}</h2> 
-            <form id="login-form">
-                <input type="email" name="email" placeholder="${translate(
-                  "email"
-                )}" required>
-                <input type="password" name="password" placeholder="${translate(
-                  "password"
-                )}" required>
-                <button type="submit">${translate("submit_login")}</button>
-            </form>
-            <p><a href="/register">${translate("create_account")}</a></p>
-             <p><a href="/reset-password">${translate("forgot_password")}</a></p>
-        `;
-    document.getElementById("app").innerHTML = content;
-    this.attachLoginFormListener();
+      <div class="login-container">
+        <h1>${translate("login")}</h1>
+        <h2>${organizationName}</h2> 
+        <form id="login-form">
+          <div class="form-group">
+            <input type="email" name="email" placeholder="${translate("email")}" required>
+          </div>
+          <div class="form-group">
+            <input type="password" name="password" placeholder="${translate("password")}" required>
+          </div>
+          <button type="submit" class="btn-primary">${translate("submit_login")}</button>
+        </form>
+        <p><a href="/register">${translate("create_account")}</a></p>
+        <p><a href="/reset-password">${translate("forgot_password")}</a></p>
+      </div>
+    `;
+
+    const appContainer = document.getElementById("app");
+    if (appContainer) {
+      appContainer.innerHTML = content;
+      this.attachLoginFormListener();
+      console.log("Login form rendered successfully");
+    } else {
+      console.error("Could not find app container element");
+    }
   }
-
-  // showLinkParticipantsDialog(guardianParticipants) {
-  //     const dialogContent = `
-  //         <h2>${translate("link_existing_participants")}</h2>
-  //         <p>${translate("existing_participants_found")}</p>
-  //         <form id="link-participants-form">
-  //             ${guardianParticipants.map(participant => `
-  //                 <label>
-  //                     <input type="checkbox" name="link_participants" value="${participant.participant_id}">
-  //                     ${participant.first_name} ${participant.last_name}
-  //                 </label>
-  //             `).join('')}
-  //             <button type="submit">${translate("link_selected_participants")}</button>
-  //         </form>
-  //     `;
-
-  //     const dialog = document.createElement('div');
-  //     dialog.innerHTML = dialogContent;
-  //     dialog.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
-  //     document.body.appendChild(dialog);
-
-  //     document.getElementById('link-participants-form').addEventListener('submit', async (e) => {
-  //         e.preventDefault();
-  //         const formData = new FormData(e.target);
-  //         const selectedParticipants = formData.getAll('link_participants');
-
-  //         try {
-  //             const response = await fetch('/api.php?action=link_user_participants', {
-  //                 method: 'POST',
-  //                 headers: {
-  //                     'Content-Type': 'application/json',
-  //                     'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`
-  //                 },
-  //                 body: JSON.stringify({ participant_ids: selectedParticipants })
-  //             });
-  //             const result = await response.json();
-  //             if (result.success) {
-  //                 this.app.showMessage(translate("participants_linked_successfully"));
-  //             } else {
-  //                 this.app.showMessage(translate("error_linking_participants"), "error");
-  //             }
-  //         } catch (error) {
-  //             console.error("Error linking participants:", error);
-  //             this.app.showMessage(translate("error_linking_participants"), "error");
-  //         }
-
-  //         document.body.removeChild(dialog);
-  //         this.redirectAfterLogin(this.app.userRole);
-  //     });
-  // }
 
   async attachLoginFormListener() {
     const form = document.getElementById("login-form");
+    if (!form) {
+      console.error("Login form not found in DOM");
+      return;
+    }
+
+    console.log("Attaching login form listener");
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      console.log("Login form submitted");
+
       const formData = new FormData(form);
       try {
-        console.log("Attempting login...");
+        console.log("Sending login request...");
         const response = await fetch("/api.php?action=login", {
           method: "POST",
           body: formData,
         });
 
-        console.log("Response received:", response);
+        console.log("Login response status:", response.status);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const responseText = await response.text();
-        console.log("Response text:", responseText);
+        console.log("Login response length:", responseText.length);
 
         let result;
         try {
           result = JSON.parse(responseText);
+          console.log("Login result parsed successfully");
         } catch (parseError) {
           console.error("Error parsing JSON:", parseError);
           throw new Error("Invalid JSON response from server");
         }
 
-        console.log("Parsed result:", result);
-
         if (result.success) {
-          console.log("Login was successful, handling success...");
+          console.log("Login successful, handling login success...");
           this.handleLoginSuccess(result);
         } else {
-          console.log("Login failed:", result.message);
+          console.warn("Login failed:", result.message);
           alert(result.message || "Login failed");
         }
       } catch (error) {
@@ -130,40 +118,39 @@ export class Login {
         alert(`Error logging in: ${error.message}`);
       }
     });
+    console.log("Login form listener attached");
   }
 
   handleLoginSuccess(result) {
-      console.log("Login successful:", result);
-      this.app.isLoggedIn = true;
-      this.app.userRole = result.user_role;
-      this.app.userFullName = result.user_full_name || "User";
+    console.log("Handling login success:", result);
+    this.app.isLoggedIn = true;
+    this.app.userRole = result.user_role;
+    this.app.userFullName = result.user_full_name || "User";
 
-      // Store JWT token and user info
-      localStorage.setItem("jwtToken", result.token);
-      localStorage.setItem("userRole", result.user_role);
-      localStorage.setItem("userFullName", this.app.userFullName);
+    // Store JWT token and user info
+    localStorage.setItem("jwtToken", result.token);
+    localStorage.setItem("userRole", result.user_role);
+    localStorage.setItem("userFullName", this.app.userFullName);
+    localStorage.setItem("userId", result.user_id);
 
-      // Store guardian participants if available
-      if (result.guardian_participants && result.guardian_participants.length > 0) {
-          localStorage.setItem("guardianParticipants", JSON.stringify(result.guardian_participants));
-      }
+    // Store guardian participants if available
+    if (result.guardian_participants && result.guardian_participants.length > 0) {
+      localStorage.setItem("guardianParticipants", JSON.stringify(result.guardian_participants));
+    }
 
-      console.log("LocalStorage after setting:", {
-          jwtToken: localStorage.getItem("jwtToken"),
-          userRole: localStorage.getItem("userRole"),
-          userFullName: localStorage.getItem("userFullName"),
-          guardianParticipants: localStorage.getItem("guardianParticipants"),
-      });
+    console.log("LocalStorage updated with user info");
 
-      // Redirect based on user role
-      if (result.user_role === "parent") {
-          this.app.router.route("/parent-dashboard");
-      } else {
-          this.app.router.route("/dashboard");
-      }
+    // Redirect based on user role
+    if (result.user_role === "parent") {
+      console.log("Redirecting to parent dashboard");
+      this.app.router.route("/parent-dashboard");
+    } else {
+      console.log("Redirecting to main dashboard");
+      this.app.router.route("/dashboard");
+    }
   }
 
-   static decodeJwt(token) {
+  static decodeJwt(token) {
     const base64Url = token.split(".")[1];
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
     const jsonPayload = decodeURIComponent(
@@ -180,27 +167,51 @@ export class Login {
    * @returns {Object} Session information: isLoggedIn, userRole, and userFullName
    */
   static checkSession() {
-      const token = localStorage.getItem('jwtToken');
-      const userRole = localStorage.getItem('userRole');
-      const userFullName = localStorage.getItem('userFullName');
-      const userId = localStorage.getItem('userId');
+    const token = localStorage.getItem('jwtToken');
+    const userRole = localStorage.getItem('userRole');
+    const userFullName = localStorage.getItem('userFullName');
+    const userId = localStorage.getItem('userId');
 
-      // Simple check - we consider the user logged in if we have a token AND user ID
-      // The actual token validation happens on the server
-      const isLoggedIn = !!token && !!userId && !!userRole;
+    // Simple check - we consider the user logged in if we have a token AND user ID
+    // The actual token validation happens on the server
+    const isLoggedIn = !!token && !!userId && !!userRole;
 
-      return {
-          isLoggedIn,
-          userRole,
-          userFullName,
-          userId
-      };
+    console.log("Session check:", { isLoggedIn, userRole, userFullName, userId });
+    return {
+      isLoggedIn,
+      userRole,
+      userFullName,
+      userId
+    };
   }
 
-  static logout() {
+  static async logout() {
+    console.log("Logging out...");
+
+    try {
+      // Try to call the server logout endpoint
+      await fetch("/api.php?action=logout", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("jwtToken")}`,
+          "Content-Type": "application/json"
+        }
+      });
+    } catch (error) {
+      console.warn("Error during server logout:", error);
+      // Continue with client-side logout even if server logout fails
+    }
+
+    // Clear user data from localStorage
     localStorage.removeItem("jwtToken");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("userFullName");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("guardianParticipants");
+
+    console.log("Local storage cleared, redirecting to login page");
+
     // Redirect to login page
-    window.location.href = "/";
+    window.location.href = "/login";
   }
 }

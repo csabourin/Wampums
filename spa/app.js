@@ -34,8 +34,6 @@ if ("serviceWorker" in navigator) {
 		});
 }
 
-
-
 // Add this function to your app object or as a separate utility function
 function urlBase64ToUint8Array(base64String) {
 	const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -65,9 +63,9 @@ async function registerPushSubscription() {
 
 			// Log the full subscription object to see what it contains
 			console.log('Subscription object:', subscription);
-			console.log('Subscription object:', subscription.toJSON());
+			console.log('Subscription JSON:', subscription.toJSON());
 
-			const subscriptionData =subscription.toJSON()
+			const subscriptionData = subscription.toJSON();
 
 			// Send the subscription object to the server
 			await sendSubscriptionToServer(subscriptionData);
@@ -77,9 +75,6 @@ async function registerPushSubscription() {
 		}
 	}
 }
-
-
-
 
 // Function to send subscription to server (implement this based on your backend)
 async function sendSubscriptionToServer(subscription) {
@@ -130,13 +125,6 @@ async function sendSubscriptionToServer(subscription) {
 	}
 }
 
-
-
-
-// Call this function when you want to register for push notifications
-// For example, you might call this after a user logs in or gives permission
-
-
 export const app = {
 	isLoggedIn: false,
 	userRole: null,
@@ -148,131 +136,186 @@ export const app = {
 	router: null,
 	organizationSettings: null, 
 	organizationId: null,
-	isOrganizationSettingsFetched:false,
-
-	// Update the init function in your app.js
+	isOrganizationSettingsFetched: false,
+		initCompleted: false,
 
 	async init() {
-			this.initialLoad = true;
-			debugLog("App init started");
-			console.count("App init started");
-			this.createMessageBanner();
+		console.log("App init started");
+		this.createMessageBanner();
 
-			try {
-					this.registerServiceWorker();
+		try {
+			this.registerServiceWorker();
 
-					// Check localStorage for organization ID
-					const storedOrgId = localStorage.getItem('currentOrganizationId');
-					if (storedOrgId) {
-							this.organizationId = storedOrgId;
-					} else {
-							// Fetch organization ID if not in localStorage
-							try {
-									this.organizationId = await fetchOrganizationId();
-									localStorage.setItem('currentOrganizationId', this.organizationId);
-							} catch (error) {
-									console.error("Error fetching organization ID:", error);
-							}
-					}
-
-					// Check for JWT token
-					const token = localStorage.getItem('jwtToken');
-					if (!token && this.organizationId) {
-							// If no token exists but we have organization ID, get an organization JWT
-							try {
-									const response = await fetch(`/get-organization-jwt.php?organization_id=${this.organizationId}`);
-									if (response.ok) {
-											const data = await response.json();
-											if (data.success && data.token) {
-													localStorage.setItem('jwtToken', data.token);
-													debugLog("Organization JWT obtained successfully");
-											}
-									}
-							} catch (error) {
-									console.error("Error getting organization JWT:", error);
-							}
-					}
-
-					await this.fetchOrganizationSettings();
-					this.initLanguageToggle();
-
-					// Check for existing session
-					const session = Login.checkSession();
-					this.isLoggedIn = session.isLoggedIn;
-					this.userRole = session.userRole;
-					this.userFullName = session.userFullName;
-
-					debugLog("Session checked:", {
-							isLoggedIn: this.isLoggedIn,
-							userRole: this.userRole,
-							userFullName: this.userFullName,
-					});
-
-					if (this.isLoggedIn) {
-							// User is logged in, proceed with post-login actions
-							this.handlePostLoginActions();
-					}
-
-					this.router = initRouter(this);
-
-					// Handle initial route
-					if (!this.initialLoad) {
-							this.router.route(window.location.pathname);
-							this.initialLoad = true;
-					}
-
-					this.syncOfflineData();
-					console.log("App init completed");
-			} catch (error) {
-					console.error("Initialization error:", error);
+			// Check localStorage for organization ID
+			const storedOrgId = localStorage.getItem('currentOrganizationId');
+			if (storedOrgId) {
+				this.organizationId = storedOrgId;
+				console.log("Using stored organization ID:", storedOrgId);
+			} else {
+				// Fetch organization ID if not in localStorage
+				try {
+					console.log("Fetching organization ID...");
+					this.organizationId = await fetchOrganizationId();
+					localStorage.setItem('currentOrganizationId', this.organizationId);
+					console.log("Organization ID fetched and stored:", this.organizationId);
+				} catch (error) {
+					console.error("Error fetching organization ID:", error);
+					// Set a default organization ID to prevent blocking the app
+					this.organizationId = 1;
+					localStorage.setItem('currentOrganizationId', this.organizationId);
+					console.log("Using default organization ID: 1");
+				}
 			}
+
+			// Check for JWT token
+			const token = localStorage.getItem('jwtToken');
+			if (!token && this.organizationId) {
+				// If no token exists but we have organization ID, get an organization JWT
+				try {
+					console.log("No JWT token found, fetching organization JWT...");
+					const response = await fetch(`/get-organization-jwt.php?organization_id=${this.organizationId}`);
+					if (response.ok) {
+						const data = await response.json();
+						if (data.success && data.token) {
+							localStorage.setItem('jwtToken', data.token);
+							console.log("Organization JWT obtained successfully");
+						} else {
+							console.warn("Failed to get organization JWT:", data);
+						}
+					} else {
+						console.warn("Failed to get organization JWT, response not OK:", response.status);
+					}
+				} catch (error) {
+					console.error("Error getting organization JWT:", error);
+				}
+			} else {
+				console.log("JWT token already exists in localStorage");
+			}
+
+			// Try to fetch organization settings, but don't block the app if it fails
+			try {
+				console.log("Fetching organization settings...");
+				await this.fetchOrganizationSettings();
+			} catch (error) {
+				console.error("Error fetching organization settings:", error);
+				// Create default settings to prevent blocking the app
+				this.organizationSettings = { organization_info: { name: "Scoutsss" } };
+				this.isOrganizationSettingsFetched = true;
+				console.log("Using default organization settings");
+			}
+
+			this.initLanguageToggle();
+
+			// Check for existing session
+			const session = Login.checkSession();
+			this.isLoggedIn = session.isLoggedIn;
+			this.userRole = session.userRole;
+			this.userFullName = session.userFullName;
+
+			console.log("Session checked:", {
+				isLoggedIn: this.isLoggedIn,
+				userRole: this.userRole,
+				userFullName: this.userFullName,
+			});
+
+			if (this.isLoggedIn) {
+				// User is logged in, proceed with post-login actions
+				this.handlePostLoginActions();
+			}
+
+			// Initialize router
+			console.log("Initializing router...");
+			this.router = initRouter(this);
+
+			// Always route to the current path after initialization
+			const currentPath = window.location.pathname;
+			console.log(`Routing to current path: ${currentPath}`);
+			this.router.route(currentPath);
+
+			this.syncOfflineData();
+			this.initCompleted = true;
+			console.log("App init completed");
+		} catch (error) {
+			console.error("Initialization error:", error);
+
+			// Create a simple message to inform the user even if initialization fails
+			document.getElementById("app").innerHTML = `
+				<div class="error-container">
+					<h1>Application Error</h1>
+					<p>There was a problem loading the application. Please try reloading the page.</p>
+					<button onclick="window.location.reload()">Reload</button>
+				</div>
+			`;
+		}
 	},
 
 	async fetchOrganizationSettings() {
-			if (this.isOrganizationSettingsFetched) return; // Prevent multiple fetch calls
-
-			try {
-					debugLog("Fetching organization settings...");
-					const response = await getOrganizationSettings();
-					if (response.success) {
-							this.organizationSettings = response.settings;
-							this.isOrganizationSettingsFetched = true;  // Mark as fetched
-							debugLog("Organization settings fetched:", this.organizationSettings);
-					} else {
-							debugError("Failed to fetch organization settings:", response.message);
-					}
-			} catch (error) {
-					debugError("Error fetching organization settings:", error);
+		console.log("Inside fetchOrganizationSettings, this:", this);
+		if (this.isOrganizationSettingsFetched) {
+			console.log("Organization settings already fetched, skipping");
+			return;
+		}
+		try {
+			console.log("Fetching organization settings (259) ...");
+			const response = await getOrganizationSettings();
+			if (response && response.organization_info || response.data) {
+				console.log("Got organization settings: ",JSON.stringify(response));
+				// The fix is here - use response.data directly as the settings
+				this.organizationSettings = response.data || response;  // This is correct
+				this.isOrganizationSettingsFetched = true;
+				console.log("Organization settings fetched successfully:", this.organizationSettings);
+			} else {
+				console.warn("Failed to fetch organization settings:", response?.message || "Unknown error");
+				// Set default organization settings
+				this.organizationSettings = { organization_info: { name: "Scouts" } };
+				this.isOrganizationSettingsFetched = true;
+				console.log("Using default organization settings");
 			}
+		} catch (error) {
+			console.error("Error fetching organization settings:", error);
+			// Set default organization settings
+			this.organizationSettings = { organization_info: { name: "Scouts" } };
+			this.isOrganizationSettingsFetched = true;
+			console.log("Using default organization settings due to error");
+		}
 	},
 
 	async loadTranslations() {
-			if (Object.keys(this.translations).length > 0) return; // Skip if already loaded
+		if (Object.keys(this.translations).length > 0) {
+			console.log("Translations already loaded, skipping");
+			return;
+		}
 
-			try {
-					const response = await fetch("/get_translations.php");
-					this.translations = await response.json();
-					debugLog("Translations loaded:", this.translations);
-			} catch (error) {
-					console.error("Error loading translations:", error);
-					this.translations = {};
+		try {
+			console.log("Loading translations...");
+			const response = await fetch("/get_translations.php");
+
+			if (!response.ok) {
+				throw new Error(`Failed to load translations: ${response.status}`);
 			}
+
+			this.translations = await response.json();
+			console.log("Translations loaded successfully");
+		} catch (error) {
+			console.error("Error loading translations:", error);
+			this.translations = {};
+		}
 	},
-	
+
 	async handlePostLoginActions() {
-					if ('Notification' in window) {
-									if (Notification.permission === 'granted') {
-													registerPushSubscription();
-									} else if (Notification.permission === 'default') {
-													Notification.requestPermission().then((permission) => {
-																	if (permission === 'granted') {
-																					registerPushSubscription();
-																	}
-													});
-									}
-					} else {
-									console.error('This browser does not support notifications.');
+		if ('Notification' in window) {
+			if (Notification.permission === 'granted') {
+				registerPushSubscription();
+			} else if (Notification.permission === 'default') {
+				Notification.requestPermission().then((permission) => {
+					if (permission === 'granted') {
+						registerPushSubscription();
 					}
+				});
+			}
+		} else {
+			console.error('This browser does not support notifications.');
+		}
 	},
 
 	showMessage(message, type = 'info') {
@@ -305,43 +348,34 @@ export const app = {
 	},
 
 	setLanguage(lang) {
-			this.lang = lang;
-			document.documentElement.lang = lang;
-			localStorage.setItem('lang', lang);
-			this.loadTranslations().then(() => {
-					if (this.router) {
-							this.router.reloadCurrentRoute();
-					}
-			});
+		this.lang = lang;
+		document.documentElement.lang = lang;
+		localStorage.setItem('lang', lang);
+
+		this.loadTranslations().then(() => {
+			if (this.router && this.initCompleted) {
+				this.router.reloadCurrentRoute();
+			}
+		});
 	},
 
 	initLanguageToggle() {
-			const toggleButtons = document.querySelectorAll('.lang-btn');
-			toggleButtons.forEach(btn => {
-					btn.addEventListener('click', () => {
-							const newLang = btn.dataset.lang;
-							this.setLanguage(newLang);
-							toggleButtons.forEach(b => b.classList.remove('active'));
-							btn.classList.add('active');
-							this.router.reloadCurrentRoute();
-					});
+		const toggleButtons = document.querySelectorAll('.lang-btn');
+		toggleButtons.forEach(btn => {
+			btn.addEventListener('click', () => {
+				const newLang = btn.dataset.lang;
+				this.setLanguage(newLang);
+				toggleButtons.forEach(b => b.classList.remove('active'));
+				btn.classList.add('active');
 			});
+		});
 
-			// Set initial language
-			const savedLang = localStorage.getItem('lang') || 'fr';
-			this.setLanguage(savedLang);
-			document.querySelector(`.lang-btn[data-lang="${savedLang}"]`).classList.add('active');
-	},
-
-	async loadTranslations() {
-		debugLog("Loading translations");
-		try {
-			const response = await fetch("/get_translations.php");
-			this.translations = await response.json();
-			debugLog("Translations loaded:", this.translations);
-		} catch (error) {
-			console.error("Error loading translations:", error);
-			this.translations = {};
+		// Set initial language
+		const savedLang = localStorage.getItem('lang') || 'fr';
+		this.setLanguage(savedLang);
+		const activeBtn = document.querySelector(`.lang-btn[data-lang="${savedLang}"]`);
+		if (activeBtn) {
+			activeBtn.classList.add('active');
 		}
 	},
 
@@ -365,30 +399,44 @@ export const app = {
 
 	showLoading() {
 		let loadingIndicator = document.getElementById("loading-indicator");
-		loadingIndicator.classlList.remove("hidden");
+		if (loadingIndicator) {
+			loadingIndicator.classList.remove("hidden");
+		}
 	},
 
 	hideLoading() {
 		let loadingIndicator = document.getElementById("loading-indicator");
-		loadingIndicator.classList.add("hidden");
+		if (loadingIndicator) {
+			loadingIndicator.classList.add("hidden");
+		}
 	},
 
 	renderError(message) {
 		debugLog("Rendering error:", message);
 		const errorContent = `
-			<h1>${this.translate("error")}</h1>
-			<p>${message}</p>
-			<p><a href="/">${this.translate("back_to_home")}</a></p>
+			<div class="error-container">
+				<h1>${this.translate("error")}</h1>
+				<p>${message}</p>
+				<p><a href="/">${this.translate("back_to_home")}</a></p>
+			</div>
 		`;
-		document.getElementById("app").innerHTML = errorContent;
+		const appContainer = document.getElementById("app");
+		if (appContainer) {
+			appContainer.innerHTML = errorContent;
+		} else {
+			console.error("App container not found");
+		}
 	},
 
 	translate(key) {
-			const lang = this.lang || 'fr';
-			return this.translations[lang]?.[key] || key;
+		const lang = this.lang || 'fr';
+		if (!this.translations[lang]) {
+			return key; // Return the key if language translations aren't loaded yet
+		}
+		return this.translations[lang][key] || key;
 	},
-	
-		async syncOfflineData() {
+
+	async syncOfflineData() {
 		if (navigator.onLine) {
 			try {
 				// Ensure database is initialized

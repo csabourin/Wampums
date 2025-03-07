@@ -34,9 +34,9 @@ export class Dashboard {
       const response = await getOrganizationSettings();
 
       // Check if the response is successful and contains settings
-      if (response && response.success && response.settings) {
+      if (response && response.organization_info) {
         // Get the organization_info setting
-        const organizationInfo = response.settings.organization_info;
+        const organizationInfo = response.organization_info;
 
         // If the setting exists, extract the name, otherwise set a default
         if (organizationInfo && organizationInfo.name) {

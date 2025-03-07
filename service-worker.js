@@ -299,7 +299,7 @@ async function fetchAndCacheInIndexedDB(request) {
       const data = await networkResponse.json();
 
       // Save the response data in IndexedDB
-      await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+      await setCachedData(cacheKey, data.data, 24 * 60 * 60 * 1000); // Cache for 24 hours
       return new Response(JSON.stringify(data)); // Return the response
     }
   } catch (error) {

@@ -870,7 +870,7 @@ export async function getParticipants() {
 		const cachedParticipantInfo = await getCachedData(PARTICIPANT_INFO_CACHE_KEY);
 
 		// Always fetch fresh data to get current points
-		const response = await fetch(getApiUrl(`get_participants`), {
+		const response = await fetch(getApiUrl(`api/participants`), {
 
 			headers: {
 				...getAuthHeader(),
@@ -976,36 +976,42 @@ export async function getGroups() {
 
 export async function getOrganizationSettings() {
 	const cacheKey = "organization_settings";
-	const expirationTime = 60 * 60 * 1000; // Cache expires after 60 minutes (adjust as needed)
+	const expirationTime = 60 * 60 * 1000; // Cache expires after 60 minutes
 
 	// Step 1: Try to get cached data from IndexedDB
 	const cachedData = await getCachedData(cacheKey);
 	if (cachedData) {
-		return cachedData; // Return cached data if available and not expired
+		console.log("Serving organization settings from IndexedDB cache", cachedData);
+		return cachedData; // Return cached settings object directly
 	}
 
 	// Step 2: Fetch from API if no valid cached data is found
 	try {
 		const response = await fetch(getApiUrl(`get_organization_settings`), {
-
 			headers: getAuthHeader(),
 		});
 		if (!response.ok) {
+			console.error(`Failed to fetch organization settings. HTTP Status: ${response.status}`);
 			throw new Error(`HTTP error! status: ${response.status}`);
 		}
 
-		const data = await response.json(); // Get the settings from the response
+		const responseData = await response.json(); // Get the response from the API
 
-		// Step 3: Save the new data to IndexedDB for future use
-		await setCachedData(cacheKey, data, expirationTime);
+		// Normalize the settings:
+		// If the API response has a `data` property, use it; otherwise, assume the response itself is the settings object.
+		const settings = responseData.data ? responseData.data : responseData;
 
-		console.log("Returning fresh organization settings");
-		return data; // Return the newly fetched data
+		// Step 3: Save the normalized settings to IndexedDB for future use
+		await setCachedData(cacheKey, settings, expirationTime);
+
+		console.log("Returning fresh organization settings", settings);
+		return settings; // Return the settings object in the expected structure
 	} catch (error) {
 		console.error("Error fetching organization settings:", error);
 		throw error; // Propagate the error
 	}
 }
+
 
 export async function getAttendance(date) {
 	try {
