@@ -60,7 +60,7 @@ export async function fetchFromApi(action, method = 'GET', body = null) {
 // This function returns the appropriate authorization header with JWT token
 export function getAuthHeader() {
 	const token = localStorage.getItem("jwtToken");
-	const organizationId = localStorage.getItem("organizationId");
+	const organizationId = localStorage.getItem("currentOrganizationId");
 	const headers = {};
 
 	if (token) {
@@ -1249,17 +1249,21 @@ export async function logout() {
 		}
 }
 
-export async function login(email, password, organization_id) {
+export async function login(formData) {
+	// Convertir FormData en objet simple
+		const formDataObj = {};
+		for (const [key, value] of formData.entries()) {
+				formDataObj[key] = value;
+		}
 		try {
-				const formData = new FormData();
-				formData.append('email', email);
-				formData.append('password', password);
-				formData.append('organization_id', organization_id || getCurrentOrganizationId());
 
 				const response = await fetch(getApiUrl(`login`), {
 						method: "POST",
-						headers: getAuthHeader(), // Include existing token for organization context
-						body: formData
+						headers:{
+							...getAuthHeader(),
+							'Content-Type': 'application/json'
+					},
+						body: JSON.stringify(formDataObj)
 				});
 
 				if (!response.ok) {

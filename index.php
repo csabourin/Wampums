@@ -4,7 +4,10 @@ require_once 'functions.php';
 initializeApp();
 // Security headers
 header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload");
-header("Content-Security-Policy:   default-src 'self';   script-src 'self' https://*.facebook.net https://*.clarity.ms https://*.cloudflareinsights.com;   style-src 'self' 'unsafe-inline';   img-src 'self' data: https://*.bing.com https://*.clarity.ms https://*.cloudflareinsights.com;   connect-src 'self' https://*.clarity.ms https://wampums-api.replit.app;   worker-src 'self' blob:;");
+header("Content-Security-Policy:   default-src 'self';   script-src 'self' https://*.facebook.net https://*.clarity.ms https://*.cloudflareinsights.com;   style-src 'self' 'unsafe-inline';   img-src 'self' data: https://*.bing.com https://*.clarity.ms https://*.cloudflareinsights.com;  connect-src 'self' https://*.clarity.ms https://wampums-api.replit.app;   worker-src 'self' blob:;");
+header("Access-Control-Allow-Origin: *"); // Changed to allow all origins for testing
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("X-Content-Type-Options: nosniff");
 header("X-Frame-Options: DENY");
 header("X-XSS-Protection: 1; mode=block");

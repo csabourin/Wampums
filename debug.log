@@ -16,3 +16,9 @@
 [2025-03-05 16:33:07] Token expiry (UTC): 2025-03-06 16:32:10
 [2025-03-05 16:33:07] Time difference: +0 days 18 hours 59 minutes 02 seconds
 [2025-03-05 16:33:08] Password reset successful for user ID: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631
+[2025-04-06 12:13:05] Attempting password reset with token: 39e9c612f5...
+[2025-04-06 12:13:05] User fetch result: {"id":"0df3bf27-4b00-4c69-b8fe-04ad48d1c631","reset_token":"39e9c612f55792055eb9f3ab34fe7ae5ff36352e1b0310b7c268d009be9cfa09","reset_token_expiry":"2025-04-07 12:08:27+00"}
+[2025-04-06 12:13:05] Current time (UTC): 2025-04-06 16:13:05
+[2025-04-06 12:13:05] Token expiry (UTC): 2025-04-07 12:08:27
+[2025-04-06 12:13:05] Time difference: +0 days 19 hours 55 minutes 21 seconds
+[2025-04-06 12:13:05] Password reset successful for user ID: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631

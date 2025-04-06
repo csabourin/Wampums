@@ -173,17 +173,12 @@ export const app = {
 				// If no token exists but we have organization ID, get an organization JWT
 				try {
 					console.log("No JWT token found, fetching organization JWT...");
-					const response = await fetch(`/get-organization-jwt.php?organization_id=${this.organizationId}`);
-					if (response.ok) {
-						const data = await response.json();
-						if (data.success && data.token) {
-							localStorage.setItem('jwtToken', data.token);
-							console.log("Organization JWT obtained successfully");
-						} else {
-							console.warn("Failed to get organization JWT:", data);
-						}
+					const data = await fetchOrganizationJwt(this.organizationId);
+					if (data.success && data.token) {
+						localStorage.setItem('jwtToken', data.token);
+						console.log("Organization JWT obtained successfully");
 					} else {
-						console.warn("Failed to get organization JWT, response not OK:", response.status);
+						console.warn("Failed to get organization JWT:", data);
 					}
 				} catch (error) {
 					console.error("Error getting organization JWT:", error);
@@ -191,7 +186,6 @@ export const app = {
 			} else {
 				console.log("JWT token already exists in localStorage");
 			}
-
 			// Try to fetch organization settings, but don't block the app if it fails
 			try {
 				console.log("Fetching organization settings...");

@@ -832,12 +832,14 @@ updateActivityDetails(selectElement) {
 
 			this.selectedActivities.splice(newActivity.position, 0, newActivity);
 			this.recalculatePositions();
+		this.saveActivityInputs();
 			this.renderActivitiesTable();
 	}
 
 	deleteActivityRow(position) {
 			this.selectedActivities.splice(position, 1);
 			this.recalculatePositions();
+		this.saveActivityInputs();
 			this.renderActivitiesTable();
 	}
 
@@ -1042,6 +1044,24 @@ async loadMeeting(date) {
 
 			return false;
 	}
+
+	saveActivityInputs() {
+		const rows = document.querySelectorAll('.activity-row');
+		rows.forEach((row, index) => {
+			const id = row.dataset.id || index;
+			this.selectedActivities[index] = {
+				...this.selectedActivities[index],
+				id,
+				time: row.querySelector('.activity-time')?.value || '',
+				duration: row.querySelector('.activity-duration')?.value || '',
+				activity: row.querySelector('.activity-select')?.value || row.querySelector('.activity-input')?.value || '',
+				responsable: row.querySelector('.activity-responsable')?.value || row.querySelector('.responsable-input')?.value || '',
+				materiel: row.querySelector('.activity-materiel')?.value || '',
+				isDefault: row.getAttribute('data-default') === 'true'
+			};
+		});
+	}
+
 
 
 	addActivityListeners() {

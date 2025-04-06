@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import {login} from "./ajax-functions.js";
 
 export class Login {
   constructor(app) {
@@ -29,7 +30,7 @@ export class Login {
     }
 
     // Render the login form even if we couldn't get organization settings
-    console.log("Rendering login form, organizationSettings:", 
+    console.log("Rendering login form, organizationSettings:",
                 this.app.organizationSettings ? "loaded" : "not loaded");
     this.render();
   }
@@ -82,29 +83,10 @@ export class Login {
 
       const formData = new FormData(form);
       try {
-        console.log("Sending login request...");
-        const response = await fetch("/api.php?action=login", {
-          method: "POST",
-          body: formData,
-        });
+        console.log("Sending login request via ajax-functions.js..."+formData.get("email"));
+        const result = await login(formData);
 
-        console.log("Login response status:", response.status);
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const responseText = await response.text();
-        console.log("Login response length:", responseText.length);
-
-        let result;
-        try {
-          result = JSON.parse(responseText);
-          console.log("Login result parsed successfully");
-        } catch (parseError) {
-          console.error("Error parsing JSON:", parseError);
-          throw new Error("Invalid JSON response from server");
-        }
+        console.log("Login result received:", result);
 
         if (result.success) {
           console.log("Login successful, handling login success...");
@@ -115,7 +97,7 @@ export class Login {
         }
       } catch (error) {
         console.error("Login error:", error);
-        alert(`Error logging in: ${error.message}`);
+        alert(`Error logging in: ${error.message} (${JSON.stringify(result)})`);
       }
     });
     console.log("Login form listener attached");
