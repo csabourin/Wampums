@@ -25,6 +25,28 @@ function validateJwtToken($jwtToken) {
     return $user;
 }
 
+function decodeJwt($jwtToken) {
+    $parts = explode('.', $jwtToken);
+    if (count($parts) !== 3) {
+        return null; // Invalid JWT format
+    }
+
+    $payload = base64_decode($parts[1]);
+    if (!$payload) {
+        return null; // Failed to decode payload
+    }
+
+    return json_decode($payload, true);
+}
+
+ 
+function getUserFromDatabase($userId) {
+    global $pdo; // Assuming you have a PDO connection set up
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
 
 function ensureSessionStarted() {
     if (session_status() === PHP_SESSION_NONE) {

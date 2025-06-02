@@ -36,6 +36,38 @@ const logger = winston.createLogger({
   ],
 });
 
+// Helper function to get current organization ID
+function getCurrentOrganizationId() {
+  // This function needs to be implemented based on your application logic
+  // For now, returning a placeholder
+  return 1; // Replace with actual implementation
+}
+
+// Helper function to get user ID from token
+function getUserIdFromToken(token) {
+  try {
+    const decoded = jwt.verify(token, jwtKey);
+    return decoded.user_id;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Helper function to calculate point adjustment
+function calculatePointAdjustment(previousStatus, newStatus) {
+  // Implement your point calculation logic here
+  const pointValues = {
+    'present': 1,
+    'absent': 0,
+    'late': 0.5
+  };
+  
+  const previousPoints = pointValues[previousStatus] || 0;
+  const newPoints = pointValues[newStatus] || 0;
+  
+  return newPoints - previousPoints;
+}
+
 function jsonResponse(res, success, data = null, message = '') {
   res.json({
     success,
@@ -88,10 +120,10 @@ app.get('/api', [
         break;
 
       case 'get_form_types':
-        const organizationId = getCurrentOrganizationId();
+        const orgIdForFormTypes = getCurrentOrganizationId();
         const formTypesResult = await client.query(
           "SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = $1 AND display_type = 'public'",
-          [organizationId]
+          [orgIdForFormTypes]
         );
         jsonResponse(res, true, formTypesResult.rows.map(row => row.form_type));
         break;
@@ -114,14 +146,14 @@ app.get('/api', [
         break;
 
       case 'get_form_submissions':
-        const formType = req.query.form_type;
+        const formTypeForSubmissions = req.query.form_type;
         const participantId = req.query.participant_id;
-        if (!formType) {
+        if (!formTypeForSubmissions) {
           jsonResponse(res, false, null, 'Form type is required');
         } else if (participantId) {
           const formSubmissionsResult = await client.query(
             "SELECT submission_data FROM form_submissions WHERE participant_id = $1 AND form_type = $2 AND organization_id = $3",
-            [participantId, formType, getCurrentOrganizationId()]
+            [participantId, formTypeForSubmissions, getCurrentOrganizationId()]
           );
           if (formSubmissionsResult.rows.length > 0) {
             jsonResponse(res, true, JSON.parse(formSubmissionsResult.rows[0].submission_data));
@@ -131,7 +163,7 @@ app.get('/api', [
         } else {
           const allFormSubmissionsResult = await client.query(
             "SELECT fs.participant_id, fs.submission_data, p.first_name, p.last_name FROM form_submissions fs JOIN participant_organizations po ON fs.participant_id = po.participant_id JOIN participants p ON fs.participant_id = p.id WHERE po.organization_id = $1 AND fs.form_type = $2",
-            [getCurrentOrganizationId(), formType]
+            [getCurrentOrganizationId(), formTypeForSubmissions]
           );
           jsonResponse(res, true, allFormSubmissionsResult.rows.map(row => ({
             participant_id: row.participant_id,
@@ -143,61 +175,61 @@ app.get('/api', [
         break;
 
       case 'get_reunion_dates':
-        const organizationId = getCurrentOrganizationId();
+        const orgIdForReunion = getCurrentOrganizationId();
         const datesResult = await client.query(
           `SELECT DISTINCT date 
            FROM reunion_preparations 
            WHERE organization_id = $1 
            ORDER BY date DESC`,
-          [organizationId]
+          [orgIdForReunion]
         );
         jsonResponse(res, true, datesResult.rows.map(row => row.date));
         break;
 
       case 'create_organization':
-        const { name } = req.body;
-        const userId = getUserIdFromToken(token);
+        const { name: orgName } = req.body;
+        const userIdForOrg = getUserIdFromToken(token);
 
         try {
           await client.query('BEGIN');
 
           const newOrgResult = await client.query(
-            `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
-            [name]
+        `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
+        [orgName]
           );
           const newOrganizationId = newOrgResult.rows[0].id;
 
           await client.query(
-            `INSERT INTO organization_form_formats (organization_id, form_type, form_structure, display_type)
-             SELECT $1, form_type, form_structure, 'public'
-             FROM organization_form_formats
-             WHERE organization_id = 0`,
-            [newOrganizationId]
+        `INSERT INTO organization_form_formats (organization_id, form_type, form_structure, display_type)
+         SELECT $1, form_type, form_structure, 'public'
+         FROM organization_form_formats
+         WHERE organization_id = 0`,
+        [newOrganizationId]
           );
 
           await client.query(
-            `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
-             VALUES ($1, 'organization_info', $2)`,
-            [newOrganizationId, JSON.stringify(req.body)]
+        `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+         VALUES ($1, 'organization_info', $2)`,
+        [newOrganizationId, JSON.stringify(req.body)]
           );
 
           await client.query(
-            `INSERT INTO user_organizations (user_id, organization_id, role)
-             VALUES ($1, $2, 'admin')`,
-            [userId, newOrganizationId]
+        `INSERT INTO user_organizations (user_id, organization_id, role)
+         VALUES ($1, $2, 'admin')`,
+        [userIdForOrg, newOrganizationId]
           );
 
           await client.query('COMMIT');
           jsonResponse(res, true, null, 'Organization created successfully');
         } catch (error) {
           await client.query('ROLLBACK');
-          handleError(res, error);
+          throw error; // Re-throw to be caught by outer try-catch
         }
         break;
 
       case 'update_points':
         const updates = req.body;
-        const organizationId = getCurrentOrganizationId();
+        const orgIdForPoints = getCurrentOrganizationId();
         const responses = [];
 
         try {
@@ -208,7 +240,7 @@ app.get('/api', [
               await client.query(
                 `INSERT INTO points (participant_id, group_id, value, created_at, organization_id) 
                  VALUES (NULL, $1, $2, $3, $4)`,
-                [update.id, update.points, update.timestamp, organizationId]
+                [update.id, update.points, update.timestamp, orgIdForPoints]
               );
 
               const membersResult = await client.query(
@@ -216,14 +248,14 @@ app.get('/api', [
                  FROM participants p
                  JOIN participant_groups pg ON p.id = pg.participant_id
                  WHERE pg.group_id = $1 AND pg.organization_id = $2`,
-                [update.id, organizationId]
+                [update.id, orgIdForPoints]
               );
 
               for (const member of membersResult.rows) {
                 await client.query(
                   `INSERT INTO points (participant_id, group_id, value, created_at, organization_id) 
                    VALUES ($1, NULL, $2, $3, $4)`,
-                  [member.id, update.points, update.timestamp, organizationId]
+                  [member.id, update.points, update.timestamp, orgIdForPoints]
                 );
               }
 
@@ -231,7 +263,7 @@ app.get('/api', [
                 `SELECT COALESCE(SUM(value), 0) as total_points 
                  FROM points 
                  WHERE group_id = $1 AND participant_id IS NULL AND organization_id = $2`,
-                [update.id, organizationId]
+                [update.id, orgIdForPoints]
               );
 
               responses.push({
@@ -244,14 +276,14 @@ app.get('/api', [
               await client.query(
                 `INSERT INTO points (participant_id, group_id, value, created_at, organization_id) 
                  VALUES ($1, NULL, $2, $3, $4)`,
-                [update.id, update.points, update.timestamp, organizationId]
+                [update.id, update.points, update.timestamp, orgIdForPoints]
               );
 
               const individualTotalResult = await client.query(
                 `SELECT COALESCE(SUM(value), 0) as total_points 
                  FROM points 
                  WHERE participant_id = $1 AND organization_id = $2`,
-                [update.id, organizationId]
+                [update.id, orgIdForPoints]
               );
 
               responses.push({
@@ -266,16 +298,16 @@ app.get('/api', [
           jsonResponse(res, true, responses);
         } catch (error) {
           await client.query('ROLLBACK');
-          handleError(res, error);
+          throw error; // Re-throw to be caught by outer try-catch
         }
         break;
 
       case 'get_acceptation_risque':
-        const participantId = req.query.participant_id;
-        if (participantId) {
+        const participantIdForRisque = req.query.participant_id;
+        if (participantIdForRisque) {
           const acceptationRisqueResult = await client.query(
             `SELECT * FROM acceptation_risque WHERE participant_id = $1`,
-            [participantId]
+            [participantIdForRisque]
           );
           if (acceptationRisqueResult.rows.length > 0) {
             jsonResponse(res, true, acceptationRisqueResult.rows[0]);
@@ -336,11 +368,11 @@ app.get('/api', [
         break;
 
       case 'get_guardians':
-        const participantId = req.query.participant_id;
-        if (participantId) {
+        const participantIdForGuardians = req.query.participant_id;
+        if (participantIdForGuardians) {
           const guardianInfoResult = await client.query(
             "SELECT guardian_id, lien FROM participant_guardians WHERE participant_id = $1",
-            [participantId]
+            [participantIdForGuardians]
           );
           const guardianInfo = guardianInfoResult.rows;
 
@@ -475,7 +507,7 @@ app.get('/api', [
 
         const allEmails = [
           ...new Set([
-            ...Object.values(emailsByRole).flat(),
+            ...Object.values(emailsByRole).flat().map(item => typeof item === 'string' ? item : item.email),
             ...participantEmails,
           ]),
         ];
@@ -488,12 +520,12 @@ app.get('/api', [
         break;
 
       case 'get_organization_form_formats':
-        const organizationId = req.query.organization_id || getCurrentOrganizationId();
+        const orgIdForFormats = req.query.organization_id || getCurrentOrganizationId();
         const formFormatsResult = await client.query(
           `SELECT form_type, form_structure 
            FROM organization_form_formats 
            WHERE organization_id = $1`,
-          [organizationId]
+          [orgIdForFormats]
         );
         const formFormats = formFormatsResult.rows.reduce((acc, form) => {
           acc[form.form_type] = JSON.parse(form.form_structure);
@@ -629,7 +661,11 @@ app.get('/api', [
           );
 
           if (link_children && link_children.length > 0) {
-            const linkChildrenQuery = `INSERT INTO participant_organizations (participant_id, organization_id) VALUES ${link_children.map(() => '(?, ?)').join(', ')}`;
+            // Fixed SQL syntax - using PostgreSQL syntax instead of MySQL
+            const linkChildrenQuery = `
+              INSERT INTO participant_organizations (participant_id, organization_id) 
+              VALUES ${link_children.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ')}
+            `;
             const linkChildrenValues = link_children.flatMap(childId => [childId, getCurrentOrganizationId()]);
             await client.query(linkChildrenQuery, linkChildrenValues);
           }
@@ -668,24 +704,24 @@ app.get('/api', [
         break;
 
       case 'update_calendar':
-        const { participant_id, amount, amount_paid } = req.body;
+        const { participant_id: participantIdCal, amount, amount_paid } = req.body;
         await client.query(
-          `INSERT INTO calendars (participant_id, amount, amount_paid, paid)
-           VALUES ($1, $2, $3, FALSE)
-           ON CONFLICT (participant_id) 
+          `INSERT INTO calendars (participant_id, amount, amount_paid, paid, organization_id)
+           VALUES ($1, $2, $3, FALSE, $4)
+           ON CONFLICT (participant_id, organization_id) 
            DO UPDATE SET amount = EXCLUDED.amount, amount_paid = EXCLUDED.amount_paid, updated_at = CURRENT_TIMESTAMP`,
-          [participant_id, amount, amount_paid || 0]
+          [participantIdCal, amount, amount_paid || 0, getCurrentOrganizationId()]
         );
         jsonResponse(res, true, null, 'Calendar updated successfully');
         break;
 
       case 'update_calendar_amount_paid':
-        const { participant_id, amount_paid } = req.body;
+        const { participant_id: participantIdAmountPaid, amount_paid: amountPaidUpdate } = req.body;
         await client.query(
           `UPDATE calendars
            SET amount_paid = $1, updated_at = CURRENT_TIMESTAMP
-           WHERE participant_id = $2`,
-          [amount_paid, participant_id]
+           WHERE participant_id = $2 AND organization_id = $3`,
+          [amountPaidUpdate, participantIdAmountPaid, getCurrentOrganizationId()]
         );
         jsonResponse(res, true, null, 'Calendar amount paid updated successfully');
         break;
@@ -693,32 +729,32 @@ app.get('/api', [
       case 'save_guest':
         const { name, email, attendance_date } = req.body;
         await client.query(
-          `INSERT INTO guests (name, email, attendance_date)
-           VALUES ($1, $2, $3)`,
-          [name, email, attendance_date]
+          `INSERT INTO guests (name, email, attendance_date, organization_id)
+           VALUES ($1, $2, $3, $4)`,
+          [name, email, attendance_date, getCurrentOrganizationId()]
         );
         jsonResponse(res, true, null, 'Guest added successfully');
         break;
 
       case 'get_guests_by_date':
-        const date = req.query.date || new Date().toISOString().split('T')[0];
+        const dateForGuests = req.query.date || new Date().toISOString().split('T')[0];
         const guestsResult = await client.query(
-          `SELECT * FROM guests WHERE attendance_date = $1`,
-          [date]
+          `SELECT * FROM guests WHERE attendance_date = $1 AND organization_id = $2`,
+          [dateForGuests, getCurrentOrganizationId()]
         );
         jsonResponse(res, true, guestsResult.rows);
         break;
 
       case 'get_attendance':
-        const date = req.query.date || new Date().toISOString().split('T')[0];
-        const organizationId = getCurrentOrganizationId();
+        const dateForAttendance = req.query.date || new Date().toISOString().split('T')[0];
+        const orgIdForAttendance = getCurrentOrganizationId();
         const attendanceResult = await client.query(
           `SELECT a.participant_id, a.status
            FROM attendance a
            JOIN participants p ON a.participant_id = p.id
            JOIN participant_organizations po ON po.participant_id = p.id
            WHERE a.date = $1 AND po.organization_id = $2`,
-          [date, organizationId]
+          [dateForAttendance, orgIdForAttendance]
         );
         jsonResponse(res, true, attendanceResult.rows);
         break;
@@ -727,8 +763,9 @@ app.get('/api', [
         const attendanceDatesResult = await client.query(
           `SELECT DISTINCT date 
            FROM attendance 
-           WHERE date <= CURRENT_DATE 
-           ORDER BY date DESC`
+           WHERE date <= CURRENT_DATE AND organization_id = $1
+           ORDER BY date DESC`,
+          [getCurrentOrganizationId()]
         );
         jsonResponse(res, true, attendanceDatesResult.rows.map(row => row.date));
         break;
@@ -737,7 +774,9 @@ app.get('/api', [
         const availableDatesResult = await client.query(
           `SELECT DISTINCT date::date AS date 
            FROM honors 
-           ORDER BY date DESC`
+           WHERE organization_id = $1
+           ORDER BY date DESC`,
+          [getCurrentOrganizationId()]
         );
         jsonResponse(res, true, availableDatesResult.rows.map(row => row.date));
         break;
@@ -745,28 +784,33 @@ app.get('/api', [
       case 'remove_group':
         const { group_id } = req.body;
         await client.query('BEGIN');
-        await client.query(
-          `UPDATE participants 
-           SET group_id = NULL 
-           WHERE group_id = $1`,
-          [group_id]
-        );
-        await client.query(
-          `DELETE FROM groups 
-           WHERE id = $1`,
-          [group_id]
-        );
-        await client.query('COMMIT');
-        jsonResponse(res, true, null, 'Group removed successfully');
+        try {
+          await client.query(
+            `UPDATE participants 
+             SET group_id = NULL 
+             WHERE group_id = $1`,
+            [group_id]
+          );
+          await client.query(
+            `DELETE FROM groups 
+             WHERE id = $1 AND organization_id = $2`,
+            [group_id, getCurrentOrganizationId()]
+          );
+          await client.query('COMMIT');
+          jsonResponse(res, true, null, 'Group removed successfully');
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        }
         break;
 
       case 'add_group':
         const { group_name } = req.body;
-        const organizationId = getCurrentOrganizationId();
+        const orgIdForGroup = getCurrentOrganizationId();
         await client.query(
           `INSERT INTO groups (name, organization_id) 
            VALUES ($1, $2)`,
-          [group_name, organizationId]
+          [group_name, orgIdForGroup]
         );
         jsonResponse(res, true, null, 'Group added successfully');
         break;
@@ -781,9 +825,13 @@ app.get('/api', [
             g.name AS group_name,
             fs.*
           FROM participants p
-          LEFT JOIN groups g ON p.group_id = g.id
-          LEFT JOIN fiche_sante fs ON p.id = fs.participant_id
-          ORDER BY g.name, p.last_name, p.first_name`
+          JOIN participant_organizations po ON p.id = po.participant_id
+          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = po.organization_id
+          LEFT JOIN groups g ON pg.group_id = g.id
+          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+          WHERE po.organization_id = $1
+          ORDER BY g.name, p.last_name, p.first_name`,
+          [getCurrentOrganizationId()]
         );
         jsonResponse(res, true, healthContactReportResult.rows);
         break;
@@ -951,7 +999,7 @@ app.get('/api', [
           LEFT JOIN form_submissions fs_fiche ON p.id = fs_fiche.participant_id AND fs_fiche.form_type = 'fiche_sante' AND fs_fiche.organization_id = $1
           LEFT JOIN form_submissions fs_risque ON p.id = fs_risque.participant_id AND fs_risque.form_type = 'acceptation_risque' AND fs_risque.organization_id = $1
           JOIN participant_organizations po ON po.organization_id = $1 AND po.participant_id = p.id
-          AND (fs_fiche.id IS NULL OR fs_risque.id IS NULL)
+          WHERE (fs_fiche.id IS NULL OR fs_risque.id IS NULL)
           ORDER BY g.name, p.last_name, p.first_name`,
           [getCurrentOrganizationId()]
         );
@@ -1006,13 +1054,13 @@ app.get('/api', [
         break;
 
       case 'logout':
-        // Unset all of the session variables
-        req.session = null;
+        // Session handling would depend on your session middleware
+        // If using express-session: req.session = null;
         jsonResponse(res, true, null, 'Logged out successfully');
         break;
 
       case 'get_groups':
-        const organizationId = getCurrentOrganizationId();
+        const orgIdForGroups = getCurrentOrganizationId();
         const groupsResult = await client.query(
           `SELECT 
             g.id,
@@ -1023,15 +1071,15 @@ app.get('/api', [
            WHERE g.organization_id = $1
            GROUP BY g.id, g.name
            ORDER BY g.name`,
-          [organizationId]
+          [orgIdForGroups]
         );
         jsonResponse(res, true, groupsResult.rows);
         break;
 
       case 'update_attendance':
-        const { participant_id, status, date } = req.body;
-        const organizationId = getCurrentOrganizationId();
-        const participantIds = Array.isArray(participant_id) ? participant_id : [participant_id];
+        const { participant_id: participantIdAttendance, status, date: dateAttendance } = req.body;
+        const orgIdForAttendanceUpdate = getCurrentOrganizationId();
+        const participantIds = Array.isArray(participantIdAttendance) ? participantIdAttendance : [participantIdAttendance];
 
         try {
           await client.query('BEGIN');
@@ -1041,7 +1089,7 @@ app.get('/api', [
               `SELECT status 
                FROM attendance 
                WHERE participant_id = $1 AND date = $2 AND organization_id = $3`,
-              [participantId, date, organizationId]
+              [participantId, dateAttendance, orgIdForAttendanceUpdate]
             );
             const previousStatus = previousStatusResult.rows[0]?.status || 'none';
 
@@ -1050,15 +1098,15 @@ app.get('/api', [
                VALUES ($1, $2, $3, $4)
                ON CONFLICT (participant_id, date, organization_id) 
                DO UPDATE SET status = EXCLUDED.status`,
-              [participantId, date, status, organizationId]
+              [participantId, dateAttendance, status, orgIdForAttendanceUpdate]
             );
 
             const pointAdjustment = calculatePointAdjustment(previousStatus, status);
             if (pointAdjustment !== 0) {
               await client.query(
                 `INSERT INTO points (participant_id, value, created_at, organization_id)
-                 VALUES ($1, NULL, $2, $3, $4)`,
-                [participantId, pointAdjustment, organizationId]
+                 VALUES ($1, $2, $3, $4)`,
+                [participantId, pointAdjustment, dateAttendance, orgIdForAttendanceUpdate]
               );
             }
           }
@@ -1067,15 +1115,16 @@ app.get('/api', [
           jsonResponse(res, true, null, 'Attendance updated successfully');
         } catch (error) {
           await client.query('ROLLBACK');
-          handleError(res, error);
+          throw error;
         }
         break;
 
       case 'get_honors':
-        const date = req.query.date || new Date().toISOString().split('T')[0];
+        const dateForHonors = req.query.date || new Date().toISOString().split('T')[0];
         const academicYearStart = new Date().getMonth() >= 8 ? `${new Date().getFullYear()}-09-01` : `${new Date().getFullYear() - 1}-09-01`;
+        const orgIdForHonors = getCurrentOrganizationId();
 
-        const participantsResult = await client.query(
+        const participantsForHonorsResult = await client.query(
           `SELECT 
             p.id AS participant_id, 
             p.first_name, 
@@ -1088,37 +1137,37 @@ app.get('/api', [
            LEFT JOIN groups g ON pg.group_id = g.id AND g.organization_id = po.organization_id
            WHERE po.organization_id = $1
            ORDER BY g.name, p.last_name, p.first_name`,
-          [organizationId]
+          [orgIdForHonors]
         );
 
-        const honorsResult = await client.query(
+        const honorsForDateResult = await client.query(
           `SELECT 
             participant_id, 
             date
            FROM honors
            WHERE date >= $1 AND date <= $2 AND organization_id = $3`,
-          [academicYearStart, date, organizationId]
+          [academicYearStart, dateForHonors, orgIdForHonors]
         );
 
-        const availableDatesResult = await client.query(
+        const availableDatesForHonorsResult = await client.query(
           `SELECT DISTINCT 
             date
            FROM honors
            WHERE organization_id = $1 AND date >= $2 AND date <= CURRENT_DATE
            ORDER BY date DESC`,
-          [organizationId, academicYearStart]
+          [orgIdForHonors, academicYearStart]
         );
 
         jsonResponse(res, true, {
-          participants: participantsResult.rows,
-          honors: honorsResult.rows,
-          availableDates: availableDatesResult.rows.map(row => row.date),
+          participants: participantsForHonorsResult.rows,
+          honors: honorsForDateResult.rows,
+          availableDates: availableDatesForHonorsResult.rows.map(row => row.date),
         });
         break;
 
       case 'award_honor':
         const honors = req.body;
-        const organizationId = getCurrentOrganizationId();
+        const orgIdForAwardHonor = getCurrentOrganizationId();
 
         try {
           await client.query('BEGIN');
@@ -1132,14 +1181,14 @@ app.get('/api', [
                VALUES ($1, $2, $3)
                ON CONFLICT (participant_id, date, organization_id) DO NOTHING
                RETURNING id`,
-              [participantId, date, organizationId]
+              [participantId, date, orgIdForAwardHonor]
             );
 
             if (honorResult.rows.length > 0) {
               await client.query(
                 `INSERT INTO points (participant_id, value, created_at, organization_id)
                  VALUES ($1, 5, $2, $3)`,
-                [participantId, date, organizationId]
+                [participantId, date, orgIdForAwardHonor]
               );
               awards.push({ participantId, awarded: true });
             } else {
@@ -1151,14 +1200,37 @@ app.get('/api', [
           jsonResponse(res, true, awards);
         } catch (error) {
           await client.query('ROLLBACK');
-          handleError(res, error);
+          throw error;
         }
         break;
 
       case 'get_badge_progress':
-        const participantId = req.query.participant_id;
-        const organizationId = getCurrentOrganizationId();
+        const participantIdForBadge = req.query.participant_id;
+        const orgIdForBadge = getCurrentOrganizationId();
 
-        if (participantId) {
+        if (participantIdForBadge) {
           const badgeProgressResult = await client.query(
-            `SELECT * FROM
+            `SELECT * FROM badge_progress WHERE participant_id = $1 AND organization_id = $2`,
+            [participantIdForBadge, orgIdForBadge]
+          );
+          jsonResponse(res, true, badgeProgressResult.rows);
+        } else {
+          jsonResponse(res, false, null, 'Participant ID is required');
+        }
+        break;
+
+      default:
+        jsonResponse(res, false, null, 'Invalid action');
+        break;
+    }
+  } catch (error) {
+    logger.error('Database error:', error);
+    jsonResponse(res, false, null, 'Internal server error');
+  } finally {
+    client.release();
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});

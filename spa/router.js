@@ -28,6 +28,7 @@ import { CreateOrganization } from './create_organization.js';
 import { PrintableGroupParticipantReport } from './group-participant-report.js';
 import { UpcomingMeeting } from './upcoming_meeting.js';
 
+
 const debugMode =
   window.location.hostname === "localhost" ||
   window.location.hostname.includes("replit.dev")
@@ -47,6 +48,7 @@ function debugError(...args) {
 }
 
 const routes = {
+
   "/index.php": "dashboard",
   "/": "dashboard",
   "/admin": "admin",

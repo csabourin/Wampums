@@ -8,7 +8,7 @@ export class Login {
 
   async init() {
     console.log("Login init started");
-
+    
     // Try to fetch organization settings if not already loaded
     if (!this.app.organizationSettings && !this.app.isOrganizationSettingsFetched) {
       console.log("Organization settings not loaded, attempting to fetch...");

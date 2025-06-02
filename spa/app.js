@@ -9,7 +9,7 @@ import { getOrganizationSettings, fetchOrganizationId } from "./ajax-functions.j
 
 const debugMode =
 	window.location.hostname === "localhost" ||
-	window.location.hostname.includes("replit.dev")
+		window.location.hostname.includes("replit.dev")
 		? true
 		: false;
 
@@ -28,7 +28,7 @@ function debugError(...args) {
 if ("serviceWorker" in navigator) {
 	navigator.serviceWorker
 		.register("/service-worker.js")
-		.then(function (registration) {})
+		.then(function (registration) { })
 		.catch(function (error) {
 			console.error("Service Worker registration failed:", error);
 		});
@@ -134,10 +134,10 @@ export const app = {
 	translations: {},
 	db: null,
 	router: null,
-	organizationSettings: null, 
+	organizationSettings: null,
 	organizationId: null,
 	isOrganizationSettingsFetched: false,
-		initCompleted: false,
+	initCompleted: false,
 
 	async init() {
 		console.log("App init started");
@@ -250,10 +250,11 @@ export const app = {
 			return;
 		}
 		try {
-			console.log("Fetching organization settings (259) ...");
-			const response = await getOrganizationSettings();
+			console.log("Fetching organization settings (259) ...", this.organizationId);
+
+			const response = await getOrganizationSettings(this.organizationId);
 			if (response && response.organization_info || response.data) {
-				console.log("Got organization settings: ",JSON.stringify(response));
+				console.log("Got organization settings: ", JSON.stringify(response));
 				// The fix is here - use response.data directly as the settings
 				this.organizationSettings = response.data || response;  // This is correct
 				this.isOrganizationSettingsFetched = true;
@@ -279,22 +280,37 @@ export const app = {
 			console.log("Translations already loaded, skipping");
 			return;
 		}
-
 		try {
 			console.log("Loading translations...");
-			const response = await fetch("/get_translations.php");
 
-			if (!response.ok) {
-				throw new Error(`Failed to load translations: ${response.status}`);
-			}
+			const [enRes, frRes] = await Promise.all([
+				fetch('/lang/en.json'), // adapte le chemin selon où sont tes fichiers !
+				fetch('/lang/fr.json')
+			]);
 
-			this.translations = await response.json();
-			console.log("Translations loaded successfully");
+			// Vérifie si le fetch a réussi
+			if (!enRes.ok || !frRes.ok) throw new Error('Failed to fetch translation files.');
+
+			const [enTranslations, frTranslations] = await Promise.all([
+				enRes.json(),
+				frRes.json()
+			]);
+
+			this.translations = {
+				en: enTranslations,
+				fr: frTranslations
+			};
+			console.log("Translations loaded successfully", this.translations);
 		} catch (error) {
 			console.error("Error loading translations:", error);
-			this.translations = {};
+			// Fallback vide
+			this.translations = {
+				en: {},
+				fr: {}
+			};
 		}
 	},
+
 
 	async handlePostLoginActions() {
 		if ('Notification' in window) {
@@ -425,8 +441,10 @@ export const app = {
 	translate(key) {
 		const lang = this.lang || 'fr';
 		if (!this.translations[lang]) {
+			console.log(`Failed to translating key: ${key} in language: ${lang}`);
 			return key; // Return the key if language translations aren't loaded yet
 		}
+		console.log(`Translating key: ${key} in language: ${lang} to ${this.translations[lang][key]}`);
 		return this.translations[lang][key] || key;
 	},
 
@@ -457,7 +475,7 @@ export const app = {
 	},
 };
 
-navigator.serviceWorker.addEventListener('message', function(event) {
+navigator.serviceWorker.addEventListener('message', function (event) {
 	if (event.data && event.data.type === 'PUSH_ALERT') {
 		const title = event.data.title || 'New Notification';
 		const body = event.data.body || '';

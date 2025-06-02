@@ -1,15 +1,15 @@
 import {
 	saveOfflineData,
 	getOfflineData,
-	setCachedData, getCachedData 
+	setCachedData, getCachedData
 } from "./indexedDB.js";
 // const debugMode =
 //   window.location.hostname === "localhost" ||
 //   window.location.hostname.includes("replit.dev")
 //     ? true
 //     : false;
-const debugMode=false;
-const API_BASE_URL = debugMode ? 'http://localhost:3000' : 'https://wampums-api.replit.app';
+const debugMode = true;
+const API_BASE_URL = debugMode ? 'https://162358f6-6bee-4b82-a3b9-1c24a44398c5-00-2jk4jbmfbs2yj.worf.replit.dev/' : 'https://wampums-api.replit.app';
 console.log('API_BASE_URL:', API_BASE_URL);
 
 // Utility function to determine the base URL
@@ -146,30 +146,30 @@ export async function getParticipantAgeReport() {
 
 
 export async function getGuardians(participantId) {
-		try {
-				console.log("Fetching guardians for participant ID:", participantId);
-				const response = await fetch(`${getApiUrl('get_guardians')}&participant_id=${participantId}`, {
-						headers: getAuthHeader(),
-				});
+	try {
+		console.log("Fetching guardians for participant ID:", participantId);
+		const response = await fetch(`${getApiUrl('get_guardians')}&participant_id=${participantId}`, {
+			headers: getAuthHeader(),
+		});
 
-				if (!response.ok) {
-						throw new Error(`Error fetching guardians: ${response.statusText}`);
-				}
-
-				const data = await response.json();
-				console.log("Raw response from get_guardians API:", data);
-
-				if (data.success && Array.isArray(data.guardians)) {
-						console.log("Guardians fetched:", data.guardians);
-						return data.guardians;
-				} else {
-						console.warn("No guardians found or invalid response structure");
-						return [];
-				}
-		} catch (error) {
-				console.error("Error fetching guardians:", error);
-				return [];
+		if (!response.ok) {
+			throw new Error(`Error fetching guardians: ${response.statusText}`);
 		}
+
+		const data = await response.json();
+		console.log("Raw response from get_guardians API:", data);
+
+		if (data.success && Array.isArray(data.guardians)) {
+			console.log("Guardians fetched:", data.guardians);
+			return data.guardians;
+		} else {
+			console.warn("No guardians found or invalid response structure");
+			return [];
+		}
+	} catch (error) {
+		console.error("Error fetching guardians:", error);
+		return [];
+	}
 }
 
 
@@ -357,48 +357,48 @@ export async function fetchParticipant(participantId) {
 }
 
 export async function approveUser(userId, organizationId) {
-		try {
-				const response = await fetch(getApiUrl(`approve_user`), {
-						method: "POST",
-						headers: {
-								"Content-Type": "application/json",
-								...getAuthHeader(),
-						},
-						body: JSON.stringify({ user_id: userId, organization_id: organizationId }),
-				});
+	try {
+		const response = await fetch(getApiUrl(`approve_user`), {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...getAuthHeader(),
+			},
+			body: JSON.stringify({ user_id: userId, organization_id: organizationId }),
+		});
 
-				if (!response.ok) {
-						throw new Error(`HTTP error! status: ${response.status}`);
-				}
-
-				return await response.json();
-		} catch (error) {
-				console.error("Error approving user:", error);
-				throw error;
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
 		}
+
+		return await response.json();
+	} catch (error) {
+		console.error("Error approving user:", error);
+		throw error;
+	}
 }
 
 export async function updateUserRole(userId, newRole, organizationId) {
-		try {
-				const response = await fetch(getApiUrl(`update_user_role`), {
+	try {
+		const response = await fetch(getApiUrl(`update_user_role`), {
 
-						method: "POST",
-						headers: {
-								"Content-Type": "application/json",
-								...getAuthHeader(),
-						},
-						body: JSON.stringify({ user_id: userId, new_role: newRole, organization_id: organizationId }),
-				});
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...getAuthHeader(),
+			},
+			body: JSON.stringify({ user_id: userId, new_role: newRole, organization_id: organizationId }),
+		});
 
-				if (!response.ok) {
-						throw new Error(`HTTP error! status: ${response.status}`);
-				}
-
-				return await response.json();
-		} catch (error) {
-				console.error("Error updating user role:", error);
-				throw error;
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
 		}
+
+		return await response.json();
+	} catch (error) {
+		console.error("Error updating user role:", error);
+		throw error;
+	}
 }
 
 export async function getCalendars() {
@@ -469,28 +469,28 @@ export async function updateCalendarAmountPaid(participantId, amountPaid) {
 
 
 export async function getGuestsByDate(date) {
-		try {
-				const response = await fetch(`${getApiUrl('get_guests_by_date')}&date=${date}`, {
-						method: 'GET',
-					headers: {
-						"Content-Type": "application/json",
-						...getAuthHeader(),
-						'X-Organization-ID': getCurrentOrganizationId()
-					}
-				});
+	try {
+		const response = await fetch(`${getApiUrl('get_guests_by_date')}&date=${date}`, {
+			method: 'GET',
+			headers: {
+				"Content-Type": "application/json",
+				...getAuthHeader(),
+				'X-Organization-ID': getCurrentOrganizationId()
+			}
+		});
 
-				const result = await response.json();
-				console.log("Guests fetched for date:", date, result);  // Add this to verify the response
+		const result = await response.json();
+		console.log("Guests fetched for date:", date, result);  // Add this to verify the response
 
-				if (result.success) {
-						return result.guests;
-				} else {
-						throw new Error(result.message);
-				}
-		} catch (error) {
-				console.error("Error fetching guests:", error);
-				return [];
+		if (result.success) {
+			return result.guests;
+		} else {
+			throw new Error(result.message);
 		}
+	} catch (error) {
+		console.error("Error fetching guests:", error);
+		return [];
+	}
 }
 
 export async function getActivitesRencontre() {
@@ -593,28 +593,28 @@ export async function getReunionPreparation(date) {
 }
 
 export async function saveGuest(guest) {
-			try {
-					const response = await fetch(getApiUrl(`save_guest`), {
-							method: 'POST',
-						headers: {
-							"Content-Type": "application/json",
-							...getAuthHeader(),
-							'X-Organization-ID': getCurrentOrganizationId()
-						},
-							body: JSON.stringify(guest)
-					});
+	try {
+		const response = await fetch(getApiUrl(`save_guest`), {
+			method: 'POST',
+			headers: {
+				"Content-Type": "application/json",
+				...getAuthHeader(),
+				'X-Organization-ID': getCurrentOrganizationId()
+			},
+			body: JSON.stringify(guest)
+		});
 
-					const result = await response.json();
-				console.log("Guest saved:", result);  // Add this to verify the response
-					if (result.success) {
-							console.log(result.message);
-					} else {
-							throw new Error(result.message);
-					}
-			} catch (error) {
-					console.error("Error saving guest:", error);
-			}
+		const result = await response.json();
+		console.log("Guest saved:", result);  // Add this to verify the response
+		if (result.success) {
+			console.log(result.message);
+		} else {
+			throw new Error(result.message);
+		}
+	} catch (error) {
+		console.error("Error saving guest:", error);
 	}
+}
 
 
 export async function updateCalendarPaid(participantId, paidStatus) {
@@ -660,51 +660,51 @@ export async function getParticipantCalendar(participantId) {
 }
 
 export async function getUsers(organizationId) {
-		try {
-				const response = await fetch(`${getApiUrl('get_users')}&organization_id=${organizationId}`, {
+	try {
+		const response = await fetch(`${getApiUrl('get_users')}&organization_id=${organizationId}`, {
 
-						headers: getAuthHeader(),
-				});
+			headers: getAuthHeader(),
+		});
 
-				if (!response.ok) {
-						throw new Error(`HTTP error! status: ${response.status}`);
-				}
-
-				const users = await response.json();
-				return users.map(user => ({
-						id: user.id,
-						email: user.email,
-						isVerified: user.is_verified === true,
-						role: user.role,
-						fullName: user.full_name,
-						createdAt: new Date(user.created_at)
-				}));
-		} catch (error) {
-				console.error("Error fetching users:", error);
-				throw error;
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
 		}
+
+		const users = await response.json();
+		return users.map(user => ({
+			id: user.id,
+			email: user.email,
+			isVerified: user.is_verified === true,
+			role: user.role,
+			fullName: user.full_name,
+			createdAt: new Date(user.created_at)
+		}));
+	} catch (error) {
+		console.error("Error fetching users:", error);
+		throw error;
+	}
 }
 
 export async function getSubscribers(organizationId) {
-		try {
-				const response = await fetch(`${getApiUrl('get_subscribers')}&organization_id=${organizationId}`, {
-						headers: getAuthHeader(),
-				});
+	try {
+		const response = await fetch(`${getApiUrl('get_subscribers')}&organization_id=${organizationId}`, {
+			headers: getAuthHeader(),
+		});
 
-				if (!response.ok) {
-						throw new Error(`HTTP error! status: ${response.status}`);
-				}
-
-				const subscribers = await response.json();
-				return subscribers.map(subscriber => ({
-						id: subscriber.id,
-						email: subscriber.email || `User ${subscriber.user_id}`,
-						userId: subscriber.user_id
-				}));
-		} catch (error) {
-				console.error("Error fetching subscribers:", error);
-				throw error;
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
 		}
+
+		const subscribers = await response.json();
+		return subscribers.map(subscriber => ({
+			id: subscriber.id,
+			email: subscriber.email || `User ${subscriber.user_id}`,
+			userId: subscriber.user_id
+		}));
+	} catch (error) {
+		console.error("Error fetching subscribers:", error);
+		throw error;
+	}
 }
 
 export async function register(registerData) {
@@ -974,9 +974,9 @@ export async function getGroups() {
 	}
 }
 
-export async function getOrganizationSettings() {
+export async function getOrganizationSettings(orgId = null) {
 	const cacheKey = "organization_settings";
-	const expirationTime = 60 * 60 * 1000; // Cache expires after 60 minutes
+	const expirationTime = 0; // Cache expires after 60 minutes
 
 	// Step 1: Try to get cached data from IndexedDB
 	const cachedData = await getCachedData(cacheKey);
@@ -989,6 +989,7 @@ export async function getOrganizationSettings() {
 	try {
 		const response = await fetch(getApiUrl(`get_organization_settings`), {
 			headers: getAuthHeader(),
+			'X-Organization-ID': orgId || getCurrentOrganizationId() // Use provided orgId or current organization ID
 		});
 		if (!response.ok) {
 			console.error(`Failed to fetch organization settings. HTTP Status: ${response.status}`);
@@ -1139,7 +1140,7 @@ export async function saveBadgeProgress(badgeData) {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				...getAuthHeader(), 
+				...getAuthHeader(),
 				'X-Organization-ID': getCurrentOrganizationId()
 			},
 			body: JSON.stringify(badgeData),
@@ -1218,73 +1219,73 @@ export async function getAttendanceReport(startDate = null, endDate = null) {
 }
 
 export async function logout() {
-		try {
-				const response = await fetch(getApiUrl(`logout`), {
-						method: "POST",
-						headers: {
-								"Content-Type": "application/json",
-								...getAuthHeader(),
-						},
-				});
+	try {
+		const response = await fetch(getApiUrl(`logout`), {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				...getAuthHeader(),
+			},
+		});
 
-				// Clear user-specific data but keep organization JWT
-				localStorage.removeItem("userRole");
-				localStorage.removeItem("userFullName");
-				localStorage.removeItem("userId");
+		// Clear user-specific data but keep organization JWT
+		localStorage.removeItem("userRole");
+		localStorage.removeItem("userFullName");
+		localStorage.removeItem("userId");
 
-				// Get an organization-only JWT
-				const orgId = localStorage.getItem("currentOrganizationId");
-				const orgResponse = await fetch(`/get-organization-jwt.php?organization_id=${orgId}`);
-				const orgData = await orgResponse.json();
+		// Get an organization-only JWT
+		const orgId = localStorage.getItem("currentOrganizationId");
+		const orgResponse = await fetch(`/get-organization-jwt.php?organization_id=${orgId}`);
+		const orgData = await orgResponse.json();
 
-				if (orgData.success && orgData.token) {
-						localStorage.setItem("jwtToken", orgData.token);
-				}
-
-				const data = await response.json();
-				return data;
-		} catch (error) {
-				console.error("Error logging out:", error);
-				throw error;
+		if (orgData.success && orgData.token) {
+			localStorage.setItem("jwtToken", orgData.token);
 		}
+
+		const data = await response.json();
+		return data;
+	} catch (error) {
+		console.error("Error logging out:", error);
+		throw error;
+	}
 }
 
 export async function login(formData) {
 	// Convertir FormData en objet simple
-		const formDataObj = {};
-		for (const [key, value] of formData.entries()) {
-				formDataObj[key] = value;
+	const formDataObj = {};
+	for (const [key, value] of formData.entries()) {
+		formDataObj[key] = value;
+	}
+	try {
+
+		const response = await fetch(getApiUrl(`login`), {
+			method: "POST",
+			headers: {
+				...getAuthHeader(),
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(formDataObj)
+		});
+
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
 		}
-		try {
 
-				const response = await fetch(getApiUrl(`login`), {
-						method: "POST",
-						headers:{
-							...getAuthHeader(),
-							'Content-Type': 'application/json'
-					},
-						body: JSON.stringify(formDataObj)
-				});
+		const data = await response.json();
 
-				if (!response.ok) {
-						throw new Error(`HTTP error! status: ${response.status}`);
-				}
-
-				const data = await response.json();
-
-				// If login successful, store the user JWT
-				if (data.success && data.token) {
-						localStorage.setItem("jwtToken", data.token);
-						localStorage.setItem("userRole", data.user_role);
-						localStorage.setItem("userFullName", data.user_full_name);
-						localStorage.setItem("userId", data.user_id);
-				}
-
-				return data;
-		} catch (error) {
-				console.error("Error logging in:", error);
-				throw error;
+		// If login successful, store the user JWT
+		if (data.success && data.token) {
+			localStorage.setItem("jwtToken", data.token);
+			localStorage.setItem("userRole", data.user_role);
+			localStorage.setItem("userFullName", data.user_full_name);
+			localStorage.setItem("userId", data.user_id);
 		}
+
+		return data;
+	} catch (error) {
+		console.error("Error logging in:", error);
+		throw error;
+	}
 }
 
 export async function registerForOrganization(registrationData) {
@@ -1317,14 +1318,14 @@ export async function getUserChildren(userId) {
 }
 
 export async function getReunionDates() {
-		const response = await fetch(getApiUrl(`get_reunion_dates`), {
-				headers: getAuthHeader(),
-		});
-		if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-		}
-		const data = await response.json();
-		return data.dates;
+	const response = await fetch(getApiUrl(`get_reunion_dates`), {
+		headers: getAuthHeader(),
+	});
+	if (!response.ok) {
+		throw new Error(`HTTP error! status: ${response.status}`);
+	}
+	const data = await response.json();
+	return data.dates;
 }
 
 export async function fetchParents(participantId) {
@@ -1824,30 +1825,30 @@ export async function getParticipantsWithDocuments() {
 
 
 export async function getOrganizationFormFormats(organizationId = null) {
-		try {
-				const response = await fetch(getApiUrl(`get_organization_form_formats`) + (organizationId !== null ? `&organization_id=${organizationId}` : ''), {
-						method: 'GET',
-						headers: {
-								...getAuthHeader(),
-								'Content-Type': 'application/json'
-						}
-				});
+	try {
+		const response = await fetch(getApiUrl(`get_organization_form_formats`) + (organizationId !== null ? `&organization_id=${organizationId}` : ''), {
+			method: 'GET',
+			headers: {
+				...getAuthHeader(),
+				'Content-Type': 'application/json'
+			}
+		});
 
-				if (!response.ok) {
-						throw new Error(`HTTP error! status: ${response.status}`);
-				}
-
-				const data = await response.json();
-
-				if (data.success) {
-						return data.formFormats;
-				} else {
-						throw new Error(data.message || 'Failed to fetch organization form formats');
-				}
-		} catch (error) {
-				console.error('Error fetching organization form formats:', error);
-				throw error;
+		if (!response.ok) {
+			throw new Error(`HTTP error! status: ${response.status}`);
 		}
+
+		const data = await response.json();
+
+		if (data.success) {
+			return data.formFormats;
+		} else {
+			throw new Error(data.message || 'Failed to fetch organization form formats');
+		}
+	} catch (error) {
+		console.error('Error fetching organization form formats:', error);
+		throw error;
+	}
 }
 
 
@@ -2097,8 +2098,8 @@ export async function saveAcceptationRisque(acceptationRisqueData) {
 export async function getCurrentStars(participantId, territoire) {
 	try {
 		const response = await fetch(getApiUrl(`action=get_current_stars&participant_id=${participantId}&territoire=${encodeURIComponent(
-				territoire
-			)}`),
+			territoire
+		)}`),
 			{
 				method: "GET",
 				headers: getAuthHeader(),
@@ -2117,14 +2118,34 @@ export async function getCurrentStars(participantId, territoire) {
 	}
 }
 
-// Utility function to get the current organization ID
+/**
+ * Gets the current organization ID from localStorage or page metadata.
+ * If found in metadata but not in localStorage, it will save to localStorage for future use.
+ * @returns {number|null} The organization ID as a number, or null if not found
+ */
 export function getCurrentOrganizationId() {
-		return localStorage.getItem('organizationId') || null;
+	// First try to get from localStorage
+	const storedOrgId = localStorage.getItem('currentOrganizationId');
+	if (storedOrgId) {
+		return parseInt(storedOrgId, 10);
+	}
+	
+	// If not in localStorage, try to get from page metadata
+	const metaOrgId = document.querySelector("meta[name='X-Orgid']")?.content;
+	if (metaOrgId) {
+		console.log("Using organization ID from page metadata:", metaOrgId);
+		setCurrentOrganizationId(metaOrgId); // Store for future use
+		return parseInt(metaOrgId, 10);
+	}
+	
+	// No organization ID found
+	console.warn("No organization ID found in localStorage or page metadata");
+	return null;
 }
 
 // Utility function to set the current organization ID
 function setCurrentOrganizationId(organizationId) {
-	localStorage.setItem('organizationId', organizationId);
+	localStorage.setItem('currentOrganizationId', organizationId);
 }
 
 // Function to sync offline data

@@ -1,10 +1,13 @@
 <?php
+require __DIR__ . '/vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 require_once 'config.php';
 require_once 'functions.php';
 initializeApp();
 // Security headers
 header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload");
-header("Content-Security-Policy:   default-src 'self';   script-src 'self' https://*.facebook.net https://*.clarity.ms https://*.cloudflareinsights.com;   style-src 'self' 'unsafe-inline';   img-src 'self' data: https://*.bing.com https://*.clarity.ms https://*.cloudflareinsights.com;  connect-src 'self' https://*.clarity.ms https://wampums-api.replit.app;   worker-src 'self' blob:;");
+// header("Content-Security-Policy:   default-src 'self';   script-src 'self' https://*.facebook.net https://*.clarity.ms https://*.cloudflareinsights.com;   style-src 'self' 'unsafe-inline';   img-src 'self' data: https://*.bing.com https://*.clarity.ms https://*.cloudflareinsights.com;  connect-src 'self' https://*.clarity.ms https://wampums-api.replit.app;   worker-src 'self' blob:;");
 header("Access-Control-Allow-Origin: *"); // Changed to allow all origins for testing
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
@@ -13,6 +16,8 @@ header("X-Frame-Options: DENY");
 header("X-XSS-Protection: 1; mode=block");
 header("Referrer-Policy: no-referrer");
 header("Set-Cookie: cookieName=PHPSESSID; Secure; HttpOnly");
+// write the organization id in the x-orgID header
+header("X-OrgID: " . $organizationId);
 $organizationName = $settings['name'] ?? 'Scouts';
 $title = ($lang == 'en') ? "Scouts at your fingertips" : "Scouts au bout des doigts";
 ?>
@@ -44,7 +49,7 @@ $title = ($lang == 'en') ? "Scouts at your fingertips" : "Scouts au bout des doi
         <button id="lang-fr" class="lang-btn<?php echo $lang == 'fr' ? ' active' : ''; ?>" data-lang="fr">FR</button>
         <button id="lang-en" class="lang-btn<?php echo $lang == 'en' ? ' active' : ''; ?>" data-lang="en">EN</button>
     </div>
-    
+   
     <div id="news-widget" data-lazy-load="/get-news.php">
         <div class="news-accordion-header">
                 <h2> </h2>
