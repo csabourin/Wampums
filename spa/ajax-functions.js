@@ -68,7 +68,7 @@ export function getAuthHeader() {
 	}
 
 	if (organizationId) {
-		headers['X-Organization-ID'] = organizationId;
+		headers['x-organization-id'] = organizationId;
 	}
 
 	return headers;
@@ -426,7 +426,7 @@ export async function updateCalendar(participantId, amount, amountPaid) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify({ participant_id: participantId, amount: amount, amount_paid: amountPaid }),
 		});
@@ -450,7 +450,7 @@ export async function updateCalendarAmountPaid(participantId, amountPaid) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify({ participant_id: participantId, amount_paid: amountPaid }),
 		});
@@ -475,7 +475,7 @@ export async function getGuestsByDate(date) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			}
 		});
 
@@ -599,7 +599,7 @@ export async function saveGuest(guest) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify(guest)
 		});
@@ -624,7 +624,7 @@ export async function updateCalendarPaid(participantId, paidStatus) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify({ participant_id: participantId, paid_status: paidStatus }),
 		});
@@ -729,7 +729,7 @@ export async function getMailingList() {
 		const response = await fetch(getApiUrl(`get_mailing_list`), {
 			headers: {
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 		});
 
@@ -758,7 +758,7 @@ export async function fetchFicheSante(participantId) {
 			`${getApiUrl('get_fiche_sante')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			}
 		);
 		const data = await response.json();
@@ -809,7 +809,7 @@ export async function fetchGuardians(participantId) {
 			`${getApiUrl('get_guardians')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			}
 		);
 		const data = await response.json();
@@ -827,7 +827,7 @@ export async function saveGuardian(guardianData) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify(guardianData),
 		});
@@ -874,7 +874,7 @@ export async function getParticipants() {
 
 			headers: {
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId(),
+				'x-organization-id': getCurrentOrganizationId(),
 			},
 		});
 
@@ -948,7 +948,7 @@ export async function getGroups() {
 		const response = await fetch(getApiUrl(`get_groups`), {
 			headers: {
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			}
 		});
 
@@ -976,7 +976,7 @@ export async function getGroups() {
 
 export async function getOrganizationSettings(orgId = null) {
 	const cacheKey = "organization_settings";
-	const expirationTime = 0; // Cache expires after 60 minutes
+	const expirationTime = 60; // Cache expires after 60 minutes
 
 	// Step 1: Try to get cached data from IndexedDB
 	const cachedData = await getCachedData(cacheKey);
@@ -989,7 +989,7 @@ export async function getOrganizationSettings(orgId = null) {
 	try {
 		const response = await fetch(getApiUrl(`get_organization_settings`), {
 			headers: getAuthHeader(),
-			'X-Organization-ID': orgId || getCurrentOrganizationId() // Use provided orgId or current organization ID
+			'x-organization-id': orgId || getCurrentOrganizationId() // Use provided orgId or current organization ID
 		});
 		if (!response.ok) {
 			console.error(`Failed to fetch organization settings. HTTP Status: ${response.status}`);
@@ -1044,7 +1044,7 @@ export async function updateAttendance(
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify({
 				participant_id: participantId,
@@ -1090,7 +1090,7 @@ export async function getHonors(date) {
 	try {
 		const response = await fetch(`${getApiUrl('get_honors')}&date=${date}`, {
 			headers: getAuthHeader(),
-			'X-Organization-ID': getCurrentOrganizationId()
+			'x-organization-id': getCurrentOrganizationId()
 		});
 		const data = await response.json();
 		return data;
@@ -1106,7 +1106,7 @@ export async function awardHonor(honors) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify(honors),
 		});
@@ -1123,7 +1123,7 @@ export async function getBadgeProgress(participantId) {
 			`${getApiUrl('get_badge_progress')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			}
 		);
 		const data = await response.json();
@@ -1141,7 +1141,7 @@ export async function saveBadgeProgress(badgeData) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify(badgeData),
 		});
@@ -1160,7 +1160,7 @@ export async function getHealthReport() {
 			headers: {
 				...getAuthHeader(),
 				"Content-Type": "application/json",
-				"X-Organization-ID": getCurrentOrganizationId(),
+				"x-organization-id": getCurrentOrganizationId(),
 			},
 		});
 
@@ -1503,7 +1503,7 @@ export async function updateParticipantGroup(participantId, groupId, isLeader = 
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId(),
+				'x-organization-id': getCurrentOrganizationId(),
 			},
 			body: JSON.stringify(requestData), // Sending the data as JSON
 		});
@@ -1543,7 +1543,7 @@ export async function getParentUsers() {
 		const response = await fetch(getApiUrl(`get_parent_users`), {
 			headers: {
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 		});
 		const data = await response.json();
@@ -1562,7 +1562,7 @@ export async function associateUser(participantId, userId) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify({ participant_id: participantId, user_id: userId }),
 		});
@@ -1676,7 +1676,7 @@ export async function getFormTypes() {
 			headers: {
 				...getAuthHeader(),
 				"Content-Type": "application/json",
-				'X-Organization-ID': getCurrentOrganizationId() // Send organization ID to filter forms
+				'x-organization-id': getCurrentOrganizationId() // Send organization ID to filter forms
 			}
 		});
 
@@ -1952,7 +1952,7 @@ export async function updateBadgeStatus(badgeId, action) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify({ badge_id: badgeId, action: action }),
 		});
@@ -2055,7 +2055,7 @@ export async function removeGuardians(participantId, guardianIds) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify({
 				participant_id: participantId,
@@ -2077,7 +2077,7 @@ export async function saveAcceptationRisque(acceptationRisqueData) {
 			headers: {
 				"Content-Type": "application/json",
 				...getAuthHeader(),
-				'X-Organization-ID': getCurrentOrganizationId()
+				'x-organization-id': getCurrentOrganizationId()
 			},
 			body: JSON.stringify(acceptationRisqueData),
 		});

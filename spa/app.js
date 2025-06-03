@@ -444,7 +444,6 @@ export const app = {
 			console.log(`Failed to translating key: ${key} in language: ${lang}`);
 			return key; // Return the key if language translations aren't loaded yet
 		}
-		console.log(`Translating key: ${key} in language: ${lang} to ${this.translations[lang][key]}`);
 		return this.translations[lang][key] || key;
 	},
 

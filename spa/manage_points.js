@@ -377,7 +377,7 @@ export class ManagePoints {
           headers: {
             "Content-Type": "application/json",
             ...getAuthHeader(),
-            'X-Organization-ID': getCurrentOrganizationId()
+            'x-organization-id': getCurrentOrganizationId()
           },
           body: JSON.stringify(updates),
         });
