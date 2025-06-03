@@ -60,9 +60,8 @@ $title = ($lang == 'en') ? "Scouts at your fingertips" : "Scouts au bout des doi
     <div id="offline-indicator">
         <?php echo translate('you_are_offline'); ?>
     </div>
-    
+    <script type="module" src="/initial-data.php"></script>
     <script type="module" defer src="/spa/app.js"></script>
-    <script type="module" defer src="/initial-data.php"></script>
     <script type="module" defer src="/spa/init-activity-widget.js"></script>
     <!-- Clarity tracking code for https://meute6a.app/ -->
     <script async src="/spa/clarity-init.js"></script>

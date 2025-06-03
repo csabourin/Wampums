@@ -1,10 +1,14 @@
 <?php
+header('Content-Type: application/javascript');
+require __DIR__ . '/vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 require_once 'config.php';
 require_once 'functions.php';
 require_once 'jwt_auth.php'; // Make sure to include the JWT auth file
 initializeApp();
 
-header('Content-Type: application/javascript');
+
 
 // First get the organization ID
 $organizationId = getCurrentOrganizationId();
