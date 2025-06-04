@@ -25,7 +25,12 @@ const pool = new Pool({
   port: process.env.DB_PORT,
 });
 
-const jwtKey = process.env.JWT_SECRET_KEY;
+// Support legacy environment variable name `JWT_SECRET`
+// to match the PHP implementation which falls back to this value
+// if `JWT_SECRET_KEY` is not defined.
+const jwtKey = process.env.JWT_SECRET_KEY ||
+               process.env.JWT_SECRET ||
+               '1615c2ab-2c71-4b93-8e2e-03f1e6e6e331';
 
 const logger = winston.createLogger({
   level: 'info',
