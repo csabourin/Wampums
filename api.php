@@ -1022,9 +1022,13 @@ case 'get_participant_calendar':
 
 	case 'login':
     try {
-        // Step 1: Get the login credentials from the POST request
-        $email = strtolower($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
+        // Step 1: Get the login credentials from the request body
+        // Support JSON payloads as well as traditional form posts
+        $rawInput = file_get_contents('php://input');
+        $jsonData = json_decode($rawInput, true);
+
+        $email = strtolower($jsonData['email'] ?? ($_POST['email'] ?? ''));
+        $password = $jsonData['password'] ?? ($_POST['password'] ?? '');
 
         error_log("Login attempt for email: $email");
 
@@ -1070,7 +1074,8 @@ case 'get_participant_calendar':
                     'message' => 'login_successful',
                     'token' => $token,
                     'user_role' => $user['role'],
-                    'user_full_name' => $user['full_name']
+                    'user_full_name' => $user['full_name'],
+                    'user_id' => $user['id']
                 ];
 
                 // If there are any participants not linked yet, add them to the response
