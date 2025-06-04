@@ -1,7 +1,9 @@
 <?php
 // jwt_auth.php - Update your existing file with these modifications
 
-require_once 'vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
