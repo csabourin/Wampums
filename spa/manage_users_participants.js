@@ -115,7 +115,7 @@ export class ManageUsersParticipants {
     const participantId = event.target.getAttribute("data-participant-id");
     if (confirm(translate("confirm_remove_participant_from_organization"))) {
       try {
-        const result = await fetchFromApi('remove_participant_from_organization', 'POST', {
+        const result = await fetchFromApi('remove-participant-from-organization', 'POST', {
           participant_id: participantId
         });
         if (result.success) {
@@ -138,7 +138,7 @@ export class ManageUsersParticipants {
     const userId = event.target.previousElementSibling.value;
     if (userId) {
       try {
-        const result = await fetchFromApi('associate_user', 'POST', {
+        const result = await fetchFromApi('associate-user', 'POST', {
           participant_id: participantId,
           user_id: userId
         });

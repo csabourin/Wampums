@@ -4,6 +4,7 @@ import {
   updatePoints,
   getAuthHeader,
   getCurrentOrganizationId,
+  getApiUrl,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import {
@@ -372,7 +373,7 @@ export class ManagePoints {
 
     if (navigator.onLine) {
       try {
-        const response = await fetch("/api.php?action=update_points", {
+        const response = await fetch(getApiUrl('update-points'), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
