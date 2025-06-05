@@ -332,7 +332,7 @@ console.log("LinkUserParticipants result:",result);
     async linkParticipantToOrganization(participantId) {
       try {
         const organizationId = getCurrentOrganizationId();
-        const response = await fetch("/api.php?action=link_participant_to_organization", {
+        const response = await fetch(getApiUrl('link-participant-to-organization'), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

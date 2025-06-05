@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { getApiUrl } from "./ajax-functions.js";
 export class ResetPassword {
 		constructor(app) {
 				this.app = app;
@@ -65,8 +66,8 @@ export class ResetPassword {
 								return;
 						}
 
-						try {
-								const response = await fetch("/api.php?action=reset_password", {
+                                                try {
+                                                                const response = await fetch(getApiUrl('reset-password'), {
 										method: "POST",
 										headers: { "Content-Type": "application/json" },
 										body: JSON.stringify({ token, new_password: newPassword })
@@ -93,7 +94,7 @@ export class ResetPassword {
 								return;
 						}
 						try {
-								const response = await fetch("/api.php?action=request_reset", {
+                                                                const response = await fetch(getApiUrl('request-reset'), {
 										method: "POST",
 										headers: { "Content-Type": "application/json" },
 										body: JSON.stringify({ email })

@@ -133,11 +133,11 @@ function debugError(...args) {
 // }
 
 export async function LinkUserParticipants(data) {
-	try {
-		return await fetchFromApi('link_user_participants', 'POST', data);
-	} catch (error) {
-		console.error("Error linking participants:", error);
-	}
+        try {
+                return await fetchFromApi('link-user-participants', 'POST', data);
+        } catch (error) {
+                console.error("Error linking participants:", error);
+        }
 }
 
 export async function getParticipantAgeReport() {
@@ -148,7 +148,7 @@ export async function getParticipantAgeReport() {
 export async function getGuardians(participantId) {
 	try {
 		console.log("Fetching guardians for participant ID:", participantId);
-		const response = await fetch(`${getApiUrl('get_guardians')}&participant_id=${participantId}`, {
+                const response = await fetch(getApiUrl('guardians', { participant_id: participantId }), {
 			headers: getAuthHeader(),
 		});
 
@@ -176,12 +176,12 @@ export async function getGuardians(participantId) {
 export async function getGuardianCoreInfo(guardianId) {
 	try {
 		console.log(`Fetching core info for guardian ID: ${guardianId}`);
-		const response = await fetch(
-			`${getApiUrl('get_guardian_info')}&guardian_id=${guardianId}`,
-			{
-				headers: getAuthHeader(),
-			}
-		);
+                const response = await fetch(
+                        getApiUrl('guardian-info', { guardian_id: guardianId }),
+                        {
+                                headers: getAuthHeader(),
+                        }
+                );
 
 		if (!response.ok) {
 			throw new Error(`HTTP error! status: ${response.status}`);
@@ -212,7 +212,7 @@ export async function getGuardianCoreInfo(guardianId) {
 
 export async function saveFormSubmission(formType, participantId, formData) {
 	try {
-		const response = await fetch(getApiUrl(`save_form_submission`), {
+                const response = await fetch(getApiUrl(`save-form-submission`), {
 			method: "POST",
 			headers: {
 				...getAuthHeader(),
@@ -242,66 +242,66 @@ export async function saveFormSubmission(formType, participantId, formData) {
 }
 
 export async function getAllergiesReport() {
-	try {
-		return await fetchFromApi('get_allergies_report');
-	} catch (error) {
-		console.error('Error fetching allergies report:', error);
-		throw new Error('Failed to fetch allergies report');
-	}
+        try {
+                return await fetchFromApi('allergies-report');
+        } catch (error) {
+                console.error('Error fetching allergies report:', error);
+                throw new Error('Failed to fetch allergies report');
+        }
 }
 
 export async function getMedicationReport() {
-	try {
-		return await fetchFromApi('get_medication_report');
-	} catch (error) {
-		console.error('Error fetching medication report:', error);
-		throw new Error('Failed to fetch medication report');
-	}
+        try {
+                return await fetchFromApi('medication-report');
+        } catch (error) {
+                console.error('Error fetching medication report:', error);
+                throw new Error('Failed to fetch medication report');
+        }
 }
 
 export async function getVaccineReport() {
-	try {
-		return await fetchFromApi('get_vaccine_report');
-	} catch (error) {
-		console.error('Error fetching vaccine report:', error);
-		throw new Error('Failed to fetch vaccine report');
-	}
+        try {
+                return await fetchFromApi('vaccine-report');
+        } catch (error) {
+                console.error('Error fetching vaccine report:', error);
+                throw new Error('Failed to fetch vaccine report');
+        }
 }
 
 export async function getLeaveAloneReport() {
-	try {
-		return await fetchFromApi('get_leave_alone_report');
-	} catch (error) {
-		console.error('Error fetching leave alone report:', error);
-		throw new Error('Failed to fetch leave alone report');
-	}
+        try {
+                return await fetchFromApi('leave-alone-report');
+        } catch (error) {
+                console.error('Error fetching leave alone report:', error);
+                throw new Error('Failed to fetch leave alone report');
+        }
 }
 
 export async function getMediaAuthorizationReport() {
-	try {
-		return await fetchFromApi('get_media_authorization_report');
-	} catch (error) {
-		console.error('Error fetching media authorization report:', error);
-		throw new Error('Failed to fetch media authorization report');
-	}
+        try {
+                return await fetchFromApi('media-authorization-report');
+        } catch (error) {
+                console.error('Error fetching media authorization report:', error);
+                throw new Error('Failed to fetch media authorization report');
+        }
 }
 
 export async function getMissingDocumentsReport() {
-	try {
-		return await fetchFromApi('get_missing_documents_report');
-	} catch (error) {
-		console.error('Error fetching missing documents report:', error);
-		throw new Error('Failed to fetch missing documents report');
-	}
+        try {
+                return await fetchFromApi('missing-documents-report');
+        } catch (error) {
+                console.error('Error fetching missing documents report:', error);
+                throw new Error('Failed to fetch missing documents report');
+        }
 }
 
 export async function getHonorsReport() {
-	try {
-		return await fetchFromApi('get_honors_report');
-	} catch (error) {
-		console.error('Error fetching honors report:', error);
-		throw new Error('Failed to fetch honors report');
-	}
+        try {
+                return await fetchFromApi('honors-report');
+        } catch (error) {
+                console.error('Error fetching honors report:', error);
+                throw new Error('Failed to fetch honors report');
+        }
 }
 
 export async function getPointsReport() {
@@ -314,7 +314,7 @@ export async function getPointsReport() {
 	}
 
 	try {
-		const response = await fetch(getApiUrl(`get_points_report`), {
+                const response = await fetch(getApiUrl(`points-report`), {
 			headers: getAuthHeader(),
 		});
 
@@ -337,12 +337,17 @@ export async function getPointsReport() {
 export async function fetchParticipant(participantId) {
 	debugLog("Fetching participant with ID:", participantId);
 	try {
-		const response = await fetch(
-			`${getApiUrl('get_participant')}&id=${participantId}`,
-			{
-				headers: getAuthHeader(),
-			}
-		);
+                const url = new URL(`/participant/${participantId}`, API_BASE_URL);
+                const params = new URLSearchParams();
+                const orgId = getCurrentOrganizationId();
+                if (orgId) {
+                        params.append('organization_id', orgId);
+                }
+                url.search = params.toString();
+
+                const response = await fetch(url.toString(), {
+                        headers: getAuthHeader(),
+                });
 		const data = await handleResponse(response);
 		debugLog("#####################  API response for fetchParticipant:", data); // Log the full response
 		if (data.success) {
@@ -358,7 +363,7 @@ export async function fetchParticipant(participantId) {
 
 export async function approveUser(userId, organizationId) {
 	try {
-		const response = await fetch(getApiUrl(`approve_user`), {
+                const response = await fetch(getApiUrl(`approve-user`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -380,7 +385,7 @@ export async function approveUser(userId, organizationId) {
 
 export async function updateUserRole(userId, newRole, organizationId) {
 	try {
-		const response = await fetch(getApiUrl(`update_user_role`), {
+                const response = await fetch(getApiUrl(`update-user-role`), {
 
 			method: "POST",
 			headers: {
@@ -403,7 +408,7 @@ export async function updateUserRole(userId, newRole, organizationId) {
 
 export async function getCalendars() {
 	try {
-		const response = await fetch(getApiUrl(`get_calendars`), {
+                const response = await fetch(getApiUrl(`calendars`), {
 			headers: getAuthHeader(),
 		});
 
@@ -421,7 +426,7 @@ export async function getCalendars() {
 
 export async function updateCalendar(participantId, amount, amountPaid) {
 	try {
-		const response = await fetch(getApiUrl(`update_calendar`), {
+                const response = await fetch(getApiUrl(`update-calendar`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -445,7 +450,7 @@ export async function updateCalendar(participantId, amount, amountPaid) {
 
 export async function updateCalendarAmountPaid(participantId, amountPaid) {
 	try {
-		const response = await fetch(getApiUrl(`update_calendar_amount_paid`), {
+                const response = await fetch(getApiUrl(`update-calendar-amount-paid`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -470,7 +475,7 @@ export async function updateCalendarAmountPaid(participantId, amountPaid) {
 
 export async function getGuestsByDate(date) {
 	try {
-		const response = await fetch(`${getApiUrl('get_guests_by_date')}&date=${date}`, {
+                const response = await fetch(`${getApiUrl('guests-by-date')}&date=${date}`, {
 			method: 'GET',
 			headers: {
 				"Content-Type": "application/json",
@@ -495,7 +500,7 @@ export async function getGuestsByDate(date) {
 
 export async function getActivitesRencontre() {
 	try {
-		const response = await fetch(getApiUrl(`get_activites_rencontre`), {
+                const response = await fetch(getApiUrl(`activites-rencontre`), {
 			headers: getAuthHeader(),
 		});
 		if (!response.ok) {
@@ -511,7 +516,7 @@ export async function getActivitesRencontre() {
 
 export async function getAnimateurs() {
 	try {
-		const response = await fetch(getApiUrl(`get_animateurs`), {
+                const response = await fetch(getApiUrl(`animateurs`), {
 			headers: getAuthHeader(),
 		});
 		if (!response.ok) {
@@ -527,7 +532,7 @@ export async function getAnimateurs() {
 
 export async function getRecentHonors() {
 	try {
-		const response = await fetch(getApiUrl(`get_recent_honors`), {
+                const response = await fetch(getApiUrl(`recent-honors`), {
 			headers: getAuthHeader(),
 		});
 		if (!response.ok) {
@@ -544,7 +549,7 @@ export async function getRecentHonors() {
 
 export async function saveReunionPreparation(formData) {
 	try {
-		const response = await fetch(getApiUrl(`save_reunion_preparation`), {
+                const response = await fetch(getApiUrl(`save-reunion-preparation`), {
 			method: "POST",
 			headers: {
 				...getAuthHeader(),
@@ -572,7 +577,7 @@ export async function getReunionPreparation(date) {
 	}
 
 	try {
-		const response = await fetch(`${getApiUrl('get_reunion_preparation')}&date=${date}`, {
+                const response = await fetch(`${getApiUrl('reunion-preparation')}&date=${date}`, {
 			headers: getAuthHeader(),
 		});
 
@@ -594,7 +599,7 @@ export async function getReunionPreparation(date) {
 
 export async function saveGuest(guest) {
 	try {
-		const response = await fetch(getApiUrl(`save_guest`), {
+                const response = await fetch(getApiUrl(`save-guest`), {
 			method: 'POST',
 			headers: {
 				"Content-Type": "application/json",
@@ -619,7 +624,7 @@ export async function saveGuest(guest) {
 
 export async function updateCalendarPaid(participantId, paidStatus) {
 	try {
-		const response = await fetch(getApiUrl(`update_calendar_paid`), {
+                const response = await fetch(getApiUrl(`update-calendar-paid`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -643,7 +648,7 @@ export async function updateCalendarPaid(participantId, paidStatus) {
 
 export async function getParticipantCalendar(participantId) {
 	try {
-		const response = await fetch(`${getApiUrl('get_participant_calendar')}&participant_id=${participantId}`, {
+                const response = await fetch(`${getApiUrl('participant-calendar')}&participant_id=${participantId}`, {
 			headers: getAuthHeader(),
 		});
 
@@ -661,7 +666,7 @@ export async function getParticipantCalendar(participantId) {
 
 export async function getUsers(organizationId) {
 	try {
-		const response = await fetch(`${getApiUrl('get_users')}&organization_id=${organizationId}`, {
+                const response = await fetch(`${getApiUrl('users')}&organization_id=${organizationId}`, {
 
 			headers: getAuthHeader(),
 		});
@@ -687,7 +692,7 @@ export async function getUsers(organizationId) {
 
 export async function getSubscribers(organizationId) {
 	try {
-		const response = await fetch(`${getApiUrl('get_subscribers')}&organization_id=${organizationId}`, {
+                const response = await fetch(`${getApiUrl('subscribers')}&organization_id=${organizationId}`, {
 			headers: getAuthHeader(),
 		});
 
@@ -726,7 +731,7 @@ export async function register(registerData) {
 
 export async function getMailingList() {
 	try {
-		const response = await fetch(getApiUrl(`get_mailing_list`), {
+                const response = await fetch(getApiUrl(`mailing-list`), {
 			headers: {
 				...getAuthHeader(),
 				'x-organization-id': getCurrentOrganizationId()
@@ -754,8 +759,8 @@ export async function getMailingList() {
 
 export async function fetchFicheSante(participantId) {
 	try {
-		const response = await fetch(
-			`${getApiUrl('get_fiche_sante')}&participant_id=${participantId}`,
+                const response = await fetch(
+                        `${getApiUrl('fiche-sante')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
 				'x-organization-id': getCurrentOrganizationId()
@@ -775,7 +780,7 @@ export async function fetchFicheSante(participantId) {
 
 export async function saveParticipant(participantData) {
 	try {
-		const url = getApiUrl(`save_participant`);
+                const url = getApiUrl(`save-participant`);
 		const method = participantData.id ? "PUT" : "POST";
 
 		// If updating, include the ID in the URL
@@ -805,8 +810,8 @@ export async function saveParticipant(participantData) {
 
 export async function fetchGuardians(participantId) {
 	try {
-		const response = await fetch(
-			`${getApiUrl('get_guardians')}&participant_id=${participantId}`,
+                const response = await fetch(
+                        `${getApiUrl('guardians')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
 				'x-organization-id': getCurrentOrganizationId()
@@ -822,7 +827,7 @@ export async function fetchGuardians(participantId) {
 
 export async function saveGuardian(guardianData) {
 	try {
-		const response = await fetch(getApiUrl(`save_parent`), {
+                const response = await fetch(getApiUrl(`save-parent`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -841,8 +846,8 @@ export async function saveGuardian(guardianData) {
 
 export async function linkGuardianToParticipant(participantId, guardianId) {
 	try {
-		const response = await fetch(
-			getApiUrl(`link_guardian_to_participant`),
+                const response = await fetch(
+                        getApiUrl(`link-parent-to-participant`),
 			{
 				method: "POST",
 				headers: {
@@ -987,7 +992,7 @@ export async function getOrganizationSettings(orgId = null) {
 
 	// Step 2: Fetch from API if no valid cached data is found
 	try {
-		const response = await fetch(getApiUrl(`get_organization_settings`), {
+                const response = await fetch(getApiUrl(`organization-settings`), {
 			headers: getAuthHeader(),
 			'x-organization-id': orgId || getCurrentOrganizationId() // Use provided orgId or current organization ID
 		});
@@ -1016,7 +1021,7 @@ export async function getOrganizationSettings(orgId = null) {
 
 export async function getAttendance(date) {
 	try {
-		const response = await fetch(`${getApiUrl('get_attendance')}&date=${date}`, {
+                const response = await fetch(`${getApiUrl('attendance')}&date=${date}`, {
 			headers: getAuthHeader(),
 		});
 
@@ -1039,7 +1044,7 @@ export async function updateAttendance(
 	previousStatus
 ) {
 	try {
-		const response = await fetch(getApiUrl(`update_attendance`), {
+                const response = await fetch(getApiUrl(`update-attendance`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1063,14 +1068,12 @@ export async function updateAttendance(
 
 // Fetches all participants and honors from the server
 export async function getHonorsAndParticipants(date = null) {
-	try {
-		const params = new URLSearchParams();
-		params.append("action", "get_honors");
-		if (date) {
-			params.append("date", date);
-		}
-
-		const result = await fetchFromApi(`${params.toString()}`, 'GET', null);
+        try {
+                const url = getApiUrl('honors', date ? { date } : {});
+                const response = await fetch(url, {
+                        headers: getAuthHeader(),
+                });
+                const result = await handleResponse(response);
 
 
 		if (!result.participants || !result.honors || !result.availableDates) {
@@ -1088,7 +1091,7 @@ export async function getHonorsAndParticipants(date = null) {
 
 export async function getHonors(date) {
 	try {
-		const response = await fetch(`${getApiUrl('get_honors')}&date=${date}`, {
+                const response = await fetch(`${getApiUrl('honors')}&date=${date}`, {
 			headers: getAuthHeader(),
 			'x-organization-id': getCurrentOrganizationId()
 		});
@@ -1101,7 +1104,7 @@ export async function getHonors(date) {
 
 export async function awardHonor(honors) {
 	try {
-		const response = await fetch(getApiUrl(`award_honor`), {
+                const response = await fetch(getApiUrl(`award-honor`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1119,8 +1122,8 @@ export async function awardHonor(honors) {
 
 export async function getBadgeProgress(participantId) {
 	try {
-		const response = await fetch(
-			`${getApiUrl('get_badge_progress')}&participant_id=${participantId}`,
+                const response = await fetch(
+                        `${getApiUrl('badge-progress')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
 				'x-organization-id': getCurrentOrganizationId()
@@ -1136,7 +1139,7 @@ export async function getBadgeProgress(participantId) {
 
 export async function saveBadgeProgress(badgeData) {
 	try {
-		const response = await fetch(getApiUrl(`save_badge_progress`), {
+                const response = await fetch(getApiUrl(`save-badge-progress`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1155,7 +1158,7 @@ export async function saveBadgeProgress(badgeData) {
 
 export async function getHealthReport() {
 	try {
-		const response = await fetch(getApiUrl(`get_health_report`), {
+                const response = await fetch(getApiUrl(`health-report`), {
 			method: "GET",
 			headers: {
 				...getAuthHeader(),
@@ -1183,7 +1186,7 @@ export async function getHealthReport() {
 
 export async function getHealthContactReport() {
 	try {
-		const response = await fetch(getApiUrl(`get_health_contact_report`));
+                const response = await fetch(getApiUrl(`health-contact-report`));
 		const data = await response.json();
 		return data;
 	} catch (error) {
@@ -1193,7 +1196,7 @@ export async function getHealthContactReport() {
 
 export async function getAttendanceReport(startDate = null, endDate = null) {
 	try {
-		let url = getApiUrl(`get_attendance_report`);
+                let url = getApiUrl(`attendance-report`);
 		if (startDate && endDate) {
 			url += `&start_date=${startDate}&end_date=${endDate}`;
 		}
@@ -1318,7 +1321,7 @@ export async function getUserChildren(userId) {
 }
 
 export async function getReunionDates() {
-	const response = await fetch(getApiUrl(`get_reunion_dates`), {
+        const response = await fetch(getApiUrl(`reunion-dates`), {
 		headers: getAuthHeader(),
 	});
 	if (!response.ok) {
@@ -1331,8 +1334,8 @@ export async function getReunionDates() {
 export async function fetchParents(participantId) {
 	try {
 		debugLog("Fetching parents for participantId:", participantId);
-		const response = await fetch(
-			`${getApiUrl('get_parents_guardians')}&participant_id=${participantId}`,
+                const response = await fetch(
+                        `${getApiUrl('guardians-for-participant')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
 			}
@@ -1357,7 +1360,7 @@ export async function fetchParents(participantId) {
 
 export async function linkParentToParticipant(participantId, parentId) {
 	try {
-		const response = await fetch(getApiUrl(`link_parent_to_participant`), {
+                const response = await fetch(getApiUrl(`link-parent-to-participant`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1379,7 +1382,7 @@ export async function linkParentToParticipant(participantId, parentId) {
 export async function saveParent(parentData) {
 	try {
 		debugLog("Sending Parent Data to API:", parentData);
-		const response = await fetch(getApiUrl(`save_parent`), {
+                const response = await fetch(getApiUrl(`save-parent`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1414,7 +1417,7 @@ export async function fetchOrganizationId() {
 		const hostname = window.location.hostname;
 
 		// Create the URL with the correct action parameter
-		const url = `${getApiUrl('get_organization_id')}?hostname=${encodeURIComponent(hostname)}`;
+                const url = `${getApiUrl('get-organization-id')}?hostname=${encodeURIComponent(hostname)}`;
 		console.log("URL to fetch organization ID:", url);
 		const response = await fetch(url, {
 			headers: {
@@ -1450,7 +1453,7 @@ export async function fetchOrganizationId() {
 
 export async function fetchParticipants(organizationId) {
 	try {
-		const response = await fetch(`${getApiUrl('get_parent_dashboard_data')}&organization_id=${organizationId}`, {
+                const response = await fetch(`${getApiUrl('parent-dashboard-data')}&organization_id=${organizationId}`, {
 			headers: getAuthHeader(),
 		});
 		const data = await response.json();
@@ -1472,7 +1475,7 @@ export async function fetchParticipants(organizationId) {
 
 export async function updatePoints(updates) {
 	try {
-		const response = await fetch(getApiUrl(`update_points`), {
+                const response = await fetch(getApiUrl(`update-points`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1498,7 +1501,7 @@ export async function updateParticipantGroup(participantId, groupId, isLeader = 
 	console.log("Request data to be sent:", JSON.stringify(requestData));
 
 	try {
-		const response = await fetch(getApiUrl(`update_participant_group`), {
+                const response = await fetch(getApiUrl(`update-participant-group`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1522,8 +1525,8 @@ export async function updateParticipantGroup(participantId, groupId, isLeader = 
 
 export async function getParticipantsWithUsers() {
 	try {
-		const response = await fetch(
-			getApiUrl(`get_participants_with_users`),
+                const response = await fetch(
+                        getApiUrl(`participants-with-users`),
 			{
 				headers: {
 					...getAuthHeader(),
@@ -1540,7 +1543,7 @@ export async function getParticipantsWithUsers() {
 
 export async function getParentUsers() {
 	try {
-		const response = await fetch(getApiUrl(`get_parent_users`), {
+                const response = await fetch(getApiUrl(`parent-users`), {
 			headers: {
 				...getAuthHeader(),
 				'x-organization-id': getCurrentOrganizationId()
@@ -1557,7 +1560,7 @@ export async function getParentUsers() {
 
 export async function associateUser(participantId, userId) {
 	try {
-		const response = await fetch(getApiUrl(`associate_user`), {
+                const response = await fetch(getApiUrl(`associate-user`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1576,7 +1579,7 @@ export async function associateUser(participantId, userId) {
 
 export async function addGroup(groupName) {
 	try {
-		const response = await fetch(getApiUrl(`add_group`), {
+                const response = await fetch(getApiUrl(`add-group`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1601,7 +1604,7 @@ export async function getAttendanceDates() {
 	}
 
 	try {
-		const response = await fetch(getApiUrl(`get_attendance_dates`), {
+                const response = await fetch(getApiUrl(`attendance-dates`), {
 			headers: getAuthHeader(),
 		});
 
@@ -1623,7 +1626,7 @@ export async function getAttendanceDates() {
 
 export async function getAvailableDates() {
 	try {
-		const response = await fetch(getApiUrl(`getAvailableDates`), {
+                const response = await fetch(getApiUrl(`available-dates`), {
 			headers: getAuthHeader(),
 		});
 		if (!response.ok) {
@@ -1638,7 +1641,7 @@ export async function getAvailableDates() {
 
 export async function removeGroup(groupId) {
 	try {
-		const response = await fetch(getApiUrl(`remove_group`), {
+                const response = await fetch(getApiUrl(`remove-group`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1655,7 +1658,7 @@ export async function removeGroup(groupId) {
 
 export async function updateGroupName(groupId, newName) {
 	try {
-		const response = await fetch(getApiUrl(`update_group_name`), {
+                const response = await fetch(getApiUrl(`update-group-name`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -1672,7 +1675,7 @@ export async function updateGroupName(groupId, newName) {
 
 export async function getFormTypes() {
 	try {
-		const response = await fetch(getApiUrl(`get_form_types`), {
+                const response = await fetch(getApiUrl(`form-types`), {
 			headers: {
 				...getAuthHeader(),
 				"Content-Type": "application/json",
@@ -1701,7 +1704,7 @@ export async function getFormTypes() {
 // Fetch the structure of the forms for the organization
 export async function getFormStructure() {
 	try {
-		const response = await fetch(getApiUrl(`get_organization_form_formats`), {
+                const response = await fetch(getApiUrl(`organization-form-formats`), {
 			method: 'GET',
 			headers: {
 				...getAuthHeader(),
@@ -1733,7 +1736,7 @@ export async function getFormSubmissions(participantId = null, formType) {
 	}
 
 	// Construct the URL with the appropriate query parameters
-	let url = `${getApiUrl('get_form_submissions')}&form_type=${encodeURIComponent(formType)}`;
+        let url = `${getApiUrl('form-submissions')}&form_type=${encodeURIComponent(formType)}`;
 
 	if (participantId) {
 		url += `&participant_id=${encodeURIComponent(participantId)}`;
@@ -1772,7 +1775,7 @@ export async function getFormSubmissions(participantId = null, formType) {
 export async function getParticipantsWithDocuments() {
 	try {
 		// Fetch participant documents
-		const response = await fetch(getApiUrl(`get_participants_with_documents`), {
+                const response = await fetch(getApiUrl(`participant-details`), {
 			headers: {
 				...getAuthHeader(),
 				'Content-Type': 'application/json'
@@ -1826,7 +1829,7 @@ export async function getParticipantsWithDocuments() {
 
 export async function getOrganizationFormFormats(organizationId = null) {
 	try {
-		const response = await fetch(getApiUrl(`get_organization_form_formats`) + (organizationId !== null ? `&organization_id=${organizationId}` : ''), {
+                const response = await fetch(getApiUrl(`organization-form-formats`) + (organizationId !== null ? `&organization_id=${organizationId}` : ''), {
 			method: 'GET',
 			headers: {
 				...getAuthHeader(),
@@ -1854,7 +1857,7 @@ export async function getOrganizationFormFormats(organizationId = null) {
 
 export async function getFormSubmission(participantId, formType) {
 	try {
-		const response = await fetch(`${getApiUrl('get_form_submission')}&participant_id=${participantId}&form_type=${formType}`, {
+                const response = await fetch(`${getApiUrl('form-submission')}&participant_id=${participantId}&form_type=${formType}`, {
 			headers: {
 				...getAuthHeader(),
 				'Content-Type': 'application/json'
@@ -1888,7 +1891,7 @@ export async function getParentContactList() {
 	}
 
 	try {
-		const response = await fetch(getApiUrl(`get_parent_contact_list`), {
+                const response = await fetch(getApiUrl(`parent-contact-list`), {
 			headers: getAuthHeader(),
 		});
 
@@ -1916,8 +1919,8 @@ function addCacheBuster(url) {
 
 export async function getPendingBadges() {
 	try {
-		const response = await fetch(
-			addCacheBuster(getApiUrl(`get_pending_badges`)),
+                const response = await fetch(
+                        addCacheBuster(getApiUrl(`pending-badges`)),
 			{
 				headers: getAuthHeader(),
 			}
@@ -1946,16 +1949,17 @@ export async function checkLoginStatus() {
 }
 
 export async function updateBadgeStatus(badgeId, action) {
-	try {
-		const response = await fetch(getApiUrl(`update_badge_status`), {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				...getAuthHeader(),
-				'x-organization-id': getCurrentOrganizationId()
-			},
-			body: JSON.stringify({ badge_id: badgeId, action: action }),
-		});
+        try {
+                const endpoint = action === 'approved' ? 'approve-badge' : 'reject-badge';
+                const response = await fetch(getApiUrl(endpoint), {
+                        method: "POST",
+                        headers: {
+                                "Content-Type": "application/json",
+                                ...getAuthHeader(),
+                                'x-organization-id': getCurrentOrganizationId()
+                        },
+                        body: JSON.stringify({ badge_id: badgeId }),
+                });
 		const data = await response.json();
 		return data;
 	} catch (error) {
@@ -1966,8 +1970,8 @@ export async function updateBadgeStatus(badgeId, action) {
 
 export async function getParentsGuardians(participantId) {
 	try {
-		const response = await fetch(
-			`${getApiUrl('get_parents_guardians')}&participant_id=${participantId}`,
+                const response = await fetch(
+                        `${getApiUrl('guardians-for-participant')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
 			}
@@ -1993,7 +1997,7 @@ export async function saveFicheSante(ficheSanteData) {
 		JSON.stringify(ficheSanteData, null, 2)
 	);
 	try {
-		const response = await fetch(getApiUrl(`save_fiche_sante`), {
+                const response = await fetch(getApiUrl(`save-fiche-sante`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -2028,8 +2032,8 @@ export async function saveFicheSante(ficheSanteData) {
 
 export async function fetchAcceptationRisque(participantId) {
 	try {
-		const response = await fetch(
-			`${getApiUrl('get_acceptation_risque')}&participant_id=${participantId}`,
+                const response = await fetch(
+                        `${getApiUrl('acceptation-risque')}&participant_id=${participantId}`,
 			{
 				headers: getAuthHeader(),
 			}
@@ -2050,7 +2054,7 @@ export async function fetchAcceptationRisque(participantId) {
 
 export async function removeGuardians(participantId, guardianIds) {
 	try {
-		const response = await fetch(getApiUrl(`remove_guardians`), {
+                const response = await fetch(getApiUrl(`remove-guardians`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -2072,7 +2076,7 @@ export async function removeGuardians(participantId, guardianIds) {
 
 export async function saveAcceptationRisque(acceptationRisqueData) {
 	try {
-		const response = await fetch(getApiUrl(`save_acceptation_risque`), {
+                const response = await fetch(getApiUrl(`save-acceptation-risque`), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -2097,14 +2101,14 @@ export async function saveAcceptationRisque(acceptationRisqueData) {
 
 export async function getCurrentStars(participantId, territoire) {
 	try {
-		const response = await fetch(getApiUrl(`action=get_current_stars&participant_id=${participantId}&territoire=${encodeURIComponent(
-			territoire
-		)}`),
-			{
-				method: "GET",
-				headers: getAuthHeader(),
-			}
-		);
+                const url = getApiUrl('current-stars', {
+                        participant_id: participantId,
+                        territoire: territoire
+                });
+                const response = await fetch(url, {
+                        method: "GET",
+                        headers: getAuthHeader(),
+                });
 
 		if (!response.ok) {
 			throw new Error(`HTTP error! status: ${response.status}`);

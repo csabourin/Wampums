@@ -1,5 +1,5 @@
 import { translate } from "./app.js";
-import {login} from "./ajax-functions.js";
+import {login, getApiUrl} from "./ajax-functions.js";
 
 export class Login {
   constructor(app) {
@@ -172,7 +172,7 @@ export class Login {
 
     try {
       // Try to call the server logout endpoint
-      await fetch("/api.php?action=logout", {
+      await fetch(getApiUrl('logout'), {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${localStorage.getItem("jwtToken")}`,

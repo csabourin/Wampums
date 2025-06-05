@@ -48,12 +48,7 @@ export class ActivityWidget {
 
 	async fetchCurrentActivities() {
 			try {
-					const response = await fetch('/api.php?action=get_reunion_preparation', {
-							headers: {
-									'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`
-							}
-					});
-					const data = await response.json();
+                                        const data = await getReunionPreparation(new Date().toISOString().split('T')[0]);
 					console.log('Fetched reunion preparation data:', data);
 
 					if (data.success && data.preparation && data.preparation.activities) {
