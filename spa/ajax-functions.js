@@ -27,9 +27,28 @@ CONFIG.API_BASE_URL = CONFIG.debugMode ?
 console.log('API_BASE_URL:', CONFIG.API_BASE_URL);
 
 // Utility Functions
+// Fix the getCurrentOrganizationId function to handle object returns
 export function getCurrentOrganizationId() {
-    return localStorage.getItem("currentOrganizationId") || 
-           localStorage.getItem("organizationId");
+    // Try both storage keys
+    let orgId = localStorage.getItem('organizationId') || 
+                localStorage.getItem('currentOrganizationId');
+    
+    // If it's stored as JSON object, parse and extract the ID
+    if (orgId && orgId.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(orgId);
+            orgId = parsed.organizationId || parsed.id || parsed;
+        } catch (e) {
+            console.warn('Failed to parse organization ID from localStorage:', e);
+        }
+    }
+    
+    // Ensure it's a valid number/string, not "[object Object]"
+    if (orgId && orgId !== '[object Object]' && orgId !== 'undefined') {
+        return orgId;
+    }
+    
+    return null;
 }
 
 export function getAuthHeader() {
@@ -42,7 +61,8 @@ export function getAuthHeader() {
     }
 
     if (organizationId) {
-        headers['x-organization-id'] = organizationId;
+        // Ensure we're sending the actual ID value, not an object
+        headers['x-organization-id'] = String(organizationId);
     }
 
     return headers;
@@ -427,23 +447,42 @@ export async function getReports(reportType) {
 }
 
 // Authentication functions
-export async function login(email, password) {
-    // Use public endpoint for login
-    const url = new URL('/public/login', CONFIG.API_BASE_URL);
-    
-    const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-organization-id': getCurrentOrganizationId()
-        },
-        body: JSON.stringify({ 
-            email: String(email || ''), 
-            password: String(password || '') 
-        })
-    });
+export async function login(email, password, organization_id) {
+    try {
+        // Get the organization ID properly
+        const orgId = organization_id || getCurrentOrganizationId();
+        
+        if (!orgId) {
+            throw new Error('Organization ID is required for login');
+        }
 
-    return handleResponse(response);
+        // Use JSON instead of FormData for consistency with your backend
+        const requestBody = {
+            email: email,
+            password: password
+        };
+
+        console.log('Sending login request via ajax-functions.js...', email);
+        
+        const response = await fetch(`${CONFIG.API_BASE_URL}public/login`, {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+                'x-organization-id': String(orgId)  // Send as header, not in body
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error during login:", error);
+        throw error;
+    }
 }
 
 export async function register(userData) {
@@ -999,7 +1038,7 @@ export async function switchOrganization(organizationId) {
 }
 
 // Public Endpoints (no auth)
-const PUBLIC_BASE = `${CONFIG.API_BASE_URL}/public`;
+const PUBLIC_BASE = `${CONFIG.API_BASE_URL}public`;
 
 async function fetchPublic(path, options = {}) {
     const url = new URL(path, PUBLIC_BASE);
@@ -1031,3 +1070,37 @@ export async function authenticate(apiKey) {
     });
 }
 
+/**
+ * Fetch organization JWT token
+ * @param {string|number} organizationId - The organization ID
+ * @returns {Promise<Object>} Response object with success, token, etc.
+ */
+export async function fetchOrganizationJwt(organizationId) {
+    try {
+        // Ensure organizationId is a string/number, not an object
+        const orgId = typeof organizationId === 'object' ? 
+            organizationId.organizationId || organizationId.id : 
+            organizationId;
+            
+        if (!orgId) {
+            throw new Error('Organization ID is required');
+        }
+
+        const response = await fetch(`/get-organization-jwt.php?organization_id=${orgId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching organization JWT:', error);
+        throw error;
+    }
+}

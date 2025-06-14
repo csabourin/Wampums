@@ -143,43 +143,56 @@ export const app = {
 		console.log("App init started");
 		this.createMessageBanner();
 
-		const token = localStorage.getItem("jwtToken");
-		if (token) {
-			try {
-				// Validate token first
-				const isValid = await validateToken();
-				if (!isValid) {
-					// Clear invalid token
-					localStorage.removeItem("jwtToken");
-					localStorage.removeItem("userRole");
-					localStorage.removeItem("userFullName");
-					localStorage.removeItem("userId");
-				}
-			} catch (error) {
-				console.error("Token validation failed:", error);
-			}
-		}
-
 		try {
 			this.registerServiceWorker();
 
 			// Check localStorage for organization ID
-			const storedOrgId = localStorage.getItem('currentOrganizationId');
-			if (storedOrgId) {
+			let storedOrgId = localStorage.getItem('currentOrganizationId') ||
+				localStorage.getItem('organizationId');
+
+			// Handle case where organization ID might be stored as an object
+			if (storedOrgId && storedOrgId.startsWith('{')) {
+				try {
+					const parsed = JSON.parse(storedOrgId);
+					storedOrgId = parsed.organizationId || parsed.id;
+				} catch (e) {
+					console.warn('Failed to parse stored organization ID:', e);
+					storedOrgId = null;
+				}
+			}
+
+			if (storedOrgId && storedOrgId !== '[object Object]') {
 				this.organizationId = storedOrgId;
 				console.log("Using stored organization ID:", storedOrgId);
 			} else {
 				// Fetch organization ID if not in localStorage
 				try {
 					console.log("Fetching organization ID...");
-					this.organizationId = await fetchOrganizationId();
-					localStorage.setItem('currentOrganizationId', this.organizationId);
-					console.log("Organization ID fetched and stored:", this.organizationId);
+					const orgData = await fetchOrganizationId();
+
+					// Handle the response properly - extract the actual ID value
+					let orgId;
+					if (typeof orgData === 'object' && orgData.data) {
+						orgId = orgData.data.organizationId || orgData.data;
+					} else if (typeof orgData === 'object') {
+						orgId = orgData.organizationId || orgData.id || orgData;
+					} else {
+						orgId = orgData;
+					}
+
+					this.organizationId = orgId;
+
+					// Store consistently in both places for compatibility
+					localStorage.setItem('currentOrganizationId', orgId);
+					localStorage.setItem('organizationId', orgId);
+
+					console.log("Organization ID fetched and stored:", orgId);
 				} catch (error) {
 					console.error("Error fetching organization ID:", error);
 					// Set a default organization ID to prevent blocking the app
 					this.organizationId = 1;
 					localStorage.setItem('currentOrganizationId', this.organizationId);
+					localStorage.setItem('organizationId', this.organizationId);
 					console.log("Using default organization ID: 1");
 				}
 			}
@@ -203,16 +216,19 @@ export const app = {
 			} else {
 				console.log("JWT token already exists in localStorage");
 			}
+
 			// Try to fetch organization settings, but don't block the app if it fails
 			try {
 				console.log("Fetching organization settings...");
 				await this.fetchOrganizationSettings();
 			} catch (error) {
-				console.error("Error fetching organization settings:", error);
-				// Create default settings to prevent blocking the app
-				this.organizationSettings = { organization_info: { name: "Scoutsss" } };
-				this.isOrganizationSettingsFetched = true;
+				console.error("Failed to fetch organization settings:", error.message);
 				console.log("Using default organization settings");
+				// Set some default settings so the app doesn't break
+				this.organizationSettings = {
+					name: 'Scouts',
+					// Add other default settings as needed
+				};
 			}
 
 			this.initLanguageToggle();

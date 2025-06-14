@@ -69,39 +69,46 @@ export class Login {
     }
   }
 
-  async attachLoginFormListener() {
-    const form = document.getElementById("login-form");
-    if (!form) {
-      console.error("Login form not found in DOM");
-      return;
-    }
-
-    console.log("Attaching login form listener");
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      console.log("Login form submitted");
-
-      const formData = new FormData(form);
-      try {
-        console.log("Sending login request via ajax-functions.js..."+formData.get("email"));
-        const result = await login(formData);
-
-        console.log("Login result received:", result);
-
-        if (result.success) {
-          console.log("Login successful, handling login success...");
-          this.handleLoginSuccess(result);
-        } else {
-          console.warn("Login failed:", result.message);
-          alert(result.message || "Login failed");
-        }
-      } catch (error) {
-        console.error("Login error:", error);
-        alert(`Error logging in: ${error.message} (${JSON.stringify(result)})`);
-      }
-    });
-    console.log("Login form listener attached");
+async attachLoginFormListener() {
+  const form = document.getElementById("login-form");
+  if (!form) {
+    console.error("Login form not found in DOM");
+    return;
   }
+
+  console.log("Attaching login form listener");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    console.log("Login form submitted");
+
+    const formData = new FormData(form);
+    
+    // Extract the actual values from FormData
+    const email = formData.get("email");
+    const password = formData.get("password");
+    
+    try {
+      console.log("Sending login request via ajax-functions.js..." + email);
+      
+      // Pass individual parameters instead of FormData object
+      const result = await login(email, password);
+
+      console.log("Login result received:", result);
+
+      if (result.success) {
+        console.log("Login successful, handling login success...");
+        this.handleLoginSuccess(result);
+      } else {
+        console.warn("Login failed:", result.message);
+        alert(result.message || "Login failed");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      alert(`Error logging in: ${error.message}`);
+    }
+  });
+  console.log("Login form listener attached");
+}
 
   handleLoginSuccess(result) {
     console.log("Handling login success:", result);
