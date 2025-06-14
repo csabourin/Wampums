@@ -2,7 +2,7 @@ import { translate } from "./app.js";
 import {
   fetchParticipant,
   saveFicheSante,
-  getParentsGuardians,
+  fetchParents,
   fetchFicheSante,
 } from "./ajax-functions.js";
 
@@ -32,7 +32,7 @@ export class FicheSante {
       [this.participant, this.ficheSante, this.parents] = await Promise.all([
         fetchParticipant(this.participantId),
         fetchFicheSante(this.participantId),
-        getParentsGuardians(this.participantId),
+        fetchParents(this.participantId),
       ]);
 
       console.log("Fetched participant:", this.participant); // Verify participant data

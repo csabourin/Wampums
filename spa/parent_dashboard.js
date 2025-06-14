@@ -1,4 +1,4 @@
-import { getCurrentOrganizationId, fetchParticipants, getOrganizationFormFormats, getOrganizationSettings, LinkUserParticipants } from "./ajax-functions.js";
+import { getCurrentOrganizationId, fetchParticipants, getOrganizationFormFormats, getOrganizationSettings, linkUserParticipants } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
 
@@ -60,7 +60,7 @@ export class ParentDashboard {
 					const selectedParticipants = formData.getAll('link_participants');
 
                                         try {
-                                                        const result = await LinkUserParticipants({ participant_ids: selectedParticipants });
+                                                        const result = await linkUserParticipants({ participant_ids: selectedParticipants });
                                                         if (result.success) {
 									this.app.showMessage(translate("participants_linked_successfully"));
 									await this.fetchParticipants(); // Refresh the participants list

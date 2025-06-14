@@ -143,6 +143,23 @@ export const app = {
 		console.log("App init started");
 		this.createMessageBanner();
 
+		const token = localStorage.getItem("jwtToken");
+		if (token) {
+			try {
+				// Validate token first
+				const isValid = await validateToken();
+				if (!isValid) {
+					// Clear invalid token
+					localStorage.removeItem("jwtToken");
+					localStorage.removeItem("userRole");
+					localStorage.removeItem("userFullName");
+					localStorage.removeItem("userId");
+				}
+			} catch (error) {
+				console.error("Token validation failed:", error);
+			}
+		}
+
 		try {
 			this.registerServiceWorker();
 

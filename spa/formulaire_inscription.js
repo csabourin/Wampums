@@ -6,8 +6,7 @@ import {
   saveFormSubmission,
   getOrganizationFormFormats,
   saveParticipant,
-     getGuardianCoreInfo,
-    getGuardians,
+    getGuardiansForParticipant,
       saveGuardian, // NEW: For saving guardian info
       linkGuardianToParticipant, // NEW: For linking guardians to participants
     getCurrentOrganizationId,
@@ -101,7 +100,7 @@ export class FormulaireInscription {
 
     async fetchGuardianData() {
         try {
-            const guardianData = await getGuardians(this.participantId);
+            const guardianData = await getGuardiansForParticipant(this.participantId);
             if (Array.isArray(guardianData)) {
                 this.formData.guardians = guardianData;
             } else {
@@ -303,8 +302,8 @@ export class FormulaireInscription {
         this.participantId = participantId; // Update the current participantId
         console.log("Participant saved with ID:", participantId);
         //Step 1.5 Link the participant to the user
-        const result=await LinkUserParticipants({participant_ids:[participantId]}) ;
-console.log("LinkUserParticipants result:",result);
+        const result=await linkUserParticipants({participant_ids:[participantId]}) ;
+console.log("linkUserParticipants result:",result);
         // Step 2: Save the remaining fields in `form_submissions` for the participant
         const participantSubmissionData = { ...formSubmissionData };
         delete participantSubmissionData.guardians;

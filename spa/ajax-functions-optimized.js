@@ -85,25 +85,11 @@ export function buildApiUrl(endpoint, params = {}) {
     return url.toString();
 }
 
-// Enhanced response handler with 401 handling
+// Enhanced response handler
 async function handleResponse(response) {
     const contentType = response.headers.get("content-type");
     
     if (!response.ok) {
-        // Handle 401 Unauthorized specifically
-        if (response.status === 401) {
-            // Clear invalid auth data
-            localStorage.removeItem("jwtToken");
-            localStorage.removeItem("userRole");
-            localStorage.removeItem("userFullName");
-            localStorage.removeItem("userId");
-            
-            // Optionally redirect to login if not already there
-            if (window.location.pathname !== '/login') {
-                window.location.href = '/login';
-            }
-        }
-        
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         
         try {
@@ -125,35 +111,6 @@ async function handleResponse(response) {
         return response.json();
     } else {
         throw new Error(`Unexpected response type: ${contentType}`);
-    }
-}
-
-// Add this function to ajax-functions.js
-export async function validateToken() {
-    try {
-        // Use a lightweight endpoint to check if token is valid
-        const result = await API.get('test-connection');
-        return result.success || false;
-    } catch (error) {
-        if (error.message.includes('401')) {
-            return false;
-        }
-        throw error;
-    }
-}
-
-// Or create a specific endpoint for token validation
-export async function checkAuthStatus() {
-    const token = localStorage.getItem("jwtToken");
-    if (!token) {
-        return { isValid: false, reason: 'no_token' };
-    }
-    
-    try {
-        const result = await API.get('check-auth');
-        return { isValid: true, user: result.user };
-    } catch (error) {
-        return { isValid: false, reason: 'invalid_token' };
     }
 }
 
@@ -400,14 +357,6 @@ export async function awardHonor(honorData) {
     return API.post('award-honor', honorData);
 }
 
-export async function getRecentHonors() {
-    return API.get('recent-honors', {}, {
-        cacheKey: 'recent_honors',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
-    });
-}
-
-
 export async function getCalendars() {
     return API.get('calendars');
 }
@@ -437,10 +386,7 @@ export async function login(email, password) {
             'Content-Type': 'application/json',
             'x-organization-id': getCurrentOrganizationId()
         },
-        body: JSON.stringify({ 
-            email: String(email || ''), 
-            password: String(password || '') 
-        })
+        body: JSON.stringify({ email, password })
     });
 
     return handleResponse(response);
@@ -470,10 +416,6 @@ export async function getOrganizationId() {
     });
 
     return handleResponse(response);
-}
-
-export async function fetchOrganizationId() {
-    return getOrganizationId();
 }
 
 export async function createOrganization(name) {
@@ -593,24 +535,6 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
 export async function fetchParents(participantId) {
     return API.get('parents-guardians', { participant_id: participantId });
 }
-
-export async function getGuardianCoreInfo(guardianId) {
-    return API.get('guardian-info', { guardian_id: guardianId });
-}
-
-// Get guardians for a specific participant
-export async function getGuardiansForParticipant(participantId) {
-    return API.get('guardians-for-participant', { participant_id: participantId });
-}
-
-// Remove guardians from a participant
-export async function removeGuardians(participantId, guardianIds) {
-    return API.post('remove-guardians', {
-        participant_id: participantId,
-        guardian_ids: guardianIds
-    });
-}
-
 
 // Forms & Documents
 
@@ -969,16 +893,6 @@ export async function getBadgeHistory(participantId) {
         cacheKey: `badge_history_${participantId}`,
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
-}
-
-export async function updateBadgeStatus(badgeId, status) {
-    if (status === 'approved') {
-        return approveBadge(badgeId);
-    } else if (status === 'rejected') {
-        return rejectBadge(badgeId);
-    } else {
-        throw new Error(`Invalid badge status: ${status}`);
-    }
 }
 
 // Reunion & Utilities
