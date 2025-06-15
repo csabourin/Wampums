@@ -1,5 +1,5 @@
 import { translate } from "./app.js";
-import {login, getApiUrl} from "./ajax-functions.js";
+import {login, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
 
 export class Login {
   constructor(app) {
@@ -110,34 +110,90 @@ async attachLoginFormListener() {
   console.log("Login form listener attached");
 }
 
-  handleLoginSuccess(result) {
-    console.log("Handling login success:", result);
-    this.app.isLoggedIn = true;
-    this.app.userRole = result.user_role;
-    this.app.userFullName = result.user_full_name || "User";
-
-    // Store JWT token and user info
-    localStorage.setItem("jwtToken", result.token);
-    localStorage.setItem("userRole", result.user_role);
-    localStorage.setItem("userFullName", this.app.userFullName);
-    localStorage.setItem("userId", result.user_id);
-
-    // Store guardian participants if available
-    if (result.guardian_participants && result.guardian_participants.length > 0) {
-      localStorage.setItem("guardianParticipants", JSON.stringify(result.guardian_participants));
-    }
-
-    console.log("LocalStorage updated with user info");
-
-    // Redirect based on user role
-    if (result.user_role === "parent") {
-      console.log("Redirecting to parent dashboard");
-      this.app.router.route("/parent-dashboard");
-    } else {
-      console.log("Redirecting to main dashboard");
-      this.app.router.route("/dashboard");
-    }
+handleLoginSuccess(result) {
+  console.log("=== LOGIN SUCCESS DEBUG ===");
+  console.log("Full result object:", result);
+  console.log("result.success:", result.success);
+  console.log("result.token:", result.token);
+  console.log("result.user_id:", result.user_id);
+  console.log("result.user_role:", result.user_role);
+  console.log("result.user_full_name:", result.user_full_name);
+  
+  // Check if data is nested
+  if (result.data) {
+    console.log("Data is nested under result.data:");
+    console.log("result.data.token:", result.data.token);
+    console.log("result.data.user_id:", result.data.user_id);
+    console.log("result.data.user_role:", result.data.user_role);
   }
+  console.log("=== END LOGIN DEBUG ===");
+
+  // Handle both nested and flat response structures
+  const token = result.token || (result.data && result.data.token);
+  const userId = result.user_id || (result.data && result.data.user_id);
+  const userRole = result.user_role || (result.data && result.data.user_role);
+  const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
+
+  // Validate required fields
+  if (!token) {
+    console.error("ERROR: No JWT token received in login response");
+    alert("Login error: No authentication token received");
+    return;
+  }
+  
+  if (!userId) {
+    console.error("ERROR: No user ID received in login response");
+    alert("Login error: No user ID received");
+    return;
+  }
+
+  console.log("=== STORING USER DATA ===");
+  console.log("Token:", token ? "EXISTS" : "MISSING");
+  console.log("User ID:", userId);
+  console.log("User Role:", userRole);
+  console.log("User Full Name:", userFullName);
+
+  // Update app state
+  this.app.isLoggedIn = true;
+  this.app.userRole = userRole;
+  this.app.userFullName = userFullName;
+
+  // Store user data in localStorage
+  localStorage.setItem("jwtToken", token);
+  localStorage.setItem("userRole", userRole || "");
+  localStorage.setItem("userFullName", userFullName);
+  localStorage.setItem("userId", userId);
+
+  // Make sure organization ID is stored correctly
+  const orgId = getCurrentOrganizationId();
+  if (orgId) {
+    localStorage.setItem("currentOrganizationId", orgId);
+    // Also store as organizationId for backward compatibility
+    localStorage.setItem("organizationId", orgId);
+  }
+
+  // Store guardian participants if available
+  const guardianParticipants = result.guardian_participants || (result.data && result.data.guardian_participants);
+  if (guardianParticipants && guardianParticipants.length > 0) {
+    localStorage.setItem("guardianParticipants", JSON.stringify(guardianParticipants));
+  }
+
+  console.log("=== FINAL LOCALSTORAGE CHECK ===");
+  console.log("jwtToken:", localStorage.getItem("jwtToken") ? "STORED" : "MISSING");
+  console.log("userId:", localStorage.getItem("userId"));
+  console.log("userRole:", localStorage.getItem("userRole"));
+  console.log("currentOrganizationId:", localStorage.getItem("currentOrganizationId"));
+  console.log("organizationId:", localStorage.getItem("organizationId"));
+
+  // Redirect based on user role
+  if (userRole === "parent") {
+    console.log("Redirecting to parent dashboard");
+    this.app.router.route("/parent-dashboard");
+  } else {
+    console.log("Redirecting to main dashboard");
+    this.app.router.route("/dashboard");
+  }
+}
 
   static decodeJwt(token) {
     const base64Url = token.split(".")[1];

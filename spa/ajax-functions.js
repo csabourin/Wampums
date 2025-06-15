@@ -52,20 +52,28 @@ export function getCurrentOrganizationId() {
 }
 
 export function getAuthHeader() {
-    const token = localStorage.getItem("jwtToken");
-    const organizationId = getCurrentOrganizationId();
-    const headers = {};
+  const token = localStorage.getItem("jwtToken");
+  const organizationId = getCurrentOrganizationId(); // This function should return the right org ID
+  
+  console.log("=== GET AUTH HEADER DEBUG ===");
+  console.log("Token exists:", !!token);
+  console.log("Organization ID:", organizationId);
+  console.log("Token preview:", token ? token.substring(0, 50) + "..." : "NO TOKEN");
+  
+  const headers = {};
 
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
-    if (organizationId) {
-        // Ensure we're sending the actual ID value, not an object
-        headers['x-organization-id'] = String(organizationId);
-    }
+  if (organizationId) {
+    headers['x-organization-id'] = organizationId;
+  }
 
-    return headers;
+  console.log("Generated headers:", headers);
+  console.log("=== END AUTH HEADER DEBUG ===");
+  
+  return headers;
 }
 
 function addCacheBuster(url) {
@@ -1103,4 +1111,38 @@ export async function fetchOrganizationJwt(organizationId) {
         console.error('Error fetching organization JWT:', error);
         throw error;
     }
+}
+
+export async function validateCurrentToken() {
+  const token = localStorage.getItem("jwtToken");
+  
+  if (!token) {
+    console.log("No token to validate");
+    return { isValid: false, reason: "no_token" };
+  }
+  
+  try {
+    // Try to decode the token client-side first
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.log("Invalid token format");
+      return { isValid: false, reason: "invalid_format" };
+    }
+    
+    const payload = JSON.parse(atob(parts[1]));
+    console.log("Token payload:", payload);
+    
+    // Check if expired
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      console.log("Token is expired");
+      return { isValid: false, reason: "expired" };
+    }
+    
+    console.log("Token appears valid client-side");
+    return { isValid: true, payload };
+  } catch (error) {
+    console.error("Error validating token:", error);
+    return { isValid: false, reason: "decode_error" };
+  }
 }
