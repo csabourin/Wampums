@@ -32,7 +32,7 @@ app.use(helmet({
   contentSecurityPolicy: false // Will be configured properly later
 }));
 app.use(cors());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 }));
 
 // Determine if we're in production mode
 const isProduction = process.env.NODE_ENV === 'production';
@@ -933,7 +933,7 @@ app.get('/api/honors', async (req, res) => {
   }
 });
 
-// Award honor
+// Award honor - accepts single object or array of honors
 app.post('/api/award-honor', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -944,29 +944,59 @@ app.post('/api/award-honor', async (req, res) => {
     }
     
     const organizationId = await getCurrentOrganizationId(req);
-    const { participant_id, date } = req.body;
     
-    if (!participant_id || !date) {
-      return res.status(400).json({ success: false, message: 'Participant ID and date are required' });
-    }
+    // Handle both array and single object formats
+    const honorsToProcess = Array.isArray(req.body) ? req.body : [req.body];
     
-    // Check if honor already exists for this participant on this date
-    const existingResult = await pool.query(
-      `SELECT id FROM honors WHERE participant_id = $1 AND date = $2`,
-      [participant_id, date]
-    );
+    const results = [];
+    const client = await pool.connect();
     
-    if (existingResult.rows.length > 0) {
-      // Remove existing honor (toggle off)
-      await pool.query(`DELETE FROM honors WHERE participant_id = $1 AND date = $2`, [participant_id, date]);
-      res.json({ success: true, action: 'removed' });
-    } else {
-      // Add new honor with organization_id
-      await pool.query(
-        `INSERT INTO honors (participant_id, date, organization_id) VALUES ($1, $2, $3)`,
-        [participant_id, date, organizationId]
-      );
-      res.json({ success: true, action: 'awarded' });
+    try {
+      await client.query('BEGIN');
+      
+      for (const honor of honorsToProcess) {
+        // Accept both participantId (camelCase) and participant_id (snake_case)
+        const participantId = honor.participantId || honor.participant_id;
+        const honorDate = honor.date;
+        
+        if (!participantId || !honorDate) {
+          results.push({ participantId, success: false, message: 'Participant ID and date are required' });
+          continue;
+        }
+        
+        // Check if honor already exists for this participant on this date
+        const existingResult = await client.query(
+          `SELECT id FROM honors WHERE participant_id = $1 AND date = $2 AND organization_id = $3`,
+          [participantId, honorDate, organizationId]
+        );
+        
+        if (existingResult.rows.length > 0) {
+          // Honor already exists - skip (or could toggle off if needed)
+          results.push({ participantId, success: true, action: 'already_awarded' });
+        } else {
+          // Add new honor with organization_id
+          await client.query(
+            `INSERT INTO honors (participant_id, date, organization_id) VALUES ($1, $2, $3)`,
+            [participantId, honorDate, organizationId]
+          );
+          
+          // Add 5 points for the honor
+          await client.query(
+            `INSERT INTO points (participant_id, value, created_at, organization_id) VALUES ($1, 5, $2, $3)`,
+            [participantId, honorDate, organizationId]
+          );
+          
+          results.push({ participantId, success: true, action: 'awarded' });
+        }
+      }
+      
+      await client.query('COMMIT');
+      res.json({ success: true, status: 'success', results });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
   } catch (error) {
     logger.error('Error awarding honor:', error);
@@ -1094,6 +1124,88 @@ app.post('/api/update-points', async (req, res) => {
     }
   } catch (error) {
     logger.error('Error updating points:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get guests by date (for attendance)
+app.get('/api/guests-by-date', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    
+    // Return empty array if guests table doesn't exist yet
+    try {
+      const result = await pool.query(
+        `SELECT id, name, email, attendance_date FROM guests 
+         WHERE organization_id = $1 AND attendance_date = $2
+         ORDER BY name`,
+        [organizationId, date]
+      );
+      res.json({ success: true, guests: result.rows });
+    } catch (err) {
+      // If table or column doesn't exist, return empty array
+      if (err.code === '42P01' || err.code === '42703') {
+        res.json({ success: true, guests: [] });
+      } else {
+        throw err;
+      }
+    }
+  } catch (error) {
+    logger.error('Error fetching guests:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save guest
+app.post('/api/save-guest', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const { name, email, attendance_date } = req.body;
+    
+    if (!name || !attendance_date) {
+      return res.status(400).json({ success: false, message: 'Name and date are required' });
+    }
+    
+    // Try to create guests table if it doesn't exist
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS guests (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255),
+          attendance_date DATE NOT NULL,
+          organization_id INTEGER NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } catch (err) {
+      // Ignore errors if table already exists
+    }
+    
+    const result = await pool.query(
+      `INSERT INTO guests (name, email, attendance_date, organization_id) 
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [name, email, attendance_date, organizationId]
+    );
+    
+    res.json({ success: true, guest: { id: result.rows[0].id, name, email, attendance_date } });
+  } catch (error) {
+    logger.error('Error saving guest:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

@@ -104,7 +104,7 @@ export class Attendance {
       }
 
       // Fetch the data if not cached
-      const [participantsResponse, attendanceData, guests] = await Promise.all([
+      const [participantsResponse, attendanceData, guestsResponse] = await Promise.all([
         getParticipants(),
         getAttendance(this.currentDate),
         this.getGuestsByDate(this.currentDate)
@@ -117,7 +117,8 @@ export class Attendance {
       }
 
       this.attendanceData = attendanceData;
-      this.guests = guests;
+      // Handle both array response and object response with guests property
+      this.guests = Array.isArray(guestsResponse) ? guestsResponse : (guestsResponse?.guests || []);
 
       // Group participants
       this.groups = this.participants.reduce((acc, participant) => {
