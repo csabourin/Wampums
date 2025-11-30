@@ -58,8 +58,13 @@ app.use(express.static(staticDir, {
   }
 }));
 
+const dbConnectionString = process.env.SB_URL || process.env.DATABASE_URL;
+console.log('Database connection using:', process.env.SB_URL ? 'SB_URL (Supabase)' : 'DATABASE_URL (Neon)');
+console.log('SB_URL exists:', !!process.env.SB_URL);
+console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
 const pool = new Pool({
-  connectionString: process.env.SB_URL || process.env.DATABASE_URL,
+  connectionString: dbConnectionString,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -345,6 +350,8 @@ app.post('/public/login', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     const { email, password } = req.body;
 
+    logger.info('Login attempt:', { email, organizationId });
+
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -363,6 +370,7 @@ app.post('/public/login', async (req, res) => {
     );
 
     const user = userResult.rows[0];
+    logger.info('User found:', { found: !!user, email: normalizedEmail, orgId: organizationId });
 
     if (!user) {
       return res.status(401).json({
@@ -371,7 +379,12 @@ app.post('/public/login', async (req, res) => {
       });
     }
 
-    const passwordValid = await bcrypt.compare(password, user.password);
+    // Convert PHP $2y$ bcrypt hash to Node.js compatible $2a$ format
+    // Both are identical bcrypt algorithms, just different prefixes
+    const nodeCompatibleHash = user.password.replace(/^\$2y\$/, '$2a$');
+    
+    const passwordValid = await bcrypt.compare(password, nodeCompatibleHash);
+    logger.info('Password check:', { valid: passwordValid });
 
     if (!passwordValid) {
       return res.status(401).json({
@@ -426,6 +439,58 @@ app.post('/public/login', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error'
+    });
+  }
+});
+
+// Get organization ID (public endpoint)
+app.get('/public/get_organization_id', async (req, res) => {
+  try {
+    const organizationId = await getCurrentOrganizationId(req);
+    res.json({
+      success: true,
+      organizationId: organizationId
+    });
+  } catch (error) {
+    logger.error('Error getting organization ID:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting organization ID'
+    });
+  }
+});
+
+// Get organization settings
+app.get('/api/organization-settings', async (req, res) => {
+  try {
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT setting_key, setting_value 
+       FROM organization_settings 
+       WHERE organization_id = $1`,
+      [organizationId]
+    );
+    
+    // Convert rows to key-value object
+    const settings = {};
+    result.rows.forEach(row => {
+      try {
+        settings[row.setting_key] = JSON.parse(row.setting_value);
+      } catch {
+        settings[row.setting_key] = row.setting_value;
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: settings
+    });
+  } catch (error) {
+    logger.error('Error getting organization settings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error getting organization settings'
     });
   }
 });

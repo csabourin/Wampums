@@ -1093,7 +1093,8 @@ export async function fetchOrganizationJwt(organizationId) {
             throw new Error('Organization ID is required');
         }
 
-        const response = await fetch(`/get-organization-jwt.php?organization_id=${orgId}`, {
+        const url = new URL(`/api/organization-jwt?organization_id=${orgId}`, CONFIG.API_BASE_URL);
+        const response = await fetch(url.toString(), {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
