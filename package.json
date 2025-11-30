@@ -10,7 +10,11 @@
     "analyze": "ANALYZE=true vite build",
     "start": "node api.js",
     "start:prod": "NODE_ENV=production node api.js",
-    "test": "jest"
+    "test": "jest",
+    "migrate": "node-pg-migrate",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "migrate:create": "node-pg-migrate create"
   },
   "dependencies": {
     "bcrypt": "^5.0.1",
@@ -24,8 +28,11 @@
     "glob": "^11.0.0",
     "helmet": "^4.6.0",
     "jsonwebtoken": "^9.0.2",
+    "node-pg-migrate": "^8.0.3",
     "pg": "^8.6.0",
     "rimraf": "^6.0.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "web-push": "^3.6.7",
     "winston": "^3.3.3"
   },

@@ -10,11 +10,13 @@ const { check, validationResult } = require('express-validator');
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs').promises;
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./config/swagger');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Compression middleware (install with: npm install compression)
+// Compression middleware
 let compression;
 try {
   compression = require('compression');
@@ -154,6 +156,52 @@ function verifyJWT(token) {
 app.use((err, req, res, next) => {
   handleError(err, req, res, next);
 });
+
+// ============================================
+// API DOCUMENTATION (Swagger/OpenAPI)
+// ============================================
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: Serve the main application
+ *     tags: [Public]
+ *     responses:
+ *       200:
+ *         description: Returns the application HTML
+ */
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Wampums API Documentation'
+}));
+
+// API documentation JSON
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpecs);
+});
+
+console.log('📚 API Documentation available at: /api-docs');
+
+// ============================================
+// RESTful API V1 ROUTES
+// ============================================
+
+// Mount RESTful routes
+const participantsRoutes = require('./routes/participants')(pool);
+const attendanceRoutes = require('./routes/attendance')(pool);
+const groupsRoutes = require('./routes/groups')(pool);
+
+app.use('/api/v1/participants', participantsRoutes);
+app.use('/api/v1/attendance', attendanceRoutes);
+app.use('/api/v1/groups', groupsRoutes);
+
+console.log('✅ RESTful API v1 routes loaded');
+console.log('   - /api/v1/participants');
+console.log('   - /api/v1/attendance');
+console.log('   - /api/v1/groups');
 
 // ============================================
 // PUBLIC ENDPOINTS (migrated from PHP)
