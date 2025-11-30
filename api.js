@@ -2126,9 +2126,10 @@ app.get('/api', [
         jsonResponse(res, true, guestsResult.rows);
         break;
 
+      case 'attendance':
       case 'get_attendance':
         const dateForAttendance = req.query.date || new Date().toISOString().split('T')[0];
-        const orgIdForAttendance = getCurrentOrganizationId();
+        const orgIdForAttendance = organizationId;
         const attendanceResult = await client.query(
           `SELECT a.participant_id, a.status
            FROM attendance a
