@@ -16,12 +16,12 @@ export class Dashboard {
 
   async init() {
     try {
-       await this.preloadDashboardData();
-      // await this.fetchData();
+      // Fetch organization info first so it's available for all renders
       await this.fetchOrganizationInfo();
-      this.render();
+      await this.preloadDashboardData();
+      // Note: preloadDashboardData calls render() internally
       this.attachEventListeners();
-       this.preloadAttendanceData();
+      this.preloadAttendanceData();
     } catch (error) {
       console.error("Error initializing dashboard:", error);
       this.renderError();
