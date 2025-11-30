@@ -33,23 +33,20 @@ export class Dashboard {
       // Fetch all organization settings
       const response = await getOrganizationSettings();
 
-      // Check if the response is successful and contains settings
-      if (response && response.organization_info) {
-        // Get the organization_info setting
-        const organizationInfo = response.organization_info;
+      // Handle different response structures (response.data.organization_info or response.organization_info)
+      const organizationInfo = response?.data?.organization_info || response?.organization_info;
 
-        // If the setting exists, extract the name, otherwise set a default
-        if (organizationInfo && organizationInfo.name) {
-          this.organizationName = organizationInfo.name;
-          this.organizationLogo = organizationInfo.logo;
-        } else {
-          this.organizationName = translate("organization_name_default");
-        }
+      // If the setting exists, extract the name, otherwise set a default
+      if (organizationInfo && organizationInfo.name) {
+        this.organizationName = organizationInfo.name;
+        this.organizationLogo = organizationInfo.logo;
       } else {
         console.error("Invalid organization info response:", response);
+        this.organizationName = translate("organization_name_default") || "Scouts";
       }
     } catch (error) {
       console.error("Error fetching organization info:", error);
+      this.organizationName = translate("organization_name_default") || "Scouts";
     }
   }
 

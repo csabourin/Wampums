@@ -58,13 +58,8 @@ app.use(express.static(staticDir, {
   }
 }));
 
-const dbConnectionString = process.env.SB_URL || process.env.DATABASE_URL;
-console.log('Database connection using:', process.env.SB_URL ? 'SB_URL (Supabase)' : 'DATABASE_URL (Neon)');
-console.log('SB_URL exists:', !!process.env.SB_URL);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-
 const pool = new Pool({
-  connectionString: dbConnectionString,
+  connectionString: process.env.SB_URL || process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -350,8 +345,6 @@ app.post('/public/login', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     const { email, password } = req.body;
 
-    logger.info('Login attempt:', { email, organizationId });
-
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -370,7 +363,6 @@ app.post('/public/login', async (req, res) => {
     );
 
     const user = userResult.rows[0];
-    logger.info('User found:', { found: !!user, email: normalizedEmail, orgId: organizationId });
 
     if (!user) {
       return res.status(401).json({
@@ -384,7 +376,6 @@ app.post('/public/login', async (req, res) => {
     const nodeCompatibleHash = user.password.replace(/^\$2y\$/, '$2a$');
     
     const passwordValid = await bcrypt.compare(password, nodeCompatibleHash);
-    logger.info('Password check:', { valid: passwordValid });
 
     if (!passwordValid) {
       return res.status(401).json({
@@ -491,6 +482,46 @@ app.get('/api/organization-settings', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting organization settings'
+    });
+  }
+});
+
+// Get reunion preparation (dedicated endpoint for activity widget)
+app.get('/api/reunion-preparation', async (req, res) => {
+  try {
+    const organizationId = await getCurrentOrganizationId(req);
+    const reunionDate = req.query.date || new Date().toISOString().split('T')[0];
+    
+    const result = await pool.query(
+      `SELECT * FROM reunion_preparations
+       WHERE organization_id = $1 AND date = $2`,
+      [organizationId, reunionDate]
+    );
+    
+    if (result.rows.length > 0) {
+      const preparation = result.rows[0];
+      // Parse JSON fields
+      try {
+        preparation.louveteau_dhonneur = JSON.parse(preparation.louveteau_dhonneur || '[]');
+        preparation.activities = JSON.parse(preparation.activities || '[]');
+      } catch (e) {
+        logger.warn('Error parsing reunion preparation JSON fields:', e);
+      }
+      res.json({
+        success: true,
+        preparation: preparation
+      });
+    } else {
+      res.json({
+        success: false,
+        message: 'No reunion preparation found for this date'
+      });
+    }
+  } catch (error) {
+    logger.error('Error fetching reunion preparation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching reunion preparation'
     });
   }
 });
