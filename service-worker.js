@@ -1,11 +1,11 @@
-const CACHE_NAME = "wampums-app-v4.7";
-const STATIC_CACHE_NAME = "wampums-static-v4.7";
-const API_CACHE_NAME = "wampums-api-v4.7";
-const IMAGE_CACHE_NAME = "wampums-images-v4.7"; 
+const CACHE_NAME = "wampums-app-v5.0";
+const STATIC_CACHE_NAME = "wampums-static-v5.0";
+const API_CACHE_NAME = "wampums-api-v5.0";
+const IMAGE_CACHE_NAME = "wampums-images-v5.0"; 
 
 const staticAssets = [
   "/",
-  "/index.php",
+  "/index.html",
   "/offline.html",
   "/css/styles.css",
   "/spa/app.js",
@@ -25,14 +25,14 @@ const staticImages = [
 ];
 
 const apiRoutes = [
-  "https://wampums-api.replit.app/api?action=get_attendance_dates",
-  "https://wampums-api.replit.app/api?action=get_participants",
-  "https://wampums-api.replit.app/api?action=get_participants_with_users",
-  "https://wampums-api.replit.app/api?action=get_parent_users",
-  "https://wampums-api.replit.app/api?action=get_parent_contact_list",
-  "https://wampums-api.replit.app/api?action=get_groups",
-  "https://wampums-api.replit.app/get_translations",
-  "https://wampums-api.replit.app/api?action=get_mailing_list"
+  "/api?action=get_attendance_dates",
+  "/api?action=get_participants",
+  "/api?action=get_participants_with_users",
+  "/api?action=get_parent_users",
+  "/api?action=get_parent_contact_list",
+  "/api?action=get_groups",
+  "/api/translations",
+  "/api?action=get_mailing_list"
 ];
 
 const offlinePages = [
