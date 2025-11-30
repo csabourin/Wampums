@@ -138,6 +138,22 @@ export const app = {
         organizationId: null,
         isOrganizationSettingsFetched: false,
         initCompleted: false,
+        _settingsPromise: null,
+
+        // Helper to wait for organization settings to be loaded
+        async waitForOrganizationSettings() {
+                if (this.isOrganizationSettingsFetched && this.organizationSettings) {
+                        return this.organizationSettings;
+                }
+                // If settings are being fetched, wait for that promise
+                if (this._settingsPromise) {
+                        await this._settingsPromise;
+                        return this.organizationSettings;
+                }
+                // Otherwise fetch them
+                await this.fetchOrganizationSettings();
+                return this.organizationSettings;
+        },
 
         async init() {
                 console.log("App init started");
@@ -282,8 +298,17 @@ export const app = {
                         console.log("Organization settings already fetched, skipping");
                         return;
                 }
+                
+                // Store the promise so other callers can wait for it
+                if (!this._settingsPromise) {
+                        this._settingsPromise = this._doFetchOrganizationSettings();
+                }
+                return this._settingsPromise;
+        },
+
+        async _doFetchOrganizationSettings() {
                 try {
-                        console.log("Fetching organization settings (259) ...", this.organizationId);
+                        console.log("Fetching organization settings ...", this.organizationId);
 
                         const response = await getOrganizationSettings(this.organizationId);
                         if (response && response.organization_info || response.data) {

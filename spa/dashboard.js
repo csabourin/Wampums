@@ -312,16 +312,20 @@ export class Dashboard {
       return a.first_name.localeCompare(b.first_name);
     });
 
-    return participants.map(participant => `
+    return participants.map(participant => {
+      // Ensure total_points is a number, default to 0 if undefined
+      const points = parseInt(participant.total_points) || 0;
+      return `
       <div class="list-item" data-name-id="${participant.id}" data-type="individual" 
-           data-group-id="${participant.group_id || 'none'}" data-points="${participant.total_points}"
+           data-group-id="${participant.group_id || 'none'}" data-points="${points}"
            data-name="${participant.first_name}">
         <span>${participant.first_name} ${participant.last_name}    ${participant.is_leader ? `<span class="badge leader">${translate("leader")}</span>` : ''}
         ${participant.is_second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ''}</span>
      
-        <span id="name-points-${participant.id}">${participant.total_points} ${translate("points")}</span>
+        <span id="name-points-${participant.id}">${points} ${translate("points")}</span>
       </div>
-    `).join("");
+    `;
+    }).join("");
   }
 
   attachEventListeners() {

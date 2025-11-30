@@ -3,7 +3,6 @@ import {
         getActivitesRencontre, 
         getAnimateurs, 
         getRecentHonors,
-        getOrganizationSettings,
         saveReunionPreparation,
         getReunionDates,
         getReunionPreparation,
@@ -198,14 +197,16 @@ export class PreparationReunions {
 
 
          async fetchData() {
-                 const settingsResponse = await getOrganizationSettings();
+                // Use app's waitForOrganizationSettings to avoid race condition
+                const appSettings = await this.app.waitForOrganizationSettings();
+                
                 [this.activities, this.recentHonors] = await Promise.all([
                         getActivitesRencontre(),
                         getRecentHonors()
                 ]);
 
-                // Handle both .settings and .data response formats
-                this.organizationSettings = settingsResponse.settings || settingsResponse.data || settingsResponse || {};
+                // Use app's organization settings to avoid race condition
+                this.organizationSettings = appSettings || {};
         }
 
         async fetchAvailableDates() {

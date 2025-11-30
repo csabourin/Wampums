@@ -1138,16 +1138,16 @@ app.get('/api/guests-by-date', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     
-    const organizationId = await getCurrentOrganizationId(req);
     const date = req.query.date || new Date().toISOString().split('T')[0];
     
     // Return empty array if guests table doesn't exist yet
     try {
+      // Note: guests table doesn't have organization_id column per schema
       const result = await pool.query(
         `SELECT id, name, email, attendance_date FROM guests 
-         WHERE organization_id = $1 AND attendance_date = $2
+         WHERE attendance_date = $1
          ORDER BY name`,
-        [organizationId, date]
+        [date]
       );
       res.json({ success: true, guests: result.rows });
     } catch (err) {
