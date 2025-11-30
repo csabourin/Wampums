@@ -474,11 +474,12 @@ export async function login(email, password, organization_id) {
 
         console.log('Sending login request via ajax-functions.js...', email);
         
-        const response = await fetch(`${CONFIG.API_BASE_URL}public/login`, {
+        const url = new URL('/public/login', CONFIG.API_BASE_URL);
+        const response = await fetch(url.toString(), {
             method: "POST",
             headers: {
                 'Content-Type': 'application/json',
-                'x-organization-id': String(orgId)  // Send as header, not in body
+                'x-organization-id': String(orgId)
             },
             body: JSON.stringify(requestBody)
         });

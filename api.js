@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -58,11 +59,8 @@ app.use(express.static(staticDir, {
 }));
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  connectionString: process.env.SB_URL || process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
 // Support legacy environment variable name `JWT_SECRET`
@@ -337,6 +335,97 @@ app.get('/api/organization-jwt', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to generate JWT token'
+    });
+  }
+});
+
+// Login endpoint (migrated from api.php case 'login')
+app.post('/public/login', async (req, res) => {
+  try {
+    const organizationId = await getCurrentOrganizationId(req);
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    const userResult = await pool.query(
+      `SELECT u.id, u.email, u.password, u.is_verified, u.full_name, uo.role 
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE u.email = $1 AND uo.organization_id = $2`,
+      [normalizedEmail, organizationId]
+    );
+
+    const user = userResult.rows[0];
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    const passwordValid = await bcrypt.compare(password, user.password);
+
+    if (!passwordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    if (!user.is_verified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is not yet verified. Please wait for admin verification.'
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        user_id: user.id,
+        user_role: user.role,
+        organizationId: organizationId
+      },
+      jwtKey,
+      { expiresIn: '7d' }
+    );
+
+    const guardianResult = await pool.query(
+      `SELECT pg.id, p.id AS participant_id, p.first_name, p.last_name 
+       FROM parents_guardians pg
+       JOIN participant_guardians pgu ON pg.id = pgu.guardian_id
+       JOIN participants p ON pgu.participant_id = p.id
+       LEFT JOIN user_participants up ON up.participant_id = p.id AND up.user_id = $1
+       WHERE pg.courriel = $2 AND up.participant_id IS NULL`,
+      [user.id, normalizedEmail]
+    );
+
+    const response = {
+      success: true,
+      message: 'login_successful',
+      token: token,
+      user_role: user.role,
+      user_full_name: user.full_name,
+      user_id: user.id
+    };
+
+    if (guardianResult.rows.length > 0) {
+      response.guardian_participants = guardianResult.rows;
+    }
+
+    res.json(response);
+  } catch (error) {
+    logger.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
     });
   }
 });
