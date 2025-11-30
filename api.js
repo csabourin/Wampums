@@ -1761,6 +1761,20 @@ app.get('/api', [
   }
 });
 
+// SPA catch-all route - serve index.html for all non-API routes
+// This must be the last route handler
+app.get('*', (req, res) => {
+  // Don't catch API routes or static files
+  if (req.path.startsWith('/api') || req.path.startsWith('/api-docs')) {
+    return res.status(404).json({ success: false, message: 'Endpoint not found' });
+  }
+  
+  const indexPath = isProduction
+    ? path.join(__dirname, 'dist', 'index.html')
+    : path.join(__dirname, 'index.html');
+  res.sendFile(indexPath);
+});
+
 if (require.main === module) {
   app.listen(PORT, HOST, () => {
     console.log(`Server running on ${HOST}:${PORT}`);
