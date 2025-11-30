@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="">
+    <meta property="og:title" content="Scouts at your fingertips">
+    <meta property="og:description" content="Scout management application">
+    <meta property="og:image" content="/images/android-chrome-512x512.png">
+    <meta property="fb:app_id" content="2012826655814548">
+    <title>Scouts at your fingertips - Wampums</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="alternate" type="application/rss+xml" href="/rss.xml" title="Wampums">
+    <meta name="theme-color" content="#4c65ae">
+    <link rel="apple-touch-icon" href="/images/icon-192x192.png">
+    <script type="module" defer src="/spa/activity-widget.js"></script>
+</head>
+<body>
+    <div id="app"></div>
+
+    <div id="language-toggle" class="language-toggle">
+        <button id="lang-fr" class="lang-btn" data-lang="fr">FR</button>
+        <button id="lang-en" class="lang-btn active" data-lang="en">EN</button>
+    </div>
+
+    <div id="news-widget">
+        <div class="news-accordion-header">
+            <h2></h2>
+        </div>
+    </div>
+
+    <div id="offline-indicator">
+        You are offline
+    </div>
+
+    <!-- Initial data script will be injected by /api/initial-data -->
+    <script type="module" src="/api/initial-data"></script>
+    <script type="module" defer src="/spa/app.js"></script>
+    <script type="module" defer src="/spa/init-activity-widget.js"></script>
+    <!-- Clarity tracking code -->
+    <script async src="/spa/clarity-init.js"></script>
+    <a href="/politique-de-confidentialite.html" target="_blank" class="privacy-policy-link">Politique de confidentialité</a>
+    <div id="loading-indicator" class="hidden">
+        Loading...
+    </div>
+</body>
+</html>

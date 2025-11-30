@@ -8,14 +8,37 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { check, validationResult } = require('express-validator');
 const winston = require('winston');
+const path = require('path');
+const fs = require('fs').promises;
 
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Compression middleware (install with: npm install compression)
+let compression;
+try {
+  compression = require('compression');
+  app.use(compression());
+} catch (e) {
+  console.log('Compression not available. Install with: npm install compression');
+}
+
 app.use(bodyParser.json());
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false // Will be configured properly later
+}));
 app.use(cors());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+
+// Serve static files
+app.use(express.static(path.join(__dirname), {
+  setHeaders: (res, filepath) => {
+    // Cache static assets for 1 hour
+    if (filepath.endsWith('.js') || filepath.endsWith('.css') || filepath.endsWith('.png') || filepath.endsWith('.jpg')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+  }
+}));
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -41,11 +64,31 @@ const logger = winston.createLogger({
   ],
 });
 
-// Helper function to get current organization ID
-function getCurrentOrganizationId() {
-  // This function needs to be implemented based on your application logic
-  // For now, returning a placeholder
-  return 1; // Replace with actual implementation
+// Helper function to get current organization ID from request
+async function getCurrentOrganizationId(req) {
+  // Try to get from header first
+  if (req.headers['x-organization-id']) {
+    return parseInt(req.headers['x-organization-id'], 10);
+  }
+
+  // Try to get from hostname/domain mapping
+  const hostname = req.hostname;
+
+  try {
+    const result = await pool.query(
+      'SELECT organization_id FROM organization_domains WHERE domain = $1',
+      [hostname]
+    );
+
+    if (result.rows.length > 0) {
+      return result.rows[0].organization_id;
+    }
+  } catch (error) {
+    logger.error('Error getting organization ID:', error);
+  }
+
+  // Default to organization ID 1 if not found
+  return 1;
 }
 
 // Helper function to get user ID from token
@@ -98,6 +141,424 @@ app.use((err, req, res, next) => {
   handleError(err, req, res, next);
 });
 
+// ============================================
+// PUBLIC ENDPOINTS (migrated from PHP)
+// ============================================
+
+// Serve index.html for root route
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Get translations (migrated from get_translations.php)
+app.get('/api/translations', async (req, res) => {
+  try {
+    const frPath = path.join(__dirname, 'lang', 'fr.json');
+    const enPath = path.join(__dirname, 'lang', 'en.json');
+
+    const [frData, enData] = await Promise.all([
+      fs.readFile(frPath, 'utf8'),
+      fs.readFile(enPath, 'utf8')
+    ]);
+
+    const translations = {
+      fr: JSON.parse(frData),
+      en: JSON.parse(enData)
+    };
+
+    res.json(translations);
+  } catch (error) {
+    logger.error('Error loading translations:', error);
+    res.status(500).json({ error: 'Failed to load translations' });
+  }
+});
+
+// Get news (migrated from get-news.php)
+app.get('/api/news', async (req, res) => {
+  try {
+    const organizationId = await getCurrentOrganizationId(req);
+    const lang = req.query.lang || 'en';
+
+    const result = await pool.query(
+      `SELECT title, content, created_at
+       FROM news
+       WHERE organization_id = $1
+       ORDER BY created_at DESC
+       LIMIT 3`,
+      [organizationId]
+    );
+
+    const newsItems = result.rows;
+
+    // Return as HTML (to match PHP behavior) or JSON based on accept header
+    if (req.headers.accept && req.headers.accept.includes('application/json')) {
+      res.json({ success: true, data: newsItems });
+    } else {
+      // Return HTML for backward compatibility
+      let html = '';
+      if (newsItems.length > 0) {
+        html = `<div class="news-accordion" data-latest-timestamp="${newsItems[0].created_at || ''}">
+          <div class="news-accordion-header">
+            <h2>${lang === 'fr' ? 'Dernières nouvelles' : 'Latest News'}</h2>
+          </div>
+          <div class="news-accordion-content">`;
+
+        newsItems.forEach(news => {
+          const date = new Date(news.created_at);
+          const formattedDate = date.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+
+          html += `<div class="news-item">
+            <h3>${escapeHtml(news.title)}</h3>
+            <p>${escapeHtml(news.content).replace(/\n/g, '<br>')}</p>
+            <small>${formattedDate}</small>
+          </div>`;
+        });
+
+        html += `</div></div>`;
+      }
+      res.send(html);
+    }
+  } catch (error) {
+    logger.error('Error fetching news:', error);
+    res.status(500).json({ error: 'Failed to fetch news' });
+  }
+});
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+// Get organization JWT (migrated from get-organization-jwt.php)
+app.get('/api/organization-jwt', async (req, res) => {
+  try {
+    const organizationId = req.query.organization_id
+      ? parseInt(req.query.organization_id, 10)
+      : await getCurrentOrganizationId(req);
+
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID is required'
+      });
+    }
+
+    // Generate JWT with organization ID only (no user information)
+    const token = jwt.sign(
+      { organizationId },
+      jwtKey,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      organizationId
+    });
+  } catch (error) {
+    logger.error('Error generating organization JWT:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate JWT token'
+    });
+  }
+});
+
+// Get points data (migrated from get_points_data.php)
+app.get('/api/points-data', async (req, res) => {
+  try {
+    const organizationId = await getCurrentOrganizationId(req);
+
+    // Fetch all groups with total points
+    const groupsResult = await pool.query(
+      `SELECT g.id, g.name, COALESCE(SUM(p.value), 0) AS total_points
+       FROM groups g
+       LEFT JOIN points p ON g.id = p.group_id AND p.organization_id = $1
+       WHERE g.organization_id = $1
+       GROUP BY g.id, g.name
+       ORDER BY g.name`,
+      [organizationId]
+    );
+
+    // Fetch all participants with their associated group and total points
+    const participantsResult = await pool.query(
+      `SELECT part.id, part.first_name, pg.group_id, COALESCE(SUM(p.value), 0) AS total_points
+       FROM participants part
+       JOIN participant_organizations po ON part.id = po.participant_id
+       LEFT JOIN participant_groups pg ON part.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN points p ON part.id = p.participant_id AND p.organization_id = $1
+       WHERE po.organization_id = $1
+       GROUP BY part.id, part.first_name, pg.group_id
+       ORDER BY part.first_name`,
+      [organizationId]
+    );
+
+    res.json({
+      success: true,
+      groups: groupsResult.rows,
+      names: participantsResult.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching points data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Initial data endpoint (migrated from initial-data.php)
+app.get('/api/initial-data', async (req, res) => {
+  try {
+    const organizationId = await getCurrentOrganizationId(req);
+    const token = req.headers.authorization?.split(' ')[1];
+
+    let isLoggedIn = false;
+    let userRole = null;
+    let userId = null;
+    let jwtToken = null;
+
+    // Check if user is logged in via JWT
+    if (token) {
+      const decoded = verifyJWT(token);
+      if (decoded && decoded.user_id) {
+        isLoggedIn = true;
+        userRole = decoded.user_role;
+        userId = decoded.user_id;
+        jwtToken = token;
+      }
+    }
+
+    // If not logged in, generate organization-only JWT
+    if (!jwtToken) {
+      jwtToken = jwt.sign(
+        { organizationId },
+        jwtKey,
+        { expiresIn: '7d' }
+      );
+    }
+
+    const initialData = {
+      isLoggedIn,
+      userRole,
+      userId,
+      organizationId,
+      lang: req.query.lang || 'en'
+    };
+
+    // Return as JavaScript module
+    res.type('application/javascript');
+    res.send(`
+window.initialData = ${JSON.stringify(initialData)};
+
+// Store the JWT in localStorage for use by the frontend
+const jwtToken = "${jwtToken}";
+localStorage.setItem("jwtToken", jwtToken);
+
+// Store organization ID as well
+const organizationId = ${organizationId};
+localStorage.setItem("organizationId", organizationId);
+
+document.addEventListener("DOMContentLoaded", function() {
+  let newsWidget = document.getElementById("news-widget");
+  if (!newsWidget) return;
+
+  // Lazy load the news widget
+  fetch('/api/news?lang=' + (window.initialData.lang || 'en'))
+    .then(response => response.text())
+    .then(data => {
+      newsWidget.innerHTML = data;
+
+      // Now that the content is loaded, find the accordion
+      const accordion = document.querySelector('.news-accordion');
+      if (!accordion) return;
+
+      const accordionHeader = accordion.querySelector('.news-accordion-header');
+
+      // Function to toggle accordion
+      function toggleAccordion() {
+        accordion.classList.toggle('open');
+        saveAccordionState();
+      }
+
+      // Function to save accordion state
+      function saveAccordionState() {
+        localStorage.setItem('newsAccordionOpen', accordion.classList.contains('open'));
+        localStorage.setItem('lastNewsTimestamp', accordion.dataset.latestTimestamp);
+      }
+
+      // Function to load accordion state
+      function loadAccordionState() {
+        const isOpen = localStorage.getItem('newsAccordionOpen');
+        const lastTimestamp = localStorage.getItem('lastNewsTimestamp');
+        const latestNewsTimestamp = accordion.dataset.latestTimestamp;
+
+        // Open accordion if no localStorage key exists or if there's new news
+        if (isOpen === null || (lastTimestamp && latestNewsTimestamp > lastTimestamp)) {
+          accordion.classList.add('open');
+        } else if (isOpen === 'true') {
+          accordion.classList.add('open');
+        }
+      }
+
+      // Add click event listener to header
+      if (accordionHeader) {
+        accordionHeader.addEventListener('click', toggleAccordion);
+      }
+
+      // Load initial state
+      loadAccordionState();
+    })
+    .catch(error => {
+      console.error('Error loading news widget:', error);
+    });
+});
+    `);
+  } catch (error) {
+    logger.error('Error generating initial data:', error);
+    res.status(500).type('application/javascript').send('console.error("Failed to load initial data");');
+  }
+});
+
+// Save push notification subscription (migrated from save-subscription.php)
+app.post('/api/push-subscription', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const payload = verifyJWT(token);
+
+    if (!payload || !payload.user_id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { endpoint, expirationTime, keys } = req.body;
+    const { p256dh, auth } = keys || {};
+
+    if (!endpoint || !p256dh || !auth) {
+      return res.status(400).json({ error: 'Missing subscription data' });
+    }
+
+    await pool.query(
+      `INSERT INTO subscribers (user_id, endpoint, expiration_time, p256dh, auth)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (endpoint) DO UPDATE
+       SET expiration_time = EXCLUDED.expiration_time,
+           p256dh = EXCLUDED.p256dh,
+           auth = EXCLUDED.auth`,
+      [payload.user_id, endpoint, expirationTime, p256dh, auth]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error saving subscription:', error);
+    res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+// Send push notification (migrated from send-notification.php)
+app.post('/api/send-notification', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const payload = verifyJWT(token);
+
+    // Only admin can send notifications
+    if (!payload || payload.user_role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: Admin access required' });
+    }
+
+    const { title, body } = req.body;
+
+    if (!title || !body) {
+      return res.status(400).json({ error: 'Title and body are required' });
+    }
+
+    // Note: Web-push functionality requires additional npm package
+    // For now, just save to database or return success
+    // Install with: npm install web-push
+
+    try {
+      const webpush = require('web-push');
+
+      // VAPID keys
+      const vapidPublicKey = 'BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE';
+      const vapidPrivateKey = process.env.VAPID_PRIVATE;
+
+      if (!vapidPrivateKey) {
+        return res.status(500).json({ error: 'VAPID private key is not set' });
+      }
+
+      webpush.setVapidDetails(
+        'mailto:info@christiansabourin.com',
+        vapidPublicKey,
+        vapidPrivateKey
+      );
+
+      // Fetch all subscribers
+      const subscribersResult = await pool.query('SELECT * FROM subscribers');
+      const subscribers = subscribersResult.rows;
+
+      if (subscribers.length === 0) {
+        return res.json({ success: true, message: 'No subscribers found' });
+      }
+
+      const notificationPayload = JSON.stringify({
+        title,
+        body,
+        options: {
+          body,
+          tag: 'renotify',
+          renotify: true,
+          requireInteraction: true
+        }
+      });
+
+      // Send notifications to all subscribers
+      const promises = subscribers.map(subscriber => {
+        const pushSubscription = {
+          endpoint: subscriber.endpoint,
+          keys: {
+            p256dh: subscriber.p256dh,
+            auth: subscriber.auth
+          }
+        };
+
+        return webpush.sendNotification(pushSubscription, notificationPayload)
+          .catch(error => {
+            logger.error(`Failed to send notification to ${subscriber.endpoint}:`, error);
+          });
+      });
+
+      await Promise.all(promises);
+
+      res.json({ success: true });
+    } catch (error) {
+      if (error.code === 'MODULE_NOT_FOUND') {
+        logger.warn('web-push not installed. Install with: npm install web-push');
+        res.json({ success: false, message: 'Web push not configured. Install web-push package.' });
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    logger.error('Error sending notification:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// MAIN API ENDPOINT
+// ============================================
+
 app.get('/api', [
   check('action').isString().notEmpty(),
 ], async (req, res, next) => {
@@ -118,17 +579,18 @@ app.get('/api', [
   const client = await pool.connect();
 
   try {
+    // Get organization ID once for the entire request
+    const organizationId = await getCurrentOrganizationId(req);
+
     switch (action) {
       case 'get_organization_id':
-        const organizationId = getCurrentOrganizationId();
         jsonResponse(res, true, { organizationId });
         break;
 
       case 'get_form_types':
-        const orgIdForFormTypes = getCurrentOrganizationId();
         const formTypesResult = await client.query(
           "SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = $1 AND display_type = 'public'",
-          [orgIdForFormTypes]
+          [organizationId]
         );
         jsonResponse(res, true, formTypesResult.rows.map(row => row.form_type));
         break;
@@ -140,7 +602,7 @@ app.get('/api', [
         } else {
           const formStructureResult = await client.query(
             "SELECT form_structure FROM organization_form_formats WHERE form_type = $1 AND organization_id = $2",
-            [formType, getCurrentOrganizationId()]
+            [formType, organizationId]
           );
           if (formStructureResult.rows.length > 0) {
             jsonResponse(res, true, JSON.parse(formStructureResult.rows[0].form_structure));
@@ -158,7 +620,7 @@ app.get('/api', [
         } else if (participantId) {
           const formSubmissionsResult = await client.query(
             "SELECT submission_data FROM form_submissions WHERE participant_id = $1 AND form_type = $2 AND organization_id = $3",
-            [participantId, formTypeForSubmissions, getCurrentOrganizationId()]
+            [participantId, formTypeForSubmissions, organizationId]
           );
           if (formSubmissionsResult.rows.length > 0) {
             jsonResponse(res, true, JSON.parse(formSubmissionsResult.rows[0].submission_data));
@@ -168,7 +630,7 @@ app.get('/api', [
         } else {
           const allFormSubmissionsResult = await client.query(
             "SELECT fs.participant_id, fs.submission_data, p.first_name, p.last_name FROM form_submissions fs JOIN participant_organizations po ON fs.participant_id = po.participant_id JOIN participants p ON fs.participant_id = p.id WHERE po.organization_id = $1 AND fs.form_type = $2",
-            [getCurrentOrganizationId(), formTypeForSubmissions]
+            [organizationId, formTypeForSubmissions]
           );
           jsonResponse(res, true, allFormSubmissionsResult.rows.map(row => ({
             participant_id: row.participant_id,
@@ -180,13 +642,12 @@ app.get('/api', [
         break;
 
       case 'get_reunion_dates':
-        const orgIdForReunion = getCurrentOrganizationId();
         const datesResult = await client.query(
-          `SELECT DISTINCT date 
-           FROM reunion_preparations 
-           WHERE organization_id = $1 
+          `SELECT DISTINCT date
+           FROM reunion_preparations
+           WHERE organization_id = $1
            ORDER BY date DESC`,
-          [orgIdForReunion]
+          [organizationId]
         );
         jsonResponse(res, true, datesResult.rows.map(row => row.date));
         break;
@@ -234,7 +695,6 @@ app.get('/api', [
 
       case 'update_points':
         const updates = req.body;
-        const orgIdForPoints = getCurrentOrganizationId();
         const responses = [];
 
         try {
@@ -243,32 +703,32 @@ app.get('/api', [
           for (const update of updates) {
             if (update.type === 'group') {
               await client.query(
-                `INSERT INTO points (participant_id, group_id, value, created_at, organization_id) 
+                `INSERT INTO points (participant_id, group_id, value, created_at, organization_id)
                  VALUES (NULL, $1, $2, $3, $4)`,
-                [update.id, update.points, update.timestamp, orgIdForPoints]
+                [update.id, update.points, update.timestamp, organizationId]
               );
 
               const membersResult = await client.query(
-                `SELECT p.id 
+                `SELECT p.id
                  FROM participants p
                  JOIN participant_groups pg ON p.id = pg.participant_id
                  WHERE pg.group_id = $1 AND pg.organization_id = $2`,
-                [update.id, orgIdForPoints]
+                [update.id, organizationId]
               );
 
               for (const member of membersResult.rows) {
                 await client.query(
-                  `INSERT INTO points (participant_id, group_id, value, created_at, organization_id) 
+                  `INSERT INTO points (participant_id, group_id, value, created_at, organization_id)
                    VALUES ($1, NULL, $2, $3, $4)`,
-                  [member.id, update.points, update.timestamp, orgIdForPoints]
+                  [member.id, update.points, update.timestamp, organizationId]
                 );
               }
 
               const groupTotalResult = await client.query(
-                `SELECT COALESCE(SUM(value), 0) as total_points 
-                 FROM points 
+                `SELECT COALESCE(SUM(value), 0) as total_points
+                 FROM points
                  WHERE group_id = $1 AND participant_id IS NULL AND organization_id = $2`,
-                [update.id, orgIdForPoints]
+                [update.id, organizationId]
               );
 
               responses.push({
@@ -279,16 +739,16 @@ app.get('/api', [
               });
             } else {
               await client.query(
-                `INSERT INTO points (participant_id, group_id, value, created_at, organization_id) 
+                `INSERT INTO points (participant_id, group_id, value, created_at, organization_id)
                  VALUES ($1, NULL, $2, $3, $4)`,
-                [update.id, update.points, update.timestamp, orgIdForPoints]
+                [update.id, update.points, update.timestamp, organizationId]
               );
 
               const individualTotalResult = await client.query(
-                `SELECT COALESCE(SUM(value), 0) as total_points 
-                 FROM points 
+                `SELECT COALESCE(SUM(value), 0) as total_points
+                 FROM points
                  WHERE participant_id = $1 AND organization_id = $2`,
-                [update.id, orgIdForPoints]
+                [update.id, organizationId]
               );
 
               responses.push({
@@ -399,7 +859,7 @@ app.get('/api', [
 
             const customFormFormatResult = await client.query(
               "SELECT form_structure FROM organization_form_formats WHERE form_type = 'parent_guardian' AND organization_id = $1",
-              [getCurrentOrganizationId()]
+              [organizationId]
             );
             const customFormFormat = customFormFormatResult.rows[0]?.form_structure;
 
@@ -426,7 +886,7 @@ app.get('/api', [
            JOIN participant_organizations po ON p.id = po.participant_id
            WHERE po.organization_id = $1
            ORDER BY p.date_naissance ASC, p.last_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, participantsResult.rows);
         break;
@@ -446,7 +906,7 @@ app.get('/api', [
            JOIN form_submissions fs2 ON fs2.participant_id = p.id AND fs2.form_type = 'participant_registration'
            JOIN participant_organizations po ON po.participant_id = p.id
            WHERE po.organization_id = $1`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, healthReportResult.rows);
         break;
@@ -459,7 +919,7 @@ app.get('/api', [
            WHERE uo.organization_id = $1
            AND u.email IS NOT NULL 
            AND u.email != ''`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         const usersEmails = usersEmailsResult.rows;
 
@@ -491,7 +951,7 @@ app.get('/api', [
            AND (fs.submission_data->>'guardian_courriel_1') != ''
            AND fs.organization_id = $1
            GROUP BY fs.submission_data->>'guardian_courriel_1'`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         const parentEmails = parentEmailsResult.rows;
 
@@ -506,7 +966,7 @@ app.get('/api', [
            WHERE (fs.submission_data->>'courriel') IS NOT NULL 
            AND (fs.submission_data->>'courriel') != ''
            AND fs.organization_id = $1`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         const participantEmails = participantEmailsResult.rows.map(row => row.courriel);
 
@@ -525,7 +985,7 @@ app.get('/api', [
         break;
 
       case 'get_organization_form_formats':
-        const orgIdForFormats = req.query.organization_id || getCurrentOrganizationId();
+        const orgIdForFormats = req.query.organization_id || organizationId;
         const formFormatsResult = await client.query(
           `SELECT form_type, form_structure 
            FROM organization_form_formats 
@@ -554,7 +1014,7 @@ app.get('/api', [
            WHERE uo.organization_id = $1 
            AND uo.role IN ('animation')
            ORDER BY u.full_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, animateursResult.rows);
         break;
@@ -567,7 +1027,7 @@ app.get('/api', [
            WHERE h.date = (SELECT MAX(h2.date) FROM honors h2 WHERE h2.organization_id = $1) 
            AND h.organization_id = $1
            ORDER BY h.date DESC`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, recentHonorsResult.rows);
         break;
@@ -587,7 +1047,7 @@ app.get('/api', [
           `SELECT * FROM rappel_reunion 
            WHERE organization_id = $1 
            ORDER BY creation_time DESC LIMIT 1`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         if (reminderResult.rows.length > 0) {
           jsonResponse(res, true, reminderResult.rows[0]);
@@ -635,7 +1095,7 @@ app.get('/api', [
           `SELECT setting_key, setting_value 
            FROM organization_settings 
            WHERE organization_id = $1`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         const settings = settingsResult.rows.reduce((acc, setting) => {
           const decodedValue = JSON.parse(setting.setting_value);
@@ -652,7 +1112,7 @@ app.get('/api', [
            FROM organization_settings 
            WHERE setting_key = 'registration_password' 
            AND organization_id = $1`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         const correctPassword = correctPasswordResult.rows[0]?.setting_value;
 
@@ -671,7 +1131,7 @@ app.get('/api', [
               INSERT INTO participant_organizations (participant_id, organization_id) 
               VALUES ${link_children.map((_, index) => `($${index * 2 + 1}, $${index * 2 + 2})`).join(', ')}
             `;
-            const linkChildrenValues = link_children.flatMap(childId => [childId, getCurrentOrganizationId()]);
+            const linkChildrenValues = link_children.flatMap(childId => [childId, organizationId]);
             await client.query(linkChildrenQuery, linkChildrenValues);
           }
 
@@ -703,7 +1163,7 @@ app.get('/api', [
            WHERE po.organization_id = $1
            OR p.id IN (SELECT participant_id FROM calendars WHERE organization_id = $1)
            ORDER BY p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, calendarsResult.rows);
         break;
@@ -715,7 +1175,7 @@ app.get('/api', [
            VALUES ($1, $2, $3, FALSE, $4)
            ON CONFLICT (participant_id, organization_id) 
            DO UPDATE SET amount = EXCLUDED.amount, amount_paid = EXCLUDED.amount_paid, updated_at = CURRENT_TIMESTAMP`,
-          [participantIdCal, amount, amount_paid || 0, getCurrentOrganizationId()]
+          [participantIdCal, amount, amount_paid || 0, organizationId]
         );
         jsonResponse(res, true, null, 'Calendar updated successfully');
         break;
@@ -726,7 +1186,7 @@ app.get('/api', [
           `UPDATE calendars
            SET amount_paid = $1, updated_at = CURRENT_TIMESTAMP
            WHERE participant_id = $2 AND organization_id = $3`,
-          [amountPaidUpdate, participantIdAmountPaid, getCurrentOrganizationId()]
+          [amountPaidUpdate, participantIdAmountPaid, organizationId]
         );
         jsonResponse(res, true, null, 'Calendar amount paid updated successfully');
         break;
@@ -736,7 +1196,7 @@ app.get('/api', [
         await client.query(
           `INSERT INTO guests (name, email, attendance_date, organization_id)
            VALUES ($1, $2, $3, $4)`,
-          [name, email, attendance_date, getCurrentOrganizationId()]
+          [name, email, attendance_date, organizationId]
         );
         jsonResponse(res, true, null, 'Guest added successfully');
         break;
@@ -745,7 +1205,7 @@ app.get('/api', [
         const dateForGuests = req.query.date || new Date().toISOString().split('T')[0];
         const guestsResult = await client.query(
           `SELECT * FROM guests WHERE attendance_date = $1 AND organization_id = $2`,
-          [dateForGuests, getCurrentOrganizationId()]
+          [dateForGuests, organizationId]
         );
         jsonResponse(res, true, guestsResult.rows);
         break;
@@ -770,7 +1230,7 @@ app.get('/api', [
            FROM attendance 
            WHERE date <= CURRENT_DATE AND organization_id = $1
            ORDER BY date DESC`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, attendanceDatesResult.rows.map(row => row.date));
         break;
@@ -781,7 +1241,7 @@ app.get('/api', [
            FROM honors 
            WHERE organization_id = $1
            ORDER BY date DESC`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, availableDatesResult.rows.map(row => row.date));
         break;
@@ -799,7 +1259,7 @@ app.get('/api', [
           await client.query(
             `DELETE FROM groups 
              WHERE id = $1 AND organization_id = $2`,
-            [group_id, getCurrentOrganizationId()]
+            [group_id, organizationId]
           );
           await client.query('COMMIT');
           jsonResponse(res, true, null, 'Group removed successfully');
@@ -836,7 +1296,7 @@ app.get('/api', [
           LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
           WHERE po.organization_id = $1
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, healthContactReportResult.rows);
         break;
@@ -850,7 +1310,7 @@ app.get('/api', [
            FROM attendance
            WHERE date BETWEEN $1 AND $2
            AND organization_id = $3`,
-          [startDate, endDate, getCurrentOrganizationId()]
+          [startDate, endDate, organizationId]
         );
         const totalDays = totalDaysResult.rows[0].total_days;
 
@@ -887,7 +1347,7 @@ app.get('/api', [
           LEFT JOIN attendance_data a ON p.id = a.id
           GROUP BY p.id, p.first_name, p.last_name, g.name
           ORDER BY g.name, p.last_name, p.first_name`,
-          [startDate, endDate, getCurrentOrganizationId()]
+          [startDate, endDate, organizationId]
         );
 
         jsonResponse(res, true, {
@@ -913,7 +1373,7 @@ app.get('/api', [
           WHERE fs.form_type = 'fiche_sante'
           AND (fs.submission_data->>'allergie' IS NOT NULL AND fs.submission_data->>'allergie' != '')
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, allergiesReportResult.rows);
         break;
@@ -932,7 +1392,7 @@ app.get('/api', [
           WHERE fs.form_type = 'fiche_sante'
           AND (fs.submission_data->>'medicament' IS NOT NULL AND fs.submission_data->>'medicament' != '')
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, medicationReportResult.rows);
         break;
@@ -950,7 +1410,7 @@ app.get('/api', [
           JOIN participant_organizations po ON po.organization_id = $1 AND po.participant_id = p.id
           WHERE fs.form_type = 'fiche_sante'
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, vaccineReportResult.rows);
         break;
@@ -968,7 +1428,7 @@ app.get('/api', [
           JOIN participant_organizations po ON po.organization_id = $1 AND po.participant_id = p.id
           WHERE fs.form_type = 'participant_registration'
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, leaveAloneReportResult.rows);
         break;
@@ -986,7 +1446,7 @@ app.get('/api', [
           JOIN participant_organizations po ON po.organization_id = $1 AND po.participant_id = p.id
           WHERE fs.form_type = 'participant_registration'
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, mediaAuthorizationReportResult.rows);
         break;
@@ -1006,7 +1466,7 @@ app.get('/api', [
           JOIN participant_organizations po ON po.organization_id = $1 AND po.participant_id = p.id
           WHERE (fs_fiche.id IS NULL OR fs_risque.id IS NULL)
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         const missingDocuments = missingDocumentsReportResult.rows.map(row => ({
           ...row,
@@ -1028,7 +1488,7 @@ app.get('/api', [
           JOIN participant_organizations po ON po.organization_id = $1 AND po.participant_id = p.id
           GROUP BY p.id, g.name
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         jsonResponse(res, true, honorsReportResult.rows);
         break;
@@ -1046,7 +1506,7 @@ app.get('/api', [
           JOIN participant_organizations po ON po.organization_id = $1 AND po.participant_id = p.id
           GROUP BY g.id, p.id
           ORDER BY g.name, p.last_name, p.first_name`,
-          [getCurrentOrganizationId()]
+          [organizationId]
         );
         const groupedPoints = pointsReportResult.rows.reduce((acc, row) => {
           if (!acc[row.group_name]) {
@@ -1211,12 +1671,11 @@ app.get('/api', [
 
       case 'get_badge_progress':
         const participantIdForBadge = req.query.participant_id;
-        const orgIdForBadge = getCurrentOrganizationId();
 
         if (participantIdForBadge) {
           const badgeProgressResult = await client.query(
             `SELECT * FROM badge_progress WHERE participant_id = $1 AND organization_id = $2`,
-            [participantIdForBadge, orgIdForBadge]
+            [participantIdForBadge, organizationId]
           );
           jsonResponse(res, true, badgeProgressResult.rows);
         } else {
