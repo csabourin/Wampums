@@ -30,11 +30,25 @@ app.use(helmet({
 app.use(cors());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 
+// Determine if we're in production mode
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Serve static files
-app.use(express.static(path.join(__dirname), {
+// In production, serve from dist folder (Vite build output)
+// In development, serve from root (Vite dev server handles the rest)
+const staticDir = isProduction ? path.join(__dirname, 'dist') : __dirname;
+
+console.log(`Serving static files from: ${staticDir}`);
+console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
+
+app.use(express.static(staticDir, {
   setHeaders: (res, filepath) => {
-    // Cache static assets for 1 hour
-    if (filepath.endsWith('.js') || filepath.endsWith('.css') || filepath.endsWith('.png') || filepath.endsWith('.jpg')) {
+    // Aggressive caching for production builds (1 year for hashed files)
+    if (isProduction && (filepath.includes('-') && (filepath.endsWith('.js') || filepath.endsWith('.css')))) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    // Moderate caching for other assets
+    else if (filepath.endsWith('.js') || filepath.endsWith('.css') || filepath.endsWith('.png') || filepath.endsWith('.jpg') || filepath.endsWith('.webp')) {
       res.setHeader('Cache-Control', 'public, max-age=3600');
     }
   }
@@ -147,7 +161,10 @@ app.use((err, req, res, next) => {
 
 // Serve index.html for root route
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  const indexPath = isProduction
+    ? path.join(__dirname, 'dist', 'index.html')
+    : path.join(__dirname, 'index.html');
+  res.sendFile(indexPath);
 });
 
 // Get translations (migrated from get_translations.php)

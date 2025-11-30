@@ -1,39 +1,47 @@
 //router.js
-import { Dashboard } from "./dashboard.js";
-import { ParentDashboard } from "./parent_dashboard.js";
-import { Login } from "./login.js";
-import { FormulaireInscription } from "./formulaire_inscription.js";
-import { ManagePoints } from "./manage_points.js";
-import { Attendance } from "./attendance.js";
-import { ManageHonors } from "./manage_honors.js";
-import { ManageParticipants } from "./manage_participants.js";
-import { ManageUsersParticipants } from "./manage_users_participants.js";
-import { ManageGroups } from "./manage_groups.js";
-import { ViewParticipantDocuments } from "./view_participant_documents.js";
-import { ParentContactList } from "./parent_contact_list.js";
-import { ApproveBadges } from "./approve_badges.js";
-import { FicheSante } from "./fiche_sante.js";
-import { AcceptationRisque } from "./acceptation_risque.js";
-import { BadgeForm } from "./badge_form.js";
-import { Register } from "./register.js";
-import { Admin } from "./admin.js";
-import { MailingList } from "./mailing_list.js";
-import { Calendars } from './calendars.js';
-import {ResetPassword} from './reset_password.js';
-import { DynamicFormHandler } from "./dynamicFormHandler.js";
-import { Reports } from "./reports.js";
-import { PreparationReunions } from './preparation_reunions.js';
-import { RegisterOrganization } from './register_organization.js';
-import { CreateOrganization } from './create_organization.js';
-import { PrintableGroupParticipantReport } from './group-participant-report.js';
-import { UpcomingMeeting } from './upcoming_meeting.js';
 
+// Critical imports - loaded immediately (core functionality)
+import { Dashboard } from "./dashboard.js";
+import { Login } from "./login.js";
+
+// Lazy-loaded modules - loaded on demand for better performance
+// These will be dynamically imported when the route is accessed
+const lazyModules = {
+  ParentDashboard: () => import('./parent_dashboard.js').then(m => m.ParentDashboard),
+  FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
+  ManagePoints: () => import('./manage_points.js').then(m => m.ManagePoints),
+  Attendance: () => import('./attendance.js').then(m => m.Attendance),
+  ManageHonors: () => import('./manage_honors.js').then(m => m.ManageHonors),
+  ManageParticipants: () => import('./manage_participants.js').then(m => m.ManageParticipants),
+  ManageUsersParticipants: () => import('./manage_users_participants.js').then(m => m.ManageUsersParticipants),
+  ManageGroups: () => import('./manage_groups.js').then(m => m.ManageGroups),
+  ViewParticipantDocuments: () => import('./view_participant_documents.js').then(m => m.ViewParticipantDocuments),
+  ParentContactList: () => import('./parent_contact_list.js').then(m => m.ParentContactList),
+  ApproveBadges: () => import('./approve_badges.js').then(m => m.ApproveBadges),
+  FicheSante: () => import('./fiche_sante.js').then(m => m.FicheSante),
+  AcceptationRisque: () => import('./acceptation_risque.js').then(m => m.AcceptationRisque),
+  BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
+  Register: () => import('./register.js').then(m => m.Register),
+  Admin: () => import('./admin.js').then(m => m.Admin),
+  MailingList: () => import('./mailing_list.js').then(m => m.MailingList),
+  Calendars: () => import('./calendars.js').then(m => m.Calendars),
+  ResetPassword: () => import('./reset_password.js').then(m => m.ResetPassword),
+  DynamicFormHandler: () => import('./dynamicFormHandler.js').then(m => m.DynamicFormHandler),
+  Reports: () => import('./reports.js').then(m => m.Reports),
+  PreparationReunions: () => import('./preparation_reunions.js').then(m => m.PreparationReunions),
+  RegisterOrganization: () => import('./register_organization.js').then(m => m.RegisterOrganization),
+  CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
+  PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
+  UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting)
+};
+
+// Cache for loaded modules
+const moduleCache = {};
 
 const debugMode =
+  import.meta.env?.DEV ||
   window.location.hostname === "localhost" ||
-  window.location.hostname.includes("replit.dev")
-    ? true
-    : false;
+  window.location.hostname.includes("replit.dev");
 
 function debugLog(...args) {
   if (debugMode) {
@@ -305,12 +313,31 @@ export class Router {
     document.getElementById("app").innerHTML = "<h1>403 - Accès interdit</h1>";
   }
 
+  // Helper method to lazy-load and cache modules
+  async loadModule(moduleName, ...args) {
+    // Check cache first
+    if (moduleCache[moduleName]) {
+      return moduleCache[moduleName];
+    }
+
+    // Load the module dynamically
+    if (lazyModules[moduleName]) {
+      const ModuleClass = await lazyModules[moduleName]();
+      moduleCache[moduleName] = ModuleClass;
+      return ModuleClass;
+    }
+
+    throw new Error(`Module ${moduleName} not found`);
+  }
+
   async loadParentDashboard() {
+    const ParentDashboard = await this.loadModule('ParentDashboard');
     const parentDashboard = new ParentDashboard(this.app);
     await parentDashboard.init();
   }
 
   async loadManagePoints() {
+    const ManagePoints = await this.loadModule('ManagePoints');
     const managePoints = new ManagePoints(this.app);
     await managePoints.init();
   }

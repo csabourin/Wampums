@@ -35,12 +35,11 @@
         You are offline
     </div>
 
-    <!-- Initial data script will be injected by /api/initial-data -->
-    <script type="module" src="/api/initial-data"></script>
+    <!-- App will load initial data via API call -->
     <script type="module" defer src="/spa/app.js"></script>
     <script type="module" defer src="/spa/init-activity-widget.js"></script>
     <!-- Clarity tracking code -->
-    <script async src="/spa/clarity-init.js"></script>
+    <script type="module" async src="/spa/clarity-init.js"></script>
     <a href="/politique-de-confidentialite.html" target="_blank" class="privacy-policy-link">Politique de confidentialité</a>
     <div id="loading-indicator" class="hidden">
         Loading...

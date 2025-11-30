@@ -35,6 +35,13 @@ composer.phar
 # /composer.lock
 /fuel/vendor
 .env
+.env.local
+.env.development
+.env.production
+
+# Vite build output
+/dist/
+.vite/
 
 # the fuelphp document
 /docs/

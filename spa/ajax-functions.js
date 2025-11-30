@@ -9,9 +9,15 @@ import {
 
 // Configuration
 const CONFIG = {
-    debugMode: window.location.hostname === "wampums-1.test" || 
+    // Use Vite environment variables if available, otherwise use window.location.origin
+    debugMode: import.meta.env?.VITE_DEBUG_MODE === 'true' ||
+               import.meta.env?.DEV ||
+               window.location.hostname === "localhost" ||
                window.location.hostname.includes("replit.dev"),
-    API_BASE_URL: null, // Will be set based on debugMode
+
+    // API_BASE_URL comes from environment or defaults to current origin
+    API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
+
     CACHE_DURATION: {
         SHORT: 5 * 60 * 1000,      // 5 minutes
         MEDIUM: 30 * 60 * 1000,    // 30 minutes
@@ -19,12 +25,8 @@ const CONFIG = {
     }
 };
 
-// Set API base URL based on environment
-CONFIG.API_BASE_URL = CONFIG.debugMode ? 
-    'https://162358f6-6bee-4b82-a3b9-1c24a44398c5-00-2jk4jbmfbs2yj.worf.replit.dev/' : 
-    'https://wampums-api.replit.app';
-
 console.log('API_BASE_URL:', CONFIG.API_BASE_URL);
+console.log('Debug Mode:', CONFIG.debugMode);
 
 // Utility Functions
 // Fix the getCurrentOrganizationId function to handle object returns
