@@ -824,7 +824,8 @@ app.get('/api/participants', async (req, res) => {
     
     const result = await pool.query(
       `SELECT p.id as participant_id, p.first_name, p.last_name,
-              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+              COALESCE((SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1), 0) as total_points
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -858,7 +859,7 @@ app.get('/api/get_groups', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     
     const result = await pool.query(
-      `SELECT id, name, color FROM groups WHERE organization_id = $1 ORDER BY name`,
+      `SELECT id, name FROM groups WHERE organization_id = $1 ORDER BY name`,
       [organizationId]
     );
     
@@ -1093,6 +1094,379 @@ app.post('/api/update-points', async (req, res) => {
     }
   } catch (error) {
     logger.error('Error updating points:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get reunion dates (for upcoming meeting)
+app.get('/api/reunion-dates', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT DISTINCT date FROM reunion_preparations WHERE organization_id = $1 ORDER BY date DESC`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      dates: result.rows.map(row => row.date)
+    });
+  } catch (error) {
+    logger.error('Error fetching reunion dates:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get attendance dates
+app.get('/api/attendance-dates', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT DISTINCT date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      dates: result.rows.map(row => row.date)
+    });
+  } catch (error) {
+    logger.error('Error fetching attendance dates:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get participant details
+app.get('/api/participant-details', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const participantId = req.query.participant_id;
+    
+    if (participantId) {
+      const result = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+                pg.group_id, g.name as group_name
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         WHERE po.organization_id = $1 AND p.id = $2`,
+        [organizationId, participantId]
+      );
+      
+      if (result.rows.length > 0) {
+        res.json({ success: true, participant: result.rows[0] });
+      } else {
+        res.status(404).json({ success: false, message: 'Participant not found' });
+      }
+    } else {
+      const result = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+                (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'fiche_sante') > 0 as has_fiche_sante,
+                (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'acceptation_risque') > 0 as has_acceptation_risque
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         WHERE po.organization_id = $1
+         ORDER BY p.first_name, p.last_name`,
+        [organizationId]
+      );
+      
+      res.json({ success: true, participants: result.rows });
+    }
+  } catch (error) {
+    logger.error('Error fetching participant details:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get mailing list
+app.get('/api/mailing-list', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT DISTINCT pg.courriel as email, pg.nom, pg.prenom, p.first_name as participant_first_name, p.last_name as participant_last_name
+       FROM parents_guardians pg
+       JOIN participants p ON pg.participant_id = p.id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE po.organization_id = $1 AND pg.courriel IS NOT NULL AND pg.courriel != ''
+       ORDER BY pg.nom, pg.prenom`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      contacts: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching mailing list:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get calendars
+app.get('/api/calendars', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT c.participant_id, c.amount, c.amount_paid, c.paid, c.updated_at,
+              p.first_name, p.last_name, g.name as group_name
+       FROM calendars c
+       JOIN participants p ON c.participant_id = p.id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE c.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      calendars: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching calendars:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get next meeting info
+app.get('/api/next-meeting-info', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const today = new Date().toISOString().split('T')[0];
+    
+    const result = await pool.query(
+      `SELECT date, animateur_responsable, louveteau_dhonneur, endroit, activities, notes
+       FROM reunion_preparations
+       WHERE organization_id = $1 AND date >= $2
+       ORDER BY date ASC
+       LIMIT 1`,
+      [organizationId, today]
+    );
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, meeting: result.rows[0] });
+    } else {
+      res.json({ success: true, meeting: null, message: 'No upcoming meetings found' });
+    }
+  } catch (error) {
+    logger.error('Error fetching next meeting info:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get animateurs (for reunion preparation)
+app.get('/api/animateurs', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT u.id, u.full_name
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1 AND uo.role IN ('admin', 'animation')
+       ORDER BY u.full_name`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      animateurs: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching animateurs:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get parent contact list
+app.get('/api/parent-contact-list', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT p.id as participant_id, p.first_name, p.last_name, g.name as group_name,
+              pg_contact.id as guardian_id, pg_contact.nom, pg_contact.prenom, pg_contact.lien,
+              pg_contact.courriel, pg_contact.telephone_residence, pg_contact.telephone_travail,
+              pg_contact.telephone_cellulaire, pg_contact.is_emergency_contact
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pgrp ON p.id = pgrp.participant_id AND pgrp.organization_id = $1
+       LEFT JOIN groups g ON pgrp.group_id = g.id
+       LEFT JOIN parents_guardians pg_contact ON p.id = pg_contact.participant_id
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name, pg_contact.is_primary DESC`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      contacts: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching parent contact list:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get users (for admin)
+app.get('/api/users', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = req.query.organization_id || await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.is_verified, uo.role, uo.approved
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1
+       ORDER BY u.full_name`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      users: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching users:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get participants with users (for managing user assignments)
+app.get('/api/participants-with-users', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, 
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+              u.id as user_id, u.email as user_email, u.full_name as user_full_name
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       LEFT JOIN user_participants up ON p.id = up.participant_id
+       LEFT JOIN users u ON up.user_id = u.id
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      participants: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching participants with users:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get parent users
+app.get('/api/parent-users', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.full_name
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1 AND uo.role = 'parent'
+       ORDER BY u.full_name`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      users: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching parent users:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
