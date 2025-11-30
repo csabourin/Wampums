@@ -20,7 +20,7 @@ composer.phar
 
 /logs/*
 !/logs/empty
-.log
+*.log
 
 # CakePHP 2
 
