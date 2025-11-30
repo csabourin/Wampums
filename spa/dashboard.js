@@ -32,6 +32,7 @@ export class Dashboard {
     try {
       // Fetch all organization settings
       const response = await getOrganizationSettings();
+      console.log("Organization settings response:", response);
 
       // Handle different response structures (response.data.organization_info or response.organization_info)
       const organizationInfo = response?.data?.organization_info || response?.organization_info;
@@ -42,11 +43,11 @@ export class Dashboard {
         this.organizationLogo = organizationInfo.logo;
       } else {
         console.error("Invalid organization info response:", response);
-        this.organizationName = translate("organization_name_default") || "Scouts";
+        this.organizationName = "Scouts";
       }
     } catch (error) {
       console.error("Error fetching organization info:", error);
-      this.organizationName = translate("organization_name_default") || "Scouts";
+      this.organizationName = "Scouts";
     }
   }
 

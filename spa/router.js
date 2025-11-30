@@ -146,6 +146,7 @@ export class Router {
           }
           break;
           case 'PrintableGroupParticipantReport':
+          const PrintableGroupParticipantReport = await this.loadModule('PrintableGroupParticipantReport');
           const report = new PrintableGroupParticipantReport(this.app);
           await report.init();
           break;
@@ -167,6 +168,7 @@ export class Router {
           if (this.app.userRole !== "admin") {
               this.loadNotAuthorizedPage();
           } else {
+              const CreateOrganization = await this.loadModule('CreateOrganization');
               const createOrganization = new CreateOrganization(this.app);
               await createOrganization.init();
           }
@@ -187,6 +189,7 @@ export class Router {
           }
           break;
           case "registerOrganization":
+          const RegisterOrganization = await this.loadModule('RegisterOrganization');
           const registerOrganization = new RegisterOrganization(this.app);
           await registerOrganization.init();
           break;
@@ -280,12 +283,14 @@ export class Router {
   }
 
   async loadDynamicForm(formType, participantId) {
+    const DynamicFormHandler = await this.loadModule('DynamicFormHandler');
     const dynamicFormHandler = new DynamicFormHandler(this.app);
     await dynamicFormHandler.init(formType, participantId);
   }
 
   async loadCalendarsPage() {
-    const calendars= new Calendars(this.app);
+    const Calendars = await this.loadModule('Calendars');
+    const calendars = new Calendars(this.app);
     await calendars.init();
   }
 
@@ -305,6 +310,7 @@ export class Router {
   }
 
   async loadAdminPage() {
+    const Admin = await this.loadModule('Admin');
     const admin = new Admin(this.app);
     await admin.init();
   }
@@ -343,11 +349,13 @@ export class Router {
   }
 
   async loadBadgeForm(participantId) {
+    const BadgeForm = await this.loadModule('BadgeForm');
     const badgeForm = new BadgeForm(this.app);
     await badgeForm.init(participantId);
   }
 
   async loadAttendance() {
+    const Attendance = await this.loadModule('Attendance');
     const attendance = new Attendance(this.app);
     await attendance.init();
   }
@@ -358,26 +366,31 @@ export class Router {
   }
 
   async loadReports() {
+    const Reports = await this.loadModule('Reports');
     const reports = new Reports(this.app);
     await reports.init();
   }
 
   async loadUpcomingMeeting(){
+    const UpcomingMeeting = await this.loadModule('UpcomingMeeting');
     const upcomingMeeting = new UpcomingMeeting(this.app);
     upcomingMeeting.init();
   }
 
   async loadPreparationReunions() {
+    const PreparationReunions = await this.loadModule('PreparationReunions');
     const preparationReunions = new PreparationReunions(this.app);
     await preparationReunions.init();
   }
 
   async loadManageHonors() {
+    const ManageHonors = await this.loadModule('ManageHonors');
     const manageHonors = new ManageHonors(this.app);
     await manageHonors.init();
   }
 
   async loadManageGroups() {
+    const ManageGroups = await this.loadModule('ManageGroups');
     const manageGroups = new ManageGroups(this.app);
     await manageGroups.init();
   }
@@ -385,6 +398,7 @@ export class Router {
   async loadResetPasswordPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    const ResetPassword = await this.loadModule('ResetPassword');
     const resetPassword = new ResetPassword(this.app);
     resetPassword.render(token);
   }
@@ -394,47 +408,56 @@ export class Router {
       this.route("/");
       return;
     }
+    const ManageParticipants = await this.loadModule('ManageParticipants');
     const manageParticipants = new ManageParticipants(this.app);
     await manageParticipants.init();
   }
 
   async loadFormulaireInscription(participantId = null) {
     console.log("Initializing FormulaireInscription with participantId:", participantId);
+    const FormulaireInscription = await this.loadModule('FormulaireInscription');
     const formulaireInscription = new FormulaireInscription(this.app);
     await formulaireInscription.init(participantId);
   }
 
   async loadManageUsersParticipants() {
+    const ManageUsersParticipants = await this.loadModule('ManageUsersParticipants');
     const manageUsersParticipants = new ManageUsersParticipants(this.app);
     await manageUsersParticipants.init();
   }
 
   async loadViewParticipantDocuments() {
+    const ViewParticipantDocuments = await this.loadModule('ViewParticipantDocuments');
     const viewParticipantDocuments = new ViewParticipantDocuments(this.app);
     await viewParticipantDocuments.init();
   }
 
   async loadParentContactList() {
+    const ParentContactList = await this.loadModule('ParentContactList');
     const parentContactList = new ParentContactList(this.app);
     await parentContactList.init();
   }
 
   async loadMailingList(){
+    const MailingList = await this.loadModule('MailingList');
     const mailingList = new MailingList(this.app);
     await mailingList.init();
   }
 
   async loadApproveBadges() {
+    const ApproveBadges = await this.loadModule('ApproveBadges');
     const approveBadges = new ApproveBadges(this.app);
     await approveBadges.init();
   }
 
   async loadFicheSante(participantId) {
+    const FicheSante = await this.loadModule('FicheSante');
     const ficheSante = new FicheSante(this.app);
     await ficheSante.init(participantId);
   }
 
   async loadAcceptationRisque(participantId) {
+    const AcceptationRisque = await this.loadModule('AcceptationRisque');
     const acceptationRisque = new AcceptationRisque(this.app);
     await acceptationRisque.init(participantId);
   }
@@ -448,6 +471,7 @@ export class Router {
   }
 
   async loadRegisterPage() {
+    const Register = await this.loadModule('Register');
     const register = new Register(this.app);
     register.render();
   }

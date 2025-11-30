@@ -807,6 +807,297 @@ app.post('/api/send-notification', async (req, res) => {
 });
 
 // ============================================
+// DASHBOARD API ENDPOINTS
+// ============================================
+
+// Get participants (for dashboard and manage features)
+app.get('/api/participants', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT p.id as participant_id, p.first_name, p.last_name,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      participants: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching participants:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get groups
+app.get('/api/get_groups', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT id, name, color FROM groups WHERE organization_id = $1 ORDER BY name`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      groups: result.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching groups:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get honors and participants (for manage honors)
+app.get('/api/honors', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const requestedDate = req.query.date;
+    
+    // Get participants
+    const participantsResult = await pool.query(
+      `SELECT p.id as participant_id, p.first_name, p.last_name,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE po.organization_id = $1
+       ORDER BY g.name, p.first_name`,
+      [organizationId]
+    );
+    
+    // Get honors
+    const honorsResult = await pool.query(
+      `SELECT h.id, h.participant_id, h.date
+       FROM honors h
+       JOIN participants p ON h.participant_id = p.id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE po.organization_id = $1
+       ORDER BY h.date DESC`,
+      [organizationId]
+    );
+    
+    // Get available dates (dates with honors)
+    const datesResult = await pool.query(
+      `SELECT DISTINCT date FROM honors h
+       JOIN participants p ON h.participant_id = p.id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE po.organization_id = $1
+       ORDER BY date DESC`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      participants: participantsResult.rows,
+      honors: honorsResult.rows,
+      availableDates: datesResult.rows.map(r => r.date)
+    });
+  } catch (error) {
+    logger.error('Error fetching honors:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Award honor
+app.post('/api/award-honor', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const { participant_id, date } = req.body;
+    
+    if (!participant_id || !date) {
+      return res.status(400).json({ success: false, message: 'Participant ID and date are required' });
+    }
+    
+    // Check if honor already exists for this participant on this date
+    const existingResult = await pool.query(
+      `SELECT id FROM honors WHERE participant_id = $1 AND date = $2`,
+      [participant_id, date]
+    );
+    
+    if (existingResult.rows.length > 0) {
+      // Remove existing honor (toggle off)
+      await pool.query(`DELETE FROM honors WHERE participant_id = $1 AND date = $2`, [participant_id, date]);
+      res.json({ success: true, action: 'removed' });
+    } else {
+      // Add new honor with organization_id
+      await pool.query(
+        `INSERT INTO honors (participant_id, date, organization_id) VALUES ($1, $2, $3)`,
+        [participant_id, date, organizationId]
+      );
+      res.json({ success: true, action: 'awarded' });
+    }
+  } catch (error) {
+    logger.error('Error awarding honor:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get attendance
+app.get('/api/attendance', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const requestedDate = req.query.date || new Date().toISOString().split('T')[0];
+    
+    // Get participants with attendance for the date
+    const result = await pool.query(
+      `SELECT p.id as participant_id, p.first_name, p.last_name,
+              pg.group_id, g.name as group_name,
+              a.status as attendance_status, a.date
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       LEFT JOIN attendance a ON p.id = a.participant_id AND a.date = $2 AND a.organization_id = $1
+       WHERE po.organization_id = $1
+       ORDER BY g.name, p.first_name`,
+      [organizationId, requestedDate]
+    );
+    
+    // Get all available dates
+    const datesResult = await pool.query(
+      `SELECT DISTINCT date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
+      [organizationId]
+    );
+    
+    res.json({
+      success: true,
+      participants: result.rows,
+      currentDate: requestedDate,
+      availableDates: datesResult.rows.map(r => r.date)
+    });
+  } catch (error) {
+    logger.error('Error fetching attendance:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update attendance
+app.post('/api/update-attendance', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const { participant_id, status, date } = req.body;
+    
+    if (!participant_id || !status || !date) {
+      return res.status(400).json({ success: false, message: 'Participant ID, status, and date are required' });
+    }
+    
+    // Upsert attendance record
+    await pool.query(
+      `INSERT INTO attendance (participant_id, organization_id, date, status)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (participant_id, organization_id, date)
+       DO UPDATE SET status = $4`,
+      [participant_id, organizationId, date, status]
+    );
+    
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error updating attendance:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update points
+app.post('/api/update-points', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const updates = req.body;
+    
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({ success: false, message: 'Updates must be an array' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      for (const update of updates) {
+        const { participant_id, group_id, value, reason, date } = update;
+        
+        await client.query(
+          `INSERT INTO points (participant_id, group_id, organization_id, value, reason, date)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [participant_id || null, group_id || null, organizationId, value, reason || 'Manual update', date || new Date().toISOString().split('T')[0]]
+        );
+      }
+      
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error updating points:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
 // MAIN API ENDPOINT
 // ============================================
 
