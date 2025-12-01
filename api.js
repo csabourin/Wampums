@@ -188,6 +188,32 @@ function verifyJWT(token) {
   }
 }
 
+// Helper function to verify user belongs to organization with specific role
+async function verifyOrganizationMembership(userId, organizationId, requiredRoles = null) {
+  try {
+    let query = `SELECT role FROM user_organizations 
+                 WHERE user_id = $1 AND organization_id = $2`;
+    const params = [userId, organizationId];
+    
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return { authorized: false, role: null, message: 'User not a member of this organization' };
+    }
+    
+    const userRole = result.rows[0].role;
+    
+    if (requiredRoles && !requiredRoles.includes(userRole)) {
+      return { authorized: false, role: userRole, message: 'Insufficient permissions' };
+    }
+    
+    return { authorized: true, role: userRole };
+  } catch (error) {
+    console.error('Error verifying organization membership:', error);
+    return { authorized: false, role: null, message: 'Authorization check failed' };
+  }
+}
+
 app.use((err, req, res, next) => {
   handleError(err, req, res, next);
 });
@@ -3024,6 +3050,777 @@ app.get('/api', [
     jsonResponse(res, false, null, 'Internal server error');
   } finally {
     client.release();
+  }
+});
+
+// ============================================
+// BADGE SYSTEM ENDPOINTS
+// ============================================
+
+// Get badge progress for a participant
+app.get('/api/badge-progress', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const participantId = req.query.participant_id;
+    
+    if (!participantId) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+    
+    const result = await pool.query(
+      `SELECT * FROM badge_progress 
+       WHERE participant_id = $1 AND organization_id = $2
+       ORDER BY date_obtention DESC`,
+      [participantId, organizationId]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching badge progress:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get pending badges for approval (requires admin or leader role)
+app.get('/api/pending-badges', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization with admin or leader role
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin', 'leader']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const result = await pool.query(
+      `SELECT bp.*, p.first_name, p.last_name
+       FROM badge_progress bp
+       JOIN participants p ON bp.participant_id = p.id
+       WHERE bp.organization_id = $1 AND bp.status = 'pending'
+       ORDER BY bp.created_at DESC`,
+      [organizationId]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching pending badges:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save badge progress (submit for approval)
+app.post('/api/save-badge-progress', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { participant_id, territoire_chasse, objectif, description, fierte, raison, date_obtention, etoiles } = req.body;
+    
+    if (!participant_id || !territoire_chasse) {
+      return res.status(400).json({ success: false, message: 'Participant ID and territoire_chasse are required' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      const result = await client.query(
+        `INSERT INTO badge_progress 
+         (participant_id, organization_id, territoire_chasse, objectif, description, fierte, raison, date_obtention, etoiles, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+         RETURNING *`,
+        [participant_id, organizationId, territoire_chasse, objectif, description, fierte || false, raison, date_obtention, etoiles || 1]
+      );
+      
+      await client.query('COMMIT');
+      console.log(`[badge] Badge progress submitted for participant ${participant_id}: ${territoire_chasse}, ${etoiles} stars`);
+      res.json({ success: true, data: result.rows[0], message: 'Badge progress submitted for approval' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error saving badge progress:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Approve badge (requires admin or leader role)
+app.post('/api/approve-badge', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization with admin or leader role
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin', 'leader']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { badge_id } = req.body;
+    
+    if (!badge_id) {
+      return res.status(400).json({ success: false, message: 'Badge ID is required' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Get the badge details
+      const badgeResult = await client.query(
+        `SELECT * FROM badge_progress WHERE id = $1 AND organization_id = $2`,
+        [badge_id, organizationId]
+      );
+      
+      if (badgeResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Badge not found' });
+      }
+      
+      const badge = badgeResult.rows[0];
+      
+      // Update badge status to approved
+      await client.query(
+        `UPDATE badge_progress 
+         SET status = 'approved', approved_by = $1, approval_date = NOW()
+         WHERE id = $2`,
+        [decoded.user_id, badge_id]
+      );
+      
+      // Get point system rules for badge earn points
+      const pointRules = await getPointSystemRules(organizationId, client);
+      const badgeEarnPoints = pointRules.badges?.earn || 5;
+      
+      // Get participant's group for proper point tracking
+      const groupResult = await client.query(
+        `SELECT group_id FROM participant_groups 
+         WHERE participant_id = $1 AND organization_id = $2`,
+        [badge.participant_id, organizationId]
+      );
+      const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
+      
+      // Award points for earning the badge
+      await client.query(
+        `INSERT INTO points (participant_id, group_id, organization_id, value, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [badge.participant_id, groupId, organizationId, badgeEarnPoints]
+      );
+      
+      await client.query('COMMIT');
+      console.log(`[badge] Badge ${badge_id} approved for participant ${badge.participant_id}, points: +${badgeEarnPoints}`);
+      res.json({ success: true, message: 'Badge approved', points: badgeEarnPoints });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error approving badge:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Reject badge (requires admin or leader role)
+app.post('/api/reject-badge', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization with admin or leader role
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin', 'leader']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { badge_id } = req.body;
+    
+    if (!badge_id) {
+      return res.status(400).json({ success: false, message: 'Badge ID is required' });
+    }
+    
+    const result = await pool.query(
+      `UPDATE badge_progress 
+       SET status = 'rejected', approved_by = $1, approval_date = NOW()
+       WHERE id = $2 AND organization_id = $3
+       RETURNING *`,
+      [decoded.user_id, badge_id, organizationId]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Badge not found' });
+    }
+    
+    console.log(`[badge] Badge ${badge_id} rejected`);
+    res.json({ success: true, message: 'Badge rejected' });
+  } catch (error) {
+    logger.error('Error rejecting badge:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get badge summary (all badges for organization)
+app.get('/api/badge-summary', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const result = await pool.query(
+      `SELECT bp.*, p.first_name, p.last_name
+       FROM badge_progress bp
+       JOIN participants p ON bp.participant_id = p.id
+       WHERE bp.organization_id = $1
+       ORDER BY bp.date_obtention DESC`,
+      [organizationId]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching badge summary:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get badge history for a participant
+app.get('/api/badge-history', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const participantId = req.query.participant_id;
+    
+    if (!participantId) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+    
+    const result = await pool.query(
+      `SELECT * FROM badge_progress 
+       WHERE participant_id = $1 AND organization_id = $2 AND status = 'approved'
+       ORDER BY date_obtention DESC`,
+      [participantId, organizationId]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching badge history:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get current stars for a participant (total approved stars)
+app.get('/api/current-stars', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const participantId = req.query.participant_id;
+    
+    if (!participantId) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+    
+    const result = await pool.query(
+      `SELECT COALESCE(SUM(etoiles), 0) as total_stars
+       FROM badge_progress 
+       WHERE participant_id = $1 AND organization_id = $2 AND status = 'approved'`,
+      [participantId, organizationId]
+    );
+    
+    res.json({ success: true, data: { total_stars: parseInt(result.rows[0].total_stars) } });
+  } catch (error) {
+    logger.error('Error fetching current stars:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get badge system settings (territoires and structure)
+app.get('/api/badge-system-settings', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const result = await pool.query(
+      `SELECT setting_value FROM organization_settings 
+       WHERE organization_id = $1 AND setting_key = 'badge_system'`,
+      [organizationId]
+    );
+    
+    if (result.rows.length > 0) {
+      try {
+        const badgeSystem = JSON.parse(result.rows[0].setting_value);
+        res.json({ success: true, data: badgeSystem });
+      } catch (e) {
+        res.json({ success: true, data: result.rows[0].setting_value });
+      }
+    } else {
+      res.json({ success: true, data: null, message: 'No badge system settings found' });
+    }
+  } catch (error) {
+    logger.error('Error fetching badge system settings:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// FORM SUBMISSION ENDPOINTS
+// ============================================
+
+// Get form submission for a participant
+app.get('/api/form-submission', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { participant_id, form_type } = req.query;
+    
+    if (!participant_id || !form_type) {
+      return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
+    }
+    
+    const result = await pool.query(
+      `SELECT * FROM form_submissions 
+       WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      [participant_id, organizationId, form_type]
+    );
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      res.json({ success: true, data: null, message: 'No submission found' });
+    }
+  } catch (error) {
+    logger.error('Error fetching form submission:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save form submission
+app.post('/api/save-form-submission', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { participant_id, form_type, submission_data } = req.body;
+    
+    if (!participant_id || !form_type || !submission_data) {
+      return res.status(400).json({ success: false, message: 'Participant ID, form_type, and submission_data are required' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Check if a submission already exists
+      const existingResult = await client.query(
+        `SELECT id FROM form_submissions 
+         WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
+        [participant_id, organizationId, form_type]
+      );
+      
+      let result;
+      if (existingResult.rows.length > 0) {
+        // Update existing submission
+        result = await client.query(
+          `UPDATE form_submissions 
+           SET submission_data = $1, updated_at = NOW(), user_id = $2
+           WHERE participant_id = $3 AND organization_id = $4 AND form_type = $5
+           RETURNING *`,
+          [JSON.stringify(submission_data), decoded.user_id, participant_id, organizationId, form_type]
+        );
+      } else {
+        // Insert new submission
+        result = await client.query(
+          `INSERT INTO form_submissions 
+           (participant_id, organization_id, form_type, submission_data, user_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [participant_id, organizationId, form_type, JSON.stringify(submission_data), decoded.user_id]
+        );
+      }
+      
+      await client.query('COMMIT');
+      console.log(`[form] Form ${form_type} saved for participant ${participant_id}`);
+      res.json({ success: true, data: result.rows[0], message: 'Form saved successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error saving form submission:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get organization form formats
+app.get('/api/organization-form-formats', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const result = await pool.query(
+      `SELECT * FROM organization_form_formats 
+       WHERE organization_id = $1`,
+      [organizationId]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching form formats:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// GUARDIAN MANAGEMENT ENDPOINTS
+// ============================================
+
+// Get guardians for a participant
+app.get('/api/guardians', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const participantId = req.query.participant_id;
+    
+    if (!participantId) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+    
+    // Verify participant belongs to this organization
+    const participantCheck = await pool.query(
+      `SELECT id FROM participants WHERE id = $1 AND organization_id = $2`,
+      [participantId, organizationId]
+    );
+    
+    if (participantCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Participant not found in this organization' });
+    }
+    
+    const result = await pool.query(
+      `SELECT pg.*, pg.lien as relationship, g.id, g.nom, g.prenom, g.courriel, 
+              g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
+              g.is_primary, g.is_emergency_contact
+       FROM participant_guardians pg
+       JOIN parents_guardians g ON pg.guardian_id = g.id
+       JOIN participants p ON pg.participant_id = p.id
+       WHERE pg.participant_id = $1 AND p.organization_id = $2`,
+      [participantId, organizationId]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching guardians:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save guardian
+app.post('/api/save-guardian', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { participant_id, guardian_id, nom, prenom, lien, courriel, 
+            telephone_residence, telephone_travail, telephone_cellulaire,
+            is_primary, is_emergency_contact } = req.body;
+    
+    if (!participant_id || !nom || !prenom) {
+      return res.status(400).json({ success: false, message: 'Participant ID, nom, and prenom are required' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Verify participant belongs to this organization
+      const participantCheck = await client.query(
+        `SELECT id FROM participants WHERE id = $1 AND organization_id = $2`,
+        [participant_id, organizationId]
+      );
+      
+      if (participantCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Participant not found in this organization' });
+      }
+      
+      let guardianIdToLink;
+      
+      if (guardian_id) {
+        // Verify the guardian is linked to a participant in this organization
+        const guardianCheck = await client.query(
+          `SELECT pg.guardian_id FROM participant_guardians pg
+           JOIN participants p ON pg.participant_id = p.id
+           WHERE pg.guardian_id = $1 AND p.organization_id = $2`,
+          [guardian_id, organizationId]
+        );
+        
+        if (guardianCheck.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({ success: false, message: 'Guardian not found in this organization' });
+        }
+        
+        // Update existing guardian
+        await client.query(
+          `UPDATE parents_guardians 
+           SET nom = $1, prenom = $2, courriel = $3, 
+               telephone_residence = $4, telephone_travail = $5, telephone_cellulaire = $6,
+               is_primary = $7, is_emergency_contact = $8
+           WHERE id = $9`,
+          [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
+           is_primary || false, is_emergency_contact || false, guardian_id]
+        );
+        guardianIdToLink = guardian_id;
+        
+        // Update the relationship if provided
+        if (lien) {
+          await client.query(
+            `UPDATE participant_guardians SET lien = $1 WHERE guardian_id = $2 AND participant_id = $3`,
+            [lien, guardian_id, participant_id]
+          );
+        }
+      } else {
+        // Insert new guardian
+        const result = await client.query(
+          `INSERT INTO parents_guardians 
+           (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
+            is_primary, is_emergency_contact)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id`,
+          [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
+           is_primary || false, is_emergency_contact || false]
+        );
+        guardianIdToLink = result.rows[0].id;
+        
+        // Link guardian to participant
+        await client.query(
+          `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (guardian_id, participant_id) DO UPDATE SET lien = $3`,
+          [guardianIdToLink, participant_id, lien || null]
+        );
+      }
+      
+      await client.query('COMMIT');
+      console.log(`[guardian] Guardian ${guardianIdToLink} saved for participant ${participant_id}`);
+      res.json({ success: true, data: { guardian_id: guardianIdToLink }, message: 'Guardian saved successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error saving guardian:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Remove guardian from participant
+app.delete('/api/remove-guardian', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { participant_id, guardian_id } = req.query;
+    
+    if (!participant_id || !guardian_id) {
+      return res.status(400).json({ success: false, message: 'Participant ID and Guardian ID are required' });
+    }
+    
+    // Verify the guardian-participant link belongs to this organization
+    const linkCheck = await pool.query(
+      `SELECT pg.guardian_id FROM participant_guardians pg
+       JOIN participants p ON pg.participant_id = p.id
+       WHERE pg.guardian_id = $1 AND pg.participant_id = $2 AND p.organization_id = $3`,
+      [guardian_id, participant_id, organizationId]
+    );
+    
+    if (linkCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Guardian link not found in this organization' });
+    }
+    
+    await pool.query(
+      `DELETE FROM participant_guardians WHERE guardian_id = $1 AND participant_id = $2`,
+      [guardian_id, participant_id]
+    );
+    
+    console.log(`[guardian] Guardian ${guardian_id} removed from participant ${participant_id}`);
+    res.json({ success: true, message: 'Guardian removed successfully' });
+  } catch (error) {
+    logger.error('Error removing guardian:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

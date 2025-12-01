@@ -3,7 +3,8 @@ import {
   getBadgeProgress,
   saveBadgeProgress,
   getCurrentStars,
-  fetchParticipant
+  fetchParticipant,
+  getBadgeSystemSettings
 } from "./ajax-functions.js";
 
 export class BadgeForm {
@@ -14,10 +15,13 @@ export class BadgeForm {
     this.currentStars = 0;
     this.hasPending = false;
     this.formData = {};
+    this.badgeSystemSettings = null;
+    this.territoires = [];
   }
 
   async init(participantId) {
     try {
+      await this.fetchBadgeSystemSettings();
       await this.fetchParticipant(participantId);
       await this.fetchBadgeProgress();
       this.render();
@@ -26,6 +30,32 @@ export class BadgeForm {
       console.error("Error initializing badge form:", error);
       this.renderError();
     }
+  }
+  
+  async fetchBadgeSystemSettings() {
+    try {
+      const result = await getBadgeSystemSettings();
+      if (result && result.data) {
+        this.badgeSystemSettings = result.data;
+        this.territoires = result.data.territoires || [];
+      } else {
+        this.territoires = this.getDefaultTerritoires();
+      }
+    } catch (error) {
+      console.error("Error fetching badge system settings:", error);
+      this.territoires = this.getDefaultTerritoires();
+    }
+  }
+  
+  getDefaultTerritoires() {
+    return [
+      { name: "Débrouillard comme Kaa", image: "kaa.jpg" },
+      { name: "Vrai comme Baloo", image: "baloo.jpg" },
+      { name: "Respectueux comme Rikki Tikki Tavi", image: "rikki.jpg" },
+      { name: "Dynamique comme Bagheera", image: "bagheera.jpg" },
+      { name: "Heureux comme Ferao", image: "ferao.jpg" },
+      { name: "Solidaire comme Frère Gris", image: "frereGris.jpg" }
+    ];
   }
 
   async fetchParticipant(participantId) {
@@ -43,7 +73,8 @@ export class BadgeForm {
 
 
   async fetchBadgeProgress() {
-    this.badgeProgress = await getBadgeProgress(this.participant.id);
+    const result = await getBadgeProgress(this.participant.id);
+    this.badgeProgress = Array.isArray(result) ? result : (result?.data || []);
   }
 
   updateFormData() {
@@ -58,6 +89,12 @@ export class BadgeForm {
     };
   }
 
+  renderTerritoireOptions() {
+    return this.territoires.map(t => 
+      `<option value="${t.name}">${t.name}</option>`
+    ).join('');
+  }
+  
   render() {
     const content = `
             <h1>${translate("badge_progress_form")}</h1>
@@ -70,12 +107,7 @@ export class BadgeForm {
                 )}:</label>
                 <select id="territoire_chasse" name="territoire_chasse" required>
                     <option value="-1" selected disabled>...</option>
-                    <option value="Débrouillard comme Kaa">Débrouillard comme Kaa</option>
-                    <option value="Vrai comme Baloo">Vrai comme Baloo</option>
-                    <option value="Respectueux comme Rikki Tikki Tavi">Respectueux comme Rikki Tikki Tavi</option>
-                    <option value="Dynamique comme Bagheera">Dynamique comme Bagheera</option>
-                    <option value="Heureux comme Ferao">Heureux comme Ferao</option>
-                    <option value="Solidaire comme Frère Gris">Solidaire comme Frère Gris</option>
+                    ${this.renderTerritoireOptions()}
                 </select>
 
                 <div id="starInfo">
@@ -225,29 +257,19 @@ export class BadgeForm {
   }
 
   renderBadgeGrid() {
-    const territoires = [
-      "Débrouillard comme Kaa",
-      "Vrai comme Baloo",
-      "Respectueux comme Rikki Tikki Tavi",
-      "Dynamique comme Bagheera",
-      "Heureux comme Ferao",
-      "Solidaire comme Frère Gris",
-    ];
-
-    return territoires
+    return this.territoires
       .map((territoire) => {
+        const territoireName = territoire.name;
         const badge = this.badgeProgress.find(
-          (b) => b.territoire_chasse === territoire && b.status === "approved"
+          (b) => b.territoire_chasse === territoireName && b.status === "approved"
         );
         const stars = badge ? badge.etoiles : 0;
-        const pendingStars = this.getPendingStars(territoire);
+        const pendingStars = this.getPendingStars(territoireName);
 
         return `
                 <div class="badge-item">
-                    <img src="images/${this.getTerritoireImage(
-                      territoire
-                    )}" alt="${territoire}">
-                    <h3>${territoire}</h3>
+                    <img src="images/${territoire.image || 'default.jpg'}" alt="${territoireName}">
+                    <h3>${territoireName}</h3>
                     <div class="stars">
                         ${this.renderStars(stars, pendingStars)}
                     </div>
@@ -288,15 +310,8 @@ export class BadgeForm {
   }
 
   getTerritoireImage(territoire) {
-    const imageMap = {
-      "Débrouillard comme Kaa": "kaa.jpg",
-      "Vrai comme Baloo": "baloo.jpg",
-      "Respectueux comme Rikki Tikki Tavi": "rikki.jpg",
-      "Dynamique comme Bagheera": "bagheera.jpg",
-      "Heureux comme Ferao": "ferao.jpg",
-      "Solidaire comme Frère Gris": "frereGris.jpg",
-    };
-    return imageMap[territoire] || "default.jpg";
+    const found = this.territoires.find(t => t.name === territoire);
+    return found ? found.image : "default.jpg";
   }
 
   getPendingStars(territoire) {

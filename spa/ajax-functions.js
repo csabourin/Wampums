@@ -375,6 +375,13 @@ export async function getBadgeProgress(participantId) {
     return API.get('badge-progress', { participant_id: participantId });
 }
 
+export async function getBadgeSystemSettings() {
+    return API.get('badge-system-settings', {}, {
+        cacheKey: 'badge_system_settings',
+        cacheDuration: CONFIG.CACHE_DURATION.LONG
+    });
+}
+
 export async function saveBadgeProgress(progressData) {
     return API.post('save-badge-progress', progressData);
 }
