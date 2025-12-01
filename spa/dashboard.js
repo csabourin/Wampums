@@ -89,9 +89,11 @@ export class Dashboard {
 
       // Always fetch fresh points data
       const participantsResponse = await getParticipants();
-      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
+      // Support both new format (data) and old format (participants)
+      const freshParticipants = participantsResponse.data || participantsResponse.participants;
+      if (participantsResponse.success && Array.isArray(freshParticipants)) {
         // Update points for existing participants or add new participants
-        participantsResponse.participants.forEach(freshParticipant => {
+        freshParticipants.forEach(freshParticipant => {
           const existingParticipant = this.participants.find(p => p.id === freshParticipant.id);
           if (existingParticipant) {
             existingParticipant.total_points = freshParticipant.total_points;

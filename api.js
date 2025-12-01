@@ -13,6 +13,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
+const { success, error: errorResponse } = require('./middleware/response');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -969,14 +970,10 @@ app.get('/api/participants', async (req, res) => {
       [organizationId]
     );
     
-    res.json({
-      success: true,
-      data: result.rows,
-      participants: result.rows
-    });
+    return success(res, result.rows, 'Participants retrieved successfully');
   } catch (error) {
     logger.error('Error fetching participants:', error);
-    res.status(500).json({ success: false, message: error.message });
+    return errorResponse(res, error.message, 500);
   }
 });
 
@@ -1027,15 +1024,14 @@ app.get('/api/honors', async (req, res) => {
       [organizationId]
     );
     
-    res.json({
-      success: true,
+    return success(res, {
       participants: participantsResult.rows,
       honors: honorsResult.rows,
       availableDates: datesResult.rows.map(r => r.date)
-    });
+    }, 'Honors retrieved successfully');
   } catch (error) {
     logger.error('Error fetching honors:', error);
-    res.status(500).json({ success: false, message: error.message });
+    return errorResponse(res, error.message, 500);
   }
 });
 
@@ -1158,15 +1154,14 @@ app.get('/api/attendance', async (req, res) => {
       [organizationId]
     );
     
-    res.json({
-      success: true,
+    return success(res, {
       participants: result.rows,
       currentDate: requestedDate,
       availableDates: datesResult.rows.map(r => r.date)
-    });
+    }, 'Attendance retrieved successfully');
   } catch (error) {
     logger.error('Error fetching attendance:', error);
-    res.status(500).json({ success: false, message: error.message });
+    return errorResponse(res, error.message, 500);
   }
 });
 
@@ -1253,10 +1248,7 @@ app.post('/api/update-attendance', async (req, res) => {
       }
       
       await client.query('COMMIT');
-      res.json({ 
-        success: true,
-        pointUpdates: pointUpdates 
-      });
+      return success(res, { pointUpdates }, 'Attendance updated successfully');
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -1265,7 +1257,7 @@ app.post('/api/update-attendance', async (req, res) => {
     }
   } catch (error) {
     logger.error('Error updating attendance:', error);
-    res.status(500).json({ success: false, message: error.message });
+    return errorResponse(res, error.message, 500);
   }
 });
 
@@ -1399,8 +1391,8 @@ app.post('/api/update-points', async (req, res) => {
       }
       
       await client.query('COMMIT');
-      console.log('[update-points] SUCCESS - Response:', JSON.stringify({ success: true, updates: responseUpdates }));
-      res.json({ success: true, updates: responseUpdates });
+      console.log('[update-points] SUCCESS - Response:', JSON.stringify({ success: true, data: { updates: responseUpdates } }));
+      return success(res, { updates: responseUpdates }, 'Points updated successfully');
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -1411,7 +1403,7 @@ app.post('/api/update-points', async (req, res) => {
     console.error('[update-points] ERROR:', error.message);
     console.error('[update-points] Stack:', error.stack);
     logger.error('Error updating points:', error);
-    res.status(500).json({ success: false, message: error.message });
+    return errorResponse(res, error.message, 500);
   }
 });
 
@@ -1436,18 +1428,18 @@ app.get('/api/guests-by-date', async (req, res) => {
          ORDER BY name`,
         [date]
       );
-      res.json({ success: true, guests: result.rows });
+      return success(res, { guests: result.rows }, 'Guests retrieved successfully');
     } catch (err) {
       // If table or column doesn't exist, return empty array
       if (err.code === '42P01' || err.code === '42703') {
-        res.json({ success: true, guests: [] });
+        return success(res, { guests: [] }, 'Guests retrieved successfully');
       } else {
         throw err;
       }
     }
   } catch (error) {
     logger.error('Error fetching guests:', error);
-    res.status(500).json({ success: false, message: error.message });
+    return errorResponse(res, error.message, 500);
   }
 });
 

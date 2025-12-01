@@ -114,8 +114,10 @@ export class Attendance {
         this.getGuestsByDate(this.currentDate)
       ]);
 
-      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
-        this.participants = participantsResponse.participants;
+      // Support both new format (data) and old format (participants)
+      const participantsList = participantsResponse.data || participantsResponse.participants;
+      if (participantsResponse.success && Array.isArray(participantsList)) {
+        this.participants = participantsList;
       } else {
         throw new Error("Invalid participants data structure");
       }
@@ -123,10 +125,12 @@ export class Attendance {
       // Transform attendance response into a map of participant_id -> status
       // Handle both Node.js API format (object with participants array) and PHP format (simple key-value map)
       if (attendanceResponse && typeof attendanceResponse === 'object') {
-        if (Array.isArray(attendanceResponse.participants)) {
-          // Node.js API format: {success: true, participants: [{participant_id, attendance_status}, ...]}
+        // Support new standardized format: {success: true, data: {participants: [...], ...}}
+        const attendanceData = attendanceResponse.data || attendanceResponse;
+        if (Array.isArray(attendanceData.participants)) {
+          // Node.js API format: {success: true, data: {participants: [{participant_id, attendance_status}, ...]}}
           this.attendanceData = {};
-          attendanceResponse.participants.forEach(p => {
+          attendanceData.participants.forEach(p => {
             if (p.attendance_status) {
               this.attendanceData[p.participant_id] = p.attendance_status;
             }
