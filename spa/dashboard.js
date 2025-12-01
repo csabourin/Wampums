@@ -153,8 +153,9 @@ export class Dashboard {
 
       if (fetchGroups) {
         const groupsData = results[index];
-        if (groupsData.success && Array.isArray(groupsData.groups)) {
-          this.groups = groupsData.groups;
+        const groups = groupsData.data || groupsData.groups || [];
+        if (groupsData.success && Array.isArray(groups)) {
+          this.groups = groups;
           this.groups.sort((a, b) => a.name.localeCompare(b.name));
         }
       }

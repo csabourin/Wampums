@@ -443,7 +443,7 @@ export async function getUserChildren(userId) {
  * Get all groups
  */
 export async function getGroups() {
-    return API.get('get_groups', {}, {
+    return API.get('v1/groups', {}, {
         cacheKey: 'groups',
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
     });
@@ -453,24 +453,21 @@ export async function getGroups() {
  * Add new group
  */
 export async function addGroup(groupName) {
-    return API.post('add-group', { group_name: groupName });
+    return API.post('v1/groups', { name: groupName });
 }
 
 /**
  * Remove group
  */
 export async function removeGroup(groupId) {
-    return API.post('remove-group', { group_id: groupId });
+    return API.delete(`v1/groups/${groupId}`);
 }
 
 /**
  * Update group name
  */
 export async function updateGroupName(groupId, newName) {
-    return API.post('update-group-name', {
-        group_id: groupId,
-        group_name: newName
-    });
+    return API.put(`v1/groups/${groupId}`, { name: newName });
 }
 
 /**
