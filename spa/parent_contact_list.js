@@ -25,7 +25,52 @@ export class ParentContactList {
 
   async fetchData() {
     try {
-      this.children = await getParentContactList();
+      const response = await getParentContactList();
+      // Extract contacts from response - API returns {success: true, contacts: [...]}
+      const rows = response.contacts || response;
+
+      // Transform flat SQL rows into nested structure
+      const childrenMap = {};
+
+      for (const row of rows) {
+        const participantId = row.participant_id;
+
+        // Initialize child entry if not exists
+        if (!childrenMap[participantId]) {
+          childrenMap[participantId] = {
+            name: `${row.first_name} ${row.last_name}`,
+            groups: new Set(),
+            contacts: []
+          };
+        }
+
+        // Add group if exists
+        if (row.group_name) {
+          childrenMap[participantId].groups.add(row.group_name);
+        }
+
+        // Add guardian/contact if exists and not already added
+        if (row.guardian_id && !childrenMap[participantId].contacts.find(c => c.id === row.guardian_id)) {
+          childrenMap[participantId].contacts.push({
+            id: row.guardian_id,
+            name: `${row.prenom} ${row.nom}`,
+            relationship: row.lien,
+            email: row.courriel,
+            phone_home: row.telephone_residence,
+            phone_work: row.telephone_travail,
+            phone_cell: row.telephone_cellulaire,
+            is_emergency: row.is_emergency_contact,
+            is_primary: row.is_primary
+          });
+        }
+      }
+
+      // Convert groups Set to Array for each child
+      for (const child of Object.values(childrenMap)) {
+        child.groups = Array.from(child.groups);
+      }
+
+      this.children = childrenMap;
     } catch (error) {
       console.error("Error fetching parent contact list:", error);
       throw error;
