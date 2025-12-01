@@ -581,17 +581,22 @@ export async function getOrganizationFormFormats(organizationId = null) {
         return null;
     }
 
-    // Check if response.data is already an object (transformed format)
-    // This can happen if cached data is in a different format
-    if (!Array.isArray(response.data)) {
-        return response.data;
+    const formFormats = {};
+
+    // Check if response.data is an array
+    if (Array.isArray(response.data)) {
+        // Transform array format to object format
+        for (const format of response.data) {
+            formFormats[format.form_type] = format.form_structure;
+        }
+    } else {
+        // response.data is an object, extract form_structure from each form type
+        for (const [formType, formatData] of Object.entries(response.data)) {
+            // If formatData has a form_structure property, use it; otherwise use formatData directly
+            formFormats[formType] = formatData.form_structure || formatData;
+        }
     }
 
-    // Transform array format to object format
-    const formFormats = {};
-    for (const format of response.data) {
-        formFormats[format.form_type] = format.form_structure;
-    }
     return formFormats;
 }
 
