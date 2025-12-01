@@ -210,6 +210,7 @@ export async function clearPointsRelatedCaches() {
 
 export async function clearGroupRelatedCaches() {
   const keysToDelete = [
+    'groups',
     'participants',
     'manage_points_data',
     'dashboard_groups',
