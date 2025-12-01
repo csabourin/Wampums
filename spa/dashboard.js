@@ -30,19 +30,19 @@ export class Dashboard {
 
   async fetchOrganizationInfo() {
     try {
-      // Fetch all organization settings
-      const response = await getOrganizationSettings();
-      console.log("Organization settings response:", response);
+      // Use app's waitForOrganizationSettings to avoid race condition
+      const settings = await this.app.waitForOrganizationSettings();
+      console.log("Organization settings from app:", settings);
 
-      // Handle different response structures (response.data.organization_info or response.organization_info)
-      const organizationInfo = response?.data?.organization_info || response?.organization_info;
+      // Handle different response structures
+      const organizationInfo = settings?.organization_info;
 
       // If the setting exists, extract the name, otherwise set a default
       if (organizationInfo && organizationInfo.name) {
         this.organizationName = organizationInfo.name;
         this.organizationLogo = organizationInfo.logo;
       } else {
-        console.error("Invalid organization info response:", response);
+        console.error("Invalid organization info:", settings);
         this.organizationName = "Scouts";
       }
     } catch (error) {

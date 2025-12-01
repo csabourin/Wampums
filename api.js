@@ -1210,6 +1210,66 @@ app.post('/api/save-guest', async (req, res) => {
   }
 });
 
+// Get reminder (for meeting preparation)
+app.get('/api/get_reminder', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const result = await pool.query(
+      `SELECT * FROM rappel_reunion 
+       WHERE organization_id = $1 
+       ORDER BY creation_time DESC LIMIT 1`,
+      [organizationId]
+    );
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, reminder: result.rows[0] });
+    } else {
+      res.json({ success: true, reminder: null });
+    }
+  } catch (error) {
+    logger.error('Error fetching reminder:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Save reminder (for meeting preparation)
+app.post('/api/save_reminder', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    const { reminder_date, is_recurring, reminder_text } = req.body;
+    
+    await pool.query(
+      `INSERT INTO rappel_reunion (organization_id, reminder_date, is_recurring, reminder_text) 
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (organization_id) DO UPDATE SET
+       reminder_date = EXCLUDED.reminder_date,
+       is_recurring = EXCLUDED.is_recurring,
+       reminder_text = EXCLUDED.reminder_text`,
+      [organizationId, reminder_date, is_recurring, reminder_text]
+    );
+    
+    res.json({ success: true, message: 'Reminder saved successfully' });
+  } catch (error) {
+    logger.error('Error saving reminder:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get reunion dates (for upcoming meeting)
 app.get('/api/reunion-dates', async (req, res) => {
   try {
