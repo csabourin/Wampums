@@ -1678,6 +1678,26 @@ app.post('/api/save-participant', async (req, res) => {
         
         participantId = id;
       } else {
+        // Check for duplicate participant (same first name, last name, and date of birth)
+        const duplicateCheck = await client.query(
+          `SELECT p.id FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE LOWER(p.first_name) = LOWER($1) 
+             AND LOWER(p.last_name) = LOWER($2) 
+             AND p.date_naissance = $3
+             AND po.organization_id = $4`,
+          [first_name, last_name, date_naissance || null, organizationId]
+        );
+        
+        if (duplicateCheck.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ 
+            success: false, 
+            message: 'A participant with this name and date of birth already exists',
+            existing_participant_id: duplicateCheck.rows[0].id
+          });
+        }
+        
         // Create new participant
         const insertResult = await client.query(
           `INSERT INTO participants (first_name, last_name, date_naissance)
