@@ -467,11 +467,22 @@ export async function updateUserRole(userId, role) {
     return API.post('update-user-role', { user_id: userId, role });
 }
 
-export async function linkUserParticipants(userId, participantIds) {
-    return API.post('link-user-participants', { 
-        user_id: userId, 
-        participant_ids: participantIds 
-    });
+export async function linkUserParticipants(userIdOrData, participantIds) {
+    // Support both signatures:
+    // 1. linkUserParticipants({participant_ids: [...]}) - self-linking
+    // 2. linkUserParticipants(userId, participantIds) - admin linking another user
+    if (typeof userIdOrData === 'object' && userIdOrData !== null) {
+        // Object passed - use participant_ids from object, no user_id (self-linking)
+        return API.post('link-user-participants', { 
+            participant_ids: userIdOrData.participant_ids 
+        });
+    } else {
+        // Two params passed - admin linking another user
+        return API.post('link-user-participants', { 
+            user_id: userIdOrData, 
+            participant_ids: participantIds 
+        });
+    }
 }
 
 // Reports Functions
