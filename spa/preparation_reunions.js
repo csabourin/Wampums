@@ -84,8 +84,8 @@ export class PreparationReunions {
                 this.organizationSettings = appSettings || {};
         }
 
-        async fetchAvailableDates() {
-                const response = await getReunionDates();
+        async fetchAvailableDates(forceRefresh = false) {
+                const response = await getReunionDates(forceRefresh);
                 // Handle both array response and object response with dates property
                 const dates = Array.isArray(response) ? response : (response?.dates || []);
                 this.dateManager.setAvailableDates(dates);
@@ -394,7 +394,8 @@ export class PreparationReunions {
                         // Clear the reunion_dates cache so upcoming_meeting page gets fresh data
                         await deleteCachedData('reunion_dates');
                         this.app.showMessage(translate("reunion_preparation_saved"), "success");
-                        await this.fetchAvailableDates();
+                        // Force refresh to get fresh dates from server
+                        await this.fetchAvailableDates(true);
                 } catch (error) {
                         console.error("Error saving reunion preparation:", error);
                         this.app.showMessage(translate("error_saving_reunion_preparation"), "error");
