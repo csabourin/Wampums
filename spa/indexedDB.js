@@ -165,6 +165,49 @@ export async function clearOfflineData() {
   });
 }
 
+export async function deleteCachedData(key) {
+  return openDB().then((db) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.delete(key);
+
+      request.onerror = () => {
+        console.error("Error deleting cached data:", request.error);
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        console.log("Cache deleted for key:", key);
+        resolve();
+      };
+
+      transaction.oncomplete = () => {
+        db.close();
+      };
+    });
+  });
+}
+
+export async function clearPointsRelatedCaches() {
+  const keysToDelete = [
+    'participants',
+    'manage_points_data',
+    'dashboard_groups',
+    'dashboard_participant_info'
+  ];
+  
+  console.log("Clearing points-related caches:", keysToDelete);
+  
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      console.warn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {

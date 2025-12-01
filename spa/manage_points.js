@@ -14,6 +14,7 @@ import {
   openDB,
   setCachedData,
   getCachedData,
+  clearPointsRelatedCaches,
 } from "./indexedDB.js";
 
 export class ManagePoints {
@@ -405,7 +406,10 @@ export class ManagePoints {
           console.warn("Unexpected response format:", data);
         }
 
-        // Update the cache with the latest data
+        // Clear all points-related caches so dashboard and other pages get fresh data
+        await clearPointsRelatedCaches();
+        
+        // Update the local cache with the latest data
         await this.updateCache();
       } catch (error) {
         console.error("Error in batch update:", error);

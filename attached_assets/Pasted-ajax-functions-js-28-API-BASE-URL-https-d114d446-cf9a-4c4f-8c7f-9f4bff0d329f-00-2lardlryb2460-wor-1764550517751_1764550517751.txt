@@ -1,0 +1,408 @@
+ajax-functions.js:28 API_BASE_URL: https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev
+ajax-functions.js:29 Debug Mode: true
+app.js:159 App init started
+app.js:186 Fetching organization ID...
+init-activity-widget.js:3 init-activity-widget.js loaded
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+app.js:18 Service Worker registered with scope: https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/
+app.js:205 Organization ID fetched and stored: 1
+app.js:221 No JWT token found, fetching organization JWT...
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+app.js:225 Organization JWT obtained successfully
+app.js:238 Fetching organization settings...
+app.js:296 Inside fetchOrganizationSettings, this: {isLoggedIn: false, userRole: null, userFullName: null, lang: null, currentPage: '', …}
+app.js:311 Fetching organization settings ... 1
+indexedDB.js:20 Upgrading IndexedDB...
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: org_settings_1
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmdhbml6Y...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcm…yNzl9.HBFbBWIMXjp5sE_CSGGKskbWxwLjAGpx2Ki_LrZuKGQ', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+ajax-functions.js:88 API Request (attempt 1): GET https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/organization-settings?organization_id=1
+ajax-functions.js:88 API Response: {success: true, data: {…}}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'org_settings_1', data: {…}, type: 'cache', timestamp: 1764550443526, expiration: 1764636843526}
+ajax-functions.js:88 Data cached for: org_settings_1
+app.js:315 Got organization settings:  {"success":true,"data":{"badge_system":{"territoires":[{"name":"Débrouillard comme Kaa","image":"kaa.jpg"},{"name":"Vrai comme Baloo","image":"baloo.jpg"},{"name":"Respectueux comme Rikki Tikki Tavi","image":"rikki.jpg"},{"name":"Dynamique comme Bagheera","image":"bagheera.jpg"},{"name":"Heureux comme Ferao","image":"ferao.jpg"},{"name":"Solidaire comme Frère Gris","image":"frereGris.jpg"}],"badge_structure":{"fields":[{"name":"territoire_chasse","type":"select","label":"territoire_chasse"},{"name":"objectif","type":"textarea","label":"objectif_proie"},{"name":"description","type":"textarea","label":"description"},{"name":"fierte","type":"checkbox","label":"fierte"},{"name":"raison","type":"textarea","label":"raison"},{"name":"date_obtention","type":"date","label":"date_obtention"},{"max":3,"min":1,"name":"etoiles","type":"number","label":"etoiles"}]}},"organization_info":{"logo":"/images/6eASt-Paul.png","name":"6e A St-Paul d'Aylmer","unit":"6e A St-Paul d'Aylmer","endroit":"École du village","district":"District des Trois-Rives","meeting_day":"Tuesday","animateur_responsable":"Akela","account_creation_password":"Aylmer2024-2025"},"point_system_rules":{"badges":{"earn":5,"level_up":10},"honors":{"award":5},"attendance":{"late":{"label":"late","points":0},"absent":{"label":"absent","points":0},"excused":{"label":"excused","points":0},"present":{"label":"present","points":1}}}}}
+app.js:319 Organization settings fetched successfully: {badge_system: {…}, organization_info: {…}, point_system_rules: {…}}
+app.js:342 Loading translations...
+login.js:224 Session check: {isLoggedIn: false, userRole: null, userFullName: null, userId: null}
+app.js:258 Session checked: {isLoggedIn: false, userRole: null, userFullName: null}
+app.js:270 Initializing router...
+app.js:275 Routing to current path: /dashboard
+router.js:48 Routing to: /dashboard
+router.js:302 Path: /dashboard, RouteName: dashboard
+login.js:224 Session check: {isLoggedIn: false, userRole: null, userFullName: null, userId: null}
+router.js:131 Redirecting to login from route: dashboard
+overrideMethod @ hook.js:608
+route @ router.js:131
+init @ app.js:276
+await in init
+(anonymous) @ app.js:565
+login.js:10 Login init started
+login.js:33 Rendering login form, organizationSettings: loaded
+login.js:39 Login.render() called
+login.js:42 Using organization name: 6e A St-Paul d'Aylmer
+app.js:502 Failed to translating key: login in language: fr
+app.js:502 Failed to translating key: email in language: fr
+app.js:502 Failed to translating key: password in language: fr
+app.js:502 Failed to translating key: submit_login in language: fr
+app.js:502 Failed to translating key: create_account in language: fr
+app.js:502 Failed to translating key: forgot_password in language: fr
+login.js:79 Attaching login form listener
+login.js:110 Login form listener attached
+login.js:66 Login form rendered successfully
+app.js:280 App init completed
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:140 Retrieved offline data: []
+app.js:361 Translations loaded successfully {en: {…}, fr: {…}}
+router.js:48 Routing to: /login
+router.js:302 Path: /login, RouteName: login
+login.js:224 Session check: {isLoggedIn: false, userRole: null, userFullName: null, userId: null}
+login.js:10 Login init started
+login.js:33 Rendering login form, organizationSettings: loaded
+login.js:39 Login.render() called
+login.js:42 Using organization name: 6e A St-Paul d'Aylmer
+login.js:79 Attaching login form listener
+login.js:110 Login form listener attached
+login.js:66 Login form rendered successfully
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+login:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://www.chromium.org/developers/design-documents/create-amazing-password-forms) <input type=​"password" name=​"password" placeholder=​"Mot de passe" required>​
+service-worker.js:336 Clients: [WindowClient]
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+Fetch finished loading: POST "<URL>".
+login.js:82 Login form submitted
+login.js:91 Sending login request via ajax-functions.js...info@christiansabourin.com
+ajax-functions.js:475 Sending login request via ajax-functions.js... info@christiansabourin.com
+login.js:96 Login result received: {success: true, message: 'login_successful', token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI…yODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ', user_role: 'admin', user_full_name: 'Admin Csabourin', …}
+login.js:99 Login successful, handling login success...
+login.js:114 === LOGIN SUCCESS DEBUG ===
+login.js:115 Full result object: {success: true, message: 'login_successful', token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI…yODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ', user_role: 'admin', user_full_name: 'Admin Csabourin', …}
+login.js:116 result.success: true
+login.js:117 result.token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMGRmM2JmMjctNGIwMC00YzY5LWI4ZmUtMDRhZDQ4ZDFjNjMxIiwidXNlcl9yb2xlIjoiYWRtaW4iLCJvcmdhbml6YXRpb25JZCI6MSwiaWF0IjoxNzY0NTUwNDgxLCJleHAiOjE3NjUxNTUyODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ
+login.js:118 result.user_id: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631
+login.js:119 result.user_role: admin
+login.js:120 result.user_full_name: Admin Csabourin
+login.js:129 === END LOGIN DEBUG ===
+login.js:150 === STORING USER DATA ===
+login.js:151 Token: EXISTS
+login.js:152 User ID: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631
+login.js:153 User Role: admin
+login.js:154 User Full Name: Admin Csabourin
+login.js:181 === FINAL LOCALSTORAGE CHECK ===
+login.js:182 jwtToken: STORED
+login.js:183 userId: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631
+login.js:184 userRole: admin
+login.js:185 currentOrganizationId: 1
+login.js:186 organizationId: 1
+login.js:193 Redirecting to main dashboard
+router.js:48 Routing to: /dashboard
+router.js:302 Path: /dashboard, RouteName: dashboard
+login.js:224 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+dashboard.js:35 Organization settings from app: {badge_system: {…}, organization_info: {…}, point_system_rules: {…}}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: dashboard_groups
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: dashboard_participant_info
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: participants
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…yODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+ajax-functions.js:88 API Request (attempt 1): GET https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/participants?organization_id=1
+ajax-functions.js:478 Fetch finished loading: POST "https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/public/login".
+login @ ajax-functions.js:478
+(anonymous) @ login.js:94
+ajax-functions.js:88 API Response: {success: true, data: Array(22), participants: Array(22)}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'participants', data: {…}, type: 'cache', timestamp: 1764550445160, expiration: 1764552245160}
+ajax-functions.js:88 Data cached for: participants
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764550445160, expiration: 1764552245160}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(22), participants: Array(22)}
+ajax-functions.js:88 Cache hit for: participants
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: groups
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…yODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+ajax-functions.js:88 API Request (attempt 1): GET https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/get_groups?organization_id=1
+ajax-functions.js:88 API Response: {success: true, data: Array(5), groups: Array(5)}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'groups', data: {…}, type: 'cache', timestamp: 1764550445253, expiration: 1764552245253}
+ajax-functions.js:88 Data cached for: groups
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'dashboard_participant_info', data: Array(22), type: 'cache', timestamp: 1764550445254, expiration: 1764550745254}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'dashboard_groups', data: Array(5), type: 'cache', timestamp: 1764550445255, expiration: 1764554045255}
+init-activity-widget.js:6 Initializing ActivityWidget
+init-activity-widget.js:7 App state: {isLoggedIn: true, userRole: 'admin'}
+activity-widget.js:6 ActivityWidget constructor called
+activity-widget.js:7 App object: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', lang: 'fr', currentPage: '', …}
+activity-widget.js:19 ActivityWidget init called
+activity-widget.js:20 Is logged in: true
+activity-widget.js:21 User role: admin
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: reunion-preparation
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…yODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+ajax-functions.js:88 API Request (attempt 1): GET https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/reunion-preparation?date=2025-12-01&organization_id=1
+ajax-functions.js:88 API Response: {success: false, message: 'No reunion preparation found for this date'}
+activity-widget.js:52 Fetched reunion preparation data: {success: false, message: 'No reunion preparation found for this date'}
+activity-widget.js:60 No activities found in the fetched data
+activity-widget.js:31 No activities found for today, stopping widget.
+router.js:48 Routing to: /managePoints
+router.js:302 Path: /managePoints, RouteName: managePoints
+login.js:224 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: manage_points_data
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764550445160, expiration: 1764552245160}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(22), participants: Array(22)}
+ajax-functions.js:88 Cache hit for: participants
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'groups', data: {…}, type: 'cache', timestamp: 1764550445253, expiration: 1764552245253}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(5), groups: Array(5)}
+ajax-functions.js:88 Cache hit for: groups
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764550455297, expiration: 1764550755297}
+manage_points.js:34 init called
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764550455297, expiration: 1764550755297}
+indexedDB.js:83 Returning valid cached data: {participants: Array(22), groups: Array(5), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+manage_points.js:663 Using cached points data
+manage_points.js:744 Updating points display with data: {participants: Array(22), groups: Array(5), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…yODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+manage_points.js:389 Batch update successful: {success: true, updates: Array(1)}
+manage_points.js:457 [updateIndividualPoints] Updating participant 4 to 23 points
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764550459920, expiration: 1764550759920}
+manage_points.js:369 Fetch finished loading: POST "https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/update-points?organization_id=1".
+sendBatchUpdate @ manage_points.js:369
+updatePoints @ manage_points.js:351
+handlePointButtonClick @ manage_points.js:317
+(anonymous) @ manage_points.js:301
+manage_points.js:543 Cache updated with new points data.
+router.js:48 Routing to: /dashboard
+router.js:302 Path: /dashboard, RouteName: dashboard
+login.js:224 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+dashboard.js:35 Organization settings from app: {badge_system: {…}, organization_info: {…}, point_system_rules: {…}}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'dashboard_groups', data: Array(5), type: 'cache', timestamp: 1764550445255, expiration: 1764554045255}
+indexedDB.js:83 Returning valid cached data: (5) [{…}, {…}, {…}, {…}, {…}]
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'dashboard_participant_info', data: Array(22), type: 'cache', timestamp: 1764550445254, expiration: 1764550745254}
+indexedDB.js:83 Returning valid cached data: (22) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764550445160, expiration: 1764552245160}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(22), participants: Array(22)}
+ajax-functions.js:88 Cache hit for: participants
+router.js:48 Routing to: /managePoints
+router.js:302 Path: /managePoints, RouteName: managePoints
+login.js:224 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764550459920, expiration: 1764550759920}
+indexedDB.js:83 Returning valid cached data: {participants: Array(22), groups: Array(5), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764550445160, expiration: 1764552245160}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(22), participants: Array(22)}
+ajax-functions.js:88 Cache hit for: participants
+manage_points.js:34 init called
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764550459920, expiration: 1764550759920}
+indexedDB.js:83 Returning valid cached data: {participants: Array(22), groups: Array(5), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+manage_points.js:663 Using cached points data
+manage_points.js:744 Updating points display with data: {participants: Array(22), groups: Array(5), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…yODF9.hIfI72Uezi9AG6xNyhx2A2T4lJqHr_hginNq3HR46oQ', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+manage_points.js:389 Batch update successful: {success: true, updates: Array(1)}
+manage_points.js:426 [updateGroupPoints] Updating group 14 to 31 points, members: (5) [164, 15, 4, 20, 69]
+manage_points.js:369 Fetch finished loading: POST "https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/update-points?organization_id=1".
+sendBatchUpdate @ manage_points.js:369
+updatePoints @ manage_points.js:351
+handlePointButtonClick @ manage_points.js:317
+(anonymous) @ manage_points.js:301
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764550478310, expiration: 1764550778310}
+manage_points.js:543 Cache updated with new points data.
+service-worker.js:108 Fetch failed loading: POST "https://q.clarity.ms/collect".
+(anonymous) @ service-worker.js:108
+Access to fetch at 'https://q.clarity.ms/collect' from origin 'https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+The FetchEvent for "https://q.clarity.ms/collect" resulted in a network error response: the promise was rejected.
+Promise.then
+(anonymous) @ service-worker.js:108
+service-worker.js:108    Uncaught (in promise) TypeError: Failed to fetch
+    at service-worker.js:108:23
+(anonymous) @ service-worker.js:108
+clarity.js:2   POST https://q.clarity.ms/collect net::ERR_FAILED
+ii @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+o @ clarity.js:2
+Promise.then
+c @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ri @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+ni @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+Nr @ clarity.js:2
+Oi @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ki @ clarity.js:2
+Ee @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+Oe @ clarity.js:2
+Se @ clarity.js:2
+(anonymous) @ clarity.js:2
+clarity.js:2 XHR failed loading: POST "https://q.clarity.ms/collect".
+ii @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+o @ clarity.js:2
+Promise.then
+c @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ri @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+ni @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+Nr @ clarity.js:2
+Oi @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ki @ clarity.js:2
+Ee @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+Oe @ clarity.js:2
+Se @ clarity.js:2
+(anonymous) @ clarity.js:2
