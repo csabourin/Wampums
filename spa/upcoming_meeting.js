@@ -65,6 +65,10 @@ export class UpcomingMeeting {
                                                 const response = await getReunionPreparation(date);
                                                 if (response.success && response.preparation) {
                                                                 this.meetingDetails = response.preparation;
+                                                                // Parse the activities JSON string if it's a string
+                                                                if (typeof this.meetingDetails.activities === 'string') {
+                                                                        this.meetingDetails.activities = JSON.parse(this.meetingDetails.activities);
+                                                                }
                                                 } else {
                                                                 this.meetingDetails = null;
                                                 }
