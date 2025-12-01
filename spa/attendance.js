@@ -108,7 +108,7 @@ export class Attendance {
       }
 
       // Fetch the data if not cached
-      const [participantsResponse, attendanceData, guestsResponse] = await Promise.all([
+      const [participantsResponse, attendanceResponse, guestsResponse] = await Promise.all([
         getParticipants(),
         getAttendance(this.currentDate),
         this.getGuestsByDate(this.currentDate)
@@ -120,7 +120,28 @@ export class Attendance {
         throw new Error("Invalid participants data structure");
       }
 
-      this.attendanceData = attendanceData;
+      // Transform attendance response into a map of participant_id -> status
+      // Handle both Node.js API format (object with participants array) and PHP format (simple key-value map)
+      if (attendanceResponse && typeof attendanceResponse === 'object') {
+        if (Array.isArray(attendanceResponse.participants)) {
+          // Node.js API format: {success: true, participants: [{participant_id, attendance_status}, ...]}
+          this.attendanceData = {};
+          attendanceResponse.participants.forEach(p => {
+            if (p.attendance_status) {
+              this.attendanceData[p.participant_id] = p.attendance_status;
+            }
+          });
+        } else if (attendanceResponse.success === undefined) {
+          // PHP API format: {participant_id: status, ...}
+          this.attendanceData = attendanceResponse;
+        } else {
+          // Empty or unknown format
+          this.attendanceData = {};
+        }
+      } else {
+        this.attendanceData = {};
+      }
+
       // Handle both array response and object response with guests property
       this.guests = Array.isArray(guestsResponse) ? guestsResponse : (guestsResponse?.guests || []);
 
