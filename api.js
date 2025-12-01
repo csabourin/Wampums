@@ -1182,7 +1182,7 @@ app.get('/api/attendance', async (req, res) => {
     const result = await pool.query(
       `SELECT p.id as participant_id, p.first_name, p.last_name,
               pg.group_id, g.name as group_name,
-              a.status as attendance_status, a.date
+              a.status as attendance_status, a.date::text as date
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -1472,7 +1472,7 @@ app.get('/api/guests-by-date', async (req, res) => {
     try {
       // Note: guests table doesn't have organization_id column per schema
       const result = await pool.query(
-        `SELECT id, name, email, attendance_date FROM guests 
+        `SELECT id, name, email, attendance_date::text as attendance_date FROM guests
          WHERE attendance_date = $1
          ORDER BY name`,
         [date]
@@ -2001,7 +2001,7 @@ app.get('/api/next-meeting-info', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      `SELECT date, animateur_responsable, louveteau_dhonneur, endroit, activities, notes
+      `SELECT date::text as date, animateur_responsable, louveteau_dhonneur, endroit, activities, notes
        FROM reunion_preparations
        WHERE organization_id = $1 AND date >= $2
        ORDER BY date ASC
@@ -2276,7 +2276,7 @@ app.get('/api', [
 
       case 'get_reunion_dates':
         const datesResult = await client.query(
-          `SELECT DISTINCT date
+          `SELECT DISTINCT date::text as date
            FROM reunion_preparations
            WHERE organization_id = $1
            ORDER BY date DESC`,
@@ -2860,8 +2860,8 @@ app.get('/api', [
 
       case 'get_attendance_dates':
         const attendanceDatesResult = await client.query(
-          `SELECT DISTINCT date 
-           FROM attendance 
+          `SELECT DISTINCT date::text as date
+           FROM attendance
            WHERE date <= CURRENT_DATE AND organization_id = $1
            ORDER BY date DESC`,
           [organizationId]
@@ -2871,8 +2871,8 @@ app.get('/api', [
 
       case 'getAvailableDates':
         const availableDatesResult = await client.query(
-          `SELECT DISTINCT date::date AS date 
-           FROM honors 
+          `SELECT DISTINCT date::text as date
+           FROM honors
            WHERE organization_id = $1
            ORDER BY date DESC`,
           [organizationId]
@@ -4856,7 +4856,7 @@ app.get('/api/parent-dashboard', async (req, res) => {
     
     // Get next meeting info
     const nextMeetingResult = await pool.query(
-      `SELECT date, endroit, notes FROM reunion_preparations
+      `SELECT date::text as date, endroit, notes FROM reunion_preparations
        WHERE organization_id = $1 AND date >= CURRENT_DATE
        ORDER BY date ASC LIMIT 1`,
       [organizationId]
