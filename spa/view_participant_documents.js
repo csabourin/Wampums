@@ -142,8 +142,8 @@ export class ViewParticipantDocuments {
     console.log(`Fetching form submission for participantId: ${participantId}, formType: ${formType}`);
 
     try {
-      const formData = await getFormSubmission(participantId, formType);
-      console.log("Fetched form data:", formData);
+      const response = await getFormSubmission(participantId, formType);
+      console.log("Fetched form data:", response);
 
       if (!this.formRenderers[formType]) {
         console.error(`No form renderer found for formType: ${formType}`);
@@ -151,8 +151,12 @@ export class ViewParticipantDocuments {
         return;
       }
 
-      // Pass formData explicitly to render
-      const formContent = this.formRenderers[formType].render(formData);
+      // Extract the submission_data from the response
+      const submissionData = response.data?.submission_data || response.submission_data || {};
+      console.log("Extracted submission data:", submissionData);
+
+      // Pass submission_data to render
+      const formContent = this.formRenderers[formType].render(submissionData);
       document.getElementById('form-content').innerHTML = formContent;
       document.getElementById('form-view-modal').style.display = "block";
     } catch (error) {
