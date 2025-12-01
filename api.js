@@ -1139,11 +1139,11 @@ app.post('/api/update-points', async (req, res) => {
           // For group points, add points to all members of the group
           const groupId = parseInt(id);
           
-          // Get all participants in this group
+          // Get all participants in this group (using participant_groups table)
           const membersResult = await client.query(
             `SELECT p.id FROM participants p
-             JOIN participant_organizations po ON p.id = po.participant_id
-             WHERE po.organization_id = $1 AND p.group_id = $2`,
+             JOIN participant_groups pg ON p.id = pg.participant_id
+             WHERE pg.organization_id = $1 AND pg.group_id = $2`,
             [organizationId, groupId]
           );
           
