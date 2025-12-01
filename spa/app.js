@@ -386,33 +386,106 @@ export const app = {
                 }
         },
 
+        toastQueue: [],
+        toastTimeout: null,
+
         showMessage(message, type = 'info') {
-                const banner = document.getElementById('message-banner');
-                banner.textContent = translate(message);
-                banner.style.backgroundColor = type === 'error' ? '#d9534f' : '#5bc0de';
-                banner.style.bottom = '0';
+                const translatedMessage = translate(message);
+
+                // Add to queue
+                this.toastQueue.push({ message: translatedMessage, type });
+
+                // If no toast is currently showing, show the next one
+                if (this.toastQueue.length === 1) {
+                        this.displayNextToast();
+                }
+        },
+
+        displayNextToast() {
+                if (this.toastQueue.length === 0) return;
+
+                const { message, type } = this.toastQueue[0];
+                const container = document.getElementById('toast-container');
+
+                // Clear any existing toast
+                container.innerHTML = '';
+
+                // Create toast element
+                const toast = document.createElement('div');
+                toast.className = `toast toast-${type}`;
+                toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+                toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+                toast.setAttribute('aria-atomic', 'true');
+
+                // Create icon
+                const icon = document.createElement('span');
+                icon.className = 'toast-icon';
+                icon.setAttribute('aria-hidden', 'true');
+                icon.innerHTML = type === 'error' ? '⚠' : '✓';
+
+                // Create message text
+                const messageText = document.createElement('span');
+                messageText.className = 'toast-message';
+                messageText.textContent = message;
+
+                // Create dismiss button
+                const dismissBtn = document.createElement('button');
+                dismissBtn.className = 'toast-dismiss';
+                dismissBtn.setAttribute('aria-label', translate('close'));
+                dismissBtn.innerHTML = '×';
+                dismissBtn.onclick = () => this.dismissToast();
+
+                // Assemble toast
+                toast.appendChild(icon);
+                toast.appendChild(messageText);
+                toast.appendChild(dismissBtn);
+                container.appendChild(toast);
+
+                // Show toast with animation
+                requestAnimationFrame(() => {
+                        toast.classList.add('toast-show');
+                });
+
+                // Auto-dismiss after 5 seconds (longer for accessibility)
+                this.toastTimeout = setTimeout(() => {
+                        this.dismissToast();
+                }, 5000);
+        },
+
+        dismissToast() {
+                const container = document.getElementById('toast-container');
+                const toast = container.querySelector('.toast');
+
+                if (!toast) return;
+
+                // Clear timeout
+                if (this.toastTimeout) {
+                        clearTimeout(this.toastTimeout);
+                        this.toastTimeout = null;
+                }
+
+                // Hide with animation
+                toast.classList.remove('toast-show');
 
                 setTimeout(() => {
-                        banner.style.bottom = '-50px';
-                }, 3000);
+                        // Remove from queue and DOM
+                        this.toastQueue.shift();
+                        container.innerHTML = '';
+
+                        // Show next toast if any
+                        if (this.toastQueue.length > 0) {
+                                setTimeout(() => this.displayNextToast(), 300);
+                        }
+                }, 300);
         },
 
         createMessageBanner() {
-                const banner = document.createElement('div');
-                banner.id = 'message-banner';
-                banner.style.cssText = `
-                        position: fixed;
-                        bottom: -50px;
-                        left: 0;
-                        right: 0;
-                        background-color: #333;
-                        color: white;
-                        text-align: center;
-                        padding: 10px;
-                        transition: bottom 0.3s;
-                        z-index: 1000;
-                `;
-                document.body.appendChild(banner);
+                // Create toast container with ARIA live region
+                const container = document.createElement('div');
+                container.id = 'toast-container';
+                container.setAttribute('aria-live', 'polite');
+                container.setAttribute('aria-relevant', 'additions');
+                document.body.appendChild(container);
         },
 
         setLanguage(lang) {
