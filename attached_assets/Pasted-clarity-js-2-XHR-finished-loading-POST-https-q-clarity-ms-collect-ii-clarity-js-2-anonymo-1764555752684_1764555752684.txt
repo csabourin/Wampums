@@ -1,0 +1,184 @@
+clarity.js:2 XHR finished loading: POST "https://q.clarity.ms/collect".
+ii @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+o @ clarity.js:2
+Promise.then
+c @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ri @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+ni @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+Nr @ clarity.js:2
+Oi @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ki @ clarity.js:2
+pe @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+fe @ clarity.js:2
+(anonymous) @ clarity.js:2
+formulaire_inscription.js:240 Form submission started
+formulaire_inscription.js:257  Missing required participant core fields.
+overrideMethod @ hook.js:608
+handleSubmit @ formulaire_inscription.js:257
+(anonymous) @ formulaire_inscription.js:215
+formulaire_inscription.js:240 Form submission started
+formulaire_inscription.js:271 Full form data to be submitted: {participantCoreData: {…}, formSubmissionData: {…}}
+formulaire_inscription.js:290 Saving participant registration {participantData: {…}, guardiansData: Array(1)}
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…2OTd9.rkByBnwoRUOTfRfMvnrK2oGrlJsD2DbSLgklNCu1AW4', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+ajax-functions.js:88 API Request (attempt 1): POST https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/save-participant?organization_id=1
+ajax-functions.js:224 Fetch finished loading: POST "https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/save-participant?organization_id=1".
+makeApiRequest @ ajax-functions.js:224
+post @ ajax-functions.js:295
+saveParticipant @ ajax-functions.js:333
+saveParticipantAndGuardians @ formulaire_inscription.js:297
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+ajax-functions.js:88 API Response: {success: true, participant_id: 169, message: 'Participant updated successfully'}
+formulaire_inscription.js:304 Participant saved with ID: 169
+ajax-functions.js:60 === GET AUTH HEADER DEBUG ===
+ajax-functions.js:61 Token exists: true
+ajax-functions.js:62 Organization ID: 1
+ajax-functions.js:63 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+ajax-functions.js:75 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…2OTd9.rkByBnwoRUOTfRfMvnrK2oGrlJsD2DbSLgklNCu1AW4', x-organization-id: '1'}
+ajax-functions.js:76 === END AUTH HEADER DEBUG ===
+ajax-functions.js:88 API Request (attempt 1): POST https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/link-user-participants?organization_id=1
+ajax-functions.js:224   POST https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/link-user-participants?organization_id=1 400 (Bad Request)
+makeApiRequest @ ajax-functions.js:224
+post @ ajax-functions.js:295
+linkUserParticipants @ ajax-functions.js:471
+saveParticipantAndGuardians @ formulaire_inscription.js:306
+await in saveParticipantAndGuardians
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+ajax-functions.js:224 Fetch failed loading: POST "https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/link-user-participants?organization_id=1".
+makeApiRequest @ ajax-functions.js:224
+post @ ajax-functions.js:295
+linkUserParticipants @ ajax-functions.js:471
+saveParticipantAndGuardians @ formulaire_inscription.js:306
+await in saveParticipantAndGuardians
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+ajax-functions.js:94  API request failed (attempt 1): Error: User ID and participant_ids array are required
+    at handleResponse (ajax-functions.js:151:15)
+    at async makeApiRequest (ajax-functions.js:225:28)
+    at async FormulaireInscription.saveParticipantAndGuardians (formulaire_inscription.js:306:22)
+    at async FormulaireInscription.handleSubmit (formulaire_inscription.js:274:9)
+overrideMethod @ hook.js:608
+debugError @ ajax-functions.js:94
+makeApiRequest @ ajax-functions.js:232
+await in makeApiRequest
+post @ ajax-functions.js:295
+linkUserParticipants @ ajax-functions.js:471
+saveParticipantAndGuardians @ formulaire_inscription.js:306
+await in saveParticipantAndGuardians
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+ajax-functions.js:88 API Request (attempt 2): POST https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/link-user-participants?organization_id=1
+ajax-functions.js:224   POST https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/link-user-participants?organization_id=1 400 (Bad Request)
+makeApiRequest @ ajax-functions.js:224
+await in makeApiRequest
+post @ ajax-functions.js:295
+linkUserParticipants @ ajax-functions.js:471
+saveParticipantAndGuardians @ formulaire_inscription.js:306
+await in saveParticipantAndGuardians
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+ajax-functions.js:94  API request failed (attempt 2): Error: User ID and participant_ids array are required
+    at handleResponse (ajax-functions.js:151:15)
+    at async makeApiRequest (ajax-functions.js:225:28)
+    at async FormulaireInscription.saveParticipantAndGuardians (formulaire_inscription.js:306:22)
+    at async FormulaireInscription.handleSubmit (formulaire_inscription.js:274:9)
+overrideMethod @ hook.js:608
+debugError @ ajax-functions.js:94
+makeApiRequest @ ajax-functions.js:232
+await in makeApiRequest
+post @ ajax-functions.js:295
+linkUserParticipants @ ajax-functions.js:471
+saveParticipantAndGuardians @ formulaire_inscription.js:306
+await in saveParticipantAndGuardians
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+formulaire_inscription.js:326  Error saving participant and guardians: Error: Failed to complete API request after 2 attempts: User ID and participant_ids array are required
+    at makeApiRequest (ajax-functions.js:241:11)
+    at async FormulaireInscription.saveParticipantAndGuardians (formulaire_inscription.js:306:22)
+    at async FormulaireInscription.handleSubmit (formulaire_inscription.js:274:9)
+overrideMethod @ hook.js:608
+saveParticipantAndGuardians @ formulaire_inscription.js:326
+await in saveParticipantAndGuardians
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+formulaire_inscription.js:282  Error during form submission: Error: Failed to complete API request after 2 attempts: User ID and participant_ids array are required
+    at makeApiRequest (ajax-functions.js:241:11)
+    at async FormulaireInscription.saveParticipantAndGuardians (formulaire_inscription.js:306:22)
+    at async FormulaireInscription.handleSubmit (formulaire_inscription.js:274:9)
+overrideMethod @ hook.js:608
+handleSubmit @ formulaire_inscription.js:282
+await in handleSubmit
+(anonymous) @ formulaire_inscription.js:215
+ajax-functions.js:224 Fetch failed loading: POST "https://d114d446-cf9a-4c4f-8c7f-9f4bff0d329f-00-2lardlryb2460.worf.replit.dev/api/link-user-participants?organization_id=1".
+makeApiRequest @ ajax-functions.js:224
+await in makeApiRequest
+post @ ajax-functions.js:295
+linkUserParticipants @ ajax-functions.js:471
+saveParticipantAndGuardians @ formulaire_inscription.js:306
+await in saveParticipantAndGuardians
+handleSubmit @ formulaire_inscription.js:274
+(anonymous) @ formulaire_inscription.js:215
+clarity.js:2 XHR finished loading: POST "https://q.clarity.ms/collect".
+ii @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+o @ clarity.js:2
+Promise.then
+c @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ri @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+ni @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+Nr @ clarity.js:2
+Oi @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+(anonymous) @ clarity.js:2
+pt @ clarity.js:2
+ki @ clarity.js:2
+We @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+tt @ clarity.js:2
+je @ clarity.js:2
+(anonymous) @ clarity.js:2
+setTimeout
+i @ clarity.js:2
+(anonymous) @ clarity.js:2

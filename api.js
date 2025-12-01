@@ -4071,7 +4071,7 @@ app.post('/api/update-user-role', async (req, res) => {
   }
 });
 
-// Link user to participants (admin only)
+// Link user to participants (admin can link any user, regular users can only link themselves)
 app.post('/api/link-user-participants', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -4083,16 +4083,29 @@ app.post('/api/link-user-participants', async (req, res) => {
     
     const organizationId = await getCurrentOrganizationId(req);
     
-    // Verify user has admin role in this organization
-    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin']);
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
     if (!authCheck.authorized) {
       return res.status(403).json({ success: false, message: authCheck.message });
     }
     
-    const { user_id, participant_ids } = req.body;
+    let { user_id, participant_ids } = req.body;
     
-    if (!user_id || !participant_ids || !Array.isArray(participant_ids)) {
-      return res.status(400).json({ success: false, message: 'User ID and participant_ids array are required' });
+    // If no user_id provided, use the current user (self-linking)
+    if (!user_id) {
+      user_id = decoded.user_id;
+    }
+    
+    // If user is trying to link someone else, they need admin role
+    if (user_id !== decoded.user_id) {
+      const adminCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin']);
+      if (!adminCheck.authorized) {
+        return res.status(403).json({ success: false, message: 'Only admins can link participants to other users' });
+      }
+    }
+    
+    if (!participant_ids || !Array.isArray(participant_ids)) {
+      return res.status(400).json({ success: false, message: 'participant_ids array is required' });
     }
     
     // Verify target user belongs to this organization
@@ -4109,11 +4122,15 @@ app.post('/api/link-user-participants', async (req, res) => {
     try {
       await client.query('BEGIN');
       
-      // Remove existing links for this user
-      await client.query(
-        `DELETE FROM user_participants WHERE user_id = $1`,
-        [user_id]
-      );
+      // Only remove existing links if replace_all is true (admin replacing all links)
+      // For self-linking (adding children), we just add to existing links
+      const replaceAll = req.body.replace_all === true;
+      if (replaceAll && user_id !== decoded.user_id) {
+        await client.query(
+          `DELETE FROM user_participants WHERE user_id = $1`,
+          [user_id]
+        );
+      }
       
       // Add new links for each participant (verify they belong to org)
       for (const participantId of participant_ids) {
