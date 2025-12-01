@@ -3,6 +3,7 @@
 // Critical imports - loaded immediately (core functionality)
 import { Dashboard } from "./dashboard.js";
 import { Login } from "./login.js";
+import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 
 // Lazy-loaded modules - loaded on demand for better performance
 // These will be dynamically imported when the route is accessed
@@ -38,22 +39,7 @@ const lazyModules = {
 // Cache for loaded modules
 const moduleCache = {};
 
-const debugMode =
-  import.meta.env?.DEV ||
-  window.location.hostname === "localhost" ||
-  window.location.hostname.includes("replit.dev");
-
-function debugLog(...args) {
-  if (debugMode) {
-    console.log(...args);
-  }
-}
-
-function debugError(...args) {
-  if (debugMode) {
-    console.error(...args);
-  }
-}
+const debugMode = isDebugMode();
 
 const routes = {
 

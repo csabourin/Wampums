@@ -6,24 +6,10 @@ import {
 import { initRouter, Router } from "./router.js";
 import { Login } from "./login.js";
 import { getOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
+import { CONFIG } from "./config.js";
+import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 
-const debugMode =
-        window.location.hostname === "localhost" ||
-                window.location.hostname.includes("replit.dev")
-                ? true
-                : false;
-
-function debugLog(...args) {
-        if (debugMode) {
-                console.log(...args);
-        }
-}
-
-function debugError(...args) {
-        if (debugMode) {
-                console.error(...args);
-        }
-}
+const debugMode = isDebugMode();
 
 if ("serviceWorker" in navigator) {
         navigator.serviceWorker

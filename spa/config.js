@@ -1,0 +1,288 @@
+/**
+ * config.js
+ *
+ * Centralized configuration for the Wampums application.
+ * All environment-specific and application-wide settings should be defined here.
+ *
+ * Usage:
+ *   import { CONFIG } from './config.js';
+ *   console.log(CONFIG.API_BASE_URL);
+ */
+
+/**
+ * Determine if debug mode is enabled
+ * @returns {boolean} True if debug mode is active
+ */
+function isDebugMode() {
+    return (
+        import.meta.env?.VITE_DEBUG_MODE === 'true' ||
+        import.meta.env?.DEV ||
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "wampums-1.test" ||
+        window.location.hostname.includes("replit.dev")
+    );
+}
+
+/**
+ * Application Configuration Object
+ */
+export const CONFIG = {
+    /**
+     * Debug Mode
+     * Enables verbose logging and development features
+     */
+    debugMode: isDebugMode(),
+
+    /**
+     * API Base URL
+     * Uses Vite environment variable if available, otherwise defaults to current origin
+     */
+    API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
+
+    /**
+     * Cache Duration Settings
+     * Controls how long data is cached in IndexedDB
+     */
+    CACHE_DURATION: {
+        SHORT: 5 * 60 * 1000,        // 5 minutes
+        MEDIUM: 30 * 60 * 1000,      // 30 minutes
+        LONG: 24 * 60 * 60 * 1000    // 24 hours
+    },
+
+    /**
+     * Application Version
+     */
+    VERSION: '2.0.0',
+
+    /**
+     * Application Name
+     */
+    APP_NAME: 'Wampums Scout Management',
+
+    /**
+     * Default Language
+     */
+    DEFAULT_LANG: 'fr',
+
+    /**
+     * Supported Languages
+     */
+    SUPPORTED_LANGS: ['en', 'fr'],
+
+    /**
+     * Storage Keys
+     * Centralized storage key names to avoid typos and conflicts
+     */
+    STORAGE_KEYS: {
+        JWT_TOKEN: 'jwtToken',
+        ORGANIZATION_ID: 'organizationId',
+        CURRENT_ORGANIZATION_ID: 'currentOrganizationId',
+        USER_ROLE: 'userRole',
+        USER_ID: 'userId',
+        LANGUAGE: 'language',
+        THEME: 'theme'
+    },
+
+    /**
+     * API Endpoints
+     * Centralized endpoint paths
+     */
+    ENDPOINTS: {
+        // Auth
+        LOGIN: '/public/login',
+        LOGOUT: '/api/logout',
+        REGISTER: '/api/register',
+        RESET_PASSWORD: '/api/reset-password',
+
+        // Organization
+        ORGANIZATION_SETTINGS: '/api/organization-settings',
+        ORGANIZATION_ID: '/public/get_organization_id',
+        ORGANIZATION_JWT: '/api/organization-jwt',
+
+        // Participants
+        PARTICIPANTS: '/api/participants',
+        PARTICIPANTS_V1: '/api/v1/participants',
+        PARTICIPANT_DETAILS: '/api/participant-details',
+
+        // Groups
+        GROUPS: '/api/get_groups',
+        GROUPS_V1: '/api/v1/groups',
+
+        // Attendance
+        ATTENDANCE: '/api/attendance',
+        ATTENDANCE_V1: '/api/v1/attendance',
+        ATTENDANCE_DATES: '/api/attendance-dates',
+
+        // Points & Honors
+        POINTS_DATA: '/api/points-data',
+        UPDATE_POINTS: '/api/update-points',
+        HONORS: '/api/honors',
+        AWARD_HONOR: '/api/award-honor',
+
+        // Other
+        TRANSLATIONS: '/api/translations',
+        NEWS: '/api/news',
+        INITIAL_DATA: '/api/initial-data',
+        REUNION_PREPARATION: '/api/reunion-preparation',
+        MAILING_LIST: '/api/mailing-list',
+        PARENT_CONTACT_LIST: '/api/parent-contact-list'
+    },
+
+    /**
+     * User Roles
+     */
+    ROLES: {
+        ADMIN: 'admin',
+        ANIMATION: 'animation',
+        PARENT: 'parent'
+    },
+
+    /**
+     * Attendance Status Values
+     */
+    ATTENDANCE_STATUS: {
+        PRESENT: 'present',
+        ABSENT: 'absent',
+        LATE: 'late',
+        EXCUSED: 'excused'
+    },
+
+    /**
+     * Default Point Values
+     * Used if organization hasn't configured custom values
+     */
+    DEFAULT_POINTS: {
+        ATTENDANCE: {
+            PRESENT: 1,
+            ABSENT: 0,
+            LATE: 0.5,
+            EXCUSED: 0
+        },
+        HONORS: {
+            AWARD: 5
+        },
+        BADGES: {
+            EARN: 5,
+            LEVEL_UP: 10
+        }
+    },
+
+    /**
+     * UI Settings
+     */
+    UI: {
+        // Default number of items per page for paginated lists
+        DEFAULT_PAGE_SIZE: 50,
+
+        // Maximum file upload size (in bytes)
+        MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+
+        // Toast notification duration (in milliseconds)
+        TOAST_DURATION: 3000,
+
+        // Debounce delay for search inputs (in milliseconds)
+        SEARCH_DEBOUNCE: 300
+    },
+
+    /**
+     * Feature Flags
+     * Enable/disable features based on environment or rollout strategy
+     */
+    FEATURES: {
+        PUSH_NOTIFICATIONS: true,
+        OFFLINE_MODE: true,
+        DARK_MODE: false,
+        EXPORT_REPORTS: true,
+        BADGE_SYSTEM: true
+    },
+
+    /**
+     * IndexedDB Settings
+     */
+    INDEXEDDB: {
+        DB_NAME: 'WampumsDB',
+        DB_VERSION: 1,
+        STORE_NAME: 'cachedData'
+    },
+
+    /**
+     * Service Worker Settings
+     */
+    SERVICE_WORKER: {
+        ENABLED: 'serviceWorker' in navigator,
+        PATH: '/service-worker.js'
+    }
+};
+
+/**
+ * Log configuration on initialization (only in debug mode)
+ */
+if (CONFIG.debugMode) {
+    console.log('=== Wampums Configuration ===');
+    console.log('API Base URL:', CONFIG.API_BASE_URL);
+    console.log('Debug Mode:', CONFIG.debugMode);
+    console.log('Version:', CONFIG.VERSION);
+    console.log('Environment:', import.meta.env?.MODE || 'production');
+    console.log('============================');
+}
+
+/**
+ * Helper function to build full API URL
+ * @param {string} endpoint - Endpoint path
+ * @returns {string} Full API URL
+ */
+export function getApiUrl(endpoint) {
+    // Remove leading slash from endpoint if present
+    const path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+
+    // Ensure API_BASE_URL doesn't end with slash
+    const baseUrl = CONFIG.API_BASE_URL.endsWith('/')
+        ? CONFIG.API_BASE_URL.slice(0, -1)
+        : CONFIG.API_BASE_URL;
+
+    return `${baseUrl}/${path}`;
+}
+
+/**
+ * Helper function to check if a feature is enabled
+ * @param {string} featureName - Feature name from CONFIG.FEATURES
+ * @returns {boolean} True if feature is enabled
+ */
+export function isFeatureEnabled(featureName) {
+    return CONFIG.FEATURES[featureName] === true;
+}
+
+/**
+ * Helper function to get storage key
+ * @param {string} keyName - Key name from CONFIG.STORAGE_KEYS
+ * @returns {string} Storage key
+ */
+export function getStorageKey(keyName) {
+    return CONFIG.STORAGE_KEYS[keyName] || keyName;
+}
+
+/**
+ * Export individual settings for convenience
+ */
+export const {
+    API_BASE_URL,
+    CACHE_DURATION,
+    STORAGE_KEYS,
+    ENDPOINTS,
+    ROLES,
+    ATTENDANCE_STATUS,
+    DEFAULT_POINTS
+} = CONFIG;
+
+// Make CONFIG immutable (prevent accidental modifications)
+Object.freeze(CONFIG);
+Object.freeze(CONFIG.CACHE_DURATION);
+Object.freeze(CONFIG.STORAGE_KEYS);
+Object.freeze(CONFIG.ENDPOINTS);
+Object.freeze(CONFIG.ROLES);
+Object.freeze(CONFIG.ATTENDANCE_STATUS);
+Object.freeze(CONFIG.DEFAULT_POINTS);
+Object.freeze(CONFIG.UI);
+Object.freeze(CONFIG.FEATURES);
+Object.freeze(CONFIG.INDEXEDDB);
+Object.freeze(CONFIG.SERVICE_WORKER);
