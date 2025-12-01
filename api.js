@@ -1633,6 +1633,140 @@ app.get('/api/participant-details', async (req, res) => {
   }
 });
 
+// Save participant (create or update)
+app.post('/api/save-participant', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { id, first_name, last_name, date_naissance, group_id } = req.body;
+    
+    if (!first_name || !last_name) {
+      return res.status(400).json({ success: false, message: 'First name and last name are required' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      let participantId;
+      
+      if (id) {
+        // Update existing participant
+        const updateResult = await client.query(
+          `UPDATE participants SET first_name = $1, last_name = $2, date_naissance = $3
+           WHERE id = $4 RETURNING id`,
+          [first_name, last_name, date_naissance || null, id]
+        );
+        
+        if (updateResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Participant not found' });
+        }
+        
+        participantId = id;
+      } else {
+        // Create new participant
+        const insertResult = await client.query(
+          `INSERT INTO participants (first_name, last_name, date_naissance)
+           VALUES ($1, $2, $3) RETURNING id`,
+          [first_name, last_name, date_naissance || null]
+        );
+        
+        participantId = insertResult.rows[0].id;
+        
+        // Link to organization
+        await client.query(
+          `INSERT INTO participant_organizations (participant_id, organization_id)
+           VALUES ($1, $2)
+           ON CONFLICT (participant_id, organization_id) DO NOTHING`,
+          [participantId, organizationId]
+        );
+      }
+      
+      // Update group assignment if provided
+      if (group_id !== undefined) {
+        // Remove existing group assignment for this org
+        await client.query(
+          `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
+          [participantId, organizationId]
+        );
+        
+        // Add new group assignment if group_id is not null
+        if (group_id) {
+          await client.query(
+            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
+             VALUES ($1, $2, $3)`,
+            [participantId, group_id, organizationId]
+          );
+        }
+      }
+      
+      await client.query('COMMIT');
+      
+      console.log(`[participant] Participant ${participantId} saved by user ${decoded.user_id}`);
+      res.json({ 
+        success: true, 
+        participant_id: participantId,
+        message: id ? 'Participant updated successfully' : 'Participant created successfully'
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error saving participant:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Link participant to organization
+app.post('/api/link-participant-to-organization', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    const { participant_id } = req.body;
+    
+    if (!participant_id) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+    
+    // Insert or do nothing if already linked
+    await pool.query(
+      `INSERT INTO participant_organizations (participant_id, organization_id)
+       VALUES ($1, $2)
+       ON CONFLICT (participant_id, organization_id) DO NOTHING`,
+      [participant_id, organizationId]
+    );
+    
+    res.json({ success: true, message: 'Participant linked to organization' });
+  } catch (error) {
+    logger.error('Error linking participant to organization:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Get mailing list
 app.get('/api/mailing-list', async (req, res) => {
   try {
