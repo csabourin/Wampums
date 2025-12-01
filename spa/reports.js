@@ -272,12 +272,16 @@ case 'participant-age':
 
 					const response = await getFormSubmissions(null, formType); // Fetch submissions for all participants for the selected form type
 
-					if (!response) {
+					if (!response || !response.data) {
 							throw new Error('No form submissions found');
 					}
 
-					const formStructure = await getFormStructure(formType); // Get the form structure based on the selected form type
-					const missingFieldsReport = this.generateMissingFieldsReport(response, formStructure, formType);
+					const formStructure = await getFormStructure(); // Get all form structures
+					if (!formStructure || !formStructure.data) {
+							throw new Error('No form structure found');
+					}
+
+					const missingFieldsReport = this.generateMissingFieldsReport(response.data, formStructure.data, formType);
 
 					return missingFieldsReport;
 			} catch (error) {
