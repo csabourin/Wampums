@@ -1754,6 +1754,68 @@ app.post('/api/save-participant', async (req, res) => {
   }
 });
 
+// Update participant group membership and roles
+app.post('/api/update-participant-group', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ status: 'error', message: authCheck.message });
+    }
+
+    const { participant_id, group_id, is_leader, is_second_leader } = req.body;
+
+    if (!participant_id) {
+      return res.status(400).json({ status: 'error', message: 'Participant ID is required' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Remove existing group assignment for this participant and organization
+      await client.query(
+        `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
+        [participant_id, organizationId]
+      );
+
+      // Add new group assignment if group_id is not null/empty
+      if (group_id) {
+        await client.query(
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [participant_id, group_id, organizationId, is_leader || false, is_second_leader || false]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      console.log(`[update-participant-group] Participant ${participant_id} group updated to ${group_id} by user ${decoded.user_id}`);
+      res.json({
+        status: 'success',
+        message: group_id ? 'Group membership updated successfully' : 'Participant removed from group'
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error updating participant group:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 // Link participant to organization
 app.post('/api/link-participant-to-organization', async (req, res) => {
   try {
