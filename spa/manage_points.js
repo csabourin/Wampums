@@ -396,7 +396,8 @@ export class ManagePoints {
               this.updateGroupPoints(
                 update.id,
                 update.totalPoints,
-                update.memberIds
+                update.memberIds,
+                update.memberTotals
               );
             } else {
               this.updateIndividualPoints(update.id, update.totalPoints);
@@ -426,8 +427,8 @@ export class ManagePoints {
   }
 
 
-  updateGroupPoints(groupId, totalPoints, memberIds) {
-    console.log(`[updateGroupPoints] Updating group ${groupId} to ${totalPoints} points, members:`, memberIds);
+  updateGroupPoints(groupId, totalPoints, memberIds, memberTotals) {
+    console.log(`[updateGroupPoints] Updating group ${groupId} to ${totalPoints} points, members:`, memberIds, 'memberTotals:', memberTotals);
     const groupElement = document.querySelector(
       `.group-header[data-group-id="${groupId}"]`
     );
@@ -454,6 +455,13 @@ export class ManagePoints {
       }
     } else {
       console.warn(`[updateGroupPoints] Could not find element for group ${groupId}`);
+    }
+    
+    // Update each member's individual points from the memberTotals array
+    if (memberTotals && Array.isArray(memberTotals)) {
+      memberTotals.forEach(member => {
+        this.updateIndividualPoints(member.id, member.totalPoints);
+      });
     }
   }
 

@@ -1149,7 +1149,7 @@ app.post('/api/update-points', async (req, res) => {
         const value = points;
         
         if (type === 'group') {
-          // For group points, add points to all members of the group
+          // For group points, add points to the group AND to each individual member
           const groupId = parseInt(id);
           
           // Get all participants in this group (using participant_groups table)
@@ -1162,17 +1162,38 @@ app.post('/api/update-points', async (req, res) => {
           
           const memberIds = membersResult.rows.map(r => r.id);
           
-          // Insert a point record for the group
+          // Insert a point record for the group (group-level tracking)
           await client.query(
             `INSERT INTO points (participant_id, group_id, organization_id, value)
              VALUES (NULL, $1, $2, $3)`,
             [groupId, organizationId, value]
           );
           
-          // Calculate new total for the group
+          // Also insert individual point records for each member of the group
+          const memberTotals = [];
+          for (const memberId of memberIds) {
+            await client.query(
+              `INSERT INTO points (participant_id, group_id, organization_id, value)
+               VALUES ($1, $2, $3, $4)`,
+              [memberId, groupId, organizationId, value]
+            );
+            
+            // Get the new total for this member
+            const memberTotalResult = await client.query(
+              `SELECT COALESCE(SUM(value), 0) as total FROM points 
+               WHERE organization_id = $1 AND participant_id = $2`,
+              [organizationId, memberId]
+            );
+            memberTotals.push({
+              id: memberId,
+              totalPoints: parseInt(memberTotalResult.rows[0].total)
+            });
+          }
+          
+          // Calculate new total for the group (group-level points only)
           const totalResult = await client.query(
             `SELECT COALESCE(SUM(value), 0) as total FROM points 
-             WHERE organization_id = $1 AND group_id = $2`,
+             WHERE organization_id = $1 AND group_id = $2 AND participant_id IS NULL`,
             [organizationId, groupId]
           );
           
@@ -1180,7 +1201,8 @@ app.post('/api/update-points', async (req, res) => {
             type: 'group',
             id: groupId,
             totalPoints: parseInt(totalResult.rows[0].total),
-            memberIds: memberIds
+            memberIds: memberIds,
+            memberTotals: memberTotals
           });
         } else {
           // For individual participant points
