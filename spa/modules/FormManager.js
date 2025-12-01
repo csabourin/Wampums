@@ -113,10 +113,20 @@ export class FormManager {
          */
         setReminder(reminder) {
                 this.reminder = reminder;
-                if (reminder) {
-                        document.getElementById('reminder-text').value = reminder.reminder_text;
-                        document.getElementById('reminder-date').value = reminder.reminder_date;
-                        document.getElementById('recurring-reminder').checked = reminder.is_recurring;
+        }
+
+        /**
+         * Populate reminder form (to be called after DOM is rendered)
+         */
+        populateReminderForm() {
+                if (this.reminder) {
+                        const reminderTextEl = document.getElementById('reminder-text');
+                        const reminderDateEl = document.getElementById('reminder-date');
+                        const recurringReminderEl = document.getElementById('recurring-reminder');
+
+                        if (reminderTextEl) reminderTextEl.value = this.reminder.reminder_text || '';
+                        if (reminderDateEl) reminderDateEl.value = this.reminder.reminder_date || '';
+                        if (recurringReminderEl) recurringReminderEl.checked = this.reminder.is_recurring || false;
                 }
         }
 

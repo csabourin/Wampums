@@ -53,6 +53,9 @@ export class PreparationReunions {
                         this.currentMeetingData = currentMeeting;
                         await this.formManager.populateForm(currentMeeting, this.dateManager.getCurrentDate());
 
+                        // Populate reminder form after DOM is rendered
+                        this.formManager.populateReminderForm();
+
                         // Attach event listeners
                         this.attachEventListeners();
                 } catch (error) {
@@ -173,6 +176,7 @@ export class PreparationReunions {
                 this.currentMeetingData = newMeetingData;
                 this.render();
                 await this.formManager.populateForm(newMeetingData, this.dateManager.getCurrentDate());
+                this.formManager.populateReminderForm();
                 this.attachEventListeners();
         }
 
