@@ -4792,6 +4792,1754 @@ app.get('/api/parent-dashboard', async (req, res) => {
   }
 });
 
+// ============================================
+// FORM MANAGEMENT ENDPOINTS
+// ============================================
+
+/**
+ * @swagger
+ * /api/form-types:
+ *   get:
+ *     summary: Get all available form types
+ *     tags: [Forms]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of form types
+ */
+app.get('/api/form-types', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const result = await pool.query(
+      "SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = $1 AND display_type = 'public' ORDER BY form_type",
+      [organizationId]
+    );
+
+    res.json({
+      success: true,
+      data: result.rows.map(row => row.form_type)
+    });
+  } catch (error) {
+    logger.error('Error fetching form types:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/form-structure:
+ *   get:
+ *     summary: Get form structure for a specific form type
+ *     tags: [Forms]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: form_type
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Form structure
+ */
+app.get('/api/form-structure', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { form_type } = req.query;
+
+    if (!form_type) {
+      return res.status(400).json({ success: false, message: 'Form type is required' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const result = await pool.query(
+      "SELECT form_structure FROM organization_form_formats WHERE form_type = $1 AND organization_id = $2",
+      [form_type, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Form structure not found' });
+    }
+
+    res.json({
+      success: true,
+      data: JSON.parse(result.rows[0].form_structure)
+    });
+  } catch (error) {
+    logger.error('Error fetching form structure:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/form-submissions-list:
+ *   get:
+ *     summary: Get form submissions for a specific form type
+ *     tags: [Forms]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: form_type
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: participant_id
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Form submissions
+ */
+app.get('/api/form-submissions-list', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { form_type, participant_id } = req.query;
+
+    if (!form_type) {
+      return res.status(400).json({ success: false, message: 'Form type is required' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    if (participant_id) {
+      const result = await pool.query(
+        "SELECT submission_data FROM form_submissions WHERE participant_id = $1 AND form_type = $2 AND organization_id = $3",
+        [participant_id, form_type, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'No submission data found' });
+      }
+
+      res.json({
+        success: true,
+        data: JSON.parse(result.rows[0].submission_data)
+      });
+    } else {
+      const result = await pool.query(
+        `SELECT fs.participant_id, fs.submission_data, p.first_name, p.last_name
+         FROM form_submissions fs
+         JOIN participant_organizations po ON fs.participant_id = po.participant_id
+         JOIN participants p ON fs.participant_id = p.id
+         WHERE po.organization_id = $1 AND fs.form_type = $2
+         ORDER BY p.first_name, p.last_name`,
+        [organizationId, form_type]
+      );
+
+      res.json({
+        success: true,
+        data: result.rows.map(row => ({
+          participant_id: row.participant_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          submission_data: JSON.parse(row.submission_data)
+        }))
+      });
+    }
+  } catch (error) {
+    logger.error('Error fetching form submissions:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// RISK ACCEPTANCE ENDPOINTS
+// ============================================
+
+/**
+ * @swagger
+ * /api/risk-acceptance:
+ *   get:
+ *     summary: Get risk acceptance for a participant
+ *     tags: [Forms]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: participant_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Risk acceptance data
+ */
+app.get('/api/risk-acceptance', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { participant_id } = req.query;
+
+    if (!participant_id) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+
+    const result = await pool.query(
+      `SELECT * FROM acceptation_risque WHERE participant_id = $1`,
+      [participant_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Risk acceptance not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Error fetching risk acceptance:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/risk-acceptance:
+ *   post:
+ *     summary: Save risk acceptance for a participant
+ *     tags: [Forms]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - participant_id
+ *             properties:
+ *               participant_id:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Risk acceptance saved
+ */
+app.post('/api/risk-acceptance', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const {
+      participant_id,
+      groupe_district,
+      accepte_risques,
+      accepte_covid19,
+      participation_volontaire,
+      declaration_sante,
+      declaration_voyage,
+      nom_parent_tuteur,
+      date_signature
+    } = req.body;
+
+    if (!participant_id) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO acceptation_risque
+       (participant_id, groupe_district, accepte_risques, accepte_covid19,
+        participation_volontaire, declaration_sante, declaration_voyage,
+        nom_parent_tuteur, date_signature)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (participant_id)
+       DO UPDATE SET
+         groupe_district = EXCLUDED.groupe_district,
+         accepte_risques = EXCLUDED.accepte_risques,
+         accepte_covid19 = EXCLUDED.accepte_covid19,
+         participation_volontaire = EXCLUDED.participation_volontaire,
+         declaration_sante = EXCLUDED.declaration_sante,
+         declaration_voyage = EXCLUDED.declaration_voyage,
+         nom_parent_tuteur = EXCLUDED.nom_parent_tuteur,
+         date_signature = EXCLUDED.date_signature
+       RETURNING *`,
+      [participant_id, groupe_district, accepte_risques, accepte_covid19,
+       participation_volontaire, declaration_sante, declaration_voyage,
+       nom_parent_tuteur, date_signature]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Error saving risk acceptance:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// ADDITIONAL REPORT ENDPOINTS
+// ============================================
+
+/**
+ * @swagger
+ * /api/health-contact-report:
+ *   get:
+ *     summary: Get health contact information report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Health contact report
+ */
+app.get('/api/health-contact-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+              fs.submission_data->>'emergency_contact_name' as emergency_contact_name,
+              fs.submission_data->>'emergency_contact_phone' as emergency_contact_phone,
+              fs.submission_data->>'doctor_name' as doctor_name,
+              fs.submission_data->>'doctor_phone' as doctor_phone
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching health contact report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/allergies-report:
+ *   get:
+ *     summary: Get allergies report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Allergies report
+ */
+app.get('/api/allergies-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              fs.submission_data->>'allergies' as allergies,
+              fs.submission_data->>'allergies_details' as allergies_details
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+       WHERE po.organization_id = $1
+         AND (fs.submission_data->>'allergies' = 'true' OR fs.submission_data->>'allergies_details' IS NOT NULL)
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching allergies report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/medication-report:
+ *   get:
+ *     summary: Get medication report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Medication report
+ */
+app.get('/api/medication-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              fs.submission_data->>'medication' as medication,
+              fs.submission_data->>'medication_details' as medication_details
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+       WHERE po.organization_id = $1
+         AND (fs.submission_data->>'medication' = 'true' OR fs.submission_data->>'medication_details' IS NOT NULL)
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching medication report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/vaccine-report:
+ *   get:
+ *     summary: Get vaccine report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Vaccine report
+ */
+app.get('/api/vaccine-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              fs.submission_data->>'vaccinations' as vaccinations,
+              fs.submission_data->>'vaccination_date' as vaccination_date
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching vaccine report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/leave-alone-report:
+ *   get:
+ *     summary: Get permission to leave alone report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Leave alone permission report
+ */
+app.get('/api/leave-alone-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              fs.submission_data->>'can_leave_alone' as can_leave_alone
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'guardian_form'
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching leave alone report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/media-authorization-report:
+ *   get:
+ *     summary: Get media authorization report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Media authorization report
+ */
+app.get('/api/media-authorization-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              fs.submission_data->>'media_authorization' as media_authorization
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'guardian_form'
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching media authorization report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/honors-report:
+ *   get:
+ *     summary: Get honors report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Honors report
+ */
+app.get('/api/honors-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT h.honor_name, h.category, COUNT(*) as count,
+              array_agg(p.first_name || ' ' || p.last_name) as recipients
+       FROM honors h
+       JOIN participants p ON h.participant_id = p.id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE po.organization_id = $1
+       GROUP BY h.honor_name, h.category
+       ORDER BY h.category, h.honor_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching honors report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/points-report:
+ *   get:
+ *     summary: Get points report
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Points report
+ */
+app.get('/api/points-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+              COALESCE(SUM(pts.value), 0) as total_points,
+              COUNT(DISTINCT h.id) as honors_count
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
+       LEFT JOIN honors h ON p.id = h.participant_id
+       WHERE po.organization_id = $1
+       GROUP BY p.id, p.first_name, p.last_name, g.name
+       ORDER BY total_points DESC, p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching points report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// PARTICIPANT ENDPOINTS
+// ============================================
+
+/**
+ * @swagger
+ * /api/participant-ages:
+ *   get:
+ *     summary: Get participants with calculated ages
+ *     tags: [Participants]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Participants with ages
+ */
+app.get('/api/participant-ages', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+              DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance)) as age,
+              g.name as group_name
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE po.organization_id = $1
+       ORDER BY age DESC, p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching participant ages:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/recent-honors:
+ *   get:
+ *     summary: Get recently awarded honors
+ *     tags: [Honors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Recent honors
+ */
+app.get('/api/recent-honors', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+    const limit = parseInt(req.query.limit) || 10;
+
+    const result = await pool.query(
+      `SELECT h.*, p.first_name, p.last_name, g.name as group_name
+       FROM honors h
+       JOIN participants p ON h.participant_id = p.id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE h.organization_id = $1
+       ORDER BY h.date_awarded DESC
+       LIMIT $2`,
+      [organizationId, limit]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching recent honors:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/activity-templates:
+ *   get:
+ *     summary: Get activity templates for meetings
+ *     tags: [Meetings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Activity templates
+ */
+app.get('/api/activity-templates', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const result = await pool.query(
+      `SELECT * FROM activites_rencontre
+       WHERE organization_id = $1 OR organization_id = 0
+       ORDER BY category, name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching activity templates:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/user-children:
+ *   get:
+ *     summary: Get children linked to current user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User's children
+ */
+app.get('/api/user-children', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+              g.name as group_name, pg.group_id
+       FROM participants p
+       JOIN user_participants up ON p.id = up.participant_id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE up.user_id = $2 AND po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId, decoded.user_id]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching user children:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// CALENDAR/PAYMENT ENDPOINTS
+// ============================================
+
+/**
+ * @swagger
+ * /api/calendars/{id}:
+ *   put:
+ *     summary: Update a calendar entry
+ *     tags: [Calendars]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Calendar updated
+ */
+app.put('/api/calendars/:id', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const { id } = req.params;
+    const { participant_id, date, amount_due, amount_paid, paid, notes } = req.body;
+
+    const result = await pool.query(
+      `UPDATE calendars
+       SET participant_id = COALESCE($1, participant_id),
+           date = COALESCE($2, date),
+           amount_due = COALESCE($3, amount_due),
+           amount_paid = COALESCE($4, amount_paid),
+           paid = COALESCE($5, paid),
+           notes = COALESCE($6, notes),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7 AND organization_id = $8
+       RETURNING *`,
+      [participant_id, date, amount_due, amount_paid, paid, notes, id, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Calendar entry not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Error updating calendar:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/calendars/{id}/payment:
+ *   put:
+ *     summary: Update payment amount for a calendar entry
+ *     tags: [Calendars]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount_paid
+ *             properties:
+ *               amount_paid:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Payment updated
+ */
+app.put('/api/calendars/:id/payment', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const { id } = req.params;
+    const { amount_paid } = req.body;
+
+    if (amount_paid === undefined) {
+      return res.status(400).json({ success: false, message: 'Amount paid is required' });
+    }
+
+    // Get current amount due to determine if fully paid
+    const currentResult = await pool.query(
+      `SELECT amount_due FROM calendars WHERE id = $1 AND organization_id = $2`,
+      [id, organizationId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Calendar entry not found' });
+    }
+
+    const amountDue = parseFloat(currentResult.rows[0].amount_due);
+    const paid = parseFloat(amount_paid) >= amountDue;
+
+    const result = await pool.query(
+      `UPDATE calendars
+       SET amount_paid = $1,
+           paid = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 AND organization_id = $4
+       RETURNING *`,
+      [amount_paid, paid, id, organizationId]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Error updating calendar payment:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/participant-calendar:
+ *   get:
+ *     summary: Get calendar entries for a specific participant
+ *     tags: [Calendars]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: participant_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Participant calendar entries
+ */
+app.get('/api/participant-calendar', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { participant_id } = req.query;
+
+    if (!participant_id) {
+      return res.status(400).json({ success: false, message: 'Participant ID is required' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const result = await pool.query(
+      `SELECT c.*, p.first_name, p.last_name
+       FROM calendars c
+       JOIN participants p ON c.participant_id = p.id
+       WHERE c.participant_id = $1 AND c.organization_id = $2
+       ORDER BY c.date DESC`,
+      [participant_id, organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching participant calendar:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// AUTHENTICATION ENDPOINTS
+// ============================================
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *               - full_name
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               full_name:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: User registered
+ */
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, full_name } = req.body;
+
+    if (!email || !password || !full_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, and full name are required'
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user (unverified by default)
+    const result = await pool.query(
+      `INSERT INTO users (email, password, full_name, is_verified)
+       VALUES ($1, $2, $3, false)
+       RETURNING id, email, full_name, is_verified`,
+      [email, hashedPassword, full_name]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: result.rows[0],
+      message: 'User registered successfully. Please wait for admin approval.'
+    });
+  } catch (error) {
+    logger.error('Error registering user:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/request-reset:
+ *   post:
+ *     summary: Request password reset
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Reset email sent
+ */
+app.post('/api/auth/request-reset', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    // Check if user exists
+    const user = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+
+    // Always return success to prevent email enumeration
+    if (user.rows.length === 0) {
+      return res.json({
+        success: true,
+        message: 'If a user with that email exists, a reset link has been sent'
+      });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = jwt.sign(
+      { user_id: user.rows[0].id, purpose: 'password_reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // Store reset token in database
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at)
+       VALUES ($1, $2, NOW() + INTERVAL '1 hour')
+       ON CONFLICT (user_id)
+       DO UPDATE SET token = $2, expires_at = NOW() + INTERVAL '1 hour', created_at = NOW()`,
+      [user.rows[0].id, resetToken]
+    );
+
+    // TODO: Send email with reset link
+    // For now, return the token in the response (in production, this should be emailed)
+    res.json({
+      success: true,
+      message: 'If a user with that email exists, a reset link has been sent',
+      // Remove this in production:
+      reset_token: resetToken
+    });
+  } catch (error) {
+    logger.error('Error requesting password reset:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password with token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - new_password
+ *             properties:
+ *               token:
+ *                 type: string
+ *               new_password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password reset successful
+ */
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { token, new_password } = req.body;
+
+    if (!token || !new_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required'
+      });
+    }
+
+    // Verify token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.purpose !== 'password_reset') {
+        throw new Error('Invalid token purpose');
+      }
+    } catch (err) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+    }
+
+    // Check if token exists in database and is not expired
+    const tokenResult = await pool.query(
+      `SELECT user_id FROM password_reset_tokens
+       WHERE user_id = $1 AND token = $2 AND expires_at > NOW()`,
+      [decoded.user_id, token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+
+    // Update password
+    await pool.query(
+      'UPDATE users SET password = $1 WHERE id = $2',
+      [hashedPassword, decoded.user_id]
+    );
+
+    // Delete used token
+    await pool.query(
+      'DELETE FROM password_reset_tokens WHERE user_id = $1',
+      [decoded.user_id]
+    );
+
+    res.json({ success: true, message: 'Password reset successful' });
+  } catch (error) {
+    logger.error('Error resetting password:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/register-for-organization:
+ *   post:
+ *     summary: Register existing user for an organization
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - registration_password
+ *             properties:
+ *               registration_password:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *                 enum: [parent, animation, admin]
+ *               link_children:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *     responses:
+ *       200:
+ *         description: Successfully registered for organization
+ */
+app.post('/api/register-for-organization', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { registration_password, role, link_children } = req.body;
+    const organizationId = await getCurrentOrganizationId(req);
+
+    // Check registration password
+    const passwordResult = await pool.query(
+      `SELECT setting_value FROM organization_settings
+       WHERE organization_id = $1 AND setting_key = 'registration_password'`,
+      [organizationId]
+    );
+
+    if (passwordResult.rows.length === 0 || passwordResult.rows[0].setting_value !== registration_password) {
+      return res.status(403).json({ success: false, message: 'Invalid registration password' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Add user to organization
+      await client.query(
+        `INSERT INTO user_organizations (user_id, organization_id, role)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, organization_id) DO NOTHING`,
+        [decoded.user_id, organizationId, role || 'parent']
+      );
+
+      // Link children if provided
+      if (link_children && Array.isArray(link_children)) {
+        for (const participantId of link_children) {
+          await client.query(
+            `INSERT INTO user_participants (user_id, participant_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id, participant_id) DO NOTHING`,
+            [decoded.user_id, participantId]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      res.json({ success: true, message: 'Successfully registered for organization' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error registering for organization:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/switch-organization:
+ *   post:
+ *     summary: Switch active organization for user
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - organization_id
+ *             properties:
+ *               organization_id:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Organization switched
+ */
+app.post('/api/switch-organization', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { organization_id } = req.body;
+
+    if (!organization_id) {
+      return res.status(400).json({ success: false, message: 'Organization ID is required' });
+    }
+
+    // Verify user belongs to this organization
+    const membershipCheck = await pool.query(
+      `SELECT role FROM user_organizations
+       WHERE user_id = $1 AND organization_id = $2`,
+      [decoded.user_id, organization_id]
+    );
+
+    if (membershipCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this organization'
+      });
+    }
+
+    // Generate new JWT with updated organization
+    const newToken = jwt.sign(
+      {
+        user_id: decoded.user_id,
+        organization_id: organization_id,
+        role: membershipCheck.rows[0].role
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      data: { token: newToken },
+      message: 'Organization switched successfully'
+    });
+  } catch (error) {
+    logger.error('Error switching organization:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// OTHER MISSING ENDPOINTS
+// ============================================
+
+/**
+ * @swagger
+ * /api/push-subscribers:
+ *   get:
+ *     summary: Get all push notification subscribers
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of subscribers
+ */
+app.get('/api/push-subscribers', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || authCheck.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT ps.*, u.email, u.full_name
+       FROM push_subscriptions ps
+       JOIN users u ON ps.user_id = u.id
+       WHERE ps.organization_id = $1
+       ORDER BY ps.created_at DESC`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching push subscribers:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/participants-with-documents:
+ *   get:
+ *     summary: Get participants with their document submission status
+ *     tags: [Participants]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Participants with documents
+ */
+app.get('/api/participants-with-documents', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              COUNT(DISTINCT fs.form_type) as forms_submitted,
+              array_agg(DISTINCT fs.form_type) as submitted_forms
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id
+       WHERE po.organization_id = $1
+       GROUP BY p.id, p.first_name, p.last_name
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching participants with documents:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/associate-user-participant:
+ *   post:
+ *     summary: Associate a user with a participant
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - user_id
+ *               - participant_id
+ *             properties:
+ *               user_id:
+ *                 type: integer
+ *               participant_id:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Association created
+ */
+app.post('/api/associate-user-participant', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const { user_id, participant_id } = req.body;
+
+    if (!user_id || !participant_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and participant ID are required'
+      });
+    }
+
+    await pool.query(
+      `INSERT INTO user_participants (user_id, participant_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, participant_id) DO NOTHING`,
+      [user_id, participant_id]
+    );
+
+    res.json({ success: true, message: 'User associated with participant successfully' });
+  } catch (error) {
+    logger.error('Error associating user with participant:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/link-parent-participant:
+ *   post:
+ *     summary: Link a parent to a participant (child)
+ *     tags: [Participants]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - parent_id
+ *               - participant_id
+ *             properties:
+ *               parent_id:
+ *                 type: integer
+ *               participant_id:
+ *                 type: integer
+ *               relationship:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Parent linked to participant
+ */
+app.post('/api/link-parent-participant', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const { parent_id, participant_id, relationship } = req.body;
+
+    if (!parent_id || !participant_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parent ID and participant ID are required'
+      });
+    }
+
+    await pool.query(
+      `INSERT INTO guardians (participant_id, guardian_id, relationship)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (participant_id, guardian_id)
+       DO UPDATE SET relationship = EXCLUDED.relationship`,
+      [participant_id, parent_id, relationship || 'parent']
+    );
+
+    res.json({ success: true, message: 'Parent linked to participant successfully' });
+  } catch (error) {
+    logger.error('Error linking parent to participant:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/participant-groups/{participantId}:
+ *   delete:
+ *     summary: Remove participant from their group
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: participantId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Participant removed from group
+ */
+app.delete('/api/participant-groups/:participantId', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+    }
+
+    const { participantId } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM participant_groups
+       WHERE participant_id = $1 AND organization_id = $2
+       RETURNING *`,
+      [participantId, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Participant group assignment not found'
+      });
+    }
+
+    res.json({ success: true, message: 'Participant removed from group successfully' });
+  } catch (error) {
+    logger.error('Error removing participant from group:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // SPA catch-all route - serve index.html for all non-API routes
 // This must be the last route handler
 app.get('*', (req, res) => {
