@@ -858,15 +858,28 @@ app.get('/api/get_groups', async (req, res) => {
     
     const organizationId = await getCurrentOrganizationId(req);
     
+    // Get groups with their total points (group-level points only, not individual)
     const result = await pool.query(
-      `SELECT id, name FROM groups WHERE organization_id = $1 ORDER BY name`,
+      `SELECT g.id, g.name, 
+              COALESCE(SUM(p.value), 0) as total_points
+       FROM groups g
+       LEFT JOIN points p ON g.id = p.group_id AND p.organization_id = $1 AND p.participant_id IS NULL
+       WHERE g.organization_id = $1
+       GROUP BY g.id, g.name
+       ORDER BY g.name`,
       [organizationId]
     );
     
+    // Convert total_points to integer
+    const groups = result.rows.map(g => ({
+      ...g,
+      total_points: parseInt(g.total_points) || 0
+    }));
+    
     res.json({
       success: true,
-      data: result.rows,
-      groups: result.rows
+      data: groups,
+      groups: groups
     });
   } catch (error) {
     logger.error('Error fetching groups:', error);

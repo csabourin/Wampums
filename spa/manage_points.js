@@ -104,7 +104,7 @@ export class ManagePoints {
       // Only organize participants after both are loaded
       this.organizeParticipants();
 
-      // Cache the non-points data
+      // Cache all participant data including points
       const participantsToCache = this.participants.map(participant => ({
         id: participant.id,
         first_name: participant.first_name,
@@ -112,7 +112,8 @@ export class ManagePoints {
         group_id: participant.group_id,
         group_name: participant.group_name,
         is_leader: participant.is_leader,
-        is_second_leader: participant.is_second_leader
+        is_second_leader: participant.is_second_leader,
+        total_points: participant.total_points || 0
       }));
 
       await setCachedData('manage_points_data', {
@@ -120,7 +121,7 @@ export class ManagePoints {
         groups: this.groups,
         groupedParticipants: this.groupedParticipants,
         unassignedParticipants: this.unassignedParticipants
-      }, 24 * 60 * 60 * 1000);
+      }, 5 * 60 * 1000); // Cache for 5 minutes (was 24 hours - too long for points data)
 
     } catch (error) {
       console.error("Error fetching manage points data:", error);
@@ -434,34 +435,24 @@ export class ManagePoints {
       `.group-header[data-group-id="${groupId}"]`
     );
     if (groupElement) {
-      const pointsElement = groupElement.querySelector(
-        `#group-points-${groupId}`
-      );
-      if (pointsElement) {
-        pointsElement.textContent = `${totalPoints} ${translate("points")}`;
-      }
+      // Update the main group header display
+      const pointsDisplay = `${groupElement.textContent.split(' - ')[0]} - ${totalPoints} ${translate("points")}`;
+      groupElement.innerHTML = pointsDisplay;
       groupElement.dataset.points = totalPoints;
       this.addHighlightEffect(groupElement);
+      
+      // Update the group points total element if it exists
+      const groupPointsElement = document.querySelector(`#group-points-${groupId}`);
+      if (groupPointsElement) {
+        groupPointsElement.textContent = `${translate("total_points")}: ${totalPoints}`;
+      }
     }
 
-    // Update individual members' points immediately
-    memberIds.forEach((memberId) => {
-      const memberElement = document.querySelector(
-        `.list-item[data-participant-id="${memberId}"]`
-      );
-      if (memberElement) {
-        const memberPointsElement = memberElement.querySelector(
-          `#name-points-${memberId}`
-        );
-        if (memberPointsElement) {
-          memberPointsElement.textContent = `${totalPoints} ${translate(
-            "points"
-          )}`;
-          memberElement.dataset.points = totalPoints;
-          this.addHighlightEffect(memberElement);
-        }
-      }
-    });
+    // Update the group's total_points in our data
+    const group = this.groups.find(g => g.id == groupId);
+    if (group) {
+      group.total_points = totalPoints;
+    }
   }
 
   updateIndividualPoints(participantId, totalPoints) {
@@ -761,15 +752,14 @@ export class ManagePoints {
       }
     });
 
-    // Update group points
+    // Update group points - use the group's total_points from API (not recalculated from individuals)
     this.groups.forEach(group => {
       const groupElement = document.querySelector(
         `.group-header[data-group-id="${group.id}"]`
       );
       if (groupElement) {
-        // Calculate total points for the group
-        const groupParticipants = this.participants.filter(p => p.group_id == group.id);
-        const totalPoints = groupParticipants.reduce((sum, p) => sum + (parseInt(p.total_points) || 0), 0);
+        // Use group.total_points directly from API
+        const totalPoints = parseInt(group.total_points) || 0;
 
         // Update group points display
         const pointsDisplay = `${group.name} - ${totalPoints} ${translate("points")}`;
