@@ -138,10 +138,15 @@ export class ParentDashboard {
                 // If userFullName is not set, fetch it from the server
                 if (!this.app.userFullName) {
                         try {
-                                const response = await fetch("/api.php?action=get_user_full_name");
+                                const response = await fetch("/api/auth/verify-session", {
+                                        method: 'POST',
+                                        headers: {
+                                                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                        }
+                                });
                                 const data = await response.json();
                                 if (data.success) {
-                                        this.app.userFullName = data.fullName;
+                                        this.app.userFullName = data.user.fullName;
                                 } else {
                                         console.error("Failed to fetch user full name:", data.message);
                                 }

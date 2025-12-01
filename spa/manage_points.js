@@ -690,7 +690,7 @@ export class ManagePoints {
 
       // If no cached data, fetch from server
       console.log("Fetching fresh points data");
-      const response = await this.fetchWithCacheBusting("/get_points_data.php");
+      const response = await this.fetchWithCacheBusting("/api/points-data");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

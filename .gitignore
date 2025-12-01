@@ -70,3 +70,6 @@ composer.phar
 .config
 .local
 replit*
+
+# PHP backup files from Node.js migration
+*.php.backup

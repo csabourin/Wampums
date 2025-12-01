@@ -183,7 +183,7 @@ export class Admin {
 			}
 
 			try {
-				const response = await fetch("/send-notification.php", {
+				const response = await fetch("/api/send-notification", {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
