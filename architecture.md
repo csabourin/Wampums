@@ -1,9 +1,10 @@
 # Wampums Scout Management System - Complete Architecture Documentation
 
 **Last Updated:** 2025-12-01
-**Branch:** `claude/map-api-endpoints-php-01RLFWr2d9BgngzcLvtpKEQq`
-**Migration Status:** PHP → Node.js/Express (Complete)
+**Branch:** `claude/update-architecture-docs-01CLgTWSHKjsa3E36MzfaEuK`
+**Migration Status:** PHP → Node.js/Express (Core Features Complete, Forms/Badges/Reports In Progress)
 **Frontend:** Single Page Application (SPA) with Vanilla JavaScript ES6 Modules
+**Recent Updates:** Configurable Point System, Group Point Distribution, Cache Optimization
 
 ---
 
@@ -11,14 +12,15 @@
 
 1. [Executive Summary](#executive-summary)
 2. [System Architecture Overview](#system-architecture-overview)
-3. [API Endpoints Mapping](#api-endpoints-mapping)
-4. [Frontend Pages & Interactions](#frontend-pages--interactions)
-5. [Original PHP Implementation](#original-php-implementation)
-6. [Migration Comparison: PHP vs Node.js](#migration-comparison-php-vs-nodejs)
-7. [Database Schema](#database-schema)
-8. [Authentication & Authorization](#authentication--authorization)
-9. [Known Issues & Missing Features](#known-issues--missing-features)
-10. [Recommendations](#recommendations)
+3. [Configurable Point System](#configurable-point-system)
+4. [API Endpoints Mapping](#api-endpoints-mapping)
+5. [Frontend Pages & Interactions](#frontend-pages--interactions)
+6. [Original PHP Implementation](#original-php-implementation)
+7. [Migration Comparison: PHP vs Node.js](#migration-comparison-php-vs-nodejs)
+8. [Database Schema](#database-schema)
+9. [Authentication & Authorization](#authentication--authorization)
+10. [Known Issues & Missing Features](#known-issues--missing-features)
+11. [Recommendations & Roadmap](#recommendations--roadmap)
 
 ---
 
@@ -35,12 +37,18 @@
 - **Multi-tenancy:** Organization-based isolation
 - **Roles:** Admin, Animation (Staff), Parent
 
+### Recent Enhancements (December 2025):
+- ✅ **Configurable Point System**: Organizations can customize point values for attendance, honors, and badges
+- ✅ **Group Point Distribution**: Group points automatically distributed to individual members with dual tracking
+- ✅ **Cache Optimization**: Intelligent cache invalidation ensures point data persists across navigation
+- ✅ **Improved Point UI**: Real-time updates with immediate visual feedback and server validation
+
 ### Purpose:
 The system manages:
 - **Scout participants** (member registration, profiles, health records)
 - **Groups/Patrols** (Castors, Louveteaux, Éclaireurs, etc.)
-- **Attendance tracking** with automatic points
-- **Points/Honors system** (individual & group)
+- **Attendance tracking** with automatic configurable points
+- **Points/Honors system** (individual & group with customizable rules)
 - **Badge progress** (achievement tracking)
 - **Meeting preparation** (activity planning)
 - **Parent portal** (view children's progress)
@@ -126,6 +134,281 @@ Vanilla JavaScript ES6
     ├── jwt_auth.php               # PHP JWT authentication
     └── index.php                  # Original PHP entry point
 ```
+
+---
+
+## Configurable Point System
+
+**Status:** ✅ Fully Implemented (December 2025)
+**Commits:** 397eea1, 4c8a180, ddf75fc, 3180999, 951cb54
+
+The Wampums system now features a fully configurable point system that allows organizations to customize point values for different activities while maintaining both individual and group-level tracking.
+
+### Core Features
+
+1. **Organization-Level Configuration**
+   - Point values stored in `organization_settings` table with key `'point_system_rules'`
+   - Configurable via JSON structure
+   - Falls back to sensible defaults if not configured
+
+2. **Configurable Point Values**
+   - **Attendance Points**: Customizable for each status (present, absent, late, excused)
+   - **Honor Awards**: Configurable points for receiving honors
+   - **Badges**: Separate values for earning badges and leveling up
+
+3. **Group Point Distribution**
+   - Group points automatically distributed to all members
+   - Dual tracking: maintains both group-level total and individual totals
+   - Individual member contributions visible in UI
+
+4. **Intelligent Caching**
+   - Point-related caches automatically invalidated on updates
+   - 5-minute cache duration for point data (down from 24 hours)
+   - Multi-cache clearing: participants, dashboard_groups, manage_points_data
+
+### Point System Configuration Structure
+
+```javascript
+{
+  "attendance": {
+    "present": { "label": "present", "points": 1 },
+    "absent": { "label": "absent", "points": 0 },
+    "late": { "label": "late", "points": 0 },
+    "excused": { "label": "excused", "points": 0 }
+  },
+  "honors": {
+    "award": 5
+  },
+  "badges": {
+    "earn": 5,
+    "level_up": 10
+  }
+}
+```
+
+### Implementation Details
+
+#### Backend Functions (api.js)
+
+**`getPointSystemRules(organizationId, client)` (Lines 120-152)**
+- Fetches point rules from `organization_settings` table
+- Parses JSON configuration with error handling
+- Returns default rules if none configured or on parse error
+
+**`calculateAttendancePoints(previousStatus, newStatus, pointRules)` (Lines 155-168)**
+- Calculates point differential when attendance status changes
+- Uses configured point values from rules
+- Returns 0 if no change in points value
+- Example: Changing from null → "present" awards +1 point (configurable)
+
+#### Updated Endpoints
+
+**`POST /api/award-honor` (Lines 1007-1068)**
+```javascript
+// Fetches point system rules
+const pointRules = await getPointSystemRules(organizationId, client);
+const honorPoints = pointRules.honors?.award || 5;
+
+// Awards honor with configurable points
+// Includes group_id for proper attribution
+```
+
+**`POST /api/update-attendance` (Lines 1145-1212)**
+```javascript
+// Calculates point adjustment based on status change
+const pointAdjustment = calculateAttendancePoints(
+  previous_status,
+  status,
+  pointRules
+);
+
+// Only creates point record if adjustment !== 0
+// Returns pointUpdates array with details
+```
+
+**`POST /api/update-points` (Lines 1247-1302)**
+```javascript
+// For group points:
+// 1. Insert group-level point record (participant_id = NULL)
+// 2. Distribute to all members (one record per member)
+// 3. Calculate group total and individual totals
+// 4. Return memberTotals array for UI update
+
+// Response includes:
+{
+  type: 'group',
+  id: groupId,
+  totalPoints: groupTotal,
+  memberIds: [...],
+  memberTotals: [{id, totalPoints}, ...]
+}
+```
+
+#### Frontend Implementation
+
+**Cache Management (spa/indexedDB.js, Lines 192-209)**
+```javascript
+export async function clearPointsRelatedCaches() {
+  const keysToDelete = [
+    'participants',
+    'manage_points_data',
+    'dashboard_groups',
+    'dashboard_participant_info'
+  ];
+
+  for (const key of keysToDelete) {
+    await deleteCachedData(key);
+  }
+}
+```
+
+**Point UI Updates (spa/manage_points.js)**
+- Lines 430-466: `updateGroupPoints()` - Updates both group total and member totals
+- Lines 491-545: `updatePointsUI()` - Provides optimistic UI updates
+- Lines 410-411: Calls `clearPointsRelatedCaches()` after successful update
+
+### Database Schema
+
+**Points Table with Group Attribution**
+```sql
+CREATE TABLE points (
+  id SERIAL PRIMARY KEY,
+  participant_id INTEGER,        -- NULL for group-level points
+  group_id INTEGER,              -- Attribution to group
+  value INTEGER NOT NULL,        -- Point value (positive/negative)
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  organization_id INTEGER REFERENCES organizations(id)
+);
+```
+
+**Key Design Decisions:**
+- `participant_id = NULL`: Identifies group-level point records
+- `group_id`: Links points to originating group
+- `value`: Supports both additions (positive) and deductions (negative)
+- **Dual Tracking**:
+  - Group total = `SUM(value) WHERE participant_id IS NULL AND group_id = X`
+  - Member total = `SUM(value) WHERE participant_id = Y`
+
+### Point Calculation Flow
+
+```
+1. User action triggers point change (attendance, honor, manual)
+   ↓
+2. getPointSystemRules() fetches organization configuration
+   ↓
+3. Calculate point adjustment based on rules
+   ↓
+4. Get participant's group_id (if applicable)
+   ↓
+5. BEGIN database transaction
+   ↓
+6. INSERT point record(s)
+   - For individuals: one record with participant_id
+   - For groups: one record + one per member
+   ↓
+7. Calculate new totals
+   ↓
+8. COMMIT transaction
+   ↓
+9. Return updated totals to frontend
+   ↓
+10. Clear point-related caches
+    ↓
+11. Update UI with server-validated values
+```
+
+### Transaction Safety
+
+All point operations use database transactions:
+```javascript
+const client = await pool.connect();
+try {
+  await client.query('BEGIN');
+
+  // Point operations here
+
+  await client.query('COMMIT');
+} catch (err) {
+  await client.query('ROLLBACK');
+  throw err;
+} finally {
+  client.release();
+}
+```
+
+This ensures:
+- Atomic operations (all-or-nothing)
+- Consistency across related tables
+- Automatic rollback on errors
+- No partial updates in case of failures
+
+### Cache Strategy
+
+**Problem Solved:** Points not persisting across page navigation
+
+**Solution:**
+1. Reduced cache duration from 24 hours → 5 minutes for point data
+2. Invalidate all related caches after point updates
+3. Clear multiple cache keys:
+   - `participants`: Participant list with totals
+   - `manage_points_data`: Point management page data
+   - `dashboard_groups`: Group summaries on dashboard
+   - `dashboard_participant_info`: Participant info on dashboard
+
+**Cache Flow:**
+```
+Point update occurs
+    ↓
+API returns new totals
+    ↓
+UI updates immediately (optimistic)
+    ↓
+clearPointsRelatedCaches() invalidates old data
+    ↓
+Next data fetch gets fresh values from server
+    ↓
+updateCache() stores new data with 5-min TTL
+```
+
+### Configuration via Database
+
+Organizations can customize point values by inserting/updating in `organization_settings`:
+
+```sql
+INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+VALUES (
+  1,
+  'point_system_rules',
+  '{
+    "attendance": {
+      "present": {"label": "present", "points": 2},
+      "late": {"label": "late", "points": 1}
+    },
+    "honors": {"award": 10},
+    "badges": {"earn": 10, "level_up": 20}
+  }'::jsonb
+)
+ON CONFLICT (organization_id, setting_key)
+DO UPDATE SET setting_value = EXCLUDED.setting_value;
+```
+
+### Benefits of This Implementation
+
+1. **Flexibility**: Each organization can tailor point values to their program
+2. **Consistency**: Single source of truth for point calculations
+3. **Transparency**: Group contributions visible to individuals
+4. **Performance**: Intelligent caching prevents stale data
+5. **Reliability**: Transactions ensure data integrity
+6. **Auditability**: All point changes logged with timestamps
+
+### Future Enhancements
+
+Potential improvements identified:
+- [ ] UI for admins to configure point rules (currently database-only)
+- [ ] Point history/audit log viewer
+- [ ] Automated point decay or reset schedules
+- [ ] Point categories/tags for different activities
+- [ ] Export point reports for specific date ranges
 
 ---
 
@@ -1662,13 +1945,28 @@ router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(asy
    - Some APIs use `participant_id`, others use `participantId`
    - **Impact:** Confusion, potential bugs
 
-2. **Point Adjustment Bug (FIXED)** ✅
-   - PR #9 fixed error 500 when adding points to individuals
-   - Participant ID mapping corrected
+### Recently Fixed Issues (December 2025) ✅
 
-3. **Attendance Point Calculation** ✅
-   - Working correctly: present=+1, late=+0.5, absent=0, excused=0
-   - Previous status tracking implemented
+1. **Point Adjustment Bug** ✅ RESOLVED
+   - Fixed error 500 when adding points to individuals (Commit c2a0fc0)
+   - Participant ID mapping corrected to match frontend expectations
+   - Group point distribution now working correctly
+
+2. **Attendance Point Calculation** ✅ RESOLVED
+   - Configurable point system implemented (Commit 397eea1)
+   - Default: present=+1, late=0, absent=0, excused=0
+   - Organizations can customize via `organization_settings` table
+   - Previous status tracking implemented for accurate point adjustments
+
+3. **Point Persistence Across Navigation** ✅ RESOLVED
+   - Cache invalidation strategy implemented (Commit ddf75fc)
+   - Cache duration reduced from 24 hours to 5 minutes
+   - Multi-cache clearing ensures fresh data after updates
+
+4. **Group Point Distribution** ✅ RESOLVED
+   - Group points now distributed to individual members (Commit 4c8a180)
+   - Dual tracking: maintains both group totals and member totals
+   - UI updates reflect both group and individual contributions
 
 ### Performance Concerns
 
@@ -1726,7 +2024,35 @@ router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(asy
 
 ---
 
-## Recommendations
+## Recommendations & Roadmap
+
+### Recently Completed (December 2025) ✅
+
+The following improvements have been successfully implemented:
+
+1. **Configurable Point System** ✅ COMPLETE
+   - Organizations can customize point values via database settings
+   - Implemented `getPointSystemRules()` function in api.js
+   - Endpoints updated: `/api/award-honor`, `/api/update-attendance`, `/api/update-points`
+   - Default rules with fallback handling
+
+2. **Group Point Distribution** ✅ COMPLETE
+   - Group points automatically distributed to all members
+   - Dual tracking: group-level and individual totals
+   - Frontend UI updated to show both totals
+   - Response includes `memberTotals` array
+
+3. **Cache Optimization** ✅ COMPLETE
+   - Implemented `clearPointsRelatedCaches()` function
+   - Cache duration reduced: 24 hours → 5 minutes
+   - Multi-cache invalidation on point updates
+   - Points now persist correctly across navigation
+
+4. **Point Bug Fixes** ✅ COMPLETE
+   - Fixed error 500 when adding points to individuals
+   - Corrected participant ID mapping
+   - Improved point calculation accuracy
+   - Transaction safety for all point operations
 
 ### Immediate Actions (Critical Fixes)
 
@@ -1875,29 +2201,51 @@ router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(asy
 
 ### Migration Completion Roadmap
 
-**Phase 1: Critical Fixes (Month 1)**
-- Forms system
-- Meeting preparation save
-- Guardian management
-- Security fixes
+**Phase 0: Point System Enhancements** ✅ **COMPLETED** (December 2025)
+- ✅ Configurable point system
+- ✅ Group point distribution to members
+- ✅ Cache optimization for point persistence
+- ✅ Point calculation bug fixes
+- ✅ Transaction safety for point operations
 
-**Phase 2: User Experience (Month 2)**
-- Badge system
-- User management completion
-- Parent dashboard optimization
-- Missing reports
+**Phase 1: Critical Fixes** 🔴 **IN PROGRESS**
+- ⬜ Forms system (9 endpoints)
+- ⬜ Meeting preparation save (2 endpoints)
+- ⬜ Guardian management (5 endpoints)
+- ⬜ Security fixes (CORS, rate limiting, validation)
+- **Status:** 0 of 16 items completed
+- **Estimated Duration:** 6-8 weeks
 
-**Phase 3: Code Quality (Month 3-4)**
-- Code splitting
-- Database optimization
-- Testing coverage
-- Performance tuning
+**Phase 2: User Experience** 🟡 **PENDING**
+- ⬜ Badge system (5 endpoints)
+- ⬜ User management completion (3 endpoints)
+- ⬜ Parent dashboard optimization (1 unified endpoint)
+- ⬜ Missing reports (7+ report types)
+- **Status:** Blocked by Phase 1 completion
+- **Estimated Duration:** 4-6 weeks
 
-**Phase 4: Deprecation (Month 5-6)**
-- Remove legacy PHP files
-- Complete API versioning
-- Full migration to RESTful v1 API
-- Documentation updates
+**Phase 3: Code Quality** 🟡 **PENDING**
+- ⬜ Code splitting (large modules)
+- ⬜ Database optimization (indexes, naming)
+- ⬜ Testing coverage (target: 80%)
+- ⬜ Performance tuning (caching, queries)
+- **Status:** Can start in parallel with Phase 2
+- **Estimated Duration:** 6-8 weeks
+
+**Phase 4: Deprecation** 🟡 **PENDING**
+- ⬜ Remove legacy PHP files
+- ⬜ Complete API versioning
+- ⬜ Full migration to RESTful v1 API
+- ⬜ Final documentation updates
+- **Status:** Blocked by Phase 1-2 completion
+- **Estimated Duration:** 2-3 weeks
+
+**Overall Migration Status:**
+- **Core Features:** ✅ Complete (participants, groups, attendance, points, honors)
+- **Point System:** ✅ Enhanced and optimized
+- **Forms/Badges:** ❌ Not yet migrated (critical gap)
+- **Reports:** ⚠️ Partially migrated (2 of 10+)
+- **Estimated Completion:** Phase 1-4: 4-6 months with dedicated effort
 
 ---
 
@@ -1997,37 +2345,64 @@ GET    /api/parent-users
 
 ## Conclusion
 
-The Wampums Scout Management System has undergone a partial migration from PHP to Node.js with mixed results:
+The Wampums Scout Management System has undergone a progressive migration from PHP to Node.js with significant recent achievements:
 
-**Successes:**
+**Recent Successes (December 2025):**
+- ✅ **Configurable Point System**: Organizations can now customize point values for attendance, honors, and badges
+- ✅ **Group Point Distribution**: Automatic distribution to members with dual tracking
+- ✅ **Cache Optimization**: Points persist correctly across navigation with intelligent invalidation
+- ✅ **Bug Fixes**: Resolved error 500 on individual points, improved calculation accuracy
+
+**Overall Successes:**
 - ✅ Core functionality migrated (participants, groups, attendance, points, honors)
 - ✅ Modern architecture (RESTful API, JWT auth, connection pooling)
 - ✅ Improved security and scalability
 - ✅ Better code organization and maintainability
 - ✅ API documentation with Swagger
+- ✅ Enhanced point system with configurability and reliability
 
-**Challenges:**
+**Remaining Challenges:**
 - ❌ 68% of original endpoints not yet migrated (62 of 91)
 - ❌ Critical features missing (forms, badges, guardians)
 - ❌ User workflows broken (meeting prep save, user approval)
 - ❌ Limited reporting capabilities
 
-**Overall Migration Status: 32% Complete**
+**Migration Progress:**
+- **Phase 0 (Point System):** ✅ **100% Complete**
+- **Phase 1 (Critical Fixes):** 🔴 **0% Complete** - Next priority
+- **Phase 2 (User Experience):** 🟡 **Pending**
+- **Phase 3 (Code Quality):** 🟡 **Pending**
+- **Phase 4 (Deprecation):** 🟡 **Pending**
 
-The system is currently in a **transitional state** where basic operations work but many important features are unavailable. To fully replace the PHP implementation, the missing endpoints and features listed in this document must be completed.
+**Overall Migration Status: ~35% Complete**
+- Core features: ✅ Complete and enhanced
+- Point system: ✅ Fully optimized
+- Forms/Badges: ❌ Not migrated (critical gap)
+- Reports: ⚠️ Partially migrated
+
+The system is currently in a **transitional state** where basic operations work well (especially the recently enhanced point system), but many important features remain unavailable. The recent point system improvements demonstrate the benefits of the Node.js architecture: better configurability, transaction safety, and intelligent caching.
 
 **Recommended Next Steps:**
-1. Implement forms system (CRITICAL)
-2. Fix security issues
-3. Complete user management
-4. Restore meeting preparation save
-5. Implement guardian management
+1. **Implement forms system** (CRITICAL) - Health forms, registration, risk acceptance
+2. **Fix security issues** - CORS, rate limiting, validation
+3. **Implement guardian management** - Emergency contacts, parent-child links
+4. **Complete user management** - User approval workflow, role updates
+5. **Restore meeting preparation save** - Activity planning workflow
 
-**Timeline to Full Migration:** Estimated 4-6 months with dedicated development effort.
+**Timeline to Full Migration:**
+- Phase 1 (Critical): 6-8 weeks
+- Phase 2 (UX): 4-6 weeks
+- Phase 3 (Quality): 6-8 weeks (parallel with Phase 2)
+- Phase 4 (Deprecation): 2-3 weeks
+- **Total: 4-6 months with dedicated development effort**
+
+**Next Documentation Update:** After Phase 1 completion
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Last Updated:** 2025-12-01
+**Branch:** claude/update-architecture-docs-01CLgTWSHKjsa3E36MzfaEuK
+**Recent Changes:** Added Configurable Point System section, updated roadmap with Phase 0 completion
 **Maintained By:** Development Team
 **Contact:** info@christiansabourin.com
