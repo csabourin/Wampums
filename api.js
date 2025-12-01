@@ -116,17 +116,53 @@ function getUserIdFromToken(token) {
   }
 }
 
-// Helper function to calculate point adjustment
-function calculatePointAdjustment(previousStatus, newStatus) {
-  // Implement your point calculation logic here
-  const pointValues = {
-    'present': 1,
-    'absent': 0,
-    'late': 0.5
+// Helper function to get point system rules from organization settings
+async function getPointSystemRules(organizationId, client = null) {
+  const queryExecutor = client || pool;
+  
+  try {
+    const result = await queryExecutor.query(
+      `SELECT setting_value FROM organization_settings 
+       WHERE organization_id = $1 AND setting_key = 'point_system_rules'`,
+      [organizationId]
+    );
+    
+    if (result.rows.length > 0) {
+      try {
+        return JSON.parse(result.rows[0].setting_value);
+      } catch (e) {
+        console.warn('Error parsing point_system_rules:', e);
+      }
+    }
+  } catch (error) {
+    console.error('Error getting point system rules:', error);
+  }
+  
+  // Default rules if not found
+  return {
+    attendance: {
+      present: { label: 'present', points: 1 },
+      absent: { label: 'absent', points: 0 },
+      late: { label: 'late', points: 0 },
+      excused: { label: 'excused', points: 0 }
+    },
+    honors: { award: 5 },
+    badges: { earn: 5, level_up: 10 }
+  };
+}
+
+// Helper function to calculate attendance point adjustment based on rules
+function calculateAttendancePoints(previousStatus, newStatus, rules) {
+  const attendanceRules = rules.attendance || {};
+  
+  const getPreviousPoints = (status) => {
+    if (!status) return 0;
+    const rule = attendanceRules[status];
+    return rule ? (rule.points || 0) : 0;
   };
   
-  const previousPoints = pointValues[previousStatus] || 0;
-  const newPoints = pointValues[newStatus] || 0;
+  const previousPoints = getPreviousPoints(previousStatus);
+  const newPoints = getPreviousPoints(newStatus);
   
   return newPoints - previousPoints;
 }
@@ -967,6 +1003,10 @@ app.post('/api/award-honor', async (req, res) => {
     try {
       await client.query('BEGIN');
       
+      // Get point system rules for this organization
+      const pointRules = await getPointSystemRules(organizationId, client);
+      const honorPoints = pointRules.honors?.award || 5;
+      
       for (const honor of honorsToProcess) {
         // Accept both participantId (camelCase) and participant_id (snake_case)
         const participantId = honor.participantId || honor.participant_id;
@@ -993,13 +1033,23 @@ app.post('/api/award-honor', async (req, res) => {
             [participantId, honorDate, organizationId]
           );
           
-          // Add 5 points for the honor
+          // Get participant's group for proper point tracking
+          const groupResult = await client.query(
+            `SELECT group_id FROM participant_groups 
+             WHERE participant_id = $1 AND organization_id = $2`,
+            [participantId, organizationId]
+          );
+          const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
+          
+          // Add points for the honor based on organization rules
           await client.query(
-            `INSERT INTO points (participant_id, value, created_at, organization_id) VALUES ($1, 5, $2, $3)`,
-            [participantId, honorDate, organizationId]
+            `INSERT INTO points (participant_id, group_id, value, created_at, organization_id) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            [participantId, groupId, honorPoints, honorDate, organizationId]
           );
           
-          results.push({ participantId, success: true, action: 'awarded' });
+          console.log(`[honor] Participant ${participantId} awarded honor on ${honorDate}, points: +${honorPoints}`);
+          results.push({ participantId, success: true, action: 'awarded', points: honorPoints });
         }
       }
       
@@ -1091,8 +1141,22 @@ app.post('/api/update-attendance', async (req, res) => {
     try {
       await client.query('BEGIN');
       
-      // Upsert attendance records for all participants
+      // Get point system rules for this organization
+      const pointRules = await getPointSystemRules(organizationId, client);
+      const pointUpdates = [];
+      
+      // Process attendance and apply points for each participant
       for (const pid of participantIds) {
+        // Get existing attendance status for this participant on this date
+        const existingResult = await client.query(
+          `SELECT status FROM attendance 
+           WHERE participant_id = $1 AND organization_id = $2 AND date = $3`,
+          [pid, organizationId, date]
+        );
+        
+        const previousStatus = existingResult.rows.length > 0 ? existingResult.rows[0].status : null;
+        
+        // Upsert attendance record
         await client.query(
           `INSERT INTO attendance (participant_id, organization_id, date, status)
            VALUES ($1, $2, $3, $4)
@@ -1100,10 +1164,42 @@ app.post('/api/update-attendance', async (req, res) => {
            DO UPDATE SET status = $4`,
           [pid, organizationId, date, status]
         );
+        
+        // Calculate point adjustment based on status change
+        const pointAdjustment = calculateAttendancePoints(previousStatus, status, pointRules);
+        
+        if (pointAdjustment !== 0) {
+          // Get participant's group for proper point tracking
+          const groupResult = await client.query(
+            `SELECT group_id FROM participant_groups 
+             WHERE participant_id = $1 AND organization_id = $2`,
+            [pid, organizationId]
+          );
+          const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
+          
+          // Insert point record with reason tracking
+          await client.query(
+            `INSERT INTO points (participant_id, group_id, organization_id, value, created_at)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [pid, groupId, organizationId, pointAdjustment, date]
+          );
+          
+          pointUpdates.push({
+            participant_id: pid,
+            previous_status: previousStatus,
+            new_status: status,
+            points: pointAdjustment
+          });
+          
+          console.log(`[attendance] Participant ${pid}: ${previousStatus || 'none'} -> ${status}, points: ${pointAdjustment > 0 ? '+' : ''}${pointAdjustment}`);
+        }
       }
       
       await client.query('COMMIT');
-      res.json({ success: true });
+      res.json({ 
+        success: true,
+        pointUpdates: pointUpdates 
+      });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -2855,10 +2951,14 @@ app.get('/api', [
 
       case 'award_honor':
         const honors = req.body;
-        const orgIdForAwardHonor = getCurrentOrganizationId();
+        const orgIdForAwardHonor = await getCurrentOrganizationId(req);
 
         try {
           await client.query('BEGIN');
+
+          // Get point system rules for this organization
+          const honorPointRules = await getPointSystemRules(orgIdForAwardHonor, client);
+          const honorAwardPoints = honorPointRules.honors?.award || 5;
 
           const awards = [];
           for (const honor of honors) {
@@ -2873,12 +2973,21 @@ app.get('/api', [
             );
 
             if (honorResult.rows.length > 0) {
-              await client.query(
-                `INSERT INTO points (participant_id, value, created_at, organization_id)
-                 VALUES ($1, 5, $2, $3)`,
-                [participantId, date, orgIdForAwardHonor]
+              // Get participant's group for proper point tracking
+              const groupResultForHonor = await client.query(
+                `SELECT group_id FROM participant_groups 
+                 WHERE participant_id = $1 AND organization_id = $2`,
+                [participantId, orgIdForAwardHonor]
               );
-              awards.push({ participantId, awarded: true });
+              const groupIdForHonor = groupResultForHonor.rows.length > 0 ? groupResultForHonor.rows[0].group_id : null;
+
+              await client.query(
+                `INSERT INTO points (participant_id, group_id, value, created_at, organization_id)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [participantId, groupIdForHonor, honorAwardPoints, date, orgIdForAwardHonor]
+              );
+              console.log(`[honor-legacy] Participant ${participantId} awarded honor on ${date}, points: +${honorAwardPoints}`);
+              awards.push({ participantId, awarded: true, points: honorAwardPoints });
             } else {
               awards.push({ participantId, awarded: false, message: 'Honor already awarded for this date' });
             }
