@@ -1116,6 +1116,9 @@ app.post('/api/update-points', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     const updates = req.body;
     
+    console.log('[update-points] Request body:', JSON.stringify(updates));
+    console.log('[update-points] Organization ID:', organizationId);
+    
     if (!Array.isArray(updates)) {
       return res.status(400).json({ success: false, message: 'Updates must be an array' });
     }
@@ -1216,6 +1219,8 @@ app.post('/api/update-points', async (req, res) => {
       client.release();
     }
   } catch (error) {
+    console.error('[update-points] ERROR:', error.message);
+    console.error('[update-points] Stack:', error.stack);
     logger.error('Error updating points:', error);
     res.status(500).json({ success: false, message: error.message });
   }
