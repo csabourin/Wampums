@@ -43,7 +43,6 @@ const debugMode = isDebugMode();
 
 const routes = {
 
-  "/index.php": "dashboard",
   "/": "dashboard",
   "/admin": "admin",
   "/dashboard": "dashboard",

@@ -93,7 +93,7 @@ async function sendSubscriptionToServer(subscription) {
                         throw new Error('No token available');
                 }
 
-                const response = await fetch('/save-subscription.php', {
+                const response = await fetch('/api/push-subscription', {
                         method: 'POST',
                         headers: {
                                 'Content-Type': 'application/json',

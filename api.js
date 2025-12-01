@@ -6733,6 +6733,589 @@ app.delete('/api/participant-groups/:participantId', async (req, res) => {
   }
 });
 
+// ============================================================================
+// ADDITIONAL ENDPOINTS - Migrated from PHP
+// ============================================================================
+
+/**
+ * @swagger
+ * /api/auth/verify-session:
+ *   post:
+ *     summary: Verify JWT session and get fresh user data
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Session verified successfully
+ *       401:
+ *         description: Invalid or expired token
+ */
+app.post('/api/auth/verify-session', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    const decoded = verifyJWT(token);
+
+    if (!decoded) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    // Fetch fresh user data from database
+    const result = await pool.query(
+      'SELECT id, email, full_name FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, message: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // Get user's organizations and roles
+    const orgsResult = await pool.query(
+      `SELECT uo.organization_id, uo.role, os.setting_value->>'name' as org_name
+       FROM user_organizations uo
+       LEFT JOIN organization_settings os ON uo.organization_id = os.organization_id
+         AND os.setting_key = 'organization_info'
+       WHERE uo.user_id = $1`,
+      [user.id]
+    );
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        organizations: orgsResult.rows
+      }
+    });
+  } catch (error) {
+    logger.error('Error verifying session:', error);
+    res.status(500).json({ success: false, message: 'Error verifying session' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Logout user (client-side token removal)
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ */
+app.post('/api/auth/logout', (req, res) => {
+  // With JWT, logout is primarily handled on the client side by removing the token
+  // If using session-based auth or token blacklisting, handle here
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+/**
+ * @swagger
+ * /api/check-permission:
+ *   post:
+ *     summary: Check if user has permission for a specific operation
+ *     tags: [Authorization]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - operation
+ *             properties:
+ *               operation:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Permission check result
+ */
+app.post('/api/check-permission', verifyToken, async (req, res) => {
+  try {
+    const { operation } = req.body;
+
+    if (!operation) {
+      return res.json({ hasPermission: false });
+    }
+
+    const userId = req.user.userId;
+
+    // Check user's permission for the specific operation
+    const result = await pool.query(
+      `SELECT u.id, p.allowed
+       FROM users u
+       LEFT JOIN user_organizations uo ON u.id = uo.user_id
+       LEFT JOIN permissions p ON uo.role = p.role
+       WHERE u.id = $1 AND p.operation = $2`,
+      [userId, operation]
+    );
+
+    const hasPermission = result.rows.length > 0 && result.rows[0].allowed;
+
+    res.json({ hasPermission });
+  } catch (error) {
+    logger.error('Error checking permission:', error);
+    res.json({ hasPermission: false });
+  }
+});
+
+/**
+ * @swagger
+ * /api/save-health-form:
+ *   post:
+ *     summary: Save health form (fiche santé) for a participant
+ *     tags: [Health]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - participant_id
+ *             properties:
+ *               participant_id:
+ *                 type: integer
+ *               nom_fille_mere:
+ *                 type: string
+ *               medecin_famille:
+ *                 type: string
+ *               nom_medecin:
+ *                 type: string
+ *               probleme_sante:
+ *                 type: string
+ *               allergie:
+ *                 type: string
+ *               epipen:
+ *                 type: boolean
+ *               medicament:
+ *                 type: string
+ *               limitation:
+ *                 type: string
+ *               vaccins_a_jour:
+ *                 type: boolean
+ *               blessures_operations:
+ *                 type: string
+ *               niveau_natation:
+ *                 type: string
+ *               doit_porter_vfi:
+ *                 type: boolean
+ *               regles:
+ *                 type: string
+ *               renseignee:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Health form saved successfully
+ */
+app.post('/api/save-health-form', verifyToken, async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const {
+      participant_id,
+      nom_fille_mere,
+      medecin_famille,
+      nom_medecin,
+      probleme_sante,
+      allergie,
+      epipen,
+      medicament,
+      limitation,
+      vaccins_a_jour,
+      blessures_operations,
+      niveau_natation,
+      doit_porter_vfi,
+      regles,
+      renseignee
+    } = req.body;
+
+    if (!participant_id) {
+      return res.status(400).json({ success: false, message: 'Missing participant_id' });
+    }
+
+    await client.query('BEGIN');
+
+    // Check if health form already exists
+    const checkResult = await client.query(
+      'SELECT id FROM fiche_sante WHERE participant_id = $1',
+      [participant_id]
+    );
+
+    const exists = checkResult.rows.length > 0;
+
+    if (exists) {
+      // Update existing record
+      await client.query(
+        `UPDATE fiche_sante SET
+          nom_fille_mere = $1,
+          medecin_famille = $2,
+          nom_medecin = $3,
+          probleme_sante = $4,
+          allergie = $5,
+          epipen = $6,
+          medicament = $7,
+          limitation = $8,
+          vaccins_a_jour = $9,
+          blessures_operations = $10,
+          niveau_natation = $11,
+          doit_porter_vfi = $12,
+          regles = $13,
+          renseignee = $14,
+          updated_at = NOW()
+         WHERE participant_id = $15`,
+        [
+          nom_fille_mere, medecin_famille, nom_medecin, probleme_sante,
+          allergie, epipen, medicament, limitation, vaccins_a_jour,
+          blessures_operations, niveau_natation, doit_porter_vfi,
+          regles, renseignee, participant_id
+        ]
+      );
+    } else {
+      // Insert new record
+      await client.query(
+        `INSERT INTO fiche_sante
+         (nom_fille_mere, medecin_famille, nom_medecin, probleme_sante, allergie,
+          epipen, medicament, limitation, vaccins_a_jour, blessures_operations,
+          niveau_natation, doit_porter_vfi, regles, renseignee, participant_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        [
+          nom_fille_mere, medecin_famille, nom_medecin, probleme_sante,
+          allergie, epipen, medicament, limitation, vaccins_a_jour,
+          blessures_operations, niveau_natation, doit_porter_vfi,
+          regles, renseignee, participant_id
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ success: true, message: 'Health form saved successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Error saving health form:', error);
+    res.status(500).json({ success: false, message: 'Error saving health form: ' + error.message });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @swagger
+ * /api/groups/{id}/name:
+ *   put:
+ *     summary: Update group name
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Group name updated successfully
+ */
+app.put('/api/groups/:id/name', verifyToken, async (req, res) => {
+  try {
+    const groupId = parseInt(req.params.id);
+    const { name } = req.body;
+
+    if (!name || !groupId) {
+      return res.status(400).json({ success: false, message: 'Group ID and name are required' });
+    }
+
+    const result = await pool.query(
+      'UPDATE groups SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [name.trim(), groupId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+
+    res.json({ success: true, message: 'Group name updated successfully', group: result.rows[0] });
+  } catch (error) {
+    logger.error('Error updating group name:', error);
+    res.status(500).json({ success: false, message: 'Error updating group name' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/badges/update-status:
+ *   post:
+ *     summary: Update badge status (approve/reject)
+ *     tags: [Badges]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - badge_id
+ *               - status
+ *             properties:
+ *               badge_id:
+ *                 type: integer
+ *               status:
+ *                 type: string
+ *                 enum: [approved, rejected, pending]
+ *               comments:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Badge status updated successfully
+ */
+app.post('/api/badges/update-status', verifyToken, async (req, res) => {
+  try {
+    const { badge_id, status, comments } = req.body;
+
+    if (!badge_id || !status) {
+      return res.status(400).json({ success: false, message: 'Badge ID and status are required' });
+    }
+
+    if (!['approved', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const result = await pool.query(
+      `UPDATE badge_progress
+       SET status = $1, reviewer_comments = $2, reviewed_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [status, comments || null, badge_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Badge not found' });
+    }
+
+    res.json({ success: true, message: 'Badge status updated successfully', badge: result.rows[0] });
+  } catch (error) {
+    logger.error('Error updating badge status:', error);
+    res.status(500).json({ success: false, message: 'Error updating badge status' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/groups/{id}:
+ *   delete:
+ *     summary: Remove a group
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Group removed successfully
+ */
+app.delete('/api/groups/:id', verifyToken, async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const groupId = parseInt(req.params.id);
+
+    if (!groupId) {
+      return res.status(400).json({ success: false, message: 'Group ID is required' });
+    }
+
+    await client.query('BEGIN');
+
+    // Update participants to remove group assignment
+    await client.query(
+      'UPDATE participants SET group_id = NULL WHERE group_id = $1',
+      [groupId]
+    );
+
+    // Delete the group
+    const result = await client.query(
+      'DELETE FROM groups WHERE id = $1 RETURNING *',
+      [groupId]
+    );
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ success: true, message: 'Group removed successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Error removing group:', error);
+    res.status(500).json({ success: false, message: 'Error removing group' });
+  } finally {
+    client.release();
+  }
+});
+
+/**
+ * @swagger
+ * /api/groups:
+ *   post:
+ *     summary: Create a new group
+ *     tags: [Groups]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - organization_id
+ *             properties:
+ *               name:
+ *                 type: string
+ *               organization_id:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Group created successfully
+ */
+app.post('/api/groups', verifyToken, async (req, res) => {
+  try {
+    const { name, organization_id } = req.body;
+
+    if (!name || !organization_id) {
+      return res.status(400).json({ success: false, message: 'Name and organization ID are required' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO groups (name, organization_id, created_at) VALUES ($1, $2, NOW()) RETURNING *',
+      [name.trim(), organization_id]
+    );
+
+    res.status(201).json({ success: true, message: 'Group created successfully', group: result.rows[0] });
+  } catch (error) {
+    logger.error('Error creating group:', error);
+    res.status(500).json({ success: false, message: 'Error creating group' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/organizations:
+ *   post:
+ *     summary: Create a new organization
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Organization created successfully
+ */
+app.post('/api/organizations', verifyToken, async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { name, ...otherData } = req.body;
+    const userId = req.user.userId;
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'Organization name is required' });
+    }
+
+    await client.query('BEGIN');
+
+    // Create new organization
+    const orgResult = await client.query(
+      'INSERT INTO organizations (name, created_at) VALUES ($1, NOW()) RETURNING id',
+      [name]
+    );
+
+    const newOrganizationId = orgResult.rows[0].id;
+
+    // Copy organization form formats from template (organization_id = 0)
+    await client.query(
+      `INSERT INTO organization_form_formats (organization_id, form_type, form_structure, display_type)
+       SELECT $1, form_type, form_structure, 'public'
+       FROM organization_form_formats
+       WHERE organization_id = 0`,
+      [newOrganizationId]
+    );
+
+    // Insert organization settings
+    const orgInfo = { name, ...otherData };
+    await client.query(
+      `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+       VALUES ($1, 'organization_info', $2)`,
+      [newOrganizationId, JSON.stringify(orgInfo)]
+    );
+
+    // Link current user to the new organization as admin
+    await client.query(
+      `INSERT INTO user_organizations (user_id, organization_id, role, created_at)
+       VALUES ($1, $2, 'admin', NOW())`,
+      [userId, newOrganizationId]
+    );
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      success: true,
+      message: 'Organization created successfully',
+      organization_id: newOrganizationId
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Error creating organization:', error);
+    res.status(500).json({ success: false, message: 'Error creating organization: ' + error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // SPA catch-all route - serve index.html for all non-API routes
 // This must be the last route handler
 app.get('*', (req, res) => {
