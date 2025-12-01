@@ -87,7 +87,10 @@ export class ManagePoints {
       ]);
 
       // Handle groups first
-      if (groupsResponse.success && Array.isArray(groupsResponse.groups)) {
+      if (groupsResponse.success && Array.isArray(groupsResponse.data)) {
+        this.groups = groupsResponse.data;
+      } else if (groupsResponse.success && Array.isArray(groupsResponse.groups)) {
+        // Backward compatibility
         this.groups = groupsResponse.groups;
       } else {
         console.error("Unexpected groups data structure:", groupsResponse);

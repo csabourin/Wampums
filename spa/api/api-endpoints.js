@@ -794,7 +794,11 @@ export async function getAvailableDates() {
  */
 export async function getAttendance(date = null) {
     const params = date ? { date } : {};
-    return API.get('attendance', params);
+    const cacheKey = date ? `attendance_api_${date}` : 'attendance_api';
+    return API.get('attendance', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
 }
 
 /**
@@ -917,10 +921,11 @@ export async function saveReunionPreparation(data) {
 /**
  * Get reunion dates
  */
-export async function getReunionDates() {
+export async function getReunionDates(forceRefresh = false) {
     return API.get('reunion-dates', {}, {
         cacheKey: 'reunion_dates',
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh
     });
 }
 
