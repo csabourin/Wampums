@@ -708,7 +708,7 @@ export async function fetchGuardians(participantId) {
 }
 
 export async function saveGuardian(guardianData) {
-    return API.post('save-parent', guardianData);
+    return API.post('save-guardian', guardianData);
 }
 
 export async function linkGuardianToParticipant(participantId, guardianId) {
