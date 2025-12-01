@@ -6820,7 +6820,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 /**
  * @swagger
- * /api/check-permission:
+ * /api/permissions/check:
  *   post:
  *     summary: Check if user has permission for a specific operation
  *     tags: [Authorization]
@@ -6841,7 +6841,7 @@ app.post('/api/auth/logout', (req, res) => {
  *       200:
  *         description: Permission check result
  */
-app.post('/api/check-permission', async (req, res) => {
+app.post('/api/permissions/check', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyJWT(token);
@@ -6879,9 +6879,9 @@ app.post('/api/check-permission', async (req, res) => {
 
 /**
  * @swagger
- * /api/save-health-form:
+ * /api/health-forms:
  *   post:
- *     summary: Save health form (fiche santé) for a participant
+ *     summary: Create or update health form (fiche santé) for a participant
  *     tags: [Health]
  *     security:
  *       - bearerAuth: []
@@ -6927,8 +6927,10 @@ app.post('/api/check-permission', async (req, res) => {
  *     responses:
  *       200:
  *         description: Health form saved successfully
+ *       201:
+ *         description: Health form created successfully
  */
-app.post('/api/save-health-form', async (req, res) => {
+app.post('/api/health-forms', async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -7029,9 +7031,9 @@ app.post('/api/save-health-form', async (req, res) => {
 
 /**
  * @swagger
- * /api/groups/{id}/name:
+ * /api/groups/{id}:
  *   put:
- *     summary: Update group name
+ *     summary: Update a group
  *     tags: [Groups]
  *     security:
  *       - bearerAuth: []
@@ -7047,16 +7049,16 @@ app.post('/api/save-health-form', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - name
  *             properties:
  *               name:
  *                 type: string
  *     responses:
  *       200:
- *         description: Group name updated successfully
+ *         description: Group updated successfully
+ *       404:
+ *         description: Group not found
  */
-app.put('/api/groups/:id/name', async (req, res) => {
+app.put('/api/groups/:id', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyJWT(token);
@@ -7068,8 +7070,12 @@ app.put('/api/groups/:id/name', async (req, res) => {
     const groupId = parseInt(req.params.id);
     const { name } = req.body;
 
-    if (!name || !groupId) {
-      return res.status(400).json({ success: false, message: 'Group ID and name are required' });
+    if (!groupId) {
+      return res.status(400).json({ success: false, message: 'Group ID is required' });
+    }
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: 'At least one field to update is required' });
     }
 
     const result = await pool.query(
@@ -7081,21 +7087,28 @@ app.put('/api/groups/:id/name', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Group not found' });
     }
 
-    res.json({ success: true, message: 'Group name updated successfully', group: result.rows[0] });
+    res.json({ success: true, message: 'Group updated successfully', group: result.rows[0] });
   } catch (error) {
-    logger.error('Error updating group name:', error);
-    res.status(500).json({ success: false, message: 'Error updating group name' });
+    logger.error('Error updating group:', error);
+    res.status(500).json({ success: false, message: 'Error updating group' });
   }
 });
 
 /**
  * @swagger
- * /api/badges/update-status:
- *   post:
- *     summary: Update badge status (approve/reject)
+ * /api/badge-progress/{id}:
+ *   put:
+ *     summary: Update badge progress status (approve/reject)
  *     tags: [Badges]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Badge progress ID
  *     requestBody:
  *       required: true
  *       content:
@@ -7103,21 +7116,20 @@ app.put('/api/groups/:id/name', async (req, res) => {
  *           schema:
  *             type: object
  *             required:
- *               - badge_id
  *               - status
  *             properties:
- *               badge_id:
- *                 type: integer
  *               status:
  *                 type: string
  *                 enum: [approved, rejected, pending]
- *               comments:
+ *               reviewer_comments:
  *                 type: string
  *     responses:
  *       200:
  *         description: Badge status updated successfully
+ *       404:
+ *         description: Badge progress not found
  */
-app.post('/api/badges/update-status', async (req, res) => {
+app.put('/api/badge-progress/:id', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyJWT(token);
@@ -7126,10 +7138,15 @@ app.post('/api/badges/update-status', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const { badge_id, status, comments } = req.body;
+    const badgeId = parseInt(req.params.id);
+    const { status, reviewer_comments } = req.body;
 
-    if (!badge_id || !status) {
-      return res.status(400).json({ success: false, message: 'Badge ID and status are required' });
+    if (!badgeId) {
+      return res.status(400).json({ success: false, message: 'Badge ID is required' });
+    }
+
+    if (!status) {
+      return res.status(400).json({ success: false, message: 'Status is required' });
     }
 
     if (!['approved', 'rejected', 'pending'].includes(status)) {
@@ -7141,11 +7158,11 @@ app.post('/api/badges/update-status', async (req, res) => {
        SET status = $1, reviewer_comments = $2, reviewed_at = NOW()
        WHERE id = $3
        RETURNING *`,
-      [status, comments || null, badge_id]
+      [status, reviewer_comments || null, badgeId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Badge not found' });
+      return res.status(404).json({ success: false, message: 'Badge progress not found' });
     }
 
     res.json({ success: true, message: 'Badge status updated successfully', badge: result.rows[0] });
