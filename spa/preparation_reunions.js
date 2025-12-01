@@ -5,9 +5,9 @@ import {
         getRecentHonors,
         saveReunionPreparation,
         getReunionDates,
-        getReunionPreparation,
-        fetchFromApi
+        getReunionPreparation
 } from "./ajax-functions.js";
+import { saveReminder, getReminder } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { ActivityManager } from "./modules/ActivityManager.js";
 import { FormManager } from "./modules/FormManager.js";
@@ -46,14 +46,14 @@ export class PreparationReunions {
                         const reminder = await this.fetchReminder();
                         this.formManager.setReminder(reminder);
 
-                        // Render the page
-                        this.render();
-
-                        // Determine current meeting and populate form
+                        // Determine current meeting BEFORE rendering
                         const currentMeeting = await this.determineCurrentMeeting();
                         this.currentMeetingData = currentMeeting;
                         // Set the current date in dateManager to match the meeting we're displaying
                         this.dateManager.setCurrentDate(currentMeeting.date);
+
+                        // Render the page now that we have the meeting data
+                        this.render();
                         await this.formManager.populateForm(currentMeeting, currentMeeting.date);
 
                         // Populate reminder form after DOM is rendered
@@ -95,7 +95,7 @@ export class PreparationReunions {
 
         async fetchReminder() {
                 try {
-                        const data = await fetchFromApi(`get_reminder`);
+                        const data = await getReminder();
                         return data.success ? data.reminder : null;
                 } catch (error) {
                         console.error("Error fetching reminder:", error);
@@ -392,7 +392,7 @@ export class PreparationReunions {
                 const reminderData = this.formManager.getReminderData();
 
                 try {
-                        await fetchFromApi('save_reminder', 'POST', reminderData);
+                        await saveReminder(reminderData);
                         this.app.showMessage(translate("reminder_saved_successfully"), "success");
                 } catch (error) {
                         this.app.showMessage(translate("error_saving_reminder"), "error");
