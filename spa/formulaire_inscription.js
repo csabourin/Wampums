@@ -7,8 +7,9 @@ import {
   getOrganizationFormFormats,
   saveParticipant,
     getGuardiansForParticipant,
-      saveGuardian, // NEW: For saving guardian info
-      linkGuardianToParticipant, // NEW: For linking guardians to participants
+      saveGuardian,
+      linkGuardianToParticipant,
+      linkUserParticipants,
     getCurrentOrganizationId,
     fetchFromApi
 } from "./ajax-functions.js";
