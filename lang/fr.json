@@ -646,5 +646,6 @@
     "group_attendance_updated": "La présence du groupe a été mise à jour.",
     "error_updating_group_attendance": "Erreur lors de la mise à jour de la présence du groupe.",
     "no_participants_to_update": "Aucun participant à mettre à jour.",
-    "no_selection": "Aucune sélection."
+    "no_selection": "Aucune sélection.",
+    "app_title": "Scouts au bout des doigts"
 }

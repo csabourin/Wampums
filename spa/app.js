@@ -485,10 +485,18 @@ export const app = {
                 setStorage('lang', lang);
 
                 this.loadTranslations().then(() => {
+                        // Update page title
+                        this.updatePageTitle();
+
                         if (this.router && this.initCompleted) {
                                 this.router.reloadCurrentRoute();
                         }
                 });
+        },
+
+        updatePageTitle() {
+                const title = this.translate('app_title');
+                document.title = `${title} - Wampums`;
         },
 
         initLanguageToggle() {
