@@ -1,5 +1,6 @@
 import { translate } from "./app.js";
 import {login, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
+import { setStorage, getStorage, removeStorage, setStorageMultiple, removeStorageMultiple } from "./utils/StorageUtils.js";
 
 export class Login {
   constructor(app) {
@@ -158,32 +159,37 @@ handleLoginSuccess(result) {
   this.app.userRole = userRole;
   this.app.userFullName = userFullName;
 
-  // Store user data in localStorage
-  localStorage.setItem("jwtToken", token);
-  localStorage.setItem("userRole", userRole || "");
-  localStorage.setItem("userFullName", userFullName);
-  localStorage.setItem("userId", userId);
+  // Store user data in localStorage using StorageUtils
+  const userData = {
+    jwtToken: token,
+    userRole: userRole || "",
+    userFullName: userFullName,
+    userId: userId
+  };
 
   // Make sure organization ID is stored correctly
   const orgId = getCurrentOrganizationId();
   if (orgId) {
-    localStorage.setItem("currentOrganizationId", orgId);
+    userData.currentOrganizationId = orgId;
     // Also store as organizationId for backward compatibility
-    localStorage.setItem("organizationId", orgId);
+    userData.organizationId = orgId;
   }
 
   // Store guardian participants if available
   const guardianParticipants = result.guardian_participants || (result.data && result.data.guardian_participants);
   if (guardianParticipants && guardianParticipants.length > 0) {
-    localStorage.setItem("guardianParticipants", JSON.stringify(guardianParticipants));
+    userData.guardianParticipants = guardianParticipants;
   }
 
+  // Save all user data at once
+  setStorageMultiple(userData);
+
   console.log("=== FINAL LOCALSTORAGE CHECK ===");
-  console.log("jwtToken:", localStorage.getItem("jwtToken") ? "STORED" : "MISSING");
-  console.log("userId:", localStorage.getItem("userId"));
-  console.log("userRole:", localStorage.getItem("userRole"));
-  console.log("currentOrganizationId:", localStorage.getItem("currentOrganizationId"));
-  console.log("organizationId:", localStorage.getItem("organizationId"));
+  console.log("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
+  console.log("userId:", getStorage("userId"));
+  console.log("userRole:", getStorage("userRole"));
+  console.log("currentOrganizationId:", getStorage("currentOrganizationId"));
+  console.log("organizationId:", getStorage("organizationId"));
 
   // Redirect based on user role
   if (userRole === "parent") {
@@ -212,10 +218,10 @@ handleLoginSuccess(result) {
    * @returns {Object} Session information: isLoggedIn, userRole, and userFullName
    */
   static checkSession() {
-    const token = localStorage.getItem('jwtToken');
-    const userRole = localStorage.getItem('userRole');
-    const userFullName = localStorage.getItem('userFullName');
-    const userId = localStorage.getItem('userId');
+    const token = getStorage('jwtToken');
+    const userRole = getStorage('userRole');
+    const userFullName = getStorage('userFullName');
+    const userId = getStorage('userId');
 
     // Simple check - we consider the user logged in if we have a token AND user ID
     // The actual token validation happens on the server
@@ -238,7 +244,7 @@ handleLoginSuccess(result) {
       await fetch(getApiUrl('logout'), {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${localStorage.getItem("jwtToken")}`,
+          "Authorization": `Bearer ${getStorage("jwtToken")}`,
           "Content-Type": "application/json"
         }
       });
@@ -247,12 +253,8 @@ handleLoginSuccess(result) {
       // Continue with client-side logout even if server logout fails
     }
 
-    // Clear user data from localStorage
-    localStorage.removeItem("jwtToken");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userFullName");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("guardianParticipants");
+    // Clear user data from localStorage using StorageUtils
+    removeStorageMultiple(["jwtToken", "userRole", "userFullName", "userId", "guardianParticipants"]);
 
     console.log("Local storage cleared, redirecting to login page");
 

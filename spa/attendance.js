@@ -8,12 +8,13 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
+import { getTodayISO, formatDate, isValidDate } from "./utils/DateUtils.js";
 
 
 export class Attendance {
   constructor(app) {
     this.app = app;
-    this.currentDate = new Date().toLocaleDateString("en-CA");
+    this.currentDate = getTodayISO();
     this.participants = [];
     this.attendanceData = {};
     this.guests = [];
@@ -75,16 +76,14 @@ export class Attendance {
       if (response.success && response.dates) {
         // Filter out null, undefined, and invalid dates
         this.availableDates = response.dates.filter(date => {
-          if (!date || date === 'null' || date === 'undefined') return false;
-          const testDate = new Date(date);
-          return !isNaN(testDate.getTime());
+          return isValidDate(date);
         });
       } else {
         throw new Error("Failed to fetch attendance dates or no dates available.");
       }
 
       this.availableDates.sort((a, b) => new Date(b) - new Date(a));
-      const today = new Date().toLocaleDateString("en-CA");
+      const today = getTodayISO();
       if (!this.availableDates.includes(today)) {
         this.availableDates.unshift(today);
       }
@@ -288,7 +287,7 @@ export class Attendance {
   renderDateOptions() {
     return this.availableDates
       .map(date => `<option value="${date}" ${date === this.currentDate ? "selected" : ""}>
-        ${this.formatDate(date)}
+        ${formatDate(date, this.app.lang)}
       </option>`)
       .join("");
   }
@@ -337,7 +336,7 @@ export class Attendance {
       <div class="guest-row">
         <span class="guest-name">${guest.name}</span>
         <span class="guest-email">${guest.email || translate("no_email")}</span>
-        <span class="guest-date">${this.formatDate(guest.attendance_date)}</span>
+        <span class="guest-date">${formatDate(guest.attendance_date, this.app.lang)}</span>
       </div>
     `).join("");
   }
@@ -615,23 +614,6 @@ console.log(groupHeader, participantRow);
     });
 
     document.getElementById("guestList").innerHTML = this.renderGuests();
-  }
-
-  formatDate(dateString) {
-    // Validate the date string
-    if (!dateString || dateString === 'null' || dateString === 'undefined') {
-      return 'Invalid Date';
-    }
-
-    const options = { day: "numeric", month: "short", year: "numeric", timeZone: "America/Toronto" };
-    const localDate = new Date(dateString + "T00:00:00");
-
-    // Check if the date is valid after creation
-    if (isNaN(localDate.getTime())) {
-      return 'Invalid Date';
-    }
-
-    return localDate.toLocaleDateString(this.app.lang, options);
   }
 
   renderError() {
