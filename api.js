@@ -1777,16 +1777,17 @@ app.get('/api/parent-contact-list', async (req, res) => {
     
     const result = await pool.query(
       `SELECT p.id as participant_id, p.first_name, p.last_name, g.name as group_name,
-              pg_contact.id as guardian_id, pg_contact.nom, pg_contact.prenom, pg_contact.lien,
-              pg_contact.courriel, pg_contact.telephone_residence, pg_contact.telephone_travail,
-              pg_contact.telephone_cellulaire, pg_contact.is_emergency_contact
+              pg.id as guardian_id, pg.nom, pg.prenom, pguard.lien,
+              pg.courriel, pg.telephone_residence, pg.telephone_travail,
+              pg.telephone_cellulaire, pg.is_emergency_contact, pg.is_primary
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pgrp ON p.id = pgrp.participant_id AND pgrp.organization_id = $1
        LEFT JOIN groups g ON pgrp.group_id = g.id
-       LEFT JOIN parents_guardians pg_contact ON p.id = pg_contact.participant_id
+       LEFT JOIN participant_guardians pguard ON p.id = pguard.participant_id
+       LEFT JOIN parents_guardians pg ON pguard.guardian_id = pg.id
        WHERE po.organization_id = $1
-       ORDER BY p.first_name, p.last_name, pg_contact.is_primary DESC`,
+       ORDER BY p.first_name, p.last_name, pg.is_primary DESC`,
       [organizationId]
     );
     
