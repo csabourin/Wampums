@@ -1211,6 +1211,7 @@ app.post('/api/update-points', async (req, res) => {
       }
       
       await client.query('COMMIT');
+      console.log('[update-points] SUCCESS - Response:', JSON.stringify({ success: true, updates: responseUpdates }));
       res.json({ success: true, updates: responseUpdates });
     } catch (error) {
       await client.query('ROLLBACK');
