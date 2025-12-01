@@ -52,7 +52,9 @@ export class PreparationReunions {
                         // Determine current meeting and populate form
                         const currentMeeting = await this.determineCurrentMeeting();
                         this.currentMeetingData = currentMeeting;
-                        await this.formManager.populateForm(currentMeeting, this.dateManager.getCurrentDate());
+                        // Set the current date in dateManager to match the meeting we're displaying
+                        this.dateManager.setCurrentDate(currentMeeting.date);
+                        await this.formManager.populateForm(currentMeeting, currentMeeting.date);
 
                         // Populate reminder form after DOM is rendered
                         this.formManager.populateReminderForm();

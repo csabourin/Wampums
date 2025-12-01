@@ -64,10 +64,25 @@ export class DateManager {
         }
 
         /**
-         * Create a new meeting date
+         * Create a new meeting date (one week after the current meeting date)
          */
         createNewMeetingDate() {
-                const newDate = this.getNextMeetingDate();
+                let newDate;
+
+                if (this.currentDate) {
+                        // Add 7 days to the current meeting date
+                        const currentMeetingDate = new Date(this.currentDate);
+                        currentMeetingDate.setDate(currentMeetingDate.getDate() + 7);
+
+                        const year = currentMeetingDate.getFullYear();
+                        const month = String(currentMeetingDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(currentMeetingDate.getDate()).padStart(2, '0');
+                        newDate = `${year}-${month}-${day}`;
+                } else {
+                        // If no current date, use next meeting date
+                        newDate = this.getNextMeetingDate();
+                }
+
                 if (!this.availableDates.includes(newDate)) {
                         this.availableDates.push(newDate);
                         this.availableDates.sort((a, b) => new Date(b) - new Date(a));
