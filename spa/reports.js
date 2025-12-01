@@ -72,18 +72,18 @@ export class Reports {
 
 	async loadFormTypes() {
 		try {
-			const formTypes = await getFormTypes(); // Fetch form types
+			const response = await getFormTypes(); // Fetch form types
 
-			console.log("Fetched form types:", formTypes);  // Check if data is correctly fetched
+			console.log("Fetched form types:", response);  // Check if data is correctly fetched
 
 			const selectElement = document.getElementById("form-type-select");
 
-			if (!formTypes || formTypes.length === 0) {
+			if (!response || !response.data || response.data.length === 0) {
 				selectElement.innerHTML = `<option value="">${translate('no_form_types_available')}</option>`;
 				return;
 			}
 
-			formTypes.forEach(formType => {
+			response.data.forEach(formType => {
 				const option = document.createElement("option");
 				option.value = formType;
 				option.textContent = formType; // You may use a translated or user-friendly name here
