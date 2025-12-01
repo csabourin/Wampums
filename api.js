@@ -3811,12 +3811,23 @@ app.get('/api/organization-form-formats', async (req, res) => {
     }
     
     const result = await pool.query(
-      `SELECT * FROM organization_form_formats 
+      `SELECT * FROM organization_form_formats
        WHERE organization_id = $1`,
       [organizationId]
     );
-    
-    res.json({ success: true, data: result.rows });
+
+    // Transform the data into an object keyed by form_type for easier lookup
+    const formatsObject = {};
+    result.rows.forEach(row => {
+      formatsObject[row.form_type] = {
+        ...row,
+        form_structure: typeof row.form_structure === 'string'
+          ? JSON.parse(row.form_structure)
+          : row.form_structure
+      };
+    });
+
+    res.json({ success: true, data: formatsObject });
   } catch (error) {
     logger.error('Error fetching form formats:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -4911,6 +4922,65 @@ app.get('/api/form-structure', async (req, res) => {
  *         description: Form submissions
  */
 app.get('/api/form-submissions-list', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const { form_type, participant_id } = req.query;
+
+    if (!form_type) {
+      return res.status(400).json({ success: false, message: 'Form type is required' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    if (participant_id) {
+      const result = await pool.query(
+        "SELECT submission_data FROM form_submissions WHERE participant_id = $1 AND form_type = $2 AND organization_id = $3",
+        [participant_id, form_type, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'No submission data found' });
+      }
+
+      res.json({
+        success: true,
+        data: JSON.parse(result.rows[0].submission_data)
+      });
+    } else {
+      const result = await pool.query(
+        `SELECT fs.participant_id, fs.submission_data, p.first_name, p.last_name
+         FROM form_submissions fs
+         JOIN participant_organizations po ON fs.participant_id = po.participant_id
+         JOIN participants p ON fs.participant_id = p.id
+         WHERE po.organization_id = $1 AND fs.form_type = $2
+         ORDER BY p.first_name, p.last_name`,
+        [organizationId, form_type]
+      );
+
+      res.json({
+        success: true,
+        data: result.rows.map(row => ({
+          participant_id: row.participant_id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          submission_data: JSON.parse(row.submission_data)
+        }))
+      });
+    }
+  } catch (error) {
+    logger.error('Error fetching form submissions:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Alias endpoint for backwards compatibility with frontend
+app.get('/api/form-submissions', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyJWT(token);
