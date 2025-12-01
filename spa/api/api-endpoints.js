@@ -901,7 +901,10 @@ export async function getParticipantCalendar(participantId) {
  * Get reunion preparation for a date
  */
 export async function getReunionPreparation(date) {
-    return API.get('reunion-preparation', { date });
+    return API.get('reunion-preparation', { date }, {
+        cacheKey: `reunion_preparation_${date}`,
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+    });
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   updateGroupName,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
+import { clearGroupRelatedCaches } from "./indexedDB.js";
 
 export class ManageGroups {
   constructor(app) {
@@ -97,6 +98,8 @@ export class ManageGroups {
         const result = await addGroup(groupName);
         this.showMessage(result.message);
         if (result.status === "success") {
+          // Clear all group-related caches
+          await clearGroupRelatedCaches();
           await this.fetchGroups();
           this.render();
           this.attachEventListeners();
@@ -115,6 +118,10 @@ export class ManageGroups {
     try {
       const result = await updateGroupName(groupId, newName);
       this.showMessage(result.message);
+      if (result.status === "success") {
+        // Clear all group-related caches
+        await clearGroupRelatedCaches();
+      }
     } catch (error) {
       console.error("Error:", error);
       this.showMessage(translate("error_updating_group_name"));
@@ -128,6 +135,8 @@ export class ManageGroups {
         const result = await removeGroup(groupId);
         this.showMessage(result.message);
         if (result.status === "success") {
+          // Clear all group-related caches
+          await clearGroupRelatedCaches();
           await this.fetchGroups();
           this.render();
           this.attachEventListeners();
