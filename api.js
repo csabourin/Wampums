@@ -4948,9 +4948,10 @@ app.get('/api/form-submissions-list', async (req, res) => {
         return res.status(404).json({ success: false, message: 'No submission data found' });
       }
 
+      const submissionData = result.rows[0].submission_data;
       res.json({
         success: true,
-        data: JSON.parse(result.rows[0].submission_data)
+        data: typeof submissionData === 'string' ? JSON.parse(submissionData) : submissionData
       });
     } else {
       const result = await pool.query(
@@ -4969,7 +4970,9 @@ app.get('/api/form-submissions-list', async (req, res) => {
           participant_id: row.participant_id,
           first_name: row.first_name,
           last_name: row.last_name,
-          submission_data: JSON.parse(row.submission_data)
+          submission_data: typeof row.submission_data === 'string'
+            ? JSON.parse(row.submission_data)
+            : row.submission_data
         }))
       });
     }
@@ -5007,9 +5010,10 @@ app.get('/api/form-submissions', async (req, res) => {
         return res.status(404).json({ success: false, message: 'No submission data found' });
       }
 
+      const submissionData = result.rows[0].submission_data;
       res.json({
         success: true,
-        data: JSON.parse(result.rows[0].submission_data)
+        data: typeof submissionData === 'string' ? JSON.parse(submissionData) : submissionData
       });
     } else {
       const result = await pool.query(
@@ -5028,7 +5032,9 @@ app.get('/api/form-submissions', async (req, res) => {
           participant_id: row.participant_id,
           first_name: row.first_name,
           last_name: row.last_name,
-          submission_data: JSON.parse(row.submission_data)
+          submission_data: typeof row.submission_data === 'string'
+            ? JSON.parse(row.submission_data)
+            : row.submission_data
         }))
       });
     }
