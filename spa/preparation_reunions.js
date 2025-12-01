@@ -183,8 +183,22 @@ export class PreparationReunions {
                 this.attachEventListeners();
         }
 
+        /**
+         * Format date string to yyyy-MM-dd format for HTML date inputs
+         */
+        formatDateForInput(dateString) {
+                if (!dateString) return '';
+                // If it's already in yyyy-MM-dd format, return as is
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                        return dateString;
+                }
+                // Extract date part from ISO string (e.g., "2025-12-02T00:00:00.000Z" -> "2025-12-02")
+                return dateString.split('T')[0];
+        }
+
         render() {
-                const nextMeetingDate = this.currentMeetingData?.date || this.dateManager.getNextMeetingDate();
+                const rawNextMeetingDate = this.currentMeetingData?.date || this.dateManager.getNextMeetingDate();
+                const nextMeetingDate = this.formatDateForInput(rawNextMeetingDate);
                 const defaultAnimateur = this.animateurs.find(a => a.full_name === this.organizationSettings.organization_info?.animateur_responsable);
                 const availableDates = this.dateManager.getAvailableDates();
 
@@ -197,7 +211,7 @@ export class PreparationReunions {
                                         <select id="date-select">
                                         <option value="">${translate("select_date")}</option>
                                                 ${availableDates.map(date =>
-                                                        `<option value="${date}" ${date === this.currentMeetingData?.date ? 'selected' : ''}>${this.dateManager.formatDate(date, this.app.lang)}</option>`
+                                                        `<option value="${date}" ${date === this.formatDateForInput(this.currentMeetingData?.date) ? 'selected' : ''}>${this.dateManager.formatDate(date, this.app.lang)}</option>`
                                                 ).join('')}
                                         </select>
                                 </div>

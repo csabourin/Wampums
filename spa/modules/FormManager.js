@@ -15,6 +15,21 @@ export class FormManager {
         }
 
         /**
+         * Convert ISO date string to yyyy-MM-dd format for HTML date inputs
+         */
+        formatDateForInput(dateString) {
+                if (!dateString) return '';
+
+                // If it's already in yyyy-MM-dd format, return as is
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                        return dateString;
+                }
+
+                // Extract date part from ISO string (e.g., "2025-12-02T00:00:00.000Z" -> "2025-12-02")
+                return dateString.split('T')[0];
+        }
+
+        /**
          * Populate form with meeting data
          */
         async populateForm(meetingData, currentDate) {
@@ -24,7 +39,7 @@ export class FormManager {
                 }
 
                 document.getElementById("animateur-responsable").value = meetingData.animateur_responsable || '';
-                document.getElementById("date").value = meetingData.date || currentDate;
+                document.getElementById("date").value = this.formatDateForInput(meetingData.date || currentDate);
 
                 // Handle Louveteau d'honneur
                 const louveteauxDHonneur = document.getElementById("louveteau-dhonneur");
@@ -81,7 +96,7 @@ export class FormManager {
          */
         resetForm(currentDate) {
                 document.getElementById("animateur-responsable").value = '';
-                document.getElementById("date").value = currentDate;
+                document.getElementById("date").value = this.formatDateForInput(currentDate);
                 document.getElementById("louveteau-dhonneur").innerHTML = '';
                 document.getElementById("endroit").value = this.organizationSettings.organization_info?.endroit || '';
                 document.getElementById("notes").value = '';
@@ -125,7 +140,7 @@ export class FormManager {
                         const recurringReminderEl = document.getElementById('recurring-reminder');
 
                         if (reminderTextEl) reminderTextEl.value = this.reminder.reminder_text || '';
-                        if (reminderDateEl) reminderDateEl.value = this.reminder.reminder_date || '';
+                        if (reminderDateEl) reminderDateEl.value = this.formatDateForInput(this.reminder.reminder_date || '');
                         if (recurringReminderEl) recurringReminderEl.checked = this.reminder.is_recurring || false;
                 }
         }
