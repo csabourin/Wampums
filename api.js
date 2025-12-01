@@ -3706,37 +3706,99 @@ app.get('/api/form-submission', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyJWT(token);
-    
+
     if (!decoded || !decoded.user_id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    
+
     const organizationId = await getCurrentOrganizationId(req);
-    
+
     // Verify user belongs to this organization
     const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
     if (!authCheck.authorized) {
       return res.status(403).json({ success: false, message: authCheck.message });
     }
-    
+
     const { participant_id, form_type } = req.query;
-    
+
     if (!participant_id || !form_type) {
       return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
     }
-    
+
+    // Role-based access control
+    const userRole = decoded.role || decoded.user_role;
+
+    // Verify access to this participant
+    if (userRole !== 'admin' && userRole !== 'animation') {
+      // For parents, check if they have access to this participant
+      const accessCheck = await pool.query(
+        `SELECT 1 FROM user_participants
+         WHERE user_id = $1 AND participant_id = $2`,
+        [decoded.user_id, participant_id]
+      );
+
+      if (accessCheck.rows.length === 0) {
+        return res.status(403).json({ success: false, message: 'Access denied to this participant' });
+      }
+    }
+
+    // Get form submission with participant basic information
     const result = await pool.query(
-      `SELECT * FROM form_submissions 
-       WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3
-       ORDER BY updated_at DESC
+      `SELECT fs.*,
+              p.first_name, p.last_name, p.date_naissance,
+              p.date_of_birth
+       FROM form_submissions fs
+       JOIN participants p ON fs.participant_id = p.id
+       WHERE fs.participant_id = $1 AND fs.organization_id = $2 AND fs.form_type = $3
+       ORDER BY fs.updated_at DESC
        LIMIT 1`,
       [participant_id, organizationId, form_type]
     );
-    
+
     if (result.rows.length > 0) {
-      res.json({ success: true, data: result.rows[0] });
+      const submission = result.rows[0];
+      // Merge submission_data with participant basic info for frontend compatibility
+      const formData = {
+        ...submission.submission_data,
+        first_name: submission.first_name,
+        last_name: submission.last_name,
+        date_naissance: submission.date_naissance || submission.date_of_birth,
+        participant_id: submission.participant_id
+      };
+
+      res.json({
+        success: true,
+        data: submission,
+        form_data: formData // Add form_data for frontend compatibility
+      });
     } else {
-      res.json({ success: true, data: null, message: 'No submission found' });
+      // No submission found, but return participant basic info for new forms
+      const participantResult = await pool.query(
+        `SELECT first_name, last_name, date_naissance, date_of_birth, id
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         WHERE p.id = $1 AND po.organization_id = $2`,
+        [participant_id, organizationId]
+      );
+
+      if (participantResult.rows.length > 0) {
+        const participant = participantResult.rows[0];
+        const formData = {
+          first_name: participant.first_name,
+          last_name: participant.last_name,
+          date_naissance: participant.date_naissance || participant.date_of_birth,
+          participant_id: participant.id
+        };
+
+        res.json({
+          success: true,
+          data: null,
+          form_data: formData,
+          message: 'No submission found, returning participant basic info'
+        });
+      } else {
+        res.json({ success: true, data: null, form_data: {}, message: 'No submission or participant found' });
+      }
     }
   } catch (error) {
     logger.error('Error fetching form submission:', error);
