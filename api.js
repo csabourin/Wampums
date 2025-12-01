@@ -606,6 +606,70 @@ app.get('/api/reunion-preparation', async (req, res) => {
   }
 });
 
+// Save reunion preparation
+app.post('/api/save-reunion-preparation', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+    const { date, louveteau_dhonneur, endroit, activities, notes, animateur_responsable } = req.body;
+
+    // Convert arrays/objects to appropriate formats
+    const louvetauDhonneurJson = Array.isArray(louveteau_dhonneur)
+      ? JSON.stringify(louveteau_dhonneur)
+      : louveteau_dhonneur;
+
+    const activitiesJson = typeof activities === 'string'
+      ? activities
+      : JSON.stringify(activities);
+
+    // Check if a record already exists for this date and organization
+    const existingResult = await pool.query(
+      `SELECT id FROM reunion_preparations WHERE organization_id = $1 AND date = $2`,
+      [organizationId, date]
+    );
+
+    let result;
+    if (existingResult.rows.length > 0) {
+      // Update existing record
+      result = await pool.query(
+        `UPDATE reunion_preparations
+         SET louveteau_dhonneur = $1, endroit = $2, activities = $3, notes = $4,
+             animateur_responsable = $5, updated_at = CURRENT_TIMESTAMP
+         WHERE organization_id = $6 AND date = $7
+         RETURNING *`,
+        [louvetauDhonneurJson, endroit, activitiesJson, notes, animateur_responsable, organizationId, date]
+      );
+    } else {
+      // Insert new record
+      result = await pool.query(
+        `INSERT INTO reunion_preparations
+         (organization_id, date, louveteau_dhonneur, endroit, activities, notes, animateur_responsable)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [organizationId, date, louvetauDhonneurJson, endroit, activitiesJson, notes, animateur_responsable]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Reunion preparation saved successfully',
+      preparation: result.rows[0]
+    });
+  } catch (error) {
+    logger.error('Error saving reunion preparation:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 // Get points data (migrated from get_points_data.php)
 app.get('/api/points-data', async (req, res) => {
   try {
@@ -5695,13 +5759,8 @@ app.get('/api/activites-rencontre', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const organizationId = await getCurrentOrganizationId(req);
-
     const result = await pool.query(
-      `SELECT * FROM activites_rencontre
-       WHERE organization_id = $1 OR organization_id = 0
-       ORDER BY activity`,
-      [organizationId]
+      `SELECT * FROM activites_rencontre ORDER BY activity`
     );
 
     res.json({ success: true, data: result.rows });
