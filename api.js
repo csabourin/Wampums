@@ -63,6 +63,24 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// Handle pool errors to prevent app crashes
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+  // Don't exit the process on pool errors
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  // Log but don't exit - let the process continue
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Log but don't exit - let the process continue
+});
+
 // Support legacy environment variable name `JWT_SECRET`
 // to match the PHP implementation which falls back to this value
 // if `JWT_SECRET_KEY` is not defined.
@@ -5644,7 +5662,7 @@ app.get('/api/recent-honors', async (req, res) => {
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
        LEFT JOIN groups g ON pg.group_id = g.id
        WHERE h.organization_id = $1
-       ORDER BY h.date_awarded DESC
+       ORDER BY h.date DESC
        LIMIT $2`,
       [organizationId, limit]
     );
@@ -5652,6 +5670,43 @@ app.get('/api/recent-honors', async (req, res) => {
     res.json({ success: true, data: result.rows });
   } catch (error) {
     logger.error('Error fetching recent honors:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /api/activites-rencontre:
+ *   get:
+ *     summary: Get meeting activities
+ *     tags: [Meetings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Meeting activities
+ */
+app.get('/api/activites-rencontre', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const organizationId = await getCurrentOrganizationId(req);
+
+    const result = await pool.query(
+      `SELECT * FROM activites_rencontre
+       WHERE organization_id = $1 OR organization_id = 0
+       ORDER BY activity`,
+      [organizationId]
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching activites rencontre:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
