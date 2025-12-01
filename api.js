@@ -3824,6 +3824,740 @@ app.delete('/api/remove-guardian', async (req, res) => {
   }
 });
 
+// ============================================
+// USER MANAGEMENT ENDPOINTS
+// ============================================
+
+// Approve user (admin only)
+app.post('/api/approve-user', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user has admin role in this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { user_id } = req.body;
+    
+    if (!user_id) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+    
+    // Verify target user exists and belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT u.id, u.email, uo.role FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE u.id = $1 AND uo.organization_id = $2`,
+      [user_id, organizationId]
+    );
+    
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+    
+    // Update user verification status
+    await pool.query(
+      `UPDATE users SET is_verified = true WHERE id = $1`,
+      [user_id]
+    );
+    
+    console.log(`[user] User ${user_id} approved by admin ${decoded.user_id}`);
+    res.json({ success: true, message: 'User approved successfully' });
+  } catch (error) {
+    logger.error('Error approving user:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update user role (admin only)
+app.post('/api/update-user-role', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user has admin role in this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { user_id, role } = req.body;
+    
+    if (!user_id || !role) {
+      return res.status(400).json({ success: false, message: 'User ID and role are required' });
+    }
+    
+    const validRoles = ['admin', 'animation', 'parent', 'leader'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: `Invalid role. Valid roles: ${validRoles.join(', ')}` });
+    }
+    
+    // Prevent admin from changing their own role
+    if (user_id === decoded.user_id) {
+      return res.status(400).json({ success: false, message: 'Cannot change your own role' });
+    }
+    
+    // Verify target user belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
+      [user_id, organizationId]
+    );
+    
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+    
+    // Update user role in organization
+    await pool.query(
+      `UPDATE user_organizations SET role = $1 WHERE user_id = $2 AND organization_id = $3`,
+      [role, user_id, organizationId]
+    );
+    
+    console.log(`[user] User ${user_id} role updated to ${role} by admin ${decoded.user_id}`);
+    res.json({ success: true, message: 'User role updated successfully' });
+  } catch (error) {
+    logger.error('Error updating user role:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Link user to participants (admin only)
+app.post('/api/link-user-participants', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user has admin role in this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { user_id, participant_ids } = req.body;
+    
+    if (!user_id || !participant_ids || !Array.isArray(participant_ids)) {
+      return res.status(400).json({ success: false, message: 'User ID and participant_ids array are required' });
+    }
+    
+    // Verify target user belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
+      [user_id, organizationId]
+    );
+    
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Remove existing links for this user
+      await client.query(
+        `DELETE FROM user_participants WHERE user_id = $1`,
+        [user_id]
+      );
+      
+      // Add new links for each participant (verify they belong to org)
+      for (const participantId of participant_ids) {
+        // Verify participant belongs to this organization
+        const participantCheck = await client.query(
+          `SELECT id FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE p.id = $1 AND po.organization_id = $2`,
+          [participantId, organizationId]
+        );
+        
+        if (participantCheck.rows.length > 0) {
+          await client.query(
+            `INSERT INTO user_participants (user_id, participant_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id, participant_id) DO NOTHING`,
+            [user_id, participantId]
+          );
+        }
+      }
+      
+      await client.query('COMMIT');
+      console.log(`[user] User ${user_id} linked to ${participant_ids.length} participants`);
+      res.json({ success: true, message: 'User linked to participants successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Error linking user to participants:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Get pending users (users awaiting approval)
+app.get('/api/pending-users', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user has admin role in this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.is_verified, u.created_at, uo.role
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1 AND u.is_verified = false
+       ORDER BY u.created_at DESC`,
+      [organizationId]
+    );
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    logger.error('Error fetching pending users:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// REPORTS ENDPOINTS
+// ============================================
+
+// Health report (allergies, medications, EpiPen, emergency contacts)
+app.get('/api/health-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization with admin or animation role
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const groupId = req.query.group_id;
+    
+    // Get all participants with their health form submissions
+    let query = `
+      SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+             g.name as group_name,
+             fs.submission_data as health_data
+      FROM participants p
+      JOIN participant_organizations po ON p.id = po.participant_id
+      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+      LEFT JOIN groups g ON pg.group_id = g.id
+      LEFT JOIN form_submissions fs ON p.id = fs.participant_id 
+        AND fs.organization_id = $1 
+        AND fs.form_type = 'fiche_sante'
+      WHERE po.organization_id = $1
+    `;
+    
+    const params = [organizationId];
+    
+    if (groupId) {
+      query += ` AND pg.group_id = $2`;
+      params.push(groupId);
+    }
+    
+    query += ` ORDER BY g.name, p.last_name, p.first_name`;
+    
+    const result = await pool.query(query, params);
+    
+    // Process health data to extract key fields
+    const healthReport = result.rows.map(row => {
+      const healthData = row.health_data || {};
+      return {
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        date_naissance: row.date_naissance,
+        group_name: row.group_name,
+        allergies: healthData.allergies || healthData.allergie || null,
+        allergies_details: healthData.allergies_details || healthData.allergie_details || null,
+        medications: healthData.medicaments || healthData.medications || null,
+        epipen: healthData.epipen || healthData.auto_injecteur || false,
+        medecin_famille: healthData.medecin_famille || null,
+        nom_medecin: healthData.nom_medecin || null,
+        telephone_medecin: healthData.telephone_medecin || null,
+        carte_assurance_maladie: healthData.carte_assurance_maladie || null,
+        has_health_form: !!row.health_data
+      };
+    });
+    
+    res.json({ success: true, data: healthReport });
+  } catch (error) {
+    logger.error('Error fetching health report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Attendance report with date range
+app.get('/api/attendance-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization with admin or animation role
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { start_date, end_date, group_id, format } = req.query;
+    
+    let query = `
+      SELECT p.id, p.first_name, p.last_name,
+             g.name as group_name,
+             a.date, a.status
+      FROM participants p
+      JOIN participant_organizations po ON p.id = po.participant_id
+      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+      LEFT JOIN groups g ON pg.group_id = g.id
+      LEFT JOIN attendance a ON p.id = a.participant_id AND a.organization_id = $1
+      WHERE po.organization_id = $1
+    `;
+    
+    const params = [organizationId];
+    let paramIndex = 2;
+    
+    if (start_date) {
+      query += ` AND a.date >= $${paramIndex}`;
+      params.push(start_date);
+      paramIndex++;
+    }
+    
+    if (end_date) {
+      query += ` AND a.date <= $${paramIndex}`;
+      params.push(end_date);
+      paramIndex++;
+    }
+    
+    if (group_id) {
+      query += ` AND pg.group_id = $${paramIndex}`;
+      params.push(group_id);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY p.last_name, p.first_name, a.date`;
+    
+    const result = await pool.query(query, params);
+    
+    // Group by participant
+    const participantMap = new Map();
+    for (const row of result.rows) {
+      const key = row.id;
+      if (!participantMap.has(key)) {
+        participantMap.set(key, {
+          id: row.id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          group_name: row.group_name,
+          attendance: [],
+          summary: { present: 0, absent: 0, late: 0, excused: 0 }
+        });
+      }
+      if (row.date) {
+        const participant = participantMap.get(key);
+        participant.attendance.push({ date: row.date, status: row.status });
+        if (participant.summary[row.status] !== undefined) {
+          participant.summary[row.status]++;
+        }
+      }
+    }
+    
+    const attendanceReport = Array.from(participantMap.values());
+    
+    // If CSV format requested
+    if (format === 'csv') {
+      let csv = 'First Name,Last Name,Group,Present,Absent,Late,Excused\n';
+      for (const p of attendanceReport) {
+        csv += `"${p.first_name}","${p.last_name}","${p.group_name || ''}",${p.summary.present},${p.summary.absent},${p.summary.late},${p.summary.excused}\n`;
+      }
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="attendance_report.csv"');
+      return res.send(csv);
+    }
+    
+    res.json({ success: true, data: attendanceReport });
+  } catch (error) {
+    logger.error('Error fetching attendance report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Missing documents report
+app.get('/api/missing-documents-report', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization with admin or animation role
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    // Get required form types from organization settings
+    const settingsResult = await pool.query(
+      `SELECT setting_value FROM organization_settings 
+       WHERE organization_id = $1 AND setting_key = 'required_forms'`,
+      [organizationId]
+    );
+    
+    // Default required forms if not configured
+    let requiredForms = ['fiche_sante', 'acceptation_risque', 'formulaire_inscription'];
+    if (settingsResult.rows.length > 0) {
+      try {
+        requiredForms = JSON.parse(settingsResult.rows[0].setting_value);
+      } catch (e) {
+        // Keep defaults
+      }
+    }
+    
+    // Get all participants and their submitted forms
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              g.name as group_name,
+              ARRAY_AGG(DISTINCT fs.form_type) FILTER (WHERE fs.form_type IS NOT NULL) as submitted_forms
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.organization_id = $1
+       WHERE po.organization_id = $1
+       GROUP BY p.id, p.first_name, p.last_name, g.name
+       ORDER BY g.name, p.last_name, p.first_name`,
+      [organizationId]
+    );
+    
+    // Calculate missing forms for each participant
+    const missingDocsReport = result.rows.map(row => {
+      const submittedForms = row.submitted_forms || [];
+      const missingForms = requiredForms.filter(form => !submittedForms.includes(form));
+      
+      return {
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        group_name: row.group_name,
+        submitted_forms: submittedForms,
+        missing_forms: missingForms,
+        is_complete: missingForms.length === 0
+      };
+    });
+    
+    res.json({ 
+      success: true, 
+      data: missingDocsReport,
+      required_forms: requiredForms
+    });
+  } catch (error) {
+    logger.error('Error fetching missing documents report:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Points leaderboard report
+app.get('/api/points-leaderboard', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { type, limit } = req.query;
+    const resultLimit = parseInt(limit) || 10;
+    
+    if (type === 'groups') {
+      // Group leaderboard
+      const result = await pool.query(
+        `SELECT g.id, g.name, 
+                COALESCE(SUM(pts.value), 0) as total_points,
+                COUNT(DISTINCT pg.participant_id) as member_count
+         FROM groups g
+         LEFT JOIN participant_groups pg ON g.id = pg.group_id AND pg.organization_id = $1
+         LEFT JOIN points pts ON pts.group_id = g.id AND pts.organization_id = $1
+         WHERE g.organization_id = $1
+         GROUP BY g.id, g.name
+         ORDER BY total_points DESC
+         LIMIT $2`,
+        [organizationId, resultLimit]
+      );
+      
+      res.json({ success: true, data: result.rows, type: 'groups' });
+    } else {
+      // Individual leaderboard (default)
+      const result = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name, 
+                g.name as group_name,
+                COALESCE(SUM(pts.value), 0) as total_points
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
+         WHERE po.organization_id = $1
+         GROUP BY p.id, p.first_name, p.last_name, g.name
+         ORDER BY total_points DESC
+         LIMIT $2`,
+        [organizationId, resultLimit]
+      );
+      
+      res.json({ success: true, data: result.rows, type: 'individuals' });
+    }
+  } catch (error) {
+    logger.error('Error fetching points leaderboard:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Honors history report
+app.get('/api/honors-history', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    const { start_date, end_date, participant_id } = req.query;
+    
+    let query = `
+      SELECT h.id, h.date, 
+             p.id as participant_id, p.first_name, p.last_name,
+             g.name as group_name
+      FROM honors h
+      JOIN participants p ON h.participant_id = p.id
+      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+      LEFT JOIN groups g ON pg.group_id = g.id
+      WHERE h.organization_id = $1
+    `;
+    
+    const params = [organizationId];
+    let paramIndex = 2;
+    
+    if (start_date) {
+      query += ` AND h.date >= $${paramIndex}`;
+      params.push(start_date);
+      paramIndex++;
+    }
+    
+    if (end_date) {
+      query += ` AND h.date <= $${paramIndex}`;
+      params.push(end_date);
+      paramIndex++;
+    }
+    
+    if (participant_id) {
+      query += ` AND h.participant_id = $${paramIndex}`;
+      params.push(participant_id);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY h.date DESC, p.last_name, p.first_name`;
+    
+    const result = await pool.query(query, params);
+    
+    // Also get summary by participant
+    const summaryQuery = `
+      SELECT p.id, p.first_name, p.last_name, COUNT(h.id) as honor_count
+      FROM honors h
+      JOIN participants p ON h.participant_id = p.id
+      WHERE h.organization_id = $1
+      GROUP BY p.id, p.first_name, p.last_name
+      ORDER BY honor_count DESC
+    `;
+    
+    const summaryResult = await pool.query(summaryQuery, [organizationId]);
+    
+    res.json({ 
+      success: true, 
+      data: result.rows,
+      summary: summaryResult.rows
+    });
+  } catch (error) {
+    logger.error('Error fetching honors history:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ============================================
+// PARENT DASHBOARD ENDPOINT
+// ============================================
+
+// Optimized parent dashboard - single call for all child data
+app.get('/api/parent-dashboard', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+    
+    if (!decoded || !decoded.user_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    
+    const organizationId = await getCurrentOrganizationId(req);
+    
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId);
+    if (!authCheck.authorized) {
+      return res.status(403).json({ success: false, message: authCheck.message });
+    }
+    
+    // Get children linked to this user
+    const childrenResult = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+              g.name as group_name
+       FROM participants p
+       JOIN user_participants up ON p.id = up.participant_id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE up.user_id = $2 AND po.organization_id = $1`,
+      [organizationId, decoded.user_id]
+    );
+    
+    const children = [];
+    
+    for (const child of childrenResult.rows) {
+      // Get attendance (last 10)
+      const attendanceResult = await pool.query(
+        `SELECT date, status FROM attendance 
+         WHERE participant_id = $1 AND organization_id = $2
+         ORDER BY date DESC LIMIT 10`,
+        [child.id, organizationId]
+      );
+      
+      // Get total points
+      const pointsResult = await pool.query(
+        `SELECT COALESCE(SUM(value), 0) as total_points FROM points 
+         WHERE participant_id = $1 AND organization_id = $2`,
+        [child.id, organizationId]
+      );
+      
+      // Get honors count
+      const honorsResult = await pool.query(
+        `SELECT COUNT(*) as honor_count FROM honors 
+         WHERE participant_id = $1 AND organization_id = $2`,
+        [child.id, organizationId]
+      );
+      
+      // Get approved badges
+      const badgesResult = await pool.query(
+        `SELECT territoire_chasse, etoiles, date_obtention FROM badge_progress 
+         WHERE participant_id = $1 AND organization_id = $2 AND status = 'approved'
+         ORDER BY date_obtention DESC`,
+        [child.id, organizationId]
+      );
+      
+      // Get form submission status
+      const formsResult = await pool.query(
+        `SELECT form_type, updated_at FROM form_submissions 
+         WHERE participant_id = $1 AND organization_id = $2`,
+        [child.id, organizationId]
+      );
+      
+      children.push({
+        id: child.id,
+        first_name: child.first_name,
+        last_name: child.last_name,
+        date_naissance: child.date_naissance,
+        group_name: child.group_name,
+        attendance: attendanceResult.rows,
+        total_points: parseInt(pointsResult.rows[0].total_points),
+        honor_count: parseInt(honorsResult.rows[0].honor_count),
+        badges: badgesResult.rows,
+        forms: formsResult.rows.map(f => ({ type: f.form_type, updated_at: f.updated_at }))
+      });
+    }
+    
+    // Get next meeting info
+    const nextMeetingResult = await pool.query(
+      `SELECT date, endroit, notes FROM reunion_preparations
+       WHERE organization_id = $1 AND date >= CURRENT_DATE
+       ORDER BY date ASC LIMIT 1`,
+      [organizationId]
+    );
+    
+    res.json({ 
+      success: true, 
+      data: {
+        children,
+        next_meeting: nextMeetingResult.rows[0] || null
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching parent dashboard:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // SPA catch-all route - serve index.html for all non-API routes
 // This must be the last route handler
 app.get('*', (req, res) => {

@@ -444,6 +444,61 @@ export async function getRecentHonors() {
     });
 }
 
+// User Management Functions
+export async function getPendingUsers() {
+    return API.getNoCache('pending-users');
+}
+
+export async function approveUser(userId) {
+    return API.post('approve-user', { user_id: userId });
+}
+
+export async function updateUserRole(userId, role) {
+    return API.post('update-user-role', { user_id: userId, role });
+}
+
+export async function linkUserParticipants(userId, participantIds) {
+    return API.post('link-user-participants', { 
+        user_id: userId, 
+        participant_ids: participantIds 
+    });
+}
+
+// Reports Functions
+export async function getHealthReport(groupId = null) {
+    const params = groupId ? { group_id: groupId } : {};
+    return API.get('health-report', params);
+}
+
+export async function getAttendanceReport(options = {}) {
+    const params = {};
+    if (options.startDate) params.start_date = options.startDate;
+    if (options.endDate) params.end_date = options.endDate;
+    if (options.groupId) params.group_id = options.groupId;
+    if (options.format) params.format = options.format;
+    return API.get('attendance-report', params);
+}
+
+export async function getMissingDocumentsReport() {
+    return API.get('missing-documents-report');
+}
+
+export async function getPointsLeaderboard(type = 'individuals', limit = 10) {
+    return API.get('points-leaderboard', { type, limit });
+}
+
+export async function getHonorsHistory(options = {}) {
+    const params = {};
+    if (options.startDate) params.start_date = options.startDate;
+    if (options.endDate) params.end_date = options.endDate;
+    if (options.participantId) params.participant_id = options.participantId;
+    return API.get('honors-history', params);
+}
+
+// Parent Dashboard Function
+export async function getParentDashboard() {
+    return API.getNoCache('parent-dashboard');
+}
 
 export async function getCalendars() {
     return API.get('calendars');
