@@ -73,7 +73,12 @@ export class Attendance {
     try {
       const response = await getAttendanceDates(); // Call the API
       if (response.success && response.dates) {
-        this.availableDates = response.dates; // Extract the dates array
+        // Filter out null, undefined, and invalid dates
+        this.availableDates = response.dates.filter(date => {
+          if (!date || date === 'null' || date === 'undefined') return false;
+          const testDate = new Date(date);
+          return !isNaN(testDate.getTime());
+        });
       } else {
         throw new Error("Failed to fetch attendance dates or no dates available.");
       }
@@ -613,8 +618,19 @@ console.log(groupHeader, participantRow);
   }
 
   formatDate(dateString) {
+    // Validate the date string
+    if (!dateString || dateString === 'null' || dateString === 'undefined') {
+      return 'Invalid Date';
+    }
+
     const options = { day: "numeric", month: "short", year: "numeric", timeZone: "America/Toronto" };
     const localDate = new Date(dateString + "T00:00:00");
+
+    // Check if the date is valid after creation
+    if (isNaN(localDate.getTime())) {
+      return 'Invalid Date';
+    }
+
     return localDate.toLocaleDateString(this.app.lang, options);
   }
 

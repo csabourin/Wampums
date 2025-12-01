@@ -1049,7 +1049,7 @@ app.get('/api/honors', async (req, res) => {
     
     // Get honors
     const honorsResult = await pool.query(
-      `SELECT h.id, h.participant_id, h.date
+      `SELECT h.id, h.participant_id, h.date::text as date
        FROM honors h
        JOIN participants p ON h.participant_id = p.id
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -1060,7 +1060,7 @@ app.get('/api/honors', async (req, res) => {
     
     // Get available dates (dates with honors)
     const datesResult = await pool.query(
-      `SELECT DISTINCT date FROM honors h
+      `SELECT DISTINCT date::text as date FROM honors h
        JOIN participants p ON h.participant_id = p.id
        JOIN participant_organizations po ON p.id = po.participant_id
        WHERE po.organization_id = $1
@@ -1195,7 +1195,7 @@ app.get('/api/attendance', async (req, res) => {
     
     // Get all available dates
     const datesResult = await pool.query(
-      `SELECT DISTINCT date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
+      `SELECT DISTINCT date::text as date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
       [organizationId]
     );
     
@@ -1611,7 +1611,7 @@ app.get('/api/reunion-dates', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     
     const result = await pool.query(
-      `SELECT DISTINCT date FROM reunion_preparations WHERE organization_id = $1 ORDER BY date DESC`,
+      `SELECT DISTINCT date::text as date FROM reunion_preparations WHERE organization_id = $1 ORDER BY date DESC`,
       [organizationId]
     );
     
@@ -1638,7 +1638,7 @@ app.get('/api/attendance-dates', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     
     const result = await pool.query(
-      `SELECT DISTINCT date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
+      `SELECT DISTINCT date::text as date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
       [organizationId]
     );
     
@@ -4707,7 +4707,7 @@ app.get('/api/honors-history', async (req, res) => {
     const { start_date, end_date, participant_id } = req.query;
     
     let query = `
-      SELECT h.id, h.date, 
+      SELECT h.id, h.date::text as date,
              p.id as participant_id, p.first_name, p.last_name,
              g.name as group_name
       FROM honors h
@@ -4805,7 +4805,7 @@ app.get('/api/parent-dashboard', async (req, res) => {
     for (const child of childrenResult.rows) {
       // Get attendance (last 10)
       const attendanceResult = await pool.query(
-        `SELECT date, status FROM attendance 
+        `SELECT date::text as date, status FROM attendance
          WHERE participant_id = $1 AND organization_id = $2
          ORDER BY date DESC LIMIT 10`,
         [child.id, organizationId]
