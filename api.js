@@ -2230,7 +2230,7 @@ app.get('/api', [
           `SELECT DISTINCT date::text as date
            FROM reunion_preparations
            WHERE organization_id = $1
-           ORDER BY date DESC`,
+           ORDER BY date ASC`,
           [organizationId]
         );
         jsonResponse(res, true, datesResult.rows.map(row => row.date));

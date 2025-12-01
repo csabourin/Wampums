@@ -3140,7 +3140,7 @@ case 'associate_user':
 				SELECT DISTINCT date 
 				FROM reunion_preparations 
 				WHERE organization_id = :organization_id 
-				ORDER BY date DESC
+				ORDER BY date ASC
 		");
 		$stmt->execute([':organization_id' => $organizationId]);
 		$dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
