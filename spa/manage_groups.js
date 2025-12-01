@@ -26,7 +26,7 @@ export class ManageGroups {
   async fetchGroups() {
     const fetchedGroup = await getGroups();
     if (fetchedGroup.success) {
-      this.groups = fetchedGroup.groups;
+      this.groups = fetchedGroup.data || fetchedGroup.groups || [];
     }
   }
 
