@@ -346,10 +346,20 @@ export async function saveFormSubmission(formData) {
 
 export async function getOrganizationFormFormats(organizationId = null) {
     const params = organizationId ? { organization_id: organizationId } : {};
-    return API.get('organization-form-formats', params, {
+    const response = await API.get('organization-form-formats', params, {
         cacheKey: `org_form_formats_${organizationId || 'current'}`,
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
+    
+    if (!response.success || !response.data) {
+        return null;
+    }
+    
+    const formFormats = {};
+    for (const format of response.data) {
+        formFormats[format.form_type] = format.form_structure;
+    }
+    return formFormats;
 }
 
 export async function getParentContactList() {
