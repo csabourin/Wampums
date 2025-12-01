@@ -97,7 +97,7 @@ export class DateManager {
 
                 if (!this.availableDates.includes(newDate)) {
                         this.availableDates.push(newDate);
-                        this.availableDates.sort((a, b) => new Date(b) - new Date(a));
+                        this.availableDates.sort((a, b) => new Date(a) - new Date(b));
                 }
                 this.currentDate = newDate;
                 return newDate;
