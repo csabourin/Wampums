@@ -1169,13 +1169,22 @@ app.post('/api/update-points', async (req, res) => {
         } else {
           // For individual participant points
           const participantId = parseInt(id);
-          
-          // Get the participant's group_id
+
+          // Get the participant's group_id and verify they belong to this organization
           const participantResult = await client.query(
-            `SELECT group_id FROM participants WHERE id = $1`,
-            [participantId]
+            `SELECT pg.group_id
+             FROM participants p
+             JOIN participant_organizations po ON p.id = po.participant_id
+             LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
+             WHERE p.id = $1 AND po.organization_id = $2`,
+            [participantId, organizationId]
           );
-          const groupId = participantResult.rows[0]?.group_id || null;
+
+          if (participantResult.rows.length === 0) {
+            throw new Error(`Participant ${participantId} not found in organization ${organizationId}`);
+          }
+
+          const groupId = participantResult.rows[0].group_id || null;
           
           await client.query(
             `INSERT INTO points (participant_id, group_id, organization_id, value)
