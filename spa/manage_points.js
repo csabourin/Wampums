@@ -346,19 +346,11 @@ export class ManagePoints {
     // Add to pending updates
     this.pendingUpdates.push(updateData);
 
-    // Process updates
+    // Process updates - sendBatchUpdate will update the UI from the API response
     try {
       await this.sendBatchUpdate();
-
-      // After successful update, refresh the data
-      await this.fetchData();
-
-      // Update the display with new data
-      this.updatePointsDisplay({
-        participants: this.participants,
-        groups: this.groups
-      });
-
+      // Note: sendBatchUpdate already updates the UI with server response via 
+      // updateGroupPoints/updateIndividualPoints, so no need to re-fetch and overwrite
     } catch (error) {
       console.error("Error updating points:", error);
       this.app.showMessage(translate("error_updating_points"), "error");
@@ -431,12 +423,17 @@ export class ManagePoints {
 
 
   updateGroupPoints(groupId, totalPoints, memberIds) {
+    console.log(`[updateGroupPoints] Updating group ${groupId} to ${totalPoints} points, members:`, memberIds);
     const groupElement = document.querySelector(
       `.group-header[data-group-id="${groupId}"]`
     );
     if (groupElement) {
+      // Get the group name from the internal data
+      const group = this.groups.find(g => g.id == groupId);
+      const groupName = group ? group.name : groupElement.textContent.split(' - ')[0];
+      
       // Update the main group header display
-      const pointsDisplay = `${groupElement.textContent.split(' - ')[0]} - ${totalPoints} ${translate("points")}`;
+      const pointsDisplay = `${groupName} - ${totalPoints} ${translate("points")}`;
       groupElement.innerHTML = pointsDisplay;
       groupElement.dataset.points = totalPoints;
       this.addHighlightEffect(groupElement);
@@ -446,16 +443,18 @@ export class ManagePoints {
       if (groupPointsElement) {
         groupPointsElement.textContent = `${translate("total_points")}: ${totalPoints}`;
       }
-    }
-
-    // Update the group's total_points in our data
-    const group = this.groups.find(g => g.id == groupId);
-    if (group) {
-      group.total_points = totalPoints;
+      
+      // Update the group's total_points in our data
+      if (group) {
+        group.total_points = totalPoints;
+      }
+    } else {
+      console.warn(`[updateGroupPoints] Could not find element for group ${groupId}`);
     }
   }
 
   updateIndividualPoints(participantId, totalPoints) {
+    console.log(`[updateIndividualPoints] Updating participant ${participantId} to ${totalPoints} points`);
     const nameElement = document.querySelector(
       `.list-item[data-participant-id="${participantId}"]`
     );
@@ -466,6 +465,14 @@ export class ManagePoints {
       }
       nameElement.dataset.points = totalPoints;
       this.addHighlightEffect(nameElement);
+    } else {
+      console.warn(`[updateIndividualPoints] Could not find element for participant ${participantId}`);
+    }
+    
+    // Update the participant's total_points in our internal data
+    const participant = this.participants.find(p => p.id == participantId);
+    if (participant) {
+      participant.total_points = totalPoints;
     }
   }
 
