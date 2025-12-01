@@ -340,8 +340,19 @@ export async function getFormSubmission(participantId, formType) {
     });
 }
 
-export async function saveFormSubmission(formData) {
-    return API.post('save-form-submission', formData);
+export async function saveFormSubmission(formTypeOrData, participantId, submissionData) {
+    // Support both signatures:
+    // 1. saveFormSubmission({ form_type, participant_id, submission_data }) - single object
+    // 2. saveFormSubmission(formType, participantId, submissionData) - three arguments
+    if (typeof formTypeOrData === 'object' && formTypeOrData !== null && participantId === undefined) {
+        return API.post('save-form-submission', formTypeOrData);
+    } else {
+        return API.post('save-form-submission', {
+            form_type: formTypeOrData,
+            participant_id: participantId,
+            submission_data: submissionData
+        });
+    }
 }
 
 export async function getOrganizationFormFormats(organizationId = null) {
