@@ -628,33 +628,23 @@ app.post('/api/save-reunion-preparation', async (req, res) => {
       ? activities
       : JSON.stringify(activities);
 
-    // Check if a record already exists for this date and organization
-    const existingResult = await pool.query(
-      `SELECT id FROM reunion_preparations WHERE organization_id = $1 AND date = $2`,
-      [organizationId, date]
+    // Use UPSERT to handle both insert and update atomically
+    // This prevents race conditions and duplicate key errors
+    const result = await pool.query(
+      `INSERT INTO reunion_preparations
+       (organization_id, date, louveteau_dhonneur, endroit, activities, notes, animateur_responsable)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (organization_id, date)
+       DO UPDATE SET
+         louveteau_dhonneur = EXCLUDED.louveteau_dhonneur,
+         endroit = EXCLUDED.endroit,
+         activities = EXCLUDED.activities,
+         notes = EXCLUDED.notes,
+         animateur_responsable = EXCLUDED.animateur_responsable,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [organizationId, date, louvetauDhonneurJson, endroit, activitiesJson, notes, animateur_responsable]
     );
-
-    let result;
-    if (existingResult.rows.length > 0) {
-      // Update existing record
-      result = await pool.query(
-        `UPDATE reunion_preparations
-         SET louveteau_dhonneur = $1, endroit = $2, activities = $3, notes = $4,
-             animateur_responsable = $5, updated_at = CURRENT_TIMESTAMP
-         WHERE organization_id = $6 AND date = $7
-         RETURNING *`,
-        [louvetauDhonneurJson, endroit, activitiesJson, notes, animateur_responsable, organizationId, date]
-      );
-    } else {
-      // Insert new record
-      result = await pool.query(
-        `INSERT INTO reunion_preparations
-         (organization_id, date, louveteau_dhonneur, endroit, activities, notes, animateur_responsable)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [organizationId, date, louvetauDhonneurJson, endroit, activitiesJson, notes, animateur_responsable]
-      );
-    }
 
     res.json({
       success: true,
