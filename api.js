@@ -823,7 +823,7 @@ app.get('/api/participants', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     
     const result = await pool.query(
-      `SELECT p.id as participant_id, p.first_name, p.last_name,
+      `SELECT p.id, p.first_name, p.last_name,
               pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
               COALESCE((SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1), 0) as total_points
        FROM participants p
