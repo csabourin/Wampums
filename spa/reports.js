@@ -296,7 +296,10 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
     reportContent += '<table><thead><tr><th>' + translate('name') + '</th><th>' + translate('missing_fields') + '</th></tr></thead><tbody>';
 
     submissions.forEach(submission => {
-        const formStructure = formStructures[formType]; // Get the correct form structure for the submission
+        const formTypeData = formStructures[formType]; // Get the form type data
+
+        // Extract the actual form structure (which contains the fields array)
+        const formStructure = formTypeData?.form_structure;
 
         if (!formStructure || !formStructure.fields) {
             console.error('Invalid form structure for form type:', formType);
