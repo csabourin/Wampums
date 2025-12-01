@@ -1,5 +1,6 @@
 import { translate } from "./app.js";
 import { getReunionDates, getReunionPreparation } from "./ajax-functions.js";
+import { formatDate, isToday } from "./utils/DateUtils.js";
 
 export class UpcomingMeeting {
                 constructor(app) {
@@ -33,13 +34,6 @@ export class UpcomingMeeting {
                                 }
                 }
 
-                isDateToday(date) {
-                                const today = new Date();
-                                return date.getDate() === today.getDate() &&
-                                                         date.getMonth() === today.getMonth() &&
-                                                         date.getFullYear() === today.getFullYear();
-                }
-
                 getClosestMeeting() {
                                 const today = new Date();
                                 today.setHours(0, 0, 0, 0);
@@ -59,7 +53,7 @@ export class UpcomingMeeting {
                                                 })
                                                 .filter(meeting => {
                                                                 // Include today's meetings and future meetings
-                                                                return this.isDateToday(meeting.date) || meeting.date > today;
+                                                                return isToday(meeting.dateStr) || meeting.date > today;
                                                 })
                                                 .sort((a, b) => a.date - b.date);
 
@@ -80,20 +74,13 @@ export class UpcomingMeeting {
                                 }
                 }
 
-                formatDate(dateString) {
-                                // Create date object with explicit time set to midnight
-                                const date = new Date(dateString + 'T00:00:00');
-                                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                                return date.toLocaleDateString(this.app.lang, options);
-                }
-
                 render() {
                                 if (!this.closestMeeting) {
                                                 document.getElementById("app").innerHTML = `<p>${translate("no_upcoming_meeting")}</p>`;
                                                 return;
                                 }
 
-                                const meetingDate = this.formatDate(this.closestMeeting);
+                                const meetingDate = formatDate(this.closestMeeting, this.app.lang, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                                 const location = this.meetingDetails?.endroit || translate("no_location_specified");
                                 const activities = this.meetingDetails?.activities || [];
                                 const activitiesHtml = activities.length > 0

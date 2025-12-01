@@ -1,10 +1,11 @@
 import { getHonorsAndParticipants, awardHonor } from "./ajax-functions.js";
 import { translate } from "./app.js";
+import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
 
 export class ManageHonors {
   constructor(app) {
     this.app = app;
-    this.currentDate = new Date().toLocaleDateString("en-CA");
+    this.currentDate = getTodayISO();
     this.honorsData = { groups: [], names: [] };
     this.availableDates = [];
     this.allHonors = [];
@@ -33,12 +34,10 @@ export class ManageHonors {
 
       // Filter out null, undefined, and invalid dates
       this.availableDates = (data.availableDates || []).filter(date => {
-        if (!date || date === 'null' || date === 'undefined') return false;
-        const testDate = new Date(date);
-        return !isNaN(testDate.getTime());
+        return isValidDate(date);
       });
 
-      const today = new Date().toLocaleDateString("en-CA");
+      const today = getTodayISO();
       if (!this.availableDates.includes(today)) {
         this.availableDates.unshift(today);
       }
@@ -58,7 +57,7 @@ export class ManageHonors {
   }
 
   processHonors() {
-    const today = new Date().toLocaleDateString("en-CA");
+    const today = getTodayISO();
     const isCurrentDate = this.currentDate === today;
 
     const participantMap = new Map();
@@ -100,7 +99,7 @@ export class ManageHonors {
         <h1>${translate("manage_honors")}</h1>
         <div class="date-navigation">
             <button id="prevDate">&larr; ${translate("previous")}</button>
-            <h2 id="currentDate">${this.formatDate(this.currentDate)}</h2>
+            <h2 id="currentDate">${formatDate(this.currentDate, this.app.lang)}</h2>
             <button id="nextDate">${translate("next")} &rarr;</button>
         </div>
         <div class="sort-options">
@@ -179,7 +178,7 @@ export class ManageHonors {
   }
 
   updateHonorsListUI() {
-    document.getElementById("currentDate").textContent = this.formatDate(this.currentDate);
+    document.getElementById("currentDate").textContent = formatDate(this.currentDate, this.app.lang);
     document.getElementById("honors-list").innerHTML = this.renderHonorsList();
     document.getElementById("awardHonorButton").disabled = this.isPastDate();
 
@@ -189,8 +188,7 @@ export class ManageHonors {
 
 
   isPastDate() {
-    const today = new Date().toLocaleDateString("en-CA");
-    return this.currentDate < today;
+    return isDateInPast(this.currentDate);
   }
 
   async awardHonor() {
@@ -244,23 +242,6 @@ export class ManageHonors {
     document.querySelectorAll(".list-item").forEach((item) => {
       item.addEventListener("click", (event) => this.handleItemClick(event));
     });
-  }
-
-  formatDate(dateString) {
-    // Validate the date string
-    if (!dateString || dateString === 'null' || dateString === 'undefined') {
-      return 'Invalid Date';
-    }
-
-    const options = { day: "numeric", month: "short", year: "numeric", timeZone: "America/Toronto" };
-    const localDate = new Date(dateString + "T00:00:00");
-
-    // Check if the date is valid after creation
-    if (isNaN(localDate.getTime())) {
-      return 'Invalid Date';
-    }
-
-    return localDate.toLocaleDateString(this.app.lang, options);
   }
 
   renderError() {

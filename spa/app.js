@@ -8,6 +8,7 @@ import { Login } from "./login.js";
 import { getOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
 import { CONFIG } from "./config.js";
 import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
+import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 
 const debugMode = isDebugMode();
 
@@ -84,8 +85,8 @@ async function sendSubscriptionToServer(subscription) {
         console.log('Sending payload to server:', payload);
 
         try {
-                // Retrieve the JWT token from localStorage
-                const token = localStorage.getItem('jwtToken'); // Ensure the token is stored correctly after login
+                // Retrieve the JWT token from storage
+                const token = getStorage('jwtToken'); // Ensure the token is stored correctly after login
 
                 if (!token) {
                         console.error('No token found in localStorage.');
@@ -148,9 +149,9 @@ export const app = {
                 try {
                         this.registerServiceWorker();
 
-                        // Check localStorage for organization ID
-                        let storedOrgId = localStorage.getItem('currentOrganizationId') ||
-                                localStorage.getItem('organizationId');
+                        // Check storage for organization ID
+                        let storedOrgId = getStorage('currentOrganizationId') ||
+                                getStorage('organizationId');
 
                         // Handle case where organization ID might be stored as an object
                         if (storedOrgId && storedOrgId.startsWith('{')) {
@@ -185,29 +186,33 @@ export const app = {
                                         this.organizationId = orgId;
 
                                         // Store consistently in both places for compatibility
-                                        localStorage.setItem('currentOrganizationId', orgId);
-                                        localStorage.setItem('organizationId', orgId);
+                                        setStorageMultiple({
+                                                currentOrganizationId: orgId,
+                                                organizationId: orgId
+                                        });
 
                                         console.log("Organization ID fetched and stored:", orgId);
                                 } catch (error) {
                                         console.error("Error fetching organization ID:", error);
                                         // Set a default organization ID to prevent blocking the app
                                         this.organizationId = 1;
-                                        localStorage.setItem('currentOrganizationId', this.organizationId);
-                                        localStorage.setItem('organizationId', this.organizationId);
+                                        setStorageMultiple({
+                                                currentOrganizationId: this.organizationId,
+                                                organizationId: this.organizationId
+                                        });
                                         console.log("Using default organization ID: 1");
                                 }
                         }
 
                         // Check for JWT token
-                        const token = localStorage.getItem('jwtToken');
+                        const token = getStorage('jwtToken');
                         if (!token && this.organizationId) {
                                 // If no token exists but we have organization ID, get an organization JWT
                                 try {
                                         console.log("No JWT token found, fetching organization JWT...");
                                         const data = await fetchOrganizationJwt(this.organizationId);
                                         if (data.success && data.token) {
-                                                localStorage.setItem('jwtToken', data.token);
+                                                setStorage('jwtToken', data.token);
                                                 console.log("Organization JWT obtained successfully");
                                         } else {
                                                 console.warn("Failed to get organization JWT:", data);
@@ -477,7 +482,7 @@ export const app = {
         setLanguage(lang) {
                 this.lang = lang;
                 document.documentElement.lang = lang;
-                localStorage.setItem('lang', lang);
+                setStorage('lang', lang);
 
                 this.loadTranslations().then(() => {
                         if (this.router && this.initCompleted) {
@@ -498,7 +503,7 @@ export const app = {
                 });
 
                 // Set initial language
-                const savedLang = localStorage.getItem('lang') || 'fr';
+                const savedLang = getStorage('lang', false, 'fr');
                 this.setLanguage(savedLang);
                 const activeBtn = document.querySelector(`.lang-btn[data-lang="${savedLang}"]`);
                 if (activeBtn) {
