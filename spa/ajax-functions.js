@@ -794,13 +794,6 @@ export async function registerForOrganization(registrationData) {
 }
 
 // Reports
-export async function getAttendanceReport() {
-    return API.get('attendance-report', {}, {
-        cacheKey: 'attendance_report',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
-    });
-}
-
 export async function getHonorsReport() {
     return API.get('honors-report', {}, {
         cacheKey: 'honors_report',
@@ -819,13 +812,6 @@ export async function getParticipantAgeReport() {
     return API.get('participant-age-report', {}, {
         cacheKey: 'participant_age_report',
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
-    });
-}
-
-export async function getHealthReport() {
-    return API.get('health-report', {}, {
-        cacheKey: 'health_report',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
 }
 
@@ -888,13 +874,6 @@ export async function getLeaveAloneReport() {
 export async function getMediaAuthorizationReport() {
     return API.get('media-authorization-report', {}, {
         cacheKey: 'media_authorization_report',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
-    });
-}
-
-export async function getMissingDocumentsReport() {
-    return API.get('missing-documents-report', {}, {
-        cacheKey: 'missing_documents_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
 }
@@ -976,10 +955,6 @@ export async function getCurrentStars(participantId, territoire) {
 
 export function checkLoginStatus() {
     return { isLoggedIn: !!localStorage.getItem('jwtToken') };
-}
-
-export async function linkUserParticipants(data) {
-    return API.post('link-user-participants', data);
 }
 
 export async function linkParentToParticipant(participantId, guardianId) {
