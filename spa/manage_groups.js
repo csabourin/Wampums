@@ -96,13 +96,18 @@ export class ManageGroups {
     if (groupName) {
       try {
         const result = await addGroup(groupName);
-        this.showMessage(result.message);
-        if (result.status === "success") {
+        if (result.success) {
           // Clear all group-related caches
           await clearGroupRelatedCaches();
           await this.fetchGroups();
           this.render();
           this.attachEventListeners();
+          // Show translated success message
+          this.showMessage(translate("group_added_successfully"));
+          // Clear the input field
+          document.getElementById("group_name").value = "";
+        } else {
+          this.showMessage(result.message || translate("error_adding_group"));
         }
       } catch (error) {
         console.error("Error:", error);
@@ -117,10 +122,12 @@ export class ManageGroups {
     const newName = span.textContent.trim();
     try {
       const result = await updateGroupName(groupId, newName);
-      this.showMessage(result.message);
-      if (result.status === "success") {
+      if (result.success) {
         // Clear all group-related caches
         await clearGroupRelatedCaches();
+        this.showMessage(translate("group_name_updated_successfully"));
+      } else {
+        this.showMessage(result.message || translate("error_updating_group_name"));
       }
     } catch (error) {
       console.error("Error:", error);
@@ -133,13 +140,15 @@ export class ManageGroups {
     if (confirm(translate("confirm_delete_group"))) {
       try {
         const result = await removeGroup(groupId);
-        this.showMessage(result.message);
-        if (result.status === "success") {
+        if (result.success) {
           // Clear all group-related caches
           await clearGroupRelatedCaches();
           await this.fetchGroups();
           this.render();
           this.attachEventListeners();
+          this.showMessage(translate("group_removed_successfully"));
+        } else {
+          this.showMessage(result.message || translate("error_removing_group"));
         }
       } catch (error) {
         console.error("Error:", error);
