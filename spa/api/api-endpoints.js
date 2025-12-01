@@ -208,16 +208,28 @@ export async function getParticipants() {
 
 /**
  * Get participant by ID
+ * Uses RESTful endpoint with role-based access control
  */
 export async function getParticipant(id) {
-    return API.get(`participant/${id}`);
+    const response = await API.get(`v1/participants/${id}`);
+    // Transform response to match expected format
+    return {
+        success: response.success,
+        participant: response.data
+    };
 }
 
 /**
  * Fetch participant (alias for getParticipant)
+ * Uses RESTful endpoint with role-based access control
  */
 export async function fetchParticipant(participantId) {
-    return API.get(`participant/${participantId}`);
+    const response = await API.get(`v1/participants/${participantId}`);
+    // Transform response to match expected format
+    return {
+        success: response.success,
+        participant: response.data
+    };
 }
 
 /**

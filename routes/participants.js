@@ -171,22 +171,57 @@ module.exports = (pool) => {
   router.get('/:id', authenticate, asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
+    const userRole = req.user.role;
+    const userId = req.user.id;
 
-    const result = await pool.query(
-      `SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader
-       FROM participants p
-       JOIN participant_organizations po ON p.id = po.participant_id
-       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
-       LEFT JOIN groups g ON pg.group_id = g.id
-       WHERE p.id = $1 AND po.organization_id = $2`,
-      [id, organizationId]
-    );
+    // Base query to get participant data
+    let query = `
+      SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+             COALESCE(
+               (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
+                FROM form_submissions
+                WHERE participant_id = p.id AND organization_id = $2), '[]'::json
+             ) as form_submissions
+      FROM participants p
+      JOIN participant_organizations po ON p.id = po.participant_id
+      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
+      LEFT JOIN groups g ON pg.group_id = g.id
+      WHERE p.id = $1 AND po.organization_id = $2
+    `;
 
-    if (result.rows.length === 0) {
-      return error(res, 'Participant not found', 404);
+    let params = [id, organizationId];
+
+    // For parent role, verify they have access to this participant
+    if (userRole !== 'admin' && userRole !== 'animation') {
+      query += ` AND EXISTS (
+        SELECT 1 FROM user_participants up
+        WHERE up.participant_id = p.id AND up.user_id = $3
+      )`;
+      params.push(userId);
     }
 
-    return success(res, result.rows[0]);
+    const result = await pool.query(query, params);
+
+    if (result.rows.length === 0) {
+      return error(res, 'Participant not found or access denied', 404);
+    }
+
+    // Transform form_submissions into has_* flags
+    const participant = result.rows[0];
+    const formSubmissions = participant.form_submissions || [];
+    const hasFlags = {};
+
+    formSubmissions.forEach(submission => {
+      hasFlags[`has_${submission.form_type}`] = true;
+    });
+
+    // Remove form_submissions from output
+    const { form_submissions, ...participantData } = participant;
+
+    return success(res, {
+      ...participantData,
+      ...hasFlags
+    });
   }));
 
   /**
