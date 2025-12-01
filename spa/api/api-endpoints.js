@@ -350,14 +350,14 @@ export async function getGuardiansForParticipant(participantId) {
  * Save parent/guardian
  */
 export async function saveParent(parentData) {
-    return API.post('save-parent', parentData);
+    return API.post('save-guardian', parentData);
 }
 
 /**
  * Save guardian (alias for saveParent)
  */
 export async function saveGuardian(guardianData) {
-    return saveParent(guardianData);
+    return API.post('save-guardian', guardianData);
 }
 
 /**
