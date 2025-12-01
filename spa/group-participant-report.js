@@ -26,8 +26,9 @@ export class PrintableGroupParticipantReport {
 								getGroups()
 						]);
 
-						this.participants = participantsResponse.participants || [];
-						this.groups = groupsResponse.groups || [];
+						// Support both new format (data) and old format (participants/groups)
+						this.participants = participantsResponse.data || participantsResponse.participants || [];
+						this.groups = groupsResponse.data || groupsResponse.groups || [];
 
 						// Sort groups alphabetically
 						this.groups.sort((a, b) => a.name.localeCompare(b.name));

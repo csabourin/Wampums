@@ -26,8 +26,11 @@ export class ManageHonors {
 
   async fetchData() {
     try {
-      const data = await getHonorsAndParticipants(this.currentDate);
-      console.log('API Response:', data); // Add this line for debugging
+      const response = await getHonorsAndParticipants(this.currentDate);
+      console.log('API Response:', response); // Add this line for debugging
+
+      // Support both new format (response.data.participants) and old format (response.participants)
+      const data = response.data || response;
 
       this.allParticipants = data.participants || [];
       this.allHonors = data.honors || [];

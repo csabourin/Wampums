@@ -34,13 +34,15 @@ export class ManageParticipants {
       ]);
 
       if (participantsResponse.success) {
-        this.participants = participantsResponse.participants;
+        // Support both new format (data) and old format (participants)
+        this.participants = participantsResponse.data || participantsResponse.participants;
       } else {
         throw new Error("Failed to fetch participants data");
       }
 
       if (groupsResponse.success) {
-        this.groups = groupsResponse.groups;
+        // Support both new format (data) and old format (groups)
+        this.groups = groupsResponse.data || groupsResponse.groups;
       } else {
         throw new Error("Failed to fetch groups data");
       }

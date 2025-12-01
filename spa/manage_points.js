@@ -98,7 +98,10 @@ export class ManagePoints {
       }
 
       // Then handle participants
-      if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
+      if (participantsResponse.success && Array.isArray(participantsResponse.data)) {
+        this.participants = participantsResponse.data;
+      } else if (participantsResponse.success && Array.isArray(participantsResponse.participants)) {
+        // Backward compatibility
         this.participants = participantsResponse.participants;
       } else {
         console.error("Unexpected participants data structure:", participantsResponse);
@@ -393,8 +396,10 @@ export class ManagePoints {
         console.log("Batch update successful:", data);
 
         // Apply server updates
-        if (data.updates && Array.isArray(data.updates)) {
-          data.updates.forEach((update) => {
+        // Support both new format (data.data.updates) and old format (data.updates)
+        const updates = data.data?.updates || data.updates;
+        if (updates && Array.isArray(updates)) {
+          updates.forEach((update) => {
             if (update.type === "group") {
               this.updateGroupPoints(
                 update.id,
