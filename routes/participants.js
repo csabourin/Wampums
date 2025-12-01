@@ -41,41 +41,111 @@ module.exports = (pool) => {
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
     const groupId = req.query.group_id;
+    const userRole = req.user.role;
+    const userId = req.user.id;
 
-    let query = `
-      SELECT p.*, pg.group_id, g.name as group_name
-      FROM participants p
-      JOIN participant_organizations po ON p.id = po.participant_id
-      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-      LEFT JOIN groups g ON pg.group_id = g.id
-      WHERE po.organization_id = $1
-    `;
+    let query, params, countQuery, countParams;
 
-    const params = [organizationId];
+    // If user is admin or animation, show ALL participants
+    if (userRole === 'admin' || userRole === 'animation') {
+      query = `
+        SELECT p.*, pg.group_id, g.name as group_name,
+               COALESCE(
+                 (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
+                  FROM form_submissions
+                  WHERE participant_id = p.id AND organization_id = $1), '[]'::json
+               ) as form_submissions
+        FROM participants p
+        JOIN participant_organizations po ON p.id = po.participant_id
+        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        LEFT JOIN groups g ON pg.group_id = g.id
+        WHERE po.organization_id = $1
+      `;
 
-    if (groupId) {
-      query += ` AND pg.group_id = $${params.length + 1}`;
-      params.push(groupId);
+      params = [organizationId];
+
+      if (groupId) {
+        query += ` AND pg.group_id = $${params.length + 1}`;
+        params.push(groupId);
+      }
+
+      query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      params.push(limit, offset);
+
+      // Count query for admin/animation
+      countQuery = `
+        SELECT COUNT(DISTINCT p.id) as total
+        FROM participants p
+        JOIN participant_organizations po ON p.id = po.participant_id
+        ${groupId ? 'LEFT JOIN participant_groups pg ON p.id = pg.participant_id' : ''}
+        WHERE po.organization_id = $1 ${groupId ? 'AND pg.group_id = $2' : ''}
+      `;
+      countParams = groupId ? [organizationId, groupId] : [organizationId];
+    } else {
+      // For parents, only show participants linked to them
+      query = `
+        SELECT p.*, pg.group_id, g.name as group_name,
+               COALESCE(
+                 (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
+                  FROM form_submissions
+                  WHERE participant_id = p.id AND organization_id = $1), '[]'::json
+               ) as form_submissions
+        FROM participants p
+        JOIN user_participants up ON p.id = up.participant_id
+        JOIN participant_organizations po ON p.id = po.participant_id
+        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        LEFT JOIN groups g ON pg.group_id = g.id
+        WHERE up.user_id = $2 AND po.organization_id = $1
+      `;
+
+      params = [organizationId, userId];
+
+      if (groupId) {
+        query += ` AND pg.group_id = $${params.length + 1}`;
+        params.push(groupId);
+      }
+
+      query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      params.push(limit, offset);
+
+      // Count query for parents
+      countQuery = `
+        SELECT COUNT(DISTINCT p.id) as total
+        FROM participants p
+        JOIN user_participants up ON p.id = up.participant_id
+        JOIN participant_organizations po ON p.id = po.participant_id
+        ${groupId ? 'LEFT JOIN participant_groups pg ON p.id = pg.participant_id' : ''}
+        WHERE up.user_id = $1 AND po.organization_id = $2 ${groupId ? 'AND pg.group_id = $3' : ''}
+      `;
+      countParams = groupId ? [userId, organizationId, groupId] : [userId, organizationId];
     }
-
-    query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
 
     const result = await pool.query(query, params);
 
-    // Get total count
-    const countResult = await pool.query(
-      `SELECT COUNT(DISTINCT p.id) as total
-       FROM participants p
-       JOIN participant_organizations po ON p.id = po.participant_id
-       ${groupId ? 'LEFT JOIN participant_groups pg ON p.id = pg.participant_id' : ''}
-       WHERE po.organization_id = $1 ${groupId ? 'AND pg.group_id = $2' : ''}`,
-      groupId ? [organizationId, groupId] : [organizationId]
-    );
+    // Transform form_submissions into has_* flags
+    const participants = result.rows.map(p => {
+      const formSubmissions = p.form_submissions || [];
+      const hasFlags = {};
 
+      // Create has_* flags for each form type
+      formSubmissions.forEach(submission => {
+        hasFlags[`has_${submission.form_type}`] = true;
+      });
+
+      // Remove form_submissions from output
+      const { form_submissions, ...participantData } = p;
+
+      return {
+        ...participantData,
+        ...hasFlags
+      };
+    });
+
+    // Get total count
+    const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].total);
 
-    return paginated(res, result.rows, page, limit, total);
+    return paginated(res, participants, page, limit, total);
   }));
 
   /**
