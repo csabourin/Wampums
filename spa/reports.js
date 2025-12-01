@@ -628,7 +628,10 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					return '<p>Error: Invalid data received for attendance report.</p>';
 			}
 
-			if (!data.success || !Array.isArray(data.attendance_data) || data.attendance_data.length === 0) {
+			// Fix: Access data.data instead of data.attendance_data
+			const attendanceData = data.data || [];
+
+			if (!data.success || !Array.isArray(attendanceData) || attendanceData.length === 0) {
 					return '<p>No data available for attendance report.</p>';
 			}
 
@@ -659,15 +662,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 			// Get unique dates from attendance data
 			let uniqueDates = new Set();
-			data.attendance_data.forEach(item => {
-					let attendanceArray;
-					try {
-							// Parse the attendance JSON string into an array
-							attendanceArray = JSON.parse(item.attendance);
-					} catch (e) {
-							console.error(`Failed to parse attendance for ${item.first_name} ${item.last_name}:`, item.attendance);
-							return;
-					}
+			attendanceData.forEach(item => {
+					// Fix: attendance is already an array, not a JSON string
+					const attendanceArray = item.attendance || [];
 
 					if (Array.isArray(attendanceArray)) {
 							attendanceArray.forEach(attendance => {
@@ -684,8 +681,6 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 			// Create the header
 			let header = `
 					<h2>${translate("attendance_report")}</h2>
-					<p>${translate("report_period")}: ${data.start_date} to ${data.end_date}</p>
-					<p>${translate("total_days")}: ${data.total_days}</p>
 					<table class="attendance-table">
 							<thead>
 									<tr>
@@ -698,17 +693,10 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 			`;
 
 			// Iterate through the attendance data
-			let rows = data.attendance_data.map(item => {
+			let rows = attendanceData.map(item => {
 					let attendanceMap = {};
-					let attendanceArray;
-
-					try {
-							// Parse the attendance JSON string into an array
-							attendanceArray = JSON.parse(item.attendance);
-					} catch (e) {
-							console.error(`Failed to parse attendance for ${item.first_name} ${item.last_name}:`, item.attendance);
-							return '';
-					}
+					// Fix: attendance is already an array, not a JSON string
+					const attendanceArray = item.attendance || [];
 
 					if (Array.isArray(attendanceArray)) {
 							attendanceArray.forEach(attendance => {
@@ -754,17 +742,19 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 			<table>
 				<thead>
 					<tr>
-						<th>${translate("name")}</th>
-						<th>${translate("group")}</th>
-						<th>${translate("honors_count")}</th>
+						<th>${translate("honor_name")}</th>
+						<th>${translate("category")}</th>
+						<th>${translate("count")}</th>
+						<th>${translate("recipients")}</th>
 					</tr>
 				</thead>
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.honors_count}</td>
+							<td>${item.honor_name}</td>
+							<td>${item.category || '-'}</td>
+							<td>${item.count}</td>
+							<td>${Array.isArray(item.recipients) ? item.recipients.join(', ') : item.recipients}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -773,26 +763,38 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 	}
 
 	renderPointsReport(data) {
-		if (typeof data !== 'object' || Object.keys(data).length === 0) {
+		if (!Array.isArray(data) || data.length === 0) {
 			return `<p>${translate('no_data_available')} for points report.</p>`;
 		}
 
+		// Group participants by group name
+		const groupedData = {};
+		data.forEach(participant => {
+			const groupName = participant.group_name || translate('no_group');
+			if (!groupedData[groupName]) {
+				groupedData[groupName] = [];
+			}
+			groupedData[groupName].push(participant);
+		});
+
 		return `
 			<h2>${translate("points_report")}</h2>
-			${Object.entries(data).map(([group, participants]) => `
+			${Object.entries(groupedData).map(([group, participants]) => `
 				<h3>${group}</h3>
 				<table>
 					<thead>
 						<tr>
 							<th>${translate("name")}</th>
 							<th>${translate("points")}</th>
+							<th>${translate("honors_count")}</th>
 						</tr>
 					</thead>
 					<tbody>
 						${participants.map(participant => `
 							<tr>
-								<td>${participant.name}</td>
-								<td>${participant.points}</td>
+								<td>${participant.first_name} ${participant.last_name}</td>
+								<td>${participant.total_points}</td>
+								<td>${participant.honors_count}</td>
 							</tr>
 						`).join('')}
 					</tbody>
