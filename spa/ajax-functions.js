@@ -662,18 +662,6 @@ export async function fetchParticipant(participantId) {
     return API.get(`participant/${participantId}`);
 }
 
-export async function approveUser(userId, organizationId) {
-    return API.post('approve-user', { user_id: userId, organization_id: organizationId });
-}
-
-export async function updateUserRole(userId, newRole, organizationId) {
-    return API.post('update-user-role', { 
-        user_id: userId, 
-        new_role: newRole, 
-        organization_id: organizationId 
-    });
-}
-
 export async function getUsers(organizationId) {
     return API.get('users', { organization_id: organizationId });
 }
