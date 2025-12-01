@@ -583,10 +583,13 @@ console.log(groupHeader, participantRow);
 
   async changeDate(newDate) {
     this.currentDate = newDate;
-    document.getElementById("dateSelect").value = this.currentDate;
     console.log(`Changing date to ${this.currentDate}`);
-    await this.preloadAttendanceData();
-    this.updateAttendanceUIForDate();
+    // Fetch fresh data for the new date
+    await this.fetchData();
+    // Re-render the entire view with new data
+    this.render();
+    // Re-attach event listeners
+    this.attachEventListeners();
   }
 
   async loadAttendanceForDate(date) {
@@ -604,7 +607,7 @@ console.log(groupHeader, participantRow);
 
   updateAttendanceUIForDate() {
     document.querySelectorAll(".participant-row").forEach((row) => {
-      const participantId = row.dataset.id;
+      const participantId = row.dataset.participantId;
       const statusSpan = row.querySelector(".participant-status");
       const status = this.attendanceData[participantId] || "present";
       const statusClass = status === "present" && !this.attendanceData[participantId] ? "" : status;

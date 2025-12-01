@@ -8,6 +8,7 @@ import {
         getReunionPreparation,
         fetchFromApi
 } from "./ajax-functions.js";
+import { deleteCachedData } from "./indexedDB.js";
 import { ActivityManager } from "./modules/ActivityManager.js";
 import { FormManager } from "./modules/FormManager.js";
 import { DateManager } from "./modules/DateManager.js";
@@ -390,6 +391,8 @@ export class PreparationReunions {
 
                 try {
                         await saveReunionPreparation(formData);
+                        // Clear the reunion_dates cache so upcoming_meeting page gets fresh data
+                        await deleteCachedData('reunion_dates');
                         this.app.showMessage(translate("reunion_preparation_saved"), "success");
                         await this.fetchAvailableDates();
                 } catch (error) {

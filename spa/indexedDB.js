@@ -196,9 +196,45 @@ export async function clearPointsRelatedCaches() {
     'dashboard_groups',
     'dashboard_participant_info'
   ];
-  
+
   console.log("Clearing points-related caches:", keysToDelete);
-  
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      console.warn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
+export async function clearGroupRelatedCaches() {
+  const keysToDelete = [
+    'participants',
+    'manage_points_data',
+    'dashboard_groups',
+    'dashboard_participant_info'
+  ];
+
+  console.log("Clearing group-related caches:", keysToDelete);
+
+  // Also clear attendance caches that contain group information
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  // Delete attendance caches which contain group_id
+  for (const key of allKeys) {
+    if (key.startsWith('attendance_')) {
+      keysToDelete.push(key);
+    }
+  }
+
   for (const key of keysToDelete) {
     try {
       await deleteCachedData(key);

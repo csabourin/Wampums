@@ -638,6 +638,9 @@ export class ManagePoints {
         </div>
         <div class="group-content">
           ${this.renderParticipantsForGroup(group.id)}
+          <div class="group-points" id="group-points-${group.id}">
+            ${translate("total_points")}: ${group.total_points}
+          </div>
         </div>
       `
       )
