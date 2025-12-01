@@ -302,9 +302,16 @@ export async function linkUserParticipants(userIdOrData, participantIds) {
 
 /**
  * Fetch participants for parent dashboard
+ * Uses RESTful endpoint with role-based access control
  */
 export async function fetchParticipants(organizationId) {
-    return API.get('parent-dashboard-data', { organization_id: organizationId });
+    const response = await API.get('v1/participants', {
+        organization_id: organizationId,
+        limit: 1000 // High limit to get all participants
+    });
+
+    // Extract data array from paginated response
+    return response.data || [];
 }
 
 // ============================================================================
