@@ -408,6 +408,129 @@ th,td {
   background-color: #e8f5e9;
   color: var(--success-color);
 }
+
+/* Toast notification system - Accessible & Mobile-First */
+#toast-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  pointer-events: none;
+  /* Safe area for notched devices */
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem;
+  padding: 1rem 1rem 1rem 1.25rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+  /* Start hidden and slide down */
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    transition: opacity 0.1s ease;
+    transform: none;
+  }
+  .toast:not(.toast-show) {
+    opacity: 0;
+  }
+}
+
+.toast-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Success toast styling */
+.toast-info {
+  background-color: #e8f5e9;
+  color: #1b5e20;
+  border-left: 4px solid var(--success-color);
+}
+
+/* Error toast styling */
+.toast-error {
+  background-color: #ffebee;
+  color: #b71c1c;
+  border-left: 4px solid var(--error-color);
+}
+
+.toast-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+  /* Icon colors */
+}
+
+.toast-info .toast-icon {
+  color: var(--success-color);
+}
+
+.toast-error .toast-icon {
+  color: var(--error-color);
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.toast-dismiss {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.5rem;
+  margin: -0.5rem -0.5rem -0.5rem 0;
+  /* Minimum 44x44px touch target */
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.toast-dismiss:hover,
+.toast-dismiss:focus {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.toast-dismiss:focus {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* Mobile optimization */
+@media (max-width: 480px) {
+  .toast {
+    margin: 0.5rem;
+    padding: 0.875rem 0.875rem 0.875rem 1rem;
+  }
+
+  .toast-message {
+    font-size: 0.875rem;
+  }
+}
 /* Responsive design */
 @media (width >= 768px) {
   body {
