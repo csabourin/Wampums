@@ -30,7 +30,13 @@ export class ManageHonors {
 
       this.allParticipants = data.participants || [];
       this.allHonors = data.honors || [];
-      this.availableDates = data.availableDates || [];
+
+      // Filter out null, undefined, and invalid dates
+      this.availableDates = (data.availableDates || []).filter(date => {
+        if (!date || date === 'null' || date === 'undefined') return false;
+        const testDate = new Date(date);
+        return !isNaN(testDate.getTime());
+      });
 
       const today = new Date().toLocaleDateString("en-CA");
       if (!this.availableDates.includes(today)) {
@@ -241,8 +247,19 @@ export class ManageHonors {
   }
 
   formatDate(dateString) {
+    // Validate the date string
+    if (!dateString || dateString === 'null' || dateString === 'undefined') {
+      return 'Invalid Date';
+    }
+
     const options = { day: "numeric", month: "short", year: "numeric", timeZone: "America/Toronto" };
     const localDate = new Date(dateString + "T00:00:00");
+
+    // Check if the date is valid after creation
+    if (isNaN(localDate.getTime())) {
+      return 'Invalid Date';
+    }
+
     return localDate.toLocaleDateString(this.app.lang, options);
   }
 
