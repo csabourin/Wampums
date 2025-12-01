@@ -1,4 +1,5 @@
-// ajax-functions-optimized.js
+// ajax-functions.js
+// Main AJAX/API utilities for the Wampums application
 import {
     saveOfflineData,
     getOfflineData,
@@ -6,27 +7,8 @@ import {
     getCachedData,
     clearOfflineData
 } from "./indexedDB.js";
-
-// Configuration
-const CONFIG = {
-    // Use Vite environment variables if available, otherwise use window.location.origin
-    debugMode: import.meta.env?.VITE_DEBUG_MODE === 'true' ||
-               import.meta.env?.DEV ||
-               window.location.hostname === "localhost" ||
-               window.location.hostname.includes("replit.dev"),
-
-    // API_BASE_URL comes from environment or defaults to current origin
-    API_BASE_URL: import.meta.env?.VITE_API_URL || window.location.origin,
-
-    CACHE_DURATION: {
-        SHORT: 5 * 60 * 1000,      // 5 minutes
-        MEDIUM: 30 * 60 * 1000,    // 30 minutes
-        LONG: 24 * 60 * 60 * 1000  // 24 hours
-    }
-};
-
-console.log('API_BASE_URL:', CONFIG.API_BASE_URL);
-console.log('Debug Mode:', CONFIG.debugMode);
+import { CONFIG } from "./config.js";
+import { debugLog, debugError } from "./utils/DebugUtils.js";
 
 // Utility Functions
 // Fix the getCurrentOrganizationId function to handle object returns
@@ -81,18 +63,6 @@ export function getAuthHeader() {
 function addCacheBuster(url) {
     const separator = url.includes("?") ? "&" : "?";
     return `${url}${separator}_=${Date.now()}`;
-}
-
-function debugLog(...args) {
-    if (CONFIG.debugMode) {
-        console.log(...args);
-    }
-}
-
-function debugError(...args) {
-    if (CONFIG.debugMode) {
-        console.error(...args);
-    }
 }
 
 // Enhanced URL builder
