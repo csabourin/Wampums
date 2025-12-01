@@ -1063,20 +1063,40 @@ app.post('/api/update-attendance', async (req, res) => {
     const organizationId = await getCurrentOrganizationId(req);
     const { participant_id, status, date } = req.body;
     
-    if (!participant_id || !status || !date) {
-      return res.status(400).json({ success: false, message: 'Participant ID, status, and date are required' });
+    if (!status || !date) {
+      return res.status(400).json({ success: false, message: 'Status and date are required' });
     }
     
-    // Upsert attendance record
-    await pool.query(
-      `INSERT INTO attendance (participant_id, organization_id, date, status)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (participant_id, organization_id, date)
-       DO UPDATE SET status = $4`,
-      [participant_id, organizationId, date, status]
-    );
+    // Handle both single participant_id and array of participant_ids
+    const participantIds = Array.isArray(participant_id) ? participant_id : [participant_id];
     
-    res.json({ success: true });
+    if (participantIds.length === 0 || participantIds.some(id => !id)) {
+      return res.status(400).json({ success: false, message: 'At least one valid participant ID is required' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // Upsert attendance records for all participants
+      for (const pid of participantIds) {
+        await client.query(
+          `INSERT INTO attendance (participant_id, organization_id, date, status)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (participant_id, organization_id, date)
+           DO UPDATE SET status = $4`,
+          [pid, organizationId, date, status]
+        );
+      }
+      
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     logger.error('Error updating attendance:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -1101,21 +1121,85 @@ app.post('/api/update-points', async (req, res) => {
     }
     
     const client = await pool.connect();
+    const responseUpdates = [];
+    
     try {
       await client.query('BEGIN');
       
       for (const update of updates) {
-        const { participant_id, group_id, value, reason, date } = update;
+        // Frontend sends: {type, id, points, timestamp}
+        // We need to convert to: {participant_id, group_id, value}
+        const { type, id, points } = update;
+        const value = points;
         
-        await client.query(
-          `INSERT INTO points (participant_id, group_id, organization_id, value, reason, date)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [participant_id || null, group_id || null, organizationId, value, reason || 'Manual update', date || new Date().toISOString().split('T')[0]]
-        );
+        if (type === 'group') {
+          // For group points, add points to all members of the group
+          const groupId = parseInt(id);
+          
+          // Get all participants in this group
+          const membersResult = await client.query(
+            `SELECT p.id FROM participants p
+             JOIN participant_organizations po ON p.id = po.participant_id
+             WHERE po.organization_id = $1 AND p.group_id = $2`,
+            [organizationId, groupId]
+          );
+          
+          const memberIds = membersResult.rows.map(r => r.id);
+          
+          // Insert a point record for the group
+          await client.query(
+            `INSERT INTO points (participant_id, group_id, organization_id, value)
+             VALUES (NULL, $1, $2, $3)`,
+            [groupId, organizationId, value]
+          );
+          
+          // Calculate new total for the group
+          const totalResult = await client.query(
+            `SELECT COALESCE(SUM(value), 0) as total FROM points 
+             WHERE organization_id = $1 AND group_id = $2`,
+            [organizationId, groupId]
+          );
+          
+          responseUpdates.push({
+            type: 'group',
+            id: groupId,
+            totalPoints: parseInt(totalResult.rows[0].total),
+            memberIds: memberIds
+          });
+        } else {
+          // For individual participant points
+          const participantId = parseInt(id);
+          
+          // Get the participant's group_id
+          const participantResult = await client.query(
+            `SELECT group_id FROM participants WHERE id = $1`,
+            [participantId]
+          );
+          const groupId = participantResult.rows[0]?.group_id || null;
+          
+          await client.query(
+            `INSERT INTO points (participant_id, group_id, organization_id, value)
+             VALUES ($1, $2, $3, $4)`,
+            [participantId, groupId, organizationId, value]
+          );
+          
+          // Calculate new total for this participant
+          const totalResult = await client.query(
+            `SELECT COALESCE(SUM(value), 0) as total FROM points 
+             WHERE organization_id = $1 AND participant_id = $2`,
+            [organizationId, participantId]
+          );
+          
+          responseUpdates.push({
+            type: 'participant',
+            id: participantId,
+            totalPoints: parseInt(totalResult.rows[0].total)
+          });
+        }
       }
       
       await client.query('COMMIT');
-      res.json({ success: true });
+      res.json({ success: true, updates: responseUpdates });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
