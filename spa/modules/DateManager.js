@@ -64,19 +64,31 @@ export class DateManager {
         }
 
         /**
-         * Create a new meeting date (one week after the current meeting date)
+         * Create a new meeting date (next occurrence of the meeting day after current date)
          */
         createNewMeetingDate() {
                 let newDate;
 
                 if (this.currentDate) {
-                        // Add 7 days to the current meeting date
+                        // Calculate the next occurrence of the meeting day AFTER the current date
                         const currentMeetingDate = new Date(this.currentDate);
-                        currentMeetingDate.setDate(currentMeetingDate.getDate() + 7);
+                        const meetingDay = this.organizationSettings.organization_info?.meeting_day || 'Tuesday';
+                        const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        const meetingDayIndex = daysOfWeek.indexOf(meetingDay);
+                        const currentDayIndex = currentMeetingDate.getDay();
 
-                        const year = currentMeetingDate.getFullYear();
-                        const month = String(currentMeetingDate.getMonth() + 1).padStart(2, '0');
-                        const day = String(currentMeetingDate.getDate()).padStart(2, '0');
+                        // Calculate days until next meeting day (always at least 7 days from current)
+                        let daysUntilNextMeeting = (meetingDayIndex - currentDayIndex + 7) % 7;
+                        if (daysUntilNextMeeting === 0) {
+                                daysUntilNextMeeting = 7; // If current date is the meeting day, go to next week
+                        }
+
+                        const nextMeeting = new Date(currentMeetingDate);
+                        nextMeeting.setDate(currentMeetingDate.getDate() + daysUntilNextMeeting);
+
+                        const year = nextMeeting.getFullYear();
+                        const month = String(nextMeeting.getMonth() + 1).padStart(2, '0');
+                        const day = String(nextMeeting.getDate()).padStart(2, '0');
                         newDate = `${year}-${month}-${day}`;
                 } else {
                         // If no current date, use next meeting date
