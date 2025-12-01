@@ -6841,15 +6841,22 @@ app.post('/api/auth/logout', (req, res) => {
  *       200:
  *         description: Permission check result
  */
-app.post('/api/check-permission', verifyToken, async (req, res) => {
+app.post('/api/check-permission', async (req, res) => {
   try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.userId) {
+      return res.json({ hasPermission: false });
+    }
+
     const { operation } = req.body;
 
     if (!operation) {
       return res.json({ hasPermission: false });
     }
 
-    const userId = req.user.userId;
+    const userId = decoded.userId;
 
     // Check user's permission for the specific operation
     const result = await pool.query(
@@ -6921,10 +6928,17 @@ app.post('/api/check-permission', verifyToken, async (req, res) => {
  *       200:
  *         description: Health form saved successfully
  */
-app.post('/api/save-health-form', verifyToken, async (req, res) => {
+app.post('/api/save-health-form', async (req, res) => {
   const client = await pool.connect();
 
   try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const {
       participant_id,
       nom_fille_mere,
@@ -7042,8 +7056,15 @@ app.post('/api/save-health-form', verifyToken, async (req, res) => {
  *       200:
  *         description: Group name updated successfully
  */
-app.put('/api/groups/:id/name', verifyToken, async (req, res) => {
+app.put('/api/groups/:id/name', async (req, res) => {
   try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const groupId = parseInt(req.params.id);
     const { name } = req.body;
 
@@ -7096,8 +7117,15 @@ app.put('/api/groups/:id/name', verifyToken, async (req, res) => {
  *       200:
  *         description: Badge status updated successfully
  */
-app.post('/api/badges/update-status', verifyToken, async (req, res) => {
+app.post('/api/badges/update-status', async (req, res) => {
   try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const { badge_id, status, comments } = req.body;
 
     if (!badge_id || !status) {
@@ -7145,10 +7173,18 @@ app.post('/api/badges/update-status', verifyToken, async (req, res) => {
  *       200:
  *         description: Group removed successfully
  */
-app.delete('/api/groups/:id', verifyToken, async (req, res) => {
+app.delete('/api/groups/:id', async (req, res) => {
   const client = await pool.connect();
 
   try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.userId) {
+      await client.release();
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const groupId = parseInt(req.params.id);
 
     if (!groupId) {
@@ -7212,8 +7248,15 @@ app.delete('/api/groups/:id', verifyToken, async (req, res) => {
  *       201:
  *         description: Group created successfully
  */
-app.post('/api/groups', verifyToken, async (req, res) => {
+app.post('/api/groups', async (req, res) => {
   try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const { name, organization_id } = req.body;
 
     if (!name || !organization_id) {
@@ -7255,12 +7298,20 @@ app.post('/api/groups', verifyToken, async (req, res) => {
  *       201:
  *         description: Organization created successfully
  */
-app.post('/api/organizations', verifyToken, async (req, res) => {
+app.post('/api/organizations', async (req, res) => {
   const client = await pool.connect();
 
   try {
+    const token = req.headers.authorization?.split(' ')[1];
+    const decoded = verifyJWT(token);
+
+    if (!decoded || !decoded.userId) {
+      await client.release();
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
     const { name, ...otherData } = req.body;
-    const userId = req.user.userId;
+    const userId = decoded.userId;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'Organization name is required' });
