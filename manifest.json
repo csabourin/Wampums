@@ -1,9 +1,14 @@
 {
   "name": "Meute 6A St-Paul",
   "short_name": "Meute 6A",
+<<<<<<< HEAD
   "description": "Application de points pour la meute 6e A St-Paul d'Aylmer",
   "start_url": "/",
   "scope": "/",
+=======
+  "description": "Application de points pour la meute 6A St-Paul d'Aylmer",
+  "start_url": "/index.php",
+>>>>>>> 465e309 (small typos)
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4c65ae",
