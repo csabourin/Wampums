@@ -380,8 +380,13 @@ async function getPointSystemRules(pool, organizationId) {
     );
 
     if (result.rows.length > 0) {
+      const value = result.rows[0].setting_value;
+      // Handle both JSON string and already-parsed object (JSONB)
+      if (typeof value === 'object' && value !== null) {
+        return value;
+      }
       try {
-        return JSON.parse(result.rows[0].setting_value);
+        return JSON.parse(value);
       } catch (e) {
         console.warn('Error parsing point_system_rules:', e);
       }
@@ -394,7 +399,7 @@ async function getPointSystemRules(pool, organizationId) {
   return {
     attendance: {
       present: 1,
-      late: 0.5,
+      late: 0,
       absent: 0,
       excused: 0
     }
