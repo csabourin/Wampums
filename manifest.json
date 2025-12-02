@@ -2,20 +2,53 @@
   "name": "Meute 6A St-Paul",
   "short_name": "Meute 6A",
   "description": "Application de points pour la meute 6e A St-Paul d'Aylmer",
-  "start_url": "/index.php",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4c65ae",
+  "orientation": "any",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/images/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/images/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Présences",
+      "short_name": "Présences",
+      "description": "Gérer les présences",
+      "url": "/attendance",
+      "icons": [
+        {
+          "src": "/images/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Tableau de bord",
+      "short_name": "Tableau",
+      "description": "Voir le tableau de bord",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/images/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

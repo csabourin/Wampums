@@ -1,7 +1,7 @@
-const CACHE_NAME = "wampums-app-v5.0";
-const STATIC_CACHE_NAME = "wampums-static-v5.0";
-const API_CACHE_NAME = "wampums-api-v5.0";
-const IMAGE_CACHE_NAME = "wampums-images-v5.0"; 
+const CACHE_NAME = "wampums-app-v6.0";
+const STATIC_CACHE_NAME = "wampums-static-v6.0";
+const API_CACHE_NAME = "wampums-api-v6.0";
+const IMAGE_CACHE_NAME = "wampums-images-v6.0";
 
 const staticAssets = [
   "/",
@@ -15,6 +15,10 @@ const staticAssets = [
   "/spa/attendance.js",
   "/spa/indexedDB.js",
   "/spa/ajax-functions.js",
+  "/spa/api/api-core.js",
+  "/spa/api/api-endpoints.js",
+  "/spa/api/api-helpers.js",
+  "/spa/config.js",
   "/manifest.json",
 ];
 
@@ -24,15 +28,29 @@ const staticImages = [
   "/images/6eASt-Paul.png",
 ];
 
+// Updated API routes using the new endpoint structure
 const apiRoutes = [
-  "/api?action=get_attendance_dates",
-  "/api?action=get_participants",
-  "/api?action=get_participants_with_users",
-  "/api?action=get_parent_users",
-  "/api?action=get_parent_contact_list",
-  "/api?action=get_groups",
+  "/api/attendance-dates",
+  "/api/participants",
+  "/api/v1/participants",
+  "/api/participants-with-users",
+  "/api/parent-users",
+  "/api/parent-contact-list",
+  "/api/groups",
+  "/api/v1/groups",
   "/api/translations",
-  "/api?action=get_mailing_list"
+  "/api/mailing-list",
+  "/api/attendance",
+  "/api/v1/attendance",
+  "/api/initial-data",
+  "/api/organization-settings",
+  "/api/honors",
+  "/api/points-report",
+  "/api/badge-summary",
+  "/public/get_organization_id",
+  "/public/organization-settings",
+  "/public/initial-data",
+  "/public/get_news"
 ];
 
 const offlinePages = [
@@ -97,13 +115,23 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (event.request.method === "GET") {
-    if (apiRoutes.some((route) => url.pathname.includes(route))) {
+    // Check if this is an API route
+    const isApiRoute = apiRoutes.some((route) =>
+      url.pathname === route ||
+      url.pathname.startsWith(route + '/') ||
+      url.pathname.startsWith(route + '?')
+    );
+
+    if (isApiRoute) {
       event.respondWith(fetchAndCacheInIndexedDB(event.request));
     } else if (staticAssets.includes(url.pathname)) {
       event.respondWith(cacheFirst(event.request));
     } else {
       event.respondWith(networkFirst(event.request));
     }
+  } else if (event.request.method === "POST" || event.request.method === "PUT" || event.request.method === "DELETE") {
+    // Handle mutations - try network first, queue for sync if offline
+    event.respondWith(handleMutation(event.request));
   } else {
     event.respondWith(fetch(event.request));
   }
@@ -286,31 +314,141 @@ async function fetchAndCacheInIndexedDB(request) {
   const cacheKey = request.url; // Use the request URL as the cache key
 
   try {
-    // First, check if the data exists in IndexedDB
-    const cachedData = await getCachedData(cacheKey);
-    if (cachedData) {
-      return new Response(JSON.stringify(cachedData));
-    }
-
-    // If not in IndexedDB, try to fetch from the network
+    // Try network first for API requests to get fresh data
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
       const responseClone = networkResponse.clone();
       const data = await networkResponse.json();
 
-      // Save the response data in IndexedDB
-      await setCachedData(cacheKey, data.data, 24 * 60 * 60 * 1000); // Cache for 24 hours
+      // Save the response data in IndexedDB for offline access
+      await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
       return new Response(JSON.stringify(data)); // Return the response
     }
   } catch (error) {
-    console.error("Network request failed, serving from cache:", error);
-    // If the network fails, and no cache exists, return fallback error
-    const fallbackResponse = await caches.match("/offline.html");
-    if (fallbackResponse) return fallbackResponse;
+    console.error("Network request failed, attempting to serve from cache:", error);
+
+    // If network fails, check if the data exists in IndexedDB
+    const cachedData = await getCachedData(cacheKey);
+    if (cachedData) {
+      console.log("Serving from cache:", cacheKey);
+      return new Response(JSON.stringify(cachedData), {
+        headers: { 'Content-Type': 'application/json', 'X-From-Cache': 'true' }
+      });
+    }
+
+    // If no cache exists, return error response
+    return new Response(JSON.stringify({
+      success: false,
+      error: "No data available - offline and no cached data",
+      offline: true
+    }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   // Return fallback if nothing is available
-  return new Response(JSON.stringify({ error: "No data available" }), { status: 503 });
+  return new Response(JSON.stringify({
+    success: false,
+    error: "No data available"
+  }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+
+// Handle mutation requests (POST, PUT, DELETE)
+async function handleMutation(request) {
+  try {
+    // Try to execute the mutation
+    const response = await fetch(request);
+
+    if (response.ok) {
+      // If successful, clear relevant caches
+      await invalidateRelatedCaches(request);
+      return response;
+    }
+
+    return response;
+  } catch (error) {
+    console.error("Mutation failed, saving for background sync:", error);
+
+    // If offline, save the request for background sync
+    try {
+      const requestData = {
+        url: request.url,
+        method: request.method,
+        headers: Object.fromEntries([...request.headers.entries()]),
+        body: request.method !== 'GET' ? await request.clone().text() : null,
+        timestamp: Date.now()
+      };
+
+      await saveOfflineMutation(requestData);
+
+      // Register for background sync
+      if ('sync' in self.registration) {
+        await self.registration.sync.register('sync-mutations');
+      }
+
+      // Return a response indicating the operation was queued
+      return new Response(JSON.stringify({
+        success: true,
+        queued: true,
+        message: "Request queued for sync when online"
+      }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (saveError) {
+      console.error("Failed to save mutation for sync:", saveError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Failed to queue request for sync"
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+}
+
+// Invalidate caches related to a mutation
+async function invalidateRelatedCaches(request) {
+  const url = new URL(request.url);
+  const db = await openIndexedDB();
+  const transaction = db.transaction([STORE_NAME], 'readwrite');
+  const store = transaction.objectStore(STORE_NAME);
+
+  // Get all keys from IndexedDB
+  const allKeys = await new Promise((resolve) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => resolve([]);
+  });
+
+  // Invalidate related caches based on the endpoint
+  const keysToInvalidate = allKeys.filter(key => {
+    if (url.pathname.includes('/participants')) return key.toString().includes('participants');
+    if (url.pathname.includes('/groups')) return key.toString().includes('group');
+    if (url.pathname.includes('/attendance')) return key.toString().includes('attendance');
+    if (url.pathname.includes('/points')) return key.toString().includes('points');
+    if (url.pathname.includes('/honors')) return key.toString().includes('honors');
+    if (url.pathname.includes('/badges')) return key.toString().includes('badge');
+    return false;
+  });
+
+  // Delete invalidated keys
+  for (const key of keysToInvalidate) {
+    try {
+      await new Promise((resolve, reject) => {
+        const deleteRequest = store.delete(key);
+        deleteRequest.onsuccess = () => resolve();
+        deleteRequest.onerror = () => reject();
+      });
+    } catch (error) {
+      console.warn('Failed to invalidate cache key:', key);
+    }
+  }
 }
 
 
@@ -323,7 +461,7 @@ self.addEventListener("message", (event) => {
 
 // Sync event for background syncing
 self.addEventListener("sync", (event) => {
-  if (event.tag === "sync-data") {
+  if (event.tag === "sync-data" || event.tag === "sync-mutations") {
     event.waitUntil(syncData());
   }
 });
@@ -341,8 +479,9 @@ self.addEventListener("activate", (event) => {
 });
 
 const DB_NAME = 'wampums-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'api-cache';
+const MUTATION_STORE_NAME = 'pending-mutations';
 
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -353,8 +492,19 @@ function openIndexedDB() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+
+      // Create main cache store
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'url' });
+      }
+
+      // Create mutations store for offline sync
+      if (!db.objectStoreNames.contains(MUTATION_STORE_NAME)) {
+        const mutationStore = db.createObjectStore(MUTATION_STORE_NAME, {
+          keyPath: 'id',
+          autoIncrement: true
+        });
+        mutationStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
     };
   });
@@ -391,31 +541,191 @@ async function getCachedData(key) {
   });
 }
 
+// Save offline mutation for background sync
+async function saveOfflineMutation(mutationData) {
+  const db = await openIndexedDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(MUTATION_STORE_NAME);
+    const request = store.add(mutationData);
+
+    request.onerror = () => {
+      console.error("Error saving offline mutation:", request.error);
+      reject(request.error);
+    };
+    request.onsuccess = () => {
+      console.log("Offline mutation saved:", mutationData);
+      resolve(request.result);
+    };
+  });
+}
+
+// Get all pending mutations
+async function getPendingMutations() {
+  const db = await openIndexedDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([MUTATION_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(MUTATION_STORE_NAME);
+    const request = store.getAll();
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result || []);
+  });
+}
+
+// Delete a pending mutation
+async function deletePendingMutation(id) {
+  const db = await openIndexedDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(MUTATION_STORE_NAME);
+    const request = store.delete(id);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      console.log("Deleted pending mutation:", id);
+      resolve();
+    };
+  });
+}
+
 
 async function syncData() {
+  if (!navigator.onLine) {
+    console.log("Device is offline, cannot sync");
+    return;
+  }
+
   try {
-    const offlineData = await getOfflineData();
-    if (offlineData.length > 0) {
-      for (let item of offlineData) {
-        // Implement sync logic for each item
-        console.log("Syncing item:", item);
-        const response = await fetch("/api?action=" + item.action, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(item.data),
+    // Sync pending mutations (new format)
+    const pendingMutations = await getPendingMutations();
+    console.log(`Found ${pendingMutations.length} pending mutations to sync`);
+
+    for (const mutation of pendingMutations) {
+      try {
+        console.log("Syncing mutation:", mutation);
+
+        // Reconstruct the request
+        const response = await fetch(mutation.url, {
+          method: mutation.method,
+          headers: mutation.headers,
+          body: mutation.body
         });
 
         if (response.ok) {
-          await clearOfflineData(item.id); // Clear after successful sync
+          console.log("Mutation synced successfully:", mutation.id);
+          await deletePendingMutation(mutation.id);
+
+          // Invalidate related caches
+          const request = new Request(mutation.url, {
+            method: mutation.method,
+            headers: mutation.headers
+          });
+          await invalidateRelatedCaches(request);
         } else {
-          console.error("Failed to sync item:", item, response.statusText);
+          console.error("Failed to sync mutation:", mutation.id, response.statusText);
+
+          // If it's a 4xx error (client error), delete the mutation as it won't succeed
+          if (response.status >= 400 && response.status < 500) {
+            console.log("Client error, removing mutation:", mutation.id);
+            await deletePendingMutation(mutation.id);
+          }
+        }
+      } catch (error) {
+        console.error("Error syncing mutation:", mutation.id, error);
+        // Keep the mutation for next sync attempt
+      }
+    }
+
+    // Also check for old format offline data (backward compatibility)
+    try {
+      const offlineData = await getOfflineData();
+      if (offlineData && offlineData.length > 0) {
+        console.log(`Found ${offlineData.length} old format offline items to sync`);
+        for (let item of offlineData) {
+          try {
+            console.log("Syncing old format item:", item);
+            // Try to determine the new endpoint format
+            const endpoint = item.action ? `/api/${item.action.replace('_', '-')}` : item.url;
+
+            const response = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(item.data),
+            });
+
+            if (response.ok) {
+              await clearOfflineData(item.id);
+            } else {
+              console.error("Failed to sync old format item:", item, response.statusText);
+            }
+          } catch (error) {
+            console.error("Error syncing old format item:", item, error);
+          }
         }
       }
-      console.log("All data synced successfully");
+    } catch (error) {
+      // Old format might not exist, that's okay
+      console.log("No old format offline data found");
     }
+
+    console.log("Sync completed");
   } catch (error) {
     console.error("Error during data sync:", error);
+  }
+}
+
+// Get offline data (for backward compatibility with old format)
+async function getOfflineData() {
+  try {
+    // Try to get from the WampumsAppDB (old format)
+    return new Promise((resolve) => {
+      const request = indexedDB.open('WampumsAppDB', 12);
+      request.onsuccess = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('offlineData')) {
+          resolve([]);
+          return;
+        }
+        const transaction = db.transaction(['offlineData'], 'readonly');
+        const store = transaction.objectStore('offlineData');
+        const index = store.index('type_idx');
+        const getRequest = index.getAll('offline');
+
+        getRequest.onsuccess = () => resolve(getRequest.result || []);
+        getRequest.onerror = () => resolve([]);
+      };
+      request.onerror = () => resolve([]);
+    });
+  } catch (error) {
+    console.error("Error getting offline data:", error);
+    return [];
+  }
+}
+
+// Clear offline data (for backward compatibility)
+async function clearOfflineData(key) {
+  try {
+    return new Promise((resolve) => {
+      const request = indexedDB.open('WampumsAppDB', 12);
+      request.onsuccess = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('offlineData')) {
+          resolve();
+          return;
+        }
+        const transaction = db.transaction(['offlineData'], 'readwrite');
+        const store = transaction.objectStore('offlineData');
+        const deleteRequest = store.delete(key);
+
+        deleteRequest.onsuccess = () => resolve();
+        deleteRequest.onerror = () => resolve();
+      };
+      request.onerror = () => resolve();
+    });
+  } catch (error) {
+    console.error("Error clearing offline data:", error);
   }
 }
