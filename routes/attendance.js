@@ -145,7 +145,7 @@ module.exports = (pool) => {
       if (previous_status && previous_status !== status) {
         // Get point values from organization settings or use defaults
         const pointSystemRules = await getPointSystemRules(client, organizationId);
-        const defaultPoints = { present: 1, late: 0, absent: 0, excused: 0 };
+        const defaultPoints = { present: 1, late: 0, absent: -1, excused: 0 };
         const pointValues = pointSystemRules.attendance || defaultPoints;
 
         // Ensure we have valid numbers, falling back to defaults

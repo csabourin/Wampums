@@ -400,7 +400,7 @@ async function getPointSystemRules(pool, organizationId) {
     attendance: {
       present: 1,
       late: 0,
-      absent: 0,
+      absent: -1,
       excused: 0
     }
   };
