@@ -768,6 +768,35 @@ export class ManagePoints {
   async updatePointsDisplay(data) {
     debugLog("Updating points display with data:", data);
 
+    // Normalize and update internal data structures when fresh data is provided
+    if (data) {
+      const participantsFromData = data.participants || data.names;
+      if (Array.isArray(participantsFromData)) {
+        this.participants = participantsFromData.map((participant) => ({
+          total_points: 0,
+          ...participant,
+          total_points: participant.total_points ?? 0,
+        }));
+      }
+
+      if (Array.isArray(data.groups)) {
+        this.groups = data.groups.map((group) => ({
+          total_points: 0,
+          ...group,
+          total_points: group.total_points ?? 0,
+        }));
+      }
+
+      // Rebuild grouping to ensure render helpers can use fresh data
+      this.organizeParticipants();
+
+      // If the DOM has not yet been rendered, bail out after re-rendering the lists
+      const pointsList = document.getElementById("points-list");
+      if (pointsList) {
+        this.sortByGroup();
+      }
+    }
+
     // Update points for all participants
     this.participants.forEach(participant => {
       const participantElement = document.querySelector(
