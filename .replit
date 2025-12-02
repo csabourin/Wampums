@@ -32,7 +32,6 @@ externalPort = 3001
 PORT = "5000"
 
 [userenv.shared]
-VITE_API_URL = "https://wampums-api.replit.app"
 
 [workflows]
 runButton = "Project"

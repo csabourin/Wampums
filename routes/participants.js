@@ -129,11 +129,6 @@ module.exports = (pool) => {
     }
 
     const result = await pool.query(query, params);
-    
-    // Debug: Log first participant to verify total_points is included
-    if (result.rows.length > 0) {
-      console.log('[DEBUG] First participant from DB:', JSON.stringify(result.rows[0], null, 2));
-    }
 
     // Transform form_submissions into has_* flags
     const participants = result.rows.map(p => {
@@ -150,7 +145,9 @@ module.exports = (pool) => {
 
       return {
         ...participantData,
-        ...hasFlags
+        ...hasFlags,
+        // Ensure total_points is a number (PostgreSQL may return it as string)
+        total_points: parseInt(participantData.total_points) || 0
       };
     });
 

@@ -1,0 +1,262 @@
+init-activity-widget.js:3 init-activity-widget.js loaded
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+XHR finished loading: POST "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+Fetch finished loading: GET "<URL>".
+indexedDB.js:20 Upgrading IndexedDB...
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: org_settings_1
+api-helpers.js:39 === GET AUTH HEADER DEBUG ===
+api-helpers.js:40 Token exists: true
+api-helpers.js:41 Organization ID: 1
+api-helpers.js:42 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcmdhbml6Y...
+api-helpers.js:54 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJvcm…4OTl9.DMjCNZqKzyvAZvEaa6p1bCIn20a2Tn4QTb6kbC-NVIg', x-organization-id: '1'}
+api-helpers.js:55 === END AUTH HEADER DEBUG ===
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'org_settings_1', data: {…}, type: 'cache', timestamp: 1764644061878, expiration: 1764730461878}
+login.js:230 Session check: {isLoggedIn: false, userRole: null, userFullName: null, userId: null}
+router.js:287 Path: /dashboard, RouteName: dashboard
+login.js:230 Session check: {isLoggedIn: false, userRole: null, userFullName: null, userId: null}
+router.js:116 Redirecting to login from route: dashboard
+overrideMethod @ hook.js:608
+route @ router.js:116
+init @ app.js:252
+await in init
+(anonymous) @ app.js:622
+login.js:11 Login init started
+login.js:34 Rendering login form, organizationSettings: loaded
+login.js:40 Login.render() called
+login.js:43 Using organization name: 6A St-Paul d'Aylmer
+login.js:80 Attaching login form listener
+login.js:111 Login form listener attached
+login.js:67 Login form rendered successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:140 Retrieved offline data: []
+login:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://www.chromium.org/developers/design-documents/create-amazing-password-forms) <input type=​"password" name=​"password" placeholder=​"password" required>​
+router.js:287 Path: /login, RouteName: login
+login.js:230 Session check: {isLoggedIn: false, userRole: null, userFullName: null, userId: null}
+login.js:11 Login init started
+login.js:34 Rendering login form, organizationSettings: loaded
+login.js:40 Login.render() called
+login.js:43 Using organization name: 6A St-Paul d'Aylmer
+login.js:80 Attaching login form listener
+login.js:111 Login form listener attached
+login.js:67 Login form rendered successfully
+login:1 [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://www.chromium.org/developers/design-documents/create-amazing-password-forms) <input type=​"password" name=​"password" placeholder=​"Mot de passe" required>​
+service-worker.js:476 Clients: [WindowClient]
+login.js:83 Login form submitted
+login.js:92 Sending login request via ajax-functions.js...info@christiansabourin.com
+api-endpoints.js:80 Sending login request via api-endpoints.js... info@christiansabourin.com
+service-worker.js:366 Fetch finished loading: POST "https://066ec755-d743-4232-99ba-3d8a85f58e30.worf.prod.repl.run/public/login".
+handleMutation @ service-worker.js:366
+(anonymous) @ service-worker.js:134
+login.js:97 Login result received: {success: true, message: 'login_successful', token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI…5MDB9.Thhbdy5ZtFfGkvNcAGuDUO4rS5SG5WrA6ctOBLnTjUE', user_role: 'admin', user_full_name: 'Admin Csabourin', …}
+login.js:100 Login successful, handling login success...
+login.js:115 === LOGIN SUCCESS DEBUG ===
+login.js:116 Full result object: {success: true, message: 'login_successful', token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI…5MDB9.Thhbdy5ZtFfGkvNcAGuDUO4rS5SG5WrA6ctOBLnTjUE', user_role: 'admin', user_full_name: 'Admin Csabourin', …}
+login.js:117 result.success: true
+login.js:118 result.token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMGRmM2JmMjctNGIwMC00YzY5LWI4ZmUtMDRhZDQ4ZDFjNjMxIiwidXNlcl9yb2xlIjoiYWRtaW4iLCJvcmdhbml6YXRpb25JZCI6MSwiaWF0IjoxNzY0NjQ0MTAwLCJleHAiOjE3NjUyNDg5MDB9.Thhbdy5ZtFfGkvNcAGuDUO4rS5SG5WrA6ctOBLnTjUE
+login.js:119 result.user_id: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631
+login.js:120 result.user_role: admin
+login.js:121 result.user_full_name: Admin Csabourin
+login.js:130 === END LOGIN DEBUG ===
+login.js:151 === STORING USER DATA ===
+login.js:152 Token: EXISTS
+login.js:153 User ID: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631
+login.js:154 User Role: admin
+login.js:155 User Full Name: Admin Csabourin
+login.js:187 === FINAL LOCALSTORAGE CHECK ===
+login.js:188 jwtToken: STORED
+login.js:189 userId: 0df3bf27-4b00-4c69-b8fe-04ad48d1c631
+login.js:190 userRole: admin
+login.js:191 currentOrganizationId: 1
+login.js:192 organizationId: 1
+api-endpoints.js:83 Fetch finished loading: POST "https://066ec755-d743-4232-99ba-3d8a85f58e30.worf.prod.repl.run/public/login".
+login @ api-endpoints.js:83
+(anonymous) @ login.js:95
+login.js:199 Redirecting to main dashboard
+router.js:287 Path: /dashboard, RouteName: dashboard
+login.js:230 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: dashboard_groups
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: dashboard_participant_info
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: participants
+api-helpers.js:39 === GET AUTH HEADER DEBUG ===
+api-helpers.js:40 Token exists: true
+api-helpers.js:41 Organization ID: 1
+api-helpers.js:42 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+api-helpers.js:54 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…5MDB9.Thhbdy5ZtFfGkvNcAGuDUO4rS5SG5WrA6ctOBLnTjUE', x-organization-id: '1'}
+api-helpers.js:55 === END AUTH HEADER DEBUG ===
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'participants', data: {…}, type: 'cache', timestamp: 1764644063283, expiration: 1764645863283}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764644063283, expiration: 1764645863283}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(24), pagination: {…}, timestamp: '2025-12-02T02:55:00.801Z'}
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: groups
+api-helpers.js:39 === GET AUTH HEADER DEBUG ===
+api-helpers.js:40 Token exists: true
+api-helpers.js:41 Organization ID: 1
+api-helpers.js:42 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+api-helpers.js:54 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…5MDB9.Thhbdy5ZtFfGkvNcAGuDUO4rS5SG5WrA6ctOBLnTjUE', x-organization-id: '1'}
+api-helpers.js:55 === END AUTH HEADER DEBUG ===
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'groups', data: {…}, type: 'cache', timestamp: 1764644063379, expiration: 1764645863379}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'dashboard_participant_info', data: Array(24), type: 'cache', timestamp: 1764644063380, expiration: 1764644363380}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'dashboard_groups', data: Array(4), type: 'cache', timestamp: 1764644063380, expiration: 1764647663380}
+init-activity-widget.js:6 Initializing ActivityWidget
+init-activity-widget.js:7 App state: {isLoggedIn: true, userRole: 'admin'}
+activity-widget.js:6 ActivityWidget constructor called
+activity-widget.js:7 App object: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', lang: 'fr', currentPage: '', …}
+activity-widget.js:19 ActivityWidget init called
+activity-widget.js:20 Is logged in: true
+activity-widget.js:21 User role: admin
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: reunion_preparation_2025-12-02
+api-helpers.js:39 === GET AUTH HEADER DEBUG ===
+api-helpers.js:40 Token exists: true
+api-helpers.js:41 Organization ID: 1
+api-helpers.js:42 Token preview: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkI...
+api-helpers.js:54 Generated headers: {Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2…5MDB9.Thhbdy5ZtFfGkvNcAGuDUO4rS5SG5WrA6ctOBLnTjUE', x-organization-id: '1'}
+api-helpers.js:55 === END AUTH HEADER DEBUG ===
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'reunion_preparation_2025-12-02', data: {…}, type: 'cache', timestamp: 1764644063485, expiration: 1764645863485}
+activity-widget.js:52 Fetched reunion preparation data: {success: true, preparation: {…}}
+activity-widget.js:56 === DATE PARSING DEBUG ===
+activity-widget.js:57 Raw date value: 2025-12-02
+activity-widget.js:58 Date type: string
+activity-widget.js:59 Date stringified: "2025-12-02"
+activity-widget.js:60 Concatenated: 2025-12-02T00:00:00
+activity-widget.js:62 Current activities set: (4) [{…}, {…}, {…}, {…}]
+activity-widget.js:63 Preparation date: Tue Dec 02 2025 00:00:00 GMT-0500 (Eastern Standard Time)
+activity-widget.js:174 === IS PREPARATION TODAY CHECK ===
+activity-widget.js:175 Today: Mon Dec 01 2025 21:54:23 GMT-0500 (Eastern Standard Time)
+activity-widget.js:176 Today date parts: 1 11 2025
+activity-widget.js:177 Preparation date: Tue Dec 02 2025 00:00:00 GMT-0500 (Eastern Standard Time)
+activity-widget.js:178 Preparation date parts: 2 11 2025
+activity-widget.js:182 Is today? false
+activity-widget.js:31 No activities found for today, stopping widget.
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+Fetch failed loading: POST "<URL>".
+router.js:287 Path: /managePoints, RouteName: managePoints
+login.js:230 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: undefined, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' undefined
+indexedDB.js:87 No data found for key: manage_points_data
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764644063283, expiration: 1764645863283}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(24), pagination: {…}, timestamp: '2025-12-02T02:55:00.801Z'}
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'groups', data: {…}, type: 'cache', timestamp: 1764644063379, expiration: 1764645863379}
+indexedDB.js:83 Returning valid cached data: {success: true, message: 'Success', data: Array(4), timestamp: '2025-12-02T02:55:00.897Z'}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:54 Data stored successfully: {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764644065910, expiration: 1764644365910}
+manage_points.js:37 init called
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764644065910, expiration: 1764644365910}
+indexedDB.js:83 Returning valid cached data: {participants: Array(24), groups: Array(4), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+service-worker.js:366 Fetch finished loading: POST "https://q.clarity.ms/collect".
+handleMutation @ service-worker.js:366
+(anonymous) @ service-worker.js:134
+router.js:287 Path: /dashboard, RouteName: dashboard
+login.js:230 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'dashboard_groups', data: Array(4), type: 'cache', timestamp: 1764644063380, expiration: 1764647663380}
+indexedDB.js:83 Returning valid cached data: (4) [{…}, {…}, {…}, {…}]
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'dashboard_participant_info', data: Array(24), type: 'cache', timestamp: 1764644063380, expiration: 1764644363380}
+indexedDB.js:83 Returning valid cached data: (24) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764644063283, expiration: 1764645863283}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(24), pagination: {…}, timestamp: '2025-12-02T02:55:00.801Z'}
+service-worker.js:366 Fetch finished loading: POST "https://q.clarity.ms/collect".
+handleMutation @ service-worker.js:366
+(anonymous) @ service-worker.js:134
+router.js:287 Path: /managePoints, RouteName: managePoints
+login.js:230 Session check: {isLoggedIn: true, userRole: 'admin', userFullName: 'Admin Csabourin', userId: '0df3bf27-4b00-4c69-b8fe-04ad48d1c631'}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764644065910, expiration: 1764644365910}
+indexedDB.js:83 Returning valid cached data: {participants: Array(24), groups: Array(4), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'participants', data: {…}, type: 'cache', timestamp: 1764644063283, expiration: 1764645863283}
+indexedDB.js:83 Returning valid cached data: {success: true, data: Array(24), pagination: {…}, timestamp: '2025-12-02T02:55:00.801Z'}
+manage_points.js:37 init called
+indexedDB.js:15 IndexedDB opened successfully
+indexedDB.js:80 IDBRequest {result: {…}, error: null, source: IDBObjectStore, transaction: IDBTransaction, readyState: 'done', …} ' Retrieved record:' {key: 'manage_points_data', data: {…}, type: 'cache', timestamp: 1764644065910, expiration: 1764644365910}
+indexedDB.js:83 Returning valid cached data: {participants: Array(24), groups: Array(4), groupedParticipants: {…}, unassignedParticipants: Array(0)}
+service-worker.js:366 Fetch finished loading: POST "https://q.clarity.ms/collect".
+handleMutation @ service-worker.js:366
+(anonymous) @ service-worker.js:134

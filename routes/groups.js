@@ -33,7 +33,14 @@ module.exports = (pool) => {
       [organizationId]
     );
 
-    return success(res, result.rows);
+    // Ensure numeric fields are numbers (PostgreSQL may return as strings)
+    const groups = result.rows.map(g => ({
+      ...g,
+      member_count: parseInt(g.member_count) || 0,
+      total_points: parseInt(g.total_points) || 0
+    }));
+
+    return success(res, groups);
   }));
 
   /**
