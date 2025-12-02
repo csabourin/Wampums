@@ -171,9 +171,16 @@ export class ActivityWidget {
 
 	isPreparationToday() {
 		const today = new Date();
-		return this.preparationDate.getDate() === today.getDate() &&
+		console.log('=== IS PREPARATION TODAY CHECK ===');
+		console.log('Today:', today);
+		console.log('Today date parts:', today.getDate(), today.getMonth(), today.getFullYear());
+		console.log('Preparation date:', this.preparationDate);
+		console.log('Preparation date parts:', this.preparationDate.getDate(), this.preparationDate.getMonth(), this.preparationDate.getFullYear());
+		const isToday = this.preparationDate.getDate() === today.getDate() &&
 					 this.preparationDate.getMonth() === today.getMonth() &&
 					 this.preparationDate.getFullYear() === today.getFullYear();
+		console.log('Is today?', isToday);
+		return isToday;
 	}
 
 	combineDateTime(date, timeString) {
