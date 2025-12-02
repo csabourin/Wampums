@@ -54,7 +54,11 @@ module.exports = (pool) => {
                  (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                   FROM form_submissions
                   WHERE participant_id = p.id AND organization_id = $1), '[]'::json
-               ) as form_submissions
+               ) as form_submissions,
+               COALESCE(
+                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
+                 0
+               ) as total_points
         FROM participants p
         JOIN participant_organizations po ON p.id = po.participant_id
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -89,7 +93,11 @@ module.exports = (pool) => {
                  (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                   FROM form_submissions
                   WHERE participant_id = p.id AND organization_id = $1), '[]'::json
-               ) as form_submissions
+               ) as form_submissions,
+               COALESCE(
+                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
+                 0
+               ) as total_points
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
         JOIN participant_organizations po ON p.id = po.participant_id
@@ -181,7 +189,11 @@ module.exports = (pool) => {
                (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                 FROM form_submissions
                 WHERE participant_id = p.id AND organization_id = $2), '[]'::json
-             ) as form_submissions
+             ) as form_submissions,
+             COALESCE(
+               (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $2),
+               0
+             ) as total_points
       FROM participants p
       JOIN participant_organizations po ON p.id = po.participant_id
       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
