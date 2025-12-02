@@ -681,13 +681,13 @@ app.get('/api/points-data', async (req, res) => {
 
     // Fetch all participants with their associated group and total points
     const participantsResult = await pool.query(
-      `SELECT part.id, part.first_name, pg.group_id, COALESCE(SUM(p.value), 0) AS total_points
+      `SELECT part.id, part.first_name, part.last_name, pg.group_id, COALESCE(SUM(p.value), 0) AS total_points
        FROM participants part
        JOIN participant_organizations po ON part.id = po.participant_id
        LEFT JOIN participant_groups pg ON part.id = pg.participant_id AND pg.organization_id = $1
        LEFT JOIN points p ON part.id = p.participant_id AND p.organization_id = $1
        WHERE po.organization_id = $1
-       GROUP BY part.id, part.first_name, pg.group_id
+       GROUP BY part.id, part.first_name, part.last_name, pg.group_id
        ORDER BY part.first_name`,
       [organizationId]
     );
@@ -695,7 +695,7 @@ app.get('/api/points-data', async (req, res) => {
     res.json({
       success: true,
       groups: groupsResult.rows,
-      names: participantsResult.rows
+      participants: participantsResult.rows
     });
   } catch (error) {
     logger.error('Error fetching points data:', error);
