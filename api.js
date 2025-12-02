@@ -574,7 +574,9 @@ app.get('/api/reunion-preparation', async (req, res) => {
     const reunionDate = req.query.date || new Date().toISOString().split('T')[0];
     
     const result = await pool.query(
-      `SELECT * FROM reunion_preparations
+      `SELECT id, organization_id, date::text as date, louveteau_dhonneur,
+              endroit, activities, notes, animateur_responsable
+       FROM reunion_preparations
        WHERE organization_id = $1 AND date = $2`,
       [organizationId, reunionDate]
     );
