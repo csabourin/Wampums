@@ -5,6 +5,7 @@ import {
   getAuthHeader,
   getCurrentOrganizationId,
   getApiUrl,
+  CONFIG,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";

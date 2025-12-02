@@ -1,5 +1,5 @@
 import { getParticipants, getGroups, getCurrentOrganizationId,
-       getOrganizationSettings } from "./ajax-functions.js";
+       getOrganizationSettings, CONFIG } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
 import { ManagePoints } from "./manage_points.js";
