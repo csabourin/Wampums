@@ -4,11 +4,16 @@
  */
 
 const jwt = require('jsonwebtoken');
-const sgMail = require('@sendgrid/mail');
+const Brevo = require('sib-api-v3-sdk');
 
-// Initialize SendGrid
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const brevoClient = Brevo.ApiClient.instance;
+let brevoTransactionalApi = null;
+
+// Initialize Brevo
+if (process.env.BREVO_KEY) {
+  const apiKey = brevoClient.authentications['api-key'];
+  apiKey.apiKey = process.env.BREVO_KEY;
+  brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
 }
 
 /**
@@ -109,7 +114,7 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
 }
 
 /**
- * Send email using SendGrid
+ * Send email using Brevo
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
  * @param {string} message - Email message (plain text)
@@ -117,24 +122,30 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
  * @returns {Promise<boolean>} Success status
  */
 async function sendEmail(to, subject, message, html = null) {
-  if (!process.env.SENDGRID_API_KEY) {
-    console.error('SendGrid API key not found in environment variables');
+  if (!process.env.BREVO_KEY) {
+    console.error('Brevo API key not found in environment variables');
     return false;
   }
 
-  const msg = {
-    to,
-    from: { email: 'noreply@wampums.app', name: 'Wampums.app' },
+  if (!brevoTransactionalApi) {
+    const apiKey = brevoClient.authentications['api-key'];
+    apiKey.apiKey = process.env.BREVO_KEY;
+    brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
+  }
+
+  const emailPayload = {
+    sender: { email: 'noreply@wampums.app', name: 'Wampums.app' },
+    to: [{ email: to }],
     subject,
-    text: message,
+    textContent: message,
   };
 
   if (html) {
-    msg.html = html;
+    emailPayload.htmlContent = html;
   }
 
   try {
-    await sgMail.send(msg);
+    await brevoTransactionalApi.sendTransacEmail(emailPayload);
     return true;
   } catch (error) {
     console.error('Error sending email:', error);
