@@ -401,9 +401,9 @@ export class ManagePoints {
 
         // Apply server updates
         // Support both new format (data.data.updates) and old format (data.updates)
-        const updates = data.data?.updates || data.updates;
-        if (updates && Array.isArray(updates)) {
-          updates.forEach((update) => {
+        const serverUpdates = data.data?.updates || data.updates;
+        if (serverUpdates && Array.isArray(serverUpdates)) {
+          serverUpdates.forEach((update) => {
             if (update.type === "group") {
               this.updateGroupPoints(
                 update.id,
