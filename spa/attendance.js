@@ -538,8 +538,8 @@ debugLog(groupHeader, participantRow);
     this.updateAttendanceDisplay(participantId, newStatus, previousStatus);
 
     try {
-      // Call the server to update attendance
-      const result = await updateAttendance([participantId], newStatus, this.currentDate);
+      // Call the server to update attendance - pass single ID, not array
+      const result = await updateAttendance(participantId, newStatus, this.currentDate, previousStatus);
 
       if (result.success) {
         // Success: Keep the optimistic update
@@ -585,11 +585,19 @@ debugLog(groupHeader, participantRow);
     });
 
     try {
-      const result = await updateAttendance(participantIds, newStatus, this.currentDate);
+      // Call the API for each participant individually
+      const results = await Promise.all(
+        participantIds.map(id => 
+          updateAttendance(id, newStatus, this.currentDate, previousStatuses[id])
+        )
+      );
 
-      if (result.success) {
+      // Check if all updates succeeded
+      const allSucceeded = results.every(result => result.success);
+
+      if (allSucceeded) {
         this.app.showMessage(translate("group_attendance_updated"), "success");
-        // Cache the fetched data for 5 minues
+        // Cache the fetched data for 5 minutes
         await setCachedData(`attendance_${this.currentDate}`, {
           participants: this.participants,
           attendanceData: this.attendanceData,
@@ -597,12 +605,15 @@ debugLog(groupHeader, participantRow);
           groups: this.groups
         },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
       } else {
-        // Rollback if server fails
-        participantIds.forEach(id => {
-          this.attendanceData[id] = previousStatuses[id];
-          this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
+        // Rollback failed updates
+        results.forEach((result, index) => {
+          if (!result.success) {
+            const id = participantIds[index];
+            this.attendanceData[id] = previousStatuses[id];
+            this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
+          }
         });
-        this.app.showMessage(result.message || translate("error_updating_group_attendance"), "error");
+        this.app.showMessage(translate("error_updating_group_attendance"), "error");
       }
     } catch (error) {
       // Rollback on error

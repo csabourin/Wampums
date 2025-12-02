@@ -377,7 +377,7 @@ export class ManagePoints {
 
     if (navigator.onLine) {
       try {
-        const response = await fetch(getApiUrl('api/update-points'), {
+        const response = await fetch(getApiUrl('update-points'), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
