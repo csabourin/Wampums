@@ -3745,8 +3745,7 @@ app.get('/api/form-submission', async (req, res) => {
     // Get form submission with participant basic information
     const result = await pool.query(
       `SELECT fs.*,
-              p.first_name, p.last_name, p.date_naissance,
-              p.date_of_birth
+              p.first_name, p.last_name, p.date_naissance
        FROM form_submissions fs
        JOIN participants p ON fs.participant_id = p.id
        WHERE fs.participant_id = $1 AND fs.organization_id = $2 AND fs.form_type = $3
@@ -3774,7 +3773,7 @@ app.get('/api/form-submission', async (req, res) => {
     } else {
       // No submission found, but return participant basic info for new forms
       const participantResult = await pool.query(
-        `SELECT first_name, last_name, date_naissance, date_of_birth, id
+        `SELECT first_name, last_name, date_naissance, id
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
          WHERE p.id = $1 AND po.organization_id = $2`,
@@ -3786,7 +3785,7 @@ app.get('/api/form-submission', async (req, res) => {
         const formData = {
           first_name: participant.first_name,
           last_name: participant.last_name,
-          date_naissance: participant.date_naissance || participant.date_of_birth,
+          date_naissance: participant.date_naissance,
           participant_id: participant.id
         };
 
