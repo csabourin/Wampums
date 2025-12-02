@@ -53,6 +53,11 @@ export class ActivityWidget {
 
 			if (data.success && data.preparation && data.preparation.activities && data.preparation.date) {
 				this.currentActivities = data.preparation.activities;
+				console.log("=== DATE PARSING DEBUG ===");
+				console.log("Raw date value:", data.preparation.date);
+				console.log("Date type:", typeof data.preparation.date);
+				console.log("Date stringified:", JSON.stringify(data.preparation.date));
+				console.log("Concatenated:", data.preparation.date + "T00:00:00");
 				this.preparationDate = new Date(data.preparation.date + 'T00:00:00');
 				console.log('Current activities set:', this.currentActivities);
 				console.log('Preparation date:', this.preparationDate);
