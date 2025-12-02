@@ -76,11 +76,16 @@ export class Attendance {
   async fetchAttendanceDates() {
     try {
       const response = await getAttendanceDates(); // Call the API
+      debugLog("Attendance dates response:", response);
       if (response.success && response.data) {
+        debugLog("Raw dates from API:", response.data);
         // Filter out null, undefined, and invalid dates
         this.availableDates = response.data.filter(date => {
-          return isValidDate(date);
+          const valid = isValidDate(date);
+          debugLog(`Date ${date} is ${valid ? 'valid' : 'invalid'}`);
+          return valid;
         });
+        debugLog("Available dates after filtering:", this.availableDates);
       } else {
         throw new Error("Failed to fetch attendance dates or no dates available.");
       }
@@ -90,6 +95,7 @@ export class Attendance {
       if (!this.availableDates.includes(today)) {
         this.availableDates.unshift(today);
       }
+      debugLog("Final available dates:", this.availableDates);
       this.currentDate = this.availableDates[0];
     } catch (error) {
       debugError("Error fetching attendance dates:", error);
@@ -311,11 +317,20 @@ export class Attendance {
   }
 
   renderDateOptions() {
-    return this.availableDates
-      .map(date => `<option value="${date}" ${date === this.currentDate ? "selected" : ""}>
-        ${formatDate(date, this.app.lang)}
-      </option>`)
+    debugLog("Rendering date options. Available dates:", this.availableDates);
+    debugLog("Current date:", this.currentDate);
+    debugLog("App language:", this.app.lang);
+    const options = this.availableDates
+      .map(date => {
+        const formatted = formatDate(date, this.app.lang);
+        debugLog(`Date ${date} formatted as: ${formatted}`);
+        return `<option value="${date}" ${date === this.currentDate ? "selected" : ""}>
+        ${formatted}
+      </option>`;
+      })
       .join("");
+    debugLog("Final options HTML:", options);
+    return options;
   }
 
   renderGroupsAndNames() {
