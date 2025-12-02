@@ -8,7 +8,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
-import { getTodayISO, formatDate, isValidDate } from "./utils/DateUtils.js";
+import { getTodayISO, formatDate, isValidDate, isoToDateString } from "./utils/DateUtils.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
@@ -79,12 +79,14 @@ export class Attendance {
       debugLog("Attendance dates response:", response);
       if (response.success && response.data) {
         debugLog("Raw dates from API:", response.data);
-        // Filter out null, undefined, and invalid dates
-        this.availableDates = response.data.filter(date => {
-          const valid = isValidDate(date);
-          debugLog(`Date ${date} is ${valid ? 'valid' : 'invalid'}`);
-          return valid;
-        });
+        // Convert ISO dates to YYYY-MM-DD format and filter out invalid dates
+        this.availableDates = response.data
+          .map(date => isoToDateString(date)) // Convert ISO to YYYY-MM-DD
+          .filter(date => {
+            const valid = isValidDate(date);
+            debugLog(`Date ${date} is ${valid ? 'valid' : 'invalid'}`);
+            return valid;
+          });
         debugLog("Available dates after filtering:", this.availableDates);
       } else {
         throw new Error("Failed to fetch attendance dates or no dates available.");
