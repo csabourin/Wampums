@@ -9,6 +9,7 @@ import { getOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } fr
 import { CONFIG } from "./config.js";
 import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
+import { urlBase64ToUint8Array } from "./functions.js";
 
 const debugMode = isDebugMode();
 
@@ -19,22 +20,6 @@ if ("serviceWorker" in navigator) {
                 .catch(function (error) {
                         debugError("Service Worker registration failed:", error);
                 });
-}
-
-// Add this function to your app object or as a separate utility function
-function urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding)
-                .replace(/\-/g, '+')
-                .replace(/_/g, '/');
-
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-
-        for (let i = 0; i < rawData.length; ++i) {
-                outputArray[i] = rawData.charCodeAt(i);
-        }
-        return outputArray;
 }
 
 async function registerPushSubscription() {

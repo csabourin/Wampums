@@ -8,6 +8,7 @@ import {
 } from "./indexedDB.js";
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ManageParticipants {
   constructor(app) {
@@ -83,7 +84,7 @@ export class ManageParticipants {
       .map(
         (participant) => `
         <tr>
-          <td>${participant.first_name} ${participant.last_name}</td>
+          <td>${escapeHTML(participant.first_name)} ${escapeHTML(participant.last_name)}</td>
           <td>
             <select class="group-select" data-participant-id="${participant.id}">
               <option value="none" ${!participant.group_id ? "selected" : ""}>${translate("no_group")}</option>

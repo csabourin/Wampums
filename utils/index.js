@@ -353,6 +353,43 @@ async function hasPermission(pool, userId, organizationId, allowedRoles = ['admi
   }
 }
 
+/**
+ * Get point system rules from organization settings
+ * Returns organization-specific point values or defaults
+ * @param {object} pool - Database pool or client
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<object>} Point system rules with attendance point values
+ */
+async function getPointSystemRules(pool, organizationId) {
+  try {
+    const result = await pool.query(
+      `SELECT setting_value FROM organization_settings
+       WHERE organization_id = $1 AND setting_key = 'point_system_rules'`,
+      [organizationId]
+    );
+
+    if (result.rows.length > 0) {
+      try {
+        return JSON.parse(result.rows[0].setting_value);
+      } catch (e) {
+        console.warn('Error parsing point_system_rules:', e);
+      }
+    }
+  } catch (error) {
+    console.error('Error getting point system rules:', error);
+  }
+
+  // Default rules if not found or error occurred
+  return {
+    attendance: {
+      present: 1,
+      late: 0.5,
+      absent: 0,
+      excused: 0
+    }
+  };
+}
+
 module.exports = {
   calculateAge,
   sanitizeInput,
@@ -370,5 +407,6 @@ module.exports = {
   getOrganizationIdFromToken,
   formatDateForDB,
   safeJSONParse,
-  hasPermission
+  hasPermission,
+  getPointSystemRules
 };
