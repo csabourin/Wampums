@@ -7,8 +7,8 @@ import {
   getApiUrl,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
-import {
 import { debugLog, debugError } from "./utils/DebugUtils.js";
+import {
   saveOfflineData,
   getOfflineData,
   clearOfflineData,
