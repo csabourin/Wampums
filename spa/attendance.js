@@ -544,7 +544,9 @@ debugLog(groupHeader, participantRow);
       if (result.success) {
         // Success: Keep the optimistic update
         this.app.showMessage(translate("attendance_updated"), "success");
-        // Cache the fetched data for 5 minues
+        // Clear API-level cache to ensure fresh data on next fetch
+        await deleteCachedData(`attendance_api_${this.currentDate}`);
+        // Update UI-level cache with current data
         await setCachedData(`attendance_${this.currentDate}`, {
           participants: this.participants,
           attendanceData: this.attendanceData,
@@ -597,7 +599,9 @@ debugLog(groupHeader, participantRow);
 
       if (allSucceeded) {
         this.app.showMessage(translate("group_attendance_updated"), "success");
-        // Cache the fetched data for 5 minutes
+        // Clear API-level cache to ensure fresh data on next fetch
+        await deleteCachedData(`attendance_api_${this.currentDate}`);
+        // Update UI-level cache with current data
         await setCachedData(`attendance_${this.currentDate}`, {
           participants: this.participants,
           attendanceData: this.attendanceData,
@@ -642,10 +646,11 @@ debugLog(groupHeader, participantRow);
   async changeDate(newDate) {
     this.currentDate = newDate;
     debugLog(`Changing date to ${this.currentDate}`);
-    // Clear cached data for this date to force fresh fetch
+    // Clear both UI-level and API-level caches to force fresh fetch
     try {
       await deleteCachedData(`attendance_${this.currentDate}`);
-      debugLog(`Cleared cache for attendance_${this.currentDate}`);
+      await deleteCachedData(`attendance_api_${this.currentDate}`);
+      debugLog(`Cleared caches for attendance_${this.currentDate}`);
     } catch (e) {
       debugLog(`No cache to clear for attendance_${this.currentDate}`);
     }
