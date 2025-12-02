@@ -134,13 +134,21 @@ export class Attendance {
       }
 
       // Transform attendance response into a map of participant_id -> status
-      // Handle both Node.js API format (object with participants array) and PHP format (simple key-value map)
+      // Handle multiple API formats
+      this.attendanceData = {};
       if (attendanceResponse && typeof attendanceResponse === 'object') {
-        // Support new standardized format: {success: true, data: {participants: [...], ...}}
         const attendanceData = attendanceResponse.data || attendanceResponse;
-        if (Array.isArray(attendanceData.participants)) {
-          // Node.js API format: {success: true, data: {participants: [{participant_id, attendance_status}, ...]}}
-          this.attendanceData = {};
+        
+        if (Array.isArray(attendanceData)) {
+          // RESTful API format: {success: true, data: [{participant_id, status, ...}, ...]}
+          attendanceData.forEach(record => {
+            if (record.participant_id && record.status) {
+              this.attendanceData[record.participant_id] = record.status;
+            }
+          });
+          debugLog(`Parsed ${Object.keys(this.attendanceData).length} attendance records`);
+        } else if (Array.isArray(attendanceData.participants)) {
+          // Legacy Node.js format: {success: true, data: {participants: [{participant_id, attendance_status}, ...]}}
           attendanceData.participants.forEach(p => {
             if (p.attendance_status) {
               this.attendanceData[p.participant_id] = p.attendance_status;
@@ -149,13 +157,9 @@ export class Attendance {
         } else if (attendanceResponse.success === undefined) {
           // PHP API format: {participant_id: status, ...}
           this.attendanceData = attendanceResponse;
-        } else {
-          // Empty or unknown format
-          this.attendanceData = {};
         }
-      } else {
-        this.attendanceData = {};
       }
+      debugLog("Final attendanceData:", this.attendanceData);
 
       // Handle both array response and object response with guests property
       this.guests = Array.isArray(guestsResponse) ? guestsResponse : (guestsResponse?.guests || []);
