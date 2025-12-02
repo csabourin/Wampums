@@ -430,7 +430,7 @@ export class ManagePoints {
         this.pendingUpdates.push(...updates);
 
         // Show an error message to the user
-        alert(`An error occurred while updating points: ${error.message}`);
+        alert(`${translate("error_updating_points")}: ${error.message}`);
       }
     } else {
       // Save updates for later sync

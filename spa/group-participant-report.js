@@ -41,7 +41,7 @@ export class PrintableGroupParticipantReport {
 		render() {
 				const content = `
 						<div class="report-container">
-								<h1>${translate("Liste des tannières")}</h1>
+								<h1>${translate("den_list_report")}</h1>
 								<div id="report-content">
 										${this.renderTable()}
 								</div>

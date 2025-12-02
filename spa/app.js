@@ -260,9 +260,9 @@ export const app = {
                         // Create a simple message to inform the user even if initialization fails
                         document.getElementById("app").innerHTML = `
                                 <div class="error-container">
-                                        <h1>Application Error</h1>
-                                        <p>There was a problem loading the application. Please try reloading the page.</p>
-                                        <button onclick="window.location.reload()">Reload</button>
+                                        <h1>${this.translate('application_error')}</h1>
+                                        <p>${this.translate('error_loading_application')}</p>
+                                        <button onclick="window.location.reload()">${this.translate('reload')}</button>
                                 </div>
                         `;
                 }
@@ -591,7 +591,7 @@ export const app = {
 
 navigator.serviceWorker.addEventListener('message', function (event) {
         if (event.data && event.data.type === 'PUSH_ALERT') {
-                const title = event.data.title || 'New Notification';
+                const title = event.data.title || translate('new_notification');
                 const body = event.data.body || '';
                 alert(`${title}\n\n${body}`);
         }

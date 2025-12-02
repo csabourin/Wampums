@@ -17,13 +17,13 @@ export class ActivityManager {
          */
         initializePlaceholderActivities() {
                 const placeholders = [
-                        { position: 0, time: "18:45", duration: "00:10", activity: "Accueil des louveteaux", type: "Préparation" },
-                        { position: 1, time: "18:55", duration: "00:30", activity: "Grand Jeu", type: "Jeu" },
-                        { position: 2, time: "19:25", duration: "00:05", activity: "Trêve de l'eau", type: "Pause" },
-                        { position: 3, time: "19:30", duration: "00:20", activity: "Technique", type: "Technique" },
-                        { position: 4, time: "19:50", duration: "00:20", activity: "Discussion", type: "Discussion" },
-                        { position: 5, time: "20:10", duration: "00:30", activity: "Jeu court", type: "Jeu" },
-                        { position: 6, time: "20:40", duration: "00:05", activity: "Prière et départ", type: "Conclusion" }
+                        { position: 0, time: "18:45", duration: "00:10", activity: translate("activity_welcome_cubs"), type: translate("activity_type_preparation") },
+                        { position: 1, time: "18:55", duration: "00:30", activity: translate("activity_big_game"), type: translate("activity_type_game") },
+                        { position: 2, time: "19:25", duration: "00:05", activity: translate("activity_water_break"), type: translate("activity_type_pause") },
+                        { position: 3, time: "19:30", duration: "00:20", activity: translate("activity_technique"), type: translate("activity_technique") },
+                        { position: 4, time: "19:50", duration: "00:20", activity: translate("activity_discussion"), type: translate("activity_discussion") },
+                        { position: 5, time: "20:10", duration: "00:30", activity: translate("activity_short_game"), type: translate("activity_type_game") },
+                        { position: 6, time: "20:40", duration: "00:05", activity: translate("activity_prayer_departure"), type: translate("activity_type_conclusion") }
                 ];
 
                 return placeholders.map((ph, index) => {

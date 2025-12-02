@@ -128,7 +128,7 @@ export class Calendars {
 		printWindow.document.write(`
 			<html>
 				<head>
-					<title>Vente de calendriers</title>
+					<title>${translate("calendar_sales_title")}</title>
 					<style>
 						@page {
 							size: letter;
@@ -178,14 +178,14 @@ export class Calendars {
 					</style>
 				</head>
 				<body>
-					<h1>Vente de calendriers</h1>
+					<h1>${translate("calendar_sales_title")}</h1>
 					<table class="print-table">
 						<thead>
 							<tr>
-								<th>Nom</th>
-								<th>Quantité</th>
-								<th>Montant payé</th>
-								<th>Payé</th>
+								<th>${translate("name_column")}</th>
+								<th>${translate("quantity_column")}</th>
+								<th>${translate("amount_paid_column")}</th>
+								<th>${translate("paid_column")}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -198,7 +198,7 @@ export class Calendars {
 								</tr>
 							`).join('')}
 							<tr class="total-row">
-								<td>Total</td>
+								<td>${translate("total")}</td>
 								<td>${totalAmount.toFixed(2)}</td>
 								<td>${totalAmountPaid.toFixed(2)}</td>
 								<td></td>

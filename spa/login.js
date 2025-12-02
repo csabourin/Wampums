@@ -105,7 +105,7 @@ async attachLoginFormListener() {
       }
     } catch (error) {
       console.error("Login error:", error);
-      alert(`Error logging in: ${error.message}`);
+      alert(`${translate("error_logging_in")}: ${error.message}`);
     }
   });
   console.log("Login form listener attached");
@@ -138,13 +138,13 @@ handleLoginSuccess(result) {
   // Validate required fields
   if (!token) {
     console.error("ERROR: No JWT token received in login response");
-    alert("Login error: No authentication token received");
+    alert(translate("login_error_no_token"));
     return;
   }
-  
+
   if (!userId) {
     console.error("ERROR: No user ID received in login response");
-    alert("Login error: No user ID received");
+    alert(translate("login_error_no_user_id"));
     return;
   }
 
