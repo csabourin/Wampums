@@ -17,7 +17,7 @@ if ("serviceWorker" in navigator) {
                 .register("/service-worker.js")
                 .then(function (registration) { })
                 .catch(function (error) {
-                        console.error("Service Worker registration failed:", error);
+                        debugError("Service Worker registration failed:", error);
                 });
 }
 
@@ -41,7 +41,7 @@ async function registerPushSubscription() {
         if ('serviceWorker' in navigator && 'PushManager' in window) {
                 try {
                         const registration = await navigator.serviceWorker.ready;
-                        const applicationServerKey = urlBase64ToUint8Array('BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE');
+                        const applicationServerKey = urlBase64ToUint8Array(CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY);
 
                         const subscription = await registration.pushManager.subscribe({
                                 userVisibleOnly: true,
@@ -49,8 +49,8 @@ async function registerPushSubscription() {
                         });
 
                         // Log the full subscription object to see what it contains
-                        console.log('Subscription object:', subscription);
-                        console.log('Subscription JSON:', subscription.toJSON());
+                        debugLog('Subscription object:', subscription);
+                        debugLog('Subscription JSON:', subscription.toJSON());
 
                         const subscriptionData = subscription.toJSON();
 
@@ -58,7 +58,7 @@ async function registerPushSubscription() {
                         await sendSubscriptionToServer(subscriptionData);
 
                 } catch (error) {
-                        console.error('Error during push subscription:', error);
+                        debugError('Error during push subscription:', error);
                 }
         }
 }
@@ -69,7 +69,7 @@ async function sendSubscriptionToServer(subscription) {
         const auth = subscription.keys?.auth || null;
 
         if (!p256dh || !auth) {
-                console.error('Missing p256dh or auth keys in subscription:', subscription);
+                debugError('Missing p256dh or auth keys in subscription:', subscription);
                 return;
         }
 
@@ -82,14 +82,14 @@ async function sendSubscriptionToServer(subscription) {
                 }
         };
 
-        console.log('Sending payload to server:', payload);
+        debugLog('Sending payload to server:', payload);
 
         try {
                 // Retrieve the JWT token from storage
                 const token = getStorage('jwtToken'); // Ensure the token is stored correctly after login
 
                 if (!token) {
-                        console.error('No token found in localStorage.');
+                        debugError('No token found in localStorage.');
                         throw new Error('No token available');
                 }
 
@@ -106,9 +106,9 @@ async function sendSubscriptionToServer(subscription) {
                         throw new Error('Failed to save subscription on server');
                 }
 
-                console.log('Subscription saved on server');
+                debugLog('Subscription saved on server');
         } catch (error) {
-                console.error('Error saving subscription on server:', error);
+                debugError('Error saving subscription on server:', error);
         }
 }
 
@@ -143,7 +143,7 @@ export const app = {
         },
 
         async init() {
-                console.log("App init started");
+                debugLog("App init started");
                 this.createMessageBanner();
 
                 try {
@@ -159,18 +159,18 @@ export const app = {
                                         const parsed = JSON.parse(storedOrgId);
                                         storedOrgId = parsed.organizationId || parsed.id;
                                 } catch (e) {
-                                        console.warn('Failed to parse stored organization ID:', e);
+                                        debugLog('Failed to parse stored organization ID:', e);
                                         storedOrgId = null;
                                 }
                         }
 
                         if (storedOrgId && storedOrgId !== '[object Object]') {
                                 this.organizationId = storedOrgId;
-                                console.log("Using stored organization ID:", storedOrgId);
+                                debugLog("Using stored organization ID:", storedOrgId);
                         } else {
                                 // Fetch organization ID if not in localStorage
                                 try {
-                                        console.log("Fetching organization ID...");
+                                        debugLog("Fetching organization ID...");
                                         const orgData = await fetchOrganizationId();
 
                                         // Handle the response properly - extract the actual ID value
@@ -191,16 +191,16 @@ export const app = {
                                                 organizationId: orgId
                                         });
 
-                                        console.log("Organization ID fetched and stored:", orgId);
+                                        debugLog("Organization ID fetched and stored:", orgId);
                                 } catch (error) {
-                                        console.error("Error fetching organization ID:", error);
+                                        debugError("Error fetching organization ID:", error);
                                         // Set a default organization ID to prevent blocking the app
                                         this.organizationId = 1;
                                         setStorageMultiple({
                                                 currentOrganizationId: this.organizationId,
                                                 organizationId: this.organizationId
                                         });
-                                        console.log("Using default organization ID: 1");
+                                        debugLog("Using default organization ID: 1");
                                 }
                         }
 
@@ -209,28 +209,28 @@ export const app = {
                         if (!token && this.organizationId) {
                                 // If no token exists but we have organization ID, get an organization JWT
                                 try {
-                                        console.log("No JWT token found, fetching organization JWT...");
+                                        debugLog("No JWT token found, fetching organization JWT...");
                                         const data = await fetchOrganizationJwt(this.organizationId);
                                         if (data.success && data.token) {
                                                 setStorage('jwtToken', data.token);
-                                                console.log("Organization JWT obtained successfully");
+                                                debugLog("Organization JWT obtained successfully");
                                         } else {
-                                                console.warn("Failed to get organization JWT:", data);
+                                                debugLog("Failed to get organization JWT:", data);
                                         }
                                 } catch (error) {
-                                        console.error("Error getting organization JWT:", error);
+                                        debugError("Error getting organization JWT:", error);
                                 }
                         } else {
-                                console.log("JWT token already exists in localStorage");
+                                debugLog("JWT token already exists in localStorage");
                         }
 
                         // Try to fetch organization settings, but don't block the app if it fails
                         try {
-                                console.log("Fetching organization settings...");
+                                debugLog("Fetching organization settings...");
                                 await this.fetchOrganizationSettings();
                         } catch (error) {
-                                console.error("Failed to fetch organization settings:", error.message);
-                                console.log("Using default organization settings");
+                                debugError("Failed to fetch organization settings:", error.message);
+                                debugLog("Using default organization settings");
                                 // Set some default settings so the app doesn't break
                                 this.organizationSettings = {
                                         name: 'Scouts',
@@ -246,7 +246,7 @@ export const app = {
                         this.userRole = session.userRole;
                         this.userFullName = session.userFullName;
 
-                        console.log("Session checked:", {
+                        debugLog("Session checked:", {
                                 isLoggedIn: this.isLoggedIn,
                                 userRole: this.userRole,
                                 userFullName: this.userFullName,
@@ -258,19 +258,19 @@ export const app = {
                         }
 
                         // Initialize router
-                        console.log("Initializing router...");
+                        debugLog("Initializing router...");
                         this.router = initRouter(this);
 
                         // Always route to the current path after initialization
                         const currentPath = window.location.pathname;
-                        console.log(`Routing to current path: ${currentPath}`);
+                        debugLog(`Routing to current path: ${currentPath}`);
                         this.router.route(currentPath);
 
                         this.syncOfflineData();
                         this.initCompleted = true;
-                        console.log("App init completed");
+                        debugLog("App init completed");
                 } catch (error) {
-                        console.error("Initialization error:", error);
+                        debugError("Initialization error:", error);
 
                         // Create a simple message to inform the user even if initialization fails
                         document.getElementById("app").innerHTML = `
@@ -284,9 +284,9 @@ export const app = {
         },
 
         async fetchOrganizationSettings() {
-                console.log("Inside fetchOrganizationSettings, this:", this);
+                debugLog("Inside fetchOrganizationSettings, this:", this);
                 if (this.isOrganizationSettingsFetched) {
-                        console.log("Organization settings already fetched, skipping");
+                        debugLog("Organization settings already fetched, skipping");
                         return;
                 }
                 
@@ -299,38 +299,38 @@ export const app = {
 
         async _doFetchOrganizationSettings() {
                 try {
-                        console.log("Fetching organization settings ...", this.organizationId);
+                        debugLog("Fetching organization settings ...", this.organizationId);
 
                         const response = await getOrganizationSettings(this.organizationId);
                         if (response && response.organization_info || response.data) {
-                                console.log("Got organization settings: ", JSON.stringify(response));
+                                debugLog("Got organization settings: ", JSON.stringify(response));
                                 // The fix is here - use response.data directly as the settings
                                 this.organizationSettings = response.data || response;  // This is correct
                                 this.isOrganizationSettingsFetched = true;
-                                console.log("Organization settings fetched successfully:", this.organizationSettings);
+                                debugLog("Organization settings fetched successfully:", this.organizationSettings);
                         } else {
-                                console.warn("Failed to fetch organization settings:", response?.message || "Unknown error");
+                                debugLog("Failed to fetch organization settings:", response?.message || "Unknown error");
                                 // Set default organization settings
                                 this.organizationSettings = { organization_info: { name: "Scouts" } };
                                 this.isOrganizationSettingsFetched = true;
-                                console.log("Using default organization settings");
+                                debugLog("Using default organization settings");
                         }
                 } catch (error) {
-                        console.error("Error fetching organization settings:", error);
+                        debugError("Error fetching organization settings:", error);
                         // Set default organization settings
                         this.organizationSettings = { organization_info: { name: "Scouts" } };
                         this.isOrganizationSettingsFetched = true;
-                        console.log("Using default organization settings due to error");
+                        debugLog("Using default organization settings due to error");
                 }
         },
 
         async loadTranslations() {
                 if (Object.keys(this.translations).length > 0) {
-                        console.log("Translations already loaded, skipping");
+                        debugLog("Translations already loaded, skipping");
                         return;
                 }
                 try {
-                        console.log("Loading translations...");
+                        debugLog("Loading translations...");
 
                         const [enRes, frRes] = await Promise.all([
                                 fetch('/lang/en.json'), // adapte le chemin selon où sont tes fichiers !
@@ -349,9 +349,9 @@ export const app = {
                                 en: enTranslations,
                                 fr: frTranslations
                         };
-                        console.log("Translations loaded successfully", this.translations);
+                        debugLog("Translations loaded successfully", this.translations);
                 } catch (error) {
-                        console.error("Error loading translations:", error);
+                        debugError("Error loading translations:", error);
                         // Fallback vide
                         this.translations = {
                                 en: {},
@@ -373,7 +373,7 @@ export const app = {
                                 });
                         }
                 } else {
-                        console.error('This browser does not support notifications.');
+                        debugError('This browser does not support notifications.');
                 }
         },
 
@@ -531,7 +531,7 @@ export const app = {
                                                 );
                                         })
                                         .catch((error) => {
-                                                console.error("Service Worker registration failed:", error);
+                                                debugError("Service Worker registration failed:", error);
                                         });
                         });
                 }
@@ -564,14 +564,14 @@ export const app = {
                 if (appContainer) {
                         appContainer.innerHTML = errorContent;
                 } else {
-                        console.error("App container not found");
+                        debugError("App container not found");
                 }
         },
 
         translate(key) {
                 const lang = this.lang || 'fr';
                 if (!this.translations[lang]) {
-                        console.log(`Failed to translating key: ${key} in language: ${lang}`);
+                        debugLog(`Failed to translating key: ${key} in language: ${lang}`);
                         return key; // Return the key if language translations aren't loaded yet
                 }
                 return this.translations[lang][key] || key;
@@ -587,7 +587,7 @@ export const app = {
                                         await clearOfflineData(); // Clear the offline data after sync
                                 }
                         } catch (error) {
-                                console.error("Error syncing offline data:", error);
+                                debugError("Error syncing offline data:", error);
                         }
                 }
         },

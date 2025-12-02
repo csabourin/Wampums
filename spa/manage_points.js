@@ -8,6 +8,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import {
+import { debugLog, debugError } from "./utils/DebugUtils.js";
   saveOfflineData,
   getOfflineData,
   clearOfflineData,
@@ -37,7 +38,7 @@ export class ManagePoints {
         await this.refreshPointsData();
       }
     } catch (error) {
-      console.error("Error initializing manage points:", error);
+      debugError("Error initializing manage points:", error);
       this.renderError();
     }
   }
@@ -62,7 +63,7 @@ export class ManagePoints {
         await this.fetchData();
       }
     } catch (error) {
-      console.error("Error preloading manage points data:", error);
+      debugError("Error preloading manage points data:", error);
       // Initialize with empty arrays/objects if there's an error
       this.participants = [];
       this.groups = [];
@@ -93,7 +94,7 @@ export class ManagePoints {
         // Backward compatibility
         this.groups = groupsResponse.groups;
       } else {
-        console.error("Unexpected groups data structure:", groupsResponse);
+        debugError("Unexpected groups data structure:", groupsResponse);
         this.groups = []; // Ensure groups is at least an empty array
       }
 
@@ -104,7 +105,7 @@ export class ManagePoints {
         // Backward compatibility
         this.participants = participantsResponse.participants;
       } else {
-        console.error("Unexpected participants data structure:", participantsResponse);
+        debugError("Unexpected participants data structure:", participantsResponse);
         this.participants = []; // Ensure participants is at least an empty array
       }
 
@@ -128,10 +129,10 @@ export class ManagePoints {
         groups: this.groups,
         groupedParticipants: this.groupedParticipants,
         unassignedParticipants: this.unassignedParticipants
-      }, 5 * 60 * 1000); // Cache for 5 minutes (was 24 hours - too long for points data)
+      }, CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minutes (was 24 hours - too long for points data)
 
     } catch (error) {
-      console.error("Error fetching manage points data:", error);
+      debugError("Error fetching manage points data:", error);
       throw error;
     }
   }
@@ -359,7 +360,7 @@ export class ManagePoints {
       // Note: sendBatchUpdate already updates the UI with server response via 
       // updateGroupPoints/updateIndividualPoints, so no need to re-fetch and overwrite
     } catch (error) {
-      console.error("Error updating points:", error);
+      debugError("Error updating points:", error);
       this.app.showMessage(translate("error_updating_points"), "error");
     }
   }
@@ -393,7 +394,7 @@ export class ManagePoints {
           throw new Error(data.message || "Unknown error occurred");
         }
 
-        console.log("Batch update successful:", data);
+        debugLog("Batch update successful:", data);
 
         // Apply server updates
         // Support both new format (data.data.updates) and old format (data.updates)
@@ -412,7 +413,7 @@ export class ManagePoints {
             }
           });
         } else {
-          console.warn("Unexpected response format:", data);
+          debugLog("Unexpected response format:", data);
         }
 
         // Clear all points-related caches so dashboard and other pages get fresh data
@@ -421,7 +422,7 @@ export class ManagePoints {
         // Update the local cache with the latest data
         await this.updateCache();
       } catch (error) {
-        console.error("Error in batch update:", error);
+        debugError("Error in batch update:", error);
         // If there's an error, add the updates back to the pending list
         this.pendingUpdates.push(...updates);
 
@@ -436,7 +437,7 @@ export class ManagePoints {
 
 
   updateGroupPoints(groupId, totalPoints, memberIds, memberTotals) {
-    console.log(`[updateGroupPoints] Updating group ${groupId} to ${totalPoints} points, members:`, memberIds, 'memberTotals:', memberTotals);
+    debugLog(`[updateGroupPoints] Updating group ${groupId} to ${totalPoints} points, members:`, memberIds, 'memberTotals:', memberTotals);
     const groupElement = document.querySelector(
       `.group-header[data-group-id="${groupId}"]`
     );
@@ -462,7 +463,7 @@ export class ManagePoints {
         group.total_points = totalPoints;
       }
     } else {
-      console.warn(`[updateGroupPoints] Could not find element for group ${groupId}`);
+      debugLog(`[updateGroupPoints] Could not find element for group ${groupId}`);
     }
     
     // Update each member's individual points from the memberTotals array
@@ -474,7 +475,7 @@ export class ManagePoints {
   }
 
   updateIndividualPoints(participantId, totalPoints) {
-    console.log(`[updateIndividualPoints] Updating participant ${participantId} to ${totalPoints} points`);
+    debugLog(`[updateIndividualPoints] Updating participant ${participantId} to ${totalPoints} points`);
     const nameElement = document.querySelector(
       `.list-item[data-participant-id="${participantId}"]`
     );
@@ -486,7 +487,7 @@ export class ManagePoints {
       nameElement.dataset.points = totalPoints;
       this.addHighlightEffect(nameElement);
     } else {
-      console.warn(`[updateIndividualPoints] Could not find element for participant ${participantId}`);
+      debugLog(`[updateIndividualPoints] Could not find element for participant ${participantId}`);
     }
     
     // Update the participant's total_points in our internal data
@@ -559,10 +560,10 @@ export class ManagePoints {
         groups: this.groups,
         groupedParticipants: this.groupedParticipants,
         unassignedParticipants: this.unassignedParticipants
-      }, 5 * 60 * 1000); // Cache for 5 minutes
-      console.log("Cache updated with new points data.");
+      }, CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minutes
+      debugLog("Cache updated with new points data.");
     } catch (error) {
-      console.error("Error updating cache:", error);
+      debugError("Error updating cache:", error);
     }
   }
 
@@ -592,7 +593,7 @@ export class ManagePoints {
   }
 
   sortItems(key) {
-    console.log(`Sorting by ${key}`);
+    debugLog(`Sorting by ${key}`);
     if (key === "group") {
       this.sortByGroup(); // Reuse the method to sort by group
     } else {
@@ -628,7 +629,7 @@ export class ManagePoints {
         this.currentSort.order = "asc";
       }
 
-      console.log(`Sorted by ${key}, order: ${this.currentSort.order}`);
+      debugLog(`Sorted by ${key}, order: ${this.currentSort.order}`);
     }
   }
 
@@ -683,13 +684,13 @@ export class ManagePoints {
       // Try to get cached data first
       const cachedData = await getCachedData(cacheKey);
       if (cachedData) {
-        console.log("Using cached points data");
+        debugLog("Using cached points data");
         this.updatePointsDisplay(cachedData);
         return cachedData;
       }
 
       // If no cached data, fetch from server
-      console.log("Fetching fresh points data");
+      debugLog("Fetching fresh points data");
       const response = await this.fetchWithCacheBusting("/api/points-data");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -702,12 +703,12 @@ export class ManagePoints {
       this.updatePointsDisplay(data);
       return data;
     } catch (error) {
-      console.error("Error fetching points data:", error);
+      debugError("Error fetching points data:", error);
       // If offline, try to use any available cached data, even if expired
       if (!navigator.onLine) {
         const cachedData = await getCachedData(cacheKey);
         if (cachedData) {
-          console.log("Using expired cached data due to offline status");
+          debugLog("Using expired cached data due to offline status");
           this.updatePointsDisplay(cachedData);
           return cachedData;
         }
@@ -764,7 +765,7 @@ export class ManagePoints {
   }
 
   async updatePointsDisplay(data) {
-    console.log("Updating points display with data:", data);
+    debugLog("Updating points display with data:", data);
 
     // Update points for all participants
     this.participants.forEach(participant => {
