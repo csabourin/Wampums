@@ -89,6 +89,9 @@ export class ManagePoints {
         getParticipants(),
         getGroups(),
       ]);
+      
+      console.log('[DEBUG fetchData] participantsResponse:', JSON.stringify(participantsResponse).substring(0, 500));
+      console.log('[DEBUG fetchData] groupsResponse:', JSON.stringify(groupsResponse).substring(0, 500));
 
       // Handle groups first
       if (groupsResponse.success && Array.isArray(groupsResponse.data)) {
@@ -110,6 +113,16 @@ export class ManagePoints {
       } else {
         debugError("Unexpected participants data structure:", participantsResponse);
         this.participants = []; // Ensure participants is at least an empty array
+      }
+      
+      // Debug: check if total_points exists
+      if (this.participants.length > 0) {
+        console.log('[DEBUG fetchData] First participant:', JSON.stringify(this.participants[0]));
+        console.log('[DEBUG fetchData] First participant total_points:', this.participants[0].total_points);
+      }
+      if (this.groups.length > 0) {
+        console.log('[DEBUG fetchData] First group:', JSON.stringify(this.groups[0]));
+        console.log('[DEBUG fetchData] First group total_points:', this.groups[0].total_points);
       }
 
       // Only organize participants after both are loaded
