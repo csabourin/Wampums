@@ -76,9 +76,9 @@ export class Attendance {
   async fetchAttendanceDates() {
     try {
       const response = await getAttendanceDates(); // Call the API
-      if (response.success && response.dates) {
+      if (response.success && response.data) {
         // Filter out null, undefined, and invalid dates
-        this.availableDates = response.dates.filter(date => {
+        this.availableDates = response.data.filter(date => {
           return isValidDate(date);
         });
       } else {

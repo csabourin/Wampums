@@ -1594,11 +1594,9 @@ app.get('/api/attendance-dates', async (req, res) => {
       `SELECT DISTINCT date::text as date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
       [organizationId]
     );
-    
-    res.json({
-      success: true,
-      dates: result.rows.map(row => row.date)
-    });
+
+    const dates = result.rows.map(row => row.date);
+    return success(res, dates);
   } catch (error) {
     logger.error('Error fetching attendance dates:', error);
     res.status(500).json({ success: false, message: error.message });
