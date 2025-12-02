@@ -123,6 +123,10 @@ module.exports = (pool) => {
     const { participant_id, date, status, previous_status } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
+    console.log('[attendance POST] Request body:', JSON.stringify(req.body));
+    console.log('[attendance POST] participant_id:', participant_id, 'type:', typeof participant_id);
+    console.log('[attendance POST] date:', date, 'status:', status, 'organizationId:', organizationId);
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
