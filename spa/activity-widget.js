@@ -53,6 +53,11 @@ export class ActivityWidget {
 
 			if (data.success && data.preparation && data.preparation.activities && data.preparation.date) {
 				this.currentActivities = data.preparation.activities;
+				console.log("=== DATE PARSING DEBUG ===");
+				console.log("Raw date value:", data.preparation.date);
+				console.log("Date type:", typeof data.preparation.date);
+				console.log("Date stringified:", JSON.stringify(data.preparation.date));
+				console.log("Concatenated:", data.preparation.date + "T00:00:00");
 				this.preparationDate = new Date(data.preparation.date + 'T00:00:00');
 				console.log('Current activities set:', this.currentActivities);
 				console.log('Preparation date:', this.preparationDate);
@@ -166,9 +171,16 @@ export class ActivityWidget {
 
 	isPreparationToday() {
 		const today = new Date();
-		return this.preparationDate.getDate() === today.getDate() &&
+		console.log('=== IS PREPARATION TODAY CHECK ===');
+		console.log('Today:', today);
+		console.log('Today date parts:', today.getDate(), today.getMonth(), today.getFullYear());
+		console.log('Preparation date:', this.preparationDate);
+		console.log('Preparation date parts:', this.preparationDate.getDate(), this.preparationDate.getMonth(), this.preparationDate.getFullYear());
+		const isToday = this.preparationDate.getDate() === today.getDate() &&
 					 this.preparationDate.getMonth() === today.getMonth() &&
 					 this.preparationDate.getFullYear() === today.getFullYear();
+		console.log('Is today?', isToday);
+		return isToday;
 	}
 
 	combineDateTime(date, timeString) {
