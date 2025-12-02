@@ -145,11 +145,15 @@ module.exports = (pool) => {
       if (previous_status && previous_status !== status) {
         // Get point values from organization settings or use defaults
         const pointSystemRules = await getPointSystemRules(client, organizationId);
-        const pointValues = pointSystemRules.attendance || { present: 1, late: 0.5, absent: 0, excused: 0 };
+        const defaultPoints = { present: 1, late: 0, absent: 0, excused: 0 };
+        const pointValues = pointSystemRules.attendance || defaultPoints;
 
-        const adjustment = (pointValues[status] || 0) - (pointValues[previous_status] || 0);
+        // Ensure we have valid numbers, falling back to defaults
+        const newPoints = typeof pointValues[status] === 'number' ? pointValues[status] : (defaultPoints[status] || 0);
+        const oldPoints = typeof pointValues[previous_status] === 'number' ? pointValues[previous_status] : (defaultPoints[previous_status] || 0);
+        const adjustment = Math.round(newPoints - oldPoints); // Round to ensure integer
 
-        if (adjustment !== 0) {
+        if (adjustment !== 0 && !isNaN(adjustment)) {
           await client.query(
             `INSERT INTO points (participant_id, value, created_at, organization_id)
              VALUES ($1, $2, NOW(), $3)`,
