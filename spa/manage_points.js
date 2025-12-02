@@ -56,7 +56,9 @@ export class ManagePoints {
         // Get fresh points data
         const freshData = await getParticipants();
         if (freshData.success) {
-          this.participants = freshData.participants;
+          // Support both new format (data) and old format (participants)
+          this.participants = freshData.data || freshData.participants || [];
+          debugLog("Fresh participants loaded:", this.participants.length, "records");
           // Reorganize with fresh data
           this.organizeParticipants();
         }

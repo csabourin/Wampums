@@ -53,6 +53,7 @@ const routes = {
   "/formulaire-inscription/:id": "formulaireInscription",
   "/attendance": "attendance",
   "/managePoints": "managePoints",
+  "/manage-points": "managePoints",
   "/manageHonors": "manageHonors",
   "/manage-participants": "manageParticipants",
   "/manage-groups": "manageGroups",
