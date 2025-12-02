@@ -198,9 +198,10 @@ export async function updateUserRole(userId, role) {
 
 /**
  * Get all participants
+ * Uses RESTful v1 endpoint
  */
 export async function getParticipants() {
-    return API.get('participants', {}, {
+    return API.get('v1/participants', {}, {
         cacheKey: 'participants',
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
     });
@@ -822,11 +823,12 @@ export async function getAvailableDates() {
 
 /**
  * Get attendance for a date
+ * Uses RESTful v1 endpoint
  */
 export async function getAttendance(date = null) {
     const params = date ? { date } : {};
     const cacheKey = date ? `attendance_api_${date}` : 'attendance_api';
-    return API.get('attendance', params, {
+    return API.get('v1/attendance', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -834,9 +836,10 @@ export async function getAttendance(date = null) {
 
 /**
  * Update attendance for participant
+ * Uses RESTful v1 endpoint
  */
 export async function updateAttendance(participantId, status, date, previousStatus = null) {
-    return API.post('update-attendance', {
+    return API.post('v1/attendance', {
         participant_id: participantId,
         status,
         date,
@@ -846,9 +849,10 @@ export async function updateAttendance(participantId, status, date, previousStat
 
 /**
  * Get attendance dates
+ * Uses RESTful v1 endpoint
  */
 export async function getAttendanceDates() {
-    return API.get('attendance-dates', {}, {
+    return API.get('v1/attendance/dates', {}, {
         cacheKey: 'attendance_dates',
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });

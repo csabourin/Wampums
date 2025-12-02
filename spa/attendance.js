@@ -10,6 +10,7 @@ import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
 import { getTodayISO, formatDate, isValidDate } from "./utils/DateUtils.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 
 
@@ -180,8 +181,6 @@ export class Attendance {
         });
       });
 
-      // Sort groups alphabetically by group name
-      // this.groups = Object.values(this.groups).sort((a, b) => a.name.localeCompare(b.name));
       // Sort groups alphabetically by group name, put participants without a group last
       this.groups = Object.entries(this.groups).map(([id, group]) => ({ id, ...group })).sort((a, b) => {
         if (!a.name) return 1; // Move groups without a name to the end
@@ -361,8 +360,8 @@ export class Attendance {
   renderGuests() {
     return this.guests.map(guest => `
       <div class="guest-row">
-        <span class="guest-name">${guest.name}</span>
-        <span class="guest-email">${guest.email || translate("no_email")}</span>
+        <span class="guest-name">${escapeHTML(guest.name)}</span>
+        <span class="guest-email">${escapeHTML(guest.email || translate("no_email"))}</span>
         <span class="guest-date">${formatDate(guest.attendance_date, this.app.lang)}</span>
       </div>
     `).join("");

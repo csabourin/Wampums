@@ -86,6 +86,7 @@ export const CONFIG = {
     /**
      * API Endpoints
      * Centralized endpoint paths
+     * All RESTful endpoints use /api/v1/ prefix
      */
     ENDPOINTS: {
         // Auth
@@ -99,18 +100,15 @@ export const CONFIG = {
         ORGANIZATION_ID: '/public/get_organization_id',
         ORGANIZATION_JWT: '/api/organization-jwt',
 
-        // Participants
-        PARTICIPANTS: '/api/participants',
-        PARTICIPANTS_V1: '/api/v1/participants',
+        // Participants (v1 RESTful)
+        PARTICIPANTS: '/api/v1/participants',
         PARTICIPANT_DETAILS: '/api/participant-details',
 
-        // Groups
-        GROUPS: '/api/get_groups',
-        GROUPS_V1: '/api/v1/groups',
+        // Groups (v1 RESTful)
+        GROUPS: '/api/v1/groups',
 
-        // Attendance
-        ATTENDANCE: '/api/attendance',
-        ATTENDANCE_V1: '/api/v1/attendance',
+        // Attendance (v1 RESTful)
+        ATTENDANCE: '/api/v1/attendance',
         ATTENDANCE_DATES: '/api/attendance-dates',
 
         // Points & Honors

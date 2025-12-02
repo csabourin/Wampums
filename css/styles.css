@@ -64,8 +64,6 @@ html {
   height: 100%;
 }
 body {
-  /* background-color: var(--secondary-color);
-  */
   background-image: url("/images/Loups_6eA.png");
   background-repeat: no-repeat;
   background-size: contain;

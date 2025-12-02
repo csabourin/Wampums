@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { getPointSystemRules } = require('../utils');
 
 module.exports = (pool) => {
   /**
@@ -138,7 +139,10 @@ module.exports = (pool) => {
 
       // Calculate point adjustment if status changed
       if (previous_status && previous_status !== status) {
-        const pointValues = { present: 1, late: 0.5, absent: 0, excused: 0 };
+        // Get point values from organization settings or use defaults
+        const pointSystemRules = await getPointSystemRules(client, organizationId);
+        const pointValues = pointSystemRules.attendance || { present: 1, late: 0.5, absent: 0, excused: 0 };
+
         const adjustment = (pointValues[status] || 0) - (pointValues[previous_status] || 0);
 
         if (adjustment !== 0) {
