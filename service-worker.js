@@ -322,7 +322,9 @@ async function fetchAndCacheInIndexedDB(request) {
 
       // Save the response data in IndexedDB for offline access
       await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
-      return new Response(JSON.stringify(data)); // Return the response
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      }); // Return the response
     }
   } catch (error) {
     console.error("Network request failed, attempting to serve from cache:", error);
