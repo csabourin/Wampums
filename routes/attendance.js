@@ -46,7 +46,7 @@ module.exports = (pool) => {
     const params = [organizationId];
 
     if (date) {
-      query += ` AND a.date = $${params.length + 1}`;
+      query += ` AND a.date::date = $${params.length + 1}::date`;
       params.push(date);
     }
 
