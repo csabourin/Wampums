@@ -6,6 +6,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { clearGroupRelatedCaches } from "./indexedDB.js";
+import { debugLog, debugError } from "./utils/DebugUtils.js";
 
 export class ManageGroups {
   constructor(app) {
@@ -19,7 +20,7 @@ export class ManageGroups {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing manage groups:", error);
+      debugError("Error initializing manage groups:", error);
       this.renderError();
     }
   }
@@ -110,7 +111,7 @@ export class ManageGroups {
           this.showMessage(result.message || translate("error_adding_group"));
         }
       } catch (error) {
-        console.error("Error:", error);
+        debugError("Error:", error);
         this.showMessage(translate("error_adding_group"));
       }
     }
@@ -130,7 +131,7 @@ export class ManageGroups {
         this.showMessage(result.message || translate("error_updating_group_name"));
       }
     } catch (error) {
-      console.error("Error:", error);
+      debugError("Error:", error);
       this.showMessage(translate("error_updating_group_name"));
     }
   }
@@ -151,7 +152,7 @@ export class ManageGroups {
           this.showMessage(result.message || translate("error_removing_group"));
         }
       } catch (error) {
-        console.error("Error:", error);
+        debugError("Error:", error);
         this.showMessage(translate("error_removing_group"));
       }
     }

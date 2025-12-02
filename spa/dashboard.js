@@ -5,6 +5,7 @@ import { getCachedData, setCachedData } from "./indexedDB.js";
 import { ManagePoints } from "./manage_points.js";
 import { ParentDashboard } from "./parent_dashboard.js";
 import { Login } from "./login.js";
+import { debugLog, debugError } from "./utils/DebugUtils.js";
 
 export class Dashboard {
   constructor(app) {
@@ -23,7 +24,7 @@ export class Dashboard {
       this.attachEventListeners();
       this.preloadAttendanceData();
     } catch (error) {
-      console.error("Error initializing dashboard:", error);
+      debugError("Error initializing dashboard:", error);
       this.renderError();
     }
   }
@@ -32,7 +33,7 @@ export class Dashboard {
     try {
       // Use app's waitForOrganizationSettings to avoid race condition
       const settings = await this.app.waitForOrganizationSettings();
-      console.log("Organization settings from app:", settings);
+      debugLog("Organization settings from app:", settings);
 
       // Handle different response structures
       const organizationInfo = settings?.organization_info;
@@ -42,11 +43,11 @@ export class Dashboard {
         this.organizationName = organizationInfo.name;
         this.organizationLogo = organizationInfo.logo;
       } else {
-        console.error("Invalid organization info:", settings);
+        debugError("Invalid organization info:", settings);
         this.organizationName = "Scouts";
       }
     } catch (error) {
-      console.error("Error fetching organization info:", error);
+      debugError("Error fetching organization info:", error);
       this.organizationName = "Scouts";
     }
   }
@@ -119,7 +120,7 @@ export class Dashboard {
           is_leader: p.is_leader,
           is_second_leader: p.is_second_leader
         }));
-        await setCachedData('dashboard_participant_info', participantsToCache, 5 * 60 * 1000);
+        await setCachedData('dashboard_participant_info', participantsToCache, CONFIG.CACHE_DURATION.SHORT);
       }
 
       if (needsFreshGroups) {
@@ -128,7 +129,7 @@ export class Dashboard {
 
       this.render();
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      debugError('Error loading dashboard data:', error);
       this.render();
     }
   }
@@ -162,7 +163,7 @@ export class Dashboard {
         }
       }
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+      debugError("Error fetching dashboard data:", error);
       throw error;
     }
   }
@@ -177,9 +178,9 @@ export class Dashboard {
         try {
           const attendanceData = await getAttendance(date);
           await setCachedData(`attendance_${date}`, attendanceData, 24 * 60 * 60 * 1000); // Cache for 24 hours
-          console.log(`Preloaded attendance data for ${date}`);
+          debugLog(`Preloaded attendance data for ${date}`);
         } catch (error) {
-          console.error(`Error preloading attendance data for ${date}:`, error);
+          debugError(`Error preloading attendance data for ${date}:`, error);
         }
       }
     }

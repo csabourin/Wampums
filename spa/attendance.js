@@ -9,6 +9,8 @@ import {
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
 import { getTodayISO, formatDate, isValidDate } from "./utils/DateUtils.js";
+import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { CONFIG } from "./config.js";
 
 
 export class Attendance {
@@ -47,7 +49,7 @@ export class Attendance {
         this.attachEventListeners();
       }
     } catch (error) {
-      console.error("Error initializing attendance:", error);
+      debugError("Error initializing attendance:", error);
       this.isLoading = false;
       this.renderError();
     }
@@ -65,7 +67,7 @@ export class Attendance {
       }
       await this.fetchData();
     } catch (error) {
-      console.error("Error preloading attendance data:", error);
+      debugError("Error preloading attendance data:", error);
       throw error;
     }
   }
@@ -89,7 +91,7 @@ export class Attendance {
       }
       this.currentDate = this.availableDates[0];
     } catch (error) {
-      console.error("Error fetching attendance dates:", error);
+      debugError("Error fetching attendance dates:", error);
       throw error;
     }
   }
@@ -103,7 +105,7 @@ export class Attendance {
         this.attendanceData = cachedData.attendanceData;
         this.guests = cachedData.guests;
         this.groups = cachedData.groups;
-        console.log("Loaded data from cache");
+        debugLog("Loaded data from cache");
         return; // No need to proceed if cached data is found
       }
 
@@ -193,9 +195,9 @@ export class Attendance {
         attendanceData: this.attendanceData,
         guests: this.guests,
         groups: this.groups
-      },  5 * 60 * 1000); // Cache for 5 minute
+      },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
     } catch (error) {
-      console.error("Error fetching attendance data:", error);
+      debugError("Error fetching attendance data:", error);
       throw error;
     }
   }
@@ -380,7 +382,7 @@ export class Attendance {
       attendanceList.addEventListener("click", (e) => {
         const groupHeader = e.target.closest('.group-header');
         const participantRow = e.target.closest('.participant-row');
-console.log(groupHeader, participantRow);
+debugLog(groupHeader, participantRow);
         if (groupHeader) {
           this.toggleGroupSelection(groupHeader);
         } else if (participantRow) {
@@ -426,13 +428,13 @@ console.log(groupHeader, participantRow);
           attendanceData: this.attendanceData,
           guests: this.guests,
           groups: this.groups
-        },  5 * 60 * 1000); // Cache for 5 minute
+        },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
       } else {
         throw new Error(result.message || "Unknown error occurred");
       }
 
     } catch (error) {
-      console.error("Error:", error);
+      debugError("Error:", error);
       this.app.showMessage(`${translate("error_updating_attendance")}: ${error.message}`, "error");
     }
   }
@@ -528,7 +530,7 @@ console.log(groupHeader, participantRow);
           attendanceData: this.attendanceData,
           guests: this.guests,
           groups: this.groups
-        },  5 * 60 * 1000); // Cache for 5 minute
+        },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
       } else {
         // Failure: Rollback the UI change
         this.attendanceData[participantId] = previousStatus;
@@ -537,7 +539,7 @@ console.log(groupHeader, participantRow);
       }
     } catch (error) {
       // Error: Rollback the UI change
-      console.error("Error updating attendance:", error);
+      debugError("Error updating attendance:", error);
       this.attendanceData[participantId] = previousStatus;
       this.updateAttendanceDisplay(participantId, previousStatus, newStatus);
       this.app.showMessage(translate("error_updating_attendance"), "error");
@@ -573,7 +575,7 @@ console.log(groupHeader, participantRow);
           attendanceData: this.attendanceData,
           guests: this.guests,
           groups: this.groups
-        },  5 * 60 * 1000); // Cache for 5 minute
+        },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
       } else {
         // Rollback if server fails
         participantIds.forEach(id => {
@@ -584,7 +586,7 @@ console.log(groupHeader, participantRow);
       }
     } catch (error) {
       // Rollback on error
-      console.error("Error updating group attendance:", error);
+      debugError("Error updating group attendance:", error);
       participantIds.forEach(id => {
         this.attendanceData[id] = previousStatuses[id];
         this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
@@ -608,7 +610,7 @@ console.log(groupHeader, participantRow);
 
   async changeDate(newDate) {
     this.currentDate = newDate;
-    console.log(`Changing date to ${this.currentDate}`);
+    debugLog(`Changing date to ${this.currentDate}`);
     // Fetch fresh data for the new date
     await this.fetchData();
     // Re-render the entire view with new data
@@ -623,7 +625,7 @@ console.log(groupHeader, participantRow);
       this.guests = await this.getGuestsByDate(date);
       this.updateAttendanceUIForDate();
     } catch (error) {
-      console.error("Error:", error);
+      debugError("Error:", error);
       this.app.showMessage(translate("error_loading_attendance"), "error");
     }
   }
@@ -674,7 +676,7 @@ console.log(groupHeader, participantRow);
       document.getElementById("guestEmail").value = "";
       this.app.showMessage(translate("guest_added_successfully"), "success");
     } catch (error) {
-      console.error("Error saving guest:", error);
+      debugError("Error saving guest:", error);
       this.app.showMessage(translate("error_saving_guest"), "error");
     }
   }

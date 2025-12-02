@@ -7,6 +7,7 @@ import {
   saveOfflineData
 } from "./indexedDB.js";
 import { translate } from "./app.js";
+import { debugLog, debugError } from "./utils/DebugUtils.js";
 
 export class ManageParticipants {
   constructor(app) {
@@ -21,7 +22,7 @@ export class ManageParticipants {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing manage participants:", error);
+      debugError("Error initializing manage participants:", error);
       this.renderError();
     }
   }
@@ -47,12 +48,12 @@ export class ManageParticipants {
         throw new Error("Failed to fetch groups data");
       }
 
-      console.log("Fetched Participants:", this.participants);
-      console.log("Fetched Groups:", this.groups);
+      debugLog("Fetched Participants:", this.participants);
+      debugLog("Fetched Groups:", this.groups);
       await saveOfflineData('participants', this.participants);
       await saveOfflineData('groups', this.groups);
     } catch (error) {
-      console.error("Error fetching manage participants data:", error);
+      debugError("Error fetching manage participants data:", error);
       throw error;
     }
   }
@@ -137,7 +138,7 @@ export class ManageParticipants {
           is_second_leader: false
       };
 
-      console.log("Sending group change data to backend:", JSON.stringify(requestData));
+      debugLog("Sending group change data to backend:", JSON.stringify(requestData));
 
       try {
           const result = await updateParticipantGroup(
@@ -158,7 +159,7 @@ export class ManageParticipants {
               throw new Error(result.message || translate("error_updating_group"));
           }
       } catch (error) {
-          console.error("Error updating group membership:", error);
+          debugError("Error updating group membership:", error);
           // Revert the select to its previous value if there was an error
           event.target.value = event.target.getAttribute("data-previous-value") || "none";
           this.app.showMessage(error.message || translate("error_updating_group"), "error");
@@ -189,7 +190,7 @@ export class ManageParticipants {
       is_second_leader: isSecondLeader,
     };
 
-    console.log("Sending role change data to backend:", JSON.stringify(requestData));
+    debugLog("Sending role change data to backend:", JSON.stringify(requestData));
 
     try {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader);
@@ -201,7 +202,7 @@ export class ManageParticipants {
         this.app.showMessage(result.message || translate("error_updating_role"), "error");
       }
     } catch (error) {
-      console.error("Error updating participant role:", error);
+      debugError("Error updating participant role:", error);
       this.app.showMessage(translate("error_updating_role"), "error");
     }
   }

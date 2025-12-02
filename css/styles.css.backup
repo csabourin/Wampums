@@ -425,9 +425,8 @@ th,td {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  /* Mobile-first: smaller margins and padding */
-  margin: 0.5rem;
-  padding: 0.875rem 0.875rem 0.875rem 1rem;
+  margin: 1rem;
+  padding: 1rem 1rem 1rem 1.25rem;
   border-radius: 0.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   pointer-events: auto;
@@ -484,8 +483,7 @@ th,td {
 
 .toast-message {
   flex: 1;
-  /* Mobile-first: smaller font size */
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   line-height: 1.5;
   word-wrap: break-word;
 }
@@ -522,15 +520,15 @@ th,td {
   outline-offset: 2px;
 }
 
-/* Desktop enhancement: larger toast for bigger screens */
-@media (min-width: 768px) {
+/* Mobile optimization */
+@media (max-width: 480px) {
   .toast {
-    margin: 1rem;
-    padding: 1rem 1rem 1rem 1.25rem;
+    margin: 0.5rem;
+    padding: 0.875rem 0.875rem 0.875rem 1rem;
   }
 
   .toast-message {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
   }
 }
 /* Responsive design */
@@ -1370,7 +1368,7 @@ textarea {
   background-color: #f2f2f2;
 }
 
-@media (width <= 768px) { /* TODO: Refactor to mobile-first - these should be default table styles */ {
+@media (max-width: 768px) {
   #activities-table th,
   #activities-table td {
     display: block;
@@ -1394,7 +1392,7 @@ textarea {
   }
 }
 
-@media (width <= 768px) {
+@media (max-width: 768px) {
 
   form, .group, table {
     background-color: #fff;
@@ -1481,7 +1479,7 @@ textarea {
   margin: 0 10px;
 }
 
-@media (width <= 768px) {
+@media (max-width: 768px) {
   .date-navigation {
       flex-wrap: wrap;
   }
@@ -1682,7 +1680,7 @@ textarea {
 }
 
 /* Ensure everything is responsive */
-@media (width <= 600px) {
+@media (max-width: 600px) {
   .upcoming-meeting h1 {
     font-size: 1.4rem;
   }

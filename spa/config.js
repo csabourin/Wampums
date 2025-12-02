@@ -180,8 +180,24 @@ export const CONFIG = {
         // Toast notification duration (in milliseconds)
         TOAST_DURATION: 3000,
 
+        // Success message display duration before redirect (in milliseconds)
+        SUCCESS_REDIRECT_DELAY: 3000,
+
         // Debounce delay for search inputs (in milliseconds)
-        SEARCH_DEBOUNCE: 300
+        SEARCH_DEBOUNCE: 300,
+
+        // Skeleton loading minimum display time (in milliseconds)
+        MIN_LOADING_TIME: 300
+    },
+
+    /**
+     * Push Notification Settings
+     */
+    PUSH_NOTIFICATIONS: {
+        // VAPID public key for push notifications
+        // This should be set via environment variable in production
+        VAPID_PUBLIC_KEY: import.meta.env?.VITE_VAPID_PUBLIC ||
+                         'BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE'
     },
 
     /**
@@ -216,6 +232,8 @@ export const CONFIG = {
 
 /**
  * Log configuration on initialization (only in debug mode)
+ * Note: We can't use debugLog here as it may create a circular dependency
+ * This is the only acceptable use of console.log in the codebase
  */
 if (CONFIG.debugMode) {
     console.log('=== Wampums Configuration ===');
@@ -282,7 +300,11 @@ Object.freeze(CONFIG.ENDPOINTS);
 Object.freeze(CONFIG.ROLES);
 Object.freeze(CONFIG.ATTENDANCE_STATUS);
 Object.freeze(CONFIG.DEFAULT_POINTS);
+Object.freeze(CONFIG.DEFAULT_POINTS.ATTENDANCE);
+Object.freeze(CONFIG.DEFAULT_POINTS.HONORS);
+Object.freeze(CONFIG.DEFAULT_POINTS.BADGES);
 Object.freeze(CONFIG.UI);
+Object.freeze(CONFIG.PUSH_NOTIFICATIONS);
 Object.freeze(CONFIG.FEATURES);
 Object.freeze(CONFIG.INDEXEDDB);
 Object.freeze(CONFIG.SERVICE_WORKER);
