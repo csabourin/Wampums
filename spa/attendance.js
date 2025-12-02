@@ -7,7 +7,7 @@ import {
   getGuestsByDate
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
-import { getCachedData, setCachedData } from "./indexedDB.js";
+import { getCachedData, setCachedData, deleteCachedData } from "./indexedDB.js";
 import { getTodayISO, formatDate, isValidDate, isoToDateString } from "./utils/DateUtils.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
@@ -627,6 +627,13 @@ debugLog(groupHeader, participantRow);
   async changeDate(newDate) {
     this.currentDate = newDate;
     debugLog(`Changing date to ${this.currentDate}`);
+    // Clear cached data for this date to force fresh fetch
+    try {
+      await deleteCachedData(`attendance_${this.currentDate}`);
+      debugLog(`Cleared cache for attendance_${this.currentDate}`);
+    } catch (e) {
+      debugLog(`No cache to clear for attendance_${this.currentDate}`);
+    }
     // Fetch fresh data for the new date
     await this.fetchData();
     // Re-render the entire view with new data
