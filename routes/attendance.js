@@ -78,7 +78,7 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `SELECT DISTINCT date
+      `SELECT DISTINCT date::text as date
        FROM attendance
        WHERE organization_id = $1
        ORDER BY date DESC`,
