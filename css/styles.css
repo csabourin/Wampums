@@ -131,8 +131,7 @@ body, #app {
 #app{
   position: relative;
   z-index: 1;
-  width: 100%;
-  max-width: 640px;
+  width: 100vw;
   margin-top: .5em;
   padding: 0 1rem;
 }
@@ -162,14 +161,14 @@ body, #app {
 
 @media (width <= 600px) {
   .logo {
-    min-height: 250px;
+    min-height: auto;
     max-width: 80%;
   }
 }
 
 @media (width <= 480px) {
   .logo {
-    min-height: 180px;
+    height: auto;
     max-width: 70%;
   }
 }
@@ -313,7 +312,7 @@ h1,h2 {
 
   /* Minimal header on very small screens */
   h1 {
-    font-size: 1.5rem;
+    font-size: calc(16px + 6 * ((100vw - 320px) / 680));
     margin: 0.5rem 0;
   }
 
@@ -333,14 +332,12 @@ input[type="text"],input[type="email"],input[type="password"],select {
 input[type="submit"],button {
   background-color: var(--primary-color);
   color: white;
-  padding: 0.75rem 1rem;
   border: none;
   border-radius: 0.25rem;
   cursor: pointer;
   font-size: 1rem;
   min-width: 44px;
   min-height: 44px;
-  margin: 0.25rem;
 }
 table {
   width: 100%;
@@ -401,6 +398,7 @@ th,td {
   border: 1px solid var(--primary-color);
   border-radius: 0.25rem;
   transition: background-color 0.3s ease;
+  font-size:calc(16px + 6 * ((100vw - 320px) / 680));
 }
 .sort-options a:hover {
   background-color: var(--primary-color);
@@ -410,7 +408,6 @@ th,td {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem;
   border-bottom: 1px solid #ddd;
   word-break: break-word;
   overflow-wrap: break-word;
@@ -448,16 +445,6 @@ th,td {
   transition: background-color 0.3s ease;
 }
 
-.group-header::after {
-  content: '▼';
-  font-size: 0.8em;
-  transition: transform 0.3s ease;
-}
-
-.group-header.collapsed::after {
-  transform: rotate(-90deg);
-}
-
 .group-header.selected {
   background-color: #c0c0c0;
 }
@@ -471,6 +458,7 @@ th,td {
 .group-content.collapsed {
   max-height: 0;
 }
+
 .fixed-bottom {
   position: fixed;
   bottom: 0;
@@ -514,8 +502,6 @@ th,td {
 }
 .manage-items a {
   text-decoration: none;
-  padding: 0.75rem;
-  margin: 0.25rem;
   border-radius: 0.25rem;
   color: white;
   background-color: var(--primary-color);
@@ -524,6 +510,7 @@ th,td {
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
 }
 .list-item.selected,.group-header.selected {
   background-color: var(--selected-color);
@@ -1441,7 +1428,6 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem;
   border-bottom: 1px solid #ddd;
   cursor: pointer;
   transition: background-color 0.3s ease;

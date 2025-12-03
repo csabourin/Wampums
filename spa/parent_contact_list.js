@@ -40,7 +40,7 @@ export class ParentContactList {
           childrenMap[participantId] = {
             name: `${row.first_name} ${row.last_name}`,
             groups: new Set(),
-            contacts: []
+            contacts: [],
           };
         }
 
@@ -50,7 +50,12 @@ export class ParentContactList {
         }
 
         // Add guardian/contact if exists and not already added
-        if (row.guardian_id && !childrenMap[participantId].contacts.find(c => c.id === row.guardian_id)) {
+        if (
+          row.guardian_id &&
+          !childrenMap[participantId].contacts.find(
+            (c) => c.id === row.guardian_id,
+          )
+        ) {
           childrenMap[participantId].contacts.push({
             id: row.guardian_id,
             name: `${row.prenom} ${row.nom}`,
@@ -60,7 +65,7 @@ export class ParentContactList {
             phone_work: row.telephone_travail,
             phone_cell: row.telephone_cellulaire,
             is_emergency: row.is_emergency_contact,
-            is_primary: row.is_primary
+            is_primary: row.is_primary,
           });
         }
       }
@@ -90,78 +95,77 @@ export class ParentContactList {
   }
 
   renderChildrenByFirstName() {
-      // Sort children by first name
-      const sortedChildren = Object.entries(this.children)
-        .map(([id, child]) => ({ id, ...child }))
-        .sort((a, b) => {
-          const aFirstName = a.name.split(' ')[0];
-          const bFirstName = b.name.split(' ')[0];
-          return aFirstName.localeCompare(bFirstName);
-        });
+    // Sort children by first name
+    const sortedChildren = Object.entries(this.children)
+      .map(([id, child]) => ({ id, ...child }))
+      .sort((a, b) => {
+        const aFirstName = a.name.split(" ")[0];
+        const bFirstName = b.name.split(" ")[0];
+        return aFirstName.localeCompare(bFirstName);
+      });
 
-      // Group by first letter of first name
-      const groupedByLetter = {};
-      for (const child of sortedChildren) {
-        const firstLetter = child.name[0].toUpperCase();
-        if (!groupedByLetter[firstLetter]) {
-          groupedByLetter[firstLetter] = [];
-        }
-        groupedByLetter[firstLetter].push(child);
+    // Group by first letter of first name
+    const groupedByLetter = {};
+    for (const child of sortedChildren) {
+      const firstLetter = child.name[0].toUpperCase();
+      if (!groupedByLetter[firstLetter]) {
+        groupedByLetter[firstLetter] = [];
       }
+      groupedByLetter[firstLetter].push(child);
+    }
 
-      // Render grouped and collapsed by default
-      let html = "";
-      for (const [letter, children] of Object.entries(groupedByLetter).sort()) {
-        html += `
-          <div class="group">
-            <div class="group-header collapsed" data-letter="${letter}">
-              ${letter} (${children.length})
-            </div>
-            <div class="group-content collapsed">
+    // Render grouped and collapsed by default
+    let html = "";
+    for (const [letter, children] of Object.entries(groupedByLetter).sort()) {
+      html += `
+        
+        
         `;
-        for (const child of children) {
-          html += this.renderChildCard(child.id, child);
-        }
-        html += `</div></div>`;
+      for (const child of children) {
+        html += this.renderChildCard(child.id, child);
       }
+      html += ``;
+    }
 
-      return html;
+    return html;
   }
 
   renderGroupsAndChildren() {
-      // Extract unique groups from the children list
-      const allGroups = new Set();
-      for (const child of Object.values(this.children)) {
-          child.groups.forEach(group => allGroups.add(group));
-      }
-      const sortedGroups = Array.from(allGroups).sort(); // Sort groups alphabetically
+    // Extract unique groups from the children list
+    const allGroups = new Set();
+    for (const child of Object.values(this.children)) {
+      child.groups.forEach((group) => allGroups.add(group));
+    }
+    const sortedGroups = Array.from(allGroups).sort(); // Sort groups alphabetically
 
-      let html = "";
-      for (const group of sortedGroups) {
-          html += `
+    let html = "";
+    for (const group of sortedGroups) {
+      html += `
               <div class="group">
                   <div class="group-header" data-group="${group}">${group}</div>
                   <div class="group-content">
           `;
-          // Render all children belonging to this group
-          for (const [childId, child] of Object.entries(this.children)) {
-              if (child.groups.includes(group)) {
-                  html += this.renderChildCard(childId, child);
-              }
-          }
-          html += `</div></div>`;
+      // Render all children belonging to this group
+      for (const [childId, child] of Object.entries(this.children)) {
+        if (child.groups.includes(group)) {
+          html += this.renderChildCard(childId, child);
+        }
       }
+      html += `</div></div>`;
+    }
 
-      return html;
+    return html;
   }
 
   renderChildCard(childId, child) {
     return `
             <div class="child-card" data-child-id="${childId}">
-                <div class="child-name">${child.name}</div>
+                <details>
+                    <summary class="child-name">${child.name}</summary>
                 <div class="contacts">
                     ${this.renderContacts(child.contacts)}
                 </div>
+                </details>
             </div>
         `;
   }
@@ -175,7 +179,7 @@ export class ParentContactList {
                 ${
                   contact.is_emergency
                     ? `<span class="emergency-contact">${translate(
-                        "emergency_contact"
+                        "emergency_contact",
                       )}</span>`
                     : ""
                 }
@@ -201,7 +205,7 @@ export class ParentContactList {
                     : ""
                 }
             </div>
-        `
+        `,
       )
       .join("");
   }
@@ -214,8 +218,8 @@ export class ParentContactList {
 
   toggleGroup(header) {
     const content = header.nextElementSibling;
-    header.classList.toggle('collapsed');
-    content.classList.toggle('collapsed');
+    header.classList.toggle("collapsed");
+    content.classList.toggle("collapsed");
   }
 
   renderError() {
