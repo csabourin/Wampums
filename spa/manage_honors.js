@@ -10,6 +10,7 @@ export class ManageHonors {
     this.availableDates = [];
     this.allHonors = [];
     this.allParticipants = [];
+    this.currentSort = { key: "name", order: "asc" };
   }
 
   async init() {
@@ -98,16 +99,18 @@ export class ManageHonors {
 
   render() {
     const content = `
-        <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+        <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
         <h1>${translate("manage_honors")}</h1>
         <div class="date-navigation">
             <button id="prevDate">&larr; ${translate("previous")}</button>
             <h2 id="currentDate">${formatDate(this.currentDate, this.app.lang)}</h2>
             <button id="nextDate">${translate("next")} &rarr;</button>
         </div>
-        <div class="sort-options">
-            <button data-sort="name">${translate("sort_by_name")}</button>
-            <button data-sort="honors">${translate("sort_by_honors")}</button>
+        <div class="controls-container">
+            <div class="sort-options">
+                <button class="sort-btn" data-sort="name" title="${translate("sort_by_name")}">👤</button>
+                <button class="sort-btn" data-sort="honors" title="${translate("sort_by_honors")}">🏆</button>
+            </div>
         </div>
         <div id="honors-list">
             ${this.renderHonorsList()}
@@ -223,14 +226,25 @@ export class ManageHonors {
   }
 
   sortItems(sortBy) {
+    // Toggle sort order if clicking same key, otherwise start with asc
+    if (this.currentSort.key === sortBy) {
+      this.currentSort.order =
+        this.currentSort.order === "asc" ? "desc" : "asc";
+    } else {
+      this.currentSort.key = sortBy;
+      this.currentSort.order = "asc";
+    }
+
     // Sort participants by name or honors
     this.honorsData.groups.forEach(group => {
       group.participants.sort((a, b) => {
+        let comparison = 0;
         if (sortBy === "name") {
-          return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
+          comparison = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
         } else if (sortBy === "honors") {
-          return b.total_honors - a.total_honors;
+          comparison = a.total_honors - b.total_honors;
         }
+        return this.currentSort.order === "asc" ? comparison : -comparison;
       });
     });
 
