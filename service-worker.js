@@ -1,7 +1,9 @@
-const CACHE_NAME = "wampums-app-v6.0";
-const STATIC_CACHE_NAME = "wampums-static-v6.0";
-const API_CACHE_NAME = "wampums-api-v6.0";
-const IMAGE_CACHE_NAME = "wampums-images-v6.0";
+// Version should match package.json and config.js
+const APP_VERSION = "2.0.0";
+const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
+const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
+const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
+const IMAGE_CACHE_NAME = `wampums-images-v${APP_VERSION}`;
 
 const staticAssets = [
   "/",
@@ -454,10 +456,26 @@ async function invalidateRelatedCaches(request) {
 }
 
 
-// Handle cache updates
+// Handle messages from clients
 self.addEventListener("message", (event) => {
   if (event.data === "skipWaiting") {
     self.skipWaiting(); // Immediately activate new service worker
+  } else if (event.data.type === "GET_VERSION") {
+    // Send current version back to client
+    event.ports[0].postMessage({
+      type: "VERSION_INFO",
+      version: APP_VERSION
+    });
+  } else if (event.data.type === "CHECK_UPDATE") {
+    // Check if a new service worker is waiting
+    self.clients.matchAll().then(clients => {
+      clients.forEach(client => {
+        client.postMessage({
+          type: "UPDATE_AVAILABLE",
+          version: APP_VERSION
+        });
+      });
+    });
   }
 });
 

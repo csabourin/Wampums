@@ -10,6 +10,7 @@ import { CONFIG } from "./config.js";
 import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { urlBase64ToUint8Array } from "./functions.js";
+import updateManager from "./pwa-update-manager.js";
 
 const debugMode = isDebugMode();
 

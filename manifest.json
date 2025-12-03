@@ -4,11 +4,15 @@
   "description": "Application de points pour la meute 6e A St-Paul d'Aylmer",
   "start_url": "/",
   "scope": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4c65ae",
   "orientation": "any",
   "prefer_related_applications": false,
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "lang": "fr-CA",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/images/icon-192x192.png",
@@ -23,7 +27,7 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["education", "productivity"],
+  "categories": ["education", "productivity", "lifestyle"],
   "screenshots": [],
   "shortcuts": [
     {
@@ -50,5 +54,11 @@
         }
       ]
     }
-  ]
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "protocol_handlers": [],
+  "related_applications": [],
+  "handle_links": "preferred"
 }
