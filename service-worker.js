@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.1";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
@@ -52,7 +52,7 @@ const apiRoutes = [
   "/public/get_organization_id",
   "/public/organization-settings",
   "/public/initial-data",
-  "/public/get_news"
+  "/public/get_news",
 ];
 
 const offlinePages = [
@@ -67,8 +67,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(staticAssets)),
     // Cache images separately
-    caches.open(IMAGE_CACHE_NAME)
-      .then(cache => cache.addAll(staticImages))
+    caches.open(IMAGE_CACHE_NAME).then((cache) => cache.addAll(staticImages)),
   );
 });
 
@@ -78,27 +77,37 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     Promise.all([
       // Cache static assets
-      caches.open(STATIC_CACHE_NAME)
-        .then(cache => cache.addAll(staticAssets)),
+      caches
+        .open(STATIC_CACHE_NAME)
+        .then((cache) => cache.addAll(staticAssets)),
       // Cache images separately
-      caches.open(IMAGE_CACHE_NAME)
-        .then(cache => cache.addAll(staticImages))
-    ])
+      caches.open(IMAGE_CACHE_NAME).then((cache) => cache.addAll(staticImages)),
+    ]),
   );
 });
 
 // Activate event with improved cache cleanup
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (![CACHE_NAME, STATIC_CACHE_NAME, API_CACHE_NAME, IMAGE_CACHE_NAME].includes(cacheName)) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (
+              ![
+                CACHE_NAME,
+                STATIC_CACHE_NAME,
+                API_CACHE_NAME,
+                IMAGE_CACHE_NAME,
+              ].includes(cacheName)
+            ) {
+              return caches.delete(cacheName);
+            }
+          }),
+        );
+      })
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -111,17 +120,21 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Special handling for images
-  if (event.request.destination === 'image' || staticImages.includes(url.pathname)) {
+  if (
+    event.request.destination === "image" ||
+    staticImages.includes(url.pathname)
+  ) {
     event.respondWith(handleImageRequest(event.request));
     return;
   }
 
   if (event.request.method === "GET") {
     // Check if this is an API route
-    const isApiRoute = apiRoutes.some((route) =>
-      url.pathname === route ||
-      url.pathname.startsWith(route + '/') ||
-      url.pathname.startsWith(route + '?')
+    const isApiRoute = apiRoutes.some(
+      (route) =>
+        url.pathname === route ||
+        url.pathname.startsWith(route + "/") ||
+        url.pathname.startsWith(route + "?"),
     );
 
     if (isApiRoute) {
@@ -131,7 +144,11 @@ self.addEventListener("fetch", (event) => {
     } else {
       event.respondWith(networkFirst(event.request));
     }
-  } else if (event.request.method === "POST" || event.request.method === "PUT" || event.request.method === "DELETE") {
+  } else if (
+    event.request.method === "POST" ||
+    event.request.method === "PUT" ||
+    event.request.method === "DELETE"
+  ) {
     // Handle mutations - try network first, queue for sync if offline
     event.respondWith(handleMutation(event.request));
   } else {
@@ -143,7 +160,7 @@ self.addEventListener("fetch", (event) => {
 async function handleImageRequest(request) {
   // Try cache first for images
   const cachedResponse = await caches.match(request, {
-    cacheName: IMAGE_CACHE_NAME
+    cacheName: IMAGE_CACHE_NAME,
   });
 
   if (cachedResponse) {
@@ -160,9 +177,12 @@ async function handleImageRequest(request) {
       return networkResponse;
     }
   } catch (error) {
-    console.error('Error fetching image:', error);
+    console.error("Error fetching image:", error);
     // Return a fallback image if available
-    return caches.match('/images/fallback.png') || new Response('Image not available', { status: 404 });
+    return (
+      caches.match("/images/fallback.png") ||
+      new Response("Image not available", { status: 404 })
+    );
   }
 }
 
@@ -180,12 +200,12 @@ async function cacheFirst(request) {
     }
     return networkResponse;
   } catch (error) {
-    console.error('Cache-first strategy error:', error);
-    return new Response('Resource not available', { status: 404 });
+    console.error("Cache-first strategy error:", error);
+    return new Response("Resource not available", { status: 404 });
   }
 }
 
-self.addEventListener('push', function(event) {
+self.addEventListener("push", function (event) {
   let data = {};
 
   // Check if there is any data in the push event and log it
@@ -194,49 +214,46 @@ self.addEventListener('push', function(event) {
       data = event.data.json(); // Assuming the payload is JSON
       console.log("Push event data received:", data);
     } catch (e) {
-      console.error('Error parsing push notification data:', e);
+      console.error("Error parsing push notification data:", e);
     }
   }
 
-  const title = data.title || 'New Notification';
+  const title = data.title || "New Notification";
   const options = {
-    body: data.body || 'You have a new message.',
-    icon: data.icon || '/images/icon-192x192.png', // Optional: Add an icon for the notification
-    badge: '/images/badge-128x128.png', // Optional: Add a badge image for Android
-    tag: data.tag || 'general', // Optional: Unique tag for the notification (e.g., for stacking)
+    body: data.body || "You have a new message.",
+    icon: data.icon || "/images/icon-192x192.png", // Optional: Add an icon for the notification
+    badge: "/images/badge-128x128.png", // Optional: Add a badge image for Android
+    tag: data.tag || "general", // Optional: Unique tag for the notification (e.g., for stacking)
   };
 
   // Display the notification
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
-
 // Handle notification click event
-self.addEventListener('notificationclick', function(event) {
+self.addEventListener("notificationclick", function (event) {
   event.notification.close(); // Close the notification when clicked
 
   const notificationData = event.notification.data;
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        // If a window with the same URL is already open, focus on it
-        if (client.url === notificationData.url && 'focus' in client) {
-          return client.focus();
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then(function (clientList) {
+        for (let i = 0; i < clientList.length; i++) {
+          const client = clientList[i];
+          // If a window with the same URL is already open, focus on it
+          if (client.url === notificationData.url && "focus" in client) {
+            return client.focus();
+          }
         }
-      }
-      // If no window is open with the URL, open a new one
-      if (clients.openWindow) {
-        return clients.openWindow(notificationData.url);
-      }
-    })
+        // If no window is open with the URL, open a new one
+        if (clients.openWindow) {
+          return clients.openWindow(notificationData.url);
+        }
+      }),
   );
 });
-
-
 
 // // Fetch event: handle requests
 // self.addEventListener("fetch", (event) => {
@@ -258,11 +275,11 @@ self.addEventListener('notificationclick', function(event) {
 //     // Check for API routes to cache in IndexedDB
 //     if (apiRoutes.some((route) => url.pathname.includes(route))) {
 //       event.respondWith(fetchAndCacheInIndexedDB(event.request));
-//     } 
+//     }
 //     // Serve static assets from cache
 //     else if (staticAssets.includes(url.pathname)) {
 //       event.respondWith(cacheFirst(event.request));
-//     } 
+//     }
 //     // Default to network-first for all other requests
 //     else {
 //       event.respondWith(networkFirst(event.request));
@@ -272,8 +289,6 @@ self.addEventListener('notificationclick', function(event) {
 //     event.respondWith(fetch(event.request));
 //   }
 // });
-
-
 
 // Cache-first strategy for static assets
 async function cacheFirst(request) {
@@ -325,40 +340,49 @@ async function fetchAndCacheInIndexedDB(request) {
       // Save the response data in IndexedDB for offline access
       await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
       return new Response(JSON.stringify(data), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { "Content-Type": "application/json" },
       }); // Return the response
     }
   } catch (error) {
-    console.error("Network request failed, attempting to serve from cache:", error);
+    console.error(
+      "Network request failed, attempting to serve from cache:",
+      error,
+    );
 
     // If network fails, check if the data exists in IndexedDB
     const cachedData = await getCachedData(cacheKey);
     if (cachedData) {
       console.log("Serving from cache:", cacheKey);
       return new Response(JSON.stringify(cachedData), {
-        headers: { 'Content-Type': 'application/json', 'X-From-Cache': 'true' }
+        headers: { "Content-Type": "application/json", "X-From-Cache": "true" },
       });
     }
 
     // If no cache exists, return error response
-    return new Response(JSON.stringify({
-      success: false,
-      error: "No data available - offline and no cached data",
-      offline: true
-    }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "No data available - offline and no cached data",
+        offline: true,
+      }),
+      {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 
   // Return fallback if nothing is available
-  return new Response(JSON.stringify({
-    success: false,
-    error: "No data available"
-  }), {
-    status: 503,
-    headers: { 'Content-Type': 'application/json' }
-  });
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: "No data available",
+    }),
+    {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 
 // Handle mutation requests (POST, PUT, DELETE)
@@ -383,35 +407,41 @@ async function handleMutation(request) {
         url: request.url,
         method: request.method,
         headers: Object.fromEntries([...request.headers.entries()]),
-        body: request.method !== 'GET' ? await request.clone().text() : null,
-        timestamp: Date.now()
+        body: request.method !== "GET" ? await request.clone().text() : null,
+        timestamp: Date.now(),
       };
 
       await saveOfflineMutation(requestData);
 
       // Register for background sync
-      if ('sync' in self.registration) {
-        await self.registration.sync.register('sync-mutations');
+      if ("sync" in self.registration) {
+        await self.registration.sync.register("sync-mutations");
       }
 
       // Return a response indicating the operation was queued
-      return new Response(JSON.stringify({
-        success: true,
-        queued: true,
-        message: "Request queued for sync when online"
-      }), {
-        status: 202,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          queued: true,
+          message: "Request queued for sync when online",
+        }),
+        {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     } catch (saveError) {
       console.error("Failed to save mutation for sync:", saveError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Failed to queue request for sync"
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Failed to queue request for sync",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
   }
 }
@@ -420,7 +450,7 @@ async function handleMutation(request) {
 async function invalidateRelatedCaches(request) {
   const url = new URL(request.url);
   const db = await openIndexedDB();
-  const transaction = db.transaction([STORE_NAME], 'readwrite');
+  const transaction = db.transaction([STORE_NAME], "readwrite");
   const store = transaction.objectStore(STORE_NAME);
 
   // Get all keys from IndexedDB
@@ -431,13 +461,19 @@ async function invalidateRelatedCaches(request) {
   });
 
   // Invalidate related caches based on the endpoint
-  const keysToInvalidate = allKeys.filter(key => {
-    if (url.pathname.includes('/participants')) return key.toString().includes('participants');
-    if (url.pathname.includes('/groups')) return key.toString().includes('group');
-    if (url.pathname.includes('/attendance')) return key.toString().includes('attendance');
-    if (url.pathname.includes('/points')) return key.toString().includes('points');
-    if (url.pathname.includes('/honors')) return key.toString().includes('honors');
-    if (url.pathname.includes('/badges')) return key.toString().includes('badge');
+  const keysToInvalidate = allKeys.filter((key) => {
+    if (url.pathname.includes("/participants"))
+      return key.toString().includes("participants");
+    if (url.pathname.includes("/groups"))
+      return key.toString().includes("group");
+    if (url.pathname.includes("/attendance"))
+      return key.toString().includes("attendance");
+    if (url.pathname.includes("/points"))
+      return key.toString().includes("points");
+    if (url.pathname.includes("/honors"))
+      return key.toString().includes("honors");
+    if (url.pathname.includes("/badges"))
+      return key.toString().includes("badge");
     return false;
   });
 
@@ -450,11 +486,10 @@ async function invalidateRelatedCaches(request) {
         deleteRequest.onerror = () => reject();
       });
     } catch (error) {
-      console.warn('Failed to invalidate cache key:', key);
+      console.warn("Failed to invalidate cache key:", key);
     }
   }
 }
-
 
 // Handle messages from clients
 self.addEventListener("message", (event) => {
@@ -464,15 +499,15 @@ self.addEventListener("message", (event) => {
     // Send current version back to client
     event.ports[0].postMessage({
       type: "VERSION_INFO",
-      version: APP_VERSION
+      version: APP_VERSION,
     });
   } else if (event.data.type === "CHECK_UPDATE") {
     // Check if a new service worker is waiting
-    self.clients.matchAll().then(clients => {
-      clients.forEach(client => {
+    self.clients.matchAll().then((clients) => {
+      clients.forEach((client) => {
         client.postMessage({
           type: "UPDATE_AVAILABLE",
-          version: APP_VERSION
+          version: APP_VERSION,
         });
       });
     });
@@ -494,14 +529,14 @@ self.addEventListener("activate", (event) => {
         console.log("Clients:", clients);
         // clients.forEach((client) => client.navigate(client.url)); // Reload all open pages
       });
-    })
+    }),
   );
 });
 
-const DB_NAME = 'wampums-cache';
+const DB_NAME = "wampums-cache";
 const DB_VERSION = 2;
-const STORE_NAME = 'api-cache';
-const MUTATION_STORE_NAME = 'pending-mutations';
+const STORE_NAME = "api-cache";
+const MUTATION_STORE_NAME = "pending-mutations";
 
 function openIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -515,16 +550,16 @@ function openIndexedDB() {
 
       // Create main cache store
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'url' });
+        db.createObjectStore(STORE_NAME, { keyPath: "url" });
       }
 
       // Create mutations store for offline sync
       if (!db.objectStoreNames.contains(MUTATION_STORE_NAME)) {
         const mutationStore = db.createObjectStore(MUTATION_STORE_NAME, {
-          keyPath: 'id',
-          autoIncrement: true
+          keyPath: "id",
+          autoIncrement: true,
         });
-        mutationStore.createIndex('timestamp', 'timestamp', { unique: false });
+        mutationStore.createIndex("timestamp", "timestamp", { unique: false });
       }
     };
   });
@@ -532,7 +567,7 @@ function openIndexedDB() {
 
 async function setCachedData(key, data, expirationTime) {
   const db = await openIndexedDB();
-  const transaction = db.transaction([STORE_NAME], 'readwrite');
+  const transaction = db.transaction([STORE_NAME], "readwrite");
   const store = transaction.objectStore(STORE_NAME);
   const cacheEntry = {
     url: key,
@@ -545,7 +580,7 @@ async function setCachedData(key, data, expirationTime) {
 async function getCachedData(key) {
   const db = await openIndexedDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const transaction = db.transaction([STORE_NAME], "readonly");
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(key);
 
@@ -565,7 +600,7 @@ async function getCachedData(key) {
 async function saveOfflineMutation(mutationData) {
   const db = await openIndexedDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
+    const transaction = db.transaction([MUTATION_STORE_NAME], "readwrite");
     const store = transaction.objectStore(MUTATION_STORE_NAME);
     const request = store.add(mutationData);
 
@@ -584,7 +619,7 @@ async function saveOfflineMutation(mutationData) {
 async function getPendingMutations() {
   const db = await openIndexedDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([MUTATION_STORE_NAME], 'readonly');
+    const transaction = db.transaction([MUTATION_STORE_NAME], "readonly");
     const store = transaction.objectStore(MUTATION_STORE_NAME);
     const request = store.getAll();
 
@@ -597,7 +632,7 @@ async function getPendingMutations() {
 async function deletePendingMutation(id) {
   const db = await openIndexedDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
+    const transaction = db.transaction([MUTATION_STORE_NAME], "readwrite");
     const store = transaction.objectStore(MUTATION_STORE_NAME);
     const request = store.delete(id);
 
@@ -608,7 +643,6 @@ async function deletePendingMutation(id) {
     };
   });
 }
-
 
 async function syncData() {
   if (!navigator.onLine) {
@@ -629,7 +663,7 @@ async function syncData() {
         const response = await fetch(mutation.url, {
           method: mutation.method,
           headers: mutation.headers,
-          body: mutation.body
+          body: mutation.body,
         });
 
         if (response.ok) {
@@ -639,11 +673,15 @@ async function syncData() {
           // Invalidate related caches
           const request = new Request(mutation.url, {
             method: mutation.method,
-            headers: mutation.headers
+            headers: mutation.headers,
           });
           await invalidateRelatedCaches(request);
         } else {
-          console.error("Failed to sync mutation:", mutation.id, response.statusText);
+          console.error(
+            "Failed to sync mutation:",
+            mutation.id,
+            response.statusText,
+          );
 
           // If it's a 4xx error (client error), delete the mutation as it won't succeed
           if (response.status >= 400 && response.status < 500) {
@@ -661,12 +699,16 @@ async function syncData() {
     try {
       const offlineData = await getOfflineData();
       if (offlineData && offlineData.length > 0) {
-        console.log(`Found ${offlineData.length} old format offline items to sync`);
+        console.log(
+          `Found ${offlineData.length} old format offline items to sync`,
+        );
         for (let item of offlineData) {
           try {
             console.log("Syncing old format item:", item);
             // Try to determine the new endpoint format
-            const endpoint = item.action ? `/api/${item.action.replace('_', '-')}` : item.url;
+            const endpoint = item.action
+              ? `/api/${item.action.replace("_", "-")}`
+              : item.url;
 
             const response = await fetch(endpoint, {
               method: "POST",
@@ -679,7 +721,11 @@ async function syncData() {
             if (response.ok) {
               await clearOfflineData(item.id);
             } else {
-              console.error("Failed to sync old format item:", item, response.statusText);
+              console.error(
+                "Failed to sync old format item:",
+                item,
+                response.statusText,
+              );
             }
           } catch (error) {
             console.error("Error syncing old format item:", item, error);
@@ -702,17 +748,17 @@ async function getOfflineData() {
   try {
     // Try to get from the WampumsAppDB (old format)
     return new Promise((resolve) => {
-      const request = indexedDB.open('WampumsAppDB', 12);
+      const request = indexedDB.open("WampumsAppDB", 12);
       request.onsuccess = (event) => {
         const db = event.target.result;
-        if (!db.objectStoreNames.contains('offlineData')) {
+        if (!db.objectStoreNames.contains("offlineData")) {
           resolve([]);
           return;
         }
-        const transaction = db.transaction(['offlineData'], 'readonly');
-        const store = transaction.objectStore('offlineData');
-        const index = store.index('type_idx');
-        const getRequest = index.getAll('offline');
+        const transaction = db.transaction(["offlineData"], "readonly");
+        const store = transaction.objectStore("offlineData");
+        const index = store.index("type_idx");
+        const getRequest = index.getAll("offline");
 
         getRequest.onsuccess = () => resolve(getRequest.result || []);
         getRequest.onerror = () => resolve([]);
@@ -729,15 +775,15 @@ async function getOfflineData() {
 async function clearOfflineData(key) {
   try {
     return new Promise((resolve) => {
-      const request = indexedDB.open('WampumsAppDB', 12);
+      const request = indexedDB.open("WampumsAppDB", 12);
       request.onsuccess = (event) => {
         const db = event.target.result;
-        if (!db.objectStoreNames.contains('offlineData')) {
+        if (!db.objectStoreNames.contains("offlineData")) {
           resolve();
           return;
         }
-        const transaction = db.transaction(['offlineData'], 'readwrite');
-        const store = transaction.objectStore('offlineData');
+        const transaction = db.transaction(["offlineData"], "readwrite");
+        const store = transaction.objectStore("offlineData");
         const deleteRequest = store.delete(key);
 
         deleteRequest.onsuccess = () => resolve();
