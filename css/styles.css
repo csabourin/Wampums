@@ -511,6 +511,9 @@ th,td {
   align-items: center;
   justify-content: center;
   text-align: center;
+  flex: 1 1 calc(50% - 8px);
+  margin: 0;
+  padding: 0.75rem;
 }
 .list-item.selected,.group-header.selected {
   background-color: var(--selected-color);
