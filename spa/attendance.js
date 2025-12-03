@@ -216,9 +216,9 @@ export class Attendance {
 
   renderSkeleton() {
     const content = `
+      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
       <div class="attendance-container skeleton">
         <div class="date-navigation">
-          <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
           <select id="skeleton-dateSelect" class="date-select skeleton-text"></select>
         </div>
         <div id="skeleton-attendance-list" class="attendance-list">
@@ -283,9 +283,9 @@ export class Attendance {
     return;
   }
     this.freshContent = `
+      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
       <div class="attendance-container">
         <div class="date-navigation">
-          <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
           <select id="dateSelect" class="date-select">
             ${this.renderDateOptions()}
           </select>

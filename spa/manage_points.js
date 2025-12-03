@@ -143,7 +143,7 @@ export class ManagePoints {
 
   render() {
     const content = `
-      <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
       <h1>${translate("manage_points")}</h1>
       <div class="sort-options">
         <button data-sort="name">${translate("sort_by_name")}</button>
@@ -191,13 +191,11 @@ export class ManagePoints {
             <div class="group-header" data-group-id="${
               group.id
             }" data-type="group" data-points="${group.total_points}">
-              ${group.name} - ${group.total_points} ${translate("points")}
+              <span>${group.name}</span>
+              <span id="group-points-${group.id}">${group.total_points}</span>
             </div>
             <div class="group-content">
               ${this.renderParticipantsForGroup(group.id)}
-              <div class="group-points" id="group-points-${group.id}">
-                ${translate("total_points")}: ${group.total_points}
-              </div>
             </div>
           `
         )
@@ -218,14 +216,12 @@ export class ManagePoints {
         ${this.unassignedParticipants
           .map(
             (participant) => `
-              <div class="list-item" data-participant-id="${participant.id}" 
-                data-type="individual" 
+              <div class="list-item" data-participant-id="${participant.id}"
+                data-type="individual"
                 data-group-id="null" data-points="${participant.total_points}"
                 data-name="${participant.first_name}">
-                <span>${participant.first_name} ${participant.last_name}</span>
-                <span id="name-points-${participant.id}">${
-              participant.total_points
-            } ${translate("points")}</span>
+                <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
+                <span class="participant-points" id="name-points-${participant.id}">${participant.total_points}</span>
               </div>
           `
           )
@@ -247,15 +243,13 @@ export class ManagePoints {
         (participant) => `
           <div class="list-item" data-participant-id="${
             participant.id
-          }" data-type="individual" 
+          }" data-type="individual"
             data-group-id="${participant.group_id}" data-points="${
           participant.total_points
         }"
             data-name="${participant.first_name}">
-            <span>${participant.first_name} ${participant.last_name}</span>
-            <span id="name-points-${participant.id}">${
-          participant.total_points
-        } ${translate("points")}</span>
+            <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
+            <span class="participant-points" id="name-points-${participant.id}">${participant.total_points}</span>
           </div>
         `
       )
