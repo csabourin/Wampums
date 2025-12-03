@@ -269,7 +269,7 @@ export class BadgeForm {
 
         return `
                 <div class="badge-item">
-                    <img src="images/${territoire.image || "default.jpg"}" alt="${territoireName}">
+                    <img src="/images/${territoire.image || "default.jpg"}" alt="${territoireName}">
                     <h3>${territoireName}</h3>
                     <div class="stars">
                         ${this.renderStars(stars, pendingStars)}

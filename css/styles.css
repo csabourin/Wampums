@@ -2257,12 +2257,10 @@ body.online .pending-update { display: none; }
 }
 
 .badge-item img {
-  inline-size: 100px;
-  block-size: 100px;
-  object-fit: cover;
-  border-radius: 50%;
+  block-size: 150px;
+  object-fit: contain;
   margin-block-end: var(--space-md);
-  border: 2px solid var(--color-border-light);
+  border: none;
 }
 
 .badge-item h3 {
