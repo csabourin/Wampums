@@ -197,7 +197,7 @@ export class Dashboard {
   }
 
   render() {
-    const adminLink = this.app.userRole === "admin" ? 
+    const adminLink = this.app.userRole === "admin" ?
       `<a href="/admin" id="admin-link">${translate("administration")}</a>` :``;
 
     const content = `
@@ -210,11 +210,11 @@ export class Dashboard {
         <a href="/upcoming-meeting">${translate("upcoming_meeting")}</a>
       </div>
       <div class="logo-container">
-        <img 
-  class="logo" 
-  src="${this.organizationLogo}" 
-  width="335" 
-  height="366" 
+        <img
+  class="logo"
+  src="${this.organizationLogo}"
+  width="335"
+  height="366"
   alt="Logo"
   loading="eager"
   decoding="async"
@@ -236,6 +236,7 @@ export class Dashboard {
         ${adminLink}
       </div>
       <div id="points-list">
+        <h3 style="text-align: center; margin: 1rem 0;">${translate("points")}</h3>
         ${this.renderPointsList()}
       </div>
       <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
@@ -269,11 +270,11 @@ export class Dashboard {
         const groupTotalPoints = participants.reduce((sum, p) => sum + (parseInt(p.total_points) || 0), 0);
         groupsList += `
           <div class="group-header" data-group-id="${groupId}" data-type="group" data-points="${groupTotalPoints}">
-            ${group.name} - 
-            <span id="group-points-${groupId}">${groupTotalPoints} ${translate("points")}</span>
-            <div class="group-content visible">
-              ${this.renderParticipantsForGroup(participants)}
-            </div>
+            <span>${group.name}</span>
+            <span id="group-points-${groupId}">${groupTotalPoints}</span>
+          </div>
+          <div class="group-content visible">
+            ${this.renderParticipantsForGroup(participants)}
           </div>
         `;
       }
@@ -283,10 +284,11 @@ export class Dashboard {
     if (participantsWithoutGroup.length > 0) {
       groupsList += `
         <div class="group-header" data-group-id="none" data-type="group" data-points="0">
-          ${translate("no_group")} 
-          <div class="group-content visible">
-            ${this.renderParticipantsForGroup(participantsWithoutGroup)}
-          </div>
+          <span>${translate("no_group")}</span>
+          <span>0</span>
+        </div>
+        <div class="group-content visible">
+          ${this.renderParticipantsForGroup(participantsWithoutGroup)}
         </div>
       `;
     }
@@ -320,13 +322,11 @@ export class Dashboard {
       // Ensure total_points is a number, default to 0 if undefined
       const points = parseInt(participant.total_points) || 0;
       return `
-      <div class="list-item" data-name-id="${participant.id}" data-type="individual" 
+      <div class="list-item" data-name-id="${participant.id}" data-type="individual"
            data-group-id="${participant.group_id || 'none'}" data-points="${points}"
            data-name="${participant.first_name}">
-        <span>${participant.first_name} ${participant.last_name}    ${participant.is_leader ? `<span class="badge leader">${translate("leader")}</span>` : ''}
-        ${participant.is_second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ''}</span>
-     
-        <span id="name-points-${participant.id}">${points} ${translate("points")}</span>
+        <span class="participant-name">${participant.first_name} ${participant.last_name}${participant.is_leader ? ` <span class="badge leader">${translate("leader")}</span>` : ''}${participant.is_second_leader ? ` <span class="badge second-leader">${translate("second_leader")}</span>` : ''}</span>
+        <span class="participant-points" id="name-points-${participant.id}">${points}</span>
       </div>
     `;
     }).join("");

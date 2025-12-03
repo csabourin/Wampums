@@ -79,13 +79,53 @@ export class ParentContactList {
 
   render() {
     const content = `
+            <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
             <h1>${translate("parent_contact_list")}</h1>
             <div id="contact-list">
-                ${this.renderGroupsAndChildren()}
+                ${this.renderChildrenByFirstName()}
             </div>
-            <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
         `;
     document.getElementById("app").innerHTML = content;
+    this.attachEventListeners();
+  }
+
+  renderChildrenByFirstName() {
+      // Sort children by first name
+      const sortedChildren = Object.entries(this.children)
+        .map(([id, child]) => ({ id, ...child }))
+        .sort((a, b) => {
+          const aFirstName = a.name.split(' ')[0];
+          const bFirstName = b.name.split(' ')[0];
+          return aFirstName.localeCompare(bFirstName);
+        });
+
+      // Group by first letter of first name
+      const groupedByLetter = {};
+      for (const child of sortedChildren) {
+        const firstLetter = child.name[0].toUpperCase();
+        if (!groupedByLetter[firstLetter]) {
+          groupedByLetter[firstLetter] = [];
+        }
+        groupedByLetter[firstLetter].push(child);
+      }
+
+      // Render grouped and collapsed by default
+      let html = "";
+      for (const [letter, children] of Object.entries(groupedByLetter).sort()) {
+        html += `
+          <div class="group">
+            <div class="group-header collapsed" data-letter="${letter}">
+              ${letter} (${children.length})
+            </div>
+            <div class="group-content collapsed">
+        `;
+        for (const child of children) {
+          html += this.renderChildCard(child.id, child);
+        }
+        html += `</div></div>`;
+      }
+
+      return html;
   }
 
   renderGroupsAndChildren() {
@@ -174,7 +214,8 @@ export class ParentContactList {
 
   toggleGroup(header) {
     const content = header.nextElementSibling;
-    content.style.display = content.style.display === "none" ? "block" : "none";
+    header.classList.toggle('collapsed');
+    content.classList.toggle('collapsed');
   }
 
   renderError() {
