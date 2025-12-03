@@ -4,7 +4,7 @@ import {
   saveBadgeProgress,
   getCurrentStars,
   fetchParticipant,
-  getBadgeSystemSettings
+  getBadgeSystemSettings,
 } from "./ajax-functions.js";
 
 export class BadgeForm {
@@ -31,7 +31,7 @@ export class BadgeForm {
       this.renderError();
     }
   }
-  
+
   async fetchBadgeSystemSettings() {
     try {
       const result = await getBadgeSystemSettings();
@@ -46,22 +46,23 @@ export class BadgeForm {
       this.territoires = this.getDefaultTerritoires();
     }
   }
-  
+
   getDefaultTerritoires() {
     return [
-      { name: "Débrouillard comme Kaa", image: "kaa.jpg" },
-      { name: "Vrai comme Baloo", image: "baloo.jpg" },
-      { name: "Respectueux comme Rikki Tikki Tavi", image: "rikki.jpg" },
-      { name: "Dynamique comme Bagheera", image: "bagheera.jpg" },
-      { name: "Heureux comme Ferao", image: "ferao.jpg" },
-      { name: "Solidaire comme Frère Gris", image: "frereGris.jpg" }
+      { name: "Débrouillard comme Kaa", image: "kaa.png" },
+      { name: "Vrai comme Baloo", image: "baloo.png" },
+      { name: "Respectueux comme Rikki Tikki Tavi", image: "rikki.png" },
+      { name: "Dynamique comme Bagheera", image: "bagheera.png" },
+      { name: "Heureux comme Ferao", image: "ferao.png" },
+      { name: "Solidaire comme Frère Gris", image: "frereGris.png" },
     ];
   }
 
   async fetchParticipant(participantId) {
     try {
       const result = await fetchParticipant(participantId);
-      if (!result || !result.participant) {  // Check if the participant exists in the response
+      if (!result || !result.participant) {
+        // Check if the participant exists in the response
         throw new Error("Participant not found");
       }
       this.participant = result.participant; // Assign the participant object correctly
@@ -71,30 +72,29 @@ export class BadgeForm {
     }
   }
 
-
   async fetchBadgeProgress() {
     const result = await getBadgeProgress(this.participant.id);
-    this.badgeProgress = Array.isArray(result) ? result : (result?.data || []);
+    this.badgeProgress = Array.isArray(result) ? result : result?.data || [];
   }
 
   updateFormData() {
-    const form = document.getElementById('badge-form');
+    const form = document.getElementById("badge-form");
     this.formData = {
-      territoire_chasse: form.querySelector('#territoire_chasse').value,
-      objectif: form.querySelector('#objectif').value,
-      description: form.querySelector('#description').value,
-      fierte: form.querySelector('#fierte').checked,
-      raison: form.querySelector('#raison').value,
-      date_obtention: form.querySelector('#date_obtention').value,
+      territoire_chasse: form.querySelector("#territoire_chasse").value,
+      objectif: form.querySelector("#objectif").value,
+      description: form.querySelector("#description").value,
+      fierte: form.querySelector("#fierte").checked,
+      raison: form.querySelector("#raison").value,
+      date_obtention: form.querySelector("#date_obtention").value,
     };
   }
 
   renderTerritoireOptions() {
-    return this.territoires.map(t => 
-      `<option value="${t.name}">${t.name}</option>`
-    ).join('');
+    return this.territoires
+      .map((t) => `<option value="${t.name}">${t.name}</option>`)
+      .join("");
   }
-  
+
   render() {
     const content = `
             <h1>${translate("badge_progress_form")}</h1>
@@ -103,7 +103,7 @@ export class BadgeForm {
             <button id="print-view-btn">${translate("print_badge_form")}</button>
             <form id="badge-form">
                 <label for="territoire_chasse">${translate(
-                  "territoire_chasse"
+                  "territoire_chasse",
                 )}:</label>
                 <select id="territoire_chasse" name="territoire_chasse" required>
                     <option value="-1" selected disabled>...</option>
@@ -112,7 +112,7 @@ export class BadgeForm {
 
                 <div id="starInfo">
                     ${translate(
-                      "current_stars"
+                      "current_stars",
                     )}: <span id="currentStarsDisplay">0</span>
                 </div>
 
@@ -135,14 +135,14 @@ export class BadgeForm {
                 <textarea id="raison" name="raison" required></textarea>
 
                 <label for="date_obtention">${translate(
-                  "date_obtention"
+                  "date_obtention",
                 )}:</label>
                 <input type="date" id="date_obtention" name="date_obtention" required>
 
                 <input type="hidden" id="etoiles" name="etoiles" value="1">
 
                 <input type="submit" id="submitButton" value="${translate(
-                  "save_badge_progress"
+                  "save_badge_progress",
                 )}">
             </form>
 
@@ -158,7 +158,7 @@ export class BadgeForm {
   }
 
   renderPrintView() {
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     printWindow.document.write(`
       <html>
         <head>
@@ -212,32 +212,32 @@ export class BadgeForm {
 
           <div class="form-field">
             <label>${translate("territoire_chasse")}:</label>
-            <div class="input-line">${this.formData.territoire_chasse || ''}</div>
+            <div class="input-line">${this.formData.territoire_chasse || ""}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("objectif_proie")}:</label>
-            <div class="input-line long-input">${this.formData.objectif || ''}</div>
+            <div class="input-line long-input">${this.formData.objectif || ""}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("description")}:</label>
-            <div class="input-line long-input">${this.formData.description || ''}</div>
+            <div class="input-line long-input">${this.formData.description || ""}</div>
           </div>
 
           <div class="form-field checkbox-field">
-            <input type="checkbox" ${this.formData.fierte ? 'checked' : ''} disabled>
+            <input type="checkbox" ${this.formData.fierte ? "checked" : ""} disabled>
             <label>${translate("fierte")}</label>
           </div>
 
           <div class="form-field">
             <label>${translate("raison")}:</label>
-            <div class="input-line long-input">${this.formData.raison || ''}</div>
+            <div class="input-line long-input">${this.formData.raison || ""}</div>
           </div>
 
           <div class="form-field">
             <label>${translate("date_obtention")}:</label>
-            <div class="input-line">${this.formData.date_obtention || ''}</div>
+            <div class="input-line">${this.formData.date_obtention || ""}</div>
           </div>
 
           <div class="form-field">
@@ -261,14 +261,15 @@ export class BadgeForm {
       .map((territoire) => {
         const territoireName = territoire.name;
         const badge = this.badgeProgress.find(
-          (b) => b.territoire_chasse === territoireName && b.status === "approved"
+          (b) =>
+            b.territoire_chasse === territoireName && b.status === "approved",
         );
         const stars = badge ? badge.etoiles : 0;
         const pendingStars = this.getPendingStars(territoireName);
 
         return `
                 <div class="badge-item">
-                    <img src="images/${territoire.image || 'default.jpg'}" alt="${territoireName}">
+                    <img src="images/${territoire.image || "default.jpg"}" alt="${territoireName}">
                     <h3>${territoireName}</h3>
                     <div class="stars">
                         ${this.renderStars(stars, pendingStars)}
@@ -302,21 +303,21 @@ export class BadgeForm {
                 <p>${translate("objectif")}: ${badge.objectif}</p>
                 <p>${translate("description")}: ${badge.description}</p>
                 <p>${translate("fierte")}: ${
-      badge.fierte ? translate("yes") : translate("no")
-    }</p>
+                  badge.fierte ? translate("yes") : translate("no")
+                }</p>
                 <p>${translate("raison")}: ${badge.raison}</p>
             </details>
         `;
   }
 
   getTerritoireImage(territoire) {
-    const found = this.territoires.find(t => t.name === territoire);
+    const found = this.territoires.find((t) => t.name === territoire);
     return found ? found.image : "default.jpg";
   }
 
   getPendingStars(territoire) {
     return this.badgeProgress.filter(
-      (b) => b.territoire_chasse === territoire && b.status === "pending"
+      (b) => b.territoire_chasse === territoire && b.status === "pending",
     ).length;
   }
 
@@ -327,11 +328,11 @@ export class BadgeForm {
     const territoireSelect = document.getElementById("territoire_chasse");
     const submitButton = document.getElementById("submitButton");
 
-    document.getElementById('badge-form').addEventListener('input', (e) => {
+    document.getElementById("badge-form").addEventListener("input", (e) => {
       this.updateFormData();
     });
 
-    document.getElementById('print-view-btn').addEventListener('click', () => {
+    document.getElementById("print-view-btn").addEventListener("click", () => {
       this.updateFormData();
       this.renderPrintView();
     });
@@ -385,7 +386,7 @@ export class BadgeForm {
         const result = await saveBadgeProgress(Object.fromEntries(formData));
         if (result.status === "success") {
           this.showSuccessMessage(
-            translate("badge_progress_submitted_for_approval")
+            translate("badge_progress_submitted_for_approval"),
           );
           await this.fetchBadgeProgress();
           this.render();
@@ -409,8 +410,8 @@ export class BadgeForm {
         errorMessages.push(
           `${field.previousElementSibling.textContent.replace(
             ":",
-            ""
-          )} is required.`
+            "",
+          )} is required.`,
         );
       }
     });
