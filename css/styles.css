@@ -1329,13 +1329,96 @@ tr:hover {
    5.17 SORTING & FILTERING
    ---------------------------------------------------------------------------- */
 
-.sort-options,
-.filter-options {
+.controls-container {
   margin-block-end: var(--space-lg);
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sort-options {
+  display: flex;
+  gap: var(--space-sm);
   align-items: center;
+  justify-content: center;
+}
+
+.sort-btn,
+.filter-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 48px;
+  min-block-size: 48px;
+  padding: var(--space-sm);
+  background-color: white;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+}
+
+.sort-btn:hover,
+.filter-toggle-btn:hover {
+  background-color: var(--color-primary);
+  color: white;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.sort-btn:active,
+.filter-toggle-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.filter-toggle-btn {
+  background-color: var(--color-secondary);
+  border-color: var(--color-text-muted);
+}
+
+.filter-toggle-btn:hover {
+  background-color: var(--color-text-muted);
+  color: white;
+}
+
+.filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  max-block-size: 200px;
+  opacity: 1;
+  transition: all var(--transition-base);
+}
+
+.filter-options.hidden {
+  max-block-size: 0;
+  padding: 0;
+  opacity: 0;
+  margin: 0;
+}
+
+.filter-options label {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.filter-options select {
+  flex: 1;
+  min-inline-size: 150px;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-base);
 }
 
 .sort-control {

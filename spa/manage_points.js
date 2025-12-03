@@ -162,21 +162,24 @@ export class ManagePoints {
     const content = `
       <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
       <h1>${translate("manage_points")}</h1>
-      <div class="sort-options">
-        <button data-sort="name">${translate("sort_by_name")}</button>
-        <button data-sort="group">${translate("sort_by_group")}</button>
-        <button data-sort="points">${translate("sort_by_points")}</button>
-      </div>
-      <div class="filter-options">
-        <label for="group-filter">${translate("filter_by_group")}:</label>
-        <select id="group-filter">
-          <option value="">${translate("all_groups")}</option>
-          ${this.groups
-            .map(
-              (group) => `<option value="${group.id}">${group.name}</option>`,
-            )
-            .join("")}
-        </select>
+      <div class="controls-container">
+        <div class="sort-options">
+          <button class="sort-btn" data-sort="name" title="${translate("sort_by_name")}">👤</button>
+          <button class="sort-btn" data-sort="group" title="${translate("sort_by_group")}">👥</button>
+          <button class="sort-btn" data-sort="points" title="${translate("sort_by_points")}">🏆</button>
+          <button class="filter-toggle-btn" id="filter-toggle" title="${translate("filter_by_group")}">⊙</button>
+        </div>
+        <div class="filter-options hidden" id="filter-container">
+          <label for="group-filter">${translate("filter_by_group")}:</label>
+          <select id="group-filter">
+            <option value="">${translate("all_groups")}</option>
+            ${this.groups
+              .map(
+                (group) => `<option value="${group.id}">${group.name}</option>`,
+              )
+              .join("")}
+          </select>
+        </div>
       </div>
       <div id="points-list"></div>
       <div class="fixed-bottom">
@@ -277,6 +280,7 @@ export class ManagePoints {
     const sortContainer = document.querySelector(".sort-options");
     const pointsList = document.getElementById("points-list");
     const filterDropdown = document.getElementById("group-filter");
+    const filterToggle = document.getElementById("filter-toggle");
     const fixedBottom = document.querySelector(".fixed-bottom"); // Ensure we target .fixed-bottom
 
     // Check if these elements exist before adding listeners
@@ -311,6 +315,13 @@ export class ManagePoints {
       // Add change listener for group filter dropdown
       filterDropdown.addEventListener("change", (event) => {
         this.filterByGroup(event.target.value);
+      });
+    }
+
+    if (filterToggle) {
+      // Add listener for filter toggle button
+      filterToggle.addEventListener("click", () => {
+        this.toggleFilter();
       });
     }
 
@@ -635,6 +646,16 @@ export class ManagePoints {
 
   sortItems(key) {
     debugLog(`Sorting by ${key}`);
+
+    // Toggle sort order if clicking same key, otherwise start with asc
+    if (this.currentSort.key === key) {
+      this.currentSort.order =
+        this.currentSort.order === "asc" ? "desc" : "asc";
+    } else {
+      this.currentSort.key = key;
+      this.currentSort.order = "asc";
+    }
+
     if (key === "group") {
       this.sortByGroup(); // Reuse the method to sort by group
     } else {
@@ -661,16 +682,14 @@ export class ManagePoints {
       // Clear the list and render only participants
       list.innerHTML = items.map((item) => item.outerHTML).join("");
 
-      // Update current sort order
-      if (this.currentSort.key === key) {
-        this.currentSort.order =
-          this.currentSort.order === "asc" ? "desc" : "asc";
-      } else {
-        this.currentSort.key = key;
-        this.currentSort.order = "asc";
-      }
-
       debugLog(`Sorted by ${key}, order: ${this.currentSort.order}`);
+    }
+  }
+
+  toggleFilter() {
+    const filterContainer = document.getElementById("filter-container");
+    if (filterContainer) {
+      filterContainer.classList.toggle("hidden");
     }
   }
 
