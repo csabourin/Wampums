@@ -3,6 +3,7 @@
 // Critical imports - loaded immediately (core functionality)
 import { Dashboard } from "./dashboard.js";
 import { Login } from "./login.js";
+import { translate } from "./app.js";
 import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 
 // Lazy-loaded modules - loaded on demand for better performance
@@ -302,7 +303,7 @@ export class Router {
   }
 
   loadNotAuthorizedPage() {
-    document.getElementById("app").innerHTML = "<h1>403 - Accès interdit</h1>";
+    document.getElementById("app").innerHTML = `<h1>${translate("error_403_forbidden")}</h1>`;
   }
 
   // Helper method to lazy-load and cache modules
@@ -449,11 +450,11 @@ export class Router {
   }
 
   loadNotFoundPage() {
-    document.getElementById("app").innerHTML = "<h1>404 - Page Not Found</h1>";
+    document.getElementById("app").innerHTML = `<h1>${translate("error_404_not_found")}</h1>`;
   }
 
   loadNotAuthorizedPage() {
-    document.getElementById("app").innerHTML = "<h1>403 - Not Authorized</h1>";
+    document.getElementById("app").innerHTML = `<h1>${translate("error_403_not_authorized")}</h1>`;
   }
 
   async loadRegisterPage() {

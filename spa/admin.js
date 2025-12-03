@@ -170,7 +170,7 @@ export class Admin {
 			event.preventDefault();
 			const title = document.getElementById("notification-title").value;
 			const body = document.getElementById("notification-body").value;
-			resultContainer.innerHTML = "Sending...";
+			resultContainer.innerHTML = translate("sending");
 
 			// Get selected subscribers
 			const selectedSubscribers = Array.from(document.querySelectorAll('#subscribers-list input:checked')).map(input => input.value);
@@ -178,7 +178,7 @@ export class Admin {
 			// Retrieve the JWT token from localStorage
 			const token = localStorage.getItem('jwtToken');
 			if (!token) {
-				resultContainer.innerHTML = "Error: No token found. Please log in.";
+				resultContainer.innerHTML = translate("error_no_token");
 				return;
 			}
 
@@ -193,13 +193,13 @@ export class Admin {
 				});
 				const result = await response.json();
 				if (response.ok) {
-					resultContainer.innerHTML = "Notification sent successfully!";
+					resultContainer.innerHTML = translate("notification_sent_successfully");
 					notificationForm.reset();
 				} else {
-					resultContainer.innerHTML = `Failed to send notification: ${result.error}`;
+					resultContainer.innerHTML = `${translate("failed_to_send_notification")}: ${result.error}`;
 				}
 			} catch (error) {
-				resultContainer.innerHTML = `Error: ${error.message}`;
+				resultContainer.innerHTML = `${translate("error")}: ${error.message}`;
 			}
 		});
 	}
