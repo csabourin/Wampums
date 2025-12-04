@@ -161,86 +161,6 @@ module.exports = (pool) => {
 
   /**
    * @swagger
-   * /api/v1/participants/{id}:
-   *   get:
-   *     summary: Get a specific participant
-   *     tags: [Participants]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: integer
-   *     responses:
-   *       200:
-   *         description: Participant details
-   *       404:
-   *         description: Participant not found
-   */
-  router.get('/:id', authenticate, asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const organizationId = await getOrganizationId(req, pool);
-    const userRole = req.user.role;
-    const userId = req.user.id;
-
-    // Base query to get participant data
-    let query = `
-      SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
-             COALESCE(
-               (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
-                FROM form_submissions
-                WHERE participant_id = p.id AND organization_id = $2), '[]'::json
-             ) as form_submissions,
-             COALESCE(
-               (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $2),
-               0
-             ) as total_points
-      FROM participants p
-      JOIN participant_organizations po ON p.id = po.participant_id
-      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
-      LEFT JOIN groups g ON pg.group_id = g.id
-      WHERE p.id = $1 AND po.organization_id = $2
-    `;
-
-    let params = [id, organizationId];
-
-    // For parent role, verify they have access to this participant
-    if (userRole !== 'admin' && userRole !== 'animation') {
-      query += ` AND EXISTS (
-        SELECT 1 FROM user_participants up
-        WHERE up.participant_id = p.id AND up.user_id = $3
-      )`;
-      params.push(userId);
-    }
-
-    const result = await pool.query(query, params);
-
-    if (result.rows.length === 0) {
-      return error(res, 'Participant not found or access denied', 404);
-    }
-
-    // Transform form_submissions into has_* flags
-    const participant = result.rows[0];
-    const formSubmissions = participant.form_submissions || [];
-    const hasFlags = {};
-
-    formSubmissions.forEach(submission => {
-      hasFlags[`has_${submission.form_type}`] = true;
-    });
-
-    // Remove form_submissions from output
-    const { form_submissions, ...participantData } = participant;
-
-    return success(res, {
-      ...participantData,
-      ...hasFlags
-    });
-  }));
-
-  /**
-   * @swagger
    * /api/v1/participants:
    *   post:
    *     summary: Create a new participant
@@ -312,112 +232,6 @@ module.exports = (pool) => {
     } finally {
       client.release();
     }
-  }));
-
-  /**
-   * @swagger
-   * /api/v1/participants/{id}:
-   *   put:
-   *     summary: Update a participant
-   *     tags: [Participants]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: integer
-   *     responses:
-   *       200:
-   *         description: Participant updated
-   */
-  router.put('/:id', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const { first_name, last_name, date_of_birth, group_id } = req.body;
-    const organizationId = await getOrganizationId(req, pool);
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Update participant
-      const result = await client.query(
-        `UPDATE participants
-         SET first_name = COALESCE($1, first_name),
-             last_name = COALESCE($2, last_name),
-             date_of_birth = COALESCE($3, date_of_birth)
-         WHERE id = $4
-         RETURNING *`,
-        [first_name, last_name, date_of_birth, id]
-      );
-
-      if (result.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return error(res, 'Participant not found', 404);
-      }
-
-      // Update group if provided
-      if (group_id !== undefined) {
-        await client.query(
-          `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
-          [id, organizationId]
-        );
-
-        if (group_id) {
-          await client.query(
-            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
-             VALUES ($1, $2, $3)`,
-            [id, group_id, organizationId]
-          );
-        }
-      }
-
-      await client.query('COMMIT');
-
-      return success(res, result.rows[0], 'Participant updated successfully');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  }));
-
-  /**
-   * @swagger
-   * /api/v1/participants/{id}:
-   *   delete:
-   *     summary: Delete a participant
-   *     tags: [Participants]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: integer
-   *     responses:
-   *       200:
-   *         description: Participant deleted
-   */
-  router.delete('/:id', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const organizationId = await getOrganizationId(req, pool);
-
-    const result = await pool.query(
-      `DELETE FROM participant_organizations
-       WHERE participant_id = $1 AND organization_id = $2
-       RETURNING *`,
-      [id, organizationId]
-    );
-
-    if (result.rows.length === 0) {
-      return error(res, 'Participant not found', 404);
-    }
-
-    return success(res, null, 'Participant removed from organization');
   }));
 
   // ============================================
@@ -929,6 +743,197 @@ module.exports = (pool) => {
     }
 
     return success(res, null, 'Participant removed from group successfully');
+  }));
+
+  // ============================================
+  // CATCH-ALL ROUTES (Must be LAST to avoid intercepting specific routes)
+  // These routes use /:id which matches any path segment
+  // ============================================
+
+  /**
+   * @swagger
+   * /api/v1/participants/{id}:
+   *   get:
+   *     summary: Get a specific participant
+   *     tags: [Participants]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Participant details
+   *       404:
+   *         description: Participant not found
+   */
+  router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const organizationId = await getOrganizationId(req, pool);
+    const userRole = req.user.role;
+    const userId = req.user.id;
+
+    // Base query to get participant data
+    let query = `
+      SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+             COALESCE(
+               (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
+                FROM form_submissions
+                WHERE participant_id = p.id AND organization_id = $2), '[]'::json
+             ) as form_submissions,
+             COALESCE(
+               (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $2),
+               0
+             ) as total_points
+      FROM participants p
+      JOIN participant_organizations po ON p.id = po.participant_id
+      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $2
+      LEFT JOIN groups g ON pg.group_id = g.id
+      WHERE p.id = $1 AND po.organization_id = $2
+    `;
+
+    let params = [id, organizationId];
+
+    // For parent role, verify they have access to this participant
+    if (userRole !== 'admin' && userRole !== 'animation') {
+      query += ` AND EXISTS (
+        SELECT 1 FROM user_participants up
+        WHERE up.participant_id = p.id AND up.user_id = $3
+      )`;
+      params.push(userId);
+    }
+
+    const result = await pool.query(query, params);
+
+    if (result.rows.length === 0) {
+      return error(res, 'Participant not found or access denied', 404);
+    }
+
+    // Transform form_submissions into has_* flags
+    const participant = result.rows[0];
+    const formSubmissions = participant.form_submissions || [];
+    const hasFlags = {};
+
+    formSubmissions.forEach(submission => {
+      hasFlags[`has_${submission.form_type}`] = true;
+    });
+
+    // Remove form_submissions from output
+    const { form_submissions, ...participantData } = participant;
+
+    return success(res, {
+      ...participantData,
+      ...hasFlags
+    });
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/participants/{id}:
+   *   put:
+   *     summary: Update a participant
+   *     tags: [Participants]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Participant updated
+   */
+  router.put('/:id', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { first_name, last_name, date_of_birth, group_id } = req.body;
+    const organizationId = await getOrganizationId(req, pool);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update participant
+      const result = await client.query(
+        `UPDATE participants
+         SET first_name = COALESCE($1, first_name),
+             last_name = COALESCE($2, last_name),
+             date_of_birth = COALESCE($3, date_of_birth)
+         WHERE id = $4
+         RETURNING *`,
+        [first_name, last_name, date_of_birth, id]
+      );
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Participant not found', 404);
+      }
+
+      // Update group if provided
+      if (group_id !== undefined) {
+        await client.query(
+          `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
+          [id, organizationId]
+        );
+
+        if (group_id) {
+          await client.query(
+            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
+             VALUES ($1, $2, $3)`,
+            [id, group_id, organizationId]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      return success(res, result.rows[0], 'Participant updated successfully');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/participants/{id}:
+   *   delete:
+   *     summary: Delete a participant
+   *     tags: [Participants]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Participant deleted
+   */
+  router.delete('/:id', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `DELETE FROM participant_organizations
+       WHERE participant_id = $1 AND organization_id = $2
+       RETURNING *`,
+      [id, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Participant not found', 404);
+    }
+
+    return success(res, null, 'Participant removed from organization');
   }));
 
   return router;
