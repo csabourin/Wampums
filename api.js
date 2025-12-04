@@ -561,18 +561,15 @@ logger.info('   - GET /api/attendance');
 logger.info('   - GET /api/attendance-dates');
 logger.info('   - POST /api/update-attendance');
 
-// Group Routes (handles /api/groups, /api/participant-ages, /api/participant-calendar, etc.)
-// Endpoints: groups (CRUD), participant-ages, participant-calendar, associate-user-participant, link-parent-participant
+// Group Routes (handles /api/v1/groups CRUD operations)
+// NOTE: Legacy /api mount removed to prevent /:id catch-all from intercepting other routes
 app.use('/api/v1/groups', groupsRoutes);
-app.use('/api', groupsRoutes);
 logger.info('✅ Group routes loaded');
-logger.info('   - POST /api/groups');
-logger.info('   - PUT /api/groups/:id');
-logger.info('   - DELETE /api/groups/:id');
-logger.info('   - GET /api/participant-ages');
-logger.info('   - POST /api/associate-user-participant');
-logger.info('   - POST /api/link-parent-participant');
-logger.info('   - DELETE /api/participant-groups/:participantId');
+logger.info('   - GET /api/v1/groups');
+logger.info('   - GET /api/v1/groups/:id');
+logger.info('   - POST /api/v1/groups');
+logger.info('   - PUT /api/v1/groups/:id');
+logger.info('   - DELETE /api/v1/groups/:id');
 
 // Public Routes (handles /api/translations, /api/news)
 // Endpoints: translations, news
