@@ -11,6 +11,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { validationResult } = require('express-validator');
 
@@ -275,20 +276,15 @@ module.exports = (pool, logger) => {
           });
         }
 
-        // Generate reset token (valid for 1 hour)
-        const resetToken = jwt.sign(
-          { user_id: user.rows[0].id, purpose: 'password_reset' },
-          jwtKey,
-          { expiresIn: '1h' }
-        );
+        // Generate a short random reset token (32 hex chars = 64 chars max)
+        const resetToken = crypto.randomBytes(16).toString('hex');
 
-        // Store reset token in database
+        // Store reset token in users table
         await pool.query(
-          `INSERT INTO password_reset_tokens (user_id, token, expires_at)
-           VALUES ($1, $2, NOW() + INTERVAL '1 hour')
-           ON CONFLICT (user_id)
-           DO UPDATE SET token = $2, expires_at = NOW() + INTERVAL '1 hour', created_at = NOW()`,
-          [user.rows[0].id, resetToken]
+          `UPDATE users 
+           SET reset_token = $1, reset_token_expiry = NOW() + INTERVAL '1 hour'
+           WHERE id = $2`,
+          [resetToken, user.rows[0].id]
         );
 
         // Get the domain for the reset link
@@ -348,41 +344,26 @@ module.exports = (pool, logger) => {
       try {
         const { token, new_password } = req.body;
 
-        // Verify token
-        let decoded;
-        try {
-          decoded = jwt.verify(token, jwtKey);
-          if (decoded.purpose !== 'password_reset') {
-            throw new Error('Invalid token purpose');
-          }
-        } catch (err) {
-          return res.status(400).json({ success: false, message: 'Invalid or expired token' });
-        }
-
         // Check if token exists in database and is not expired
         const tokenResult = await pool.query(
-          `SELECT user_id FROM password_reset_tokens
-           WHERE user_id = $1 AND token = $2 AND expires_at > NOW()`,
-          [decoded.user_id, token]
+          `SELECT id FROM users
+           WHERE reset_token = $1 AND reset_token_expiry > NOW()`,
+          [token]
         );
 
         if (tokenResult.rows.length === 0) {
           return res.status(400).json({ success: false, message: 'Invalid or expired token' });
         }
 
+        const userId = tokenResult.rows[0].id;
+
         // Hash new password
         const hashedPassword = await bcrypt.hash(new_password, 10);
 
-        // Update password
+        // Update password and clear reset token
         await pool.query(
-          'UPDATE users SET password = $1 WHERE id = $2',
-          [hashedPassword, decoded.user_id]
-        );
-
-        // Delete used reset token
-        await pool.query(
-          'DELETE FROM password_reset_tokens WHERE user_id = $1',
-          [decoded.user_id]
+          'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
+          [hashedPassword, userId]
         );
 
         res.json({
