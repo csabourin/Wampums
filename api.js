@@ -881,6 +881,8 @@ document.addEventListener("DOMContentLoaded", function() {
   if (!newsWidget) return;
 
   // Lazy load the news widget
+  // Note: The /api/news endpoint already escapes HTML content (see escapeHtml function)
+  // This provides server-side XSS protection for news content
   fetch('/api/news?lang=' + (window.initialData.lang || 'en'))
     .then(response => response.text())
     .then(data => {

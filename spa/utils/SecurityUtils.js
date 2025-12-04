@@ -3,8 +3,10 @@
  *
  * Security utilities for the Wampums application
  * Provides functions for sanitizing user input and preventing XSS attacks
+ * Uses DOMPurify for robust HTML sanitization
  */
 
+import DOMPurify from 'dompurify';
 import { debugLog, debugError } from './DebugUtils.js';
 
 /**
@@ -49,7 +51,7 @@ const ALLOWED_TAGS = {
 };
 
 /**
- * Sanitize HTML string to prevent XSS attacks
+ * Sanitize HTML string to prevent XSS attacks using DOMPurify
  * Removes dangerous tags and attributes while preserving safe formatting
  *
  * @param {string} html - The HTML string to sanitize
@@ -66,82 +68,23 @@ export function sanitizeHTML(html, options = {}) {
 
   // If stripAll is true, remove all HTML tags
   if (options.stripAll) {
-    return html.replace(/<[^>]*>/g, '');
+    return DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
   }
 
-  // Create a temporary DOM element
-  const temp = document.createElement('div');
-  temp.innerHTML = html;
+  // Configure DOMPurify options
+  const config = {
+    ALLOWED_TAGS: Object.keys(ALLOWED_TAGS),
+    ALLOWED_ATTR: options.allowLinks
+      ? ['href', 'title', 'class', 'id']
+      : ['class', 'id'],
+    ALLOW_DATA_ATTR: false,
+    SAFE_FOR_TEMPLATES: true,
+  };
 
-  // Recursively sanitize the element
-  sanitizeElement(temp, options);
-
-  return temp.innerHTML;
+  // Use DOMPurify for robust sanitization
+  return DOMPurify.sanitize(html, config);
 }
 
-/**
- * Recursively sanitize a DOM element and its children
- * @private
- * @param {HTMLElement} element - Element to sanitize
- * @param {Object} options - Sanitization options
- */
-function sanitizeElement(element, options) {
-  const children = Array.from(element.childNodes);
-
-  children.forEach(child => {
-    if (child.nodeType === Node.ELEMENT_NODE) {
-      const tagName = child.tagName.toLowerCase();
-
-      // Check if tag is allowed
-      const allowedAttrs = ALLOWED_TAGS[tagName];
-
-      if (!allowedAttrs) {
-        // Tag not allowed - replace with its text content
-        const textNode = document.createTextNode(child.textContent);
-        child.parentNode.replaceChild(textNode, child);
-        return;
-      }
-
-      // Special handling for links
-      if (tagName === 'a' && !options.allowLinks) {
-        const textNode = document.createTextNode(child.textContent);
-        child.parentNode.replaceChild(textNode, child);
-        return;
-      }
-
-      // Remove dangerous attributes
-      const attrs = Array.from(child.attributes);
-      attrs.forEach(attr => {
-        const attrName = attr.name.toLowerCase();
-
-        // Remove event handlers
-        if (attrName.startsWith('on')) {
-          child.removeAttribute(attr.name);
-          return;
-        }
-
-        // Remove javascript: URLs
-        if (attrName === 'href' || attrName === 'src') {
-          const value = attr.value.toLowerCase().trim();
-          if (value.startsWith('javascript:') ||
-              value.startsWith('data:') ||
-              value.startsWith('vbscript:')) {
-            child.removeAttribute(attr.name);
-            return;
-          }
-        }
-
-        // Remove if not in allowed list
-        if (!allowedAttrs.includes(attrName)) {
-          child.removeAttribute(attr.name);
-        }
-      });
-
-      // Recursively sanitize children
-      sanitizeElement(child, options);
-    }
-  });
-}
 
 /**
  * Escape HTML special characters to prevent XSS
