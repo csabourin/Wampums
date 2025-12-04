@@ -248,6 +248,9 @@ if (CONFIG.debugMode) {
     console.log("Version:", CONFIG.VERSION);
     console.log("Environment:", import.meta.env?.MODE || "production");
     console.log("============================");
+} else {
+    // In production, at least show the version for troubleshooting
+    console.log(`Wampums v${CONFIG.VERSION} - Production Mode`);
 }
 
 /**

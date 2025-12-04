@@ -14,7 +14,7 @@ const isProduction = () => {
   }
 };
 const debugLog = (...args) => { if (!isProduction()) console.log(...args); };
-const debugError = (...args) => { if (!isProduction()) console.error(...args); };
+const debugError = (...args) => { console.error(...args); }; // Always show errors, even in production
 const debugWarn = (...args) => { if (!isProduction()) console.warn(...args); };
 const debugInfo = (...args) => { if (!isProduction()) console.info(...args); };
 
