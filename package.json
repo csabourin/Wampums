@@ -21,11 +21,12 @@
     "body-parser": "^1.19.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
+    "dompurify": "^3.3.0",
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
     "express-rate-limit": "^5.2.6",
     "express-validator": "^6.12.1",
-    "glob": "^11.0.0",
+    "glob": "^13.0.0",
     "helmet": "^4.6.0",
     "jsonwebtoken": "^9.0.2",
     "node-pg-migrate": "^8.0.3",
@@ -44,5 +45,10 @@
     "supertest": "^6.3.3",
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0"
+  },
+  "overrides": {
+    "node-pg-migrate": {
+      "glob": "^11.1.0"
+    }
   }
 }
