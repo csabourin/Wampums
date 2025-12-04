@@ -305,15 +305,21 @@ export class BadgeDashboard {
       .join("");
 
     const stars = this.renderBadgeStars(participantId, badge);
+    const badgeImage = this.getBadgeImage(badge.name);
 
     return `
       <div class="badge-chip" data-participant-id="${participantId}" data-badge-name="${badge.name}">
-        <div class="badge-chip__top">
-          <span class="badge-chip__name">${badge.name}</span>
-          <div class="badge-chip__stars" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
-        </div>
-        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
-          <div class="progress__bar" style="width: ${percent}%;"></div>
+        <div class="badge-chip__header">
+          ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ''}
+          <div class="badge-chip__content">
+            <div class="badge-chip__top">
+              <span class="badge-chip__name">${badge.name}</span>
+              <div class="badge-chip__stars" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
+            </div>
+            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
+              <div class="progress__bar" style="width: ${percent}%;"></div>
+            </div>
+          </div>
         </div>
         <div class="badge-chip__footer">
           <div class="status-group">${statusLabel}</div>
@@ -744,6 +750,20 @@ export class BadgeDashboard {
         feedback.textContent = translate("badge_add_error");
       }
     });
+  }
+
+  getBadgeImage(badgeName) {
+    if (!this.badgeSettings?.territoires) return null;
+
+    const territoire = this.badgeSettings.territoires.find(
+      (t) => t.name.toLowerCase() === badgeName.toLowerCase()
+    );
+
+    if (territoire && territoire.image) {
+      return `/images/${territoire.image}`;
+    }
+
+    return null;
   }
 
   selectBadge(badges, badgeName) {
