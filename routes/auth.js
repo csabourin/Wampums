@@ -43,10 +43,11 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const isProduction = process.env.NODE_ENV === 'production';
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 attempts per hour
-  message: 'Too many password reset requests, please try again after an hour.',
+  max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
+  message: { success: false, message: 'Too many password reset requests, please try again after an hour.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
