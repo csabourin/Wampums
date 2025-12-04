@@ -307,7 +307,7 @@ export class BadgeDashboard {
   renderBadgeChip(participantId, badge) {
     const percent = Math.min(100, Math.round((badge.stars / badge.obtainable) * 100));
     const statusLabel = Array.from(badge.statuses)
-      .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`).substring(0, 3)}</span>`)
+      .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`)}</span>`)
       .join("");
 
     const stars = this.renderBadgeStars(participantId, badge);
@@ -317,11 +317,9 @@ export class BadgeDashboard {
       <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}">
         ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ''}
         <div class="badge-chip__content">
-          <div class="badge-chip__header-compact">
-            <span class="badge-chip__name">${badge.name}</span>
-            <div class="status-group-inline">${statusLabel}</div>
-          </div>
+          <div class="badge-chip__name">${badge.name}</div>
           <div class="badge-chip__stars-compact" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
+          <div class="badge-chip__status">${statusLabel}</div>
           <div class="progress-compact" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
             <div class="progress__bar" style="width: ${percent}%;"></div>
           </div>
