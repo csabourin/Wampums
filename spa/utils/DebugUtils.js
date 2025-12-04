@@ -41,13 +41,12 @@ export function debugLog(...args) {
 }
 
 /**
- * Log an error message (only if debug mode is enabled)
+ * Log an error message (ALWAYS shown, even in production)
+ * Errors are critical and should never be suppressed
  * @param {...any} args - Arguments to log
  */
 export function debugError(...args) {
-    if (isDebugMode()) {
-        console.error('[ERROR]', ...args);
-    }
+    console.error('[ERROR]', ...args);
 }
 
 /**
