@@ -2598,10 +2598,22 @@ details p {
 .badge-table__header,
 .badge-table__row {
   display: grid;
-  grid-template-columns: 1fr 1fr 2fr auto;
+  grid-template-columns: 1.2fr 2fr auto;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   align-items: center;
+}
+
+.badge-table__group {
+  background: #eef2ff;
+  border-block-start: 1px solid var(--color-border-light);
+  border-block-end: 1px solid var(--color-border-light);
+  padding: var(--space-xs) var(--space-md);
+}
+
+.badge-table__group-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-dark);
 }
 
 .badge-table__header {

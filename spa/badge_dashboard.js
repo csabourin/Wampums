@@ -18,6 +18,7 @@ export class BadgeDashboard {
     this.badgeEntries = [];
     this.badgeSettings = null;
     this.records = [];
+    this.sortedRecords = [];
     this.visibleCount = 25;
     this.batchSize = 25;
     this.sortKey = "group";
@@ -153,20 +154,31 @@ export class BadgeDashboard {
   }
 
   getObtainableStars(badgeName, currentStars = 0) {
-    if (!this.badgeSettings) return Math.max(5, currentStars);
+    if (!this.badgeSettings) return Math.max(3, currentStars);
+
+    const starFieldMax = this.badgeSettings?.badge_structure?.fields?.find(
+      (field) => field.name === "etoiles"
+    )?.max;
+    const explicitMax = parseInt(starFieldMax, 10);
 
     const territory = (this.badgeSettings.territoires || []).find(
       (territoire) => territoire.name?.toLowerCase() === badgeName.toLowerCase()
     );
 
     const maxFromTerritory = territory?.maxStars || territory?.max_etoiles;
-    const globalMax = this.badgeSettings.maxStarsPerBadge || this.badgeSettings.maxStars || this.badgeSettings.max_etoiles || 5;
+    const globalMax =
+      explicitMax ||
+      this.badgeSettings.maxStarsPerBadge ||
+      this.badgeSettings.maxStars ||
+      this.badgeSettings.max_etoiles ||
+      3;
 
-    return Math.max(maxFromTerritory || globalMax || 5, currentStars);
+    return Math.max(maxFromTerritory || 0, globalMax || 0, currentStars, 3);
   }
 
   render() {
     const content = `
+      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
       <section class="badge-dashboard" aria-labelledby="badge-dashboard-title">
         <header class="badge-dashboard__header">
           <div>
@@ -222,9 +234,9 @@ export class BadgeDashboard {
       <div class="badge-dashboard__controls">
         <label for="badge-sort" class="sr-only">${translate("badge_sort_label")}</label>
         <select id="badge-sort" aria-label="${translate("badge_sort_label")}">
-          <option value="group">${translate("badge_sort_group")}</option>
-          <option value="name">${translate("badge_sort_name")}</option>
-          <option value="stars">${translate("badge_sort_stars")}</option>
+          <option value="group" ${this.sortKey === "group" ? "selected" : ""}>${translate("badge_sort_group")}</option>
+          <option value="name" ${this.sortKey === "name" ? "selected" : ""}>${translate("badge_sort_name")}</option>
+          <option value="stars" ${this.sortKey === "stars" ? "selected" : ""}>${translate("badge_sort_stars")}</option>
         </select>
         <button id="badge-sort-direction" class="ghost-button" aria-label="${translate("badge_sort_direction")}">
           ${this.sortDirection === "asc" ? "↑" : "↓"}
@@ -236,7 +248,6 @@ export class BadgeDashboard {
   renderTableHeader() {
     return `
       <div class="badge-table__header" role="row">
-        <span role="columnheader">${translate("badge_table_group")}</span>
         <span role="columnheader">${translate("badge_table_participant")}</span>
         <span role="columnheader">${translate("badge_table_badges")}</span>
         <span role="columnheader" class="numeric">${translate("badge_table_total_stars")}</span>
@@ -245,9 +256,23 @@ export class BadgeDashboard {
   }
 
   renderRows() {
-    return this.getVisibleRecords()
-      .map((record) => this.renderRow(record))
-      .join("");
+    const rows = [];
+    let currentGroup = null;
+
+    this.getVisibleRecords().forEach((record) => {
+      if (record.groupName !== currentGroup) {
+        currentGroup = record.groupName;
+        rows.push(`
+          <div class="badge-table__group" role="rowgroup">
+            <div class="badge-table__group-title" role="rowheader">${record.groupName}</div>
+          </div>
+        `);
+      }
+
+      rows.push(this.renderRow(record));
+    });
+
+    return rows.join("");
   }
 
   renderRow(record) {
@@ -257,7 +282,6 @@ export class BadgeDashboard {
 
     return `
       <article class="badge-table__row" role="row" data-participant-id="${record.id}">
-        <div role="cell" class="badge-table__cell">${record.groupName}</div>
         <div role="cell" class="badge-table__cell">${record.firstName} ${record.lastName}</div>
         <div role="cell" class="badge-table__cell badge-table__cell--badges">${badges}</div>
         <div role="cell" class="badge-table__cell numeric">${record.totalStars}</div>
@@ -311,6 +335,7 @@ export class BadgeDashboard {
       this.sortDirection = this.sortDirection === "asc" ? "desc" : "asc";
       sortDirectionButton.textContent = this.sortDirection === "asc" ? "↑" : "↓";
       this.sortRecords();
+      this.resetVisibleCount();
       this.updateRows();
     });
 
@@ -353,24 +378,45 @@ export class BadgeDashboard {
 
   sortRecords() {
     const collator = new Intl.Collator(undefined, { sensitivity: "base" });
+    const direction = this.sortDirection === "asc" ? 1 : -1;
+    const groupMap = new Map();
 
-    this.records.sort((a, b) => {
-      let comparison = 0;
+    this.records.forEach((record) => {
+      const groupName = record.groupName || translate("no_group");
+      if (!groupMap.has(groupName)) groupMap.set(groupName, []);
+      groupMap.get(groupName).push(record);
+    });
 
-      if (this.sortKey === "group") {
-        comparison = collator.compare(a.groupName || "", b.groupName || "");
-      } else if (this.sortKey === "name") {
-        comparison = collator.compare(`${a.firstName} ${a.lastName}`, `${b.firstName} ${b.lastName}`);
-      } else if (this.sortKey === "stars") {
-        comparison = (b.totalStars || 0) - (a.totalStars || 0);
+    const participantComparator = (a, b) => {
+      if (this.sortKey === "stars") {
+        return direction * ((b.totalStars || 0) - (a.totalStars || 0));
       }
 
-      return this.sortDirection === "asc" ? comparison : -comparison;
+      const nameComparison = collator.compare(
+        `${a.firstName} ${a.lastName}`,
+        `${b.firstName} ${b.lastName}`
+      );
+
+      return this.sortKey === "name" ? direction * nameComparison : nameComparison;
+    };
+
+    const sortedGroupNames = Array.from(groupMap.keys()).sort((a, b) => {
+      if (this.sortKey === "group") {
+        return direction * collator.compare(a, b);
+      }
+      return collator.compare(a, b);
+    });
+
+    this.sortedRecords = [];
+    sortedGroupNames.forEach((groupName) => {
+      const participants = groupMap.get(groupName) || [];
+      participants.sort(participantComparator);
+      this.sortedRecords.push(...participants.map((participant) => ({ ...participant, groupName })));
     });
   }
 
   getVisibleRecords() {
-    return this.records.slice(0, this.visibleCount);
+    return (this.sortedRecords.length ? this.sortedRecords : this.records).slice(0, this.visibleCount);
   }
 
   resetVisibleCount() {
