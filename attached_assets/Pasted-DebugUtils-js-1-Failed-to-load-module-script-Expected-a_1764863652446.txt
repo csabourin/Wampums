@@ -1,0 +1,143 @@
+DebugUtils.js:1 Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html". Strict MIME type checking is enforced for module scripts per HTML spec.
+
+I see the issue! The server is returning HTML instead of the JavaScript file. This usually means the file path is wrong or the file doesn't exist at that location. Let me check:
+
+Bash
+ls -la spa/utils/
+-rw-r--r-- 1 root root  7647 Dec  4 13:24 SecurityUtils.js
+-rw-r--r-- 1 root root 11363 Dec  4 13:24 StorageUtils.js
+-rw-r--r-- 1 root root 13577 Dec  4 13:24 ValidationUtils.js
+... +5 lignes
+Bash
+find spa -name "*DebugUtils*" -o -name "*debugutils*"
+spa/utils/DebugUtils.js
+The file exists! The issue is likely that the server needs to be restarted or there's a build step. Let me check:
+
+Bash
+cat package.json | grep -A 10 '"scripts"'
+    "migrate": "node-pg-migrate",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+... +8 lignes
+Bash
+ls -la | grep -E "(vite|build|dist)"
+-rw-r--r--  1 root root   5504 Dec  4 13:24 vite.config.js
+Bash
+ls -la dist/ 2>/dev/null | head -20 || echo "No dist directory found"
+(Aucun contenu)
+Bash
+find dist -name "DebugUtils*" 2>/dev/null | head -5 || echo "No DebugUtils in dist"
+(Aucun contenu)
+Bash
+grep -n "static\|express.static\|spa" api.js | head -20
+107:logger.info(`Serving static files from: ${staticDir}`);
+110:app.use(express.static(staticDir, {
+1775:  // Don't catch API routes or static files
+... +3 lignes
+Read
+/home/user/Wampums/api.js
+50 lignes lues
+Found it! The production server is trying to serve from a dist directory that doesn't exist or is outdated.
+
+Looking at line 105 of api.js:
+
+const staticDir = isProduction ? path.join(__dirname, 'dist') : __dirname;
+
+The project needs to be built before deploying to production. Here's what needs to happen:
+
+Update Todos
+ Building production bundle
+Bash
+npm run build
+Exit code 127
+sh: 1: vite: not found
+
+
+> wampums@2.0.2 build
+> vite build
+Bash
+npm install
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated superagent@3.7.0: Please upgrade to superagent v10.2.2+, see release notes at https://github.com/forwardemail/superagent/releases/tag/v10.2.2 - maintenance is supported by Forward Email @ https://forwardemail.net
+npm warn deprecated sib-api-v3-sdk@8.5.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+... +23 lignes
+Bash
+npm run build
+    at async Object.buildApp (file:///home/user/Wampums/node_modules/vite/dist/node/chunks/config.js:34545:153)
+    at async CAC.<anonymous> (file:///home/user/Wampums/node_modules/vite/dist/node/cli.js:629:3)
+
+
+> wampums@2.0.2 build
+> vite build
+
+vite v7.2.4 building client environment for production...
+transforming...
+✓ 46 modules transformed.
+... +24 lignes
+There's a syntax error! My script added the import incorrectly. Let me fix it:
+
+Read
+/home/user/Wampums/spa/manage_users_participants.js
+20 lignes lues
+Edit
+/home/user/Wampums/spa/manage_users_participants.js
+import {
+
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+
+import {
+
+  fetchFromApi
+
+} from "./ajax-functions.js";
+
+import { translate } from "./app.js";
+
+Bash
+grep -n "^import {$" spa/*.js | head -5
+spa/app.js:1:import {
+spa/attendance.js:1:import {
+spa/badge_form.js:3:import {
+... +2 lignes
+Bash
+npm run build 2>&1 | head -50
+    at async Object.build (file:///home/user/Wampums/node_modules/vite/dist/node/chunks/config.js:34548:19)
+    at async Object.buildApp (file:///home/user/Wampums/node_modules/vite/dist/node/chunks/config.js:34545:153)
+    at async CAC.<anonymous> (file:///home/user/Wampums/node_modules/vite/dist/node/cli.js:629:3)
+... +28 lignes
+Multiple files have the same issue. Let me fix them all:
+
+Bash
+cat > /tmp/fix-imports.sh << 'EOF' #!/bin/bash # Fix files where DebugUtils import was inserted incorrectly for file in spa/*.js; do # Check if file has the pattern of broken import if grep -q "^import {$" "$file"; then # Check if next line is the DebugUtils import if sed -n '2p' "$file" | grep -q "import { debugLog"; then echo "Fixing $file" # Extract the DebugUtils import line debug_import=$(sed -n '2p' "$file") # Remove line 2 (the debug import) sed -i '2d' "$file" # Insert the debug import before line 1 sed -i "1i\\$debug_import" "$file" fi fi done EOF chmod +x /tmp/fix-imports.sh && /tmp/fix-imports.sh
+Fixing spa/fiche_sante.js
+Fixing spa/formulaire_inscription.js
+Fixing spa/preparation_reunions.js
+... +3 lignes
+Bash
+npm run build
+    at async Object.buildApp (file:///home/user/Wampums/node_modules/vite/dist/node/chunks/config.js:34545:153)
+    at async CAC.<anonymous> (file:///home/user/Wampums/node_modules/vite/dist/node/cli.js:629:3)
+
+
+> wampums@2.0.2 build
+> vite build
+
+vite v7.2.4 building client environment for production...
+transforming...
+✓ 54 modules transformed.
+... +17 lignes
+Bash
+grep -n "from.*DebugUtils" spa/api/*.js
+spa/api/api-core.js:11:import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
+spa/api/api-endpoints.js:4:import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+spa/api/api-helpers.js:4:import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
+Bash
+for file in spa/api/*.js; do sed -i 's|from "./utils/DebugUtils.js"|from "../utils/DebugUtils.js"|g' "$file"; done && echo "Fixed api directory imports"
+Fixed api directory imports
+Bash
+npm run build 2>&1 | tee /tmp/build.log | tail -100
+files generated
+  dist/sw.js
+  dist/workbox-58bd4dca.js
