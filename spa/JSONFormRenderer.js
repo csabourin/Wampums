@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 
 export class JSONFormRenderer {
 	constructor(formStructure, formData = {}, formOrigin, useUniqueIds = false, formIndex = null) {
@@ -7,13 +8,13 @@ export class JSONFormRenderer {
 		this.formOrigin = formOrigin;
 		this.useUniqueIds = useUniqueIds; 
 		this.formIndex = formIndex; 
-		console.log("Form structure:", this.formStructure, "Form data:", this.formData);
+		debugLog("Form structure:", this.formStructure, "Form data:", this.formData);
 	}
 
 	render(formData = this.formData) {
-		console.log('\x1b[33m%s\x1b[0m', "Rendering with formData:", formData);
+		debugLog('\x1b[33m%s\x1b[0m', "Rendering with formData:", formData);
 		if (!this.formStructure.fields || !Array.isArray(this.formStructure.fields)) {
-			console.warn("Invalid form structure:", this.formStructure);
+			debugWarn("Invalid form structure:", this.formStructure);
 			return '<p>Invalid form structure</p>';
 		}
 

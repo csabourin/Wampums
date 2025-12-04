@@ -1,4 +1,5 @@
 import { getParentContactList } from "./ajax-functions.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 
 export class ParentContactList {
@@ -18,7 +19,7 @@ export class ParentContactList {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing parent contact list:", error);
+      debugError("Error initializing parent contact list:", error);
       this.renderError();
     }
   }
@@ -77,7 +78,7 @@ export class ParentContactList {
 
       this.children = childrenMap;
     } catch (error) {
-      console.error("Error fetching parent contact list:", error);
+      debugError("Error fetching parent contact list:", error);
       throw error;
     }
   }

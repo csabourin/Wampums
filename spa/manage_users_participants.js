@@ -1,4 +1,5 @@
 import {
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
   getParticipantsWithUsers,
   getParentUsers,
   fetchFromApi
@@ -23,7 +24,7 @@ export class ManageUsersParticipants {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing manage users participants:", error);
+      debugError("Error initializing manage users participants:", error);
       this.renderError();
     }
   }
@@ -35,7 +36,7 @@ export class ManageUsersParticipants {
         getParentUsers()
       ]);
     } catch (error) {
-      console.error("Error fetching manage users participants data:", error);
+      debugError("Error fetching manage users participants data:", error);
       throw error;
     }
   }
@@ -127,7 +128,7 @@ export class ManageUsersParticipants {
           this.showError(result.message || translate("error_removing_participant_from_organization"));
         }
       } catch (error) {
-        console.error("Error:", error);
+        debugError("Error:", error);
         this.showError(translate("error_removing_participant_from_organization"));
       }
     }
@@ -151,7 +152,7 @@ export class ManageUsersParticipants {
           this.showError(result.message || translate("error_associating_user"));
         }
       } catch (error) {
-        console.error("Error:", error);
+        debugError("Error:", error);
         this.showError(translate("error_associating_user"));
       }
     } else {

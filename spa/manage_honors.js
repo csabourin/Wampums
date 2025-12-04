@@ -1,4 +1,5 @@
 import { getHonorsAndParticipants, awardHonor } from "./ajax-functions.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
 
@@ -20,7 +21,7 @@ export class ManageHonors {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing manage honors:", error);
+      debugError("Error initializing manage honors:", error);
       this.renderError();
     }
   }
@@ -28,7 +29,7 @@ export class ManageHonors {
   async fetchData() {
     try {
       const response = await getHonorsAndParticipants(this.currentDate);
-      console.log('API Response:', response); // Add this line for debugging
+      debugLog('API Response:', response); // Add this line for debugging
 
       // Support both new format (response.data.participants) and old format (response.participants)
       const data = response.data || response;
@@ -53,9 +54,9 @@ export class ManageHonors {
       // Sort the dates in descending order
       this.availableDates.sort((a, b) => new Date(b) - new Date(a));
 
-      console.log('Processed availableDates:', this.availableDates); // Add this line for debugging
+      debugLog('Processed availableDates:', this.availableDates); // Add this line for debugging
     } catch (error) {
-      console.error("Error fetching honors data:", error);
+      debugError("Error fetching honors data:", error);
       throw error;
     }
   }
@@ -220,7 +221,7 @@ export class ManageHonors {
         throw new Error(result.message || "Unknown error occurred");
       }
     } catch (error) {
-      console.error("Error:", error);
+      debugError("Error:", error);
       this.app.showMessage(`${translate("error_awarding_honor")}: ${error.message}`, "error");
     }
   }

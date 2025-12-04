@@ -1,4 +1,5 @@
 import { getCalendars, updateCalendar, updateCalendarPaid, updateCalendarAmountPaid } from './ajax-functions.js';
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 
 export class Calendars {
@@ -19,7 +20,7 @@ export class Calendars {
 			this.calendars = response.calendars || [];
 			this.calendars.sort((a, b) => a.first_name.localeCompare(b.first_name));
 		} catch (error) {
-			console.error('Error fetching calendars:', error);
+			debugError('Error fetching calendars:', error);
 			this.app.showMessage('error_fetching_calendars', 'error');
 		}
 	}
@@ -96,7 +97,7 @@ export class Calendars {
 			await updateCalendar(participantId, amount, amountPaid);
 			this.app.showMessage('calendar_amount_updated', 'success');
 		} catch (error) {
-			console.error('Error updating calendar amount:', error);
+			debugError('Error updating calendar amount:', error);
 			this.app.showMessage('error_updating_calendar_amount', 'error');
 		}
 	}
@@ -106,7 +107,7 @@ export class Calendars {
 			await updateCalendarAmountPaid(participantId, amountPaid);
 			this.app.showMessage('calendar_amount_paid_updated', 'success');
 		} catch (error) {
-			console.error('Error updating calendar amount paid:', error);
+			debugError('Error updating calendar amount paid:', error);
 			this.app.showMessage('error_updating_calendar_amount_paid', 'error');
 		}
 	}
@@ -116,7 +117,7 @@ export class Calendars {
 			await updateCalendarPaid(participantId, paid);
 			this.app.showMessage('calendar_paid_status_updated', 'success');
 		} catch (error) {
-			console.error('Error updating calendar paid status:', error);
+			debugError('Error updating calendar paid status:', error);
 			this.app.showMessage('error_updating_calendar_paid_status', 'error');
 		}
 	}

@@ -1,5 +1,6 @@
 // register_organization.js
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { registerForOrganization, getUserChildren } from "./ajax-functions.js";
 
 export class RegisterOrganization {
@@ -69,7 +70,7 @@ export class RegisterOrganization {
 				this.app.showMessage(result.message, "error");
 			}
 		} catch (error) {
-			console.error("Error registering for organization:", error);
+			debugError("Error registering for organization:", error);
 			this.app.showMessage(translate("error_registering_for_organization"), "error");
 		}
 	}

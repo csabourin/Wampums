@@ -11,15 +11,21 @@
 
 /**
  * Determine if debug mode is enabled
+ * Production is identified by domains ending in .app
  * @returns {boolean} True if debug mode is active
  */
 function isDebugMode() {
+    // Production domains end with .app - never show debug logs in production
+    const isProduction = window.location.hostname.endsWith('.app');
+
     return (
-        import.meta.env?.VITE_DEBUG_MODE === "true" ||
-        import.meta.env?.DEV ||
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "wampums-1.test" ||
-        window.location.hostname.includes("replit.dev")
+        !isProduction && (
+            import.meta.env?.VITE_DEBUG_MODE === "true" ||
+            import.meta.env?.DEV ||
+            window.location.hostname === "localhost" ||
+            window.location.hostname === "wampums-1.test" ||
+            window.location.hostname.includes("replit.dev")
+        )
     );
 }
 

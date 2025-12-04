@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import * as ajaxFunctions from "./ajax-functions.js";
 
 export class Register {
@@ -74,7 +75,7 @@ export class Register {
         this.showError(result.message);
       }
     } catch (error) {
-      console.error("Registration error:", error);
+      debugError("Registration error:", error);
       this.showError(translate("error_creating_account"));
     }
   }

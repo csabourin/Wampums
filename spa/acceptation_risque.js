@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import {
   fetchParticipant,
   fetchAcceptationRisque,
@@ -20,7 +21,7 @@ export class AcceptationRisque {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing acceptation risque:", error);
+      debugError("Error initializing acceptation risque:", error);
       this.renderError(translate("error_loading_acceptation_risque"));
     }
   }
@@ -32,7 +33,7 @@ export class AcceptationRisque {
         fetchAcceptationRisque(this.participantId),
       ]);
     } catch (error) {
-      console.error("Error fetching acceptation risque data:", error);
+      debugError("Error fetching acceptation risque data:", error);
       throw error;
     }
   }
@@ -175,7 +176,7 @@ export class AcceptationRisque {
       await saveAcceptationRisque(acceptationRisqueData);
       this.app.router.navigate("/dashboard");
     } catch (error) {
-      console.error("Error saving acceptation risque:", error);
+      debugError("Error saving acceptation risque:", error);
       this.renderError(translate("error_saving_acceptation_risque"));
     }
   }

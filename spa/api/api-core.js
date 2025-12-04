@@ -8,7 +8,7 @@ import {
     clearOfflineData
 } from "../indexedDB.js";
 import { CONFIG } from "../config.js";
-import { debugLog, debugError } from "../utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 
 /**
@@ -264,7 +264,7 @@ export function withErrorHandling(fn) {
 
             // Optionally show user-friendly error messages
             if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-                console.warn('Authentication required - redirecting to login');
+                debugWarn('Authentication required - redirecting to login');
             }
 
             throw error;

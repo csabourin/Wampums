@@ -1,10 +1,12 @@
 // activity-widget.js
 import {translate} from "./app.js";
 import { getReunionPreparation } from "./ajax-functions.js";
+import { debugLog, debugError } from "./utils/DebugUtils.js";
+
 export class ActivityWidget {
 	constructor(app) {
-		console.log('ActivityWidget constructor called');
-		console.log('App object:', app);
+		debugLog('ActivityWidget constructor called');
+		debugLog('App object:', app);
 		this.app = app;
 		this.currentActivities = [];
 		this.init();
@@ -16,19 +18,19 @@ export class ActivityWidget {
 			clearInterval(this.updateInterval);
 		}
 
-		console.log('ActivityWidget init called');
-		console.log('Is logged in:', this.app.isLoggedIn);
-		console.log('User role:', this.app.userRole);
+		debugLog('ActivityWidget init called');
+		debugLog('Is logged in:', this.app.isLoggedIn);
+		debugLog('User role:', this.app.userRole);
 
 		if (!this.app.isLoggedIn || !this.isAuthorized()) {
-			console.log('User not logged in or not authorized, widget will not be displayed');
+			debugLog('User not logged in or not authorized, widget will not be displayed');
 			return;
 		}
 
 		await this.fetchCurrentActivities();
 
 		if (this.currentActivities.length === 0 || !this.isPreparationToday()) {
-			console.log('No activities found for today, stopping widget.');
+			debugLog('No activities found for today, stopping widget.');
 			return;
 		}
 
@@ -49,32 +51,32 @@ export class ActivityWidget {
 	async fetchCurrentActivities() {
 		try {
 			const data = await getReunionPreparation(new Date().toISOString().split('T')[0]);
-			console.log('Fetched reunion preparation data:', data);
+			debugLog('Fetched reunion preparation data:', data);
 
 			if (data.success && data.preparation && data.preparation.activities && data.preparation.date) {
 				this.currentActivities = data.preparation.activities;
-				console.log("=== DATE PARSING DEBUG ===");
-				console.log("Raw date value:", data.preparation.date);
-				console.log("Date type:", typeof data.preparation.date);
-				console.log("Date stringified:", JSON.stringify(data.preparation.date));
-				console.log("Concatenated:", data.preparation.date + "T00:00:00");
+				debugLog("=== DATE PARSING DEBUG ===");
+				debugLog("Raw date value:", data.preparation.date);
+				debugLog("Date type:", typeof data.preparation.date);
+				debugLog("Date stringified:", JSON.stringify(data.preparation.date));
+				debugLog("Concatenated:", data.preparation.date + "T00:00:00");
 				this.preparationDate = new Date(data.preparation.date + 'T00:00:00');
-				console.log('Current activities set:', this.currentActivities);
-				console.log('Preparation date:', this.preparationDate);
+				debugLog('Current activities set:', this.currentActivities);
+				debugLog('Preparation date:', this.preparationDate);
 
 				// Validate the parsed date
 				if (isNaN(this.preparationDate.getTime())) {
-					console.error('Invalid date format received:', data.preparation.date);
+					debugError('Invalid date format received:', data.preparation.date);
 					this.currentActivities = [];
 					this.preparationDate = null;
 				}
 			} else {
-				console.log('No activities found in the fetched data or missing date field');
+				debugLog('No activities found in the fetched data or missing date field');
 				this.currentActivities = [];
 				this.preparationDate = null;
 			}
 		} catch (error) {
-			console.error("Error fetching current activities:", error);
+			debugError("Error fetching current activities:", error);
 			this.currentActivities = [];
 			this.preparationDate = null;
 		}
@@ -112,15 +114,15 @@ export class ActivityWidget {
 	}
 
 	updateActivityWidget() {
-		console.log(translate('updating_activity_widget'));
-		console.log(translate('current_activities'), this.currentActivities);
-		console.log(translate('preparation_date'), this.preparationDate);
+		debugLog(translate('updating_activity_widget'));
+		debugLog(translate('current_activities'), this.currentActivities);
+		debugLog(translate('preparation_date'), this.preparationDate);
 		if (this.currentActivities.length === 0 || !this.preparationDate) {
-			console.log(translate('no_activities_found_or_preparation_date_not_set'));
+			debugLog(translate('no_activities_found_or_preparation_date_not_set'));
 			return;
 		}
 		const currentTime = new Date();
-		console.log(translate('current_time'), currentTime);
+		debugLog(translate('current_time'), currentTime);
 		let currentActivity = null;
 		let nextActivity = null;
 
@@ -129,7 +131,7 @@ export class ActivityWidget {
 			const durationMinutes = parseInt(activity.duration);
 			const activityEndTime = this.addMinutes(activityStartTime, durationMinutes);
 
-			console.log(`${translate('activity')}: ${translate(activity.activity)}, ${translate('start')}: ${activityStartTime}, ${translate('end')}: ${activityEndTime}`);
+			debugLog(`${translate('activity')}: ${translate(activity.activity)}, ${translate('start')}: ${activityStartTime}, ${translate('end')}: ${activityEndTime}`);
 
 			if (currentTime >= activityStartTime && currentTime < activityEndTime) {
 				currentActivity = activity;
@@ -141,13 +143,13 @@ export class ActivityWidget {
 
 		const widget = document.getElementById('activity-widget');
 		if (!this.isPreparationToday()) {
-			console.log(translate('preparation_not_today'));
+			debugLog(translate('preparation_not_today'));
 			widget.style.display = 'none';
 			return;
 		}
 
 		if (currentActivity) {
-			console.log(translate('current_activity_found'), currentActivity);
+			debugLog(translate('current_activity_found'), currentActivity);
 			widget.style.display = 'block';
 			document.getElementById('current-activity-title').textContent = `${translate('current_activity')}: ${translate(currentActivity.activity)}`;
 			const timeUntilNext = this.getTimeUntilNext(currentTime, nextActivity);
@@ -159,27 +161,27 @@ export class ActivityWidget {
 			}
 
 		} else if (nextActivity) {
-			console.log(translate('next_activity_found'), nextActivity);
+			debugLog(translate('next_activity_found'), nextActivity);
 			widget.style.display = 'block';
 			document.getElementById('current-activity-title').textContent = `${translate('next_activity')}: ${translate(nextActivity.activity)}`;
 			document.getElementById('time-until-next').textContent = `${translate('starts_in')}: ${this.getTimeUntilNext(currentTime, nextActivity)}`;
 		} else {
-			console.log(translate('no_current_or_upcoming_activities_found'));
+			debugLog(translate('no_current_or_upcoming_activities_found'));
 			widget.style.display = 'none';
 		}
 	}
 
 	isPreparationToday() {
 		const today = new Date();
-		console.log('=== IS PREPARATION TODAY CHECK ===');
-		console.log('Today:', today);
-		console.log('Today date parts:', today.getDate(), today.getMonth(), today.getFullYear());
-		console.log('Preparation date:', this.preparationDate);
-		console.log('Preparation date parts:', this.preparationDate.getDate(), this.preparationDate.getMonth(), this.preparationDate.getFullYear());
+		debugLog('=== IS PREPARATION TODAY CHECK ===');
+		debugLog('Today:', today);
+		debugLog('Today date parts:', today.getDate(), today.getMonth(), today.getFullYear());
+		debugLog('Preparation date:', this.preparationDate);
+		debugLog('Preparation date parts:', this.preparationDate.getDate(), this.preparationDate.getMonth(), this.preparationDate.getFullYear());
 		const isToday = this.preparationDate.getDate() === today.getDate() &&
 					 this.preparationDate.getMonth() === today.getMonth() &&
 					 this.preparationDate.getFullYear() === today.getFullYear();
-		console.log('Is today?', isToday);
+		debugLog('Is today?', isToday);
 		return isToday;
 	}
 
@@ -187,7 +189,7 @@ export class ActivityWidget {
 		const [hours, minutes] = timeString.split(':').map(Number);
 
 		if (isNaN(hours) || isNaN(minutes)) {
-			console.error('Invalid time string:', timeString);
+			debugError('Invalid time string:', timeString);
 			return new Date(NaN); // Return invalid date to trigger error handling
 		}
 
@@ -195,11 +197,11 @@ export class ActivityWidget {
 		combinedDate.setHours(hours, minutes, 0, 0);
 
 		if (isNaN(combinedDate.getTime())) {
-			console.error('Invalid combined date for', timeString, combinedDate);
+			debugError('Invalid combined date for', timeString, combinedDate);
 			return new Date(NaN); // Return invalid date to trigger error handling
 		}
 
-		console.log(`Combined date for ${timeString}:`, combinedDate);
+		debugLog(`Combined date for ${timeString}:`, combinedDate);
 		return combinedDate;
 	}
 
@@ -234,7 +236,7 @@ export class ActivityWidget {
 		const [hours, minutes] = timeString.split(':').map(Number);
 		const date = new Date();
 		date.setHours(hours, minutes, 0, 0);
-		console.log(`Parsed time for ${timeString}:`, date);
+		debugLog(`Parsed time for ${timeString}:`, date);
 		return date;
 	}
 

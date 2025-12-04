@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import {
   getBadgeProgress,
   saveBadgeProgress,
@@ -27,7 +28,7 @@ export class BadgeForm {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing badge form:", error);
+      debugError("Error initializing badge form:", error);
       this.renderError();
     }
   }
@@ -42,7 +43,7 @@ export class BadgeForm {
         this.territoires = this.getDefaultTerritoires();
       }
     } catch (error) {
-      console.error("Error fetching badge system settings:", error);
+      debugError("Error fetching badge system settings:", error);
       this.territoires = this.getDefaultTerritoires();
     }
   }
@@ -67,7 +68,7 @@ export class BadgeForm {
       }
       this.participant = result.participant; // Assign the participant object correctly
     } catch (error) {
-      console.error("Error fetching participant:", error);
+      debugError("Error fetching participant:", error);
       throw new Error(`Failed to fetch participant: ${error.message}`);
     }
   }
@@ -358,7 +359,7 @@ export class BadgeForm {
         this.currentStars;
       this.updateSubmitButton();
     } catch (error) {
-      console.error("Error fetching current stars:", error);
+      debugError("Error fetching current stars:", error);
     }
   }
 
@@ -394,7 +395,7 @@ export class BadgeForm {
           throw new Error(JSON.stringify(result));
         }
       } catch (error) {
-        console.error("Error saving badge progress:", error);
+        debugError("Error saving badge progress:", error);
         alert(translate("error_saving_badge_progress") + ": " + error.message);
       }
     }

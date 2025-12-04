@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import {
         getActivitesRencontre,
         getAnimateurs,
@@ -62,7 +63,7 @@ export class PreparationReunions {
                         // Attach event listeners
                         this.attachEventListeners();
                 } catch (error) {
-                        console.error("Error initializing preparation reunions:", error);
+                        debugError("Error initializing preparation reunions:", error);
                         this.app.showMessage(translate("error_loading_preparation_reunions"), "error");
                 }
         }
@@ -98,7 +99,7 @@ export class PreparationReunions {
                         const data = await getReminder();
                         return data.success ? data.reminder : null;
                 } catch (error) {
-                        console.error("Error fetching reminder:", error);
+                        debugError("Error fetching reminder:", error);
                         return null;
                 }
         }
@@ -115,7 +116,7 @@ export class PreparationReunions {
                         }
                         return null;
                 } catch (error) {
-                        console.error("Error fetching meeting data:", error);
+                        debugError("Error fetching meeting data:", error);
                         return null;
                 }
         }
@@ -154,7 +155,7 @@ export class PreparationReunions {
                         }
                         await this.formManager.populateForm(this.currentMeetingData, this.dateManager.getCurrentDate());
                 } catch (error) {
-                        console.error("Error loading meeting data:", error);
+                        debugError("Error loading meeting data:", error);
                         this.app.showMessage(translate("error_loading_meeting_data"), "error");
                 }
         }
@@ -413,7 +414,7 @@ export class PreparationReunions {
                         // Force refresh to get fresh dates from server
                         await this.fetchAvailableDates(true);
                 } catch (error) {
-                        console.error("Error saving reunion preparation:", error);
+                        debugError("Error saving reunion preparation:", error);
                         this.app.showMessage(translate("error_saving_reunion_preparation"), "error");
                 }
 

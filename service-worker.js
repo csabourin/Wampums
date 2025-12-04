@@ -5,6 +5,19 @@ const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
 const IMAGE_CACHE_NAME = `wampums-images-v${APP_VERSION}`;
 
+// Debug helpers for service worker (production domains end with .app)
+const isProduction = () => {
+  try {
+    return self.location?.hostname?.endsWith('.app') || false;
+  } catch (e) {
+    return false;
+  }
+};
+const debugLog = (...args) => { if (!isProduction()) console.log(...args); };
+const debugError = (...args) => { if (!isProduction()) console.error(...args); };
+const debugWarn = (...args) => { if (!isProduction()) console.warn(...args); };
+const debugInfo = (...args) => { if (!isProduction()) console.info(...args); };
+
 const staticAssets = [
   "/",
   "/index.html",
@@ -177,7 +190,7 @@ async function handleImageRequest(request) {
       return networkResponse;
     }
   } catch (error) {
-    console.error("Error fetching image:", error);
+    debugError("Error fetching image:", error);
     // Return a fallback image if available
     return (
       caches.match("/images/fallback.png") ||
@@ -200,7 +213,7 @@ async function cacheFirst(request) {
     }
     return networkResponse;
   } catch (error) {
-    console.error("Cache-first strategy error:", error);
+    debugError("Cache-first strategy error:", error);
     return new Response("Resource not available", { status: 404 });
   }
 }
@@ -212,9 +225,9 @@ self.addEventListener("push", function (event) {
   if (event.data) {
     try {
       data = event.data.json(); // Assuming the payload is JSON
-      console.log("Push event data received:", data);
+      debugLog("Push event data received:", data);
     } catch (e) {
-      console.error("Error parsing push notification data:", e);
+      debugError("Error parsing push notification data:", e);
     }
   }
 
@@ -344,7 +357,7 @@ async function fetchAndCacheInIndexedDB(request) {
       }); // Return the response
     }
   } catch (error) {
-    console.error(
+    debugError(
       "Network request failed, attempting to serve from cache:",
       error,
     );
@@ -352,7 +365,7 @@ async function fetchAndCacheInIndexedDB(request) {
     // If network fails, check if the data exists in IndexedDB
     const cachedData = await getCachedData(cacheKey);
     if (cachedData) {
-      console.log("Serving from cache:", cacheKey);
+      debugLog("Serving from cache:", cacheKey);
       return new Response(JSON.stringify(cachedData), {
         headers: { "Content-Type": "application/json", "X-From-Cache": "true" },
       });
@@ -399,7 +412,7 @@ async function handleMutation(request) {
 
     return response;
   } catch (error) {
-    console.error("Mutation failed, saving for background sync:", error);
+    debugError("Mutation failed, saving for background sync:", error);
 
     // If offline, save the request for background sync
     try {
@@ -431,7 +444,7 @@ async function handleMutation(request) {
         },
       );
     } catch (saveError) {
-      console.error("Failed to save mutation for sync:", saveError);
+      debugError("Failed to save mutation for sync:", saveError);
       return new Response(
         JSON.stringify({
           success: false,
@@ -486,7 +499,7 @@ async function invalidateRelatedCaches(request) {
         deleteRequest.onerror = () => reject();
       });
     } catch (error) {
-      console.warn("Failed to invalidate cache key:", key);
+      debugWarn("Failed to invalidate cache key:", key);
     }
   }
 }
@@ -526,7 +539,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     self.clients.claim().then(() => {
       return self.clients.matchAll({ type: "window" }).then((clients) => {
-        console.log("Clients:", clients);
+        debugLog("Clients:", clients);
         // clients.forEach((client) => client.navigate(client.url)); // Reload all open pages
       });
     }),
@@ -605,11 +618,11 @@ async function saveOfflineMutation(mutationData) {
     const request = store.add(mutationData);
 
     request.onerror = () => {
-      console.error("Error saving offline mutation:", request.error);
+      debugError("Error saving offline mutation:", request.error);
       reject(request.error);
     };
     request.onsuccess = () => {
-      console.log("Offline mutation saved:", mutationData);
+      debugLog("Offline mutation saved:", mutationData);
       resolve(request.result);
     };
   });
@@ -638,7 +651,7 @@ async function deletePendingMutation(id) {
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
-      console.log("Deleted pending mutation:", id);
+      debugLog("Deleted pending mutation:", id);
       resolve();
     };
   });
@@ -646,18 +659,18 @@ async function deletePendingMutation(id) {
 
 async function syncData() {
   if (!navigator.onLine) {
-    console.log("Device is offline, cannot sync");
+    debugLog("Device is offline, cannot sync");
     return;
   }
 
   try {
     // Sync pending mutations (new format)
     const pendingMutations = await getPendingMutations();
-    console.log(`Found ${pendingMutations.length} pending mutations to sync`);
+    debugLog(`Found ${pendingMutations.length} pending mutations to sync`);
 
     for (const mutation of pendingMutations) {
       try {
-        console.log("Syncing mutation:", mutation);
+        debugLog("Syncing mutation:", mutation);
 
         // Reconstruct the request
         const response = await fetch(mutation.url, {
@@ -667,7 +680,7 @@ async function syncData() {
         });
 
         if (response.ok) {
-          console.log("Mutation synced successfully:", mutation.id);
+          debugLog("Mutation synced successfully:", mutation.id);
           await deletePendingMutation(mutation.id);
 
           // Invalidate related caches
@@ -677,7 +690,7 @@ async function syncData() {
           });
           await invalidateRelatedCaches(request);
         } else {
-          console.error(
+          debugError(
             "Failed to sync mutation:",
             mutation.id,
             response.statusText,
@@ -685,12 +698,12 @@ async function syncData() {
 
           // If it's a 4xx error (client error), delete the mutation as it won't succeed
           if (response.status >= 400 && response.status < 500) {
-            console.log("Client error, removing mutation:", mutation.id);
+            debugLog("Client error, removing mutation:", mutation.id);
             await deletePendingMutation(mutation.id);
           }
         }
       } catch (error) {
-        console.error("Error syncing mutation:", mutation.id, error);
+        debugError("Error syncing mutation:", mutation.id, error);
         // Keep the mutation for next sync attempt
       }
     }
@@ -699,12 +712,12 @@ async function syncData() {
     try {
       const offlineData = await getOfflineData();
       if (offlineData && offlineData.length > 0) {
-        console.log(
+        debugLog(
           `Found ${offlineData.length} old format offline items to sync`,
         );
         for (let item of offlineData) {
           try {
-            console.log("Syncing old format item:", item);
+            debugLog("Syncing old format item:", item);
             // Try to determine the new endpoint format
             const endpoint = item.action
               ? `/api/${item.action.replace("_", "-")}`
@@ -721,25 +734,25 @@ async function syncData() {
             if (response.ok) {
               await clearOfflineData(item.id);
             } else {
-              console.error(
+              debugError(
                 "Failed to sync old format item:",
                 item,
                 response.statusText,
               );
             }
           } catch (error) {
-            console.error("Error syncing old format item:", item, error);
+            debugError("Error syncing old format item:", item, error);
           }
         }
       }
     } catch (error) {
       // Old format might not exist, that's okay
-      console.log("No old format offline data found");
+      debugLog("No old format offline data found");
     }
 
-    console.log("Sync completed");
+    debugLog("Sync completed");
   } catch (error) {
-    console.error("Error during data sync:", error);
+    debugError("Error during data sync:", error);
   }
 }
 
@@ -766,7 +779,7 @@ async function getOfflineData() {
       request.onerror = () => resolve([]);
     });
   } catch (error) {
-    console.error("Error getting offline data:", error);
+    debugError("Error getting offline data:", error);
     return [];
   }
 }
@@ -792,6 +805,6 @@ async function clearOfflineData(key) {
       request.onerror = () => resolve();
     });
   } catch (error) {
-    console.error("Error clearing offline data:", error);
+    debugError("Error clearing offline data:", error);
   }
 }

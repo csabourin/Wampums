@@ -1,4 +1,5 @@
 import { getMailingList } from "./ajax-functions.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 
 export class MailingList {
@@ -18,7 +19,7 @@ export class MailingList {
 			this.render();
 			this.attachEventListeners();
 		} catch (error) {
-			console.error("Error initializing mailing list:", error);
+			debugError("Error initializing mailing list:", error);
 			this.renderError();
 		}
 	}
@@ -27,7 +28,7 @@ export class MailingList {
 		try {
 			this.mailingList = await getMailingList();
 		} catch (error) {
-			console.error("Error fetching mailing list:", error);
+			debugError("Error fetching mailing list:", error);
 			throw error;
 		}
 	}
@@ -113,15 +114,15 @@ export class MailingList {
 
 
 	renderEmails(data) {
-			console.log('Data received:', JSON.stringify(data, null, 2));
+			debugLog('Data received:', JSON.stringify(data, null, 2));
 
 			if (!Array.isArray(data)) {
-					console.error('Data is not an array. Converting to array.');
+					debugError('Data is not an array. Converting to array.');
 					data = [data];
 			}
 
 			return data.map((item, index) => {
-					console.log(`Processing item ${index}:`, JSON.stringify(item, null, 2));
+					debugLog(`Processing item ${index}:`, JSON.stringify(item, null, 2));
 
 					let emailHtml = '';
 					let participantsHtml = '';
@@ -134,7 +135,7 @@ export class MailingList {
 					} else if (typeof item === 'string') {
 							emailHtml = `<span>${item.trim()}</span>`;
 					} else {
-							console.error(`Unexpected data type for item ${index}:`, typeof item);
+							debugError(`Unexpected data type for item ${index}:`, typeof item);
 							emailHtml = `<span>Données invalides</span>`;
 					}
 
@@ -176,7 +177,7 @@ export class MailingList {
 				alert(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`);
 			})
 			.catch((error) => {
-				console.error("Failed to copy emails:", error);
+				debugError("Failed to copy emails:", error);
 			});
 	}
 

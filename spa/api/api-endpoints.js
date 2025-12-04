@@ -1,6 +1,7 @@
 // api-endpoints.js
 // All API endpoint functions organized by category
 import { API } from "./api-core.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { CONFIG } from "../config.js";
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { handleResponse } from "./api-core.js";
@@ -77,7 +78,7 @@ export async function login(email, password, organization_id) {
             password: password
         };
 
-        console.log('Sending login request via api-endpoints.js...', email);
+        debugLog('Sending login request via api-endpoints.js...', email);
 
         const url = new URL('/public/login', CONFIG.API_BASE_URL);
         const response = await fetch(url.toString(), {
@@ -92,7 +93,7 @@ export async function login(email, password, organization_id) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error("Error during login:", error);
+        debugError("Error during login:", error);
         throw error;
     }
 }
@@ -1177,7 +1178,7 @@ export async function fetchOrganizationJwt(organizationId) {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error('Error fetching organization JWT:', error);
+        debugError('Error fetching organization JWT:', error);
         throw error;
     }
 }

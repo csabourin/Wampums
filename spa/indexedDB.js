@@ -1,3 +1,5 @@
+import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
+
 const DB_NAME = "WampumsAppDB";
 const DB_VERSION = 12;
 const STORE_NAME = "offlineData";
@@ -7,17 +9,17 @@ export function openDB() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = (event) => {
-      console.error("Error opening IndexedDB:", event.target.errorCode);
+      debugError("Error opening IndexedDB:", event.target.errorCode);
       reject(event.target.errorCode);
     };
 
     request.onsuccess = (event) => {
-      console.log("IndexedDB opened successfully");
+      debugLog("IndexedDB opened successfully");
       resolve(event.target.result);
     };
 
     request.onupgradeneeded = (event) => {
-      console.log("Upgrading IndexedDB...");
+      debugLog("Upgrading IndexedDB...");
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, { keyPath: "key" });
@@ -46,12 +48,12 @@ export function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000) {
       const request = store.put(record);
 
       request.onerror = () => {
-        console.error("Error storing data:", request.error);
+        debugError("Error storing data:", request.error);
         reject(request.error);
       };
 
       request.onsuccess = () => {
-        console.log("Data stored successfully:", record);
+        debugLog("Data stored successfully:", record);
         resolve(request.result);
       };
 
@@ -71,22 +73,22 @@ export function getCachedData(key) {
       const request = store.get(key);
 
       request.onerror = () => {
-        console.error("Error retrieving data:", request.error);
+        debugError("Error retrieving data:", request.error);
         reject(request.error);
       };
 
       request.onsuccess = () => {
         const record = request.result;
-        console.log(request," Retrieved record:", record);
+        debugLog(request," Retrieved record:", record);
 
         if (record && record.expiration > Date.now()) {
-          console.log("Returning valid cached data:", record.data);
+          debugLog("Returning valid cached data:", record.data);
           resolve(record.data);
         } else {
           if (!record) {
-            console.log("No data found for key:", key);
+            debugLog("No data found for key:", key);
           } else {
-            console.log("Data expired for key:", key,Date.now(),` exp:`,record.expiration);
+            debugLog("Data expired for key:", key,Date.now(),` exp:`,record.expiration);
             const cleanupTx = db.transaction(STORE_NAME, "readwrite");
             const cleanupStore = cleanupTx.objectStore(STORE_NAME);
             cleanupStore.delete(key);
@@ -137,7 +139,7 @@ export async function getOfflineData() {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const offlineData = request.result || [];
-        console.log("Retrieved offline data:", offlineData);
+        debugLog("Retrieved offline data:", offlineData);
         resolve(offlineData);
       };
     });
@@ -173,12 +175,12 @@ export async function deleteCachedData(key) {
       const request = store.delete(key);
 
       request.onerror = () => {
-        console.error("Error deleting cached data:", request.error);
+        debugError("Error deleting cached data:", request.error);
         reject(request.error);
       };
 
       request.onsuccess = () => {
-        console.log("Cache deleted for key:", key);
+        debugLog("Cache deleted for key:", key);
         resolve();
       };
 
@@ -197,13 +199,13 @@ export async function clearPointsRelatedCaches() {
     'dashboard_participant_info'
   ];
 
-  console.log("Clearing points-related caches:", keysToDelete);
+  debugLog("Clearing points-related caches:", keysToDelete);
 
   for (const key of keysToDelete) {
     try {
       await deleteCachedData(key);
     } catch (error) {
-      console.warn(`Failed to delete cache for ${key}:`, error);
+      debugWarn(`Failed to delete cache for ${key}:`, error);
     }
   }
 }
@@ -217,7 +219,7 @@ export async function clearGroupRelatedCaches() {
     'dashboard_participant_info'
   ];
 
-  console.log("Clearing group-related caches:", keysToDelete);
+  debugLog("Clearing group-related caches:", keysToDelete);
 
   // Also clear attendance caches that contain group information
   const db = await openDB();
@@ -240,7 +242,7 @@ export async function clearGroupRelatedCaches() {
     try {
       await deleteCachedData(key);
     } catch (error) {
-      console.warn(`Failed to delete cache for ${key}:`, error);
+      debugWarn(`Failed to delete cache for ${key}:`, error);
     }
   }
 }
@@ -248,13 +250,13 @@ export async function clearGroupRelatedCaches() {
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {
-    console.log("Device is offline, cannot sync");
+    debugLog("Device is offline, cannot sync");
     return;
   }
 
   try {
     const offlineData = await getOfflineData();
-    console.log("Found offline data to sync:", offlineData);
+    debugLog("Found offline data to sync:", offlineData);
 
     for (const item of offlineData) {
       try {
@@ -277,7 +279,7 @@ export async function syncOfflineData() {
 
           // Add other cases as needed
           default:
-            console.warn(`Unknown offline action type: ${item.action}`);
+            debugWarn(`Unknown offline action type: ${item.action}`);
         }
 
         // If successful, remove the item from offline storage
@@ -288,7 +290,7 @@ export async function syncOfflineData() {
         });
 
       } catch (error) {
-        console.error(`Error syncing offline data for action ${item.action}:`, error);
+        debugError(`Error syncing offline data for action ${item.action}:`, error);
 
         // Increment retry count and update the record
         if (item.retryCount < 3) {
@@ -302,7 +304,7 @@ export async function syncOfflineData() {
       }
     }
   } catch (error) {
-    console.error("Error during offline data sync:", error);
+    debugError("Error during offline data sync:", error);
     throw error;
   }
 }

@@ -1,4 +1,5 @@
 import { getCurrentOrganizationId, fetchParticipants, getOrganizationFormFormats, getOrganizationSettings, linkUserParticipants } from "./ajax-functions.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
 import { CONFIG } from './config.js';
@@ -18,7 +19,7 @@ export class ParentDashboard {
                         this.attachEventListeners();
                          this.checkAndShowLinkParticipantsDialog();
                 } catch (error) {
-                        console.error("Error initializing parent dashboard:", error);
+                        debugError("Error initializing parent dashboard:", error);
                         this.app.renderError(translate("error_loading_parent_dashboard"));
                 }
         }
@@ -70,7 +71,7 @@ export class ParentDashboard {
                                                                         this.app.showMessage(translate("error_linking_participants"), "error");
                                                         }
                                         } catch (error) {
-                                                        console.error("Error linking participants:", error);
+                                                        debugError("Error linking participants:", error);
                                                         this.app.showMessage(translate("error_linking_participants"), "error");
                                         }
 
@@ -95,9 +96,9 @@ export class ParentDashboard {
                                         // Convert the Map values back to an array
                                         this.participants = Array.from(uniqueParticipants.values());
 
-                                        console.log("Fetched participants:", this.participants);
+                                        debugLog("Fetched participants:", this.participants);
                         } catch (error) {
-                                        console.error("Error fetching participants:", error);
+                                        debugError("Error fetching participants:", error);
                                         this.participants = [];
                         }
         }
@@ -107,7 +108,7 @@ export class ParentDashboard {
                 if (response && typeof response === 'object') {
                         this.formFormats = response;
                 } else {
-                        console.error("Invalid form formats response:", response);
+                        debugError("Invalid form formats response:", response);
                 }
         }
 
@@ -128,10 +129,10 @@ export class ParentDashboard {
                                         this.organizationName = translate("organization_name_default");
                                 }
                         } else {
-                                console.error("Invalid organization info response:", response);
+                                debugError("Invalid organization info response:", response);
                         }
                 } catch (error) {
-                        console.error("Error fetching organization info:", error);
+                        debugError("Error fetching organization info:", error);
                 }
         }
 
@@ -149,10 +150,10 @@ export class ParentDashboard {
                                 if (data.success) {
                                         this.app.userFullName = data.user.fullName;
                                 } else {
-                                        console.error("Failed to fetch user full name:", data.message);
+                                        debugError("Failed to fetch user full name:", data.message);
                                 }
                         } catch (error) {
-                                console.error("Error fetching user full name:", error);
+                                debugError("Error fetching user full name:", error);
                         }
                 }
         }
@@ -224,7 +225,7 @@ export class ParentDashboard {
         }
 
 renderFormButtons(participant) {
-    console.log("Forms type: ", this.formFormats);
+    debugLog("Forms type: ", this.formFormats);
 
     return Object.keys(this.formFormats)
         .filter(formType => {
@@ -268,7 +269,7 @@ renderFormButtons(participant) {
                 let deferredPrompt;
 
                 window.addEventListener('beforeinstallprompt', (e) => {
-                        console.log('beforeinstallprompt event fired');
+                        debugLog('beforeinstallprompt event fired');
                         // Prevent the default prompt
                         e.preventDefault();
                         deferredPrompt = e;
@@ -285,9 +286,9 @@ renderFormButtons(participant) {
                                         // Check the user's response
                                         const choiceResult = await deferredPrompt.userChoice;
                                         if (choiceResult.outcome === 'accepted') {
-                                                console.log('User accepted the install prompt');
+                                                debugLog('User accepted the install prompt');
                                         } else {
-                                                console.log('User dismissed the install prompt');
+                                                debugLog('User dismissed the install prompt');
                                         }
 
                                         // Clear the deferredPrompt so it can’t be reused
@@ -300,7 +301,7 @@ renderFormButtons(participant) {
                 });
 
                 window.addEventListener('appinstalled', () => {
-                        console.log('App has been installed');
+                        debugLog('App has been installed');
                 });
         }
 
@@ -319,7 +320,7 @@ renderFormButtons(participant) {
                                 });
                         }
                 } else {
-                        console.error('This browser does not support notifications.');
+                        debugError('This browser does not support notifications.');
                 }
 
   }
@@ -334,7 +335,7 @@ renderFormButtons(participant) {
                                                 applicationServerKey: applicationServerKey,
                                         });
 
-                                        console.log('Push subscription:', subscription);
+                                        debugLog('Push subscription:', subscription);
 
                                         // Send subscription to your server to save it
                                         await fetch('/save-subscription', {
@@ -345,7 +346,7 @@ renderFormButtons(participant) {
                                                 body: JSON.stringify(subscription),
                                         });
                                 } catch (error) {
-                                        console.error('Error registering for push notifications:', error);
+                                        debugError('Error registering for push notifications:', error);
                                 }
                         }
                 }

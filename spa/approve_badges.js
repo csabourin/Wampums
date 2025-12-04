@@ -1,4 +1,5 @@
 import { getPendingBadges, updateBadgeStatus } from "./ajax-functions.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 
 export class ApproveBadges {
@@ -18,7 +19,7 @@ export class ApproveBadges {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing approve badges:", error);
+      debugError("Error initializing approve badges:", error);
       this.renderError();
     }
   }
@@ -27,11 +28,11 @@ export class ApproveBadges {
     try {
       this.pendingBadges = await getPendingBadges();
       if (!Array.isArray(this.pendingBadges)) {
-        console.error("Pending badges is not an array:", this.pendingBadges);
+        debugError("Pending badges is not an array:", this.pendingBadges);
         this.pendingBadges = [];
       }
     } catch (error) {
-      console.error("Error fetching pending badges:", error);
+      debugError("Error fetching pending badges:", error);
       this.pendingBadges = [];
     }
   }
@@ -94,7 +95,7 @@ export class ApproveBadges {
         throw new Error(result.message || "Unknown error occurred");
       }
     } catch (error) {
-      console.error("Error updating badge status:", error);
+      debugError("Error updating badge status:", error);
       this.showMessage(translate("error_updating_badge_status"), "error");
     }
   }

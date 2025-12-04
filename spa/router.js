@@ -4,7 +4,7 @@
 import { Dashboard } from "./dashboard.js";
 import { Login } from "./login.js";
 import { translate } from "./app.js";
-import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
 
 // Lazy-loaded modules - loaded on demand for better performance
 // These will be dynamically imported when the route is accessed
@@ -264,7 +264,7 @@ export class Router {
         this.activityWidgetInitialized = true;  // Mark the widget as initialized
       }      
     } catch (error) {
-      console.error("Routing error:", error);
+      debugError("Routing error:", error);
       this.app.renderError("An error occurred while loading the page.");
     }
   }
@@ -286,7 +286,7 @@ export class Router {
       if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
         return [routes[`/${parts[1]}/:id`], parts[2]];
       }
-      console.log(`Path: ${path}, RouteName: ${routes[path]}`);
+      debugLog(`Path: ${path}, RouteName: ${routes[path]}`);
       return [routes[path] || "notFound", null];
   }
 
@@ -401,7 +401,7 @@ export class Router {
   }
 
   async loadFormulaireInscription(participantId = null) {
-    console.log("Initializing FormulaireInscription with participantId:", participantId);
+    debugLog("Initializing FormulaireInscription with participantId:", participantId);
     const FormulaireInscription = await this.loadModule('FormulaireInscription');
     const formulaireInscription = new FormulaireInscription(this.app);
     await formulaireInscription.init(participantId);
@@ -476,7 +476,7 @@ export class Router {
       history.pushState(null, "", "/login");
       await this.loadLoginPage();
     } catch (error) {
-      console.error("Logout error:", error);
+      debugError("Logout error:", error);
       this.app.renderError("An error occurred during logout.");
     }
   }
@@ -516,7 +516,7 @@ export function navigate(path) {
   ) {
     window.app.router.navigate(path);
   } else {
-    console.warn("Router not available, using window.location");
+    debugWarn("Router not available, using window.location");
     window.location.href = path;
   }
 }
