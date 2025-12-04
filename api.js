@@ -130,13 +130,9 @@ if (process.env.DATABASE_URL || process.env.SB_URL) {
   if (isProduction) {
     // Production: Enforce SSL with certificate validation
     poolConfig.ssl = { rejectUnauthorized: true };
-  } else if (process.env.DB_SSL_DISABLED === 'true') {
-    // Development: Only disable SSL validation if explicitly set
-    console.warn('WARNING: SSL certificate validation is disabled. This should only be used in development.');
-    poolConfig.ssl = { rejectUnauthorized: false };
   } else {
-    // Default: Enable SSL with validation
-    poolConfig.ssl = { rejectUnauthorized: true };
+    // Development: Allow self-signed certificates (required for Replit)
+    poolConfig.ssl = { rejectUnauthorized: false };
   }
 }
 
