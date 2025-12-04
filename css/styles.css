@@ -2746,7 +2746,7 @@ details p {
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
   padding: var(--space-xs) var(--space-sm);
-  min-width: 160px;
+  min-width: 140px;
   flex: 0 1 auto;
   box-shadow: var(--shadow-sm);
   display: flex;
@@ -2767,14 +2767,7 @@ details p {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-}
-
-.badge-chip__header-compact {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-xs);
+  gap: 0.35rem;
 }
 
 .badge-chip-compact .badge-chip__name {
@@ -2789,16 +2782,17 @@ details p {
   flex-wrap: wrap;
 }
 
-.status-group-inline {
+.badge-chip__status {
   display: flex;
-  gap: 0.25rem;
-  flex-shrink: 0;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: -0.1rem;
 }
 
-.status-group-inline .status-pill {
-  padding: 0.15rem 0.35rem;
-  font-size: 0.65rem;
-  font-weight: var(--font-weight-semibold);
+.badge-chip__status .status-pill {
+  padding: 0.15rem 0.4rem;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
 }
 
 .progress-compact {
@@ -2807,7 +2801,6 @@ details p {
   background: var(--color-border-light);
   border-radius: var(--radius-full);
   overflow: hidden;
-  margin-top: 0.15rem;
 }
 
 .progress-compact .progress__bar {

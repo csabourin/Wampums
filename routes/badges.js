@@ -249,9 +249,9 @@ module.exports = (pool, logger) => {
         // Update badge status to approved
         await client.query(
           `UPDATE badge_progress
-           SET status = 'approved', approved_by = $1, approval_date = NOW()
-           WHERE id = $2`,
-          [userId, badge_id]
+           SET status = 'approved', approval_date = NOW()
+           WHERE id = $1`,
+          [badge_id]
         );
 
         // Get point system rules for badge earn points
@@ -332,10 +332,10 @@ module.exports = (pool, logger) => {
 
       const result = await pool.query(
         `UPDATE badge_progress
-         SET status = 'rejected', approved_by = $1, approval_date = NOW()
-         WHERE id = $2 AND organization_id = $3
+         SET status = 'rejected', approval_date = NOW()
+         WHERE id = $1 AND organization_id = $2
          RETURNING *`,
-        [userId, badge_id, organizationId]
+        [badge_id, organizationId]
       );
 
       if (result.rows.length === 0) {
@@ -613,11 +613,8 @@ module.exports = (pool, logger) => {
 
           if (status === 'approved') {
             updateFields.push('approval_date = NOW()');
-            updateFields.push(`approved_by = $${valueIndex++}`);
-            values.push(userId);
           } else {
             updateFields.push('approval_date = NULL');
-            updateFields.push('approved_by = NULL');
           }
         }
 
