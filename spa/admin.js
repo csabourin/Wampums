@@ -1,4 +1,5 @@
 import {
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 	getUsers,
 	updateUserRole,
 	approveUser,
@@ -27,7 +28,7 @@ export class Admin {
 					this.users = await getUsers(this.currentOrganizationId);
 					this.subscribers = await getSubscribers(this.currentOrganizationId);
 			} catch (error) {
-					console.error('Error fetching data:', error);
+					debugError('Error fetching data:', error);
 					this.app.showMessage('Error loading data. Please try again.', 'error');
 			}
 	}
@@ -79,7 +80,7 @@ export class Admin {
 	}
 
 	renderUsers() {
-		console.log(this.users);
+		debugLog(this.users);
 		return this.users.map(user => `
 			<tr>
 				<td>${user.fullName} - ${user.email}</td>
@@ -142,7 +143,7 @@ export class Admin {
 							this.app.showMessage(this.app.translate('error_updating_role'), 'error');
 					}
 			} catch (error) {
-					console.error('Error updating user role:', error);
+					debugError('Error updating user role:', error);
 					this.app.showMessage(this.app.translate('error_updating_role'), 'error');
 			}
 	}
@@ -158,7 +159,7 @@ export class Admin {
 							this.app.showMessage(this.app.translate('error_approving_user'), 'error');
 					}
 			} catch (error) {
-					console.error('Error approving user:', error);
+					debugError('Error approving user:', error);
 					this.app.showMessage(this.app.translate('error_approving_user'), 'error');
 			}
 	}

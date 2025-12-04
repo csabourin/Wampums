@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { getApiUrl } from "./ajax-functions.js";
 export class ResetPassword {
 				constructor(app) {
@@ -84,7 +85,7 @@ export class ResetPassword {
 																});
 
 																const result = await response.json();
-																console.log("Server response:", result);
+																debugLog("Server response:", result);
 
 																if (result.success) {
 																				messageDiv.className = "success-message";
@@ -101,7 +102,7 @@ export class ResetPassword {
 																				}
 																}
 												} catch (error) {
-																console.error("Error:", error);
+																debugError("Error:", error);
 																messageDiv.className = "error-message";
 																messageDiv.textContent = translate("error_resetting_password");
 												}
@@ -125,7 +126,7 @@ export class ResetPassword {
 																				messageDiv.textContent = result.message || translate("error_sending_reset_link");
 																}
 												} catch (error) {
-																console.error("Error:", error);
+																debugError("Error:", error);
 																messageDiv.textContent = translate("error_sending_reset_link");
 												}
 								}

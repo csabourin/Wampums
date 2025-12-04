@@ -1,5 +1,6 @@
 // dynamicFormHandler.js
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { 
     getOrganizationFormFormats, 
@@ -23,7 +24,7 @@ export class DynamicFormHandler {
     }
 
     async init(formType, participantId = null, initialData = {}, container = null, useUniqueIds = false, formIndex = null, formStructure = null,organizationId = null) {
-        console.log("Initializing DynamicFormHandler", { formType, participantId, initialData, container,organizationId});
+        debugLog("Initializing DynamicFormHandler", { formType, participantId, initialData, container,organizationId});
         this.formType = formType;
         this.participantId = participantId;
 
@@ -39,7 +40,7 @@ export class DynamicFormHandler {
             : document.getElementById("app"); // Use #app if container is not specified
 
         if (!this.container) {
-            console.error("Container not found for rendering the form.");
+            debugError("Container not found for rendering the form.");
             this.showError(translate("error_loading_form"));
             return;
         }
@@ -52,7 +53,7 @@ export class DynamicFormHandler {
             this.formRenderer = new JSONFormRenderer(this.formFormats[this.formType], this.formData, this.formType, this.useUniqueIds, this.formIndex);
             this.render(); // Call render here to display the form
         } catch (error) {
-            console.error("Error initializing dynamic form:", error);
+            debugError("Error initializing dynamic form:", error);
             this.showError(translate("error_loading_form"));
         }
     }
@@ -79,17 +80,17 @@ export class DynamicFormHandler {
         if (this.participantId) {
             try {
                 const response = await getFormSubmission(this.participantId, this.formType);
-                console.log("Full response from API:", response);
+                debugLog("Full response from API:", response);
 
                 if (response.success && response.form_data) {
                     this.formData = { ...response.form_data };
-                    console.log("Fetched form data:", this.formData);
+                    debugLog("Fetched form data:", this.formData);
                 } else {
-                    console.warn(`No form data found for ${this.formType} and participant ${this.participantId}`);
+                    debugWarn(`No form data found for ${this.formType} and participant ${this.participantId}`);
                     this.formData = {};
                 }
             } catch (error) {
-                console.error("Error fetching form data:", error);
+                debugError("Error fetching form data:", error);
                 this.formData = {};
             }
         } else {
@@ -104,28 +105,28 @@ export class DynamicFormHandler {
         const criticalFields = ['first_name', 'last_name', 'date_naissance'];
         for (const field of criticalFields) {
             if (this.formData[field] === undefined) {
-                console.warn(`Critical field '${field}' is missing from form data`);
+                debugWarn(`Critical field '${field}' is missing from form data`);
             }
         }
     }
 
     async saveFormData(formData) {
-        console.log("Saving form data", { formType: this.formType, participantId: this.participantId, formData });
+        debugLog("Saving form data", { formType: this.formType, participantId: this.participantId, formData });
 
         try {
             let result;
 
             // If a custom save handler is provided, use that instead of the default logic
             if (this.customSaveHandler) {
-                console.log("Using custom save handler");
+                debugLog("Using custom save handler");
                 result = await this.customSaveHandler(formData); // Use custom save handler
             } else {
                 // Default save behavior
-                console.log("Using default save handler");
+                debugLog("Using default save handler");
                 result = await saveFormSubmission(this.formType, this.participantId, formData);
             }
 
-            console.log("Form save result:", result);
+            debugLog("Form save result:", result);
             if (result.success) {
                 this.showMessage(translate("form_saved_successfully"));
                 return result;
@@ -133,7 +134,7 @@ export class DynamicFormHandler {
                 throw new Error(result.message || translate("error_saving_form"));
             }
         } catch (error) {
-            console.error("Error saving form:", error);
+            debugError("Error saving form:", error);
             this.showError(translate("error_saving_data") + ": " + error.message);
             throw error;
         }
@@ -141,7 +142,7 @@ export class DynamicFormHandler {
 
     render() {
         if (!this.container) {
-            console.error("Container not found for rendering the form.");
+            debugError("Container not found for rendering the form.");
             this.showError(translate("error_loading_form"));
             return;
         }
@@ -152,8 +153,8 @@ export class DynamicFormHandler {
             return;
         }
 
-        console.log("Rendering form structure for type:", this.formType);
-        console.log("Form data:", this.formData);
+        debugLog("Rendering form structure for type:", this.formType);
+        debugLog("Form data:", this.formData);
 
         let fields = formStructure.fields;
 
@@ -273,9 +274,9 @@ export class DynamicFormHandler {
         const formElement = this.container.querySelector(`#dynamic-form-${this.formType}${this.uniqueIdPart}`);
         if (formElement) {
             formElement.addEventListener("submit", (e) => this.handleSubmit(e));
-            console.log(`Event listener attached for form: ${this.formType}`);
+            debugLog(`Event listener attached for form: ${this.formType}`);
         } else {
-            console.error(`Form element for ${this.formType}${this.uniqueIdPart} not found.`);
+            debugError(`Form element for ${this.formType}${this.uniqueIdPart} not found.`);
         }
     }
 
@@ -293,7 +294,7 @@ export class DynamicFormHandler {
                 throw new Error(result.message || translate("error_saving_form"));
             }
         } catch (error) {
-            console.error("Error saving form:", error);
+            debugError("Error saving form:", error);
             this.showError(error.message);
         }
     }
@@ -307,7 +308,7 @@ export class DynamicFormHandler {
 
 		// Check if the form element exists
 		if (!formElement) {
-			console.error(`Form element for ${this.formType}${this.uniqueIdPart} not found or is not a valid form.`);
+			debugError(`Form element for ${this.formType}${this.uniqueIdPart} not found or is not a valid form.`);
 			return {}; // Return an empty object if the form element is not found
 		}
 

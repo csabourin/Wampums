@@ -1,4 +1,5 @@
 import { getParticipants, getGroups } from "./ajax-functions.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 
 export class PrintableGroupParticipantReport {
@@ -14,7 +15,7 @@ export class PrintableGroupParticipantReport {
 						this.render();
 						this.attachEventListeners();
 				} catch (error) {
-						console.error("Error initializing printable group participant report:", error);
+						debugError("Error initializing printable group participant report:", error);
 						this.renderError();
 				}
 		}
@@ -33,7 +34,7 @@ export class PrintableGroupParticipantReport {
 						// Sort groups alphabetically
 						this.groups.sort((a, b) => a.name.localeCompare(b.name));
 				} catch (error) {
-						console.error("Error fetching data:", error);
+						debugError("Error fetching data:", error);
 						throw error;
 				}
 		}

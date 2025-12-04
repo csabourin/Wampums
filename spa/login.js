@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import {login, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
 import { setStorage, getStorage, removeStorage, setStorageMultiple, removeStorageMultiple } from "./utils/StorageUtils.js";
 
@@ -8,15 +9,15 @@ export class Login {
   }
 
   async init() {
-    console.log("Login init started");
+    debugLog("Login init started");
     
     // Try to fetch organization settings if not already loaded
     if (!this.app.organizationSettings && !this.app.isOrganizationSettingsFetched) {
-      console.log("Organization settings not loaded, attempting to fetch...");
+      debugLog("Organization settings not loaded, attempting to fetch...");
       try {
         await this.app.fetchOrganizationSettings();
       } catch (error) {
-        console.error("Failed to fetch organization settings in login:", error);
+        debugError("Failed to fetch organization settings in login:", error);
       }
     }
 
@@ -25,22 +26,22 @@ export class Login {
     const maxAttempts = 30; // 30 * 100ms = 3 seconds
 
     while (!this.app.organizationSettings && attempts < maxAttempts) {
-      console.log(`Waiting for organization settings... Attempt ${attempts + 1}/${maxAttempts}`);
+      debugLog(`Waiting for organization settings... Attempt ${attempts + 1}/${maxAttempts}`);
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
     }
 
     // Render the login form even if we couldn't get organization settings
-    console.log("Rendering login form, organizationSettings:",
+    debugLog("Rendering login form, organizationSettings:",
                 this.app.organizationSettings ? "loaded" : "not loaded");
     this.render();
   }
 
   render() {
-    console.log("Login.render() called");
+    debugLog("Login.render() called");
     // Get organization name with fallback
     const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
-    console.log("Using organization name:", organizationName);
+    debugLog("Using organization name:", organizationName);
 
     const content = `
       <div class="login-container">
@@ -64,23 +65,23 @@ export class Login {
     if (appContainer) {
       appContainer.innerHTML = content;
       this.attachLoginFormListener();
-      console.log("Login form rendered successfully");
+      debugLog("Login form rendered successfully");
     } else {
-      console.error("Could not find app container element");
+      debugError("Could not find app container element");
     }
   }
 
 async attachLoginFormListener() {
   const form = document.getElementById("login-form");
   if (!form) {
-    console.error("Login form not found in DOM");
+    debugError("Login form not found in DOM");
     return;
   }
 
-  console.log("Attaching login form listener");
+  debugLog("Attaching login form listener");
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    console.log("Login form submitted");
+    debugLog("Login form submitted");
 
     const formData = new FormData(form);
     
@@ -89,45 +90,45 @@ async attachLoginFormListener() {
     const password = formData.get("password");
     
     try {
-      console.log("Sending login request via ajax-functions.js..." + email);
+      debugLog("Sending login request via ajax-functions.js..." + email);
       
       // Pass individual parameters instead of FormData object
       const result = await login(email, password);
 
-      console.log("Login result received:", result);
+      debugLog("Login result received:", result);
 
       if (result.success) {
-        console.log("Login successful, handling login success...");
+        debugLog("Login successful, handling login success...");
         this.handleLoginSuccess(result);
       } else {
-        console.warn("Login failed:", result.message);
+        debugWarn("Login failed:", result.message);
         alert(result.message || "Login failed");
       }
     } catch (error) {
-      console.error("Login error:", error);
+      debugError("Login error:", error);
       alert(`${translate("error_logging_in")}: ${error.message}`);
     }
   });
-  console.log("Login form listener attached");
+  debugLog("Login form listener attached");
 }
 
 handleLoginSuccess(result) {
-  console.log("=== LOGIN SUCCESS DEBUG ===");
-  console.log("Full result object:", result);
-  console.log("result.success:", result.success);
-  console.log("result.token:", result.token);
-  console.log("result.user_id:", result.user_id);
-  console.log("result.user_role:", result.user_role);
-  console.log("result.user_full_name:", result.user_full_name);
+  debugLog("=== LOGIN SUCCESS DEBUG ===");
+  debugLog("Full result object:", result);
+  debugLog("result.success:", result.success);
+  debugLog("result.token:", result.token);
+  debugLog("result.user_id:", result.user_id);
+  debugLog("result.user_role:", result.user_role);
+  debugLog("result.user_full_name:", result.user_full_name);
   
   // Check if data is nested
   if (result.data) {
-    console.log("Data is nested under result.data:");
-    console.log("result.data.token:", result.data.token);
-    console.log("result.data.user_id:", result.data.user_id);
-    console.log("result.data.user_role:", result.data.user_role);
+    debugLog("Data is nested under result.data:");
+    debugLog("result.data.token:", result.data.token);
+    debugLog("result.data.user_id:", result.data.user_id);
+    debugLog("result.data.user_role:", result.data.user_role);
   }
-  console.log("=== END LOGIN DEBUG ===");
+  debugLog("=== END LOGIN DEBUG ===");
 
   // Handle both nested and flat response structures
   const token = result.token || (result.data && result.data.token);
@@ -137,22 +138,22 @@ handleLoginSuccess(result) {
 
   // Validate required fields
   if (!token) {
-    console.error("ERROR: No JWT token received in login response");
+    debugError("ERROR: No JWT token received in login response");
     alert(translate("login_error_no_token"));
     return;
   }
 
   if (!userId) {
-    console.error("ERROR: No user ID received in login response");
+    debugError("ERROR: No user ID received in login response");
     alert(translate("login_error_no_user_id"));
     return;
   }
 
-  console.log("=== STORING USER DATA ===");
-  console.log("Token:", token ? "EXISTS" : "MISSING");
-  console.log("User ID:", userId);
-  console.log("User Role:", userRole);
-  console.log("User Full Name:", userFullName);
+  debugLog("=== STORING USER DATA ===");
+  debugLog("Token:", token ? "EXISTS" : "MISSING");
+  debugLog("User ID:", userId);
+  debugLog("User Role:", userRole);
+  debugLog("User Full Name:", userFullName);
 
   // Update app state
   this.app.isLoggedIn = true;
@@ -184,19 +185,19 @@ handleLoginSuccess(result) {
   // Save all user data at once
   setStorageMultiple(userData);
 
-  console.log("=== FINAL LOCALSTORAGE CHECK ===");
-  console.log("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
-  console.log("userId:", getStorage("userId"));
-  console.log("userRole:", getStorage("userRole"));
-  console.log("currentOrganizationId:", getStorage("currentOrganizationId"));
-  console.log("organizationId:", getStorage("organizationId"));
+  debugLog("=== FINAL LOCALSTORAGE CHECK ===");
+  debugLog("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
+  debugLog("userId:", getStorage("userId"));
+  debugLog("userRole:", getStorage("userRole"));
+  debugLog("currentOrganizationId:", getStorage("currentOrganizationId"));
+  debugLog("organizationId:", getStorage("organizationId"));
 
   // Redirect based on user role
   if (userRole === "parent") {
-    console.log("Redirecting to parent dashboard");
+    debugLog("Redirecting to parent dashboard");
     this.app.router.route("/parent-dashboard");
   } else {
-    console.log("Redirecting to main dashboard");
+    debugLog("Redirecting to main dashboard");
     this.app.router.route("/dashboard");
   }
 }
@@ -227,7 +228,7 @@ handleLoginSuccess(result) {
     // The actual token validation happens on the server
     const isLoggedIn = !!token && !!userId && !!userRole;
 
-    console.log("Session check:", { isLoggedIn, userRole, userFullName, userId });
+    debugLog("Session check:", { isLoggedIn, userRole, userFullName, userId });
     return {
       isLoggedIn,
       userRole,
@@ -237,7 +238,7 @@ handleLoginSuccess(result) {
   }
 
   static async logout() {
-    console.log("Logging out...");
+    debugLog("Logging out...");
 
     try {
       // Try to call the server logout endpoint
@@ -249,14 +250,14 @@ handleLoginSuccess(result) {
         }
       });
     } catch (error) {
-      console.warn("Error during server logout:", error);
+      debugWarn("Error during server logout:", error);
       // Continue with client-side logout even if server logout fails
     }
 
     // Clear user data from localStorage using StorageUtils
     removeStorageMultiple(["jwtToken", "userRole", "userFullName", "userId", "guardianParticipants"]);
 
-    console.log("Local storage cleared, redirecting to login page");
+    debugLog("Local storage cleared, redirecting to login page");
 
     // Redirect to login page
     window.location.href = "/login";

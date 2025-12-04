@@ -6,6 +6,7 @@
  */
 
 import { CONFIG } from './config.js';
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 
 class PWAUpdateManager {
     constructor() {
@@ -23,7 +24,7 @@ class PWAUpdateManager {
         if (this.initialized) return;
 
         if (!('serviceWorker' in navigator)) {
-            console.log('Service Worker not supported');
+            debugLog('Service Worker not supported');
             return;
         }
 
@@ -44,9 +45,9 @@ class PWAUpdateManager {
             await this.checkForUpdate();
 
             this.initialized = true;
-            console.log('PWA Update Manager initialized');
+            debugLog('PWA Update Manager initialized');
         } catch (error) {
-            console.error('Failed to initialize PWA Update Manager:', error);
+            debugError('Failed to initialize PWA Update Manager:', error);
         }
     }
 
@@ -87,7 +88,7 @@ class PWAUpdateManager {
     listenForServiceWorkerMessages() {
         navigator.serviceWorker.addEventListener('message', (event) => {
             if (event.data.type === 'UPDATE_AVAILABLE') {
-                console.log('Update available:', event.data.version);
+                debugLog('Update available:', event.data.version);
                 this.updateAvailable = true;
                 this.showUpdatePrompt();
             }
@@ -106,12 +107,12 @@ class PWAUpdateManager {
             // Also check the version from service worker
             const version = await this.getServiceWorkerVersion();
             if (version && version !== CONFIG.VERSION) {
-                console.log(`Version mismatch: SW=${version}, APP=${CONFIG.VERSION}`);
+                debugLog(`Version mismatch: SW=${version}, APP=${CONFIG.VERSION}`);
                 this.updateAvailable = true;
                 this.showUpdatePrompt();
             }
         } catch (error) {
-            console.error('Failed to check for updates:', error);
+            debugError('Failed to check for updates:', error);
         }
     }
 

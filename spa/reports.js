@@ -1,5 +1,6 @@
 // reports.js
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import {
 	getHealthReport,
 	getAllergiesReport,
@@ -74,7 +75,7 @@ export class Reports {
 		try {
 			const response = await getFormTypes(); // Fetch form types
 
-			console.log("Fetched form types:", response);  // Check if data is correctly fetched
+			debugLog("Fetched form types:", response);  // Check if data is correctly fetched
 
 			const selectElement = document.getElementById("form-type-select");
 
@@ -98,7 +99,7 @@ export class Reports {
 				}
 			});
 		} catch (error) {
-			console.error("Error loading form types:", error);
+			debugError("Error loading form types:", error);
 			document.getElementById("form-type-container").innerHTML = `<p>${translate("error_loading_form_types")}</p>`;
 		}
 	}
@@ -143,7 +144,7 @@ export class Reports {
 					break;
 				case 'attendance':
 				reportData = await getAttendanceReport();
-				console.log("Received attendance report data:", reportData); // Add this line for debugging
+				debugLog("Received attendance report data:", reportData); // Add this line for debugging
 				if (!reportData) {
 					throw new Error('No data received from getAttendanceReport');
 				}
@@ -168,7 +169,7 @@ case 'participant-age':
 			document.getElementById('report-content').innerHTML = reportContent;
 			document.getElementById('print-report').style.display = 'block';
 		} catch (error) {
-			console.error(`Error loading ${reportType} report:`, error);
+			debugError(`Error loading ${reportType} report:`, error);
 			document.getElementById('report-content').innerHTML = `
 				<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>
 			`;
@@ -206,7 +207,7 @@ case 'participant-age':
 			return reportContent; // Return the generated reportContent
 
 		} catch (error) {
-			console.error("Error fetching and rendering health report:", error);
+			debugError("Error fetching and rendering health report:", error);
 			return `<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>`;
 		}
 	}
@@ -285,7 +286,7 @@ case 'participant-age':
 
 					return missingFieldsReport;
 			} catch (error) {
-					console.error('Error fetching or rendering missing fields report:', error);
+					debugError('Error fetching or rendering missing fields report:', error);
 					return `<p>${translate('error_loading_report')}: ${error.message}</p>`;
 			}
 	}
@@ -302,7 +303,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
         const formStructure = formTypeData?.form_structure;
 
         if (!formStructure || !formStructure.fields) {
-            console.error('Invalid form structure for form type:', formType);
+            debugError('Invalid form structure for form type:', formType);
             return; // Skip this submission if form structure is invalid
         }
 
@@ -584,10 +585,10 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 	}
 
 	// renderAttendanceReport(data) {
-	// 	console.log("Rendering attendance report with data:", data); // Add this line for debugging
+	// 	debugLog("Rendering attendance report with data:", data); // Add this line for debugging
 
 	// 	if (!data || typeof data !== 'object') {
-	// 		console.error("Invalid data received in renderAttendanceReport:", data);
+	// 		debugError("Invalid data received in renderAttendanceReport:", data);
 	// 		return '<p>Error: Invalid data received for attendance report.</p>';
 	// 	}
 
@@ -673,7 +674,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 									}
 							});
 					} else {
-							console.error(`Invalid attendance data for ${item.first_name} ${item.last_name}:`, item.attendance);
+							debugError(`Invalid attendance data for ${item.first_name} ${item.last_name}:`, item.attendance);
 					}
 			});
 			uniqueDates = Array.from(uniqueDates).sort(); // Convert Set to Array and sort the dates

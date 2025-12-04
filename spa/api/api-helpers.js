@@ -1,6 +1,7 @@
 // api-helpers.js
 // Helper utilities for API operations
 import { CONFIG } from "../config.js";
+import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 
 /**
  * Get current organization ID from localStorage
@@ -17,7 +18,7 @@ export function getCurrentOrganizationId() {
             const parsed = JSON.parse(orgId);
             orgId = parsed.organizationId || parsed.id || parsed;
         } catch (e) {
-            console.warn('Failed to parse organization ID from localStorage:', e);
+            debugWarn('Failed to parse organization ID from localStorage:', e);
         }
     }
 
@@ -36,10 +37,10 @@ export function getAuthHeader() {
     const token = localStorage.getItem("jwtToken");
     const organizationId = getCurrentOrganizationId();
 
-    console.log("=== GET AUTH HEADER DEBUG ===");
-    console.log("Token exists:", !!token);
-    console.log("Organization ID:", organizationId);
-    console.log("Token preview:", token ? token.substring(0, 50) + "..." : "NO TOKEN");
+    debugLog("=== GET AUTH HEADER DEBUG ===");
+    debugLog("Token exists:", !!token);
+    debugLog("Organization ID:", organizationId);
+    debugLog("Token preview:", token ? token.substring(0, 50) + "..." : "NO TOKEN");
 
     const headers = {};
 
@@ -51,8 +52,8 @@ export function getAuthHeader() {
         headers['x-organization-id'] = organizationId;
     }
 
-    console.log("Generated headers:", headers);
-    console.log("=== END AUTH HEADER DEBUG ===");
+    debugLog("Generated headers:", headers);
+    debugLog("=== END AUTH HEADER DEBUG ===");
 
     return headers;
 }
@@ -71,7 +72,7 @@ export async function validateCurrentToken() {
     const token = localStorage.getItem("jwtToken");
 
     if (!token) {
-        console.log("No token to validate");
+        debugLog("No token to validate");
         return { isValid: false, reason: "no_token" };
     }
 
@@ -79,24 +80,24 @@ export async function validateCurrentToken() {
         // Try to decode the token client-side first
         const parts = token.split('.');
         if (parts.length !== 3) {
-            console.log("Invalid token format");
+            debugLog("Invalid token format");
             return { isValid: false, reason: "invalid_format" };
         }
 
         const payload = JSON.parse(atob(parts[1]));
-        console.log("Token payload:", payload);
+        debugLog("Token payload:", payload);
 
         // Check if expired
         const now = Math.floor(Date.now() / 1000);
         if (payload.exp && payload.exp < now) {
-            console.log("Token is expired");
+            debugLog("Token is expired");
             return { isValid: false, reason: "expired" };
         }
 
-        console.log("Token appears valid client-side");
+        debugLog("Token appears valid client-side");
         return { isValid: true, payload };
     } catch (error) {
-        console.error("Error validating token:", error);
+        debugError("Error validating token:", error);
         return { isValid: false, reason: "decode_error" };
     }
 }

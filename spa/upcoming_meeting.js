@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { getReunionDates, getReunionPreparation } from "./ajax-functions.js";
 import { formatDate, isToday } from "./utils/DateUtils.js";
 
@@ -19,7 +20,7 @@ export class UpcomingMeeting {
                                                 }
                                                 this.render();
                                 } catch (error) {
-                                                console.error("Error initializing upcoming meeting:", error);
+                                                debugError("Error initializing upcoming meeting:", error);
                                                 this.app.showMessage(translate("error_loading_upcoming_meeting"), "error");
                                 }
                 }
@@ -30,7 +31,7 @@ export class UpcomingMeeting {
                                                 // Handle both array response and object response with dates property
                                                 this.meetingDates = Array.isArray(response) ? response : (response?.dates || []);
                                 } catch (error) {
-                                                console.error("Error fetching meeting dates:", error);
+                                                debugError("Error fetching meeting dates:", error);
                                 }
                 }
 
@@ -73,7 +74,7 @@ export class UpcomingMeeting {
                                                                 this.meetingDetails = null;
                                                 }
                                 } catch (error) {
-                                                console.error("Error fetching meeting details:", error);
+                                                debugError("Error fetching meeting details:", error);
                                                 this.meetingDetails = null;
                                 }
                 }

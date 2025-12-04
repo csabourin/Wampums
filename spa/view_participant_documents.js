@@ -1,4 +1,5 @@
 import { getParticipantsWithDocuments, getOrganizationFormFormats, getFormSubmission } from "./ajax-functions.js"; // Updated import to reflect getOrganizationFormFormats
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 
@@ -22,7 +23,7 @@ export class ViewParticipantDocuments {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing view participant documents:", error);
+      debugError("Error initializing view participant documents:", error);
       this.renderError(error.message);
     }
   }
@@ -36,7 +37,7 @@ export class ViewParticipantDocuments {
               throw new Error('Invalid form formats received');
           }
 
-          console.log("Fetched form formats:", formFormats);
+          debugLog("Fetched form formats:", formFormats);
 
           // Directly set formFormats as the data we need
           this.organizationSettings = {}; // Clear the settings since it's not used in this case
@@ -48,17 +49,17 @@ export class ViewParticipantDocuments {
               if (formStructure) {
                   // Validate the form structure
                   if (!formStructure.fields || !Array.isArray(formStructure.fields)) {
-                      console.warn(`Invalid or missing fields in form structure for: ${formType}`, formStructure);
+                      debugWarn(`Invalid or missing fields in form structure for: ${formType}`, formStructure);
                   } else {
-                      console.log('Valid form structure for:', formType, formStructure);
+                      debugLog('Valid form structure for:', formType, formStructure);
                       this.formRenderers[formType] = new JSONFormRenderer(formStructure);
                   }
               } else {
-                  console.warn(`No form structure found for: ${formType}`);
+                  debugWarn(`No form structure found for: ${formType}`);
               }
           });
       } catch (error) {
-          console.error("Error fetching organization data:", error);
+          debugError("Error fetching organization data:", error);
           throw error;
       }
   }
@@ -68,10 +69,10 @@ export class ViewParticipantDocuments {
   async fetchData() {
     try {
       const data = await getParticipantsWithDocuments();
-      console.log("Fetched participants data:", data);
+      debugLog("Fetched participants data:", data);
       this.participants = data.participants || [];
     } catch (error) {
-      console.error("Error fetching participant documents data:", error);
+      debugError("Error fetching participant documents data:", error);
       throw error;
     }
   }
@@ -139,28 +140,28 @@ export class ViewParticipantDocuments {
     const participantId = e.target.dataset.participantId;
     const formType = e.target.dataset.formType;
 
-    console.log(`Fetching form submission for participantId: ${participantId}, formType: ${formType}`);
+    debugLog(`Fetching form submission for participantId: ${participantId}, formType: ${formType}`);
 
     try {
       const response = await getFormSubmission(participantId, formType);
-      console.log("Fetched form data:", response);
+      debugLog("Fetched form data:", response);
 
       if (!this.formRenderers[formType]) {
-        console.error(`No form renderer found for formType: ${formType}`);
+        debugError(`No form renderer found for formType: ${formType}`);
         this.app.showMessage(translate("error_form_not_found"), "error");
         return;
       }
 
       // Extract the submission_data from the response
       const submissionData = response.data?.submission_data || response.submission_data || {};
-      console.log("Extracted submission data:", submissionData);
+      debugLog("Extracted submission data:", submissionData);
 
       // Pass submission_data to render
       const formContent = this.formRenderers[formType].render(submissionData);
       document.getElementById('form-content').innerHTML = formContent;
       document.getElementById('form-view-modal').style.display = "block";
     } catch (error) {
-      console.error(`Error fetching form data for ${formType}:`, error);
+      debugError(`Error fetching form data for ${formType}:`, error);
       this.app.showMessage(translate("error_fetching_form_data"), "error");
     }
   }

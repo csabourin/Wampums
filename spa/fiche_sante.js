@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import {
   fetchParticipant,
   saveFicheSante,
@@ -22,7 +23,7 @@ export class FicheSante {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error("Error initializing fiche sante:", error);
+      debugError("Error initializing fiche sante:", error);
       this.renderError(translate("error_loading_fiche_sante"));
     }
   }
@@ -35,14 +36,14 @@ export class FicheSante {
         fetchParents(this.participantId),
       ]);
 
-      console.log("Fetched participant:", this.participant); // Verify participant data
-      console.log("Fetched fiche sante:", this.ficheSante); // Verify fiche sante data
+      debugLog("Fetched participant:", this.participant); // Verify participant data
+      debugLog("Fetched fiche sante:", this.ficheSante); // Verify fiche sante data
 
       if (!this.participant) {
         throw new Error("Participant data is missing");
       }
     } catch (error) {
-      console.error("Error fetching fiche sante data:", error);
+      debugError("Error fetching fiche sante data:", error);
       throw error;
     }
   }
@@ -70,7 +71,7 @@ export class FicheSante {
   }
 
   renderGeneralInfo() {
-    console.log("Rendering general info, ficheSante:", this.ficheSante); // Debugging output
+    debugLog("Rendering general info, ficheSante:", this.ficheSante); // Debugging output
     return `
       <h2>${translate("informations_generales")}</h2>
       <div class="form-group">
@@ -275,7 +276,7 @@ export class FicheSante {
       await saveFicheSante(ficheSanteData);
       this.app.router.navigate("/dashboard");
     } catch (error) {
-      console.error("Error saving fiche sante:", error);
+      debugError("Error saving fiche sante:", error);
       this.renderError(translate("error_saving_fiche_sante"));
     }
   }
