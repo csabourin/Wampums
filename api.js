@@ -475,6 +475,36 @@ console.log('   - GET /api/risk-acceptance');
 console.log('   - POST /api/risk-acceptance');
 console.log('   - POST /api/health-forms');
 
+// Mount guardians routes
+const guardiansRoutes = require('./routes/guardians')(pool, logger);
+app.use('/api', guardiansRoutes);
+
+console.log('✅ Guardians routes loaded');
+console.log('   - GET /api/guardians');
+console.log('   - POST /api/save-guardian');
+console.log('   - DELETE /api/remove-guardian');
+
+// Mount meetings routes
+const meetingsRoutes = require('./routes/meetings')(pool, logger);
+app.use('/api', meetingsRoutes);
+
+console.log('✅ Meetings routes loaded');
+console.log('   - GET /api/reunion-preparation');
+console.log('   - POST /api/save-reunion-preparation');
+console.log('   - GET /api/reunion-dates');
+console.log('   - GET /api/calendars');
+console.log('   - GET /api/next-meeting-info');
+console.log('   - PUT /api/calendars/:id');
+console.log('   - PUT /api/calendars/:id/payment');
+console.log('   - GET /api/participant-calendar');
+
+// Mount notifications routes
+const notificationsRoutes = require('./routes/notifications')(pool, logger);
+app.use('/api', notificationsRoutes);
+
+console.log('✅ Notifications routes loaded');
+console.log('   - POST /api/send-notification');
+
 // ============================================
 // PUBLIC ENDPOINTS (migrated from PHP)
 // ============================================
