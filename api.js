@@ -38,8 +38,8 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms"], // Note: Consider removing unsafe-inline and using nonces in production
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms", "https://cdn.jsdelivr.net"], // Note: Consider removing unsafe-inline and using nonces in production
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms", "https://cdn.jsdelivr.net"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
