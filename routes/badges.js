@@ -690,24 +690,49 @@ module.exports = (pool, logger) => {
       }
 
       const badgeId = parseInt(req.params.id);
-      const { status, reviewer_comments } = req.body;
+      const {
+        status,
+        reviewer_comments,
+        etoiles,
+        objectif,
+        description,
+        date_obtention,
+        territoire_chasse,
+        fierte,
+        raison
+      } = req.body;
 
       if (!badgeId) {
         return res.status(400).json({ success: false, message: 'Badge ID is required' });
       }
 
-      if (!status) {
-        return res.status(400).json({ success: false, message: 'Status is required' });
+      if (
+        status === undefined &&
+        reviewer_comments === undefined &&
+        etoiles === undefined &&
+        objectif === undefined &&
+        description === undefined &&
+        date_obtention === undefined &&
+        territoire_chasse === undefined &&
+        fierte === undefined &&
+        raison === undefined
+      ) {
+        return res.status(400).json({ success: false, message: 'No update fields provided' });
       }
 
-      if (!['approved', 'rejected', 'pending'].includes(status)) {
+      if (status && !['approved', 'rejected', 'pending'].includes(status)) {
         return res.status(400).json({ success: false, message: 'Invalid status value' });
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization with admin or leader role
-      const authCheck = await verifyOrganizationMembership(pool, decoded.userId, organizationId, ['admin', 'leader']);
+      const authCheck = await verifyOrganizationMembership(
+        pool,
+        decoded.userId,
+        organizationId,
+        ['admin', 'leader', 'animation']
+      );
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -716,13 +741,72 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
-        // Update badge progress
+        const updateFields = [];
+        const values = [];
+        let valueIndex = 1;
+
+        if (status) {
+          updateFields.push(`status = $${valueIndex++}`);
+          values.push(status);
+
+          if (status === 'approved') {
+            updateFields.push('approval_date = NOW()');
+            updateFields.push(`approved_by = $${valueIndex++}`);
+            values.push(decoded.userId);
+          } else {
+            updateFields.push('approval_date = NULL');
+            updateFields.push('approved_by = NULL');
+          }
+        }
+
+        if (reviewer_comments !== undefined) {
+          updateFields.push(`reviewer_comments = $${valueIndex++}`);
+          values.push(reviewer_comments || null);
+        }
+
+        if (etoiles !== undefined) {
+          updateFields.push(`etoiles = $${valueIndex++}`);
+          values.push(parseInt(etoiles, 10) || 0);
+        }
+
+        if (objectif !== undefined) {
+          updateFields.push(`objectif = $${valueIndex++}`);
+          values.push(objectif || null);
+        }
+
+        if (description !== undefined) {
+          updateFields.push(`description = $${valueIndex++}`);
+          values.push(description || null);
+        }
+
+        if (date_obtention !== undefined) {
+          updateFields.push(`date_obtention = $${valueIndex++}`);
+          values.push(date_obtention || null);
+        }
+
+        if (territoire_chasse !== undefined) {
+          updateFields.push(`territoire_chasse = $${valueIndex++}`);
+          values.push(territoire_chasse || null);
+        }
+
+        if (fierte !== undefined) {
+          updateFields.push(`fierte = $${valueIndex++}`);
+          values.push(!!fierte);
+        }
+
+        if (raison !== undefined) {
+          updateFields.push(`raison = $${valueIndex++}`);
+          values.push(raison || null);
+        }
+
+        updateFields.push('updated_at = NOW()');
+
         const updateResult = await client.query(
           `UPDATE badge_progress
-           SET status = $1, reviewer_comments = $2, approved_by = $3, approval_date = NOW()
-           WHERE id = $4 AND organization_id = $5
+           SET ${updateFields.join(', ')}
+           WHERE id = $${valueIndex++} AND organization_id = $${valueIndex}
            RETURNING *`,
-          [status, reviewer_comments || null, decoded.userId, badgeId, organizationId]
+          [...values, badgeId, organizationId]
         );
 
         if (updateResult.rows.length === 0) {
@@ -756,10 +840,11 @@ module.exports = (pool, logger) => {
         }
 
         await client.query('COMMIT');
+        const message = status ? `Badge ${status} successfully` : 'Badge updated';
         res.json({
           success: true,
           data: badge,
-          message: `Badge ${status} successfully`
+          message
         });
       } catch (error) {
         await client.query('ROLLBACK');

@@ -226,6 +226,7 @@ export class Dashboard {
         <a href="/manage-groups">${translate("manage_groups")}</a>
         <a href="/view-participant-documents">${translate("view_participant_documents")}</a>
         <a href="/approve-badges">${translate("approve_badges")}</a>
+        <a href="/badge-dashboard">${translate("badge_dashboard_link")}</a>
         <a href="/parent-dashboard">${translate("vue_parents")}</a>
         <a href="/parent-contact-list">${translate("parent_contact_list")}</a>
         <a href="/manage-users-participants">${translate("manage_participants")}</a>
