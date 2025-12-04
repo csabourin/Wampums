@@ -684,8 +684,9 @@ module.exports = (pool, logger) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
+      const userId = decoded?.userId || decoded?.user_id;
 
-      if (!decoded || !decoded.userId) {
+      if (!decoded || !userId) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
@@ -729,7 +730,7 @@ module.exports = (pool, logger) => {
       // Verify user belongs to this organization with admin or leader role
       const authCheck = await verifyOrganizationMembership(
         pool,
-        decoded.userId,
+        userId,
         organizationId,
         ['admin', 'leader', 'animation']
       );
@@ -752,7 +753,7 @@ module.exports = (pool, logger) => {
           if (status === 'approved') {
             updateFields.push('approval_date = NOW()');
             updateFields.push(`approved_by = $${valueIndex++}`);
-            values.push(decoded.userId);
+            values.push(userId);
           } else {
             updateFields.push('approval_date = NULL');
             updateFields.push('approved_by = NULL');
