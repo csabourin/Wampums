@@ -2604,6 +2604,26 @@ details p {
   align-items: center;
 }
 
+@media (max-width: 768px) {
+  .badge-table__header,
+  .badge-table__row {
+    grid-template-columns: 1fr;
+    gap: var(--space-xs);
+  }
+
+  .badge-table__header span:not(:first-child) {
+    display: none;
+  }
+
+  .badge-table__cell--badges {
+    flex-direction: column;
+  }
+
+  .badge-chip {
+    min-width: 100%;
+  }
+}
+
 .badge-table__group {
   background: #eef2ff;
   border-block-start: 1px solid var(--color-border-light);
@@ -2669,6 +2689,25 @@ details p {
   box-shadow: var(--shadow-sm);
 }
 
+.badge-chip__header {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.badge-chip__image {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+.badge-chip__content {
+  flex: 1;
+  min-width: 0;
+}
+
 .badge-chip__top {
   display: flex;
   justify-content: space-between;
@@ -2678,11 +2717,13 @@ details p {
 
 .badge-chip__name {
   font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
 }
 
 .badge-chip__stars {
   display: inline-flex;
   gap: 0.35rem;
+  flex-shrink: 0;
 }
 
 .badge-chip__footer {
