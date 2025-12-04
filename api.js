@@ -422,6 +422,27 @@ console.log('   - POST /api/link-user-participants');
 console.log('   - POST /api/associate-user-participant');
 console.log('   - POST /api/permissions/check');
 
+// Mount honors routes
+const honorsRoutes = require('./routes/honors')(pool, logger);
+app.use('/api', honorsRoutes);
+
+console.log('✅ Honors routes loaded');
+console.log('   - GET /api/honors');
+console.log('   - POST /api/award-honor');
+console.log('   - GET /api/honors-history');
+console.log('   - GET /api/honors-report');
+console.log('   - GET /api/recent-honors');
+
+// Mount points routes
+const pointsRoutes = require('./routes/points')(pool, logger);
+app.use('/api', pointsRoutes);
+
+console.log('✅ Points routes loaded');
+console.log('   - GET /api/points-data');
+console.log('   - POST /api/update-points');
+console.log('   - GET /api/points-leaderboard');
+console.log('   - GET /api/points-report');
+
 // ============================================
 // PUBLIC ENDPOINTS (migrated from PHP)
 // ============================================
