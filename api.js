@@ -371,6 +371,7 @@ console.log('📚 API Documentation available at: /api-docs');
 const participantsRoutes = require('./routes/participants')(pool);
 const attendanceRoutes = require('./routes/attendance')(pool);
 const groupsRoutes = require('./routes/groups')(pool);
+const authRoutes = require('./routes/auth')(pool, logger);
 
 app.use('/api/v1/participants', participantsRoutes);
 app.use('/api/v1/attendance', attendanceRoutes);
@@ -380,6 +381,17 @@ console.log('✅ RESTful API v1 routes loaded');
 console.log('   - /api/v1/participants');
 console.log('   - /api/v1/attendance');
 console.log('   - /api/v1/groups');
+
+// Mount authentication routes (handles both /public and /api/auth paths)
+app.use('/', authRoutes);
+
+console.log('✅ Authentication routes loaded');
+console.log('   - POST /public/login');
+console.log('   - POST /api/auth/register');
+console.log('   - POST /api/auth/request-reset');
+console.log('   - POST /api/auth/reset-password');
+console.log('   - POST /api/auth/verify-session');
+console.log('   - POST /api/auth/logout');
 
 // ============================================
 // PUBLIC ENDPOINTS (migrated from PHP)
@@ -518,120 +530,11 @@ app.get('/api/organization-jwt', async (req, res) => {
   }
 });
 
-// Login endpoint (migrated from api.php case 'login')
-app.post('/public/login',
-  authLimiter,
-  [
-    check('email')
-      .trim()
-      .isEmail()
-      .normalizeEmail()
-      .withMessage('Valid email is required')
-      .isLength({ max: 255 })
-      .withMessage('Email too long'),
-    check('password')
-      .trim()
-      .notEmpty()
-      .withMessage('Password is required')
-      .isLength({ min: 1, max: 255 })
-      .withMessage('Password must be between 1 and 255 characters'),
-  ],
-  async (req, res) => {
-    try {
-      // Check validation errors
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Validation failed',
-          errors: errors.array()
-        });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req);
-      const { email, password } = req.body;
-
-      const normalizedEmail = email.toLowerCase();
-
-    const userResult = await pool.query(
-      `SELECT u.id, u.email, u.password, u.is_verified, u.full_name, uo.role 
-       FROM users u
-       JOIN user_organizations uo ON u.id = uo.user_id
-       WHERE u.email = $1 AND uo.organization_id = $2`,
-      [normalizedEmail, organizationId]
-    );
-
-    const user = userResult.rows[0];
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Convert PHP $2y$ bcrypt hash to Node.js compatible $2a$ format
-    // Both are identical bcrypt algorithms, just different prefixes
-    const nodeCompatibleHash = user.password.replace(/^\$2y\$/, '$2a$');
-    
-    const passwordValid = await bcrypt.compare(password, nodeCompatibleHash);
-
-    if (!passwordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-
-    if (!user.is_verified) {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account is not yet verified. Please wait for admin verification.'
-      });
-    }
-
-    const token = jwt.sign(
-      {
-        user_id: user.id,
-        user_role: user.role,
-        organizationId: organizationId
-      },
-      jwtKey,
-      { expiresIn: '7d' }
-    );
-
-    const guardianResult = await pool.query(
-      `SELECT pg.id, p.id AS participant_id, p.first_name, p.last_name 
-       FROM parents_guardians pg
-       JOIN participant_guardians pgu ON pg.id = pgu.guardian_id
-       JOIN participants p ON pgu.participant_id = p.id
-       LEFT JOIN user_participants up ON up.participant_id = p.id AND up.user_id = $1
-       WHERE pg.courriel = $2 AND up.participant_id IS NULL`,
-      [user.id, normalizedEmail]
-    );
-
-    const response = {
-      success: true,
-      message: 'login_successful',
-      token: token,
-      user_role: user.role,
-      user_full_name: user.full_name,
-      user_id: user.id
-    };
-
-    if (guardianResult.rows.length > 0) {
-      response.guardian_participants = guardianResult.rows;
-    }
-
-    res.json(response);
-  } catch (error) {
-    logger.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-  }
-});
+// ============================================
+// NOTE: Login endpoint moved to routes/auth.js
+// All authentication endpoints (login, register, password reset, etc.)
+// are now handled by the modular auth routes.
+// ============================================
 
 // Get organization ID (public endpoint)
 app.get('/public/get_organization_id', async (req, res) => {
@@ -6172,271 +6075,10 @@ app.get('/api/participant-calendar', async (req, res) => {
 });
 
 // ============================================
-// AUTHENTICATION ENDPOINTS
+// NOTE: Authentication endpoints moved to routes/auth.js
+// All authentication endpoints (register, request-reset, reset-password, verify-session, logout)
+// are now handled by the modular auth routes.
 // ============================================
-
-/**
- * @swagger
- * /api/auth/register:
- *   post:
- *     summary: Register a new user
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *               - full_name
- *             properties:
- *               email:
- *                 type: string
- *               password:
- *                 type: string
- *               full_name:
- *                 type: string
- *     responses:
- *       201:
- *         description: User registered
- */
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { email, password, full_name } = req.body;
-
-    if (!email || !password || !full_name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email, password, and full name are required'
-      });
-    }
-
-    // Check if user already exists
-    const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'User with this email already exists'
-      });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user (unverified by default)
-    const result = await pool.query(
-      `INSERT INTO users (email, password, full_name, is_verified)
-       VALUES ($1, $2, $3, false)
-       RETURNING id, email, full_name, is_verified`,
-      [email, hashedPassword, full_name]
-    );
-
-    res.status(201).json({
-      success: true,
-      data: result.rows[0],
-      message: 'User registered successfully. Please wait for admin approval.'
-    });
-  } catch (error) {
-    logger.error('Error registering user:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/auth/request-reset:
- *   post:
- *     summary: Request password reset
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *     responses:
- *       200:
- *         description: Reset email sent
- */
-app.post('/api/auth/request-reset',
-  passwordResetLimiter,
-  [
-    check('email')
-      .trim()
-      .isEmail()
-      .normalizeEmail()
-      .withMessage('Valid email is required')
-      .isLength({ max: 255 })
-      .withMessage('Email too long'),
-  ],
-  async (req, res) => {
-    try {
-      // Check validation errors
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Validation failed',
-          errors: errors.array()
-        });
-      }
-
-      const { email } = req.body;
-
-    // Check if user exists
-    const user = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-
-    // Always return success to prevent email enumeration
-    if (user.rows.length === 0) {
-      return res.json({
-        success: true,
-        message: 'If a user with that email exists, a reset link has been sent'
-      });
-    }
-
-    // Generate reset token (valid for 1 hour)
-    const resetToken = jwt.sign(
-      { user_id: user.rows[0].id, purpose: 'password_reset' },
-      jwtKey,
-      { expiresIn: '1h' }
-    );
-
-    // Store reset token in database
-    await pool.query(
-      `INSERT INTO password_reset_tokens (user_id, token, expires_at)
-       VALUES ($1, $2, NOW() + INTERVAL '1 hour')
-       ON CONFLICT (user_id)
-       DO UPDATE SET token = $2, expires_at = NOW() + INTERVAL '1 hour', created_at = NOW()`,
-      [user.rows[0].id, resetToken]
-    );
-
-    // TODO: Send email with reset link
-    // For now, return the token in the response (in production, this should be emailed)
-    res.json({
-      success: true,
-      message: 'If a user with that email exists, a reset link has been sent',
-      // Remove this in production:
-      reset_token: resetToken
-    });
-  } catch (error) {
-    logger.error('Error requesting password reset:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/auth/reset-password:
- *   post:
- *     summary: Reset password with token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - token
- *               - new_password
- *             properties:
- *               token:
- *                 type: string
- *               new_password:
- *                 type: string
- *     responses:
- *       200:
- *         description: Password reset successful
- */
-app.post('/api/auth/reset-password',
-  passwordResetLimiter,
-  [
-    check('token')
-      .trim()
-      .notEmpty()
-      .withMessage('Reset token is required'),
-    check('new_password')
-      .trim()
-      .isLength({ min: 8, max: 255 })
-      .withMessage('Password must be between 8 and 255 characters')
-      .matches(/[A-Z]/)
-      .withMessage('Password must contain at least one uppercase letter')
-      .matches(/[a-z]/)
-      .withMessage('Password must contain at least one lowercase letter')
-      .matches(/[0-9]/)
-      .withMessage('Password must contain at least one number'),
-  ],
-  async (req, res) => {
-    try {
-      // Check validation errors
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Validation failed',
-          errors: errors.array()
-        });
-      }
-
-      const { token, new_password } = req.body;
-
-    // Verify token
-    let decoded;
-    try {
-      decoded = jwt.verify(token, jwtKey);
-      if (decoded.purpose !== 'password_reset') {
-        throw new Error('Invalid token purpose');
-      }
-    } catch (err) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired token' });
-    }
-
-    // Check if token exists in database and is not expired
-    const tokenResult = await pool.query(
-      `SELECT user_id FROM password_reset_tokens
-       WHERE user_id = $1 AND token = $2 AND expires_at > NOW()`,
-      [decoded.user_id, token]
-    );
-
-    if (tokenResult.rows.length === 0) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired token' });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(new_password, 10);
-
-    // Update password
-    await pool.query(
-      'UPDATE users SET password = $1 WHERE id = $2',
-      [hashedPassword, decoded.user_id]
-    );
-
-    // Delete used token
-    await pool.query(
-      'DELETE FROM password_reset_tokens WHERE user_id = $1',
-      [decoded.user_id]
-    );
-
-    res.json({ success: true, message: 'Password reset successful' });
-  } catch (error) {
-    logger.error('Error resetting password:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
 
 /**
  * @swagger
@@ -6894,86 +6536,7 @@ app.delete('/api/participant-groups/:participantId', async (req, res) => {
 // ADDITIONAL ENDPOINTS - Migrated from PHP
 // ============================================================================
 
-/**
- * @swagger
- * /api/auth/verify-session:
- *   post:
- *     summary: Verify JWT session and get fresh user data
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Session verified successfully
- *       401:
- *         description: Invalid or expired token
- */
-app.post('/api/auth/verify-session', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No token provided' });
-    }
-
-    const decoded = verifyJWT(token);
-
-    if (!decoded) {
-      return res.status(401).json({ success: false, message: 'Invalid token' });
-    }
-
-    // Fetch fresh user data from database
-    const result = await pool.query(
-      'SELECT id, email, full_name FROM users WHERE id = $1',
-      [decoded.userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'User not found' });
-    }
-
-    const user = result.rows[0];
-
-    // Get user's organizations and roles
-    const orgsResult = await pool.query(
-      `SELECT uo.organization_id, uo.role, os.setting_value->>'name' as org_name
-       FROM user_organizations uo
-       LEFT JOIN organization_settings os ON uo.organization_id = os.organization_id
-         AND os.setting_key = 'organization_info'
-       WHERE uo.user_id = $1`,
-      [user.id]
-    );
-
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.full_name,
-        organizations: orgsResult.rows
-      }
-    });
-  } catch (error) {
-    logger.error('Error verifying session:', error);
-    res.status(500).json({ success: false, message: 'Error verifying session' });
-  }
-});
-
-/**
- * @swagger
- * /api/auth/logout:
- *   post:
- *     summary: Logout user (client-side token removal)
- *     tags: [Authentication]
- *     responses:
- *       200:
- *         description: Logout successful
- */
-app.post('/api/auth/logout', (req, res) => {
-  // With JWT, logout is primarily handled on the client side by removing the token
-  // If using session-based auth or token blacklisting, handle here
-  res.json({ success: true, message: 'Logged out successfully' });
-});
+// NOTE: verify-session and logout endpoints moved to routes/auth.js
 
 /**
  * @swagger
