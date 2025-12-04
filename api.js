@@ -572,6 +572,14 @@ logger.info('   - POST /api/associate-user-participant');
 logger.info('   - POST /api/link-parent-participant');
 logger.info('   - DELETE /api/participant-groups/:participantId');
 
+// Public Routes (handles /api/translations, /api/news)
+// Endpoints: translations, news
+// IMPORTANT: Must be mounted before participants routes to remain accessible
+app.use('/api', publicRoutes);
+logger.info('✅ Public routes loaded');
+logger.info('   - GET /api/translations');
+logger.info('   - GET /api/news');
+
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
 // IMPORTANT: Must be mounted LAST among /api routes because it has a catch-all /:id route that will match any path
@@ -586,13 +594,6 @@ logger.info('   - POST /api/link-participant-to-organization');
 logger.info('   - GET /api/participants-with-users');
 logger.info('   - POST /api/link-user-participants');
 logger.info('   - GET /api/participants-with-documents');
-
-// Public Routes (handles /api/translations, /api/news)
-// Endpoints: translations, news
-app.use('/api', publicRoutes);
-logger.info('✅ Public routes loaded');
-logger.info('   - GET /api/translations');
-logger.info('   - GET /api/news');
 
 // ============================================
 // CORE APPLICATION ROUTES
