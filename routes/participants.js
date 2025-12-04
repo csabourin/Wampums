@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
+const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
 module.exports = (pool) => {
   /**
@@ -417,6 +418,517 @@ module.exports = (pool) => {
     }
 
     return success(res, null, 'Participant removed from organization');
+  }));
+
+  // ============================================
+  // NON-VERSIONED PARTICIPANT ENDPOINTS
+  // These routes are mounted at /api, so 'participants' becomes '/api/participants'
+  // ============================================
+
+  /**
+   * GET /api/participants
+   * Get all participants (simple list with basic info)
+   * Similar to v1 but returns simpler format
+   */
+  router.get('/participants', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+              COALESCE((SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1), 0) as total_points
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    return success(res, result.rows, 'Participants retrieved successfully');
+  }));
+
+  /**
+   * GET /api/participant-details
+   * Get participant details with optional filtering by participant_id
+   * If participant_id is provided, returns single participant
+   * Otherwise returns all participants with form submission flags
+   */
+  router.get('/participant-details', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const participantId = req.query.participant_id;
+
+    if (participantId) {
+      const result = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+                pg.group_id, g.name as group_name
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         WHERE po.organization_id = $1 AND p.id = $2`,
+        [organizationId, participantId]
+      );
+
+      if (result.rows.length > 0) {
+        return success(res, { participant: result.rows[0] });
+      } else {
+        return error(res, 'Participant not found', 404);
+      }
+    } else {
+      const result = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+                (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'fiche_sante') > 0 as has_fiche_sante,
+                (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'acceptation_risque') > 0 as has_acceptation_risque
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         WHERE po.organization_id = $1
+         ORDER BY p.first_name, p.last_name`,
+        [organizationId]
+      );
+
+      return success(res, { participants: result.rows });
+    }
+  }));
+
+  /**
+   * POST /api/save-participant
+   * Save participant (create or update)
+   * Includes duplicate checking and group assignment
+   */
+  router.post('/save-participant', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const { id, first_name, last_name, date_naissance, group_id } = req.body;
+
+    if (!first_name || !last_name) {
+      return error(res, 'First name and last name are required', 400);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      let participantId;
+
+      if (id) {
+        // Update existing participant
+        const updateResult = await client.query(
+          `UPDATE participants SET first_name = $1, last_name = $2, date_naissance = $3
+           WHERE id = $4 RETURNING id`,
+          [first_name, last_name, date_naissance || null, id]
+        );
+
+        if (updateResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'Participant not found', 404);
+        }
+
+        participantId = id;
+      } else {
+        // Check for duplicate participant (same first name, last name, and date of birth)
+        const duplicateCheck = await client.query(
+          `SELECT p.id FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE LOWER(p.first_name) = LOWER($1)
+             AND LOWER(p.last_name) = LOWER($2)
+             AND p.date_naissance = $3
+             AND po.organization_id = $4`,
+          [first_name, last_name, date_naissance || null, organizationId]
+        );
+
+        if (duplicateCheck.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'A participant with this name and date of birth already exists', 409);
+        }
+
+        // Create new participant
+        const insertResult = await client.query(
+          `INSERT INTO participants (first_name, last_name, date_naissance)
+           VALUES ($1, $2, $3) RETURNING id`,
+          [first_name, last_name, date_naissance || null]
+        );
+
+        participantId = insertResult.rows[0].id;
+
+        // Link to organization
+        await client.query(
+          `INSERT INTO participant_organizations (participant_id, organization_id)
+           VALUES ($1, $2)
+           ON CONFLICT (participant_id, organization_id) DO NOTHING`,
+          [participantId, organizationId]
+        );
+      }
+
+      // Update group assignment if provided
+      if (group_id !== undefined) {
+        // Remove existing group assignment for this org
+        await client.query(
+          `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
+          [participantId, organizationId]
+        );
+
+        // Add new group assignment if group_id is not null
+        if (group_id) {
+          await client.query(
+            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
+             VALUES ($1, $2, $3)`,
+            [participantId, group_id, organizationId]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      return success(res, {
+        participant_id: participantId,
+        message: id ? 'Participant updated successfully' : 'Participant created successfully'
+      });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * POST /api/update-participant-group
+   * Update participant group membership and roles (leader/second leader)
+   */
+  router.post('/update-participant-group', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const { participant_id, group_id, is_leader, is_second_leader } = req.body;
+
+    if (!participant_id) {
+      return error(res, 'Participant ID is required', 400);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Remove existing group assignment for this participant and organization
+      await client.query(
+        `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
+        [participant_id, organizationId]
+      );
+
+      // Add new group assignment if group_id is not null/empty
+      if (group_id) {
+        await client.query(
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [participant_id, group_id, organizationId, is_leader || false, is_second_leader || false]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      return success(res, null, group_id ? 'Group membership updated successfully' : 'Participant removed from group');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * POST /api/link-participant-to-organization
+   * Link participant to organization
+   */
+  router.post('/link-participant-to-organization', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const { participant_id } = req.body;
+
+    if (!participant_id) {
+      return error(res, 'Participant ID is required', 400);
+    }
+
+    // Insert or do nothing if already linked
+    await pool.query(
+      `INSERT INTO participant_organizations (participant_id, organization_id)
+       VALUES ($1, $2)
+       ON CONFLICT (participant_id, organization_id) DO NOTHING`,
+      [participant_id, organizationId]
+    );
+
+    return success(res, null, 'Participant linked to organization');
+  }));
+
+  /**
+   * GET /api/participants-with-users
+   * Get participants with their associated user information
+   */
+  router.get('/participants-with-users', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+              u.id as user_id, u.email as user_email, u.full_name as user_full_name
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       LEFT JOIN user_participants up ON p.id = up.participant_id
+       LEFT JOIN users u ON up.user_id = u.id
+       WHERE po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    return success(res, { participants: result.rows });
+  }));
+
+  /**
+   * POST /api/link-user-participants
+   * Link user to multiple participants (self-linking or admin linking)
+   */
+  router.post('/link-user-participants', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    let { user_id, participant_ids } = req.body;
+
+    // If no user_id provided, use the current user (self-linking)
+    if (!user_id) {
+      user_id = req.user.id;
+    }
+
+    // If user is trying to link someone else, they need admin role
+    if (user_id !== req.user.id) {
+      const adminCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
+      if (!adminCheck.authorized) {
+        return error(res, 'Only admins can link participants to other users', 403);
+      }
+    }
+
+    if (!participant_ids || !Array.isArray(participant_ids)) {
+      return error(res, 'participant_ids array is required', 400);
+    }
+
+    // Verify target user belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
+      [user_id, organizationId]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return error(res, 'User not found in this organization', 404);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Only remove existing links if replace_all is true (admin replacing all links)
+      // For self-linking (adding children), we just add to existing links
+      const replaceAll = req.body.replace_all === true;
+      if (replaceAll && user_id !== req.user.id) {
+        await client.query(
+          `DELETE FROM user_participants WHERE user_id = $1`,
+          [user_id]
+        );
+      }
+
+      // Add new links for each participant (verify they belong to org)
+      for (const participantId of participant_ids) {
+        // Verify participant belongs to this organization
+        const participantCheck = await client.query(
+          `SELECT id FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE p.id = $1 AND po.organization_id = $2`,
+          [participantId, organizationId]
+        );
+
+        if (participantCheck.rows.length > 0) {
+          await client.query(
+            `INSERT INTO user_participants (user_id, participant_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id, participant_id) DO NOTHING`,
+            [user_id, participantId]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      return success(res, null, 'User linked to participants successfully');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * GET /api/participant-ages
+   * Get participants with their calculated ages
+   */
+  router.get('/participant-ages', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+              DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance)) as age,
+              g.name as group_name
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE po.organization_id = $1
+       ORDER BY age DESC, p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  /**
+   * GET /api/participant-calendar
+   * Get calendar data for a specific participant
+   */
+  router.get('/participant-calendar', authenticate, asyncHandler(async (req, res) => {
+    const { participant_id } = req.query;
+
+    if (!participant_id) {
+      return error(res, 'Participant ID is required', 400);
+    }
+
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT c.*, p.first_name, p.last_name
+       FROM calendars c
+       JOIN participants p ON c.participant_id = p.id
+       WHERE c.participant_id = $1 AND c.organization_id = $2
+       ORDER BY c.date DESC`,
+      [participant_id, organizationId]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  /**
+   * GET /api/participants-with-documents
+   * Get participants with their document submission status
+   * Requires admin or animation role
+   */
+  router.get('/participants-with-documents', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
+              COUNT(DISTINCT fs.form_type) as forms_submitted,
+              array_agg(DISTINCT fs.form_type) as submitted_forms
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN form_submissions fs ON p.id = fs.participant_id
+       WHERE po.organization_id = $1
+       GROUP BY p.id, p.first_name, p.last_name
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId]
+    );
+
+    return success(res, result.rows);
+  }));
+
+  /**
+   * POST /api/associate-user-participant
+   * Associate a user with a participant
+   * Requires admin or animation role
+   */
+  router.post('/associate-user-participant', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const { user_id, participant_id } = req.body;
+
+    if (!user_id || !participant_id) {
+      return error(res, 'User ID and participant ID are required', 400);
+    }
+
+    await pool.query(
+      `INSERT INTO user_participants (user_id, participant_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, participant_id) DO NOTHING`,
+      [user_id, participant_id]
+    );
+
+    return success(res, null, 'User associated with participant successfully');
+  }));
+
+  /**
+   * POST /api/link-parent-participant
+   * Link a parent to a participant (child)
+   * Requires admin or animation role
+   */
+  router.post('/link-parent-participant', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const { parent_id, participant_id, relationship } = req.body;
+
+    if (!parent_id || !participant_id) {
+      return error(res, 'Parent ID and participant ID are required', 400);
+    }
+
+    await pool.query(
+      `INSERT INTO guardians (participant_id, guardian_id, relationship)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (participant_id, guardian_id)
+       DO UPDATE SET relationship = EXCLUDED.relationship`,
+      [participant_id, parent_id, relationship || 'parent']
+    );
+
+    return success(res, null, 'Parent linked to participant successfully');
+  }));
+
+  /**
+   * DELETE /api/participant-groups/:participantId
+   * Remove participant from their group
+   * Requires admin or animation role
+   */
+  router.delete('/participant-groups/:participantId', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const { participantId } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM participant_groups
+       WHERE participant_id = $1 AND organization_id = $2
+       RETURNING *`,
+      [participantId, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Participant group assignment not found', 404);
+    }
+
+    return success(res, null, 'Participant removed from group successfully');
   }));
 
   return router;

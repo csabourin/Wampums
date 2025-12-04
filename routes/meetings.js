@@ -1,7 +1,7 @@
 /**
- * Meetings and Calendars Routes
+ * Meetings Routes
  *
- * Handles meeting/reunion preparations, calendar management, and scheduling
+ * Handles meeting/reunion preparations, guests, reminders, and activities
  * All endpoints in this module are prefixed with /api
  *
  * @module routes/meetings
@@ -19,7 +19,7 @@ const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = re
  *
  * @param {Object} pool - Database connection pool
  * @param {Object} logger - Winston logger instance
- * @returns {Router} Express router with meeting and calendar routes
+ * @returns {Router} Express router with meeting routes
  */
 module.exports = (pool, logger) => {
   /**
@@ -214,54 +214,6 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/calendars:
-   *   get:
-   *     summary: Get all calendar entries
-   *     description: Retrieve calendar entries with participant and payment information
-   *     tags: [Calendars]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Calendar entries retrieved successfully
-   *       401:
-   *         description: Unauthorized
-   */
-  router.get('/calendars', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const result = await pool.query(
-        `SELECT c.participant_id, c.amount, c.amount_paid, c.paid, c.updated_at,
-                p.first_name, p.last_name, g.name as group_name
-         FROM calendars c
-         JOIN participants p ON c.participant_id = p.id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-         LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE c.organization_id = $1
-         ORDER BY p.first_name, p.last_name`,
-        [organizationId]
-      );
-
-      res.json({
-        success: true,
-        calendars: result.rows
-      });
-    } catch (error) {
-      logger.error('Error fetching calendars:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
-
-  /**
-   * @swagger
    * /api/next-meeting-info:
    *   get:
    *     summary: Get next meeting information
@@ -309,49 +261,27 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/calendars/{id}:
-   *   put:
-   *     summary: Update calendar entry
-   *     description: Update calendar entry details (admin/animation only)
-   *     tags: [Calendars]
+   * /api/guests-by-date:
+   *   get:
+   *     summary: Get guests for a specific date
+   *     description: Retrieve list of guests attending on a specific date
+   *     tags: [Meetings]
    *     security:
    *       - bearerAuth: []
    *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
+   *       - in: query
+   *         name: date
    *         schema:
-   *           type: integer
-   *     requestBody:
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             properties:
-   *               participant_id:
-   *                 type: integer
-   *               date:
-   *                 type: string
-   *                 format: date
-   *               amount_due:
-   *                 type: number
-   *               amount_paid:
-   *                 type: number
-   *               paid:
-   *                 type: boolean
-   *               notes:
-   *                 type: string
+   *           type: string
+   *           format: date
+   *         description: Date to fetch guests (defaults to today)
    *     responses:
    *       200:
-   *         description: Calendar updated successfully
+   *         description: Guests retrieved successfully
    *       401:
    *         description: Unauthorized
-   *       403:
-   *         description: Insufficient permissions
-   *       404:
-   *         description: Calendar entry not found
    */
-  router.put('/calendars/:id', async (req, res) => {
+  router.get('/guests-by-date', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -360,56 +290,41 @@ module.exports = (pool, logger) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const date = req.query.date || new Date().toISOString().split('T')[0];
 
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+      // Return empty array if guests table doesn't exist yet
+      try {
+        // Note: guests table doesn't have organization_id column per schema
+        const result = await pool.query(
+          `SELECT id, name, email, attendance_date::text as attendance_date FROM guests
+           WHERE attendance_date = $1
+           ORDER BY name`,
+          [date]
+        );
+        return res.json({ success: true, guests: result.rows, message: 'Guests retrieved successfully' });
+      } catch (err) {
+        // If table or column doesn't exist, return empty array
+        if (err.code === '42P01' || err.code === '42703') {
+          return res.json({ success: true, guests: [], message: 'Guests retrieved successfully' });
+        } else {
+          throw err;
+        }
       }
-
-      const { id } = req.params;
-      const { participant_id, date, amount_due, amount_paid, paid, notes } = req.body;
-
-      const result = await pool.query(
-        `UPDATE calendars
-         SET participant_id = COALESCE($1, participant_id),
-             date = COALESCE($2, date),
-             amount_due = COALESCE($3, amount_due),
-             amount_paid = COALESCE($4, amount_paid),
-             paid = COALESCE($5, paid),
-             notes = COALESCE($6, notes),
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $7 AND organization_id = $8
-         RETURNING *`,
-        [participant_id, date, amount_due, amount_paid, paid, notes, id, organizationId]
-      );
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Calendar entry not found' });
-      }
-
-      res.json({ success: true, data: result.rows[0] });
     } catch (error) {
-      logger.error('Error updating calendar:', error);
+      logger.error('Error fetching guests:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
 
   /**
    * @swagger
-   * /api/calendars/{id}/payment:
-   *   put:
-   *     summary: Update payment amount for a calendar entry
-   *     description: Update payment information for calendar (admin/animation only)
-   *     tags: [Calendars]
+   * /api/save-guest:
+   *   post:
+   *     summary: Save a guest
+   *     description: Add a guest to a meeting/reunion
+   *     tags: [Meetings]
    *     security:
    *       - bearerAuth: []
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: integer
    *     requestBody:
    *       required: true
    *       content:
@@ -417,23 +332,25 @@ module.exports = (pool, logger) => {
    *           schema:
    *             type: object
    *             required:
-   *               - amount_paid
+   *               - name
+   *               - attendance_date
    *             properties:
-   *               amount_paid:
-   *                 type: number
+   *               name:
+   *                 type: string
+   *               email:
+   *                 type: string
+   *               attendance_date:
+   *                 type: string
+   *                 format: date
    *     responses:
    *       200:
-   *         description: Payment updated successfully
+   *         description: Guest saved successfully
    *       400:
-   *         description: Amount paid is required
+   *         description: Name and date are required
    *       401:
    *         description: Unauthorized
-   *       403:
-   *         description: Insufficient permissions
-   *       404:
-   *         description: Calendar entry not found
    */
-  router.put('/calendars/:id/payment', async (req, res) => {
+  router.post('/save-guest', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -443,73 +360,57 @@ module.exports = (pool, logger) => {
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const { name, email, attendance_date } = req.body;
 
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+      if (!name || !attendance_date) {
+        return res.status(400).json({ success: false, message: 'Name and date are required' });
       }
 
-      const { id } = req.params;
-      const { amount_paid } = req.body;
-
-      if (amount_paid === undefined) {
-        return res.status(400).json({ success: false, message: 'Amount paid is required' });
+      // Try to create guests table if it doesn't exist
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS guests (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            attendance_date DATE NOT NULL,
+            organization_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+      } catch (err) {
+        // Ignore errors if table already exists
       }
-
-      // Get current amount due to determine if fully paid
-      const currentResult = await pool.query(
-        `SELECT amount_due FROM calendars WHERE id = $1 AND organization_id = $2`,
-        [id, organizationId]
-      );
-
-      if (currentResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Calendar entry not found' });
-      }
-
-      const amountDue = parseFloat(currentResult.rows[0].amount_due);
-      const paid = parseFloat(amount_paid) >= amountDue;
 
       const result = await pool.query(
-        `UPDATE calendars
-         SET amount_paid = $1,
-             paid = $2,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $3 AND organization_id = $4
-         RETURNING *`,
-        [amount_paid, paid, id, organizationId]
+        `INSERT INTO guests (name, email, attendance_date, organization_id)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [name, email, attendance_date, organizationId]
       );
 
-      res.json({ success: true, data: result.rows[0] });
+      res.json({ success: true, guest: { id: result.rows[0].id, name, email, attendance_date } });
     } catch (error) {
-      logger.error('Error updating calendar payment:', error);
+      logger.error('Error saving guest:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
 
   /**
    * @swagger
-   * /api/participant-calendar:
+   * /api/get_reminder:
    *   get:
-   *     summary: Get calendar entries for a specific participant
-   *     description: Retrieve all calendar entries for a participant
-   *     tags: [Calendars]
+   *     summary: Get meeting reminder
+   *     description: Retrieve the latest meeting reminder for the organization
+   *     tags: [Meetings]
    *     security:
    *       - bearerAuth: []
-   *     parameters:
-   *       - in: query
-   *         name: participant_id
-   *         required: true
-   *         schema:
-   *           type: integer
    *     responses:
    *       200:
-   *         description: Participant calendar entries retrieved successfully
-   *       400:
-   *         description: Participant ID is required
+   *         description: Reminder retrieved successfully
    *       401:
    *         description: Unauthorized
    */
-  router.get('/participant-calendar', async (req, res) => {
+  router.get('/get_reminder', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -518,26 +419,155 @@ module.exports = (pool, logger) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const { participant_id } = req.query;
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      if (!participant_id) {
-        return res.status(400).json({ success: false, message: 'Participant ID is required' });
+      const result = await pool.query(
+        `SELECT * FROM rappel_reunion
+         WHERE organization_id = $1
+         ORDER BY creation_time DESC LIMIT 1`,
+        [organizationId]
+      );
+
+      if (result.rows.length > 0) {
+        res.json({ success: true, reminder: result.rows[0] });
+      } else {
+        res.json({ success: true, reminder: null });
+      }
+    } catch (error) {
+      logger.error('Error fetching reminder:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/save_reminder:
+   *   post:
+   *     summary: Save meeting reminder
+   *     description: Create or update meeting reminder
+   *     tags: [Meetings]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               reminder_date:
+   *                 type: string
+   *                 format: date-time
+   *               is_recurring:
+   *                 type: boolean
+   *               reminder_text:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Reminder saved successfully
+   *       401:
+   *         description: Unauthorized
+   */
+  router.post('/save_reminder', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const { reminder_date, is_recurring, reminder_text } = req.body;
+
+      await pool.query(
+        `INSERT INTO rappel_reunion (organization_id, reminder_date, is_recurring, reminder_text)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (organization_id) DO UPDATE SET
+         reminder_date = EXCLUDED.reminder_date,
+         is_recurring = EXCLUDED.is_recurring,
+         reminder_text = EXCLUDED.reminder_text`,
+        [organizationId, reminder_date, is_recurring, reminder_text]
+      );
+
+      res.json({ success: true, message: 'Reminder saved successfully' });
+    } catch (error) {
+      logger.error('Error saving reminder:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/activites-rencontre:
+   *   get:
+   *     summary: Get all activity types for meetings
+   *     description: Retrieve list of all available meeting activities
+   *     tags: [Meetings]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Activities retrieved successfully
+   *       401:
+   *         description: Unauthorized
+   */
+  router.get('/activites-rencontre', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const result = await pool.query(
+        `SELECT * FROM activites_rencontre ORDER BY activity`
+      );
+
+      res.json({ success: true, data: result.rows });
+    } catch (error) {
+      logger.error('Error fetching activites rencontre:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/activity-templates:
+   *   get:
+   *     summary: Get activity templates for meetings
+   *     description: Retrieve organization-specific and default activity templates
+   *     tags: [Meetings]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Activity templates retrieved successfully
+   *       401:
+   *         description: Unauthorized
+   */
+  router.get('/activity-templates', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       const result = await pool.query(
-        `SELECT c.*, p.first_name, p.last_name
-         FROM calendars c
-         JOIN participants p ON c.participant_id = p.id
-         WHERE c.participant_id = $1 AND c.organization_id = $2
-         ORDER BY c.date DESC`,
-        [participant_id, organizationId]
+        `SELECT * FROM activites_rencontre
+         WHERE organization_id = $1 OR organization_id = 0
+         ORDER BY category, name`,
+        [organizationId]
       );
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
-      logger.error('Error fetching participant calendar:', error);
+      logger.error('Error fetching activity templates:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
