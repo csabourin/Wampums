@@ -443,6 +443,38 @@ console.log('   - POST /api/update-points');
 console.log('   - GET /api/points-leaderboard');
 console.log('   - GET /api/points-report');
 
+// Mount badges routes
+const badgesRoutes = require('./routes/badges')(pool, logger);
+app.use('/api', badgesRoutes);
+
+console.log('✅ Badges routes loaded');
+console.log('   - GET /api/badge-progress');
+console.log('   - GET /api/pending-badges');
+console.log('   - POST /api/save-badge-progress');
+console.log('   - POST /api/approve-badge');
+console.log('   - POST /api/reject-badge');
+console.log('   - GET /api/badge-summary');
+console.log('   - GET /api/badge-history');
+console.log('   - GET /api/current-stars');
+console.log('   - GET /api/badge-system-settings');
+console.log('   - PUT /api/badge-progress/:id');
+
+// Mount forms routes
+const formsRoutes = require('./routes/forms')(pool, logger);
+app.use('/api', formsRoutes);
+
+console.log('✅ Forms routes loaded');
+console.log('   - GET /api/form-submission');
+console.log('   - POST /api/save-form-submission');
+console.log('   - GET /api/organization-form-formats');
+console.log('   - GET /api/form-types');
+console.log('   - GET /api/form-structure');
+console.log('   - GET /api/form-submissions-list');
+console.log('   - GET /api/form-submissions');
+console.log('   - GET /api/risk-acceptance');
+console.log('   - POST /api/risk-acceptance');
+console.log('   - POST /api/health-forms');
+
 // ============================================
 // PUBLIC ENDPOINTS (migrated from PHP)
 // ============================================
