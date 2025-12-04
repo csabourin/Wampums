@@ -138,3 +138,74 @@ exports.getOrganizationId = async (req, pool) => {
   // Default fallback
   return 1;
 };
+
+/**
+ * Verify user belongs to organization with specific role
+ * Use as middleware in routes that require organization membership
+ *
+ * @param {Array<string>} allowedRoles - Optional array of allowed roles (admin, leader, animation, etc.)
+ * @returns {Function} Express middleware
+ *
+ * @example
+ * router.get('/admin-data', authenticate, requireOrganizationRole(['admin', 'leader']), async (req, res) => {
+ *   // req.organizationId and req.userRole are available
+ * });
+ */
+exports.requireOrganizationRole = (allowedRoles = null) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      // Get pool from app locals (set by route factory)
+      const pool = req.app.locals.pool;
+      if (!pool) {
+        logger.error('Database pool not available in middleware');
+        return res.status(500).json({
+          success: false,
+          message: 'Server configuration error'
+        });
+      }
+
+      // Get organization ID
+      const organizationId = await exports.getOrganizationId(req, pool);
+      req.organizationId = organizationId;
+
+      // Verify user belongs to organization
+      const result = await pool.query(
+        'SELECT role FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+        [req.user.id, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'User not a member of this organization'
+        });
+      }
+
+      const userRole = result.rows[0].role;
+      req.userRole = userRole;
+
+      // Check role requirements if specified
+      if (allowedRoles && !allowedRoles.includes(userRole)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient permissions'
+        });
+      }
+
+      next();
+    } catch (error) {
+      logger.error('Error in requireOrganizationRole middleware:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Authorization check failed'
+      });
+    }
+  };
+};

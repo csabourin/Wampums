@@ -276,22 +276,28 @@ export class BadgeDashboard {
 
     const addBadgeAction = record.badges.length
       ? ""
-      : `<button class="text-button" data-action="add-badge" data-participant-id="${record.id}">${translate("badge_add_first_badge")}</button>`;
+      : `<button class="text-button badge-add-inline" data-action="add-badge" data-participant-id="${record.id}">+ ${translate("badge_add_first_badge")}</button>`;
 
     return `
       <article class="badge-table__row" role="row" data-participant-id="${record.id}">
-        <div role="cell" class="badge-table__cell">
-          <div class="badge-table__participant-name">
-            ${record.firstName} ${record.lastName}
-            ${showGroupTag ? `<span class="badge-table__group-tag">${record.groupName}</span>` : ""}
+        <div role="cell" class="badge-table__cell badge-table__cell--header">
+          <div class="participant-header">
+            <div class="participant-info">
+              <span class="participant-name">${record.firstName} ${record.lastName}</span>
+              ${showGroupTag ? `<span class="badge-table__group-tag">${record.groupName}</span>` : ""}
+            </div>
+            <div class="participant-actions">
+              <span class="star-count" title="${translate('badge_total_stars') || 'Total stars'}">${record.totalStars}⭐</span>
+              <button class="icon-button" data-action="edit-participant" data-participant-id="${record.id}" title="${translate("badge_edit_participant")}">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11.5 2.5l2 2L6 12H4v-2l7.5-7.5z"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-        <div role="cell" class="badge-table__cell badge-table__cell--badges">${badges}</div>
-        <div role="cell" class="badge-table__cell badge-table__cell--actions">
-          <span class="numeric">${record.totalStars}</span>
-          <button class="text-button" data-action="edit-participant" data-participant-id="${record.id}">
-            ${translate("badge_edit_participant")}
-          </button>
+        <div role="cell" class="badge-table__cell badge-table__cell--badges">
+          ${badges}
           ${addBadgeAction}
         </div>
       </article>
@@ -301,28 +307,24 @@ export class BadgeDashboard {
   renderBadgeChip(participantId, badge) {
     const percent = Math.min(100, Math.round((badge.stars / badge.obtainable) * 100));
     const statusLabel = Array.from(badge.statuses)
-      .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`) || status}</span>`)
+      .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`).substring(0, 3)}</span>`)
       .join("");
 
     const stars = this.renderBadgeStars(participantId, badge);
     const badgeImage = this.getBadgeImage(badge.name);
 
     return `
-      <div class="badge-chip" data-participant-id="${participantId}" data-badge-name="${badge.name}">
-        <div class="badge-chip__header">
-          ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ''}
-          <div class="badge-chip__content">
-            <div class="badge-chip__top">
-              <span class="badge-chip__name">${badge.name}</span>
-              <div class="badge-chip__stars" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
-            </div>
-            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
-              <div class="progress__bar" style="width: ${percent}%;"></div>
-            </div>
+      <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}">
+        ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ''}
+        <div class="badge-chip__content">
+          <div class="badge-chip__header-compact">
+            <span class="badge-chip__name">${badge.name}</span>
+            <div class="status-group-inline">${statusLabel}</div>
           </div>
-        </div>
-        <div class="badge-chip__footer">
-          <div class="status-group">${statusLabel}</div>
+          <div class="badge-chip__stars-compact" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
+          <div class="progress-compact" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
+            <div class="progress__bar" style="width: ${percent}%;"></div>
+          </div>
         </div>
       </div>
     `;
@@ -477,29 +479,32 @@ export class BadgeDashboard {
     body.innerHTML = this.renderRows();
   }
 
-  openBadgeModal(participantId, badgeName = null, focusEdit = false, targetStar = null) {
+  openBadgeModal(participantId, badgeName = null, focusEdit = false, targetStar = null, showAddForm = false) {
     const modal = document.getElementById(this.modalContainerId);
     if (!modal) return;
 
     const record = this.records.find((participant) => participant.id === participantId);
     if (!record) return;
-    if (!record.badges.length) {
-      this.openAddBadgeModal(participantId);
-      return;
+
+    const hasExistingBadges = record.badges.length > 0;
+    const badge = hasExistingBadges ? this.selectBadge(record.badges, badgeName) : null;
+    const territories = this.badgeSettings?.territoires || [];
+
+    // If no existing badges and no add form requested, show add form
+    if (!hasExistingBadges && !showAddForm) {
+      showAddForm = true;
     }
 
-    const badge = this.selectBadge(record.badges, badgeName);
-    if (!badge) return;
-
-    const entries = this.sortBadgeEntries(badge.entries);
-    const defaultEntry = this.getEntryForStar(targetStar, badge) || entries[0];
+    const entries = badge ? this.sortBadgeEntries(badge.entries) : [];
+    const defaultEntry = badge ? (this.getEntryForStar(targetStar, badge) || entries[0]) : null;
     const formattedDefaultDate = this.formatDateInput(defaultEntry?.date_obtention);
+
     const badgeOptions = record.badges
-      .map(
-        (item) => `
-          <option value="${item.name}" ${item.name === badge.name ? "selected" : ""}>${item.name}</option>
-        `
-      )
+      .map((item) => `<option value="${item.name}" ${item.name === badge?.name ? "selected" : ""}>${item.name}</option>`)
+      .join("");
+
+    const territoryOptions = territories
+      .map((territory) => `<option value="${territory.name}">${territory.name}</option>`)
       .join("");
 
     modal.innerHTML = `
@@ -508,75 +513,130 @@ export class BadgeDashboard {
         <header class="modal__header">
           <div>
             <p class="eyebrow">${record.groupName}</p>
-            <h2 id="badge-modal-title">${record.firstName} ${record.lastName} · ${badge.name}</h2>
+            <h2 id="badge-modal-title">${record.firstName} ${record.lastName}</h2>
           </div>
           <button class="ghost-button" id="close-badge-modal" aria-label="${translate("close")}">✕</button>
         </header>
+
+        ${hasExistingBadges ? `
+        <nav class="modal__tabs">
+          <button type="button" class="tab-button ${!showAddForm ? 'active' : ''}" data-tab="edit">
+            ${translate("badge_edit_tab") || "Edit"}
+          </button>
+          <button type="button" class="tab-button ${showAddForm ? 'active' : ''}" data-tab="add">
+            ${translate("badge_add_tab") || "Add New"}
+          </button>
+        </nav>
+        ` : ''}
+
         <section class="modal__content">
-          <div class="modal__section">
-            <label for="badge-select">${translate("badge_select_badge")}</label>
-            <select id="badge-select" name="badge">${badgeOptions}</select>
-          </div>
-          <div class="modal__section">
-            <h3>${translate("badge_entry_history")}</h3>
-            <ol class="badge-history">
-              ${entries
-                .map(
-                  (entry) => `
-                    <li>
-                      <div class="badge-history__row">
-                        <div>
-                          <p class="badge-history__title">${translate(`badge_status_${entry.status || "pending"}`) || entry.status || "pending"}</p>
-                          <p class="badge-history__meta">${this.formatReadableDate(entry.date_obtention)}</p>
-                        </div>
-                        <span class="badge-history__stars">${entry.etoiles}⭐</span>
-                      </div>
-                      <p class="badge-history__text">${entry.objectif || translate("badge_objective_missing")}</p>
-                      <p class="badge-history__text muted">${entry.description || translate("badge_description_missing")}</p>
-                    </li>
-                  `
-                )
-                .join("")}
-            </ol>
-          </div>
-          <div class="modal__section">
-            <h3>${translate("badge_edit_entry")}</h3>
-            <form id="badge-edit-form" data-participant-id="${participantId}" data-badge-name="${badge.name}">
-              <label for="badge-entry-select">${translate("badge_select_entry")}</label>
-              <select id="badge-entry-select" name="entry">
-                ${entries
-                  .map(
-                    (entry) => `
-                      <option value="${entry.id}">${this.formatReadableDate(entry.date_obtention)} · ${entry.etoiles}⭐ · ${translate(`badge_status_${entry.status || "pending"}`) || entry.status || "pending"}</option>
-                    `
-                  )
-                  .join("")}
-              </select>
+          ${hasExistingBadges ? `
+          <div class="tab-content ${!showAddForm ? 'active' : ''}" data-content="edit">
+            <div class="form-group-compact">
+              <label for="badge-select">${translate("badge")}</label>
+              <select id="badge-select" name="badge">${badgeOptions}</select>
+            </div>
 
-              <label for="badge-stars">${translate("badge_stars_label")}</label>
-              <input id="badge-stars" name="etoiles" type="number" min="0" inputmode="numeric" required value="${defaultEntry?.etoiles || 0}" />
+            ${entries.length > 0 ? `
+            <details class="badge-history-toggle" ${entries.length <= 2 ? 'open' : ''}>
+              <summary>${translate("badge_entry_history") || "History"} (${entries.length})</summary>
+              <ol class="badge-history-compact">
+                ${entries.map((entry) => `
+                  <li>
+                    <span class="badge-hist-status">${translate(`badge_status_${entry.status || "pending"}`).substring(0, 3)}</span>
+                    <span class="badge-hist-date">${this.formatReadableDate(entry.date_obtention)}</span>
+                    <span class="badge-hist-stars">${entry.etoiles}⭐</span>
+                    ${entry.objectif ? `<p class="badge-hist-text">${entry.objectif}</p>` : ''}
+                  </li>
+                `).join("")}
+              </ol>
+            </details>
+            ` : ''}
 
-              <label for="badge-date">${translate("badge_date_label")}</label>
-              <input id="badge-date" name="date_obtention" type="date" value="${formattedDefaultDate}" />
+            <form id="badge-edit-form" data-participant-id="${participantId}" data-badge-name="${badge?.name || ''}">
+              <div class="form-group-compact">
+                <label for="badge-entry-select">${translate("badge_select_entry") || "Entry"}</label>
+                <select id="badge-entry-select" name="entry">
+                  ${entries.map((entry) => `
+                    <option value="${entry.id}">${this.formatReadableDate(entry.date_obtention)} · ${entry.etoiles}⭐</option>
+                  `).join("")}
+                </select>
+              </div>
 
-              <label for="badge-objective">${translate("badge_objective_label")}</label>
-              <textarea id="badge-objective" name="objectif" rows="2">${defaultEntry?.objectif || ""}</textarea>
+              <div class="form-row">
+                <div class="form-group-compact">
+                  <label for="badge-stars">⭐ ${translate("badge_stars_label") || "Stars"}</label>
+                  <input id="badge-stars" name="etoiles" type="number" min="0" inputmode="numeric" required value="${defaultEntry?.etoiles || 0}" />
+                </div>
+                <div class="form-group-compact">
+                  <label for="badge-date">${translate("badge_date_label") || "Date"}</label>
+                  <input id="badge-date" name="date_obtention" type="date" value="${formattedDefaultDate}" />
+                </div>
+              </div>
 
-              <label for="badge-description">${translate("badge_description_label")}</label>
-              <textarea id="badge-description" name="description" rows="3">${defaultEntry?.description || ""}</textarea>
+              <div class="form-group-compact">
+                <label for="badge-objective">${translate("badge_objective_label") || "Objective"}</label>
+                <textarea id="badge-objective" name="objectif" rows="2">${defaultEntry?.objectif || ""}</textarea>
+              </div>
 
-              <label for="badge-status">${translate("badge_status_label")}</label>
-              <select id="badge-status" name="status">
-                <option value="">${translate("badge_status_keep")}</option>
-                <option value="approved">${translate("badge_status_approved")}</option>
-                <option value="pending">${translate("badge_status_pending")}</option>
-                <option value="rejected">${translate("badge_status_rejected")}</option>
-              </select>
+              <div class="form-group-compact">
+                <label for="badge-description">${translate("badge_description_label") || "Description"}</label>
+                <textarea id="badge-description" name="description" rows="2">${defaultEntry?.description || ""}</textarea>
+              </div>
+
+              <div class="form-group-compact">
+                <label for="badge-status">${translate("badge_status_label") || "Status"}</label>
+                <select id="badge-status" name="status">
+                  <option value="">${translate("badge_status_keep") || "Keep current"}</option>
+                  <option value="approved">${translate("badge_status_approved") || "Approved"}</option>
+                  <option value="pending">${translate("badge_status_pending") || "Pending"}</option>
+                  <option value="rejected">${translate("badge_status_rejected") || "Rejected"}</option>
+                </select>
+              </div>
 
               <div class="form-actions">
-                <button type="submit" class="primary-button">${translate("save")}</button>
+                <button type="submit" class="primary-button">${translate("save") || "Save"}</button>
               </div>
               <div id="badge-edit-feedback" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+          ` : ''}
+
+          <div class="tab-content ${showAddForm || !hasExistingBadges ? 'active' : ''}" data-content="add">
+            <form id="badge-add-form" data-participant-id="${participantId}">
+              <div class="form-group-compact">
+                <label for="badge-territory">${translate("badge_select_badge") || "Badge"}</label>
+                <select id="badge-territory" name="territoire_chasse" required>
+                  <option value="">${translate("badge_select_prompt") || "Select a badge..."}</option>
+                  ${territoryOptions}
+                </select>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group-compact">
+                  <label for="badge-stars-new">⭐ ${translate("badge_stars_label") || "Stars"}</label>
+                  <input id="badge-stars-new" name="etoiles" type="number" min="1" inputmode="numeric" required value="1" />
+                </div>
+                <div class="form-group-compact">
+                  <label for="badge-date-new">${translate("badge_date_label") || "Date"}</label>
+                  <input id="badge-date-new" name="date_obtention" type="date" />
+                </div>
+              </div>
+
+              <div class="form-group-compact">
+                <label for="badge-objective-new">${translate("badge_objective_label") || "Objective"}</label>
+                <textarea id="badge-objective-new" name="objectif" rows="2"></textarea>
+              </div>
+
+              <div class="form-group-compact">
+                <label for="badge-description-new">${translate("badge_description_label") || "Description"}</label>
+                <textarea id="badge-description-new" name="description" rows="2"></textarea>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="primary-button">${translate("badge_add_button") || "Add Badge"}</button>
+              </div>
+              <div id="badge-add-feedback" role="status" aria-live="polite"></div>
             </form>
           </div>
         </section>
@@ -593,6 +653,18 @@ export class BadgeDashboard {
     modal.querySelector("#close-badge-modal")?.addEventListener("click", close);
     modal.querySelector(".modal__backdrop")?.addEventListener("click", close);
 
+    // Tab switching
+    modal.querySelectorAll(".tab-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        const tabName = button.getAttribute("data-tab");
+        modal.querySelectorAll(".tab-button").forEach((btn) => btn.classList.remove("active"));
+        modal.querySelectorAll(".tab-content").forEach((content) => content.classList.remove("active"));
+        button.classList.add("active");
+        modal.querySelector(`[data-content="${tabName}"]`)?.classList.add("active");
+      });
+    });
+
+    // Edit form handlers
     const entrySelect = modal.querySelector("#badge-entry-select");
     const starInput = modal.querySelector("#badge-stars");
     const dateInput = modal.querySelector("#badge-date");
@@ -602,7 +674,8 @@ export class BadgeDashboard {
 
     badgeSelect?.addEventListener("change", (event) => {
       const nextBadgeName = event.target.value;
-      this.openBadgeModal(participantId, nextBadgeName, focusEdit, targetStar);
+      const currentTab = modal.querySelector(".tab-button.active")?.getAttribute("data-tab");
+      this.openBadgeModal(participantId, nextBadgeName, focusEdit, targetStar, currentTab === "add");
     });
 
     entrySelect?.addEventListener("change", (event) => {
@@ -639,85 +712,15 @@ export class BadgeDashboard {
         this.buildRecords();
         this.updateRows();
         feedback.textContent = translate("badge_update_success");
+        feedback.className = "feedback-success";
       } catch (error) {
         debugError("Error updating badge entry", error);
         feedback.textContent = translate("badge_update_error");
+        feedback.className = "feedback-error";
       }
     });
 
-    if (focusEdit) {
-      modal.querySelector("#badge-edit-form")?.scrollIntoView({ behavior: "smooth" });
-    }
-
-    if (defaultEntry?.id) {
-      entrySelect.value = defaultEntry.id;
-      entrySelect.dispatchEvent(new Event("change"));
-    }
-  }
-
-  openAddBadgeModal(participantId) {
-    const modal = document.getElementById(this.modalContainerId);
-    if (!modal) return;
-
-    const record = this.records.find((participant) => participant.id === participantId);
-    const territories = this.badgeSettings?.territoires || [];
-    const territoryOptions = territories
-      .map(
-        (territory) => `
-          <option value="${territory.name}">${territory.name}</option>
-        `
-      )
-      .join("");
-
-    modal.innerHTML = `
-      <div class="modal__backdrop" role="presentation"></div>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="badge-modal-title">
-        <header class="modal__header">
-          <div>
-            <p class="eyebrow">${record?.groupName || ""}</p>
-            <h2 id="badge-modal-title">${record?.firstName || ""} ${record?.lastName || ""}</h2>
-            <p class="subtitle">${translate("badge_add_modal_description")}</p>
-          </div>
-          <button class="ghost-button" id="close-badge-modal" aria-label="${translate("close")}">✕</button>
-        </header>
-        <section class="modal__content">
-          <form id="badge-add-form" data-participant-id="${participantId}" class="stack">
-            <label for="badge-territory">${translate("badge_select_badge")}</label>
-            <select id="badge-territory" name="territoire_chasse" required aria-required="true">
-              <option value="">${translate("badge_select_prompt")}</option>
-              ${territoryOptions}
-            </select>
-
-            <label for="badge-stars-new">${translate("badge_stars_label")}</label>
-            <input id="badge-stars-new" name="etoiles" type="number" min="1" inputmode="numeric" required aria-required="true" value="1" />
-
-            <label for="badge-date-new">${translate("badge_date_label")}</label>
-            <input id="badge-date-new" name="date_obtention" type="date" />
-
-            <label for="badge-objective-new">${translate("badge_objective_label")}</label>
-            <textarea id="badge-objective-new" name="objectif" rows="2"></textarea>
-
-            <label for="badge-description-new">${translate("badge_description_label")}</label>
-            <textarea id="badge-description-new" name="description" rows="3"></textarea>
-
-            <div class="form-actions">
-              <button type="submit" class="primary-button">${translate("badge_add_button")}</button>
-            </div>
-            <div id="badge-add-feedback" role="status" aria-live="polite"></div>
-          </form>
-        </section>
-      </div>
-    `;
-
-    const close = () => {
-      modal.classList.add("hidden");
-      modal.innerHTML = "";
-    };
-
-    modal.classList.remove("hidden");
-    modal.querySelector("#close-badge-modal")?.addEventListener("click", close);
-    modal.querySelector(".modal__backdrop")?.addEventListener("click", close);
-
+    // Add form handler
     modal.querySelector("#badge-add-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.target;
@@ -744,12 +747,28 @@ export class BadgeDashboard {
         }
 
         feedback.textContent = translate("badge_add_success");
-        setTimeout(close, 750);
+        feedback.className = "feedback-success";
+        setTimeout(() => {
+          // Reopen modal in edit mode with the newly added badge
+          const addedBadgeName = payload.territoire_chasse;
+          this.openBadgeModal(participantId, addedBadgeName, false, null, false);
+        }, 500);
       } catch (error) {
         debugError("Error creating badge entry", error);
         feedback.textContent = translate("badge_add_error");
+        feedback.className = "feedback-error";
       }
     });
+
+    if (defaultEntry?.id && entrySelect) {
+      entrySelect.value = defaultEntry.id;
+      entrySelect.dispatchEvent(new Event("change"));
+    }
+  }
+
+  openAddBadgeModal(participantId) {
+    // Redirect to the unified modal with add form active
+    this.openBadgeModal(participantId, null, false, null, true);
   }
 
   getBadgeImage(badgeName) {
