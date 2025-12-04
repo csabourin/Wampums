@@ -14,23 +14,23 @@ export class Register {
                 <div id="success-message" class="success" style="display: none;"></div>
 
                 <label for="full_name">${translate("full_name")}:</label>
-                <input type="text" id="full_name" name="full_name" required>
+                <input type="text" id="full_name" name="full_name" autocomplete="name" required>
 
                 <label for="email">${translate("email")}:</label>
-                <input type="email" id="email" name="email" required>
+                <input type="email" id="email" name="email" autocomplete="email" required>
 
                 <label for="password">${translate("password")}:</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" autocomplete="new-password" required>
 
                 <label for="confirm_password">${translate(
                   "confirm_password"
                 )}:</label>
-                <input type="password" id="confirm_password" name="confirm_password" required>
+                <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required>
 
                 <label for="account_creation_password">${translate(
                   "account_creation_password"
                 )}:</label>
-                <input type="password" id="account_creation_password" name="account_creation_password" required>
+                <input type="password" id="account_creation_password" name="account_creation_password" autocomplete="off" required>
 
                 <label for="user_type">${translate("user_type")}:</label>
                 <select id="user_type" name="user_type" required>

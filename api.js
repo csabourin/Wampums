@@ -38,7 +38,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://www.clarity.ms"], // Note: Consider removing unsafe-inline and using nonces in production
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://www.clarity.ms", "https://scripts.clarity.ms"], // Note: Consider removing unsafe-inline and using nonces in production
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
@@ -435,6 +435,18 @@ logger.info('   - POST /api/link-user-participants');
 logger.info('   - POST /api/associate-user-participant');
 logger.info('   - POST /api/permissions/check');
 
+// Meeting Routes (handles /api/reunion-preparation, /api/reunion-dates, /api/next-meeting-info, etc.)
+// Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, save_reminder
+// IMPORTANT: Must be mounted before participants routes to prevent /:id route from catching reunion-preparation
+app.use('/api', meetingsRoutes);
+logger.info('✅ Meetings routes loaded');
+logger.info('   - GET /api/reunion-preparation');
+logger.info('   - POST /api/save-reunion-preparation');
+logger.info('   - GET /api/reunion-dates');
+logger.info('   - GET /api/next-meeting-info');
+logger.info('   - GET /api/get_reminder');
+logger.info('   - POST /api/save_reminder');
+
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
 app.use('/api/v1/participants', participantsRoutes);
@@ -525,17 +537,6 @@ logger.info('✅ Guardians routes loaded');
 logger.info('   - GET /api/guardians');
 logger.info('   - POST /api/save-guardian');
 logger.info('   - DELETE /api/remove-guardian');
-
-// Meeting Routes (handles /api/reunion-preparation, /api/reunion-dates, /api/next-meeting-info, etc.)
-// Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, save_reminder
-app.use('/api', meetingsRoutes);
-logger.info('✅ Meetings routes loaded');
-logger.info('   - GET /api/reunion-preparation');
-logger.info('   - POST /api/save-reunion-preparation');
-logger.info('   - GET /api/reunion-dates');
-logger.info('   - GET /api/next-meeting-info');
-logger.info('   - GET /api/get_reminder');
-logger.info('   - POST /api/save_reminder');
 
 // Notification Routes (handles /api/send-notification, /api/push-subscription)
 // Endpoints: send-notification, push-subscription

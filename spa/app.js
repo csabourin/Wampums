@@ -224,6 +224,10 @@ export const app = {
                                 };
                         }
 
+                        // Load translations before proceeding
+                        debugLog("Loading translations...");
+                        await this.loadTranslations();
+
                         this.initLanguageToggle();
 
                         // Check for existing session
