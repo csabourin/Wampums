@@ -276,22 +276,28 @@ export class BadgeDashboard {
 
     const addBadgeAction = record.badges.length
       ? ""
-      : `<button class="text-button" data-action="add-badge" data-participant-id="${record.id}">${translate("badge_add_first_badge")}</button>`;
+      : `<button class="text-button badge-add-inline" data-action="add-badge" data-participant-id="${record.id}">+ ${translate("badge_add_first_badge")}</button>`;
 
     return `
       <article class="badge-table__row" role="row" data-participant-id="${record.id}">
-        <div role="cell" class="badge-table__cell">
-          <div class="badge-table__participant-name">
-            ${record.firstName} ${record.lastName}
-            ${showGroupTag ? `<span class="badge-table__group-tag">${record.groupName}</span>` : ""}
+        <div role="cell" class="badge-table__cell badge-table__cell--header">
+          <div class="participant-header">
+            <div class="participant-info">
+              <span class="participant-name">${record.firstName} ${record.lastName}</span>
+              ${showGroupTag ? `<span class="badge-table__group-tag">${record.groupName}</span>` : ""}
+            </div>
+            <div class="participant-actions">
+              <span class="star-count" title="${translate('badge_total_stars') || 'Total stars'}">${record.totalStars}⭐</span>
+              <button class="icon-button" data-action="edit-participant" data-participant-id="${record.id}" title="${translate("badge_edit_participant")}">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11.5 2.5l2 2L6 12H4v-2l7.5-7.5z"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-        <div role="cell" class="badge-table__cell badge-table__cell--badges">${badges}</div>
-        <div role="cell" class="badge-table__cell badge-table__cell--actions">
-          <span class="numeric">${record.totalStars}</span>
-          <button class="text-button" data-action="edit-participant" data-participant-id="${record.id}">
-            ${translate("badge_edit_participant")}
-          </button>
+        <div role="cell" class="badge-table__cell badge-table__cell--badges">
+          ${badges}
           ${addBadgeAction}
         </div>
       </article>
@@ -301,28 +307,24 @@ export class BadgeDashboard {
   renderBadgeChip(participantId, badge) {
     const percent = Math.min(100, Math.round((badge.stars / badge.obtainable) * 100));
     const statusLabel = Array.from(badge.statuses)
-      .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`) || status}</span>`)
+      .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`).substring(0, 3)}</span>`)
       .join("");
 
     const stars = this.renderBadgeStars(participantId, badge);
     const badgeImage = this.getBadgeImage(badge.name);
 
     return `
-      <div class="badge-chip" data-participant-id="${participantId}" data-badge-name="${badge.name}">
-        <div class="badge-chip__header">
-          ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ''}
-          <div class="badge-chip__content">
-            <div class="badge-chip__top">
-              <span class="badge-chip__name">${badge.name}</span>
-              <div class="badge-chip__stars" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
-            </div>
-            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
-              <div class="progress__bar" style="width: ${percent}%;"></div>
-            </div>
+      <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}">
+        ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ''}
+        <div class="badge-chip__content">
+          <div class="badge-chip__header-compact">
+            <span class="badge-chip__name">${badge.name}</span>
+            <div class="status-group-inline">${statusLabel}</div>
           </div>
-        </div>
-        <div class="badge-chip__footer">
-          <div class="status-group">${statusLabel}</div>
+          <div class="badge-chip__stars-compact" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
+          <div class="progress-compact" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
+            <div class="progress__bar" style="width: ${percent}%;"></div>
+          </div>
         </div>
       </div>
     `;
