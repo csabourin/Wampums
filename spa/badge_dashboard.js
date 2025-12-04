@@ -98,7 +98,6 @@ export class BadgeDashboard {
       this.buildRecords();
       this.resetVisibleCount();
       this.updateRows();
-      this.updateStats();
     } catch (error) {
       debugError("Error refreshing badge dashboard data", error);
       this.renderError();
@@ -145,10 +144,21 @@ export class BadgeDashboard {
       participant.totalStars += stars;
     });
 
-    this.records = Array.from(participantMap.values()).map((record) => ({
-      ...record,
-      badges: Array.from(record.badges.values())
-    }));
+    this.records = Array.from(participantMap.values()).map((record) => {
+      const badges = Array.from(record.badges.values()).map((badge) => {
+        const entries = this.sortBadgeEntries(badge.entries);
+        return {
+          ...badge,
+          entries,
+          starMap: this.buildStarMap(entries)
+        };
+      });
+
+      return {
+        ...record,
+        badges
+      };
+    });
 
     this.sortRecords();
   }
@@ -190,7 +200,6 @@ export class BadgeDashboard {
             <button id="badge-refresh" class="ghost-button">${translate("refresh")}</button>
           </div>
         </header>
-        ${this.renderStatsPanel()}
         ${this.renderControls()}
         <div class="badge-table" role="table" aria-label="${translate("badge_table_caption")}">
           ${this.renderTableHeader()}
@@ -204,29 +213,6 @@ export class BadgeDashboard {
     `;
 
     document.getElementById("app").innerHTML = content;
-  }
-
-  renderStatsPanel() {
-    const totalParticipants = this.records.length;
-    const totalBadges = this.badgeEntries.length;
-    const totalStars = this.badgeEntries.reduce((sum, entry) => sum + (parseInt(entry.etoiles, 10) || 0), 0);
-
-    return `
-      <section class="badge-dashboard__stats" aria-label="${translate("badge_dashboard_stats_label")}">
-        <div class="stat-card">
-          <p class="stat-card__label">${translate("badge_stat_participants")}</p>
-          <p class="stat-card__value">${totalParticipants}</p>
-        </div>
-        <div class="stat-card">
-          <p class="stat-card__label">${translate("badge_stat_badges")}</p>
-          <p class="stat-card__value">${totalBadges}</p>
-        </div>
-        <div class="stat-card">
-          <p class="stat-card__label">${translate("badge_stat_stars")}</p>
-          <p class="stat-card__value">${totalStars}</p>
-        </div>
-      </section>
-    `;
   }
 
   renderControls() {
@@ -259,32 +245,49 @@ export class BadgeDashboard {
     const rows = [];
     let currentGroup = null;
 
-    this.getVisibleRecords().forEach((record) => {
-      if (record.groupName !== currentGroup) {
-        currentGroup = record.groupName;
-        rows.push(`
-          <div class="badge-table__group" role="rowgroup">
-            <div class="badge-table__group-title" role="rowheader">${record.groupName}</div>
-          </div>
-        `);
-      }
+    const visible = this.getVisibleRecords();
 
-      rows.push(this.renderRow(record));
-    });
+    if (this.sortKey === "group") {
+      visible.forEach((record) => {
+        if (record.groupName !== currentGroup) {
+          currentGroup = record.groupName;
+          rows.push(`
+            <div class="badge-table__group" role="rowgroup">
+              <div class="badge-table__group-title" role="rowheader">${record.groupName}</div>
+            </div>
+          `);
+        }
+
+        rows.push(this.renderRow(record));
+      });
+    } else {
+      visible.forEach((record) => rows.push(this.renderRow(record, { showGroupTag: true })));
+    }
 
     return rows.join("");
   }
 
-  renderRow(record) {
+  renderRow(record, options = {}) {
+    const { showGroupTag = false } = options;
     const badges = record.badges.length
       ? record.badges.map((badge) => this.renderBadgeChip(record.id, badge)).join("")
       : `<span class="badge-chip badge-chip--muted">${translate("badge_no_entries")}</span>`;
 
     return `
       <article class="badge-table__row" role="row" data-participant-id="${record.id}">
-        <div role="cell" class="badge-table__cell">${record.firstName} ${record.lastName}</div>
+        <div role="cell" class="badge-table__cell">
+          <div class="badge-table__participant-name">
+            ${record.firstName} ${record.lastName}
+            ${showGroupTag ? `<span class="badge-table__group-tag">${record.groupName}</span>` : ""}
+          </div>
+        </div>
         <div role="cell" class="badge-table__cell badge-table__cell--badges">${badges}</div>
-        <div role="cell" class="badge-table__cell numeric">${record.totalStars}</div>
+        <div role="cell" class="badge-table__cell badge-table__cell--actions">
+          <span class="numeric">${record.totalStars}</span>
+          <button class="text-button" data-action="edit-participant" data-participant-id="${record.id}">
+            ${translate("badge_edit_participant")}
+          </button>
+        </div>
       </article>
     `;
   }
@@ -295,28 +298,47 @@ export class BadgeDashboard {
       .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`) || status}</span>`)
       .join("");
 
+    const stars = this.renderBadgeStars(participantId, badge);
+
     return `
       <div class="badge-chip" data-participant-id="${participantId}" data-badge-name="${badge.name}">
         <div class="badge-chip__top">
           <span class="badge-chip__name">${badge.name}</span>
-          <span class="badge-chip__stars">${badge.stars} / ${badge.obtainable} ⭐</span>
+          <div class="badge-chip__stars" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
         </div>
         <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="${badge.obtainable}" aria-valuenow="${badge.stars}">
           <div class="progress__bar" style="width: ${percent}%;"></div>
         </div>
         <div class="badge-chip__footer">
           <div class="status-group">${statusLabel}</div>
-          <div class="badge-chip__actions">
-            <button class="text-button" data-action="details" data-participant-id="${participantId}" data-badge-name="${badge.name}">
-              ${translate("badge_view_details")}
-            </button>
-            <button class="text-button" data-action="edit" data-participant-id="${participantId}" data-badge-name="${badge.name}">
-              ${translate("badge_edit_entry")}
-            </button>
-          </div>
         </div>
       </div>
     `;
+  }
+
+  renderBadgeStars(participantId, badge) {
+    return Array.from({ length: badge.obtainable }, (_, index) => {
+      const starIndex = index + 1;
+      const isEarned = starIndex <= badge.stars;
+      const starMapping = badge.starMap?.find((item) => item.starIndex === starIndex);
+      const entryId = starMapping?.entryId;
+      const ariaLabel = `${translate("badge_star_label")} ${starIndex}${isEarned ? "" : ` ${translate("badge_star_locked")}`}`;
+
+      return `
+        <button
+          class="badge-star-button ${isEarned ? "is-earned" : "is-locked"}"
+          data-action="star-details"
+          data-participant-id="${participantId}"
+          data-badge-name="${badge.name}"
+          data-star-index="${starIndex}"
+          ${isEarned ? "" : "disabled"}
+          aria-label="${ariaLabel}"
+          data-entry-id="${entryId || ""}"
+        >
+          ${isEarned ? "★" : "☆"}
+        </button>
+      `;
+    }).join("");
   }
 
   attachEventListeners() {
@@ -345,15 +367,15 @@ export class BadgeDashboard {
       const actionButton = event.target.closest("button[data-action]");
       if (!actionButton) return;
 
-      const { action, participantId, badgeName } = actionButton.dataset;
-      if (!participantId || !badgeName) return;
+      const { action, participantId, badgeName, starIndex } = actionButton.dataset;
+      if (!participantId) return;
 
-      if (action === "details") {
-        this.openBadgeModal(parseInt(participantId, 10), badgeName, false);
+      if (action === "star-details") {
+        this.openBadgeModal(parseInt(participantId, 10), badgeName, false, parseInt(starIndex, 10));
       }
 
-      if (action === "edit") {
-        this.openBadgeModal(parseInt(participantId, 10), badgeName, true);
+      if (action === "edit-participant") {
+        this.openBadgeModal(parseInt(participantId, 10), badgeName || null, true);
       }
     });
 
@@ -379,17 +401,11 @@ export class BadgeDashboard {
   sortRecords() {
     const collator = new Intl.Collator(undefined, { sensitivity: "base" });
     const direction = this.sortDirection === "asc" ? 1 : -1;
-    const groupMap = new Map();
-
-    this.records.forEach((record) => {
-      const groupName = record.groupName || translate("no_group");
-      if (!groupMap.has(groupName)) groupMap.set(groupName, []);
-      groupMap.get(groupName).push(record);
-    });
 
     const participantComparator = (a, b) => {
       if (this.sortKey === "stars") {
-        return direction * ((b.totalStars || 0) - (a.totalStars || 0));
+        const starComparison = direction * ((b.totalStars || 0) - (a.totalStars || 0));
+        if (starComparison !== 0) return starComparison;
       }
 
       const nameComparison = collator.compare(
@@ -397,22 +413,38 @@ export class BadgeDashboard {
         `${b.firstName} ${b.lastName}`
       );
 
-      return this.sortKey === "name" ? direction * nameComparison : nameComparison;
+      if (this.sortKey === "name") {
+        return direction * nameComparison;
+      }
+
+      if (this.sortKey === "group") {
+        return direction * collator.compare(a.groupName, b.groupName) || nameComparison;
+      }
+
+      return nameComparison;
     };
 
-    const sortedGroupNames = Array.from(groupMap.keys()).sort((a, b) => {
-      if (this.sortKey === "group") {
-        return direction * collator.compare(a, b);
-      }
-      return collator.compare(a, b);
-    });
+    if (this.sortKey === "group") {
+      const groupMap = new Map();
 
-    this.sortedRecords = [];
-    sortedGroupNames.forEach((groupName) => {
-      const participants = groupMap.get(groupName) || [];
-      participants.sort(participantComparator);
-      this.sortedRecords.push(...participants.map((participant) => ({ ...participant, groupName })));
-    });
+      this.records.forEach((record) => {
+        const groupName = record.groupName || translate("no_group");
+        if (!groupMap.has(groupName)) groupMap.set(groupName, []);
+        groupMap.get(groupName).push(record);
+      });
+
+      const sortedGroupNames = Array.from(groupMap.keys()).sort((a, b) => direction * collator.compare(a, b));
+
+      this.sortedRecords = [];
+      sortedGroupNames.forEach((groupName) => {
+        const participants = groupMap.get(groupName) || [];
+        participants.sort(participantComparator);
+        this.sortedRecords.push(...participants.map((participant) => ({ ...participant, groupName })));
+      });
+      return;
+    }
+
+    this.sortedRecords = [...this.records].sort(participantComparator);
   }
 
   getVisibleRecords() {
@@ -429,23 +461,26 @@ export class BadgeDashboard {
     body.innerHTML = this.renderRows();
   }
 
-  updateStats() {
-    const statsSection = document.querySelector(".badge-dashboard__stats");
-    if (!statsSection) return;
-    statsSection.outerHTML = this.renderStatsPanel();
-  }
-
-  openBadgeModal(participantId, badgeName, focusEdit = false) {
+  openBadgeModal(participantId, badgeName = null, focusEdit = false, targetStar = null) {
     const modal = document.getElementById(this.modalContainerId);
     if (!modal) return;
 
     const record = this.records.find((participant) => participant.id === participantId);
-    const badge = record?.badges.find((item) => item.name === badgeName);
-    if (!record || !badge) return;
+    if (!record || !record.badges.length) return;
 
-    const entries = badge.entries;
-    const defaultEntry = entries[0];
+    const badge = this.selectBadge(record.badges, badgeName);
+    if (!badge) return;
+
+    const entries = this.sortBadgeEntries(badge.entries);
+    const defaultEntry = this.getEntryForStar(targetStar, badge) || entries[0];
     const formattedDefaultDate = this.formatDateInput(defaultEntry?.date_obtention);
+    const badgeOptions = record.badges
+      .map(
+        (item) => `
+          <option value="${item.name}" ${item.name === badge.name ? "selected" : ""}>${item.name}</option>
+        `
+      )
+      .join("");
 
     modal.innerHTML = `
       <div class="modal__backdrop" role="presentation"></div>
@@ -458,6 +493,10 @@ export class BadgeDashboard {
           <button class="ghost-button" id="close-badge-modal" aria-label="${translate("close")}">✕</button>
         </header>
         <section class="modal__content">
+          <div class="modal__section">
+            <label for="badge-select">${translate("badge_select_badge")}</label>
+            <select id="badge-select" name="badge">${badgeOptions}</select>
+          </div>
           <div class="modal__section">
             <h3>${translate("badge_entry_history")}</h3>
             <ol class="badge-history">
@@ -539,6 +578,12 @@ export class BadgeDashboard {
     const dateInput = modal.querySelector("#badge-date");
     const objectiveInput = modal.querySelector("#badge-objective");
     const descriptionInput = modal.querySelector("#badge-description");
+    const badgeSelect = modal.querySelector("#badge-select");
+
+    badgeSelect?.addEventListener("change", (event) => {
+      const nextBadgeName = event.target.value;
+      this.openBadgeModal(participantId, nextBadgeName, focusEdit, targetStar);
+    });
 
     entrySelect?.addEventListener("change", (event) => {
       const entryId = parseInt(event.target.value, 10);
@@ -573,7 +618,6 @@ export class BadgeDashboard {
         this.replaceBadgeEntry(result.data);
         this.buildRecords();
         this.updateRows();
-        this.updateStats();
         feedback.textContent = translate("badge_update_success");
       } catch (error) {
         debugError("Error updating badge entry", error);
@@ -584,6 +628,52 @@ export class BadgeDashboard {
     if (focusEdit) {
       modal.querySelector("#badge-edit-form")?.scrollIntoView({ behavior: "smooth" });
     }
+
+    if (defaultEntry?.id) {
+      entrySelect.value = defaultEntry.id;
+      entrySelect.dispatchEvent(new Event("change"));
+    }
+  }
+
+  selectBadge(badges, badgeName) {
+    if (!badgeName) return badges[0];
+    return badges.find((item) => item.name === badgeName) || badges[0];
+  }
+
+  sortBadgeEntries(entries = []) {
+    return [...entries].sort((a, b) => {
+      const aDate = new Date(a.date_obtention || 0);
+      const bDate = new Date(b.date_obtention || 0);
+      return bDate - aDate;
+    });
+  }
+
+  getEntryForStar(starIndex, badge) {
+    if (!starIndex || !badge?.starMap?.length) return null;
+    const mapping = badge.starMap.find((item) => item.starIndex === starIndex);
+    if (!mapping) return null;
+    return badge.entries.find((entry) => entry.id === mapping.entryId) || null;
+  }
+
+  buildStarMap(entries = []) {
+    const map = [];
+    let starCounter = 0;
+
+    const orderedEntries = [...entries].sort((a, b) => {
+      const aDate = new Date(a.date_obtention || 0);
+      const bDate = new Date(b.date_obtention || 0);
+      return aDate - bDate;
+    });
+
+    orderedEntries.forEach((entry) => {
+      const stars = parseInt(entry.etoiles, 10) || 0;
+      for (let i = 0; i < stars; i += 1) {
+        starCounter += 1;
+        map.push({ starIndex: starCounter, entryId: entry.id });
+      }
+    });
+
+    return map;
   }
 
   formatDateInput(value) {
