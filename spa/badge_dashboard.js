@@ -522,7 +522,7 @@ export class BadgeDashboard {
             ${translate("badge_edit_tab") || "Edit"}
           </button>
           <button type="button" class="tab-button ${showAddForm ? 'active' : ''}" data-tab="add">
-            ${translate("badge_add_tab") || "Add New"}
+            ${translate("badge_add_tab") || "New Star"}
           </button>
         </nav>
         ` : ''}
@@ -620,7 +620,7 @@ export class BadgeDashboard {
               </div>
 
               <div class="form-actions">
-                <button type="submit" class="primary-button">${translate("badge_add_button") || "Add Star"}</button>
+                <button type="submit" class="primary-button">${translate("badge_add_button") || "New Star"}</button>
               </div>
               <div id="badge-add-feedback" role="status" aria-live="polite"></div>
             </form>
