@@ -15,7 +15,7 @@
  */
 function isDebugMode() {
     return (
-        import.meta.env?.VITE_DEBUG_MODE === 'true' ||
+        import.meta.env?.VITE_DEBUG_MODE === "true" ||
         import.meta.env?.DEV ||
         window.location.hostname === "localhost" ||
         window.location.hostname === "wampums-1.test" ||
@@ -44,43 +44,43 @@ export const CONFIG = {
      * Controls how long data is cached in IndexedDB
      */
     CACHE_DURATION: {
-        SHORT: 5 * 60 * 1000,        // 5 minutes
-        MEDIUM: 30 * 60 * 1000,      // 30 minutes
-        LONG: 24 * 60 * 60 * 1000    // 24 hours
+        SHORT: 5 * 60 * 1000, // 5 minutes
+        MEDIUM: 30 * 60 * 1000, // 30 minutes
+        LONG: 24 * 60 * 60 * 1000, // 24 hours
     },
 
     /**
      * Application Version
      */
-    VERSION: '2.0.1',
+    VERSION: "2.0.2",
 
     /**
      * Application Name
      */
-    APP_NAME: 'Wampums Scout Management',
+    APP_NAME: "Wampums Scout Management",
 
     /**
      * Default Language
      */
-    DEFAULT_LANG: 'fr',
+    DEFAULT_LANG: "fr",
 
     /**
      * Supported Languages
      */
-    SUPPORTED_LANGS: ['en', 'fr'],
+    SUPPORTED_LANGS: ["en", "fr"],
 
     /**
      * Storage Keys
      * Centralized storage key names to avoid typos and conflicts
      */
     STORAGE_KEYS: {
-        JWT_TOKEN: 'jwtToken',
-        ORGANIZATION_ID: 'organizationId',
-        CURRENT_ORGANIZATION_ID: 'currentOrganizationId',
-        USER_ROLE: 'userRole',
-        USER_ID: 'userId',
-        LANGUAGE: 'language',
-        THEME: 'theme'
+        JWT_TOKEN: "jwtToken",
+        ORGANIZATION_ID: "organizationId",
+        CURRENT_ORGANIZATION_ID: "currentOrganizationId",
+        USER_ROLE: "userRole",
+        USER_ID: "userId",
+        LANGUAGE: "language",
+        THEME: "theme",
     },
 
     /**
@@ -90,59 +90,59 @@ export const CONFIG = {
      */
     ENDPOINTS: {
         // Auth
-        LOGIN: '/public/login',
-        LOGOUT: '/api/logout',
-        REGISTER: '/api/register',
-        RESET_PASSWORD: '/api/reset-password',
+        LOGIN: "/public/login",
+        LOGOUT: "/api/logout",
+        REGISTER: "/api/register",
+        RESET_PASSWORD: "/api/reset-password",
 
         // Organization
-        ORGANIZATION_SETTINGS: '/api/organization-settings',
-        ORGANIZATION_ID: '/public/get_organization_id',
-        ORGANIZATION_JWT: '/api/organization-jwt',
+        ORGANIZATION_SETTINGS: "/api/organization-settings",
+        ORGANIZATION_ID: "/public/get_organization_id",
+        ORGANIZATION_JWT: "/api/organization-jwt",
 
         // Participants (v1 RESTful)
-        PARTICIPANTS: '/api/v1/participants',
-        PARTICIPANT_DETAILS: '/api/participant-details',
+        PARTICIPANTS: "/api/v1/participants",
+        PARTICIPANT_DETAILS: "/api/participant-details",
 
         // Groups (v1 RESTful)
-        GROUPS: '/api/v1/groups',
+        GROUPS: "/api/v1/groups",
 
         // Attendance (v1 RESTful)
-        ATTENDANCE: '/api/v1/attendance',
-        ATTENDANCE_DATES: '/api/attendance-dates',
+        ATTENDANCE: "/api/v1/attendance",
+        ATTENDANCE_DATES: "/api/attendance-dates",
 
         // Points & Honors
-        POINTS_DATA: '/api/points-data',
-        UPDATE_POINTS: '/api/update-points',
-        HONORS: '/api/honors',
-        AWARD_HONOR: '/api/award-honor',
+        POINTS_DATA: "/api/points-data",
+        UPDATE_POINTS: "/api/update-points",
+        HONORS: "/api/honors",
+        AWARD_HONOR: "/api/award-honor",
 
         // Other
-        TRANSLATIONS: '/api/translations',
-        NEWS: '/api/news',
-        INITIAL_DATA: '/api/initial-data',
-        REUNION_PREPARATION: '/api/reunion-preparation',
-        MAILING_LIST: '/api/mailing-list',
-        PARENT_CONTACT_LIST: '/api/parent-contact-list'
+        TRANSLATIONS: "/api/translations",
+        NEWS: "/api/news",
+        INITIAL_DATA: "/api/initial-data",
+        REUNION_PREPARATION: "/api/reunion-preparation",
+        MAILING_LIST: "/api/mailing-list",
+        PARENT_CONTACT_LIST: "/api/parent-contact-list",
     },
 
     /**
      * User Roles
      */
     ROLES: {
-        ADMIN: 'admin',
-        ANIMATION: 'animation',
-        PARENT: 'parent'
+        ADMIN: "admin",
+        ANIMATION: "animation",
+        PARENT: "parent",
     },
 
     /**
      * Attendance Status Values
      */
     ATTENDANCE_STATUS: {
-        PRESENT: 'present',
-        ABSENT: 'absent',
-        LATE: 'late',
-        EXCUSED: 'excused'
+        PRESENT: "present",
+        ABSENT: "absent",
+        LATE: "late",
+        EXCUSED: "excused",
     },
 
     /**
@@ -154,15 +154,15 @@ export const CONFIG = {
             PRESENT: 1,
             ABSENT: 0,
             LATE: 0.5,
-            EXCUSED: 0
+            EXCUSED: 0,
         },
         HONORS: {
-            AWARD: 5
+            AWARD: 5,
         },
         BADGES: {
             EARN: 5,
-            LEVEL_UP: 10
-        }
+            LEVEL_UP: 10,
+        },
     },
 
     /**
@@ -185,7 +185,7 @@ export const CONFIG = {
         SEARCH_DEBOUNCE: 300,
 
         // Skeleton loading minimum display time (in milliseconds)
-        MIN_LOADING_TIME: 300
+        MIN_LOADING_TIME: 300,
     },
 
     /**
@@ -194,8 +194,9 @@ export const CONFIG = {
     PUSH_NOTIFICATIONS: {
         // VAPID public key for push notifications
         // This should be set via environment variable in production
-        VAPID_PUBLIC_KEY: import.meta.env?.VITE_VAPID_PUBLIC ||
-                         'BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE'
+        VAPID_PUBLIC_KEY:
+            import.meta.env?.VITE_VAPID_PUBLIC ||
+            "BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE",
     },
 
     /**
@@ -207,25 +208,25 @@ export const CONFIG = {
         OFFLINE_MODE: true,
         DARK_MODE: false,
         EXPORT_REPORTS: true,
-        BADGE_SYSTEM: true
+        BADGE_SYSTEM: true,
     },
 
     /**
      * IndexedDB Settings
      */
     INDEXEDDB: {
-        DB_NAME: 'WampumsDB',
+        DB_NAME: "WampumsDB",
         DB_VERSION: 1,
-        STORE_NAME: 'cachedData'
+        STORE_NAME: "cachedData",
     },
 
     /**
      * Service Worker Settings
      */
     SERVICE_WORKER: {
-        ENABLED: 'serviceWorker' in navigator,
-        PATH: '/service-worker.js'
-    }
+        ENABLED: "serviceWorker" in navigator,
+        PATH: "/service-worker.js",
+    },
 };
 
 /**
@@ -234,12 +235,12 @@ export const CONFIG = {
  * This is the only acceptable use of console.log in the codebase
  */
 if (CONFIG.debugMode) {
-    console.log('=== Wampums Configuration ===');
-    console.log('API Base URL:', CONFIG.API_BASE_URL);
-    console.log('Debug Mode:', CONFIG.debugMode);
-    console.log('Version:', CONFIG.VERSION);
-    console.log('Environment:', import.meta.env?.MODE || 'production');
-    console.log('============================');
+    console.log("=== Wampums Configuration ===");
+    console.log("API Base URL:", CONFIG.API_BASE_URL);
+    console.log("Debug Mode:", CONFIG.debugMode);
+    console.log("Version:", CONFIG.VERSION);
+    console.log("Environment:", import.meta.env?.MODE || "production");
+    console.log("============================");
 }
 
 /**
@@ -249,10 +250,10 @@ if (CONFIG.debugMode) {
  */
 export function getApiUrl(endpoint) {
     // Remove leading slash from endpoint if present
-    const path = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    const path = endpoint.startsWith("/") ? endpoint.slice(1) : endpoint;
 
     // Ensure API_BASE_URL doesn't end with slash
-    const baseUrl = CONFIG.API_BASE_URL.endsWith('/')
+    const baseUrl = CONFIG.API_BASE_URL.endsWith("/")
         ? CONFIG.API_BASE_URL.slice(0, -1)
         : CONFIG.API_BASE_URL;
 
@@ -287,7 +288,7 @@ export const {
     ENDPOINTS,
     ROLES,
     ATTENDANCE_STATUS,
-    DEFAULT_POINTS
+    DEFAULT_POINTS,
 } = CONFIG;
 
 // Make CONFIG immutable (prevent accidental modifications)
