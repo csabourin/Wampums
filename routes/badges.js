@@ -58,7 +58,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -112,7 +112,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization with admin or leader role
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool, ['admin', 'leader']);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'leader']);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -189,7 +189,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -271,7 +271,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization with admin or leader role
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool, ['admin', 'leader']);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'leader']);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -385,7 +385,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization with admin or leader role
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool, ['admin', 'leader']);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'leader']);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -443,7 +443,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -500,7 +500,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -561,7 +561,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -613,7 +613,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
@@ -707,7 +707,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization with admin or leader role
-      const authCheck = await verifyOrganizationMembership(decoded.userId, organizationId, pool, ['admin', 'leader']);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.userId, organizationId, ['admin', 'leader']);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }

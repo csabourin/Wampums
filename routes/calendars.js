@@ -125,7 +125,7 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
@@ -207,7 +207,7 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
