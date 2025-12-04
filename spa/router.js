@@ -20,6 +20,7 @@ const lazyModules = {
   ViewParticipantDocuments: () => import('./view_participant_documents.js').then(m => m.ViewParticipantDocuments),
   ParentContactList: () => import('./parent_contact_list.js').then(m => m.ParentContactList),
   ApproveBadges: () => import('./approve_badges.js').then(m => m.ApproveBadges),
+  BadgeDashboard: () => import('./badge_dashboard.js').then(m => m.BadgeDashboard),
   FicheSante: () => import('./fiche_sante.js').then(m => m.FicheSante),
   AcceptationRisque: () => import('./acceptation_risque.js').then(m => m.AcceptationRisque),
   BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
@@ -60,6 +61,7 @@ const routes = {
   "/manage-groups": "manageGroups",
   "/view-participant-documents": "viewParticipantDocuments",
   "/approve-badges": "approveBadges",
+  "/badge-dashboard": "badgeDashboard",
   "/parent-contact-list": "parentContactList",
   "/mailing-list": "mailingList",
   "/fiche-sante/:id": "ficheSante",
@@ -224,6 +226,9 @@ export class Router {
           break;
         case "approveBadges":
           await this.loadApproveBadges();
+          break;
+        case "badgeDashboard":
+          await this.loadBadgeDashboard();
           break;
         case "ficheSante":
           await this.loadFicheSante(param);
@@ -435,6 +440,17 @@ export class Router {
     const ApproveBadges = await this.loadModule('ApproveBadges');
     const approveBadges = new ApproveBadges(this.app);
     await approveBadges.init();
+  }
+
+  async loadBadgeDashboard() {
+    if (!['admin', 'animation', 'leader'].includes(this.app.userRole)) {
+      this.loadNotAuthorizedPage();
+      return;
+    }
+
+    const BadgeDashboard = await this.loadModule('BadgeDashboard');
+    const badgeDashboard = new BadgeDashboard(this.app);
+    await badgeDashboard.init();
   }
 
   async loadFicheSante(participantId) {
