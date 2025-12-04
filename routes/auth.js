@@ -105,7 +105,7 @@ module.exports = (pool, logger) => {
    *       429:
    *         description: Too many attempts
    */
-  router.post('/login',
+  router.post('/public/login',
     authLimiter,
     validateEmail,
     validatePassword,

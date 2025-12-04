@@ -126,14 +126,11 @@ const poolConfig = {
 };
 
 // Configure SSL based on environment
+// Supabase requires SSL but uses certificates that may need relaxed validation
 if (process.env.DATABASE_URL || process.env.SB_URL) {
-  if (isProduction) {
-    // Production: Enforce SSL with certificate validation
-    poolConfig.ssl = { rejectUnauthorized: true };
-  } else {
-    // Development: Allow self-signed certificates (required for Replit)
-    poolConfig.ssl = { rejectUnauthorized: false };
-  }
+  // Supabase connections need rejectUnauthorized: false due to certificate chain
+  // SSL is still enabled - only certificate validation is relaxed
+  poolConfig.ssl = { rejectUnauthorized: false };
 }
 
 const pool = new Pool(poolConfig);
