@@ -1,6 +1,7 @@
 import { getCurrentOrganizationId, fetchParticipants, getOrganizationFormFormats, getOrganizationSettings, linkUserParticipants } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
+import { CONFIG } from './config.js';
 
 export class ParentDashboard {
         constructor(app) {
@@ -327,7 +328,7 @@ renderFormButtons(participant) {
                         if ('serviceWorker' in navigator && 'PushManager' in window) {
                                 try {
                                         const registration = await navigator.serviceWorker.ready;
-                                        const applicationServerKey = urlBase64ToUint8Array('BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE');
+                                        const applicationServerKey = urlBase64ToUint8Array(CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY);
                                         const subscription = await registration.pushManager.subscribe({
                                                 userVisibleOnly: true,
                                                 applicationServerKey: applicationServerKey,

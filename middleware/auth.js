@@ -1,5 +1,16 @@
 // Authentication and Authorization Middleware
 const jwt = require('jsonwebtoken');
+const winston = require('winston');
+
+// Configure logger for auth middleware
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 
 // Validate JWT secret is configured
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -121,7 +132,7 @@ exports.getOrganizationId = async (req, pool) => {
       return result.rows[0].organization_id;
     }
   } catch (error) {
-    console.error('Error getting organization ID:', error);
+    logger.error('Error getting organization ID:', error);
   }
 
   // Default fallback

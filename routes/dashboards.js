@@ -14,8 +14,11 @@ const jwt = require('jsonwebtoken');
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
 
-// Load JWT secret key
-const jwtKey = process.env.JWT_SECRET || 'default-secret-key-change-in-production';
+// Load JWT secret key - fail fast if not configured
+const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+if (!jwtKey) {
+  throw new Error('JWT_SECRET_KEY or JWT_SECRET environment variable is required');
+}
 
 /**
  * Export route factory function

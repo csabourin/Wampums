@@ -193,7 +193,8 @@ export const CONFIG = {
      */
     PUSH_NOTIFICATIONS: {
         // VAPID public key for push notifications
-        // This should be set via environment variable in production
+        // IMPORTANT: Set VITE_VAPID_PUBLIC environment variable in production
+        // The hardcoded fallback is for development only and should not be used in production
         VAPID_PUBLIC_KEY:
             import.meta.env?.VITE_VAPID_PUBLIC ||
             "BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE",
