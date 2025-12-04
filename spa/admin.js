@@ -1,11 +1,16 @@
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import {
+        debugLog,
+        debugError,
+        debugWarn,
+        debugInfo,
+} from "./utils/DebugUtils.js";
 import {
         getUsers,
         updateUserRole,
         approveUser,
         getSubscribers,
-        getCurrentOrganizationId
-} from './ajax-functions.js';
+        getCurrentOrganizationId,
+} from "./ajax-functions.js";
 import { translate } from "./app.js";
 
 export class Admin {
@@ -17,55 +22,60 @@ export class Admin {
         }
 
         async init() {
-                        this.currentOrganizationId = await getCurrentOrganizationId();
-                        await this.fetchData();
-                        this.render();
-                        this.initEventListeners();
+                this.currentOrganizationId = await getCurrentOrganizationId();
+                await this.fetchData();
+                this.render();
+                this.initEventListeners();
         }
 
         async fetchData() {
-                        try {
-                                        this.users = await getUsers(this.currentOrganizationId);
-                                        this.subscribers = await getSubscribers(this.currentOrganizationId);
-                        } catch (error) {
-                                        debugError('Error fetching data:', error);
-                                        this.app.showMessage('Error loading data. Please try again.', 'error');
-                        }
+                try {
+                        this.users = await getUsers(this.currentOrganizationId);
+                        this.subscribers = await getSubscribers(
+                                this.currentOrganizationId,
+                        );
+                } catch (error) {
+                        debugError("Error fetching data:", error);
+                        this.app.showMessage(
+                                "Error loading data. Please try again.",
+                                "error",
+                        );
+                }
         }
 
         render() {
                 const content = `
-                        <h1>${this.app.translate('admin_panel')}</h1>
+                        <h1>${this.app.translate("admin_panel")}</h1>
                         <div id="message"></div>
 
                          <button id="create-organization-btn">${translate("create_new_organization")}</button>
 
-<h2>${this.app.translate('send_notification')}</h2>
+<h2>${this.app.translate("send_notification")}</h2>
 <form id="notification-form">
-        <label for="notification-title">${this.app.translate('title')}</label>
+        <label for="notification-title">${this.app.translate("title")}</label>
         <input type="text" id="notification-title" name="title" required><br><br>
 
-        <label for="notification-body">${this.app.translate('body')}</label>
+        <label for="notification-body">${this.app.translate("body")}</label>
         <textarea id="notification-body" name="body" rows="4" cols="50" required></textarea><br><br>
 
-        <h3>${this.app.translate('select_recipients')}</h3>
+        <h3>${this.app.translate("select_recipients")}</h3>
         <div id="subscribers-list">
                 ${this.renderSubscribers()}
         </div>
 
-        <button type="submit">${this.app.translate('send_notification')}</button>
+        <button type="submit">${this.app.translate("send_notification")}</button>
 </form>
 
 <div id="notification-result"></div>
 
-                        <h2>${this.app.translate('user_management')}</h2>
+                        <h2>${this.app.translate("user_management")}</h2>
                         <table>
                                 <thead>
                                         <tr>
-                                                <th>${this.app.translate('email')}</th>
-                                                <th>${this.app.translate('role')}</th>
-                                                <th>${this.app.translate('verified')}</th>
-                                                <th>${this.app.translate('actions')}</th>
+                                                <th>${this.app.translate("email")}</th>
+                                                <th>${this.app.translate("role")}</th>
+                                                <th>${this.app.translate("verified")}</th>
+                                                <th>${this.app.translate("actions")}</th>
                                         </tr>
                                 </thead>
                                 <tbody id="users-table">
@@ -74,127 +84,213 @@ export class Admin {
                         </table>
 
                         
-                        <a href="/dashboard">${this.app.translate('back_to_dashboard')}</a>
+                        <a href="/dashboard">${this.app.translate("back_to_dashboard")}</a>
                 `;
-                document.getElementById('app').innerHTML = content;
+                document.getElementById("app").innerHTML = content;
         }
 
         renderUsers() {
                 debugLog(this.users);
-                return this.users.map(user => `
+                return this.users
+                        .map(
+                                (user) => `
                         <tr>
                                 <td>${user.fullName} - ${user.email}</td>
                                 <td>
                                         <select class="role-select" data-user-id="${user.id}">
-                                                <option value="parent" ${user.role === 'parent' ? 'selected' : ''}>${this.app.translate('parent')}</option>
-                                                <option value="animation" ${user.role === 'animation' ? 'selected' : ''}>${this.app.translate('animation')}</option>
-                                                <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>${this.app.translate('admin')}</option>
+                                                <option value="parent" ${user.role === "parent" ? "selected" : ""}>${this.app.translate("parent")}</option>
+                                                <option value="animation" ${user.role === "animation" ? "selected" : ""}>${this.app.translate("animation")}</option>
+                                                <option value="admin" ${user.role === "admin" ? "selected" : ""}>${this.app.translate("admin")}</option>
                                         </select>
                                 </td>
-                                <td>${user.isVerified ? '✅' : '❌'}</td>
+                                <td>${user.isVerified ? "✅" : "❌"}</td>
                                 <td>
-                                        ${!user.isVerified ? `<button class="approve-btn" data-user-id="${user.id}">${this.app.translate('approve')}</button>` : ''}
+                                        ${!user.isVerified ? `<button class="approve-btn" data-user-id="${user.id}">${this.app.translate("approve")}</button>` : ""}
                                 </td>
                         </tr>
-                `).join('');
+                `,
+                        )
+                        .join("");
         }
 
         renderSubscribers() {
-                return this.subscribers.map(subscriber => `
+                return this.subscribers
+                        .map(
+                                (subscriber) => `
                         <div>
                                 <input type="checkbox" id="subscriber-${subscriber.id}" name="subscribers" value="${subscriber.id}">
                                 <label for="subscriber-${subscriber.id}">${subscriber.email}</label>
                         </div>
-                `).join('');
+                `,
+                        )
+                        .join("");
         }
 
         initEventListeners() {
-
-                document.getElementById("create-organization-btn").addEventListener("click", () => {
-                                this.app.router.navigate("/create-organization");
-                });
-                
-                document.getElementById('users-table').addEventListener('change', async (event) => {
-                        if (event.target.classList.contains('role-select')) {
-                                const userId = event.target.dataset.userId;
-                                const newRole = event.target.value;
-                                await this.updateUserRole(userId, newRole);
-                        }
+                document.getElementById(
+                        "create-organization-btn",
+                ).addEventListener("click", () => {
+                        this.app.router.navigate("/create-organization");
                 });
 
-                document.getElementById('users-table').addEventListener('click', async (event) => {
-                        if (event.target.classList.contains('approve-btn')) {
-                                const userId = event.target.dataset.userId;
-                                await this.approveUser(userId);
-                        }
-                });
+                document.getElementById("users-table").addEventListener(
+                        "change",
+                        async (event) => {
+                                if (
+                                        event.target.classList.contains(
+                                                "role-select",
+                                        )
+                                ) {
+                                        const userId =
+                                                event.target.dataset.userId;
+                                        const newRole = event.target.value;
+                                        await this.updateUserRole(
+                                                userId,
+                                                newRole,
+                                        );
+                                }
+                        },
+                );
+
+                document.getElementById("users-table").addEventListener(
+                        "click",
+                        async (event) => {
+                                if (
+                                        event.target.classList.contains(
+                                                "approve-btn",
+                                        )
+                                ) {
+                                        const userId =
+                                                event.target.dataset.userId;
+                                        await this.approveUser(userId);
+                                }
+                        },
+                );
 
                 this.initNotificationForm();
         }
 
         async updateUserRole(userId, newRole) {
-                        try {
-                                        const result = await updateUserRole(userId, newRole, this.currentOrganizationId);
-                                        if (result.success) {
-                                                        this.app.showMessage(this.app.translate('role_updated_successfully'), 'success');
-                                                        await this.fetchData();
-                                                        this.render();
-                                        } else {
-                                                        this.app.showMessage(this.app.translate('error_updating_role'), 'error');
-                                        }
-                        } catch (error) {
-                                        debugError('Error updating user role:', error);
-                                        this.app.showMessage(this.app.translate('error_updating_role'), 'error');
+                try {
+                        const result = await updateUserRole(
+                                userId,
+                                newRole,
+                                this.currentOrganizationId,
+                        );
+                        if (result.success) {
+                                this.app.showMessage(
+                                        this.app.translate(
+                                                "role_updated_successfully",
+                                        ),
+                                        "success",
+                                );
+                                await this.fetchData();
+                                this.render();
+                        } else {
+                                this.app.showMessage(
+                                        this.app.translate(
+                                                "error_updating_role",
+                                        ),
+                                        "error",
+                                );
                         }
+                } catch (error) {
+                        debugError("Error updating user role:", error);
+                        this.app.showMessage(
+                                this.app.translate("error_updating_role"),
+                                "error",
+                        );
+                }
         }
 
         async approveUser(userId) {
-                        try {
-                                        const result = await approveUser(userId, this.currentOrganizationId);
-                                        if (result.success) {
-                                                        this.app.showMessage(this.app.translate('user_approved_successfully'), 'success');
-                                                        await this.fetchData();
-                                                        this.render();
-                                        } else {
-                                                        this.app.showMessage(this.app.translate('error_approving_user'), 'error');
-                                        }
-                        } catch (error) {
-                                        debugError('Error approving user:', error);
-                                        this.app.showMessage(this.app.translate('error_approving_user'), 'error');
+                try {
+                        const result = await approveUser(
+                                userId,
+                                this.currentOrganizationId,
+                        );
+                        if (result.success) {
+                                this.app.showMessage(
+                                        this.app.translate(
+                                                "user_approved_successfully",
+                                        ),
+                                        "success",
+                                );
+                                await this.fetchData();
+                                this.render();
+                        } else {
+                                this.app.showMessage(
+                                        this.app.translate(
+                                                "error_approving_user",
+                                        ),
+                                        "error",
+                                );
                         }
+                } catch (error) {
+                        debugError("Error approving user:", error);
+                        this.app.showMessage(
+                                this.app.translate("error_approving_user"),
+                                "error",
+                        );
+                }
         }
 
         initNotificationForm() {
-                const notificationForm = document.getElementById("notification-form");
-                const resultContainer = document.getElementById("notification-result");
+                const notificationForm =
+                        document.getElementById("notification-form");
+                const resultContainer = document.getElementById(
+                        "notification-result",
+                );
                 notificationForm.addEventListener("submit", async (event) => {
                         event.preventDefault();
-                        const title = document.getElementById("notification-title").value;
-                        const body = document.getElementById("notification-body").value;
+                        const title =
+                                document.getElementById(
+                                        "notification-title",
+                                ).value;
+                        const body =
+                                document.getElementById(
+                                        "notification-body",
+                                ).value;
                         resultContainer.innerHTML = translate("sending");
 
                         // Get selected subscribers
-                        const selectedSubscribers = Array.from(document.querySelectorAll('#subscribers-list input:checked')).map(input => input.value);
+                        const selectedSubscribers = Array.from(
+                                document.querySelectorAll(
+                                        "#subscribers-list input:checked",
+                                ),
+                        ).map((input) => input.value);
 
                         // Retrieve the JWT token from localStorage
-                        const token = localStorage.getItem('jwtToken');
+                        const token = localStorage.getItem("jwtToken");
                         if (!token) {
-                                resultContainer.innerHTML = translate("error_no_token");
+                                resultContainer.innerHTML =
+                                        translate("error_no_token");
                                 return;
                         }
 
                         try {
-                                const response = await fetch("/api/send-notification", {
-                                        method: "POST",
-                                        headers: {
-                                                "Content-Type": "application/json",
-                                                "Authorization": `Bearer ${token}` // Send the token in the Authorization header
+                                const response = await fetch(
+                                        "/api/send-notification",
+                                        {
+                                                method: "POST",
+                                                headers: {
+                                                        "Content-Type":
+                                                                "application/json",
+                                                        Authorization: `Bearer ${token}`, // Send the token in the Authorization header
+                                                },
+                                                body: JSON.stringify({
+                                                        title,
+                                                        body,
+                                                        subscribers:
+                                                                selectedSubscribers,
+                                                }),
                                         },
-                                        body: JSON.stringify({ title, body, subscribers: selectedSubscribers }),
-                                });
+                                );
                                 const result = await response.json();
                                 if (response.ok) {
-                                        resultContainer.innerHTML = translate("notification_sent_successfully");
+                                        resultContainer.innerHTML = translate(
+                                                "notification_sent_successfully",
+                                        );
                                         notificationForm.reset();
                                 } else {
                                         resultContainer.innerHTML = `${translate("failed_to_send_notification")}: ${result.error}`;

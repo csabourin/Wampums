@@ -1,5 +1,5 @@
-import { app, translate} from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import { app, translate} from "./app.js";
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import {
     getAuthHeader,
