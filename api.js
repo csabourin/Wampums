@@ -43,7 +43,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://*.clarity.ms", "https://c.bing.com", "https://www.clarity.ms"],
+      connectSrc: ["'self'", "https://*.clarity.ms", "https://c.bing.com", "https://www.clarity.ms", "https://cdn.jsdelivr.net"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: isProduction ? [] : null,
