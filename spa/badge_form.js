@@ -1,5 +1,5 @@
-import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import { translate } from "./app.js";
 import {
   getBadgeProgress,
   saveBadgeProgress,
