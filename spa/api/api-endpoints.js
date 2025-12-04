@@ -745,6 +745,16 @@ export async function updateBadgeStatus(badgeId, status) {
 }
 
 /**
+ * Update badge progress fields (stars, description, status, etc.)
+ */
+export async function updateBadgeProgress(badgeId, updates) {
+    return API.put(`badge-progress/${badgeId}`, updates, {
+        cacheKey: `badge_progress_${badgeId}`,
+        invalidate: ['badge_summary']
+    });
+}
+
+/**
  * Get badge system settings
  */
 export async function getBadgeSystemSettings() {

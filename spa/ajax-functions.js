@@ -120,6 +120,7 @@ export {
     getBadgeSummary,
     getBadgeHistory,
     updateBadgeStatus,
+    updateBadgeProgress,
     getBadgeSystemSettings,
 
     // Honors
