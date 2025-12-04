@@ -4,6 +4,7 @@ import {
   getBadgeSystemSettings,
   getGroups,
   getParticipants,
+  saveBadgeProgress,
   updateBadgeProgress
 } from "./ajax-functions.js";
 import { CONFIG } from "./config.js";
@@ -273,6 +274,10 @@ export class BadgeDashboard {
       ? record.badges.map((badge) => this.renderBadgeChip(record.id, badge)).join("")
       : `<span class="badge-chip badge-chip--muted">${translate("badge_no_entries")}</span>`;
 
+    const addBadgeAction = record.badges.length
+      ? ""
+      : `<button class="text-button" data-action="add-badge" data-participant-id="${record.id}">${translate("badge_add_first_badge")}</button>`;
+
     return `
       <article class="badge-table__row" role="row" data-participant-id="${record.id}">
         <div role="cell" class="badge-table__cell">
@@ -287,6 +292,7 @@ export class BadgeDashboard {
           <button class="text-button" data-action="edit-participant" data-participant-id="${record.id}">
             ${translate("badge_edit_participant")}
           </button>
+          ${addBadgeAction}
         </div>
       </article>
     `;
@@ -377,6 +383,10 @@ export class BadgeDashboard {
       if (action === "edit-participant") {
         this.openBadgeModal(parseInt(participantId, 10), badgeName || null, true);
       }
+
+      if (action === "add-badge") {
+        this.openAddBadgeModal(parseInt(participantId, 10));
+      }
     });
 
     this.setupInfiniteScroll();
@@ -466,7 +476,11 @@ export class BadgeDashboard {
     if (!modal) return;
 
     const record = this.records.find((participant) => participant.id === participantId);
-    if (!record || !record.badges.length) return;
+    if (!record) return;
+    if (!record.badges.length) {
+      this.openAddBadgeModal(participantId);
+      return;
+    }
 
     const badge = this.selectBadge(record.badges, badgeName);
     if (!badge) return;
@@ -507,7 +521,7 @@ export class BadgeDashboard {
                       <div class="badge-history__row">
                         <div>
                           <p class="badge-history__title">${translate(`badge_status_${entry.status || "pending"}`) || entry.status || "pending"}</p>
-                          <p class="badge-history__meta">${entry.date_obtention || translate("badge_date_missing")}</p>
+                          <p class="badge-history__meta">${this.formatReadableDate(entry.date_obtention)}</p>
                         </div>
                         <span class="badge-history__stars">${entry.etoiles}⭐</span>
                       </div>
@@ -527,7 +541,7 @@ export class BadgeDashboard {
                 ${entries
                   .map(
                     (entry) => `
-                      <option value="${entry.id}">${entry.date_obtention || translate("badge_date_missing")} · ${entry.etoiles}⭐ · ${translate(`badge_status_${entry.status || "pending"}`) || entry.status || "pending"}</option>
+                      <option value="${entry.id}">${this.formatReadableDate(entry.date_obtention)} · ${entry.etoiles}⭐ · ${translate(`badge_status_${entry.status || "pending"}`) || entry.status || "pending"}</option>
                     `
                   )
                   .join("")}
@@ -635,6 +649,103 @@ export class BadgeDashboard {
     }
   }
 
+  openAddBadgeModal(participantId) {
+    const modal = document.getElementById(this.modalContainerId);
+    if (!modal) return;
+
+    const record = this.records.find((participant) => participant.id === participantId);
+    const territories = this.badgeSettings?.territoires || [];
+    const territoryOptions = territories
+      .map(
+        (territory) => `
+          <option value="${territory.name}">${territory.name}</option>
+        `
+      )
+      .join("");
+
+    modal.innerHTML = `
+      <div class="modal__backdrop" role="presentation"></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="badge-modal-title">
+        <header class="modal__header">
+          <div>
+            <p class="eyebrow">${record?.groupName || ""}</p>
+            <h2 id="badge-modal-title">${record?.firstName || ""} ${record?.lastName || ""}</h2>
+            <p class="subtitle">${translate("badge_add_modal_description")}</p>
+          </div>
+          <button class="ghost-button" id="close-badge-modal" aria-label="${translate("close")}">✕</button>
+        </header>
+        <section class="modal__content">
+          <form id="badge-add-form" data-participant-id="${participantId}" class="stack">
+            <label for="badge-territory">${translate("badge_select_badge")}</label>
+            <select id="badge-territory" name="territoire_chasse" required aria-required="true">
+              <option value="">${translate("badge_select_prompt")}</option>
+              ${territoryOptions}
+            </select>
+
+            <label for="badge-stars-new">${translate("badge_stars_label")}</label>
+            <input id="badge-stars-new" name="etoiles" type="number" min="1" inputmode="numeric" required aria-required="true" value="1" />
+
+            <label for="badge-date-new">${translate("badge_date_label")}</label>
+            <input id="badge-date-new" name="date_obtention" type="date" />
+
+            <label for="badge-objective-new">${translate("badge_objective_label")}</label>
+            <textarea id="badge-objective-new" name="objectif" rows="2"></textarea>
+
+            <label for="badge-description-new">${translate("badge_description_label")}</label>
+            <textarea id="badge-description-new" name="description" rows="3"></textarea>
+
+            <div class="form-actions">
+              <button type="submit" class="primary-button">${translate("badge_add_button")}</button>
+            </div>
+            <div id="badge-add-feedback" role="status" aria-live="polite"></div>
+          </form>
+        </section>
+      </div>
+    `;
+
+    const close = () => {
+      modal.classList.add("hidden");
+      modal.innerHTML = "";
+    };
+
+    modal.classList.remove("hidden");
+    modal.querySelector("#close-badge-modal")?.addEventListener("click", close);
+    modal.querySelector(".modal__backdrop")?.addEventListener("click", close);
+
+    modal.querySelector("#badge-add-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      const feedback = form.querySelector("#badge-add-feedback");
+
+      const payload = {
+        participant_id: participantId,
+        territoire_chasse: form.territoire_chasse.value,
+        etoiles: parseInt(form.etoiles.value, 10) || 1,
+        date_obtention: form.date_obtention.value || null,
+        objectif: form.objectif.value?.trim() || null,
+        description: form.description.value?.trim() || null
+      };
+
+      try {
+        const result = await saveBadgeProgress(payload);
+        if (!result?.success) throw new Error(result?.message || "Unknown error");
+
+        if (result.data) {
+          this.badgeEntries.push(result.data);
+          this.buildRecords();
+          this.resetVisibleCount();
+          this.updateRows();
+        }
+
+        feedback.textContent = translate("badge_add_success");
+        setTimeout(close, 750);
+      } catch (error) {
+        debugError("Error creating badge entry", error);
+        feedback.textContent = translate("badge_add_error");
+      }
+    });
+  }
+
   selectBadge(badges, badgeName) {
     if (!badgeName) return badges[0];
     return badges.find((item) => item.name === badgeName) || badges[0];
@@ -681,6 +792,13 @@ export class BadgeDashboard {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "";
     return date.toISOString().slice(0, 10);
+  }
+
+  formatReadableDate(value) {
+    if (!value) return translate("badge_date_missing");
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return translate("badge_date_missing");
+    return new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(date);
   }
 
   replaceBadgeEntry(updatedEntry) {
