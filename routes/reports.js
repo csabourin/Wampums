@@ -816,5 +816,76 @@ module.exports = (pool, logger) => {
     }
   });
 
+  /**
+   * @swagger
+   * /api/parent-contact-list:
+   *   get:
+   *     summary: Get parent contact list
+   *     description: Retrieve parent/guardian contact information for all participants
+   *     tags: [Reports]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Parent contact list retrieved successfully
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.get('/parent-contact-list', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+      }
+
+      // Get all participants with their guardians
+      const result = await pool.query(
+        `SELECT
+          p.id as participant_id,
+          p.first_name,
+          p.last_name,
+          g.name as group_name,
+          pg_table.id as guardian_id,
+          pg_table.nom,
+          pg_table.prenom,
+          pg_table.courriel,
+          pg_table.telephone_residence,
+          pg_table.telephone_travail,
+          pg_table.telephone_cellulaire,
+          pg_table.is_emergency_contact,
+          pg_table.is_primary,
+          part_guard.lien
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN participant_guardians part_guard ON p.id = part_guard.participant_id
+         LEFT JOIN parents_guardians pg_table ON part_guard.guardian_id = pg_table.id
+         WHERE po.organization_id = $1
+         ORDER BY p.last_name, p.first_name, pg_table.is_primary DESC, pg_table.is_emergency_contact DESC`,
+        [organizationId]
+      );
+
+      res.json({
+        success: true,
+        contacts: result.rows
+      });
+    } catch (error) {
+      logger.error('Error fetching parent contact list:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   return router;
 };
