@@ -134,7 +134,7 @@ async function sendEmail(to, subject, message, html = null) {
   }
 
   const emailPayload = {
-    sender: { email: 'noreply@wampums.app', name: 'Wampums.app' },
+    sender: { email: 'info@meute6a.app', name: 'Wampums' },
     to: [{ email: to }],
     subject,
     textContent: message,
