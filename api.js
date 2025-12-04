@@ -38,11 +38,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://www.clarity.ms", "https://scripts.clarity.ms"], // Note: Consider removing unsafe-inline and using nonces in production
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://*.clarity.ms"], // Note: Consider removing unsafe-inline and using nonces in production
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://www.clarity.ms"],
+      connectSrc: ["'self'", "https://*.clarity.ms", "https://c.bing.com"],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: isProduction ? [] : null,
