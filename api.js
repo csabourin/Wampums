@@ -372,6 +372,8 @@ const participantsRoutes = require('./routes/participants')(pool);
 const attendanceRoutes = require('./routes/attendance')(pool);
 const groupsRoutes = require('./routes/groups')(pool);
 const authRoutes = require('./routes/auth')(pool, logger);
+const organizationsRoutes = require('./routes/organizations')(pool, logger);
+const usersRoutes = require('./routes/users')(pool, logger);
 
 app.use('/api/v1/participants', participantsRoutes);
 app.use('/api/v1/attendance', attendanceRoutes);
@@ -392,6 +394,33 @@ console.log('   - POST /api/auth/request-reset');
 console.log('   - POST /api/auth/reset-password');
 console.log('   - POST /api/auth/verify-session');
 console.log('   - POST /api/auth/logout');
+
+// Mount organization routes (handles both /api and /public paths)
+app.use('/api', organizationsRoutes);
+app.use('/public', organizationsRoutes);
+
+console.log('✅ Organization routes loaded');
+console.log('   - GET /api/organization-jwt');
+console.log('   - GET /public/get_organization_id');
+console.log('   - GET /api/organization-settings');
+console.log('   - POST /api/organizations');
+console.log('   - POST /api/register-for-organization');
+console.log('   - POST /api/switch-organization');
+
+// Mount user management routes
+app.use('/api', usersRoutes);
+
+console.log('✅ User management routes loaded');
+console.log('   - GET /api/users');
+console.log('   - GET /api/pending-users');
+console.log('   - GET /api/animateurs');
+console.log('   - GET /api/parent-users');
+console.log('   - GET /api/user-children');
+console.log('   - POST /api/approve-user');
+console.log('   - POST /api/update-user-role');
+console.log('   - POST /api/link-user-participants');
+console.log('   - POST /api/associate-user-participant');
+console.log('   - POST /api/permissions/check');
 
 // ============================================
 // PUBLIC ENDPOINTS (migrated from PHP)
@@ -495,98 +524,17 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// Get organization JWT (migrated from get-organization-jwt.php)
-app.get('/api/organization-jwt', async (req, res) => {
-  try {
-    const organizationId = req.query.organization_id
-      ? parseInt(req.query.organization_id, 10)
-      : await getCurrentOrganizationId(req);
-
-    if (!organizationId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Organization ID is required'
-      });
-    }
-
-    // Generate JWT with organization ID only (no user information)
-    const token = jwt.sign(
-      { organizationId },
-      jwtKey,
-      { expiresIn: '7d' }
-    );
-
-    res.json({
-      success: true,
-      token,
-      organizationId
-    });
-  } catch (error) {
-    logger.error('Error generating organization JWT:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate JWT token'
-    });
-  }
-});
+// ============================================
+// NOTE: Organization endpoints moved to routes/organizations.js
+// All organization management endpoints (JWT, settings, registration, etc.)
+// are now handled by the modular organization routes.
+// ============================================
 
 // ============================================
 // NOTE: Login endpoint moved to routes/auth.js
 // All authentication endpoints (login, register, password reset, etc.)
 // are now handled by the modular auth routes.
 // ============================================
-
-// Get organization ID (public endpoint)
-app.get('/public/get_organization_id', async (req, res) => {
-  try {
-    const organizationId = await getCurrentOrganizationId(req);
-    res.json({
-      success: true,
-      organizationId: organizationId
-    });
-  } catch (error) {
-    logger.error('Error getting organization ID:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting organization ID'
-    });
-  }
-});
-
-// Get organization settings
-app.get('/api/organization-settings', async (req, res) => {
-  try {
-    const organizationId = await getCurrentOrganizationId(req);
-    
-    const result = await pool.query(
-      `SELECT setting_key, setting_value 
-       FROM organization_settings 
-       WHERE organization_id = $1`,
-      [organizationId]
-    );
-    
-    // Convert rows to key-value object
-    const settings = {};
-    result.rows.forEach(row => {
-      try {
-        settings[row.setting_key] = JSON.parse(row.setting_value);
-      } catch {
-        settings[row.setting_key] = row.setting_value;
-      }
-    });
-    
-    res.json({
-      success: true,
-      data: settings
-    });
-  } catch (error) {
-    logger.error('Error getting organization settings:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting organization settings'
-    });
-  }
-});
 
 // Get reunion preparation (dedicated endpoint for activity widget)
 app.get('/api/reunion-preparation', async (req, res) => {
@@ -6080,171 +6028,7 @@ app.get('/api/participant-calendar', async (req, res) => {
 // are now handled by the modular auth routes.
 // ============================================
 
-/**
- * @swagger
- * /api/register-for-organization:
- *   post:
- *     summary: Register existing user for an organization
- *     tags: [Organizations]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - registration_password
- *             properties:
- *               registration_password:
- *                 type: string
- *               role:
- *                 type: string
- *                 enum: [parent, animation, admin]
- *               link_children:
- *                 type: array
- *                 items:
- *                   type: integer
- *     responses:
- *       200:
- *         description: Successfully registered for organization
- */
-app.post('/api/register-for-organization', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = verifyJWT(token);
-
-    if (!decoded || !decoded.user_id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const { registration_password, role, link_children } = req.body;
-    const organizationId = await getCurrentOrganizationId(req);
-
-    // Check registration password
-    const passwordResult = await pool.query(
-      `SELECT setting_value FROM organization_settings
-       WHERE organization_id = $1 AND setting_key = 'registration_password'`,
-      [organizationId]
-    );
-
-    if (passwordResult.rows.length === 0 || passwordResult.rows[0].setting_value !== registration_password) {
-      return res.status(403).json({ success: false, message: 'Invalid registration password' });
-    }
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      // Add user to organization
-      await client.query(
-        `INSERT INTO user_organizations (user_id, organization_id, role)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (user_id, organization_id) DO NOTHING`,
-        [decoded.user_id, organizationId, role || 'parent']
-      );
-
-      // Link children if provided
-      if (link_children && Array.isArray(link_children)) {
-        for (const participantId of link_children) {
-          await client.query(
-            `INSERT INTO user_participants (user_id, participant_id)
-             VALUES ($1, $2)
-             ON CONFLICT (user_id, participant_id) DO NOTHING`,
-            [decoded.user_id, participantId]
-          );
-        }
-      }
-
-      await client.query('COMMIT');
-
-      res.json({ success: true, message: 'Successfully registered for organization' });
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    logger.error('Error registering for organization:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
- * @swagger
- * /api/switch-organization:
- *   post:
- *     summary: Switch active organization for user
- *     tags: [Organizations]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - organization_id
- *             properties:
- *               organization_id:
- *                 type: integer
- *     responses:
- *       200:
- *         description: Organization switched
- */
-app.post('/api/switch-organization', async (req, res) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = verifyJWT(token);
-
-    if (!decoded || !decoded.user_id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const { organization_id } = req.body;
-
-    if (!organization_id) {
-      return res.status(400).json({ success: false, message: 'Organization ID is required' });
-    }
-
-    // Verify user belongs to this organization
-    const membershipCheck = await pool.query(
-      `SELECT role FROM user_organizations
-       WHERE user_id = $1 AND organization_id = $2`,
-      [decoded.user_id, organization_id]
-    );
-
-    if (membershipCheck.rows.length === 0) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have access to this organization'
-      });
-    }
-
-    // Generate new JWT with updated organization
-    const newToken = jwt.sign(
-      {
-        user_id: decoded.user_id,
-        organization_id: organization_id,
-        role: membershipCheck.rows[0].role
-      },
-      jwtKey,
-      { expiresIn: '24h' }
-    );
-
-    res.json({
-      success: true,
-      data: { token: newToken },
-      message: 'Organization switched successfully'
-    });
-  } catch (error) {
-    logger.error('Error switching organization:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+// NOTE: register-for-organization and switch-organization endpoints moved to routes/organizations.js
 
 // ============================================
 // OTHER MISSING ENDPOINTS
@@ -7012,97 +6796,7 @@ app.post('/api/groups', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/organizations:
- *   post:
- *     summary: Create a new organization
- *     tags: [Organizations]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *             properties:
- *               name:
- *                 type: string
- *     responses:
- *       201:
- *         description: Organization created successfully
- */
-app.post('/api/organizations', async (req, res) => {
-  const client = await pool.connect();
-
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = verifyJWT(token);
-
-    if (!decoded || !decoded.userId) {
-      await client.release();
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const { name, ...otherData } = req.body;
-    const userId = decoded.userId;
-
-    if (!name) {
-      return res.status(400).json({ success: false, message: 'Organization name is required' });
-    }
-
-    await client.query('BEGIN');
-
-    // Create new organization
-    const orgResult = await client.query(
-      'INSERT INTO organizations (name, created_at) VALUES ($1, NOW()) RETURNING id',
-      [name]
-    );
-
-    const newOrganizationId = orgResult.rows[0].id;
-
-    // Copy organization form formats from template (organization_id = 0)
-    await client.query(
-      `INSERT INTO organization_form_formats (organization_id, form_type, form_structure, display_type)
-       SELECT $1, form_type, form_structure, 'public'
-       FROM organization_form_formats
-       WHERE organization_id = 0`,
-      [newOrganizationId]
-    );
-
-    // Insert organization settings
-    const orgInfo = { name, ...otherData };
-    await client.query(
-      `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
-       VALUES ($1, 'organization_info', $2)`,
-      [newOrganizationId, JSON.stringify(orgInfo)]
-    );
-
-    // Link current user to the new organization as admin
-    await client.query(
-      `INSERT INTO user_organizations (user_id, organization_id, role, created_at)
-       VALUES ($1, $2, 'admin', NOW())`,
-      [userId, newOrganizationId]
-    );
-
-    await client.query('COMMIT');
-
-    res.status(201).json({
-      success: true,
-      message: 'Organization created successfully',
-      organization_id: newOrganizationId
-    });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    logger.error('Error creating organization:', error);
-    res.status(500).json({ success: false, message: 'Error creating organization: ' + error.message });
-  } finally {
-    client.release();
-  }
-});
+// NOTE: POST /api/organizations endpoint moved to routes/organizations.js
 
 // SPA catch-all route - serve index.html for all non-API routes
 // This must be the last route handler
