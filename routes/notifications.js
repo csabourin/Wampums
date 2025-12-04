@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { verifyJWT } = require('../utils/api-helpers');
+const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -22,6 +22,126 @@ const { verifyJWT } = require('../utils/api-helpers');
  * @returns {Router} Express router with notification routes
  */
 module.exports = (pool, logger) => {
+  /**
+   * @swagger
+   * /api/push-subscription:
+   *   post:
+   *     summary: Subscribe to push notifications
+   *     description: Save push subscription for a user
+   *     tags: [Notifications]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - endpoint
+   *               - keys
+   *             properties:
+   *               endpoint:
+   *                 type: string
+   *               expirationTime:
+   *                 type: string
+   *               keys:
+   *                 type: object
+   *                 properties:
+   *                   p256dh:
+   *                     type: string
+   *                   auth:
+   *                     type: string
+   *     responses:
+   *       200:
+   *         description: Subscription saved successfully
+   *       400:
+   *         description: Missing subscription data
+   *       401:
+   *         description: Unauthorized
+   */
+  router.post('/push-subscription', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = verifyJWT(token);
+
+      if (!payload || !payload.user_id) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { endpoint, expirationTime, keys } = req.body;
+      const { p256dh, auth } = keys || {};
+
+      if (!endpoint || !p256dh || !auth) {
+        return res.status(400).json({ error: 'Missing subscription data' });
+      }
+
+      await pool.query(
+        `INSERT INTO subscribers (user_id, endpoint, expiration_time, p256dh, auth)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (endpoint) DO UPDATE
+         SET expiration_time = EXCLUDED.expiration_time,
+             p256dh = EXCLUDED.p256dh,
+             auth = EXCLUDED.auth`,
+        [payload.user_id, endpoint, expirationTime, p256dh, auth]
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error saving subscription:', error);
+      res.status(500).json({ error: 'Failed to save subscription' });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/push-subscribers:
+   *   get:
+   *     summary: Get all push notification subscribers
+   *     description: Retrieve list of all push notification subscribers (admin only)
+   *     tags: [Notifications]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Subscribers retrieved successfully
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.get('/push-subscribers', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      if (!authCheck.authorized || authCheck.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+      }
+
+      const result = await pool.query(
+        `SELECT ps.*, u.email, u.full_name
+         FROM push_subscriptions ps
+         JOIN users u ON ps.user_id = u.id
+         WHERE ps.organization_id = $1
+         ORDER BY ps.created_at DESC`,
+        [organizationId]
+      );
+
+      res.json({ success: true, data: result.rows });
+    } catch (error) {
+      logger.error('Error fetching push subscribers:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   /**
    * @swagger
    * /api/send-notification:
