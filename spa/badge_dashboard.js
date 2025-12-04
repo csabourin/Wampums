@@ -5,7 +5,7 @@ import {
   getGroups,
   getParticipants,
   saveBadgeProgress,
-  updateBadgeProgress
+  updateBadgeProgress,
 } from "./ajax-functions.js";
 import { CONFIG } from "./config.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
@@ -46,12 +46,13 @@ export class BadgeDashboard {
 
   async hydrateFromCache() {
     try {
-      const [cachedGroups, cachedParticipants, cachedBadges, cachedSettings] = await Promise.all([
-        getCachedData("badge_dashboard_groups"),
-        getCachedData("badge_dashboard_participants"),
-        getCachedData("badge_dashboard_badges"),
-        getCachedData("badge_dashboard_settings")
-      ]);
+      const [cachedGroups, cachedParticipants, cachedBadges, cachedSettings] =
+        await Promise.all([
+          getCachedData("badge_dashboard_groups"),
+          getCachedData("badge_dashboard_participants"),
+          getCachedData("badge_dashboard_badges"),
+          getCachedData("badge_dashboard_settings"),
+        ]);
 
       if (cachedGroups) this.groups = cachedGroups;
       if (cachedParticipants) this.participants = cachedParticipants;
@@ -64,36 +65,58 @@ export class BadgeDashboard {
 
   async refreshFromNetwork() {
     try {
-      const [groupsResponse, participantsResponse, badgeSummaryResponse, badgeSettingsResponse] = await Promise.all([
+      const [
+        groupsResponse,
+        participantsResponse,
+        badgeSummaryResponse,
+        badgeSettingsResponse,
+      ] = await Promise.all([
         getGroups(),
         getParticipants(),
         getBadgeSummary(),
-        getBadgeSystemSettings()
+        getBadgeSystemSettings(),
       ]);
 
       const groups = groupsResponse.data || groupsResponse.groups || [];
-      const participants = participantsResponse.data || participantsResponse.participants || [];
+      const participants =
+        participantsResponse.data || participantsResponse.participants || [];
       const badgeEntries = badgeSummaryResponse.data || [];
       const badgeSettings = badgeSettingsResponse?.data || null;
 
       if (Array.isArray(groups)) {
         this.groups = groups;
-        await setCachedData("badge_dashboard_groups", groups, CONFIG.CACHE_DURATION.LONG);
+        await setCachedData(
+          "badge_dashboard_groups",
+          groups,
+          CONFIG.CACHE_DURATION.LONG,
+        );
       }
 
       if (Array.isArray(participants)) {
         this.participants = participants;
-        await setCachedData("badge_dashboard_participants", participants, CONFIG.CACHE_DURATION.MEDIUM);
+        await setCachedData(
+          "badge_dashboard_participants",
+          participants,
+          CONFIG.CACHE_DURATION.MEDIUM,
+        );
       }
 
       if (Array.isArray(badgeEntries)) {
         this.badgeEntries = badgeEntries;
-        await setCachedData("badge_dashboard_badges", badgeEntries, CONFIG.CACHE_DURATION.SHORT);
+        await setCachedData(
+          "badge_dashboard_badges",
+          badgeEntries,
+          CONFIG.CACHE_DURATION.SHORT,
+        );
       }
 
       if (badgeSettings) {
         this.badgeSettings = badgeSettings;
-        await setCachedData("badge_dashboard_settings", badgeSettings, CONFIG.CACHE_DURATION.LONG);
+        await setCachedData(
+          "badge_dashboard_settings",
+          badgeSettings,
+          CONFIG.CACHE_DURATION.LONG,
+        );
       }
 
       this.buildRecords();
@@ -108,22 +131,27 @@ export class BadgeDashboard {
   buildRecords() {
     const groupMap = new Map(this.groups.map((group) => [group.id, group]));
     const participantMap = new Map(
-      this.participants.map((participant) => [participant.id, {
-        id: participant.id,
-        firstName: participant.first_name,
-        lastName: participant.last_name,
-        groupId: participant.group_id,
-        groupName: groupMap.get(participant.group_id)?.name || translate("no_group"),
-        badges: new Map(),
-        totalStars: 0
-      }])
+      this.participants.map((participant) => [
+        participant.id,
+        {
+          id: participant.id,
+          firstName: participant.first_name,
+          lastName: participant.last_name,
+          groupId: participant.group_id,
+          groupName:
+            groupMap.get(participant.group_id)?.name || translate("no_group"),
+          badges: new Map(),
+          totalStars: 0,
+        },
+      ]),
     );
 
     this.badgeEntries.forEach((entry) => {
       const participant = participantMap.get(entry.participant_id);
       if (!participant) return;
 
-      const badgeName = entry.territoire_chasse || translate("badge_unknown_label");
+      const badgeName =
+        entry.territoire_chasse || translate("badge_unknown_label");
       const stars = parseInt(entry.etoiles, 10) || 0;
       const badgeKey = badgeName.toLowerCase();
 
@@ -133,13 +161,16 @@ export class BadgeDashboard {
           stars: 0,
           obtainable: this.getObtainableStars(badgeName, stars),
           statuses: new Set(),
-          entries: []
+          entries: [],
         });
       }
 
       const badge = participant.badges.get(badgeKey);
       badge.stars += stars;
-      badge.obtainable = Math.max(badge.obtainable, this.getObtainableStars(badgeName, stars));
+      badge.obtainable = Math.max(
+        badge.obtainable,
+        this.getObtainableStars(badgeName, stars),
+      );
       badge.statuses.add(entry.status || "pending");
       badge.entries.push(entry);
       participant.totalStars += stars;
@@ -151,13 +182,13 @@ export class BadgeDashboard {
         return {
           ...badge,
           entries,
-          starMap: this.buildStarMap(entries)
+          starMap: this.buildStarMap(entries),
         };
       });
 
       return {
         ...record,
-        badges
+        badges,
       };
     });
 
@@ -168,12 +199,13 @@ export class BadgeDashboard {
     if (!this.badgeSettings) return Math.max(3, currentStars);
 
     const starFieldMax = this.badgeSettings?.badge_structure?.fields?.find(
-      (field) => field.name === "etoiles"
+      (field) => field.name === "etoiles",
     )?.max;
     const explicitMax = parseInt(starFieldMax, 10);
 
     const territory = (this.badgeSettings.territoires || []).find(
-      (territoire) => territoire.name?.toLowerCase() === badgeName.toLowerCase()
+      (territoire) =>
+        territoire.name?.toLowerCase() === badgeName.toLowerCase(),
     );
 
     const maxFromTerritory = territory?.maxStars || territory?.max_etoiles;
@@ -196,9 +228,6 @@ export class BadgeDashboard {
             <p class="eyebrow">${translate("badge_dashboard_label")}</p>
             <h1 id="badge-dashboard-title">${translate("badge_dashboard_title")}</h1>
             <p class="subtitle">${translate("badge_dashboard_description")}</p>
-          </div>
-          <div class="badge-dashboard__actions">
-            <button id="badge-refresh" class="ghost-button">${translate("refresh")}</button>
           </div>
         </header>
         ${this.renderControls()}
@@ -262,7 +291,9 @@ export class BadgeDashboard {
         rows.push(this.renderRow(record));
       });
     } else {
-      visible.forEach((record) => rows.push(this.renderRow(record, { showGroupTag: true })));
+      visible.forEach((record) =>
+        rows.push(this.renderRow(record, { showGroupTag: true })),
+      );
     }
 
     return rows.join("");
@@ -271,12 +302,12 @@ export class BadgeDashboard {
   renderRow(record, options = {}) {
     const { showGroupTag = false } = options;
     const badges = record.badges.length
-      ? record.badges.map((badge) => this.renderBadgeChip(record.id, badge)).join("")
+      ? record.badges
+          .map((badge) => this.renderBadgeChip(record.id, badge))
+          .join("")
       : `<span class="badge-chip badge-chip--muted">${translate("badge_no_entries")}</span>`;
 
-    const addBadgeAction = record.badges.length
-      ? ""
-      : `<button class="text-button badge-add-inline" data-action="add-badge" data-participant-id="${record.id}">+ ${translate("badge_add_first_badge")}</button>`;
+    const addBadgeAction = record.badges.length ? "" : ``;
 
     return `
       <article class="badge-table__row" role="row" data-participant-id="${record.id}">
@@ -287,7 +318,7 @@ export class BadgeDashboard {
               ${showGroupTag ? `<span class="badge-table__group-tag">${record.groupName}</span>` : ""}
             </div>
             <div class="participant-actions">
-              <span class="star-count" title="${translate('badge_total_stars') || 'Total stars'}">${record.totalStars}⭐</span>
+              <span class="star-count" title="${translate("badge_total_stars") || "Total stars"}">${record.totalStars}⭐</span>
               <button class="icon-button" data-action="edit-participant" data-participant-id="${record.id}" title="${translate("badge_edit_participant")}">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M11.5 2.5l2 2L6 12H4v-2l7.5-7.5z"/>
@@ -305,9 +336,15 @@ export class BadgeDashboard {
   }
 
   renderBadgeChip(participantId, badge) {
-    const percent = Math.min(100, Math.round((badge.stars / badge.obtainable) * 100));
+    const percent = Math.min(
+      100,
+      Math.round((badge.stars / badge.obtainable) * 100),
+    );
     const statusLabel = Array.from(badge.statuses)
-      .map((status) => `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`)}</span>`)
+      .map(
+        (status) =>
+          `<span class="status-pill status-pill--${status}">${translate(`badge_status_${status}`)}</span>`,
+      )
       .join("");
 
     const stars = this.renderBadgeStars(participantId, badge);
@@ -315,7 +352,7 @@ export class BadgeDashboard {
 
     return `
       <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}">
-        ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ''}
+        ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ""}
         <div class="badge-chip__content">
           <div class="badge-chip__name">${badge.name}</div>
           <div class="badge-chip__stars-compact" role="group" aria-label="${translate("badge_stars_label")}">${stars}</div>
@@ -332,7 +369,9 @@ export class BadgeDashboard {
     return Array.from({ length: badge.obtainable }, (_, index) => {
       const starIndex = index + 1;
       const isEarned = starIndex <= badge.stars;
-      const starMapping = badge.starMap?.find((item) => item.starIndex === starIndex);
+      const starMapping = badge.starMap?.find(
+        (item) => item.starIndex === starIndex,
+      );
       const entryId = starMapping?.entryId;
       const ariaLabel = `${translate("badge_star_label")} ${starIndex}${isEarned ? "" : ` ${translate("badge_star_locked")}`}`;
 
@@ -367,7 +406,8 @@ export class BadgeDashboard {
 
     sortDirectionButton?.addEventListener("click", () => {
       this.sortDirection = this.sortDirection === "asc" ? "desc" : "asc";
-      sortDirectionButton.textContent = this.sortDirection === "asc" ? "↑" : "↓";
+      sortDirectionButton.textContent =
+        this.sortDirection === "asc" ? "↑" : "↓";
       this.sortRecords();
       this.resetVisibleCount();
       this.updateRows();
@@ -375,25 +415,37 @@ export class BadgeDashboard {
 
     refreshButton?.addEventListener("click", () => this.refreshFromNetwork());
 
-    document.getElementById("badge-table-body")?.addEventListener("click", (event) => {
-      const actionButton = event.target.closest("button[data-action]");
-      if (!actionButton) return;
+    document
+      .getElementById("badge-table-body")
+      ?.addEventListener("click", (event) => {
+        const actionButton = event.target.closest("button[data-action]");
+        if (!actionButton) return;
 
-      const { action, participantId, badgeName, starIndex } = actionButton.dataset;
-      if (!participantId) return;
+        const { action, participantId, badgeName, starIndex } =
+          actionButton.dataset;
+        if (!participantId) return;
 
-      if (action === "star-details") {
-        this.openBadgeModal(parseInt(participantId, 10), badgeName, false, parseInt(starIndex, 10));
-      }
+        if (action === "star-details") {
+          this.openBadgeModal(
+            parseInt(participantId, 10),
+            badgeName,
+            false,
+            parseInt(starIndex, 10),
+          );
+        }
 
-      if (action === "edit-participant") {
-        this.openBadgeModal(parseInt(participantId, 10), badgeName || null, true);
-      }
+        if (action === "edit-participant") {
+          this.openBadgeModal(
+            parseInt(participantId, 10),
+            badgeName || null,
+            true,
+          );
+        }
 
-      if (action === "add-badge") {
-        this.openAddBadgeModal(parseInt(participantId, 10));
-      }
-    });
+        if (action === "add-badge") {
+          this.openAddBadgeModal(parseInt(participantId, 10));
+        }
+      });
 
     this.setupInfiniteScroll();
   }
@@ -402,14 +454,17 @@ export class BadgeDashboard {
     const sentinel = document.getElementById("badge-table-sentinel");
     if (!sentinel) return;
 
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          this.visibleCount += this.batchSize;
-          this.updateRows();
-        }
-      });
-    }, { rootMargin: "200px" });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            this.visibleCount += this.batchSize;
+            this.updateRows();
+          }
+        });
+      },
+      { rootMargin: "200px" },
+    );
 
     observer.observe(sentinel);
   }
@@ -420,13 +475,14 @@ export class BadgeDashboard {
 
     const participantComparator = (a, b) => {
       if (this.sortKey === "stars") {
-        const starComparison = direction * ((b.totalStars || 0) - (a.totalStars || 0));
+        const starComparison =
+          direction * ((b.totalStars || 0) - (a.totalStars || 0));
         if (starComparison !== 0) return starComparison;
       }
 
       const nameComparison = collator.compare(
         `${a.firstName} ${a.lastName}`,
-        `${b.firstName} ${b.lastName}`
+        `${b.firstName} ${b.lastName}`,
       );
 
       if (this.sortKey === "name") {
@@ -434,7 +490,10 @@ export class BadgeDashboard {
       }
 
       if (this.sortKey === "group") {
-        return direction * collator.compare(a.groupName, b.groupName) || nameComparison;
+        return (
+          direction * collator.compare(a.groupName, b.groupName) ||
+          nameComparison
+        );
       }
 
       return nameComparison;
@@ -449,13 +508,17 @@ export class BadgeDashboard {
         groupMap.get(groupName).push(record);
       });
 
-      const sortedGroupNames = Array.from(groupMap.keys()).sort((a, b) => direction * collator.compare(a, b));
+      const sortedGroupNames = Array.from(groupMap.keys()).sort(
+        (a, b) => direction * collator.compare(a, b),
+      );
 
       this.sortedRecords = [];
       sortedGroupNames.forEach((groupName) => {
         const participants = groupMap.get(groupName) || [];
         participants.sort(participantComparator);
-        this.sortedRecords.push(...participants.map((participant) => ({ ...participant, groupName })));
+        this.sortedRecords.push(
+          ...participants.map((participant) => ({ ...participant, groupName })),
+        );
       });
       return;
     }
@@ -464,7 +527,9 @@ export class BadgeDashboard {
   }
 
   getVisibleRecords() {
-    return (this.sortedRecords.length ? this.sortedRecords : this.records).slice(0, this.visibleCount);
+    return (
+      this.sortedRecords.length ? this.sortedRecords : this.records
+    ).slice(0, this.visibleCount);
   }
 
   resetVisibleCount() {
@@ -477,15 +542,25 @@ export class BadgeDashboard {
     body.innerHTML = this.renderRows();
   }
 
-  openBadgeModal(participantId, badgeName = null, focusEdit = false, targetStar = null, showAddForm = false) {
+  openBadgeModal(
+    participantId,
+    badgeName = null,
+    focusEdit = false,
+    targetStar = null,
+    showAddForm = false,
+  ) {
     const modal = document.getElementById(this.modalContainerId);
     if (!modal) return;
 
-    const record = this.records.find((participant) => participant.id === participantId);
+    const record = this.records.find(
+      (participant) => participant.id === participantId,
+    );
     if (!record) return;
 
     const hasExistingBadges = record.badges.length > 0;
-    const badge = hasExistingBadges ? this.selectBadge(record.badges, badgeName) : null;
+    const badge = hasExistingBadges
+      ? this.selectBadge(record.badges, badgeName)
+      : null;
     const territories = this.badgeSettings?.territoires || [];
 
     // If no existing badges and no add form requested, show add form
@@ -494,15 +569,25 @@ export class BadgeDashboard {
     }
 
     const entries = badge ? this.sortBadgeEntries(badge.entries) : [];
-    const defaultEntry = badge ? (this.getEntryForStar(targetStar, badge) || entries[0]) : null;
-    const formattedDefaultDate = this.formatDateInput(defaultEntry?.date_obtention);
+    const defaultEntry = badge
+      ? this.getEntryForStar(targetStar, badge) || entries[0]
+      : null;
+    const formattedDefaultDate = this.formatDateInput(
+      defaultEntry?.date_obtention,
+    );
 
     const badgeOptions = record.badges
-      .map((item) => `<option value="${item.name}" ${item.name === badge?.name ? "selected" : ""}>${item.name}</option>`)
+      .map(
+        (item) =>
+          `<option value="${item.name}" ${item.name === badge?.name ? "selected" : ""}>${item.name}</option>`,
+      )
       .join("");
 
     const territoryOptions = territories
-      .map((territory) => `<option value="${territory.name}">${territory.name}</option>`)
+      .map(
+        (territory) =>
+          `<option value="${territory.name}">${territory.name}</option>`,
+      )
       .join("");
 
     modal.innerHTML = `
@@ -516,48 +601,66 @@ export class BadgeDashboard {
           <button class="ghost-button" id="close-badge-modal" aria-label="${translate("close")}">✕</button>
         </header>
 
-        ${hasExistingBadges ? `
+        ${
+          hasExistingBadges
+            ? `
         <nav class="modal__tabs">
-          <button type="button" class="tab-button ${!showAddForm ? 'active' : ''}" data-tab="edit">
+          <button type="button" class="tab-button ${!showAddForm ? "active" : ""}" data-tab="edit">
             ${translate("badge_edit_tab") || "Edit"}
           </button>
-          <button type="button" class="tab-button ${showAddForm ? 'active' : ''}" data-tab="add">
+          <button type="button" class="tab-button ${showAddForm ? "active" : ""}" data-tab="add">
             ${translate("badge_add_tab") || "Add New"}
           </button>
         </nav>
-        ` : ''}
+        `
+            : ""
+        }
 
         <section class="modal__content">
-          ${hasExistingBadges ? `
-          <div class="tab-content ${!showAddForm ? 'active' : ''}" data-content="edit">
+          ${
+            hasExistingBadges
+              ? `
+          <div class="tab-content ${!showAddForm ? "active" : ""}" data-content="edit">
             <div class="form-group-compact">
               <label for="badge-select">${translate("badge")}</label>
               <select id="badge-select" name="badge">${badgeOptions}</select>
             </div>
 
-            ${entries.length > 0 ? `
-            <details class="badge-history-toggle" ${entries.length <= 2 ? 'open' : ''}>
+            ${
+              entries.length > 0
+                ? `
+            <details class="badge-history-toggle" ${entries.length <= 2 ? "open" : ""}>
               <summary>${translate("badge_entry_history") || "History"} (${entries.length})</summary>
               <ol class="badge-history-compact">
-                ${entries.map((entry) => `
+                ${entries
+                  .map(
+                    (entry) => `
                   <li>
                     <span class="badge-hist-status">${translate(`badge_status_${entry.status || "pending"}`).substring(0, 3)}</span>
                     <span class="badge-hist-date">${this.formatReadableDate(entry.date_obtention)}</span>
                     <span class="badge-hist-stars">${entry.etoiles}⭐</span>
-                    ${entry.objectif ? `<p class="badge-hist-text">${entry.objectif}</p>` : ''}
+                    ${entry.objectif ? `<p class="badge-hist-text">${entry.objectif}</p>` : ""}
                   </li>
-                `).join("")}
+                `,
+                  )
+                  .join("")}
               </ol>
             </details>
-            ` : ''}
+            `
+                : ""
+            }
 
-            <form id="badge-edit-form" data-participant-id="${participantId}" data-badge-name="${badge?.name || ''}">
+            <form id="badge-edit-form" data-participant-id="${participantId}" data-badge-name="${badge?.name || ""}">
               <div class="form-group-compact">
                 <label for="badge-entry-select">${translate("badge_select_entry") || "Entry"} (Star #${defaultEntry?.etoiles || ""})</label>
                 <select id="badge-entry-select" name="entry">
-                  ${entries.map((entry) => `
+                  ${entries
+                    .map(
+                      (entry) => `
                     <option value="${entry.id}">⭐${entry.etoiles} · ${this.formatReadableDate(entry.date_obtention)}</option>
-                  `).join("")}
+                  `,
+                    )
+                    .join("")}
                 </select>
               </div>
 
@@ -592,9 +695,11 @@ export class BadgeDashboard {
               <div id="badge-edit-feedback" role="status" aria-live="polite"></div>
             </form>
           </div>
-          ` : ''}
+          `
+              : ""
+          }
 
-          <div class="tab-content ${showAddForm || !hasExistingBadges ? 'active' : ''}" data-content="add">
+          <div class="tab-content ${showAddForm || !hasExistingBadges ? "active" : ""}" data-content="add">
             <form id="badge-add-form" data-participant-id="${participantId}">
               <div class="form-group-compact">
                 <label for="badge-territory">${translate("badge_select_badge") || "Badge"}</label>
@@ -643,10 +748,16 @@ export class BadgeDashboard {
     modal.querySelectorAll(".tab-button").forEach((button) => {
       button.addEventListener("click", () => {
         const tabName = button.getAttribute("data-tab");
-        modal.querySelectorAll(".tab-button").forEach((btn) => btn.classList.remove("active"));
-        modal.querySelectorAll(".tab-content").forEach((content) => content.classList.remove("active"));
+        modal
+          .querySelectorAll(".tab-button")
+          .forEach((btn) => btn.classList.remove("active"));
+        modal
+          .querySelectorAll(".tab-content")
+          .forEach((content) => content.classList.remove("active"));
         button.classList.add("active");
-        modal.querySelector(`[data-content="${tabName}"]`)?.classList.add("active");
+        modal
+          .querySelector(`[data-content="${tabName}"]`)
+          ?.classList.add("active");
       });
     });
 
@@ -659,13 +770,22 @@ export class BadgeDashboard {
 
     badgeSelect?.addEventListener("change", (event) => {
       const nextBadgeName = event.target.value;
-      const currentTab = modal.querySelector(".tab-button.active")?.getAttribute("data-tab");
-      this.openBadgeModal(participantId, nextBadgeName, focusEdit, targetStar, currentTab === "add");
+      const currentTab = modal
+        .querySelector(".tab-button.active")
+        ?.getAttribute("data-tab");
+      this.openBadgeModal(
+        participantId,
+        nextBadgeName,
+        focusEdit,
+        targetStar,
+        currentTab === "add",
+      );
     });
 
     entrySelect?.addEventListener("change", (event) => {
       const entryId = parseInt(event.target.value, 10);
-      const selected = entries.find((item) => item.id === entryId) || defaultEntry;
+      const selected =
+        entries.find((item) => item.id === entryId) || defaultEntry;
       if (!selected) return;
       dateInput.value = this.formatDateInput(selected.date_obtention);
       objectiveInput.value = selected.objectif || "";
@@ -678,75 +798,92 @@ export class BadgeDashboard {
       }
     });
 
-    modal.querySelector("#badge-edit-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.target;
-      const entryId = parseInt(form.querySelector("#badge-entry-select").value, 10);
-      const feedback = form.querySelector("#badge-edit-feedback");
+    modal
+      .querySelector("#badge-edit-form")
+      ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        const entryId = parseInt(
+          form.querySelector("#badge-entry-select").value,
+          10,
+        );
+        const feedback = form.querySelector("#badge-edit-feedback");
 
-      const payload = {
-        date_obtention: form.querySelector("#badge-date").value || null,
-        objectif: form.querySelector("#badge-objective").value?.trim() || null,
-        description: form.querySelector("#badge-description").value?.trim() || null
-      };
+        const payload = {
+          date_obtention: form.querySelector("#badge-date").value || null,
+          objectif:
+            form.querySelector("#badge-objective").value?.trim() || null,
+          description:
+            form.querySelector("#badge-description").value?.trim() || null,
+        };
 
-      const newStatus = form.querySelector("#badge-status").value;
-      if (newStatus) payload.status = newStatus;
+        const newStatus = form.querySelector("#badge-status").value;
+        if (newStatus) payload.status = newStatus;
 
-      try {
-        const result = await updateBadgeProgress(entryId, payload);
-        if (!result?.success) throw new Error(result?.message || "Unknown error");
+        try {
+          const result = await updateBadgeProgress(entryId, payload);
+          if (!result?.success)
+            throw new Error(result?.message || "Unknown error");
 
-        this.replaceBadgeEntry(result.data);
-        this.buildRecords();
-        this.updateRows();
-        feedback.textContent = translate("badge_update_success");
-        feedback.className = "feedback-success";
-      } catch (error) {
-        debugError("Error updating badge entry", error);
-        feedback.textContent = translate("badge_update_error");
-        feedback.className = "feedback-error";
-      }
-    });
+          this.replaceBadgeEntry(result.data);
+          this.buildRecords();
+          this.updateRows();
+          feedback.textContent = translate("badge_update_success");
+          feedback.className = "feedback-success";
+        } catch (error) {
+          debugError("Error updating badge entry", error);
+          feedback.textContent = translate("badge_update_error");
+          feedback.className = "feedback-error";
+        }
+      });
 
     // Add form handler
-    modal.querySelector("#badge-add-form")?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const form = event.target;
-      const feedback = form.querySelector("#badge-add-feedback");
+    modal
+      .querySelector("#badge-add-form")
+      ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target;
+        const feedback = form.querySelector("#badge-add-feedback");
 
-      const payload = {
-        participant_id: participantId,
-        territoire_chasse: form.territoire_chasse.value,
-        date_obtention: form.date_obtention.value || null,
-        objectif: form.objectif.value?.trim() || null,
-        description: form.description.value?.trim() || null
-      };
+        const payload = {
+          participant_id: participantId,
+          territoire_chasse: form.territoire_chasse.value,
+          date_obtention: form.date_obtention.value || null,
+          objectif: form.objectif.value?.trim() || null,
+          description: form.description.value?.trim() || null,
+        };
 
-      try {
-        const result = await saveBadgeProgress(payload);
-        if (!result?.success) throw new Error(result?.message || "Unknown error");
+        try {
+          const result = await saveBadgeProgress(payload);
+          if (!result?.success)
+            throw new Error(result?.message || "Unknown error");
 
-        if (result.data) {
-          this.badgeEntries.push(result.data);
-          this.buildRecords();
-          this.resetVisibleCount();
-          this.updateRows();
+          if (result.data) {
+            this.badgeEntries.push(result.data);
+            this.buildRecords();
+            this.resetVisibleCount();
+            this.updateRows();
+          }
+
+          feedback.textContent = translate("badge_add_success");
+          feedback.className = "feedback-success";
+          setTimeout(() => {
+            // Reopen modal in edit mode with the newly added badge
+            const addedBadgeName = payload.territoire_chasse;
+            this.openBadgeModal(
+              participantId,
+              addedBadgeName,
+              false,
+              null,
+              false,
+            );
+          }, 500);
+        } catch (error) {
+          debugError("Error creating badge entry", error);
+          feedback.textContent = translate("badge_add_error");
+          feedback.className = "feedback-error";
         }
-
-        feedback.textContent = translate("badge_add_success");
-        feedback.className = "feedback-success";
-        setTimeout(() => {
-          // Reopen modal in edit mode with the newly added badge
-          const addedBadgeName = payload.territoire_chasse;
-          this.openBadgeModal(participantId, addedBadgeName, false, null, false);
-        }, 500);
-      } catch (error) {
-        debugError("Error creating badge entry", error);
-        feedback.textContent = translate("badge_add_error");
-        feedback.className = "feedback-error";
-      }
-    });
+      });
 
     if (defaultEntry?.id && entrySelect) {
       entrySelect.value = defaultEntry.id;
@@ -763,7 +900,7 @@ export class BadgeDashboard {
     if (!this.badgeSettings?.territoires) return null;
 
     const territoire = this.badgeSettings.territoires.find(
-      (t) => t.name.toLowerCase() === badgeName.toLowerCase()
+      (t) => t.name.toLowerCase() === badgeName.toLowerCase(),
     );
 
     if (territoire && territoire.image) {
@@ -825,11 +962,15 @@ export class BadgeDashboard {
     if (!value) return translate("badge_date_missing");
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return translate("badge_date_missing");
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(date);
+    return new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(
+      date,
+    );
   }
 
   replaceBadgeEntry(updatedEntry) {
-    const index = this.badgeEntries.findIndex((entry) => entry.id === updatedEntry.id);
+    const index = this.badgeEntries.findIndex(
+      (entry) => entry.id === updatedEntry.id,
+    );
     if (index >= 0) {
       this.badgeEntries[index] = updatedEntry;
     } else {
@@ -856,6 +997,8 @@ export class BadgeDashboard {
       </section>
     `;
 
-    document.getElementById("badge-refresh")?.addEventListener("click", () => this.refreshFromNetwork());
+    document
+      .getElementById("badge-refresh")
+      ?.addEventListener("click", () => this.refreshFromNetwork());
   }
 }

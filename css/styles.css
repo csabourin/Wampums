@@ -2817,7 +2817,7 @@ details p {
   border-radius: var(--radius-md);
   padding: var(--space-sm);
   min-width: 220px;
-  flex: 1 1 220px;
+  flex: 1 1 auto;
   box-shadow: var(--shadow-sm);
 }
 
