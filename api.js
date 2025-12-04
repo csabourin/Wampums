@@ -136,6 +136,9 @@ if (process.env.DATABASE_URL || process.env.SB_URL) {
 
 const pool = new Pool(poolConfig);
 
+// Make pool available to middleware via app.locals
+app.locals.pool = pool;
+
 // Handle pool errors
 pool.on('error', (err, client) => {
   logger.error('Unexpected error on idle PostgreSQL client:', err);
