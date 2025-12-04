@@ -200,7 +200,7 @@ export class BadgeDashboard {
           <div id="badge-table-sentinel" aria-hidden="true"></div>
         </div>
       </section>
-      <div id="${this.modalContainerId}" class="badge-dashboard__modal" hidden></div>
+      <div id="${this.modalContainerId}" class="badge-dashboard__modal hidden"></div>
     `;
 
     document.getElementById("app").innerHTML = content;
@@ -445,6 +445,7 @@ export class BadgeDashboard {
 
     const entries = badge.entries;
     const defaultEntry = entries[0];
+    const formattedDefaultDate = this.formatDateInput(defaultEntry?.date_obtention);
 
     modal.innerHTML = `
       <div class="modal__backdrop" role="presentation"></div>
@@ -497,7 +498,7 @@ export class BadgeDashboard {
               <input id="badge-stars" name="etoiles" type="number" min="0" inputmode="numeric" required value="${defaultEntry?.etoiles || 0}" />
 
               <label for="badge-date">${translate("badge_date_label")}</label>
-              <input id="badge-date" name="date_obtention" type="date" value="${defaultEntry?.date_obtention || ""}" />
+              <input id="badge-date" name="date_obtention" type="date" value="${formattedDefaultDate}" />
 
               <label for="badge-objective">${translate("badge_objective_label")}</label>
               <textarea id="badge-objective" name="objectif" rows="2">${defaultEntry?.objectif || ""}</textarea>
@@ -523,10 +524,10 @@ export class BadgeDashboard {
       </div>
     `;
 
-    modal.hidden = false;
+    modal.classList.remove("hidden");
 
     const close = () => {
-      modal.hidden = true;
+      modal.classList.add("hidden");
       modal.innerHTML = "";
     };
 
@@ -544,7 +545,7 @@ export class BadgeDashboard {
       const selected = entries.find((item) => item.id === entryId) || defaultEntry;
       if (!selected) return;
       starInput.value = selected.etoiles || 0;
-      dateInput.value = selected.date_obtention || "";
+      dateInput.value = this.formatDateInput(selected.date_obtention);
       objectiveInput.value = selected.objectif || "";
       descriptionInput.value = selected.description || "";
     });
@@ -583,6 +584,13 @@ export class BadgeDashboard {
     if (focusEdit) {
       modal.querySelector("#badge-edit-form")?.scrollIntoView({ behavior: "smooth" });
     }
+  }
+
+  formatDateInput(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString().slice(0, 10);
   }
 
   replaceBadgeEntry(updatedEntry) {
