@@ -19,6 +19,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
 
+// Determine if we're in production mode
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Compression middleware
 let compression;
 try {
@@ -29,14 +32,72 @@ try {
 }
 
 app.use(bodyParser.json());
-app.use(helmet({
-  contentSecurityPolicy: false // Will be configured properly later
-}));
-app.use(cors());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 }));
 
-// Determine if we're in production mode
-const isProduction = process.env.NODE_ENV === 'production';
+// Security headers with Content Security Policy
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Note: Consider removing unsafe-inline and using nonces in production
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: isProduction ? [] : null,
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
+app.use(cors());
+
+// Rate limiting configuration
+// General API rate limit - more restrictive than before
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Strict rate limiter for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 login attempts per windowMs
+  message: 'Too many login attempts from this IP, please try again after 15 minutes.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // Count all requests, not just failed ones
+});
+
+// Moderate rate limiter for password reset
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // Limit each IP to 3 password reset requests per hour
+  message: 'Too many password reset requests from this IP, please try again after an hour.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply general rate limiter to all routes
+app.use(generalLimiter);
+
+// Configure logging before database and error handlers
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 
 // Serve static files
 // In production, serve from dist folder (Vite build output)
@@ -59,44 +120,81 @@ app.use(express.static(staticDir, {
   }
 }));
 
-const pool = new Pool({
-  connectionString: process.env.SB_URL || process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+// Database connection configuration
+// SSL is enabled by default. Only disable certificate validation in development if explicitly set.
+const poolConfig = {
+  connectionString: process.env.SB_URL || process.env.DATABASE_URL
+};
 
-// Handle pool errors to prevent app crashes
+// Configure SSL based on environment
+if (process.env.DATABASE_URL || process.env.SB_URL) {
+  if (isProduction) {
+    // Production: Enforce SSL with certificate validation
+    poolConfig.ssl = { rejectUnauthorized: true };
+  } else if (process.env.DB_SSL_DISABLED === 'true') {
+    // Development: Only disable SSL validation if explicitly set
+    console.warn('WARNING: SSL certificate validation is disabled. This should only be used in development.');
+    poolConfig.ssl = { rejectUnauthorized: false };
+  } else {
+    // Default: Enable SSL with validation
+    poolConfig.ssl = { rejectUnauthorized: true };
+  }
+}
+
+const pool = new Pool(poolConfig);
+
+// Handle pool errors
 pool.on('error', (err, client) => {
-  console.error('Unexpected error on idle client', err);
-  // Don't exit the process on pool errors
+  logger.error('Unexpected error on idle PostgreSQL client:', err);
+  // Pool errors are typically non-fatal (e.g., network issues)
+  // The pool will handle reconnection automatically
 });
 
 // Handle uncaught exceptions
+// These indicate serious programming errors that leave the application in an undefined state
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  // Log but don't exit - let the process continue
+  logger.error('FATAL: Uncaught Exception - Application will shut down', {
+    error: err.message,
+    stack: err.stack,
+    timestamp: new Date().toISOString()
+  });
+  console.error('FATAL: Uncaught Exception:', err);
+
+  // Give the logger time to write, then exit
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
 });
 
 // Handle unhandled promise rejections
+// These should be treated as critical errors in production
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Log but don't exit - let the process continue
+  logger.error('FATAL: Unhandled Promise Rejection - Application will shut down', {
+    reason: reason,
+    promise: promise,
+    timestamp: new Date().toISOString()
+  });
+  console.error('FATAL: Unhandled Promise Rejection at:', promise, 'reason:', reason);
+
+  // In production, exit on unhandled rejections
+  // Let a process manager (PM2, systemd) restart the application
+  if (isProduction) {
+    setTimeout(() => {
+      process.exit(1);
+    }, 1000);
+  }
 });
 
-// Support legacy environment variable name `JWT_SECRET`
-// to match the PHP implementation which falls back to this value
-// if `JWT_SECRET_KEY` is not defined.
-const jwtKey = process.env.JWT_SECRET_KEY ||
-               process.env.JWT_SECRET ||
-               '1615c2ab-2c71-4b93-8e2e-03f1e6e6e331';
+// Validate JWT secret is configured
+// Support legacy environment variable name `JWT_SECRET` for backward compatibility
+const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
 
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
-  ],
-});
+if (!jwtKey) {
+  console.error('FATAL ERROR: JWT_SECRET_KEY or JWT_SECRET environment variable is not set.');
+  console.error('Please configure a secure JWT secret in your environment variables.');
+  console.error('Generate one with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
+}
 
 // Helper function to get current organization ID from request
 async function getCurrentOrganizationId(req) {
@@ -421,19 +519,39 @@ app.get('/api/organization-jwt', async (req, res) => {
 });
 
 // Login endpoint (migrated from api.php case 'login')
-app.post('/public/login', async (req, res) => {
-  try {
-    const organizationId = await getCurrentOrganizationId(req);
-    const { email, password } = req.body;
+app.post('/public/login',
+  authLimiter,
+  [
+    check('email')
+      .trim()
+      .isEmail()
+      .normalizeEmail()
+      .withMessage('Valid email is required')
+      .isLength({ max: 255 })
+      .withMessage('Email too long'),
+    check('password')
+      .trim()
+      .notEmpty()
+      .withMessage('Password is required')
+      .isLength({ min: 1, max: 255 })
+      .withMessage('Password must be between 1 and 255 characters'),
+  ],
+  async (req, res) => {
+    try {
+      // Check validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
 
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required'
-      });
-    }
+      const organizationId = await getCurrentOrganizationId(req);
+      const { email, password } = req.body;
 
-    const normalizedEmail = email.toLowerCase();
+      const normalizedEmail = email.toLowerCase();
 
     const userResult = await pool.query(
       `SELECT u.id, u.email, u.password, u.is_verified, u.full_name, uo.role 
@@ -6149,13 +6267,30 @@ app.post('/api/auth/register', async (req, res) => {
  *       200:
  *         description: Reset email sent
  */
-app.post('/api/auth/request-reset', async (req, res) => {
-  try {
-    const { email } = req.body;
+app.post('/api/auth/request-reset',
+  passwordResetLimiter,
+  [
+    check('email')
+      .trim()
+      .isEmail()
+      .normalizeEmail()
+      .withMessage('Valid email is required')
+      .isLength({ max: 255 })
+      .withMessage('Email too long'),
+  ],
+  async (req, res) => {
+    try {
+      // Check validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
 
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'Email is required' });
-    }
+      const { email } = req.body;
 
     // Check if user exists
     const user = await pool.query(
@@ -6174,7 +6309,7 @@ app.post('/api/auth/request-reset', async (req, res) => {
     // Generate reset token (valid for 1 hour)
     const resetToken = jwt.sign(
       { user_id: user.rows[0].id, purpose: 'password_reset' },
-      process.env.JWT_SECRET,
+      jwtKey,
       { expiresIn: '1h' }
     );
 
@@ -6225,21 +6360,42 @@ app.post('/api/auth/request-reset', async (req, res) => {
  *       200:
  *         description: Password reset successful
  */
-app.post('/api/auth/reset-password', async (req, res) => {
-  try {
-    const { token, new_password } = req.body;
+app.post('/api/auth/reset-password',
+  passwordResetLimiter,
+  [
+    check('token')
+      .trim()
+      .notEmpty()
+      .withMessage('Reset token is required'),
+    check('new_password')
+      .trim()
+      .isLength({ min: 8, max: 255 })
+      .withMessage('Password must be between 8 and 255 characters')
+      .matches(/[A-Z]/)
+      .withMessage('Password must contain at least one uppercase letter')
+      .matches(/[a-z]/)
+      .withMessage('Password must contain at least one lowercase letter')
+      .matches(/[0-9]/)
+      .withMessage('Password must contain at least one number'),
+  ],
+  async (req, res) => {
+    try {
+      // Check validation errors
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
 
-    if (!token || !new_password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Token and new password are required'
-      });
-    }
+      const { token, new_password } = req.body;
 
     // Verify token
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, jwtKey);
       if (decoded.purpose !== 'password_reset') {
         throw new Error('Invalid token purpose');
       }
@@ -6431,7 +6587,7 @@ app.post('/api/switch-organization', async (req, res) => {
         organization_id: organization_id,
         role: membershipCheck.rows[0].role
       },
-      process.env.JWT_SECRET,
+      jwtKey,
       { expiresIn: '24h' }
     );
 

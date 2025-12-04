@@ -1,9 +1,12 @@
 // Authentication and Authorization Middleware
 const jwt = require('jsonwebtoken');
 
-const jwtKey = process.env.JWT_SECRET_KEY ||
-               process.env.JWT_SECRET ||
-               '1615c2ab-2c71-4b93-8e2e-03f1e6e6e331';
+// Validate JWT secret is configured
+const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+
+if (!jwtKey) {
+  throw new Error('JWT_SECRET_KEY or JWT_SECRET environment variable is required');
+}
 
 /**
  * Verify JWT token and attach user to request
