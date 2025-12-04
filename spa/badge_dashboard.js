@@ -8,7 +8,7 @@ import {
   updateBadgeProgress
 } from "./ajax-functions.js";
 import { CONFIG } from "./config.js";
-import { getCachedData, setCachedData } from "./indexedDB.js";
+import { getCachedData, setCachedData, clearBadgeRelatedCaches } from "./indexedDB.js";
 import { debugError } from "./utils/DebugUtils.js";
 
 export class BadgeDashboard {
@@ -697,6 +697,9 @@ export class BadgeDashboard {
         const result = await updateBadgeProgress(entryId, payload);
         if (!result?.success) throw new Error(result?.message || "Unknown error");
 
+        // Clear IndexedDB cache to ensure fresh data on next load
+        await clearBadgeRelatedCaches();
+
         this.replaceBadgeEntry(result.data);
         this.buildRecords();
         this.updateRows();
@@ -726,6 +729,9 @@ export class BadgeDashboard {
       try {
         const result = await saveBadgeProgress(payload);
         if (!result?.success) throw new Error(result?.message || "Unknown error");
+
+        // Clear IndexedDB cache to ensure fresh data on next load
+        await clearBadgeRelatedCaches();
 
         if (result.data) {
           this.badgeEntries.push(result.data);
