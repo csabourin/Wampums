@@ -154,7 +154,7 @@ module.exports = (pool, logger) => {
   router.post('/save-badge-progress', authenticate, requireOrganizationRole(), async (req, res) => {
     try {
       const organizationId = req.organizationId; // Set by requireOrganizationRole middleware
-      const { participant_id, territoire_chasse, objectif, description, fierte, raison, date_obtention, etoiles } = req.body;
+      const { participant_id, territoire_chasse, objectif, description, fierte, raison, date_obtention } = req.body;
 
       if (!participant_id || !territoire_chasse) {
         return res.status(400).json({ success: false, message: 'Participant ID and territoire_chasse are required' });
@@ -164,16 +164,26 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
+        // Find the next star number for this participant and badge
+        const maxStarResult = await client.query(
+          `SELECT COALESCE(MAX(etoiles), 0) as max_star
+           FROM badge_progress
+           WHERE participant_id = $1 AND territoire_chasse = $2 AND organization_id = $3`,
+          [participant_id, territoire_chasse, organizationId]
+        );
+
+        const nextStarNumber = maxStarResult.rows[0].max_star + 1;
+
         const result = await client.query(
           `INSERT INTO badge_progress
            (participant_id, organization_id, territoire_chasse, objectif, description, fierte, raison, date_obtention, etoiles, status)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
            RETURNING *`,
-          [participant_id, organizationId, territoire_chasse, objectif, description, fierte || false, raison, date_obtention, etoiles || 1]
+          [participant_id, organizationId, territoire_chasse, objectif, description, fierte || false, raison, date_obtention, nextStarNumber]
         );
 
         await client.query('COMMIT');
-        console.log(`[badge] Badge progress submitted for participant ${participant_id}: ${territoire_chasse}, ${etoiles} stars`);
+        console.log(`[badge] Badge progress submitted for participant ${participant_id}: ${territoire_chasse}, star ${nextStarNumber}`);
         res.json({ success: true, data: result.rows[0], message: 'Badge progress submitted for approval' });
       } catch (error) {
         await client.query('ROLLBACK');
