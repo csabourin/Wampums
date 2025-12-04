@@ -145,10 +145,15 @@ async function sendEmail(to, subject, message, html = null) {
   }
 
   try {
-    await brevoTransactionalApi.sendTransacEmail(emailPayload);
+    console.log('Sending email to:', to, 'from:', emailPayload.sender.email);
+    const result = await brevoTransactionalApi.sendTransacEmail(emailPayload);
+    console.log('Email sent successfully, messageId:', result?.messageId);
     return true;
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error sending email:', error.message || error);
+    if (error.response?.body) {
+      console.error('Brevo API error details:', JSON.stringify(error.response.body));
+    }
     return false;
   }
 }
