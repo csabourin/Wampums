@@ -437,7 +437,7 @@ logger.info('   - POST /api/associate-user-participant');
 logger.info('   - POST /api/permissions/check');
 
 // Meeting Routes (handles /api/reunion-preparation, /api/reunion-dates, /api/next-meeting-info, etc.)
-// Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, save_reminder
+// Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, reminder, save_reminder, activites-rencontre
 // IMPORTANT: Must be mounted before participants routes to prevent /:id route from catching reunion-preparation
 app.use('/api', meetingsRoutes);
 logger.info('✅ Meetings routes loaded');
@@ -446,7 +446,9 @@ logger.info('   - POST /api/save-reunion-preparation');
 logger.info('   - GET /api/reunion-dates');
 logger.info('   - GET /api/next-meeting-info');
 logger.info('   - GET /api/get_reminder');
+logger.info('   - GET /api/reminder');
 logger.info('   - POST /api/save_reminder');
+logger.info('   - GET /api/activites-rencontre');
 
 // Calendar Routes (handles /api/calendars, /api/calendars/:id, /api/participant-calendar)
 // Endpoints: calendars (GET/PUT), calendars/:id/payment, participant-calendar
