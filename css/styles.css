@@ -2810,11 +2810,6 @@ details p {
   transition: width 0.3s;
 }
 
-.badge-add-inline {
-  color: var(--color-primary);
-  font-size: var(--font-size-sm);
-}
-
 /* Legacy badge chip (keep for compatibility) */
 .badge-chip {
   background: #f4f6fb;

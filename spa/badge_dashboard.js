@@ -553,23 +553,17 @@ export class BadgeDashboard {
 
             <form id="badge-edit-form" data-participant-id="${participantId}" data-badge-name="${badge?.name || ''}">
               <div class="form-group-compact">
-                <label for="badge-entry-select">${translate("badge_select_entry") || "Entry"}</label>
+                <label for="badge-entry-select">${translate("badge_select_entry") || "Entry"} (Star #${defaultEntry?.etoiles || ""})</label>
                 <select id="badge-entry-select" name="entry">
                   ${entries.map((entry) => `
-                    <option value="${entry.id}">${this.formatReadableDate(entry.date_obtention)} · ${entry.etoiles}⭐</option>
+                    <option value="${entry.id}">⭐${entry.etoiles} · ${this.formatReadableDate(entry.date_obtention)}</option>
                   `).join("")}
                 </select>
               </div>
 
-              <div class="form-row">
-                <div class="form-group-compact">
-                  <label for="badge-stars">⭐ ${translate("badge_stars_label") || "Stars"}</label>
-                  <input id="badge-stars" name="etoiles" type="number" min="0" inputmode="numeric" required value="${defaultEntry?.etoiles || 0}" />
-                </div>
-                <div class="form-group-compact">
-                  <label for="badge-date">${translate("badge_date_label") || "Date"}</label>
-                  <input id="badge-date" name="date_obtention" type="date" value="${formattedDefaultDate}" />
-                </div>
+              <div class="form-group-compact">
+                <label for="badge-date">${translate("badge_date_label") || "Date"}</label>
+                <input id="badge-date" name="date_obtention" type="date" value="${formattedDefaultDate}" />
               </div>
 
               <div class="form-group-compact">
@@ -610,15 +604,9 @@ export class BadgeDashboard {
                 </select>
               </div>
 
-              <div class="form-row">
-                <div class="form-group-compact">
-                  <label for="badge-stars-new">⭐ ${translate("badge_stars_label") || "Stars"}</label>
-                  <input id="badge-stars-new" name="etoiles" type="number" min="1" inputmode="numeric" required value="1" />
-                </div>
-                <div class="form-group-compact">
-                  <label for="badge-date-new">${translate("badge_date_label") || "Date"}</label>
-                  <input id="badge-date-new" name="date_obtention" type="date" />
-                </div>
+              <div class="form-group-compact">
+                <label for="badge-date-new">${translate("badge_date_label") || "Date"}</label>
+                <input id="badge-date-new" name="date_obtention" type="date" />
               </div>
 
               <div class="form-group-compact">
@@ -632,7 +620,7 @@ export class BadgeDashboard {
               </div>
 
               <div class="form-actions">
-                <button type="submit" class="primary-button">${translate("badge_add_button") || "Add Badge"}</button>
+                <button type="submit" class="primary-button">${translate("badge_add_button") || "Add Star"}</button>
               </div>
               <div id="badge-add-feedback" role="status" aria-live="polite"></div>
             </form>
@@ -664,7 +652,6 @@ export class BadgeDashboard {
 
     // Edit form handlers
     const entrySelect = modal.querySelector("#badge-entry-select");
-    const starInput = modal.querySelector("#badge-stars");
     const dateInput = modal.querySelector("#badge-date");
     const objectiveInput = modal.querySelector("#badge-objective");
     const descriptionInput = modal.querySelector("#badge-description");
@@ -680,10 +667,15 @@ export class BadgeDashboard {
       const entryId = parseInt(event.target.value, 10);
       const selected = entries.find((item) => item.id === entryId) || defaultEntry;
       if (!selected) return;
-      starInput.value = selected.etoiles || 0;
       dateInput.value = this.formatDateInput(selected.date_obtention);
       objectiveInput.value = selected.objectif || "";
       descriptionInput.value = selected.description || "";
+
+      // Update the label to show which star is being edited
+      const label = modal.querySelector('label[for="badge-entry-select"]');
+      if (label) {
+        label.textContent = `${translate("badge_select_entry") || "Entry"} (Star #${selected.etoiles})`;
+      }
     });
 
     modal.querySelector("#badge-edit-form")?.addEventListener("submit", async (event) => {
@@ -693,7 +685,6 @@ export class BadgeDashboard {
       const feedback = form.querySelector("#badge-edit-feedback");
 
       const payload = {
-        etoiles: parseInt(form.querySelector("#badge-stars").value, 10) || 0,
         date_obtention: form.querySelector("#badge-date").value || null,
         objectif: form.querySelector("#badge-objective").value?.trim() || null,
         description: form.querySelector("#badge-description").value?.trim() || null
@@ -727,7 +718,6 @@ export class BadgeDashboard {
       const payload = {
         participant_id: participantId,
         territoire_chasse: form.territoire_chasse.value,
-        etoiles: parseInt(form.etoiles.value, 10) || 1,
         date_obtention: form.date_obtention.value || null,
         objectif: form.objectif.value?.trim() || null,
         description: form.description.value?.trim() || null
