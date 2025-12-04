@@ -421,7 +421,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/get_reminder', async (req, res) => {
+  // Handler function for getting reminder
+  const getReminderHandler = async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -448,7 +449,11 @@ module.exports = (pool, logger) => {
       logger.error('Error fetching reminder:', error);
       res.status(500).json({ success: false, message: error.message });
     }
-  });
+  };
+
+  // Register both /get_reminder and /reminder endpoints (for backwards compatibility)
+  router.get('/get_reminder', getReminderHandler);
+  router.get('/reminder', getReminderHandler);
 
   /**
    * @swagger
