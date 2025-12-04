@@ -22,7 +22,7 @@ export class ResetPassword {
 								return `
 												<div id="email-step">
 																<label for="email">${translate("email")}:</label>
-																<input type="email" id="email" name="email" required>
+																<input type="email" id="email" name="email" autocomplete="email" required>
 																<button type="submit">${translate("send_reset_link")}</button>
 												</div>
 								`;
@@ -33,10 +33,10 @@ export class ResetPassword {
 												<div id="reset-step">
 																<input type="hidden" id="token" name="token" value="${token}" required>
 																<label for="new-password">${translate("new_password")}:</label>
-																<input type="password" id="new-password" name="new-password" required minlength="8">
+																<input type="password" id="new-password" name="new-password" autocomplete="new-password" required minlength="8">
 																<small class="password-hint">${translate("password_requirements")}</small>
 																<label for="confirm-password">${translate("confirm_password")}:</label>
-																<input type="password" id="confirm-password" name="confirm-password" required>
+																<input type="password" id="confirm-password" name="confirm-password" autocomplete="new-password" required>
 																<button type="submit">${translate("reset_password")}</button>
 												</div>
 								`;

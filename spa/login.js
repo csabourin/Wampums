@@ -48,10 +48,10 @@ export class Login {
         <h2>${organizationName}</h2> 
         <form id="login-form">
           <div class="form-group">
-            <input type="email" name="email" placeholder="${translate("email")}" required>
+            <input type="email" name="email" placeholder="${translate("email")}" autocomplete="email" required>
           </div>
           <div class="form-group">
-            <input type="password" name="password" placeholder="${translate("password")}" required>
+            <input type="password" name="password" placeholder="${translate("password")}" autocomplete="current-password" required>
           </div>
           <button type="submit" class="btn-primary">${translate("submit_login")}</button>
         </form>
