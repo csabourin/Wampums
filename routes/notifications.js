@@ -124,7 +124,7 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized || authCheck.role !== 'admin') {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }

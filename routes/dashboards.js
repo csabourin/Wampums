@@ -193,7 +193,7 @@ document.addEventListener("DOMContentLoaded", function() {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(decoded.user_id, organizationId, pool);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
