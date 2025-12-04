@@ -247,6 +247,24 @@ export async function clearGroupRelatedCaches() {
   }
 }
 
+export async function clearBadgeRelatedCaches() {
+  const keysToDelete = [
+    'badge_dashboard_badges',
+    'badge_dashboard_participants',
+    'badge_dashboard_groups'
+  ];
+
+  debugLog("Clearing badge-related caches:", keysToDelete);
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {
