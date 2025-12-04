@@ -28,6 +28,7 @@ const {
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT } = require('../utils/api-helpers');
+const { sendEmail } = require('../utils/index');
 
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -208,7 +209,7 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Validation error
    */
-  router.post('/register',
+  router.post('/api/auth/register',
     validateEmail,
     validateStrongPassword,
     validateFullName,
@@ -252,7 +253,7 @@ module.exports = (pool, logger) => {
    *       429:
    *         description: Too many requests
    */
-  router.post('/request-reset',
+  router.post('/api/auth/request-reset',
     passwordResetLimiter,
     validateEmail,
     checkValidation,
@@ -290,11 +291,33 @@ module.exports = (pool, logger) => {
           [user.rows[0].id, resetToken]
         );
 
-        // TODO: Send email with reset link
+        // Get the domain for the reset link
+        const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || 'wampums.app';
+        const baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+        const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
+
+        // Send password reset email
+        const subject = 'Wampums - Password Reset Request';
+        const message = `You have requested to reset your password.\n\nClick the following link to reset your password:\n${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you did not request this reset, please ignore this email.`;
+        const html = `
+          <h2>Password Reset Request</h2>
+          <p>You have requested to reset your password.</p>
+          <p><a href="${resetLink}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
+          <p>Or copy this link: <a href="${resetLink}">${resetLink}</a></p>
+          <p><em>This link will expire in 1 hour.</em></p>
+          <p>If you did not request this reset, please ignore this email.</p>
+        `;
+
+        const emailSent = await sendEmail(email, subject, message, html);
+        
+        if (!emailSent) {
+          logger.error('Failed to send password reset email to:', email);
+        }
+
         res.json({
           success: true,
           message: 'If a user with that email exists, a reset link has been sent',
-          // In development, return token (remove in production)
+          // In development, return token for testing
           ...(process.env.NODE_ENV !== 'production' && { resetToken })
         });
       } catch (error) {
@@ -316,7 +339,7 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Invalid or expired token
    */
-  router.post('/reset-password',
+  router.post('/api/auth/reset-password',
     passwordResetLimiter,
     validateToken,
     validateNewPassword,
@@ -387,7 +410,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Invalid session
    */
-  router.post('/verify-session', authenticate, async (req, res) => {
+  router.post('/api/auth/verify-session', authenticate, async (req, res) => {
     try {
       // If authenticate middleware passed, session is valid
       res.json({
@@ -416,7 +439,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Logout successful
    */
-  router.post('/logout', (req, res) => {
+  router.post('/api/auth/logout', (req, res) => {
     // JWT is stateless, so logout is handled client-side
     // This endpoint exists for consistency and potential future server-side session handling
     res.json({
