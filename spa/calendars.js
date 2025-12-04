@@ -15,7 +15,8 @@ export class Calendars {
 
 	async fetchCalendars() {
 		try {
-			this.calendars = await getCalendars();
+			const response = await getCalendars();
+			this.calendars = response.calendars || [];
 			this.calendars.sort((a, b) => a.first_name.localeCompare(b.first_name));
 		} catch (error) {
 			console.error('Error fetching calendars:', error);
