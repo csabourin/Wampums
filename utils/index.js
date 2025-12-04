@@ -5,6 +5,17 @@
 
 const jwt = require('jsonwebtoken');
 const Brevo = require('sib-api-v3-sdk');
+const winston = require('winston');
+
+// Configure logger for utilities
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 
 const brevoClient = Brevo.ApiClient.instance;
 let brevoTransactionalApi = null;
@@ -123,7 +134,7 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
  */
 async function sendEmail(to, subject, message, html = null) {
   if (!process.env.BREVO_KEY) {
-    console.error('Brevo API key not found in environment variables');
+    logger.error('Brevo API key not found in environment variables');
     return false;
   }
 
@@ -145,14 +156,14 @@ async function sendEmail(to, subject, message, html = null) {
   }
 
   try {
-    console.log('Sending email to:', to, 'from:', emailPayload.sender.email);
+    logger.info('Sending email to:', to, 'from:', emailPayload.sender.email);
     const result = await brevoTransactionalApi.sendTransacEmail(emailPayload);
-    console.log('Email sent successfully, messageId:', result?.messageId);
+    logger.info('Email sent successfully, messageId:', result?.messageId);
     return true;
   } catch (error) {
-    console.error('Error sending email:', error.message || error);
+    logger.error('Error sending email:', error.message || error);
     if (error.response?.body) {
-      console.error('Brevo API error details:', JSON.stringify(error.response.body));
+      logger.error('Brevo API error details:', JSON.stringify(error.response.body));
     }
     return false;
   }
@@ -191,7 +202,7 @@ async function sendAdminVerificationEmail(pool, organizationId, animatorName, an
     const adminEmails = adminResult.rows.map(row => row.email);
 
     if (adminEmails.length === 0) {
-      console.error(`No admin emails found for organization ID: ${organizationId}`);
+      logger.error(`No admin emails found for organization ID: ${organizationId}`);
       return;
     }
 
@@ -218,11 +229,11 @@ async function sendAdminVerificationEmail(pool, organizationId, animatorName, an
     for (const adminEmail of adminEmails) {
       const result = await sendEmail(adminEmail, subject, message);
       if (!result) {
-        console.error(`Failed to send admin verification email to: ${adminEmail}`);
+        logger.error(`Failed to send admin verification email to: ${adminEmail}`);
       }
     }
   } catch (error) {
-    console.error('Error in sendAdminVerificationEmail:', error);
+    logger.error('Error in sendAdminVerificationEmail:', error);
   }
 }
 
@@ -245,7 +256,7 @@ async function determineOrganizationId(pool, domain) {
 
     return result.rows[0]?.organization_id || null;
   } catch (error) {
-    console.error('Error determining organization ID:', error);
+    logger.error('Error determining organization ID:', error);
     return null;
   }
 }
@@ -268,7 +279,7 @@ function getJWTPayload(req) {
     const decoded = jwt.decode(token);
     return decoded;
   } catch (error) {
-    console.error('Error decoding JWT:', error);
+    logger.error('Error decoding JWT:', error);
     return null;
   }
 }
@@ -364,7 +375,7 @@ async function hasPermission(pool, userId, organizationId, allowedRoles = ['admi
 
     return allowedRoles.includes(result.rows[0].role);
   } catch (error) {
-    console.error('Error checking permission:', error);
+    logger.error('Error checking permission:', error);
     return false;
   }
 }
@@ -393,11 +404,11 @@ async function getPointSystemRules(pool, organizationId) {
       try {
         return JSON.parse(value);
       } catch (e) {
-        console.warn('Error parsing point_system_rules:', e);
+        logger.warn('Error parsing point_system_rules:', e);
       }
     }
   } catch (error) {
-    console.error('Error getting point system rules:', error);
+    logger.error('Error getting point system rules:', error);
   }
 
   // Default rules if not found or error occurred

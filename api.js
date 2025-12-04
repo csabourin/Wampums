@@ -28,7 +28,7 @@ try {
   compression = require('compression');
   app.use(compression());
 } catch (e) {
-  console.log('Compression not available. Install with: npm install compression');
+  logger.info('Compression not available. Install with: npm install compression');
 }
 
 app.use(bodyParser.json());
@@ -103,8 +103,8 @@ const logger = winston.createLogger({
 // In development, serve from root (Vite dev server handles the rest)
 const staticDir = isProduction ? path.join(__dirname, 'dist') : __dirname;
 
-console.log(`Serving static files from: ${staticDir}`);
-console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
+logger.info(`Serving static files from: ${staticDir}`);
+logger.info(`Environment: ${isProduction ? 'production' : 'development'}`);
 
 app.use(express.static(staticDir, {
   setHeaders: (res, filepath) => {
@@ -240,11 +240,11 @@ async function getPointSystemRules(organizationId, client = null) {
       try {
         return JSON.parse(result.rows[0].setting_value);
       } catch (e) {
-        console.warn('Error parsing point_system_rules:', e);
+        logger.warn('Error parsing point_system_rules:', e);
       }
     }
   } catch (error) {
-    console.error('Error getting point system rules:', error);
+    logger.error('Error getting point system rules:', error);
   }
 
   // Default rules if not found
@@ -333,7 +333,7 @@ async function verifyOrganizationMembership(userId, organizationId, requiredRole
 
     return { authorized: true, role: userRole };
   } catch (error) {
-    console.error('Error verifying organization membership:', error);
+    logger.error('Error verifying organization membership:', error);
     return { authorized: false, role: null, message: 'Authorization check failed' };
   }
 }
@@ -368,7 +368,7 @@ app.get('/api-docs.json', (req, res) => {
   res.send(swaggerSpecs);
 });
 
-console.log('📚 API Documentation available at: /api-docs');
+logger.info('📚 API Documentation available at: /api-docs');
 
 // ============================================
 // MODULAR ROUTE IMPORTS
@@ -380,7 +380,7 @@ const organizationsRoutes = require('./routes/organizations')(pool, logger);
 const usersRoutes = require('./routes/users')(pool, logger);
 const participantsRoutes = require('./routes/participants')(pool);
 const groupsRoutes = require('./routes/groups')(pool);
-const attendanceRoutes = require('./routes/attendance')(pool);
+const attendanceRoutes = require('./routes/attendance')(pool, logger);
 const honorsRoutes = require('./routes/honors')(pool, logger);
 const pointsRoutes = require('./routes/points')(pool, logger);
 const badgesRoutes = require('./routes/badges')(pool, logger);
@@ -400,189 +400,189 @@ const publicRoutes = require('./routes/public')(pool, logger);
 // Authentication Routes (handles /public/login, /api/auth/*)
 // Endpoints: login, register, request-reset, reset-password, verify-session, logout
 app.use('/', authRoutes);
-console.log('✅ Authentication routes loaded');
-console.log('   - POST /public/login');
-console.log('   - POST /api/auth/register');
-console.log('   - POST /api/auth/request-reset');
-console.log('   - POST /api/auth/reset-password');
-console.log('   - POST /api/auth/verify-session');
-console.log('   - POST /api/auth/logout');
+logger.info('✅ Authentication routes loaded');
+logger.info('   - POST /public/login');
+logger.info('   - POST /api/auth/register');
+logger.info('   - POST /api/auth/request-reset');
+logger.info('   - POST /api/auth/reset-password');
+logger.info('   - POST /api/auth/verify-session');
+logger.info('   - POST /api/auth/logout');
 
 // Organization Routes (handles /api/organization-*, /public/get_organization_id)
 // Endpoints: organization-jwt, get_organization_id, organization-settings, organizations, register-for-organization, switch-organization
 app.use('/api', organizationsRoutes);
 app.use('/public', organizationsRoutes);
-console.log('✅ Organization routes loaded');
-console.log('   - GET /api/organization-jwt');
-console.log('   - GET /public/get_organization_id');
-console.log('   - GET /api/organization-settings');
-console.log('   - POST /api/organizations');
-console.log('   - POST /api/register-for-organization');
-console.log('   - POST /api/switch-organization');
+logger.info('✅ Organization routes loaded');
+logger.info('   - GET /api/organization-jwt');
+logger.info('   - GET /public/get_organization_id');
+logger.info('   - GET /api/organization-settings');
+logger.info('   - POST /api/organizations');
+logger.info('   - POST /api/register-for-organization');
+logger.info('   - POST /api/switch-organization');
 
 // User Management Routes (handles /api/users, /api/pending-users, /api/animateurs, etc.)
 // Endpoints: users, pending-users, animateurs, parent-users, user-children, approve-user, update-user-role, link-user-participants, associate-user-participant, permissions/check
 app.use('/api', usersRoutes);
-console.log('✅ User management routes loaded');
-console.log('   - GET /api/users');
-console.log('   - GET /api/pending-users');
-console.log('   - GET /api/animateurs');
-console.log('   - GET /api/parent-users');
-console.log('   - GET /api/user-children');
-console.log('   - POST /api/approve-user');
-console.log('   - POST /api/update-user-role');
-console.log('   - POST /api/link-user-participants');
-console.log('   - POST /api/associate-user-participant');
-console.log('   - POST /api/permissions/check');
+logger.info('✅ User management routes loaded');
+logger.info('   - GET /api/users');
+logger.info('   - GET /api/pending-users');
+logger.info('   - GET /api/animateurs');
+logger.info('   - GET /api/parent-users');
+logger.info('   - GET /api/user-children');
+logger.info('   - POST /api/approve-user');
+logger.info('   - POST /api/update-user-role');
+logger.info('   - POST /api/link-user-participants');
+logger.info('   - POST /api/associate-user-participant');
+logger.info('   - POST /api/permissions/check');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
 app.use('/api/v1/participants', participantsRoutes);
 app.use('/api', participantsRoutes);
-console.log('✅ Participant routes loaded');
-console.log('   - GET /api/participants');
-console.log('   - GET /api/participant-details');
-console.log('   - POST /api/save-participant');
-console.log('   - POST /api/update-participant-group');
-console.log('   - POST /api/link-participant-to-organization');
-console.log('   - GET /api/participants-with-users');
-console.log('   - POST /api/link-user-participants');
-console.log('   - GET /api/participants-with-documents');
+logger.info('✅ Participant routes loaded');
+logger.info('   - GET /api/participants');
+logger.info('   - GET /api/participant-details');
+logger.info('   - POST /api/save-participant');
+logger.info('   - POST /api/update-participant-group');
+logger.info('   - POST /api/link-participant-to-organization');
+logger.info('   - GET /api/participants-with-users');
+logger.info('   - POST /api/link-user-participants');
+logger.info('   - GET /api/participants-with-documents');
 
 // Group Routes (handles /api/groups, /api/participant-ages, /api/participant-calendar, etc.)
 // Endpoints: groups (CRUD), participant-ages, participant-calendar, associate-user-participant, link-parent-participant
 app.use('/api/v1/groups', groupsRoutes);
 app.use('/api', groupsRoutes);
-console.log('✅ Group routes loaded');
-console.log('   - POST /api/groups');
-console.log('   - PUT /api/groups/:id');
-console.log('   - DELETE /api/groups/:id');
-console.log('   - GET /api/participant-ages');
-console.log('   - POST /api/associate-user-participant');
-console.log('   - POST /api/link-parent-participant');
-console.log('   - DELETE /api/participant-groups/:participantId');
+logger.info('✅ Group routes loaded');
+logger.info('   - POST /api/groups');
+logger.info('   - PUT /api/groups/:id');
+logger.info('   - DELETE /api/groups/:id');
+logger.info('   - GET /api/participant-ages');
+logger.info('   - POST /api/associate-user-participant');
+logger.info('   - POST /api/link-parent-participant');
+logger.info('   - DELETE /api/participant-groups/:participantId');
 
 // Attendance Routes (handles /api/attendance, /api/attendance-dates, /api/update-attendance)
 // Endpoints: attendance, attendance-dates, update-attendance
 app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api', attendanceRoutes);
-console.log('✅ Attendance routes loaded');
-console.log('   - GET /api/attendance');
-console.log('   - GET /api/attendance-dates');
-console.log('   - POST /api/update-attendance');
+logger.info('✅ Attendance routes loaded');
+logger.info('   - GET /api/attendance');
+logger.info('   - GET /api/attendance-dates');
+logger.info('   - POST /api/update-attendance');
 
 // Honors Routes (handles /api/honors, /api/award-honor, /api/honors-history, /api/recent-honors)
 // Endpoints: honors, award-honor, honors-history, honors-report, recent-honors
 app.use('/api', honorsRoutes);
-console.log('✅ Honors routes loaded');
-console.log('   - GET /api/honors');
-console.log('   - POST /api/award-honor');
-console.log('   - GET /api/honors-history');
-console.log('   - GET /api/recent-honors');
+logger.info('✅ Honors routes loaded');
+logger.info('   - GET /api/honors');
+logger.info('   - POST /api/award-honor');
+logger.info('   - GET /api/honors-history');
+logger.info('   - GET /api/recent-honors');
 
 // Points Routes (handles /api/points-data, /api/update-points, /api/points-leaderboard)
 // Endpoints: points-data, update-points, points-leaderboard, points-report
 app.use('/api', pointsRoutes);
-console.log('✅ Points routes loaded');
-console.log('   - GET /api/points-data');
-console.log('   - POST /api/update-points');
-console.log('   - GET /api/points-leaderboard');
+logger.info('✅ Points routes loaded');
+logger.info('   - GET /api/points-data');
+logger.info('   - POST /api/update-points');
+logger.info('   - GET /api/points-leaderboard');
 
 // Badge Routes (handles /api/badge-progress, /api/pending-badges, /api/save-badge-progress, etc.)
 // Endpoints: badge-progress, pending-badges, save-badge-progress, approve-badge, reject-badge, badge-summary, badge-history, current-stars, badge-system-settings
 app.use('/api', badgesRoutes);
-console.log('✅ Badges routes loaded');
-console.log('   - GET /api/badge-progress');
-console.log('   - GET /api/pending-badges');
-console.log('   - POST /api/save-badge-progress');
-console.log('   - POST /api/approve-badge');
-console.log('   - POST /api/reject-badge');
-console.log('   - GET /api/badge-summary');
-console.log('   - GET /api/badge-history');
-console.log('   - GET /api/current-stars');
-console.log('   - GET /api/badge-system-settings');
-console.log('   - PUT /api/badge-progress/:id');
+logger.info('✅ Badges routes loaded');
+logger.info('   - GET /api/badge-progress');
+logger.info('   - GET /api/pending-badges');
+logger.info('   - POST /api/save-badge-progress');
+logger.info('   - POST /api/approve-badge');
+logger.info('   - POST /api/reject-badge');
+logger.info('   - GET /api/badge-summary');
+logger.info('   - GET /api/badge-history');
+logger.info('   - GET /api/current-stars');
+logger.info('   - GET /api/badge-system-settings');
+logger.info('   - PUT /api/badge-progress/:id');
 
 // Form Routes (handles /api/form-submission, /api/save-form-submission, /api/form-types, etc.)
 // Endpoints: form-submission, save-form-submission, organization-form-formats, form-types, form-structure, form-submissions-list, form-submissions, risk-acceptance, health-forms
 app.use('/api', formsRoutes);
-console.log('✅ Forms routes loaded');
-console.log('   - GET /api/form-submission');
-console.log('   - POST /api/save-form-submission');
-console.log('   - GET /api/organization-form-formats');
-console.log('   - GET /api/form-types');
-console.log('   - GET /api/form-structure');
-console.log('   - GET /api/form-submissions-list');
-console.log('   - GET /api/form-submissions');
-console.log('   - GET /api/risk-acceptance');
-console.log('   - POST /api/risk-acceptance');
-console.log('   - POST /api/health-forms');
+logger.info('✅ Forms routes loaded');
+logger.info('   - GET /api/form-submission');
+logger.info('   - POST /api/save-form-submission');
+logger.info('   - GET /api/organization-form-formats');
+logger.info('   - GET /api/form-types');
+logger.info('   - GET /api/form-structure');
+logger.info('   - GET /api/form-submissions-list');
+logger.info('   - GET /api/form-submissions');
+logger.info('   - GET /api/risk-acceptance');
+logger.info('   - POST /api/risk-acceptance');
+logger.info('   - POST /api/health-forms');
 
 // Guardian Routes (handles /api/guardians, /api/save-guardian, /api/remove-guardian)
 // Endpoints: guardians, save-guardian, remove-guardian
 app.use('/api', guardiansRoutes);
-console.log('✅ Guardians routes loaded');
-console.log('   - GET /api/guardians');
-console.log('   - POST /api/save-guardian');
-console.log('   - DELETE /api/remove-guardian');
+logger.info('✅ Guardians routes loaded');
+logger.info('   - GET /api/guardians');
+logger.info('   - POST /api/save-guardian');
+logger.info('   - DELETE /api/remove-guardian');
 
 // Meeting Routes (handles /api/reunion-preparation, /api/reunion-dates, /api/next-meeting-info, etc.)
 // Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, save_reminder
 app.use('/api', meetingsRoutes);
-console.log('✅ Meetings routes loaded');
-console.log('   - GET /api/reunion-preparation');
-console.log('   - POST /api/save-reunion-preparation');
-console.log('   - GET /api/reunion-dates');
-console.log('   - GET /api/next-meeting-info');
-console.log('   - GET /api/get_reminder');
-console.log('   - POST /api/save_reminder');
+logger.info('✅ Meetings routes loaded');
+logger.info('   - GET /api/reunion-preparation');
+logger.info('   - POST /api/save-reunion-preparation');
+logger.info('   - GET /api/reunion-dates');
+logger.info('   - GET /api/next-meeting-info');
+logger.info('   - GET /api/get_reminder');
+logger.info('   - POST /api/save_reminder');
 
 // Notification Routes (handles /api/send-notification, /api/push-subscription)
 // Endpoints: send-notification, push-subscription
 app.use('/api', notificationsRoutes);
-console.log('✅ Notifications routes loaded');
-console.log('   - POST /api/send-notification');
-console.log('   - POST /api/push-subscription');
+logger.info('✅ Notifications routes loaded');
+logger.info('   - POST /api/send-notification');
+logger.info('   - POST /api/push-subscription');
 
 // Calendar Routes (handles /api/calendars, /api/calendars/:id, /api/participant-calendar)
 // Endpoints: calendars (GET/PUT), calendars/:id/payment, participant-calendar
 app.use('/api', calendarsRoutes);
-console.log('✅ Calendar routes loaded');
-console.log('   - GET /api/calendars');
-console.log('   - PUT /api/calendars/:id');
-console.log('   - PUT /api/calendars/:id/payment');
-console.log('   - GET /api/participant-calendar');
+logger.info('✅ Calendar routes loaded');
+logger.info('   - GET /api/calendars');
+logger.info('   - PUT /api/calendars/:id');
+logger.info('   - PUT /api/calendars/:id/payment');
+logger.info('   - GET /api/participant-calendar');
 
 // Report Routes (handles various report endpoints)
 // Endpoints: mailing-list, health-report, attendance-report, missing-documents-report, health-contact-report, allergies-report, medication-report, vaccine-report, leave-alone-report, media-authorization-report, honors-report, points-report
 app.use('/api', reportsRoutes);
-console.log('✅ Report routes loaded');
-console.log('   - GET /api/mailing-list');
-console.log('   - GET /api/health-report');
-console.log('   - GET /api/attendance-report');
-console.log('   - GET /api/missing-documents-report');
-console.log('   - GET /api/health-contact-report');
-console.log('   - GET /api/allergies-report');
-console.log('   - GET /api/medication-report');
-console.log('   - GET /api/vaccine-report');
-console.log('   - GET /api/leave-alone-report');
-console.log('   - GET /api/media-authorization-report');
-console.log('   - GET /api/honors-report');
-console.log('   - GET /api/points-report');
+logger.info('✅ Report routes loaded');
+logger.info('   - GET /api/mailing-list');
+logger.info('   - GET /api/health-report');
+logger.info('   - GET /api/attendance-report');
+logger.info('   - GET /api/missing-documents-report');
+logger.info('   - GET /api/health-contact-report');
+logger.info('   - GET /api/allergies-report');
+logger.info('   - GET /api/medication-report');
+logger.info('   - GET /api/vaccine-report');
+logger.info('   - GET /api/leave-alone-report');
+logger.info('   - GET /api/media-authorization-report');
+logger.info('   - GET /api/honors-report');
+logger.info('   - GET /api/points-report');
 
 // Dashboard Routes (handles /api/initial-data, /api/parent-dashboard)
 // Endpoints: initial-data, parent-dashboard
 app.use('/api', dashboardsRoutes);
-console.log('✅ Dashboard routes loaded');
-console.log('   - GET /api/initial-data');
-console.log('   - GET /api/parent-dashboard');
+logger.info('✅ Dashboard routes loaded');
+logger.info('   - GET /api/initial-data');
+logger.info('   - GET /api/parent-dashboard');
 
 // Public Routes (handles /api/translations, /api/news)
 // Endpoints: translations, news
 app.use('/api', publicRoutes);
-console.log('✅ Public routes loaded');
-console.log('   - GET /api/translations');
-console.log('   - GET /api/news');
+logger.info('✅ Public routes loaded');
+logger.info('   - GET /api/translations');
+logger.info('   - GET /api/news');
 
 // ============================================
 // CORE APPLICATION ROUTES

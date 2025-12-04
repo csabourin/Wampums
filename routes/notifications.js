@@ -9,9 +9,11 @@
 
 const express = require('express');
 const router = express.Router();
+const { check } = require('express-validator');
 
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { checkValidation } = require('../middleware/validation');
 
 /**
  * Export route factory function
@@ -60,7 +62,12 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/push-subscription', async (req, res) => {
+  router.post('/push-subscription',
+    check('endpoint').notEmpty().withMessage('endpoint is required').isURL().withMessage('endpoint must be a valid URL'),
+    check('keys.p256dh').notEmpty().withMessage('keys.p256dh is required'),
+    check('keys.auth').notEmpty().withMessage('keys.auth is required'),
+    checkValidation,
+    async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -70,11 +77,7 @@ module.exports = (pool, logger) => {
       }
 
       const { endpoint, expirationTime, keys } = req.body;
-      const { p256dh, auth } = keys || {};
-
-      if (!endpoint || !p256dh || !auth) {
-        return res.status(400).json({ error: 'Missing subscription data' });
-      }
+      const { p256dh, auth } = keys;
 
       await pool.query(
         `INSERT INTO subscribers (user_id, endpoint, expiration_time, p256dh, auth)
@@ -175,7 +178,11 @@ module.exports = (pool, logger) => {
    *       500:
    *         description: VAPID private key not set or other error
    */
-  router.post('/send-notification', async (req, res) => {
+  router.post('/send-notification',
+    check('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 200 }).withMessage('Title must not exceed 200 characters'),
+    check('body').trim().notEmpty().withMessage('Body is required').isLength({ max: 1000 }).withMessage('Body must not exceed 1000 characters'),
+    checkValidation,
+    async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
@@ -187,10 +194,6 @@ module.exports = (pool, logger) => {
 
       const { title, body } = req.body;
 
-      if (!title || !body) {
-        return res.status(400).json({ error: 'Title and body are required' });
-      }
-
       // Note: Web-push functionality requires additional npm package
       // For now, just save to database or return success
       // Install with: npm install web-push
@@ -198,12 +201,16 @@ module.exports = (pool, logger) => {
       try {
         const webpush = require('web-push');
 
-        // VAPID keys
-        const vapidPublicKey = 'BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE';
-        const vapidPrivateKey = process.env.VAPID_PRIVATE;
+        // VAPID keys - load from environment variables
+        const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+        const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE;
+
+        if (!vapidPublicKey) {
+          return res.status(500).json({ error: 'VAPID public key is not configured' });
+        }
 
         if (!vapidPrivateKey) {
-          return res.status(500).json({ error: 'VAPID private key is not set' });
+          return res.status(500).json({ error: 'VAPID private key is not configured' });
         }
 
         webpush.setVapidDetails(

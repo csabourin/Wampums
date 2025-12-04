@@ -6,6 +6,17 @@
  */
 
 const jwt = require('jsonwebtoken');
+const winston = require('winston');
+
+// Configure logger for API helpers
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
 
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -47,7 +58,7 @@ async function getCurrentOrganizationId(req, pool, logger) {
     if (logger) {
       logger.error('Error getting organization ID:', error);
     } else {
-      console.error('Error getting organization ID:', error);
+      logger.error('Error getting organization ID:', error);
     }
   }
 
@@ -119,11 +130,11 @@ async function getPointSystemRules(pool, organizationId) {
       try {
         return JSON.parse(result.rows[0].setting_value);
       } catch (e) {
-        console.warn('Error parsing point_system_rules:', e);
+        logger.warn('Error parsing point_system_rules:', e);
       }
     }
   } catch (error) {
-    console.error('Error getting point system rules:', error);
+    logger.error('Error getting point system rules:', error);
   }
 
   // Default rules if not found
@@ -203,7 +214,7 @@ function handleError(err, req, res, next, logger) {
   if (logger) {
     logger.error(err.stack);
   } else {
-    console.error(err.stack);
+    logger.error(err.stack);
   }
   res.status(500).json({ success: false, error: err.message });
 }
@@ -245,7 +256,7 @@ async function verifyOrganizationMembership(pool, userId, organizationId, requir
 
     return { authorized: true, role: userRole };
   } catch (error) {
-    console.error('Error verifying organization membership:', error);
+    logger.error('Error verifying organization membership:', error);
     return { authorized: false, role: null, message: 'Authorization check failed' };
   }
 }

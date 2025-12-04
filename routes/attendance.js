@@ -3,10 +3,11 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
 const { verifyJWT, calculateAttendancePoints, getCurrentOrganizationId } = require('../utils/api-helpers');
 
-module.exports = (pool) => {
+module.exports = (pool, logger) => {
   /**
    * @swagger
    * /api/v1/attendance:
@@ -31,7 +32,12 @@ module.exports = (pool) => {
    *       200:
    *         description: Attendance records
    */
-  router.get('/', authenticate, asyncHandler(async (req, res) => {
+  router.get('/',
+    authenticate,
+    validateDateOptional('date'),
+    validateIdQuery('participant_id'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { date, participant_id } = req.query;
 
@@ -120,13 +126,20 @@ module.exports = (pool) => {
    *       201:
    *         description: Attendance marked
    */
-  router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.post('/',
+    authenticate,
+    authorize('admin', 'animation'),
+    validateIdBody('participant_id'),
+    validateDate('date'),
+    validateAttendanceStatus,
+    checkValidation,
+    asyncHandler(async (req, res) => {
     const { participant_id, date, status, previous_status } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
-    console.log('[attendance POST] Request body:', JSON.stringify(req.body));
-    console.log('[attendance POST] participant_id:', participant_id, 'type:', typeof participant_id);
-    console.log('[attendance POST] date:', date, 'status:', status, 'organizationId:', organizationId);
+    logger.debug('[attendance POST] Request body:', JSON.stringify(req.body));
+    logger.debug('[attendance POST] participant_id:', participant_id, 'type:', typeof participant_id);
+    logger.debug('[attendance POST] date:', date, 'status:', status, 'organizationId:', organizationId);
 
     const client = await pool.connect();
     try {
@@ -197,7 +210,10 @@ module.exports = (pool) => {
    *       200:
    *         description: Attendance data with participants
    */
-  router.get('/attendance', asyncHandler(async (req, res) => {
+  router.get('/attendance',
+    validateDateOptional('date'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyJWT(token);
 
@@ -302,7 +318,11 @@ module.exports = (pool) => {
    *       200:
    *         description: Attendance updated successfully
    */
-  router.post('/update-attendance', asyncHandler(async (req, res) => {
+  router.post('/update-attendance',
+    validateAttendanceStatus,
+    validateDate('date'),
+    checkValidation,
+    asyncHandler(async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     const decoded = verifyJWT(token);
 
@@ -313,15 +333,12 @@ module.exports = (pool) => {
     const organizationId = await getCurrentOrganizationId(req, pool);
     const { participant_id, status, date } = req.body;
 
-    if (!status || !date) {
-      return res.status(400).json({ success: false, message: 'Status and date are required' });
-    }
-
     // Handle both single participant_id and array of participant_ids
     const participantIds = Array.isArray(participant_id) ? participant_id : [participant_id];
 
-    if (participantIds.length === 0 || participantIds.some(id => !id)) {
-      return res.status(400).json({ success: false, message: 'At least one valid participant ID is required' });
+    // Validate participant IDs
+    if (participantIds.length === 0 || participantIds.some(id => !Number.isInteger(Number(id)) || Number(id) < 1)) {
+      return res.status(400).json({ success: false, message: 'At least one valid participant ID (positive integer) is required' });
     }
 
     const client = await pool.connect();
@@ -378,7 +395,7 @@ module.exports = (pool) => {
             points: pointAdjustment
           });
 
-          console.log(`[attendance] Participant ${pid}: ${previousStatus || 'none'} -> ${status}, points: ${pointAdjustment > 0 ? '+' : ''}${pointAdjustment}`);
+          logger.info(`[attendance] Participant ${pid}: ${previousStatus || 'none'} -> ${status}, points: ${pointAdjustment > 0 ? '+' : ''}${pointAdjustment}`);
         }
       }
 

@@ -9,9 +9,11 @@
 
 const express = require('express');
 const router = express.Router();
+const { check } = require('express-validator');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 
 /**
  * Export route factory function
@@ -40,7 +42,10 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Reunion preparation retrieved successfully
    */
-  router.get('/reunion-preparation', async (req, res) => {
+  router.get('/reunion-preparation',
+    validateDateOptional('date'),
+    checkValidation,
+    async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const reunionDate = req.query.date || new Date().toISOString().split('T')[0];
@@ -118,7 +123,13 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/save-reunion-preparation', async (req, res) => {
+  router.post('/save-reunion-preparation',
+    validateDate('date'),
+    check('endroit').optional().trim().isLength({ max: 500 }).withMessage('endroit must not exceed 500 characters'),
+    check('notes').optional().trim().isLength({ max: 5000 }).withMessage('notes must not exceed 5000 characters'),
+    check('animateur_responsable').optional().trim().isLength({ max: 200 }).withMessage('animateur_responsable must not exceed 200 characters'),
+    checkValidation,
+    async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
