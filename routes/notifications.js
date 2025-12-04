@@ -1,0 +1,148 @@
+/**
+ * Notifications Routes
+ *
+ * Handles push notification sending via web-push
+ * All endpoints in this module are prefixed with /api
+ *
+ * @module routes/notifications
+ */
+
+const express = require('express');
+const router = express.Router();
+
+// Import utilities
+const { verifyJWT } = require('../utils/api-helpers');
+
+/**
+ * Export route factory function
+ * Allows dependency injection of pool and logger
+ *
+ * @param {Object} pool - Database connection pool
+ * @param {Object} logger - Winston logger instance
+ * @returns {Router} Express router with notification routes
+ */
+module.exports = (pool, logger) => {
+  /**
+   * @swagger
+   * /api/send-notification:
+   *   post:
+   *     summary: Send push notification to all subscribers
+   *     description: Send web push notification (admin only)
+   *     tags: [Notifications]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - title
+   *               - body
+   *             properties:
+   *               title:
+   *                 type: string
+   *               body:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Notification sent successfully
+   *       400:
+   *         description: Title and body are required
+   *       403:
+   *         description: Admin access required
+   *       500:
+   *         description: VAPID private key not set or other error
+   */
+  router.post('/send-notification', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const payload = verifyJWT(token);
+
+      // Only admin can send notifications
+      if (!payload || payload.user_role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: Admin access required' });
+      }
+
+      const { title, body } = req.body;
+
+      if (!title || !body) {
+        return res.status(400).json({ error: 'Title and body are required' });
+      }
+
+      // Note: Web-push functionality requires additional npm package
+      // For now, just save to database or return success
+      // Install with: npm install web-push
+
+      try {
+        const webpush = require('web-push');
+
+        // VAPID keys
+        const vapidPublicKey = 'BPsOyoPVxNCN6BqsLdHwc5aaNPERFO2yq-xF3vqHJ7CdMlHRn5EBPnxcoOKGkeIO1_9zHnF5CRyD6RvLlOKPcTE';
+        const vapidPrivateKey = process.env.VAPID_PRIVATE;
+
+        if (!vapidPrivateKey) {
+          return res.status(500).json({ error: 'VAPID private key is not set' });
+        }
+
+        webpush.setVapidDetails(
+          'mailto:info@christiansabourin.com',
+          vapidPublicKey,
+          vapidPrivateKey
+        );
+
+        // Fetch all subscribers
+        const subscribersResult = await pool.query('SELECT * FROM subscribers');
+        const subscribers = subscribersResult.rows;
+
+        if (subscribers.length === 0) {
+          return res.json({ success: true, message: 'No subscribers found' });
+        }
+
+        const notificationPayload = JSON.stringify({
+          title,
+          body,
+          options: {
+            body,
+            tag: 'renotify',
+            renotify: true,
+            requireInteraction: true
+          }
+        });
+
+        // Send notifications to all subscribers
+        const promises = subscribers.map(subscriber => {
+          const pushSubscription = {
+            endpoint: subscriber.endpoint,
+            keys: {
+              p256dh: subscriber.p256dh,
+              auth: subscriber.auth
+            }
+          };
+
+          return webpush.sendNotification(pushSubscription, notificationPayload)
+            .catch(error => {
+              logger.error(`Failed to send notification to ${subscriber.endpoint}:`, error);
+            });
+        });
+
+        await Promise.all(promises);
+
+        res.json({ success: true });
+      } catch (error) {
+        if (error.code === 'MODULE_NOT_FOUND') {
+          logger.warn('web-push not installed. Install with: npm install web-push');
+          res.json({ success: false, message: 'Web push not configured. Install web-push package.' });
+        } else {
+          throw error;
+        }
+      }
+    } catch (error) {
+      logger.error('Error sending notification:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  return router;
+};
