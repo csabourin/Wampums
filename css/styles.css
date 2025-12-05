@@ -225,6 +225,8 @@ h1 {
   font-size: var(--font-size-3xl);
   text-align: center;
   margin-block: var(--space-lg);
+  margin: auto;
+  max-width: 90vw;
 }
 
 h2 {

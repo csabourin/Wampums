@@ -229,7 +229,6 @@ export class BadgeDashboard {
       <section class="badge-dashboard" aria-labelledby="badge-dashboard-title">
         <header class="badge-dashboard__header">
           <div>
-            <p class="eyebrow">${translate("badge_dashboard_label")}</p>
             <h1 id="badge-dashboard-title">${translate("badge_dashboard_title")}</h1>
             <p class="subtitle">${translate("badge_dashboard_description")}</p>
           </div>
