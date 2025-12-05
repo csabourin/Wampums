@@ -200,6 +200,78 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
+   * /public/register:
+   *   post:
+   *     summary: Register new user (public endpoint)
+   *     description: Register a new user account (requires admin approval)
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - email
+   *               - password
+   *               - full_name
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *               password:
+   *                 type: string
+   *               full_name:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: User registered successfully
+   *       400:
+   *         description: Validation error or duplicate email
+   */
+  router.post('/public/register',
+    validateEmail,
+    validateStrongPassword,
+    validateFullName,
+    checkValidation,
+    async (req, res) => {
+      try {
+        const { email, password, full_name } = req.body;
+        const normalizedEmail = email.toLowerCase();
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Insert user
+        const result = await pool.query(
+          `INSERT INTO users (email, password, full_name, is_verified)
+           VALUES ($1, $2, $3, FALSE)
+           RETURNING id, email, full_name, is_verified`,
+          [normalizedEmail, hashedPassword, full_name]
+        );
+
+        res.status(201).json({
+          success: true,
+          data: result.rows[0],
+          message: 'User registered successfully. Please wait for admin approval.'
+        });
+      } catch (error) {
+        logger.error('Error registering user:', error);
+
+        // Handle duplicate email error (PostgreSQL error code 23505)
+        if (error.code === '23505' && error.constraint === 'users_email_key') {
+          return res.status(400).json({
+            success: false,
+            message: 'An account with this email address already exists. Please use a different email or try logging in.'
+          });
+        }
+
+        res.status(500).json({ success: false, message: 'An error occurred during registration. Please try again later.' });
+      }
+    });
+
+  /**
+   * @swagger
    * /api/auth/register:
    *   post:
    *     summary: Register new user
@@ -219,6 +291,7 @@ module.exports = (pool, logger) => {
     async (req, res) => {
       try {
         const { email, password, full_name } = req.body;
+        const normalizedEmail = email.toLowerCase();
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -228,7 +301,7 @@ module.exports = (pool, logger) => {
           `INSERT INTO users (email, password, full_name, is_verified)
            VALUES ($1, $2, $3, FALSE)
            RETURNING id, email, full_name, is_verified`,
-          [email, hashedPassword, full_name]
+          [normalizedEmail, hashedPassword, full_name]
         );
 
         res.status(201).json({
@@ -238,7 +311,16 @@ module.exports = (pool, logger) => {
         });
       } catch (error) {
         logger.error('Error registering user:', error);
-        res.status(500).json({ success: false, message: error.message });
+
+        // Handle duplicate email error (PostgreSQL error code 23505)
+        if (error.code === '23505' && error.constraint === 'users_email_key') {
+          return res.status(400).json({
+            success: false,
+            message: 'An account with this email address already exists. Please use a different email or try logging in.'
+          });
+        }
+
+        res.status(500).json({ success: false, message: 'An error occurred during registration. Please try again later.' });
       }
     });
 

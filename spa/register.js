@@ -76,19 +76,24 @@ export class Register {
       }
     } catch (error) {
       debugError("Registration error:", error);
-      this.showError(translate("error_creating_account"));
+      // Display the specific error message if available, otherwise show generic error
+      this.showError(error.message || translate("error_creating_account"));
     }
   }
 
   showError(message) {
     const errorElement = document.getElementById("error-message");
+    const successElement = document.getElementById("success-message");
     errorElement.textContent = message;
     errorElement.style.display = "block";
+    successElement.style.display = "none";
   }
 
   showSuccess(message) {
     const successElement = document.getElementById("success-message");
+    const errorElement = document.getElementById("error-message");
     successElement.textContent = message;
     successElement.style.display = "block";
+    errorElement.style.display = "none";
   }
 }
