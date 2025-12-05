@@ -1,6 +1,10 @@
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { translate } from "./app.js";
-import { fetchFromApi, getOrganizationFormFormats  } from "./ajax-functions.js";
+import {
+        fetchFromApi,
+        getCurrentOrganizationId,
+        getOrganizationFormFormats,
+} from "./ajax-functions.js";
 
 export class CreateOrganization {
 		constructor(app) {
@@ -8,16 +12,29 @@ export class CreateOrganization {
 				this.formHandler = null;
 		}
 
-		async init() {
-				if (this.app.userRole !== "admin") {
-						this.app.router.navigate("/dashboard");
-						return;
-				}
+                async init() {
+                                if (this.app.userRole !== "admin") {
+                                                this.app.router.navigate("/dashboard");
+                                                return;
+                                }
 
-				await this.render();
-				await this.initializeForm();
-				this.attachEventListeners();
-		}
+                                this.organizationId =
+                                        getCurrentOrganizationId() ||
+                                        this.app.organizationId ||
+                                        null;
+
+                                if (!this.organizationId) {
+                                                this.app.showMessage(
+                                                                translate("error_loading_data"),
+                                                                "error",
+                                                );
+                                                return;
+                                }
+
+                                await this.render();
+                                await this.initializeForm();
+                                this.attachEventListeners();
+                }
 
 		async render() {
 				const content = `
@@ -29,14 +46,34 @@ export class CreateOrganization {
 				document.getElementById("app").innerHTML = content;
 		}
 
-	async initializeForm() {
-			// Fetch form formats for the template organization (ID 0)
-			const formFormats = await getOrganizationFormFormats(0);
+        async initializeForm() {
+                        const formFormats =
+                                await getOrganizationFormFormats(
+                                        this.organizationId,
+                                );
 
-			// Initialize the form handler with the fetched format
-			this.formHandler = new DynamicFormHandler(this.app);
-	await this.formHandler.init('organization_info', null, {}, 'organization-form-container', false, null, null, 0);
-		}
+                        if (!formFormats || !formFormats.organization_info) {
+                                        this.app.showMessage(
+                                                        translate(
+                                                                        "error_loading_form",
+                                                        ),
+                                                        "error",
+                                        );
+                                        return;
+                        }
+
+                        this.formHandler = new DynamicFormHandler(this.app);
+                        await this.formHandler.init(
+                                "organization_info",
+                                null,
+                                {},
+                                "organization-form-container",
+                                false,
+                                null,
+                                null,
+                                this.organizationId,
+                        );
+                }
 
 		attachEventListeners() {
 				document.getElementById("submit-organization").addEventListener("click", () => this.handleSubmit());

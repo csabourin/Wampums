@@ -22,7 +22,20 @@ export class Admin {
         }
 
         async init() {
-                this.currentOrganizationId = await getCurrentOrganizationId();
+                this.currentOrganizationId =
+                        (await getCurrentOrganizationId()) ||
+                        this.app.organizationId ||
+                        null;
+
+                if (!this.currentOrganizationId) {
+                        this.app.showMessage(
+                                this.app.translate(
+                                        "error_loading_data",
+                                ),
+                                "error",
+                        );
+                        return;
+                }
                 await this.fetchData();
                 this.render();
                 this.initEventListeners();
