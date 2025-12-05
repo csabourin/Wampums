@@ -230,9 +230,9 @@ export class Fundraisers {
                                 const unarchiveBtn = event.target.closest('.unarchive-fundraiser-btn');
 
                                 if (editBtn) {
-                                        const fundraiserId = parseInt(editBtn.dataset.id);
-                                        const fundraiser = this.fundraisers.find(f => f.id === fundraiserId) ||
-                                                           this.archivedFundraisers.find(f => f.id === fundraiserId);
+                                        const fundraiserId = editBtn.dataset.id;
+                                        const fundraiser = this.fundraisers.find(f => String(f.id) === fundraiserId) ||
+                                                           this.archivedFundraisers.find(f => String(f.id) === fundraiserId);
                                         if (fundraiser) {
                                                 this.showModal(fundraiser);
                                         }
