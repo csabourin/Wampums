@@ -956,6 +956,66 @@ export async function getParticipantCalendar(participantId) {
 }
 
 // ============================================================================
+// FUNDRAISERS
+// ============================================================================
+
+/**
+ * Get all fundraisers
+ */
+export async function getFundraisers(includeArchived = false) {
+    return API.get('fundraisers', { include_archived: includeArchived });
+}
+
+/**
+ * Get single fundraiser details
+ */
+export async function getFundraiser(fundraiserId) {
+    return API.get(`fundraisers/${fundraiserId}`);
+}
+
+/**
+ * Create a new fundraiser
+ */
+export async function createFundraiser(data) {
+    return API.post('fundraisers', data);
+}
+
+/**
+ * Update fundraiser
+ */
+export async function updateFundraiser(fundraiserId, data) {
+    return API.put(`fundraisers/${fundraiserId}`, data);
+}
+
+/**
+ * Archive/unarchive a fundraiser
+ */
+export async function archiveFundraiser(fundraiserId, archived) {
+    return API.put(`fundraisers/${fundraiserId}/archive`, { archived });
+}
+
+/**
+ * Get calendars for a specific fundraiser
+ */
+export async function getCalendarsForFundraiser(fundraiserId) {
+    return API.get('calendars', { fundraiser_id: fundraiserId });
+}
+
+/**
+ * Update calendar entry
+ */
+export async function updateCalendarEntry(calendarId, data) {
+    return API.put(`calendars/${calendarId}`, data);
+}
+
+/**
+ * Update calendar payment
+ */
+export async function updateCalendarPayment(calendarId, amountPaid) {
+    return API.put(`calendars/${calendarId}/payment`, { amount_paid: amountPaid });
+}
+
+// ============================================================================
 // REUNIONS / MEETINGS
 // ============================================================================
 

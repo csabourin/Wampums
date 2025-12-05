@@ -1,4 +1,4 @@
-import { getCalendars, updateCalendar, updateCalendarPaid, updateCalendarAmountPaid } from './ajax-functions.js';
+import { getCalendarsForFundraiser, getFundraiser, updateCalendarEntry, updateCalendarPayment } from './ajax-functions.js';
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 
@@ -6,116 +6,312 @@ export class Calendars {
 	constructor(app) {
 		this.app = app;
 		this.calendars = [];
+		this.fundraiser = null;
+		this.fundraiserId = null;
+		this.sortBy = 'name'; // 'name' or 'paid'
 	}
 
-	async init() {
+	async init(fundraiserId) {
+		if (!fundraiserId) {
+			debugError('No fundraiser ID provided');
+			this.app.showMessage('error_no_fundraiser_id', 'error');
+			return;
+		}
+
+		this.fundraiserId = fundraiserId;
+		await this.fetchFundraiser();
 		await this.fetchCalendars();
 		this.render();
 		this.initEventListeners();
 	}
 
+	async fetchFundraiser() {
+		try {
+			const response = await getFundraiser(this.fundraiserId);
+			if (response.success && response.fundraiser) {
+				this.fundraiser = response.fundraiser;
+			}
+		} catch (error) {
+			debugError('Error fetching fundraiser:', error);
+			this.app.showMessage('error_fetching_fundraiser', 'error');
+		}
+	}
+
 	async fetchCalendars() {
 		try {
-			const response = await getCalendars();
+			const response = await getCalendarsForFundraiser(this.fundraiserId);
 			this.calendars = response.calendars || [];
-			this.calendars.sort((a, b) => a.first_name.localeCompare(b.first_name));
+			this.applySorting();
 		} catch (error) {
 			debugError('Error fetching calendars:', error);
 			this.app.showMessage('error_fetching_calendars', 'error');
 		}
 	}
 
+	applySorting() {
+		if (this.sortBy === 'name') {
+			this.calendars.sort((a, b) => a.first_name.localeCompare(b.first_name));
+		} else if (this.sortBy === 'paid') {
+			// Sort by paid status (unpaid first), then by name
+			this.calendars.sort((a, b) => {
+				if (a.paid === b.paid) {
+					return a.first_name.localeCompare(b.first_name);
+				}
+				return a.paid ? 1 : -1;
+			});
+		}
+	}
+
 	render() {
+		if (!this.fundraiser) {
+			return;
+		}
+
+		const startDate = new Date(this.fundraiser.start_date).toLocaleDateString();
+		const endDate = new Date(this.fundraiser.end_date).toLocaleDateString();
+
 		const content = `
-			<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
-			<h1>${this.app.translate('calendar_sales')}</h1>
-			<div id="calendars-table-container">
+			<div class="calendars-header">
+				<div class="header-nav">
+					<a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}" title="${translate("back_to_dashboard")}">🏠</a>
+					<a href="/fundraisers" class="back-button" aria-label="${translate("back_to_fundraisers")}">${translate("back_to_fundraisers")}</a>
+				</div>
+				<div class="fundraiser-header-info">
+					<h1>${this.fundraiser.name}</h1>
+					<p class="fundraiser-dates">${startDate} - ${endDate}</p>
+				</div>
+			</div>
+
+			<div class="calendars-controls">
+				<div class="sort-toggle" role="group" aria-label="${translate("sort_options")}">
+					<button
+						class="sort-btn ${this.sortBy === 'name' ? 'active' : ''}"
+						data-sort="name"
+						aria-pressed="${this.sortBy === 'name'}"
+						title="${translate("sort_by_name")}">
+						👤 ${translate("name")}
+					</button>
+					<button
+						class="sort-btn ${this.sortBy === 'paid' ? 'active' : ''}"
+						data-sort="paid"
+						aria-pressed="${this.sortBy === 'paid'}"
+						title="${translate("sort_by_paid_status")}">
+						💰 ${translate("paid_status")}
+					</button>
+				</div>
+			</div>
+
+			<div id="calendars-table-container" class="calendars-table-container">
 				${this.renderCalendarsTable()}
 			</div>
-			<button id="print-view-btn">${this.app.translate('print_view')}</button>
-			<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+
+			<div class="calendars-summary">
+				<p><strong>${translate("total_participants")}:</strong> ${this.calendars.length}</p>
+				<p><strong>${translate("total_sold")}:</strong> ${this.getTotalAmount()}</p>
+				<p><strong>${translate("total_collected")}:</strong> $${this.getTotalPaid().toFixed(2)}</p>
+				<p><strong>${translate("participants_paid")}:</strong> ${this.getPaidCount()} / ${this.calendars.length}</p>
+			</div>
+
+			<button id="print-view-btn" class="secondary-btn">${translate('print_view')}</button>
 		`;
 		document.getElementById('app').innerHTML = content;
 	}
 
 	renderCalendarsTable() {
+		if (this.calendars.length === 0) {
+			return `<p class="no-data">${translate("no_calendars_data")}</p>`;
+		}
+
 		return `
-			<table class="calendars-table">
+			<table class="calendars-table" role="table">
 				<thead>
 					<tr>
-						<th>${this.app.translate('name')}</th>
-						<th>${this.app.translate('amount')}</th>
-						<th>${this.app.translate('amount_paid')}</th>
-						<th>${this.app.translate('paid')}</th>
+						<th scope="col">${translate('name')}</th>
+						<th scope="col">${translate('group')}</th>
+						<th scope="col">${translate('amount')}</th>
+						<th scope="col">${translate('amount_paid')}</th>
+						<th scope="col">${translate('paid')}</th>
 					</tr>
 				</thead>
 				<tbody>
-					${this.calendars.map(calendar => `
-						<tr>
-							<td>${calendar.first_name} ${calendar.last_name}</td>
-							<td>
-								<input type="number" class="amount-input" data-participant-id="${calendar.participant_id}" value="${calendar.calendar_amount}" min="0">
-							</td>
-							<td>
-								<input type="number" step="0.01" class="amount-paid-input" data-participant-id="${calendar.participant_id}" value="${calendar.amount_paid}" min="0">
-							</td>
-							<td>
-								<input type="checkbox" class="paid-checkbox" data-participant-id="${calendar.participant_id}" ${calendar.paid ? 'checked' : ''}>
-							</td>
-						</tr>
-					`).join('')}
+					${this.calendars.map(calendar => this.renderCalendarRow(calendar)).join('')}
 				</tbody>
 			</table>
 		`;
 	}
 
+	renderCalendarRow(calendar) {
+		return `
+			<tr data-calendar-id="${calendar.id}">
+				<td>${calendar.first_name} ${calendar.last_name}</td>
+				<td>${calendar.group_name || translate('no_group')}</td>
+				<td>
+					<input
+						type="number"
+						class="amount-input"
+						data-calendar-id="${calendar.id}"
+						value="${calendar.calendar_amount || 0}"
+						min="0"
+						aria-label="${translate('amount_for')} ${calendar.first_name} ${calendar.last_name}">
+				</td>
+				<td>
+					<input
+						type="number"
+						step="0.01"
+						class="amount-paid-input"
+						data-calendar-id="${calendar.id}"
+						value="${calendar.amount_paid || 0}"
+						min="0"
+						aria-label="${translate('amount_paid_for')} ${calendar.first_name} ${calendar.last_name}">
+				</td>
+				<td>
+					<input
+						type="checkbox"
+						class="paid-checkbox"
+						data-calendar-id="${calendar.id}"
+						${calendar.paid ? 'checked' : ''}
+						aria-label="${translate('paid_status_for')} ${calendar.first_name} ${calendar.last_name}">
+				</td>
+			</tr>
+		`;
+	}
+
+	getTotalAmount() {
+		return this.calendars.reduce((sum, calendar) => sum + (parseInt(calendar.calendar_amount) || 0), 0);
+	}
+
+	getTotalPaid() {
+		return this.calendars.reduce((sum, calendar) => sum + (parseFloat(calendar.amount_paid) || 0), 0);
+	}
+
+	getPaidCount() {
+		return this.calendars.filter(calendar => calendar.paid).length;
+	}
+
 	initEventListeners() {
+		// Sort button clicks
+		document.querySelectorAll('.sort-btn').forEach(btn => {
+			btn.addEventListener('click', () => {
+				this.sortBy = btn.dataset.sort;
+				this.applySorting();
+				this.updateTableOnly();
+			});
+		});
+
+		// Input changes with debouncing
+		let updateTimeout;
+
 		document.addEventListener('input', async (event) => {
+			clearTimeout(updateTimeout);
+
 			if (event.target.classList.contains('amount-input')) {
-				const participantId = event.target.dataset.participantId;
+				const calendarId = event.target.dataset.calendarId;
 				const amount = event.target.value;
-				const amountPaid = document.querySelector(`.amount-paid-input[data-participant-id="${participantId}"]`).value;
-				await this.updateCalendarAmount(participantId, amount, amountPaid);
+
+				updateTimeout = setTimeout(async () => {
+					await this.updateCalendarAmount(calendarId, amount);
+				}, 500); // Debounce 500ms
+
 			} else if (event.target.classList.contains('amount-paid-input')) {
-				const participantId = event.target.dataset.participantId;
+				const calendarId = event.target.dataset.calendarId;
 				const amountPaid = event.target.value;
-				await this.updateCalendarAmountPaid(participantId, amountPaid);
+
+				updateTimeout = setTimeout(async () => {
+					await this.updateCalendarAmountPaid(calendarId, amountPaid);
+				}, 500); // Debounce 500ms
+
 			} else if (event.target.classList.contains('paid-checkbox')) {
-				const participantId = event.target.dataset.participantId;
+				const calendarId = event.target.dataset.calendarId;
 				const paid = event.target.checked;
-				await this.updateCalendarPaid(participantId, paid);
+				await this.updateCalendarPaid(calendarId, paid);
 			}
 		});
 
-		document.getElementById('print-view-btn').addEventListener('click', () => {
-			this.showPrintView();
-		});
+		// Print button
+		const printBtn = document.getElementById('print-view-btn');
+		if (printBtn) {
+			printBtn.addEventListener('click', () => {
+				this.showPrintView();
+			});
+		}
 	}
 
-	async updateCalendarAmount(participantId, amount, amountPaid) {
+	updateTableOnly() {
+		const container = document.getElementById('calendars-table-container');
+		if (container) {
+			container.innerHTML = this.renderCalendarsTable();
+		}
+
+		// Update sort button states
+		document.querySelectorAll('.sort-btn').forEach(btn => {
+			if (btn.dataset.sort === this.sortBy) {
+				btn.classList.add('active');
+				btn.setAttribute('aria-pressed', 'true');
+			} else {
+				btn.classList.remove('active');
+				btn.setAttribute('aria-pressed', 'false');
+			}
+		});
+
+		// Re-attach input listeners
+		this.initEventListeners();
+	}
+
+	async updateCalendarAmount(calendarId, amount) {
 		try {
-			await updateCalendar(participantId, amount, amountPaid);
-			this.app.showMessage('calendar_amount_updated', 'success');
+			const response = await updateCalendarEntry(calendarId, {
+				amount: parseInt(amount) || 0
+			});
+
+			if (response.success) {
+				// Update local data
+				const calendar = this.calendars.find(c => c.id == calendarId);
+				if (calendar) {
+					calendar.calendar_amount = parseInt(amount) || 0;
+				}
+				this.app.showMessage('calendar_amount_updated', 'success');
+			}
 		} catch (error) {
 			debugError('Error updating calendar amount:', error);
 			this.app.showMessage('error_updating_calendar_amount', 'error');
 		}
 	}
 
-	async updateCalendarAmountPaid(participantId, amountPaid) {
+	async updateCalendarAmountPaid(calendarId, amountPaid) {
 		try {
-			await updateCalendarAmountPaid(participantId, amountPaid);
-			this.app.showMessage('calendar_amount_paid_updated', 'success');
+			const response = await updateCalendarPayment(calendarId, parseFloat(amountPaid) || 0);
+
+			if (response.success) {
+				// Update local data
+				const calendar = this.calendars.find(c => c.id == calendarId);
+				if (calendar) {
+					calendar.amount_paid = parseFloat(amountPaid) || 0;
+					// Update paid status based on server response
+					if (response.data && response.data.paid !== undefined) {
+						calendar.paid = response.data.paid;
+					}
+				}
+				this.app.showMessage('calendar_amount_paid_updated', 'success');
+				this.updateTableOnly();
+			}
 		} catch (error) {
 			debugError('Error updating calendar amount paid:', error);
 			this.app.showMessage('error_updating_calendar_amount_paid', 'error');
 		}
 	}
 
-	async updateCalendarPaid(participantId, paid) {
+	async updateCalendarPaid(calendarId, paid) {
 		try {
-			await updateCalendarPaid(participantId, paid);
-			this.app.showMessage('calendar_paid_status_updated', 'success');
+			const response = await updateCalendarEntry(calendarId, { paid });
+
+			if (response.success) {
+				// Update local data
+				const calendar = this.calendars.find(c => c.id == calendarId);
+				if (calendar) {
+					calendar.paid = paid;
+				}
+				this.app.showMessage('calendar_paid_status_updated', 'success');
+			}
 		} catch (error) {
 			debugError('Error updating calendar paid status:', error);
 			this.app.showMessage('error_updating_calendar_paid_status', 'error');
@@ -123,14 +319,16 @@ export class Calendars {
 	}
 
 	showPrintView() {
-		const totalAmount = this.calendars.reduce((sum, calendar) => sum + parseFloat(calendar.calendar_amount || 0), 0);
-		const totalAmountPaid = this.calendars.reduce((sum, calendar) => sum + parseFloat(calendar.amount_paid || 0), 0);
+		const totalAmount = this.getTotalAmount();
+		const totalAmountPaid = this.getTotalPaid();
+		const startDate = new Date(this.fundraiser.start_date).toLocaleDateString();
+		const endDate = new Date(this.fundraiser.end_date).toLocaleDateString();
 
 		const printWindow = window.open('', '_blank');
 		printWindow.document.write(`
 			<html>
 				<head>
-					<title>${translate("calendar_sales_title")}</title>
+					<title>${this.fundraiser.name} - ${translate("calendar_sales_title")}</title>
 					<style>
 						@page {
 							size: letter;
@@ -142,7 +340,13 @@ export class Calendars {
 						}
 						h1 {
 							text-align: center;
+							margin-bottom: 10px;
+						}
+						.fundraiser-info {
+							text-align: center;
 							margin-bottom: 20px;
+							font-size: 11pt;
+							color: #666;
 						}
 						.print-table {
 							width: 100%;
@@ -180,11 +384,13 @@ export class Calendars {
 					</style>
 				</head>
 				<body>
-					<h1>${translate("calendar_sales_title")}</h1>
+					<h1>${this.fundraiser.name}</h1>
+					<div class="fundraiser-info">${startDate} - ${endDate}</div>
 					<table class="print-table">
 						<thead>
 							<tr>
 								<th>${translate("name_column")}</th>
+								<th>${translate("group")}</th>
 								<th>${translate("quantity_column")}</th>
 								<th>${translate("amount_paid_column")}</th>
 								<th>${translate("paid_column")}</th>
@@ -194,15 +400,16 @@ export class Calendars {
 							${this.calendars.map(calendar => `
 								<tr>
 									<td>${calendar.first_name} ${calendar.last_name}</td>
+									<td>${calendar.group_name || translate("no_group")}</td>
 									<td><div class="amount-box">${calendar.calendar_amount || ''}</div></td>
 									<td><div class="amount-paid-box">${calendar.amount_paid || '0.00'}</div></td>
 									<td><div class="paid-box">${calendar.paid ? '✓' : ''}</div></td>
 								</tr>
 							`).join('')}
 							<tr class="total-row">
-								<td>${translate("total")}</td>
-								<td>${totalAmount.toFixed(2)}</td>
-								<td>${totalAmountPaid.toFixed(2)}</td>
+								<td colspan="2">${translate("total")}</td>
+								<td>${totalAmount}</td>
+								<td>$${totalAmountPaid.toFixed(2)}</td>
 								<td></td>
 							</tr>
 						</tbody>
@@ -213,5 +420,4 @@ export class Calendars {
 		printWindow.document.close();
 		printWindow.print();
 	}
-
 }

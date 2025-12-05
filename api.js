@@ -393,6 +393,7 @@ const guardiansRoutes = require('./routes/guardians')(pool, logger);
 const meetingsRoutes = require('./routes/meetings')(pool, logger);
 const notificationsRoutes = require('./routes/notifications')(pool, logger);
 const calendarsRoutes = require('./routes/calendars')(pool, logger);
+const fundraisersRoutes = require('./routes/fundraisers')(pool, logger);
 const reportsRoutes = require('./routes/reports')(pool, logger);
 const dashboardsRoutes = require('./routes/dashboards')(pool, logger);
 const publicRoutes = require('./routes/public')(pool, logger);
@@ -462,6 +463,16 @@ logger.info('   - GET /api/calendars');
 logger.info('   - PUT /api/calendars/:id');
 logger.info('   - PUT /api/calendars/:id/payment');
 logger.info('   - GET /api/participant-calendar');
+
+// Fundraiser Routes (handles /api/fundraisers)
+// Endpoints: fundraisers (GET/POST), fundraisers/:id (GET/PUT), fundraisers/:id/archive
+app.use('/api', fundraisersRoutes);
+logger.info('✅ Fundraiser routes loaded');
+logger.info('   - GET /api/fundraisers');
+logger.info('   - POST /api/fundraisers');
+logger.info('   - GET /api/fundraisers/:id');
+logger.info('   - PUT /api/fundraisers/:id');
+logger.info('   - PUT /api/fundraisers/:id/archive');
 
 // Form Routes (handles /api/form-submission, /api/save-form-submission, /api/form-types, etc.)
 // Endpoints: form-submission, save-form-submission, organization-form-formats, form-types, form-structure, form-submissions-list, form-submissions, risk-acceptance, health-forms

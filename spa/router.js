@@ -28,6 +28,7 @@ const lazyModules = {
   Admin: () => import('./admin.js').then(m => m.Admin),
   MailingList: () => import('./mailing_list.js').then(m => m.MailingList),
   Calendars: () => import('./calendars.js').then(m => m.Calendars),
+  Fundraisers: () => import('./fundraisers.js').then(m => m.Fundraisers),
   ResetPassword: () => import('./reset_password.js').then(m => m.ResetPassword),
   DynamicFormHandler: () => import('./dynamicFormHandler.js').then(m => m.DynamicFormHandler),
   Reports: () => import('./reports.js').then(m => m.Reports),
@@ -68,7 +69,8 @@ const routes = {
   "/acceptation-risque/:id": "acceptationRisque",
   "/badge-form/:id": "badgeForm",
   "/register": "register",
-  "/calendars": "calendars",
+  "/fundraisers": "fundraisers",
+  "/calendars/:id": "calendars",
   "/reset-password": "resetPassword",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
@@ -146,11 +148,18 @@ export class Router {
             await this.loadAdminPage();
           }
           break;
+        case "fundraisers":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation"){
+            this.loadNotAuthorizedPage();
+          } else {
+            await this.loadFundraisersPage();
+          }
+          break;
         case "calendars":
           if (this.app.userRole !== "admin" && this.app.userRole !== "animation"){
             this.loadNotAuthorizedPage();
           } else {
-            await this.loadCalendarsPage();
+            await this.loadCalendarsPage(param);
           }
           break;
           case "createOrganization":
@@ -280,10 +289,16 @@ export class Router {
     await dynamicFormHandler.init(formType, participantId);
   }
 
-  async loadCalendarsPage() {
+  async loadFundraisersPage() {
+    const Fundraisers = await this.loadModule('Fundraisers');
+    const fundraisers = new Fundraisers(this.app);
+    await fundraisers.init();
+  }
+
+  async loadCalendarsPage(fundraiserId) {
     const Calendars = await this.loadModule('Calendars');
     const calendars = new Calendars(this.app);
-    await calendars.init();
+    await calendars.init(fundraiserId);
   }
 
   getRouteNameAndParam(path) {

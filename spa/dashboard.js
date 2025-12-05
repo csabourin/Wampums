@@ -231,7 +231,7 @@ export class Dashboard {
         <a href="/parent-contact-list">${translate("parent_contact_list")}</a>
         <a href="/manage-users-participants">${translate("manage_participants")}</a>
         <a href="/mailing-list">${translate("mailing_list")}</a>
-        <a href="/calendars">${translate("calendars")}</a>
+        <a href="/fundraisers">${translate("fundraisers")}</a>
         <a href="/reports">${translate("reports")}</a>
         <a href="/group-participant-report">${translate("feuille_participants")}</a>
         ${adminLink}
