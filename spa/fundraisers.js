@@ -4,13 +4,14 @@ import { translate } from "./app.js";
 import { clearFundraiserRelatedCaches } from './indexedDB.js';
 
 export class Fundraisers {
-	constructor(app) {
-		this.app = app;
-		this.fundraisers = [];
-		this.archivedFundraisers = [];
-		this.showArchived = false;
-		this.editingFundraiser = null;
-	}
+        constructor(app) {
+                this.app = app;
+                this.fundraisers = [];
+                this.archivedFundraisers = [];
+                this.showArchived = false;
+                this.editingFundraiser = null;
+                this.fundraiserActionHandler = null;
+        }
 
 	async init() {
 		await this.fetchFundraisers();
@@ -206,7 +207,7 @@ export class Fundraisers {
 		`;
 	}
 
-	initEventListeners() {
+        initEventListeners() {
 		const addBtn = document.getElementById('add-fundraiser-btn');
 		if (addBtn) {
 			addBtn.addEventListener('click', () => this.showModal());
@@ -217,36 +218,43 @@ export class Fundraisers {
 			toggleArchivedBtn.addEventListener('click', () => this.toggleArchived());
 		}
 
-		// Edit fundraiser buttons
-		document.querySelectorAll('.edit-fundraiser-btn').forEach(btn => {
-			btn.addEventListener('click', (e) => {
-				const fundraiserId = parseInt(e.target.dataset.id);
-				// Search in both active and archived fundraisers
-				const fundraiser = this.fundraisers.find(f => f.id === fundraiserId) ||
-				                   this.archivedFundraisers.find(f => f.id === fundraiserId);
-				if (fundraiser) {
-					this.showModal(fundraiser);
-				}
-			});
-		});
+                const fundraisersContainer = document.querySelector('.fundraisers-container');
+                if (fundraisersContainer) {
+                        if (this.fundraiserActionHandler) {
+                                fundraisersContainer.removeEventListener('click', this.fundraiserActionHandler);
+                        }
 
-		// Archive fundraiser buttons
-		document.querySelectorAll('.archive-fundraiser-btn').forEach(btn => {
-			btn.addEventListener('click', async (e) => {
-				const fundraiserId = parseInt(e.target.dataset.id);
-				if (confirm(translate("confirm_archive_fundraiser"))) {
-					await this.archiveFundraiser(fundraiserId);
-				}
-			});
-		});
+                        this.fundraiserActionHandler = async (event) => {
+                                const editBtn = event.target.closest('.edit-fundraiser-btn');
+                                const archiveBtn = event.target.closest('.archive-fundraiser-btn');
+                                const unarchiveBtn = event.target.closest('.unarchive-fundraiser-btn');
 
-		// Unarchive fundraiser buttons
-		document.querySelectorAll('.unarchive-fundraiser-btn').forEach(btn => {
-			btn.addEventListener('click', async (e) => {
-				const fundraiserId = parseInt(e.target.dataset.id);
-				await this.unarchiveFundraiser(fundraiserId);
-			});
-		});
+                                if (editBtn) {
+                                        const fundraiserId = parseInt(editBtn.dataset.id);
+                                        const fundraiser = this.fundraisers.find(f => f.id === fundraiserId) ||
+                                                           this.archivedFundraisers.find(f => f.id === fundraiserId);
+                                        if (fundraiser) {
+                                                this.showModal(fundraiser);
+                                        }
+                                        return;
+                                }
+
+                                if (archiveBtn) {
+                                        const fundraiserId = parseInt(archiveBtn.dataset.id);
+                                        if (confirm(translate("confirm_archive_fundraiser"))) {
+                                                await this.archiveFundraiser(fundraiserId);
+                                        }
+                                        return;
+                                }
+
+                                if (unarchiveBtn) {
+                                        const fundraiserId = parseInt(unarchiveBtn.dataset.id);
+                                        await this.unarchiveFundraiser(fundraiserId);
+                                }
+                        };
+
+                        fundraisersContainer.addEventListener('click', this.fundraiserActionHandler);
+                }
 
 		// Modal events
 		const modal = document.getElementById('fundraiser-modal');
@@ -276,16 +284,21 @@ export class Fundraisers {
 
 		this.editingFundraiser = fundraiser;
 
-		if (fundraiser) {
-			title.textContent = translate("edit_fundraiser");
-			form.name.value = fundraiser.name;
-			form.start_date.value = fundraiser.start_date;
-			form.end_date.value = fundraiser.end_date;
-			form.objective.value = fundraiser.objective || '';
-		} else {
-			title.textContent = translate("add_fundraiser");
-			form.reset();
-		}
+                if (fundraiser) {
+                        const formatDate = (dateString) => {
+                                if (!dateString) return '';
+                                return dateString.split('T')[0] || dateString;
+                        };
+
+                        title.textContent = translate("edit_fundraiser");
+                        form.name.value = fundraiser.name;
+                        form.start_date.value = formatDate(fundraiser.start_date);
+                        form.end_date.value = formatDate(fundraiser.end_date);
+                        form.objective.value = fundraiser.objective || '';
+                } else {
+                        title.textContent = translate("add_fundraiser");
+                        form.reset();
+                }
 
 		modal.classList.add('show');
 		modal.setAttribute('aria-hidden', 'false');

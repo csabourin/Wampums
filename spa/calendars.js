@@ -271,7 +271,7 @@ export class Calendars {
 					calendar.calendar_amount = parseInt(amount) || 0;
 				}
 				// Invalidate fundraisers cache so totals are updated
-				await clearFundraiserRelatedCaches();
+                                await clearFundraiserRelatedCaches(this.fundraiserId);
 				this.app.showMessage('calendar_amount_updated', 'success');
 			}
 		} catch (error) {
@@ -295,7 +295,7 @@ export class Calendars {
 					}
 				}
 				// Invalidate fundraisers cache so totals are updated
-				await clearFundraiserRelatedCaches();
+                                await clearFundraiserRelatedCaches(this.fundraiserId);
 				this.app.showMessage('calendar_amount_paid_updated', 'success');
 				this.updateTableOnly();
 			}
@@ -316,7 +316,7 @@ export class Calendars {
 					calendar.paid = paid;
 				}
 				// Invalidate fundraisers cache so totals are updated
-				await clearFundraiserRelatedCaches();
+                                await clearFundraiserRelatedCaches(this.fundraiserId);
 				this.app.showMessage('calendar_paid_status_updated', 'success');
 			}
 		} catch (error) {

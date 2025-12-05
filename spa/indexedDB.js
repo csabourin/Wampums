@@ -267,15 +267,36 @@ export async function clearBadgeRelatedCaches() {
   }
 }
 
-export async function clearFundraiserRelatedCaches() {
-  const keysToDelete = [
-    'fundraisers',           // API-level cache used by getFundraisers()
-    'calendars'              // API-level cache used by getCalendarsForFundraiser()
-  ];
+export async function clearFundraiserRelatedCaches(fundraiserId = null) {
+  const baseKeys = new Set(['fundraisers']);
+  if (fundraiserId) {
+    baseKeys.add(`calendars_${fundraiserId}`);
+  }
 
-  debugLog("Clearing fundraiser-related caches:", keysToDelete);
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
 
-  for (const key of keysToDelete) {
+  allKeys.forEach(key => {
+    if (key.startsWith('fundraisers')) {
+      baseKeys.add(key);
+    }
+
+    if (key.startsWith('calendars_')) {
+      if (!fundraiserId || key === `calendars_${fundraiserId}`) {
+        baseKeys.add(key);
+      }
+    }
+  });
+
+  debugLog("Clearing fundraiser-related caches:", Array.from(baseKeys));
+
+  for (const key of baseKeys) {
     try {
       await deleteCachedData(key);
     } catch (error) {
