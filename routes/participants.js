@@ -770,8 +770,12 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.get('/:id', authenticate, asyncHandler(async (req, res) => {
-    const { id } = req.params;
+  router.get('/:id(\\d+)', authenticate, asyncHandler(async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(id)) {
+      return error(res, 'Invalid participant id', 400);
+    }
     const organizationId = await getOrganizationId(req, pool);
     const userRole = req.user.role;
     const userId = req.user.id;
