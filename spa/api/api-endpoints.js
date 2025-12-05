@@ -1297,7 +1297,14 @@ export async function getInitialData() {
  * Get push notification subscribers
  */
 export async function getSubscribers(organizationId) {
-    return API.get('push-subscribers', { organization_id: organizationId });
+    try {
+        return await API.get('push-subscribers', {
+            organization_id: organizationId
+        });
+    } catch (error) {
+        debugWarn('Push subscriber endpoint unavailable, returning empty list', error);
+        return { success: false, data: [] };
+    }
 }
 
 /**

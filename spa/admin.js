@@ -47,9 +47,7 @@ export class Admin {
                         const usersResult = await getUsers(
                                 this.currentOrganizationId,
                         );
-                        this.users = Array.isArray(usersResult?.users)
-                                ? usersResult.users
-                                : [];
+                        this.users = this.normalizeUserList(usersResult);
 
                         if (!usersResult?.success) {
                                 debugWarn(
@@ -58,20 +56,28 @@ export class Admin {
                                 );
                         }
 
-                        const subscribersResult = await getSubscribers(
-                                this.currentOrganizationId,
-                        );
-                        this.subscribers = Array.isArray(
-                                subscribersResult?.data,
-                        )
-                                ? subscribersResult.data
-                                : [];
-
-                        if (!subscribersResult?.success) {
-                                debugWarn(
-                                        "Subscribers request did not return success flag",
-                                        subscribersResult,
+                        try {
+                                const subscribersResult = await getSubscribers(
+                                        this.currentOrganizationId,
                                 );
+                                this.subscribers = Array.isArray(
+                                        subscribersResult?.data,
+                                )
+                                        ? subscribersResult.data
+                                        : [];
+
+                                if (!subscribersResult?.success) {
+                                        debugWarn(
+                                                "Subscribers request did not return success flag",
+                                                subscribersResult,
+                                        );
+                                }
+                        } catch (subscriberError) {
+                                debugWarn(
+                                        "Unable to load subscribers; proceeding without list",
+                                        subscriberError,
+                                );
+                                this.subscribers = [];
                         }
                 } catch (error) {
                         debugError("Error fetching data:", error);
@@ -131,12 +137,16 @@ export class Admin {
         }
 
         renderUsers() {
-                debugLog(this.users);
-                if (!this.users.length) {
+                const users = Array.isArray(this.users)
+                        ? this.users
+                        : this.normalizeUserList(this.users);
+
+                debugLog(users);
+                if (!users.length) {
                         return `<tr><td colspan="4">${this.app.translate("no_users_found")}</td></tr>`;
                 }
 
-                return this.users
+                return users
                         .map((user) => {
                                 const safeFullName = escapeHTML(
                                         user.full_name || user.fullName || "",
@@ -167,11 +177,15 @@ export class Admin {
         }
 
         renderSubscribers() {
-                if (!this.subscribers.length) {
+                const subscribers = Array.isArray(this.subscribers)
+                        ? this.subscribers
+                        : [];
+
+                if (!subscribers.length) {
                         return `<div>${this.app.translate("no_subscribers_found")}</div>`;
                 }
 
-                return this.subscribers
+                return subscribers
                         .map(
                                 (subscriber) => `
                         <div>
@@ -356,5 +370,24 @@ export class Admin {
                                 resultContainer.innerHTML = `${translate("error")}: ${error.message}`;
                         }
                 });
+        }
+
+        /**
+         * Normalize user response shapes to a consistent array
+         * @param {object|Array} usersResult
+         * @returns {Array}
+         */
+        normalizeUserList(usersResult) {
+                const candidates = [
+                        usersResult?.users,
+                        usersResult?.data,
+                        usersResult,
+                ];
+
+                const userList = candidates.find((candidate) =>
+                        Array.isArray(candidate),
+                );
+
+                return userList || [];
         }
 }
