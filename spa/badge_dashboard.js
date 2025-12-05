@@ -8,7 +8,7 @@ import {
   updateBadgeProgress,
 } from "./ajax-functions.js";
 import { CONFIG } from "./config.js";
-import { getCachedData, setCachedData } from "./indexedDB.js";
+import { getCachedData, setCachedData, clearBadgeRelatedCaches } from "./indexedDB.js";
 import { debugError } from "./utils/DebugUtils.js";
 
 export class BadgeDashboard {
@@ -608,8 +608,9 @@ export class BadgeDashboard {
           <button type="button" class="tab-button ${!showAddForm ? "active" : ""}" data-tab="edit">
             ${translate("badge_edit_tab") || "Edit"}
           </button>
-          <button type="button" class="tab-button ${showAddForm ? "active" : ""}" data-tab="add">
-            ${translate("badge_add_tab") || "Add New"}
+
+          <button type="button" class="tab-button ${showAddForm ? 'active' : ''}" data-tab="add">
+            ${translate("badge_add_tab") || "New Star"}
           </button>
         </nav>
         `
@@ -725,7 +726,7 @@ export class BadgeDashboard {
               </div>
 
               <div class="form-actions">
-                <button type="submit" class="primary-button">${translate("badge_add_button") || "Add Star"}</button>
+                <button type="submit" class="primary-button">${translate("badge_add_button") || "New Star"}</button>
               </div>
               <div id="badge-add-feedback" role="status" aria-live="polite"></div>
             </form>
@@ -825,17 +826,21 @@ export class BadgeDashboard {
           if (!result?.success)
             throw new Error(result?.message || "Unknown error");
 
-          this.replaceBadgeEntry(result.data);
-          this.buildRecords();
-          this.updateRows();
-          feedback.textContent = translate("badge_update_success");
-          feedback.className = "feedback-success";
-        } catch (error) {
-          debugError("Error updating badge entry", error);
-          feedback.textContent = translate("badge_update_error");
-          feedback.className = "feedback-error";
-        }
-      });
+
+        // Clear IndexedDB cache to ensure fresh data on next load
+        await clearBadgeRelatedCaches();
+
+        this.replaceBadgeEntry(result.data);
+        this.buildRecords();
+        this.updateRows();
+        feedback.textContent = translate("badge_update_success");
+        feedback.className = "feedback-success";
+      } catch (error) {
+        debugError("Error updating badge entry", error);
+        feedback.textContent = translate("badge_update_error");
+        feedback.className = "feedback-error";
+      }
+    });
 
     // Add form handler
     modal
@@ -858,30 +863,14 @@ export class BadgeDashboard {
           if (!result?.success)
             throw new Error(result?.message || "Unknown error");
 
-          if (result.data) {
-            this.badgeEntries.push(result.data);
-            this.buildRecords();
-            this.resetVisibleCount();
-            this.updateRows();
-          }
+        // Clear IndexedDB cache to ensure fresh data on next load
+        await clearBadgeRelatedCaches();
 
-          feedback.textContent = translate("badge_add_success");
-          feedback.className = "feedback-success";
-          setTimeout(() => {
-            // Reopen modal in edit mode with the newly added badge
-            const addedBadgeName = payload.territoire_chasse;
-            this.openBadgeModal(
-              participantId,
-              addedBadgeName,
-              false,
-              null,
-              false,
-            );
-          }, 500);
-        } catch (error) {
-          debugError("Error creating badge entry", error);
-          feedback.textContent = translate("badge_add_error");
-          feedback.className = "feedback-error";
+        if (result.data) {
+          this.badgeEntries.push(result.data);
+          this.buildRecords();
+          this.resetVisibleCount();
+          this.updateRows();
         }
       });
 
