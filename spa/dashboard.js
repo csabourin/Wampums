@@ -163,62 +163,63 @@ export class Dashboard {
       <div class="logo-container">
         <img class="logo" src="${this.organizationLogo}" width="335" height="366" alt="Logo">
       </div>
+<!-- DAY-TO-DAY -->
+<section class="dashboard-section">
+  <h3>${translate("dashboard_day_to_day_section")}</h3>
+  <div class="manage-items">
+    <a href="/approve-badges"><i class="fa-solid fa-certificate"></i><span>${translate("approve_badges")}</span></a>
+    <a href="/badge-dashboard"><i class="fa-solid fa-chart-bar"></i><span>${translate("badge_dashboard_link")}</span></a>
+    <a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>
+    <a href="/parent-contact-list"><i class="fa-solid fa-address-book"></i><span>${translate("parent_contact_list")}</span></a>
+    <a href="/managePoints"><i class="fa-solid fa-coins"></i><span>${translate("manage_points")}</span></a>
+    <a href="/manageHonors"><i class="fa-solid fa-award"></i><span>${translate("manage_honors")}</span></a>
+    <a href="/attendance"><i class="fa-solid fa-clipboard-check"></i><span>${translate("attendance")}</span></a>
+    <a href="/upcoming-meeting"><i class="fa-solid fa-calendar-day"></i><span>${translate("upcoming_meeting")}</span></a>
+    <a href="/parent-dashboard"><i class="fa-solid fa-users"></i><span>${translate("vue_parents")}</span></a>
+  </div>
+</section>
 
-      <!-- DAY-TO-DAY -->
-      <section class="dashboard-section">
-        <h3>${translate("dashboard_day_to_day_section")}</h3>
-        <div class="manage-items">
-          <a href="/approve-badges"><i class="fa-solid fa-certificate"></i><span>${translate("approve_badges")}</span></a>
-          <a href="/badge-dashboard"><i class="fa-solid fa-chart-bar"></i><span>${translate("badge_dashboard_link")}</span></a>
-          <a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>
-          <a href="/parent-contact-list"><i class="fa-solid fa-address-book"></i><span>${translate("parent_contact_list")}</span></a>
-          <a href="/managePoints"><i class="fa-solid fa-coins"></i><span>${translate("manage_points")}</span></a>
-          <a href="/manageHonors"><i class="fa-solid fa-award"></i><span>${translate("manage_honors")}</span></a>
-          <a href="/attendance"><i class="fa-solid fa-clipboard-check"></i><span>${translate("attendance")}</span></a>
-          <a href="/upcoming-meeting"><i class="fa-solid fa-calendar-day"></i><span>${translate("upcoming_meeting")}</span></a>
-          <a href="/parent-dashboard"><i class="fa-solid fa-users"></i><span>${translate("vue_parents")}</span></a>
-        </div>
-      </section>
+<!-- PREPARATION -->
+<section class="dashboard-section">
+  <h3>${translate("dashboard_preparation_section")}</h3>
+  <div class="manage-items">
+    <a href="/preparation-reunions"><i class="fa-solid fa-clipboard-list"></i><span>${translate("preparation_reunions")}</span></a>
+    <a href="/view-participant-documents"><i class="fa-solid fa-file-lines"></i><span>${translate("view_participant_documents")}</span></a>
+  </div>
+</section>
 
-      <!-- PREPARATION -->
-      <section class="dashboard-section">
-        <h3>${translate("dashboard_preparation_section")}</h3>
-        <div class="manage-items">
-          <a href="/preparation-reunions"><i class="fa-solid fa-clipboard-list"></i><span>${translate("preparation_reunions")}</span></a>
-          <a href="/view-participant-documents"><i class="fa-solid fa-file-lines"></i><span>${translate("view_participant_documents")}</span></a>
-        </div>
-      </section>
+<!-- ADMIN -->
+<section class="dashboard-section">
+  <h3>${translate("dashboard_admin_section")}</h3>
+  <div class="manage-items">
+    <a href="/manage-participants"><i class="fa-solid fa-id-card"></i><span>${translate("manage_names")}</span></a>
+    <a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>
+    <a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>
+    <a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>
+    <a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>
+    <a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>
+    ${adminLink}
+  </div>
+</section>
 
-      <!-- ADMIN -->
-      <section class="dashboard-section">
-        <h3>${translate("dashboard_admin_section")}</h3>
-        <div class="manage-items">
-          <a href="/manage-participants"><i class="fa-solid fa-id-card"></i><span>${translate("manage_names")}</span></a>
-          <a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>
-          <a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_participants")}</span></a>
-          <a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>
-          <a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>
-          <a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>
-          ${adminLink}
-        </div>
-      </section>
+<!-- POINTS SECTION WITH TOGGLE -->
+<div class="dashboard-card" id="points-section">
+  <div class="section-header">
+    <h3>${translate("points")}</h3>
+    <div class="section-actions">
+      <button type="button" id="toggle-points-btn" class="ghost-button"
+        aria-expanded="${!this.pointsCollapsed}">
+        ${this.pointsCollapsed ? translate("expand_points") : translate("collapse_points")}
+      </button>
+      <a class="text-link" href="/managePoints#points-list">${translate("view_full_points")}</a>
+    </div>
+  </div>
 
-      <!-- POINTS SECTION WITH TOGGLE -->
-      <div class="dashboard-card" id="points-section">
-        <div class="section-header">
-          <h3>${translate("points")}</h3>
-          <div class="section-actions">
-            <button type="button" id="toggle-points-btn" class="ghost-button"
-              aria-expanded="${!this.pointsCollapsed}">
-              ${this.pointsCollapsed ? translate("expand_points") : translate("collapse_points")}
-            </button>
-            <a class="text-link" href="/managePoints#points-list">${translate("view_full_points")}</a>
-          </div>
-        </div>
+  <div id="points-list" class="${this.pointsCollapsed ? "collapsed" : "expanded"}">
+    ${this.pointsCollapsed ? this.renderCollapsedPointsPlaceholder() : this.renderPointsList()}
+  </div>
+</div>
 
-        <div id="points-list" class="${this.pointsCollapsed ? "collapsed" : "expanded"}">
-          ${this.pointsCollapsed ? this.renderCollapsedPointsPlaceholder() : this.renderPointsList()}
-        </div>
       </div>
 
       <!-- NEWS -->
