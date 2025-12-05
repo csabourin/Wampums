@@ -69,7 +69,7 @@ module.exports = (pool, logger) => {
           COALESCE(SUM(c.amount), 0) as total_amount,
           COALESCE(SUM(c.amount_paid), 0) as total_paid
         FROM fundraisers f
-        LEFT JOIN calendars c ON c.fundraiser = f.id AND c.archived = false
+        LEFT JOIN calendars c ON c.fundraiser = f.id
         WHERE f.organization = $1
       `;
 
@@ -135,7 +135,7 @@ module.exports = (pool, logger) => {
                 COALESCE(SUM(c.amount), 0) as total_amount,
                 COALESCE(SUM(c.amount_paid), 0) as total_paid
          FROM fundraisers f
-         LEFT JOIN calendars c ON c.fundraiser = f.id AND c.archived = false
+         LEFT JOIN calendars c ON c.fundraiser = f.id
          WHERE f.id = $1 AND f.organization = $2
          GROUP BY f.id`,
         [id, organizationId]
@@ -227,35 +227,32 @@ module.exports = (pool, logger) => {
 
         const fundraiser = fundraiserResult.rows[0];
 
-        // Get all active (non-archived) participants for this organization
+        // Get all participants for this organization
         const participantsResult = await client.query(
           `SELECT DISTINCT p.id
            FROM participants p
            JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE po.organization_id = $1
-           AND NOT EXISTS (
-             SELECT 1 FROM calendars c
-             WHERE c.participant_id = p.id
-             AND c.archived = true
-           )`,
+           WHERE po.organization_id = $1`,
           [organizationId]
         );
 
-        // Create calendar entries for all active participants
+        // Create calendar entries for all participants
         if (participantsResult.rows.length > 0) {
           const values = participantsResult.rows.map((p, idx) => {
-            const offset = idx * 3;
-            return `($${offset + 1}, $${offset + 2}, $${offset + 3})`;
+            const offset = idx * 5;
+            return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5})`;
           }).join(',');
 
           const params = participantsResult.rows.flatMap(p => [
-            p.id,
-            fundraiser.id,
-            organizationId
+            p.id,              // participant_id
+            fundraiser.id,     // fundraiser
+            0,                 // amount (default to 0)
+            false,             // paid (default to false)
+            0                  // amount_paid (default to 0)
           ]);
 
           await client.query(
-            `INSERT INTO calendars (participant_id, fundraiser, amount, paid, archived, amount_paid)
+            `INSERT INTO calendars (participant_id, fundraiser, amount, paid, amount_paid)
              VALUES ${values}
              ON CONFLICT DO NOTHING`,
             params
