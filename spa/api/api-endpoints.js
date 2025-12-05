@@ -127,14 +127,14 @@ export async function verifyEmail(token) {
  * Request password reset
  */
 export async function requestPasswordReset(email) {
-    return API.post('request-reset', { email });
+    return API.post('auth/request-reset', { email });
 }
 
 /**
  * Reset password with token
  */
 export async function resetPassword(token, newPassword) {
-    return API.post('reset-password', { token, new_password: newPassword });
+    return API.post('auth/reset-password', { token, new_password: newPassword });
 }
 
 /**
@@ -148,7 +148,7 @@ export async function refreshToken() {
  * Logout user
  */
 export async function logout() {
-    const result = await API.post('logout');
+    const result = await API.post('auth/logout');
 
     // Clear user-specific data but keep organization JWT
     localStorage.removeItem("userRole");
