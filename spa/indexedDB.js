@@ -267,6 +267,23 @@ export async function clearBadgeRelatedCaches() {
   }
 }
 
+export async function clearFundraiserRelatedCaches() {
+  const keysToDelete = [
+    'fundraisers',           // API-level cache used by getFundraisers()
+    'calendars'              // API-level cache used by getCalendarsForFundraiser()
+  ];
+
+  debugLog("Clearing fundraiser-related caches:", keysToDelete);
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {
