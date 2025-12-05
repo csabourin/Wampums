@@ -25,7 +25,7 @@ export class Dashboard {
       await this.fetchOrganizationInfo();
       await this.preloadDashboardData();
       this.attachEventListeners();
-      this.preloadAttendanceData();
+      await this.preloadAttendanceData();
       this.loadNews();
     } catch (error) {
       debugError("Error initializing dashboard:", error);
@@ -38,6 +38,21 @@ export class Dashboard {
       return localStorage.getItem("dashboard_points_collapsed") === "true";
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Gracefully preload attendance cache to maintain backward compatibility
+   * when the attendance module moves data loading elsewhere.
+   *
+   * This is intentionally non-blocking beyond the awaited promise to avoid
+   * failing dashboard initialization if IndexedDB is unavailable.
+   */
+  async preloadAttendanceData() {
+    try {
+      await getCachedData(`attendance_${new Date().toISOString().split("T")[0]}`);
+    } catch (error) {
+      debugLog("Attendance preload skipped", error);
     }
   }
 

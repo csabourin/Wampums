@@ -40,10 +40,22 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms", "https://cdn.jsdelivr.net"], // Note: Consider removing unsafe-inline and using nonces in production
       scriptSrcElem: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms", "https://cdn.jsdelivr.net"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+        "https://cdnjs.cloudflare.com"
+      ],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://*.clarity.ms", "https://c.bing.com", "https://www.clarity.ms", "https://cdn.jsdelivr.net"],
+      connectSrc: [
+        "'self'",
+        "https://*.clarity.ms",
+        "https://c.bing.com",
+        "https://www.clarity.ms",
+        "https://cdn.jsdelivr.net",
+        "https://cdnjs.cloudflare.com",
+      ],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: isProduction ? [] : null,
