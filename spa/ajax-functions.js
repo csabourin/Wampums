@@ -95,6 +95,7 @@ export {
     updateParticipantGroup,
     updatePoints,
     getPointsReport,
+    getParticipantProgressReport,
     getPointsLeaderboard,
 
     // Forms & Documents
