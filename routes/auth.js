@@ -137,9 +137,8 @@ module.exports = (pool, logger) => {
           });
         }
 
-        // Convert PHP $2y$ bcrypt hash to Node.js compatible $2a$ format
-        const nodeCompatibleHash = user.password.replace(/^\$2y\$/, '$2a$');
-        const passwordValid = await bcrypt.compare(trimmedPassword, nodeCompatibleHash);
+        // Modern bcrypt can handle all hash formats ($2a$, $2b$, $2y$) natively
+        const passwordValid = await bcrypt.compare(trimmedPassword, user.password);
 
         if (!passwordValid) {
           return res.status(401).json({
