@@ -55,7 +55,7 @@ module.exports = (pool, logger) => {
       const organizationId = req.query.organization_id || await getCurrentOrganizationId(req, pool, logger);
 
       const result = await pool.query(
-        `SELECT u.id, u.email, u.full_name, u.is_verified, uo.role, uo.approved
+        `SELECT u.id, u.email, u.full_name, u.is_verified, uo.role
          FROM users u
          JOIN user_organizations uo ON u.id = uo.user_id
          WHERE uo.organization_id = $1
