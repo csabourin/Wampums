@@ -97,9 +97,9 @@ export const CONFIG = {
     ENDPOINTS: {
         // Auth
         LOGIN: "/public/login",
-        LOGOUT: "/api/logout",
-        REGISTER: "/api/register",
-        RESET_PASSWORD: "/api/reset-password",
+        LOGOUT: "/api/auth/logout",
+        REGISTER: "/api/auth/register",
+        RESET_PASSWORD: "/api/auth/reset-password",
 
         // Organization
         ORGANIZATION_SETTINGS: "/api/organization-settings",
