@@ -1358,8 +1358,8 @@ tr:hover {
   gap: var(--space-sm);
   text-align: center;
   padding: var(--space-lg);
-  background-color: var(--color-surface, #ffffff);
-  color: var(--color-text, #1f2937);
+  background-color: var(--color-primary, #ffffff);
+  color: var(--color-surface, #1f2937);
   border: 1px solid var(--color-border, #dce3f0);
   border-radius: var(--radius-md);
   font-weight: var(--font-weight-medium);
