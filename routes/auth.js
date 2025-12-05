@@ -38,7 +38,7 @@ const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 attempts per window
-  message: 'Too many login attempts, please try again after 15 minutes.',
+  message: 'too_many_login_attempts',
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -47,7 +47,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
-  message: { success: false, message: 'Too many password reset requests, please try again after an hour.' },
+  message: { success: false, message: 'too_many_reset_requests' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -132,7 +132,7 @@ module.exports = (pool, logger) => {
         if (!user) {
           return res.status(401).json({
             success: false,
-            message: 'Invalid email or password'
+            message: 'invalid_email_or_password'
           });
         }
 
@@ -143,14 +143,14 @@ module.exports = (pool, logger) => {
         if (!passwordValid) {
           return res.status(401).json({
             success: false,
-            message: 'Invalid email or password'
+            message: 'invalid_email_or_password'
           });
         }
 
         if (!user.is_verified) {
           return res.status(403).json({
             success: false,
-            message: 'Your account is not yet verified. Please wait for admin verification.'
+            message: 'account_not_verified_login'
           });
         }
 
@@ -193,7 +193,7 @@ module.exports = (pool, logger) => {
         logger.error('Login error:', error);
         res.status(500).json({
           success: false,
-          message: 'Internal server error'
+          message: 'internal_server_error'
         });
       }
     });
@@ -253,7 +253,7 @@ module.exports = (pool, logger) => {
         res.status(201).json({
           success: true,
           data: result.rows[0],
-          message: 'User registered successfully. Please wait for admin approval.'
+          message: 'registration_successful_await_verification'
         });
       } catch (error) {
         logger.error('Error registering user:', error);
@@ -262,11 +262,11 @@ module.exports = (pool, logger) => {
         if (error.code === '23505' && error.constraint === 'users_email_key') {
           return res.status(400).json({
             success: false,
-            message: 'An account with this email address already exists. Please use a different email or try logging in.'
+            message: 'account_already_exists'
           });
         }
 
-        res.status(500).json({ success: false, message: 'An error occurred during registration. Please try again later.' });
+        res.status(500).json({ success: false, message: 'registration_error' });
       }
     });
 
@@ -307,7 +307,7 @@ module.exports = (pool, logger) => {
         res.status(201).json({
           success: true,
           data: result.rows[0],
-          message: 'User registered successfully. Please wait for admin approval.'
+          message: 'registration_successful_await_verification'
         });
       } catch (error) {
         logger.error('Error registering user:', error);
@@ -316,11 +316,11 @@ module.exports = (pool, logger) => {
         if (error.code === '23505' && error.constraint === 'users_email_key') {
           return res.status(400).json({
             success: false,
-            message: 'An account with this email address already exists. Please use a different email or try logging in.'
+            message: 'account_already_exists'
           });
         }
 
-        res.status(500).json({ success: false, message: 'An error occurred during registration. Please try again later.' });
+        res.status(500).json({ success: false, message: 'registration_error' });
       }
     });
 
@@ -355,7 +355,7 @@ module.exports = (pool, logger) => {
         if (user.rows.length === 0) {
           return res.json({
             success: true,
-            message: 'If a user with that email exists, a reset link has been sent'
+            message: 'reset_link_sent_if_exists'
           });
         }
 
@@ -395,7 +395,7 @@ module.exports = (pool, logger) => {
 
         res.json({
           success: true,
-          message: 'If a user with that email exists, a reset link has been sent',
+          message: 'reset_link_sent_if_exists',
           // In development, return token for testing
           ...(process.env.NODE_ENV !== 'production' && { resetToken })
         });
@@ -435,7 +435,7 @@ module.exports = (pool, logger) => {
         );
 
         if (tokenResult.rows.length === 0) {
-          return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+          return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
         }
 
         const userId = tokenResult.rows[0].id;
@@ -451,7 +451,7 @@ module.exports = (pool, logger) => {
 
         res.json({
           success: true,
-          message: 'Password reset successful'
+          message: 'password_reset_successful'
         });
       } catch (error) {
         logger.error('Error resetting password:', error);
