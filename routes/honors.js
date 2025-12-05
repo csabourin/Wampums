@@ -69,7 +69,7 @@ module.exports = (pool, logger) => {
 
       // Get honors
       const honorsResult = await pool.query(
-        `SELECT h.id, h.participant_id, h.date::text as date
+        `SELECT h.id, h.participant_id, h.date::text as date, h.reason
          FROM honors h
          JOIN participants p ON h.participant_id = p.id
          JOIN participant_organizations po ON p.id = po.participant_id
@@ -161,6 +161,7 @@ module.exports = (pool, logger) => {
           // Accept both participantId (camelCase) and participant_id (snake_case)
           const participantId = honor.participantId || honor.participant_id;
           const honorDate = honor.date;
+          const reason = honor.reason || '';
 
           if (!participantId || !honorDate) {
             results.push({ participantId, success: false, message: 'Participant ID and date are required' });
@@ -177,10 +178,10 @@ module.exports = (pool, logger) => {
             // Honor already exists - skip (or could toggle off if needed)
             results.push({ participantId, success: true, action: 'already_awarded' });
           } else {
-            // Add new honor with organization_id
+            // Add new honor with organization_id and reason
             await client.query(
-              `INSERT INTO honors (participant_id, date, organization_id) VALUES ($1, $2, $3)`,
-              [participantId, honorDate, organizationId]
+              `INSERT INTO honors (participant_id, date, organization_id, reason) VALUES ($1, $2, $3, $4)`,
+              [participantId, honorDate, organizationId, reason]
             );
 
             // Get participant's group for proper point tracking
@@ -265,7 +266,7 @@ module.exports = (pool, logger) => {
       const { start_date, end_date, participant_id } = req.query;
 
       let query = `
-        SELECT h.id, h.date::text as date,
+        SELECT h.id, h.date::text as date, h.reason,
                p.id as participant_id, p.first_name, p.last_name,
                g.name as group_name
         FROM honors h
