@@ -1,12 +1,22 @@
-import { getParticipants, getGroups, getNews, getCurrentOrganizationId,
-  getOrganizationSettings, CONFIG } from "./ajax-functions.js";
+import {
+  getParticipants,
+  getGroups,
+  getNews,
+  getCurrentOrganizationId,
+  getOrganizationSettings,
+  CONFIG,
+} from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
 import { ManagePoints } from "./manage_points.js";
 import { ParentDashboard } from "./parent_dashboard.js";
 import { Login } from "./login.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { escapeHTML, sanitizeHTML, sanitizeURL } from "./utils/SecurityUtils.js";
+import {
+  escapeHTML,
+  sanitizeHTML,
+  sanitizeURL,
+} from "./utils/SecurityUtils.js";
 
 export class Dashboard {
   constructor(app) {
@@ -50,7 +60,9 @@ export class Dashboard {
    */
   async preloadAttendanceData() {
     try {
-      await getCachedData(`attendance_${new Date().toISOString().split("T")[0]}`);
+      await getCachedData(
+        `attendance_${new Date().toISOString().split("T")[0]}`,
+      );
     } catch (error) {
       debugLog("Attendance preload skipped", error);
     }
@@ -77,21 +89,21 @@ export class Dashboard {
     try {
       const [cachedGroups, cachedParticipants] = await Promise.all([
         getCachedData("dashboard_groups"),
-        getCachedData("dashboard_participant_info")
+        getCachedData("dashboard_participant_info"),
       ]);
 
       let needsFreshParticipants = !cachedParticipants;
       let needsFreshGroups = !cachedGroups;
 
       if (cachedParticipants) {
-        this.participants = cachedParticipants.map(p => ({
+        this.participants = cachedParticipants.map((p) => ({
           id: p.id,
           first_name: p.first_name,
           last_name: p.last_name,
           group_id: p.group_id,
           group_name: p.group_name,
           is_leader: p.is_leader,
-          is_second_leader: p.is_second_leader
+          is_second_leader: p.is_second_leader,
         }));
       }
 
@@ -100,10 +112,11 @@ export class Dashboard {
       }
 
       const participantsResponse = await getParticipants();
-      const freshParticipants = participantsResponse.data || participantsResponse.participants || [];
+      const freshParticipants =
+        participantsResponse.data || participantsResponse.participants || [];
 
-      freshParticipants.forEach(fp => {
-        const existing = this.participants.find(p => p.id === fp.id);
+      freshParticipants.forEach((fp) => {
+        const existing = this.participants.find((p) => p.id === fp.id);
         if (existing) {
           existing.total_points = fp.total_points;
         } else {
@@ -116,16 +129,20 @@ export class Dashboard {
       }
 
       if (needsFreshParticipants) {
-        const minimalCache = this.participants.map(p => ({
+        const minimalCache = this.participants.map((p) => ({
           id: p.id,
           first_name: p.first_name,
           last_name: p.last_name,
           group_id: p.group_id,
           group_name: p.group_name,
           is_leader: p.is_leader,
-          is_second_leader: p.is_second_leader
+          is_second_leader: p.is_second_leader,
         }));
-        await setCachedData("dashboard_participant_info", minimalCache, CONFIG.CACHE_DURATION.SHORT);
+        await setCachedData(
+          "dashboard_participant_info",
+          minimalCache,
+          CONFIG.CACHE_DURATION.SHORT,
+        );
       }
 
       if (needsFreshGroups) {
@@ -167,9 +184,10 @@ export class Dashboard {
   //          RENDER
   // -----------------------------
   render() {
-    const adminLink = this.app.userRole === "admin"
-      ? `<a href="/admin" id="admin-link"><i class="fa-solid fa-user-shield"></i><span>${translate("administration")}</span></a>`
-      : ``;
+    const adminLink =
+      this.app.userRole === "admin"
+        ? `<a href="/admin" id="admin-link"><i class="fa-solid fa-user-shield"></i><span>${translate("administration")}</span></a>`
+        : ``;
 
     const content = `
       <h1>${translate("dashboard_title")}</h1>
@@ -220,25 +238,8 @@ export class Dashboard {
   </div>
 </section>
 
-<!-- POINTS SECTION WITH TOGGLE -->
-<div class="dashboard-card" id="points-section">
-  <div class="section-header">
-    <h3>${translate("points")}</h3>
-    <div class="section-actions">
-      <button type="button" id="toggle-points-btn" class="ghost-button"
-        aria-expanded="${!this.pointsCollapsed}">
-        ${this.pointsCollapsed ? translate("expand_points") : translate("collapse_points")}
-      </button>
-      <a class="text-link" href="/managePoints#points-list">${translate("view_full_points")}</a>
-    </div>
-  </div>
 
-  <div id="points-list" class="${this.pointsCollapsed ? "collapsed" : "expanded"}">
-    ${this.pointsCollapsed ? this.renderCollapsedPointsPlaceholder() : this.renderPointsList()}
-  </div>
-</div>
 
-      </div>
 
       <!-- NEWS -->
       <div class="dashboard-card" id="news-section">
@@ -275,10 +276,10 @@ export class Dashboard {
   }
 
   renderPointsList() {
-    const groupParticipants = new Map(this.groups.map(g => [g.id, []]));
+    const groupParticipants = new Map(this.groups.map((g) => [g.id, []]));
     const noGroup = [];
 
-    this.participants.forEach(p => {
+    this.participants.forEach((p) => {
       if (p.group_id) {
         const arr = groupParticipants.get(p.group_id);
         if (arr) arr.push(p);
@@ -288,10 +289,13 @@ export class Dashboard {
     let output = "";
 
     groupParticipants.forEach((members, groupId) => {
-      const group = this.groups.find(g => g.id === groupId);
+      const group = this.groups.find((g) => g.id === groupId);
       if (!group || members.length === 0) return;
 
-      const total = members.reduce((s, p) => s + (parseInt(p.total_points) || 0), 0);
+      const total = members.reduce(
+        (s, p) => s + (parseInt(p.total_points) || 0),
+        0,
+      );
 
       output += `
         <div class="group-header" data-group-id="${groupId}" data-type="group" data-points="${total}">
@@ -329,7 +333,7 @@ export class Dashboard {
     });
 
     return participants
-      .map(p => {
+      .map((p) => {
         const pts = parseInt(p.total_points) || 0;
 
         return `
@@ -372,7 +376,11 @@ export class Dashboard {
       const res = await getNews();
       this.newsItems = this.normalizeNewsItems(res);
       this.newsLoading = false;
-      await setCachedData("dashboard_news", this.newsItems, CONFIG.CACHE_DURATION.SHORT);
+      await setCachedData(
+        "dashboard_news",
+        this.newsItems,
+        CONFIG.CACHE_DURATION.SHORT,
+      );
     } catch (e) {
       this.newsLoading = false;
       this.newsError = translate("news_error");
@@ -382,17 +390,24 @@ export class Dashboard {
   }
 
   normalizeNewsItems(response) {
-    const list =
-      Array.isArray(response?.news) ? response.news :
-      Array.isArray(response?.data) ? response.data :
-      Array.isArray(response) ? response :
-      [];
+    const list = Array.isArray(response?.news)
+      ? response.news
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response)
+          ? response
+          : [];
 
     return list.slice(0, 5).map((item, index) => {
-      const safeTitle = escapeHTML(item.title || item.heading || translate("news_untitled"));
-      const safeSummary = sanitizeHTML(item.summary || item.description || item.content || "", {
-        stripAll: true,
-      });
+      const safeTitle = escapeHTML(
+        item.title || item.heading || translate("news_untitled"),
+      );
+      const safeSummary = sanitizeHTML(
+        item.summary || item.description || item.content || "",
+        {
+          stripAll: true,
+        },
+      );
       const safeLink = sanitizeURL(item.link || item.url || "");
       const date = item.published_at || item.date || item.created_at || "";
 
@@ -401,7 +416,7 @@ export class Dashboard {
         title: safeTitle,
         summary: safeSummary,
         link: safeLink,
-        date
+        date,
       };
     });
   }
@@ -411,7 +426,9 @@ export class Dashboard {
       return `<p class="muted-text">${translate("news_loading")}</p>`;
     }
 
-    const error = this.newsError ? `<p class="error-text">${this.newsError}</p>` : "";
+    const error = this.newsError
+      ? `<p class="error-text">${this.newsError}</p>`
+      : "";
 
     if (this.newsItems.length === 0) {
       return error || `<p class="muted-text">${translate("news_empty")}</p>`;
@@ -420,7 +437,7 @@ export class Dashboard {
     return `
       ${error}
       <ul class="news-list">
-        ${this.newsItems.map(item => this.renderNewsItem(item)).join("")}
+        ${this.newsItems.map((item) => this.renderNewsItem(item)).join("")}
       </ul>
     `;
   }
@@ -453,7 +470,7 @@ export class Dashboard {
     return new Intl.DateTimeFormat(locale, {
       year: "numeric",
       month: "short",
-      day: "numeric"
+      day: "numeric",
     }).format(date);
   }
 
@@ -471,7 +488,7 @@ export class Dashboard {
   attachEventListeners() {
     const logout = document.getElementById("logout-link");
     if (logout) {
-      logout.addEventListener("click", e => {
+      logout.addEventListener("click", (e) => {
         e.preventDefault();
         Login.logout();
       });
