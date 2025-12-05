@@ -47,10 +47,9 @@ CREATE TABLE public.calendars (
   paid boolean NOT NULL DEFAULT false,
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   amount_paid double precision DEFAULT '0'::double precision,
-  organization_id integer,
   fundraiser integer,
+  archived boolean DEFAULT false,
   CONSTRAINT calendars_pkey PRIMARY KEY (participant_id),
-  CONSTRAINT calendars_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
   CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id)
 );
