@@ -1294,10 +1294,10 @@ export async function getInitialData() {
 }
 
 /**
- * Get subscribers
+ * Get push notification subscribers
  */
 export async function getSubscribers(organizationId) {
-    return API.get('subscribers', { organization_id: organizationId });
+    return API.get('push-subscribers', { organization_id: organizationId });
 }
 
 /**
