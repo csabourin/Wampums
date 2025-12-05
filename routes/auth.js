@@ -118,6 +118,7 @@ module.exports = (pool, logger) => {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password } = req.body;
         const normalizedEmail = email.toLowerCase();
+        const trimmedPassword = password.trim();
 
         const userResult = await pool.query(
           `SELECT u.id, u.email, u.password, u.is_verified, u.full_name, uo.role
@@ -138,7 +139,7 @@ module.exports = (pool, logger) => {
 
         // Convert PHP $2y$ bcrypt hash to Node.js compatible $2a$ format
         const nodeCompatibleHash = user.password.replace(/^\$2y\$/, '$2a$');
-        const passwordValid = await bcrypt.compare(password, nodeCompatibleHash);
+        const passwordValid = await bcrypt.compare(trimmedPassword, nodeCompatibleHash);
 
         if (!passwordValid) {
           return res.status(401).json({
@@ -238,9 +239,10 @@ module.exports = (pool, logger) => {
       try {
         const { email, password, full_name } = req.body;
         const normalizedEmail = email.toLowerCase();
+        const trimmedPassword = password.trim();
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
         // Insert user
         const result = await pool.query(
@@ -292,9 +294,10 @@ module.exports = (pool, logger) => {
       try {
         const { email, password, full_name } = req.body;
         const normalizedEmail = email.toLowerCase();
+        const trimmedPassword = password.trim();
 
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
         // Insert user
         const result = await pool.query(
@@ -427,6 +430,7 @@ module.exports = (pool, logger) => {
     async (req, res) => {
       try {
         const { token, new_password } = req.body;
+        const trimmedPassword = new_password.trim();
 
         // Check if token exists in database and is not expired
         const tokenResult = await pool.query(
@@ -442,7 +446,7 @@ module.exports = (pool, logger) => {
         const userId = tokenResult.rows[0].id;
 
         // Hash new password
-        const hashedPassword = await bcrypt.hash(new_password, 10);
+        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
         // Update password and clear reset token
         await pool.query(
