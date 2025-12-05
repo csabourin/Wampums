@@ -1,6 +1,7 @@
 import { getCalendarsForFundraiser, getFundraiser, updateCalendarEntry, updateCalendarPayment } from './ajax-functions.js';
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
+import { clearFundraiserRelatedCaches } from './indexedDB.js';
 
 export class Calendars {
 	constructor(app) {
@@ -269,6 +270,8 @@ export class Calendars {
 				if (calendar) {
 					calendar.calendar_amount = parseInt(amount) || 0;
 				}
+				// Invalidate fundraisers cache so totals are updated
+				await clearFundraiserRelatedCaches();
 				this.app.showMessage('calendar_amount_updated', 'success');
 			}
 		} catch (error) {
@@ -291,6 +294,8 @@ export class Calendars {
 						calendar.paid = response.data.paid;
 					}
 				}
+				// Invalidate fundraisers cache so totals are updated
+				await clearFundraiserRelatedCaches();
 				this.app.showMessage('calendar_amount_paid_updated', 'success');
 				this.updateTableOnly();
 			}
@@ -310,6 +315,8 @@ export class Calendars {
 				if (calendar) {
 					calendar.paid = paid;
 				}
+				// Invalidate fundraisers cache so totals are updated
+				await clearFundraiserRelatedCaches();
 				this.app.showMessage('calendar_paid_status_updated', 'success');
 			}
 		} catch (error) {

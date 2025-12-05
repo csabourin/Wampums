@@ -1,6 +1,7 @@
 import { getFundraisers, createFundraiser, updateFundraiser, archiveFundraiser } from './ajax-functions.js';
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
+import { clearFundraiserRelatedCaches } from './indexedDB.js';
 
 export class Fundraisers {
 	constructor(app) {
@@ -220,7 +221,9 @@ export class Fundraisers {
 		document.querySelectorAll('.edit-fundraiser-btn').forEach(btn => {
 			btn.addEventListener('click', (e) => {
 				const fundraiserId = parseInt(e.target.dataset.id);
-				const fundraiser = this.fundraisers.find(f => f.id === fundraiserId);
+				// Search in both active and archived fundraisers
+				const fundraiser = this.fundraisers.find(f => f.id === fundraiserId) ||
+				                   this.archivedFundraisers.find(f => f.id === fundraiserId);
 				if (fundraiser) {
 					this.showModal(fundraiser);
 				}
@@ -318,6 +321,8 @@ export class Fundraisers {
 					'success'
 				);
 				this.hideModal();
+				// Invalidate cache before refetching
+				await clearFundraiserRelatedCaches();
 				await this.fetchFundraisers();
 				this.render();
 				this.initEventListeners();
@@ -335,6 +340,8 @@ export class Fundraisers {
 			const response = await archiveFundraiser(fundraiserId, true);
 			if (response.success) {
 				this.app.showMessage('fundraiser_archived', 'success');
+				// Invalidate cache before refetching
+				await clearFundraiserRelatedCaches();
 				await this.fetchFundraisers();
 				this.render();
 				this.initEventListeners();
@@ -352,6 +359,8 @@ export class Fundraisers {
 			const response = await archiveFundraiser(fundraiserId, false);
 			if (response.success) {
 				this.app.showMessage('fundraiser_unarchived', 'success');
+				// Invalidate cache before refetching
+				await clearFundraiserRelatedCaches();
 				await this.fetchFundraisers();
 				this.render();
 				this.initEventListeners();
