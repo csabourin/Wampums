@@ -1,4 +1,4 @@
-import { getParticipants, getGroups, getCurrentOrganizationId,
+import { getParticipants, getGroups, getNews, getCurrentOrganizationId,
        getOrganizationSettings, CONFIG } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
@@ -6,6 +6,7 @@ import { ManagePoints } from "./manage_points.js";
 import { ParentDashboard } from "./parent_dashboard.js";
 import { Login } from "./login.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { escapeHTML, sanitizeHTML, sanitizeURL } from "./utils/SecurityUtils.js";
 
 export class Dashboard {
   constructor(app) {
@@ -13,6 +14,10 @@ export class Dashboard {
     this.groups = [];
     this.participants = [];
     this.managePoints = new ManagePoints(this);
+    this.newsItems = [];
+    this.newsLoading = true;
+    this.newsError = null;
+    this.pointsCollapsed = this.loadPointsCollapsedState();
   }
 
   async init() {
@@ -23,9 +28,19 @@ export class Dashboard {
       // Note: preloadDashboardData calls render() internally
       this.attachEventListeners();
       this.preloadAttendanceData();
+      this.loadNews();
     } catch (error) {
       debugError("Error initializing dashboard:", error);
       this.renderError();
+    }
+  }
+
+  loadPointsCollapsedState() {
+    try {
+      return localStorage.getItem("dashboard_points_collapsed") === "true";
+    } catch (error) {
+      debugError("Error reading points collapsed state:", error);
+      return false;
     }
   }
 
@@ -236,14 +251,34 @@ export class Dashboard {
         <a href="/group-participant-report">${translate("feuille_participants")}</a>
         ${adminLink}
       </div>
-      <div id="points-list">
-        <h3 style="text-align: center; margin: 1rem 0;">${translate("points")}</h3>
-        ${this.renderPointsList()}
+      <div class="dashboard-card" id="points-section">
+        <div class="section-header">
+          <h3>${translate("points")}</h3>
+          <div class="section-actions">
+            <button type="button" id="toggle-points-btn" class="ghost-button" aria-expanded="${!this.pointsCollapsed}">
+              ${this.pointsCollapsed ? translate("expand_points") : translate("collapse_points")}
+            </button>
+            <a class="text-link" href="/managePoints#points-list">${translate("view_full_points")}</a>
+          </div>
+        </div>
+        <div id="points-list" class="${this.pointsCollapsed ? "collapsed" : "expanded"}">
+          ${this.pointsCollapsed ? this.renderCollapsedPointsPlaceholder() : this.renderPointsList()}
+        </div>
+      </div>
+      <div class="dashboard-card" id="news-section">
+        <div class="section-header">
+          <h3>${translate("news_updates")}</h3>
+          <button type="button" id="refresh-news-btn" class="ghost-button">${translate("refresh")}</button>
+        </div>
+        <div id="news-content">
+          ${this.renderNewsContent()}
+        </div>
       </div>
       <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
     `;
     document.getElementById("app").innerHTML = content;
     this.updatePointsList();
+    this.updateNewsSection();
   }
 
   renderPointsList() {
@@ -300,8 +335,17 @@ export class Dashboard {
   updatePointsList() {
     const pointsList = document.getElementById("points-list");
     if (pointsList) {
-      pointsList.innerHTML = this.renderPointsList();
+      pointsList.classList.toggle("collapsed", this.pointsCollapsed);
+      pointsList.innerHTML = this.pointsCollapsed
+        ? this.renderCollapsedPointsPlaceholder()
+        : this.renderPointsList();
     }
+  }
+
+  renderCollapsedPointsPlaceholder() {
+    return `
+      <p class="muted-text">${translate("points_collapsed_hint")}</p>
+    `;
   }
 
   renderParticipantsForGroup(participants) {
@@ -333,12 +377,160 @@ export class Dashboard {
     }).join("");
   }
 
+  async loadNews(forceRefresh = false) {
+    if (!forceRefresh) {
+      try {
+        const cachedNews = await getCachedData("dashboard_news");
+        if (cachedNews && Array.isArray(cachedNews)) {
+          this.newsItems = cachedNews;
+          this.newsLoading = false;
+          this.newsError = null;
+          this.updateNewsSection();
+        }
+      } catch (error) {
+        debugError("Error loading cached news:", error);
+      }
+    }
+
+    this.newsLoading = true;
+    this.newsError = null;
+    this.updateNewsSection();
+
+    try {
+      const newsResponse = await getNews();
+      this.newsItems = this.normalizeNewsItems(newsResponse);
+      this.newsLoading = false;
+      await setCachedData("dashboard_news", this.newsItems, CONFIG.CACHE_DURATION.SHORT);
+    } catch (error) {
+      debugError("Error loading news feed:", error);
+      this.newsLoading = false;
+      this.newsError = translate("news_error");
+    }
+
+    this.updateNewsSection();
+  }
+
+  normalizeNewsItems(newsResponse) {
+    const rawNews = Array.isArray(newsResponse?.news) ? newsResponse.news
+      : Array.isArray(newsResponse?.data) ? newsResponse.data
+        : Array.isArray(newsResponse) ? newsResponse
+          : [];
+
+    return rawNews.slice(0, 5).map((item, index) => {
+      const safeTitle = escapeHTML(item.title || item.heading || translate("news_untitled"));
+      const safeSummary = sanitizeHTML(item.summary || item.description || item.content || "", { stripAll: true });
+      const safeLink = sanitizeURL(item.link || item.url || "");
+      const publishedAt = item.published_at || item.date || item.created_at || "";
+
+      return {
+        id: item.id || item.slug || `news-${index}`,
+        title: safeTitle,
+        summary: safeSummary,
+        link: safeLink,
+        date: publishedAt
+      };
+    });
+  }
+
+  renderNewsContent() {
+    if (this.newsLoading && !this.newsItems.length) {
+      return `<p class="muted-text">${translate("news_loading")}</p>`;
+    }
+
+    const errorBanner = this.newsError ? `<p class="error-text">${this.newsError}</p>` : "";
+
+    if (!this.newsItems.length) {
+      return errorBanner || `<p class="muted-text">${translate("news_empty")}</p>`;
+    }
+
+    return `
+      ${errorBanner}
+      <ul class="news-list">
+        ${this.newsItems.map(newsItem => this.renderNewsItem(newsItem)).join("\n")} 
+      </ul>
+    `;
+  }
+
+  renderNewsItem(newsItem) {
+    const formattedDate = this.formatNewsDate(newsItem.date);
+    const summaryText = newsItem.summary || translate("news_no_summary");
+
+    const linkTemplate = newsItem.link ?
+      `<a class="text-link" href="${newsItem.link}" rel="noopener noreferrer" target="_blank">${translate("news_read_more")}</a>`
+      : "";
+
+    return `
+      <li class="news-item" data-news-id="${newsItem.id}">
+        <div class="news-item-header">
+          <p class="news-title">${newsItem.title}</p>
+          ${formattedDate ? `<span class="news-date">${translate("news_published")}: ${formattedDate}</span>` : ""}
+        </div>
+        <p class="news-summary">${summaryText}</p>
+        ${linkTemplate}
+      </li>
+    `;
+  }
+
+  formatNewsDate(dateValue) {
+    if (!dateValue) return "";
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    const locale = this.app?.currentLanguage || this.app?.language || CONFIG.DEFAULT_LANG;
+    return new Intl.DateTimeFormat(locale || "en", {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    }).format(date);
+  }
+
+  updateNewsSection() {
+    const newsContainer = document.getElementById("news-content");
+    if (newsContainer) {
+      newsContainer.innerHTML = this.renderNewsContent();
+    }
+
+    const refreshNewsButton = document.getElementById("refresh-news-btn");
+    if (refreshNewsButton) {
+      refreshNewsButton.disabled = this.newsLoading;
+    }
+  }
+
   attachEventListeners() {
-   
     document.getElementById("logout-link").addEventListener("click", (e) => {
       e.preventDefault();
       Login.logout();
     });
+
+    const togglePointsButton = document.getElementById("toggle-points-btn");
+    if (togglePointsButton) {
+      togglePointsButton.addEventListener("click", () => this.togglePointsVisibility());
+    }
+
+    const refreshNewsButton = document.getElementById("refresh-news-btn");
+    if (refreshNewsButton) {
+      refreshNewsButton.addEventListener("click", () => this.loadNews(true));
+    }
+  }
+
+  togglePointsVisibility() {
+    this.pointsCollapsed = !this.pointsCollapsed;
+    try {
+      localStorage.setItem("dashboard_points_collapsed", String(this.pointsCollapsed));
+    } catch (error) {
+      debugError("Error saving points collapsed state:", error);
+    }
+
+    const togglePointsButton = document.getElementById("toggle-points-btn");
+    if (togglePointsButton) {
+      togglePointsButton.setAttribute("aria-expanded", String(!this.pointsCollapsed));
+      togglePointsButton.textContent = this.pointsCollapsed ? translate("expand_points") : translate("collapse_points");
+    }
+
+    this.updatePointsList();
   }
 
   handleItemClick(item) {
