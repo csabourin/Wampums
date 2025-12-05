@@ -205,10 +205,31 @@ export class ManageHonors {
       return;
     }
 
-    const honors = Array.from(selectedItems).map((item) => ({
-        participantId: item.closest(".list-item").dataset.participantId,
-      date: this.currentDate,
-    }));
+    const honors = [];
+
+    // Prompt for reason for each selected participant
+    for (const item of selectedItems) {
+      const participantId = item.closest(".list-item").dataset.participantId;
+      const participantName = item.closest(".list-item").querySelector("label").textContent.trim();
+
+      const reason = prompt(`${translate("honor_reason_prompt")} - ${participantName}:`, "");
+
+      if (reason === null) {
+        // User cancelled the prompt
+        return;
+      }
+
+      if (!reason || reason.trim() === "") {
+        this.app.showMessage(translate("honor_reason_required"), "error");
+        return;
+      }
+
+      honors.push({
+        participantId: participantId,
+        date: this.currentDate,
+        reason: reason.trim()
+      });
+    }
 
     try {
       const result = await awardHonor(honors);
