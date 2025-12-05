@@ -12,6 +12,7 @@ import {
         getCurrentOrganizationId,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class Admin {
         constructor(app) {
@@ -43,14 +44,41 @@ export class Admin {
 
         async fetchData() {
                 try {
-                        this.users = await getUsers(this.currentOrganizationId);
-                        this.subscribers = await getSubscribers(
+                        const usersResult = await getUsers(
                                 this.currentOrganizationId,
                         );
+                        this.users = Array.isArray(usersResult?.users)
+                                ? usersResult.users
+                                : [];
+
+                        if (!usersResult?.success) {
+                                debugWarn(
+                                        "Users request did not return success flag",
+                                        usersResult,
+                                );
+                        }
+
+                        const subscribersResult = await getSubscribers(
+                                this.currentOrganizationId,
+                        );
+                        this.subscribers = Array.isArray(
+                                subscribersResult?.data,
+                        )
+                                ? subscribersResult.data
+                                : [];
+
+                        if (!subscribersResult?.success) {
+                                debugWarn(
+                                        "Subscribers request did not return success flag",
+                                        subscribersResult,
+                                );
+                        }
                 } catch (error) {
                         debugError("Error fetching data:", error);
+                        this.users = [];
+                        this.subscribers = [];
                         this.app.showMessage(
-                                "Error loading data. Please try again.",
+                                this.app.translate("error_loading_data"),
                                 "error",
                         );
                 }
@@ -104,11 +132,24 @@ export class Admin {
 
         renderUsers() {
                 debugLog(this.users);
+                if (!this.users.length) {
+                        return `<tr><td colspan="4">${this.app.translate("no_users_found")}</td></tr>`;
+                }
+
                 return this.users
-                        .map(
-                                (user) => `
+                        .map((user) => {
+                                const safeFullName = escapeHTML(
+                                        user.full_name || user.fullName || "",
+                                );
+                                const safeEmail = escapeHTML(user.email || "");
+                                const isVerified =
+                                        user.isVerified !== undefined
+                                                ? user.isVerified
+                                                : user.is_verified;
+
+                                return `
                         <tr>
-                                <td>${user.fullName} - ${user.email}</td>
+                                <td>${safeFullName} - ${safeEmail}</td>
                                 <td>
                                         <select class="role-select" data-user-id="${user.id}">
                                                 <option value="parent" ${user.role === "parent" ? "selected" : ""}>${this.app.translate("parent")}</option>
@@ -116,23 +157,26 @@ export class Admin {
                                                 <option value="admin" ${user.role === "admin" ? "selected" : ""}>${this.app.translate("admin")}</option>
                                         </select>
                                 </td>
-                                <td>${user.isVerified ? "✅" : "❌"}</td>
+                                <td>${isVerified ? "✅" : "❌"}</td>
                                 <td>
-                                        ${!user.isVerified ? `<button class="approve-btn" data-user-id="${user.id}">${this.app.translate("approve")}</button>` : ""}
+                                        ${!isVerified ? `<button class="approve-btn" data-user-id="${user.id}">${this.app.translate("approve")}</button>` : ""}
                                 </td>
-                        </tr>
-                `,
-                        )
+                        </tr>`;
+                        })
                         .join("");
         }
 
         renderSubscribers() {
+                if (!this.subscribers.length) {
+                        return `<div>${this.app.translate("no_subscribers_found")}</div>`;
+                }
+
                 return this.subscribers
                         .map(
                                 (subscriber) => `
                         <div>
                                 <input type="checkbox" id="subscriber-${subscriber.id}" name="subscribers" value="${subscriber.id}">
-                                <label for="subscriber-${subscriber.id}">${subscriber.email}</label>
+                                <label for="subscriber-${subscriber.id}">${escapeHTML(subscriber.email || "")}</label>
                         </div>
                 `,
                         )

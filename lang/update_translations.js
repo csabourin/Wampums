@@ -205,6 +205,7 @@ const newTranslations = {
 
     // Backend: Not found messages
     "no_reunion_preparation_found": "No reunion preparation found for this date",
+    "no_users_found": "No users found",
     "no_subscribers_found": "No subscribers found",
     "participant_not_found": "Participant not found",
     "participant_duplicate": "A participant with this name and date of birth already exists",
@@ -380,6 +381,7 @@ const newTranslations = {
 
     // Backend: Not found messages
     "no_reunion_preparation_found": "Aucune préparation de réunion trouvée pour cette date",
+    "no_users_found": "Aucun utilisateur trouvé",
     "no_subscribers_found": "Aucun abonné trouvé",
     "participant_not_found": "Participant non trouvé",
     "participant_duplicate": "Un participant avec ce nom et cette date de naissance existe déjà",
