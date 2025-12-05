@@ -963,7 +963,12 @@ export async function getParticipantCalendar(participantId) {
  * Get all fundraisers
  */
 export async function getFundraisers(includeArchived = false) {
-    return API.get('fundraisers', { include_archived: includeArchived });
+    const cacheKey = `fundraisers_${includeArchived ? 'all' : 'active'}_${getCurrentOrganizationId() || 'org'}`;
+
+    return API.get('fundraisers', { include_archived: includeArchived }, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+    });
 }
 
 /**
@@ -998,7 +1003,12 @@ export async function archiveFundraiser(fundraiserId, archived) {
  * Get calendars for a specific fundraiser
  */
 export async function getCalendarsForFundraiser(fundraiserId) {
-    return API.get('calendars', { fundraiser_id: fundraiserId });
+    const cacheKey = `calendars_${fundraiserId}_${getCurrentOrganizationId() || 'org'}`;
+
+    return API.get('calendars', { fundraiser_id: fundraiserId }, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+    });
 }
 
 /**
