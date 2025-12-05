@@ -49,7 +49,8 @@ CREATE TABLE public.calendars (
   amount_paid double precision DEFAULT '0'::double precision,
   fundraiser integer,
   archived boolean DEFAULT false,
-  CONSTRAINT calendars_pkey PRIMARY KEY (participant_id),
+  id integer GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
+  CONSTRAINT calendars_pkey PRIMARY KEY (id),
   CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
   CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id)
 );
