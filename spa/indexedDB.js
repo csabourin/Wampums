@@ -251,7 +251,9 @@ export async function clearBadgeRelatedCaches() {
   const keysToDelete = [
     'badge_dashboard_badges',
     'badge_dashboard_participants',
-    'badge_dashboard_groups'
+    'badge_dashboard_groups',
+    'badge_summary',         // API-level cache used by getBadgeSummary()
+    'participants'           // API-level cache used by getParticipants()
   ];
 
   debugLog("Clearing badge-related caches:", keysToDelete);
