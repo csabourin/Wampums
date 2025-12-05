@@ -521,6 +521,18 @@ export async function getPointsReport() {
 }
 
 /**
+ * Get participant progress timeline and participants list
+ */
+export async function getParticipantProgressReport(participantId = null) {
+    const params = participantId ? { participant_id: participantId } : {};
+    const cacheKey = participantId ? `participant_progress_${participantId}` : 'participant_progress_participants';
+    return API.get('participant-progress', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
  * Get points leaderboard
  */
 export async function getPointsLeaderboard(type = 'individuals', limit = 10) {

@@ -818,6 +818,138 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
+   * /api/participant-progress:
+   *   get:
+   *     summary: Get participant progression timeline
+   *     description: Retrieve attendance, honors, badge stars, and points timeline for a participant
+   *     tags: [Reports]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: participant_id
+   *         schema:
+   *           type: integer
+   *         description: Participant ID to fetch detailed progress for
+   *     responses:
+   *       200:
+   *         description: Participant progress retrieved successfully
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.get('/participant-progress', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+      }
+
+      const participantsResult = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name, g.name as group_name
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         WHERE po.organization_id = $1
+         ORDER BY p.first_name, p.last_name`,
+        [organizationId]
+      );
+
+      const participantId = req.query.participant_id ? Number(req.query.participant_id) : null;
+      if (!participantId) {
+        return res.json({ success: true, data: { participants: participantsResult.rows } });
+      }
+
+      const participantSummary = participantsResult.rows.find((p) => p.id === participantId);
+      if (!participantSummary) {
+        return res.status(404).json({ success: false, message: 'Participant not found in organization' });
+      }
+
+      const attendanceResult = await pool.query(
+        `SELECT date::text as date, status
+         FROM attendance
+         WHERE participant_id = $1 AND organization_id = $2
+         ORDER BY date ASC`,
+        [participantId, organizationId]
+      );
+
+      const honorsResult = await pool.query(
+        `SELECT date::text as date, reason
+         FROM honors
+         WHERE participant_id = $1 AND organization_id = $2
+         ORDER BY date ASC`,
+        [participantId, organizationId]
+      );
+
+      const badgeResult = await pool.query(
+        `SELECT territoire_chasse, etoiles, date_obtention::text as date
+         FROM badge_progress
+         WHERE participant_id = $1 AND organization_id = $2 AND status = 'approved'
+         ORDER BY date_obtention ASC`,
+        [participantId, organizationId]
+      );
+
+      const pointsResult = await pool.query(
+        `SELECT created_at::date as date, value
+         FROM points
+         WHERE participant_id = $1 AND organization_id = $2
+         ORDER BY created_at ASC`,
+        [participantId, organizationId]
+      );
+
+      let cumulative = 0;
+      const pointEvents = pointsResult.rows.map((row) => {
+        const value = Number(row.value) || 0;
+        cumulative += value;
+        return { date: row.date, value, cumulative };
+      });
+
+      const attendanceCounts = attendanceResult.rows.reduce(
+        (acc, row) => {
+          acc[row.status] = (acc[row.status] || 0) + 1;
+          return acc;
+        },
+        {}
+      );
+
+      res.json({
+        success: true,
+        data: {
+          participants: participantsResult.rows,
+          progress: {
+            participant: participantSummary,
+            attendance: attendanceResult.rows,
+            honors: honorsResult.rows,
+            badges: badgeResult.rows,
+            pointEvents,
+            totals: {
+              points: cumulative,
+              honors: honorsResult.rowCount,
+              badges: badgeResult.rowCount,
+              attendance: attendanceCounts
+            }
+          }
+        }
+      });
+    } catch (error) {
+      logger.error('Error fetching participant progress:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
    * /api/parent-contact-list:
    *   get:
    *     summary: Get parent contact list
