@@ -448,6 +448,10 @@ label {
   color: var(--color-text);
 }
 
+input[type=checkbox]:checked~label {
+    color: var(--color-secondary);
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],
