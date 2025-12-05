@@ -198,16 +198,31 @@ export class Dashboard {
 
   render() {
     const adminLink = this.app.userRole === "admin" ?
-      `<a href="/admin" id="admin-link">${translate("administration")}</a>` :``;
+      `<a href="/admin" id="admin-link" aria-label="${translate("administration")}">
+          <i class="fa-solid fa-user-shield" aria-hidden="true"></i>
+          <span>${translate("administration")}</span>
+        </a>` :``;
 
     const content = `
       <h1>${translate("dashboard_title")}</h1>
       <h2>${this.organizationName}</h2>
       <div class="manage-items">
-        <a href="/managePoints">${translate("manage_points")}</a>
-        <a href="/manageHonors">${translate("manage_honors")}</a>
-        <a href="/attendance">${translate("attendance")}</a>
-        <a href="/upcoming-meeting">${translate("upcoming_meeting")}</a>
+        <a href="/managePoints" aria-label="${translate("manage_points")}">
+          <i class="fa-solid fa-coins" aria-hidden="true"></i>
+          <span>${translate("manage_points")}</span>
+        </a>
+        <a href="/manageHonors" aria-label="${translate("manage_honors")}">
+          <i class="fa-solid fa-award" aria-hidden="true"></i>
+          <span>${translate("manage_honors")}</span>
+        </a>
+        <a href="/attendance" aria-label="${translate("attendance")}">
+          <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
+          <span>${translate("attendance")}</span>
+        </a>
+        <a href="/upcoming-meeting" aria-label="${translate("upcoming_meeting")}">
+          <i class="fa-solid fa-calendar-day" aria-hidden="true"></i>
+          <span>${translate("upcoming_meeting")}</span>
+        </a>
       </div>
       <div class="logo-container">
         <img
@@ -221,19 +236,58 @@ export class Dashboard {
 >
       </div>
       <div class="manage-items">
-      <a href="/preparation-reunions">${translate("preparation_reunions")}</a>
-        <a href="/manage-participants">${translate("manage_names")}</a>
-        <a href="/manage-groups">${translate("manage_groups")}</a>
-        <a href="/view-participant-documents">${translate("view_participant_documents")}</a>
-        <a href="/approve-badges">${translate("approve_badges")}</a>
-        <a href="/badge-dashboard">${translate("badge_dashboard_link")}</a>
-        <a href="/parent-dashboard">${translate("vue_parents")}</a>
-        <a href="/parent-contact-list">${translate("parent_contact_list")}</a>
-        <a href="/manage-users-participants">${translate("manage_participants")}</a>
-        <a href="/mailing-list">${translate("mailing_list")}</a>
-        <a href="/fundraisers">${translate("fundraisers")}</a>
-        <a href="/reports">${translate("reports")}</a>
-        <a href="/group-participant-report">${translate("feuille_participants")}</a>
+        <a href="/preparation-reunions" aria-label="${translate("preparation_reunions")}">
+          <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+          <span>${translate("preparation_reunions")}</span>
+        </a>
+        <a href="/manage-participants" aria-label="${translate("manage_names")}">
+          <i class="fa-solid fa-id-card" aria-hidden="true"></i>
+          <span>${translate("manage_names")}</span>
+        </a>
+        <a href="/manage-groups" aria-label="${translate("manage_groups")}">
+          <i class="fa-solid fa-people-group" aria-hidden="true"></i>
+          <span>${translate("manage_groups")}</span>
+        </a>
+        <a href="/view-participant-documents" aria-label="${translate("view_participant_documents")}">
+          <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
+          <span>${translate("view_participant_documents")}</span>
+        </a>
+        <a href="/approve-badges" aria-label="${translate("approve_badges")}">
+          <i class="fa-solid fa-certificate" aria-hidden="true"></i>
+          <span>${translate("approve_badges")}</span>
+        </a>
+        <a href="/badge-dashboard" aria-label="${translate("badge_dashboard_link")}">
+          <i class="fa-solid fa-chart-bar" aria-hidden="true"></i>
+          <span>${translate("badge_dashboard_link")}</span>
+        </a>
+        <a href="/parent-dashboard" aria-label="${translate("vue_parents")}">
+          <i class="fa-solid fa-users" aria-hidden="true"></i>
+          <span>${translate("vue_parents")}</span>
+        </a>
+        <a href="/parent-contact-list" aria-label="${translate("parent_contact_list")}">
+          <i class="fa-solid fa-address-book" aria-hidden="true"></i>
+          <span>${translate("parent_contact_list")}</span>
+        </a>
+        <a href="/manage-users-participants" aria-label="${translate("manage_participants")}">
+          <i class="fa-solid fa-user-gear" aria-hidden="true"></i>
+          <span>${translate("manage_participants")}</span>
+        </a>
+        <a href="/mailing-list" aria-label="${translate("mailing_list")}">
+          <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i>
+          <span>${translate("mailing_list")}</span>
+        </a>
+        <a href="/fundraisers" aria-label="${translate("fundraisers")}">
+          <i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i>
+          <span>${translate("fundraisers")}</span>
+        </a>
+        <a href="/reports" aria-label="${translate("reports")}">
+          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+          <span>${translate("reports")}</span>
+        </a>
+        <a href="/group-participant-report" aria-label="${translate("feuille_participants")}">
+          <i class="fa-solid fa-table-list" aria-hidden="true"></i>
+          <span>${translate("feuille_participants")}</span>
+        </a>
         ${adminLink}
       </div>
       <div id="points-list">
