@@ -474,6 +474,33 @@ logger.info('   - GET /api/fundraisers/:id');
 logger.info('   - PUT /api/fundraisers/:id');
 logger.info('   - PUT /api/fundraisers/:id/archive');
 
+// Temporary migration endpoint
+app.post('/api/run-migration-archived', async (req, res) => {
+  try {
+    const sql = `
+      -- Add archived column to fundraisers table
+      ALTER TABLE public.fundraisers
+      ADD COLUMN IF NOT EXISTS archived boolean DEFAULT false;
+
+      -- Create index for better performance when filtering archived fundraisers
+      CREATE INDEX IF NOT EXISTS idx_fundraisers_archived
+      ON public.fundraisers(archived);
+
+      -- Update any existing fundraisers to not be archived
+      UPDATE public.fundraisers
+      SET archived = false
+      WHERE archived IS NULL;
+    `;
+
+    await pool.query(sql);
+    res.json({ success: true, message: 'Migration completed successfully' });
+  } catch (error) {
+    logger.error('Migration error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+logger.info('✅ Temporary migration endpoint: POST /api/run-migration-archived');
+
 // Form Routes (handles /api/form-submission, /api/save-form-submission, /api/form-types, etc.)
 // Endpoints: form-submission, save-form-submission, organization-form-formats, form-types, form-structure, form-submissions-list, form-submissions, risk-acceptance, health-forms
 // IMPORTANT: Must be mounted before participants routes to prevent /:id route from catching organization-form-formats
