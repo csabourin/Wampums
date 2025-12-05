@@ -203,12 +203,6 @@ export class Dashboard {
     const content = `
       <h1>${translate("dashboard_title")}</h1>
       <h2>${this.organizationName}</h2>
-      <div class="manage-items">
-        <a href="/managePoints">${translate("manage_points")}</a>
-        <a href="/manageHonors">${translate("manage_honors")}</a>
-        <a href="/attendance">${translate("attendance")}</a>
-        <a href="/upcoming-meeting">${translate("upcoming_meeting")}</a>
-      </div>
       <div class="logo-container">
         <img
   class="logo"
@@ -220,22 +214,39 @@ export class Dashboard {
   decoding="async"
 >
       </div>
-      <div class="manage-items">
-      <a href="/preparation-reunions">${translate("preparation_reunions")}</a>
-        <a href="/manage-participants">${translate("manage_names")}</a>
-        <a href="/manage-groups">${translate("manage_groups")}</a>
-        <a href="/view-participant-documents">${translate("view_participant_documents")}</a>
-        <a href="/approve-badges">${translate("approve_badges")}</a>
-        <a href="/badge-dashboard">${translate("badge_dashboard_link")}</a>
-        <a href="/parent-dashboard">${translate("vue_parents")}</a>
-        <a href="/parent-contact-list">${translate("parent_contact_list")}</a>
-        <a href="/manage-users-participants">${translate("manage_participants")}</a>
-        <a href="/mailing-list">${translate("mailing_list")}</a>
-        <a href="/fundraisers">${translate("fundraisers")}</a>
-        <a href="/reports">${translate("reports")}</a>
-        <a href="/group-participant-report">${translate("feuille_participants")}</a>
-        ${adminLink}
-      </div>
+      <section class="dashboard-section">
+        <h3>${translate("dashboard_day_to_day_section")}</h3>
+        <div class="manage-items">
+          <a href="/approve-badges">${translate("approve_badges")}</a>
+          <a href="/badge-dashboard">${translate("badge_dashboard_link")}</a>
+          <a href="/fundraisers">${translate("fundraisers")}</a>
+          <a href="/parent-contact-list">${translate("parent_contact_list")}</a>
+          <a href="/managePoints">${translate("manage_points")}</a>
+          <a href="/manageHonors">${translate("manage_honors")}</a>
+          <a href="/attendance">${translate("attendance")}</a>
+          <a href="/upcoming-meeting">${translate("upcoming_meeting")}</a>
+          <a href="/parent-dashboard">${translate("vue_parents")}</a>
+        </div>
+      </section>
+      <section class="dashboard-section">
+        <h3>${translate("dashboard_preparation_section")}</h3>
+        <div class="manage-items">
+          <a href="/preparation-reunions">${translate("preparation_reunions")}</a>
+          <a href="/view-participant-documents">${translate("view_participant_documents")}</a>
+        </div>
+      </section>
+      <section class="dashboard-section">
+        <h3>${translate("dashboard_admin_section")}</h3>
+        <div class="manage-items">
+          <a href="/manage-participants">${translate("manage_names")}</a>
+          <a href="/manage-groups">${translate("manage_groups")}</a>
+          <a href="/manage-users-participants">${translate("manage_participants")}</a>
+          <a href="/mailing-list">${translate("mailing_list")}</a>
+          <a href="/reports">${translate("reports")}</a>
+          <a href="/group-participant-report">${translate("feuille_participants")}</a>
+          ${adminLink}
+        </div>
+      </section>
       <div id="points-list">
         <h3 style="text-align: center; margin: 1rem 0;">${translate("points")}</h3>
         ${this.renderPointsList()}
