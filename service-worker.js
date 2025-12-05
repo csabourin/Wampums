@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "2.0.2";
+const APP_VERSION = "2.0.3";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
@@ -74,28 +74,20 @@ const offlinePages = [
   "/manage_groups",
 ];
 
-// Install event: cache static assets
+// Install event: cache static assets and images
 self.addEventListener("install", (event) => {
-  self.skipWaiting(); // Forces the service worker to activate immediately after installation
   event.waitUntil(
-    caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(staticAssets)),
-    // Cache images separately
-    caches.open(IMAGE_CACHE_NAME).then((cache) => cache.addAll(staticImages)),
-  );
-});
-
-// Install event: cache static assets and images separately
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    Promise.all([
-      // Cache static assets
-      caches
-        .open(STATIC_CACHE_NAME)
-        .then((cache) => cache.addAll(staticAssets)),
-      // Cache images separately
-      caches.open(IMAGE_CACHE_NAME).then((cache) => cache.addAll(staticImages)),
-    ]),
+    (async () => {
+      try {
+        self.skipWaiting(); // Forces the service worker to activate immediately after installation
+        await Promise.all([
+          caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(staticAssets)),
+          caches.open(IMAGE_CACHE_NAME).then((cache) => cache.addAll(staticImages)),
+        ]);
+      } catch (error) {
+        debugError("Service worker install failed", error);
+      }
+    })(),
   );
 });
 
