@@ -99,12 +99,18 @@ export class UpcomingMeeting {
                                                                                 <p>${meetingDate}</p>
                                                                                 <p><strong>${translate("location")}:</strong> ${location}</p>
                                                                 </div>
-                                                                <div>
-                                                                                <ul>${activitiesHtml}</ul>
-                                                                </div>
+                                                               <div>
+                                                                               <ul>${activitiesHtml}</ul>
+                                                               </div>
                                                                 <div class="manage-items">
-                                                                                <a href="/dashboard" class="button">${translate("back_to_dashboard")}</a>
-                                                                                <a href="/preparation-reunion?date=${this.closestMeeting}" class="button">${translate("preparation_reunions")}</a>
+                                                                                <a href="/dashboard" aria-label="${translate("back_to_dashboard")}">
+                                                                                                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                                                                                                <span>${translate("back_to_dashboard")}</span>
+                                                                                </a>
+                                                                                <a href="/preparation-reunion?date=${this.closestMeeting}" aria-label="${translate("preparation_reunions")}">
+                                                                                                <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+                                                                                                <span>${translate("preparation_reunions")}</span>
+                                                                                </a>
                                                                 </div>
                                                 </div>
                                 `;
