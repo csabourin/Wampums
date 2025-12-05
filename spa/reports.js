@@ -7,21 +7,25 @@ import {
 	getMedicationReport,
 	getVaccineReport,
 	getLeaveAloneReport,
-	getMediaAuthorizationReport,
-	getMissingDocumentsReport,
-	getAttendanceReport,
-	getHonorsReport,
-	getPointsReport,
-	getParticipantAgeReport,
-	getFormStructure,
-	getFormSubmissions,
-	getFormTypes
+        getMediaAuthorizationReport,
+        getMissingDocumentsReport,
+        getAttendanceReport,
+        getHonorsReport,
+        getPointsReport,
+        getParticipantProgressReport,
+        getParticipantAgeReport,
+        getFormStructure,
+        getFormSubmissions,
+        getFormTypes
 } from "./ajax-functions.js";
 
 export class Reports {
-	constructor(app) {
-		this.app = app;
-	}
+        constructor(app) {
+                this.app = app;
+                this.participantList = [];
+                this.selectedParticipantId = null;
+                this.participantProgressCache = new Map();
+        }
 
 	async init() {
 		if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
@@ -34,34 +38,45 @@ export class Reports {
 		this.attachEventListeners();
 	}
 
-	render() {
-		const content = `
-			<h1>${translate("reports")}</h1>
-			<div class="reports-menu">
-			 <button class="report-btn" data-report="health">${translate("health_report")}</button>
-				<button class="report-btn" data-report="allergies">${translate("allergies_report")}</button>
-				<button class="report-btn" data-report="medication">${translate("medication_report")}</button>
-				<button class="report-btn" data-report="vaccines">${translate("vaccine_report")}</button>
-				<button class="report-btn" data-report="leave-alone">${translate("leave_alone_report")}</button>
-				<button class="report-btn" data-report="media-authorization">${translate("media_authorization_report")}</button> <button class="report-btn" data-report="participant-age">${translate("participant_age_report")}</button>
-				<button class="report-btn" data-report="missing-documents">${translate("missing_documents_report")}</button>
-				<button class="report-btn" data-report="attendance">${translate("attendance_report")}</button>
-				<button class="report-btn" data-report="honors">${translate("honors_report")}</button>
-				<button class="report-btn" data-report="points">${translate("points_report")}</button>
-			</div>
-			<div id="form-type-container">
-					<h3>${translate("select_form_type")}</h3>
-					<select id="form-type-select">
-						<option value="">${translate("select_form_type")}</option>
-							<!-- Form types will be dynamically loaded here -->
-					</select>
-			</div>
-			<div id="report-content"></div>
-			<button id="print-report" style="display: none;">${translate("print_report")}</button>
-			<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
-		`;
-		document.getElementById("app").innerHTML = content;
-	}
+        render() {
+                const content = `
+                        <section class="reports-header">
+                                <p class="reports-kicker">${translate("reports")}</p>
+                                <h1>${translate("reports_title")}</h1>
+                                <p class="reports-subtitle">${translate("reports_intro")}</p>
+                        </section>
+                        <section class="reports-menu-grid" role="menu" aria-label="${translate("reports")}">
+                                <button class="report-btn" data-report="health" type="button">${translate("health_report")}</button>
+                                <button class="report-btn" data-report="allergies" type="button">${translate("allergies_report")}</button>
+                                <button class="report-btn" data-report="medication" type="button">${translate("medication_report")}</button>
+                                <button class="report-btn" data-report="vaccines" type="button">${translate("vaccine_report")}</button>
+                                <button class="report-btn" data-report="leave-alone" type="button">${translate("leave_alone_report")}</button>
+                                <button class="report-btn" data-report="media-authorization" type="button">${translate("media_authorization_report")}</button>
+                                <button class="report-btn" data-report="participant-age" type="button">${translate("participant_age_report")}</button>
+                                <button class="report-btn" data-report="missing-documents" type="button">${translate("missing_documents_report")}</button>
+                                <button class="report-btn" data-report="attendance" type="button">${translate("attendance_report")}</button>
+                                <button class="report-btn" data-report="honors" type="button">${translate("honors_report")}</button>
+                                <button class="report-btn" data-report="points" type="button">${translate("points_report")}</button>
+                                <button class="report-btn report-btn--accent" data-report="participant-progress" type="button">${translate("participant_progress_report")}</button>
+                        </section>
+                        <div id="form-type-container" class="report-surface" aria-live="polite">
+                                        <div class="form-field">
+                                                <label for="form-type-select">${translate("select_form_type")}</label>
+                                                <select id="form-type-select">
+                                                        <option value="">${translate("select_form_type")}</option>
+                                                </select>
+                                        </div>
+                        </div>
+                        <section class="report-view">
+                                <div id="report-content" class="report-surface" aria-live="polite"></div>
+                                <div class="report-actions">
+                                        <button id="print-report" class="button" style="display: none;" type="button">${translate("print_report")}</button>
+                                        <p class="report-back"><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+                                </div>
+                        </section>
+                `;
+                document.getElementById("app").innerHTML = content;
+        }
 
 	attachEventListeners() {
 		document.querySelectorAll('.report-btn').forEach(button => {
@@ -158,18 +173,24 @@ case 'participant-age':
 					reportData = await getParticipantAgeReport(); // Fetch the report data
 					reportContent = this.renderParticipantAgeReport(reportData.participants);
 					break;
-				case 'points':
-					reportData = await getPointsReport();
-					reportContent = this.renderPointsReport(reportData.data);
-					break;
-				default:
-					reportContent = '<p>Invalid report type</p>';
-			}
+                                case 'points':
+                                        reportData = await getPointsReport();
+                                        reportContent = this.renderPointsReport(reportData.data);
+                                        break;
+                                case 'participant-progress':
+                                        reportContent = await this.fetchAndRenderParticipantProgress();
+                                        break;
+                                default:
+                                        reportContent = '<p>Invalid report type</p>';
+                        }
 
-			document.getElementById('report-content').innerHTML = reportContent;
-			document.getElementById('print-report').style.display = 'block';
-		} catch (error) {
-			debugError(`Error loading ${reportType} report:`, error);
+                        document.getElementById('report-content').innerHTML = reportContent;
+                        if (reportType === 'participant-progress') {
+                                this.attachParticipantProgressListeners();
+                        }
+                        document.getElementById('print-report').style.display = 'block';
+                } catch (error) {
+                        debugError(`Error loading ${reportType} report:`, error);
 			document.getElementById('report-content').innerHTML = `
 				<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>
 			`;
@@ -804,7 +825,222 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 		`;
 	}
 
-	printReport() {
+        cacheParticipantProgress(participantId, progress) {
+                try {
+                        const payload = { progress, timestamp: Date.now() };
+                        localStorage.setItem(`participant-progress-${participantId}`, JSON.stringify(payload));
+                        this.participantProgressCache.set(participantId, payload);
+                } catch (error) {
+                        debugWarn('Unable to cache participant progress', error);
+                }
+        }
+
+        getCachedParticipantProgress(participantId) {
+                if (this.participantProgressCache.has(participantId)) {
+                        return this.participantProgressCache.get(participantId);
+                }
+                try {
+                        const raw = localStorage.getItem(`participant-progress-${participantId}`);
+                        if (!raw) return null;
+                        const parsed = JSON.parse(raw);
+                        this.participantProgressCache.set(participantId, parsed);
+                        return parsed;
+                } catch (error) {
+                        debugWarn('Unable to read cached participant progress', error);
+                        return null;
+                }
+        }
+
+        buildPointsGraph(pointEvents = []) {
+                if (!pointEvents.length) {
+                        return {
+                                svg: `<div class="chart-placeholder">${translate('no_points_data')}</div>`,
+                                min: 0,
+                                max: 0
+                        };
+                }
+
+                const values = pointEvents.map(event => event.cumulative);
+                const min = Math.min(...values, 0);
+                const max = Math.max(...values, 0);
+                const range = Math.max(max - min, 1);
+                const height = 180;
+                const width = Math.max(pointEvents.length - 1, 1) * 80;
+
+                const path = pointEvents.map((event, index) => {
+                        const x = (index / Math.max(pointEvents.length - 1, 1)) * width;
+                        const y = height - ((event.cumulative - min) / range) * height;
+                        return `${index === 0 ? 'M' : 'L'}${x},${y}`;
+                }).join(' ');
+
+                const last = pointEvents[pointEvents.length - 1];
+
+                const svg = `
+                        <svg class="points-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${translate('points_over_time')}">
+                                <defs>
+                                        <linearGradient id="pointsGradient" x1="0" x2="0" y1="0" y2="1">
+                                                <stop offset="0%" stop-color="var(--color-primary-light)" stop-opacity="0.32" />
+                                                <stop offset="100%" stop-color="var(--color-primary-light)" stop-opacity="0.05" />
+                                        </linearGradient>
+                                </defs>
+                                <path d="${path}" fill="none" stroke="var(--color-primary)" stroke-width="3" vector-effect="non-scaling-stroke" />
+                                <path d="${path} L ${width} ${height} L 0 ${height} Z" fill="url(#pointsGradient)" opacity="0.45" />
+                                <circle cx="${width}" cy="${height - ((last.cumulative - min) / range) * height}" r="5" fill="var(--color-primary-dark)" />
+                        </svg>
+                `;
+
+                return { svg, min, max };
+        }
+
+        renderParticipantProgressReport(progressData, isOffline = false) {
+                const selectOptions = this.participantList.map(participant => {
+                        const label = `${participant.first_name} ${participant.last_name}${participant.group_name ? ` · ${participant.group_name}` : ''}`;
+                        const selected = participant.id === Number(this.selectedParticipantId) ? 'selected' : '';
+                        return `<option value="${participant.id}" ${selected}>${label}</option>`;
+                }).join('');
+
+                const summary = progressData ? `
+                        <div class="progress-summary">
+                                <div class="summary-tile">
+                                        <p class="summary-label">${translate('total_points')}</p>
+                                        <p class="summary-value">${progressData.totals.points}</p>
+                                </div>
+                                <div class="summary-tile">
+                                        <p class="summary-label">${translate('honors_count')}</p>
+                                        <p class="summary-value">${progressData.totals.honors}</p>
+                                </div>
+                                <div class="summary-tile">
+                                        <p class="summary-label">${translate('badge_stars')}</p>
+                                        <p class="summary-value">${progressData.totals.badges}</p>
+                                </div>
+                        </div>
+                ` : '';
+
+                const timelineEvents = progressData ? [
+                        ...(progressData.attendance || []).map(item => ({ type: 'attendance', date: item.date, status: item.status })),
+                        ...(progressData.honors || []).map(item => ({ type: 'honor', date: item.date, reason: item.reason })),
+                        ...(progressData.badges || []).map(item => ({ type: 'badge', date: item.date, territory: item.territoire_chasse, stars: item.etoiles }))
+                ].sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
+
+                const timeline = timelineEvents.length ? timelineEvents.map(event => {
+                        let title = '';
+                        let meta = '';
+                        if (event.type === 'attendance') {
+                                title = translate(event.status) || translate('attendance');
+                                meta = translate('attendance_status');
+                        } else if (event.type === 'honor') {
+                                title = translate('honor_awarded');
+                                meta = event.reason || translate('no_reason_provided');
+                        } else {
+                                title = translate('badge_star');
+                                const starsLabel = translate('stars_count');
+                                meta = `${event.territory || ''} · ${event.stars || 0} ${starsLabel}`;
+                        }
+
+                        return `
+                                <article class="timeline-item timeline-item--${event.type}">
+                                        <div class="timeline-dot" aria-hidden="true"></div>
+                                        <div class="timeline-content">
+                                                <p class="timeline-date">${new Date(event.date).toLocaleDateString()}</p>
+                                                <p class="timeline-title">${title}</p>
+                                                <p class="timeline-meta">${meta}</p>
+                                        </div>
+                                </article>
+                        `;
+                }).join('') : `<p class="muted">${translate('participant_progress_empty')}</p>`;
+
+                const pointsGraph = progressData ? this.buildPointsGraph(progressData.pointEvents || []) : { svg: `<div class="chart-placeholder">${translate('no_points_data')}</div>`, min: 0, max: 0 };
+
+                const attendanceChips = progressData ? Object.entries(progressData.totals.attendance || {}).map(([status, count]) => `
+                        <span class="chip">${translate(status) || status}: ${count}</span>
+                `).join('') : '';
+
+                const offlineNotice = isOffline ? `<div class="offline-notice" role="status">${translate('using_cached_report')}</div>` : '';
+
+                return `
+                        <div class="participant-progress">
+                                ${offlineNotice}
+                                <div class="form-field">
+                                        <label for="participant-progress-select">${translate('select_participant')}</label>
+                                        <select id="participant-progress-select">
+                                                <option value="">${translate('select_participant_placeholder')}</option>
+                                                ${selectOptions}
+                                        </select>
+                                </div>
+                                ${progressData ? `
+                                        <div class="report-card">
+                                                <header class="report-card__header">
+                                                        <div>
+                                                                <p class="eyebrow">${progressData.participant.group_name || translate('no_group')}</p>
+                                                                <h2>${progressData.participant.first_name} ${progressData.participant.last_name}</h2>
+                                                        </div>
+                                                        <div class="chip chip--primary">${translate('participant_progress')}</div>
+                                                </header>
+                                                ${summary}
+                                                <div class="report-card__grid">
+                                                        <div>
+                                                                <h3>${translate('points_over_time')}</h3>
+                                                                ${pointsGraph.svg}
+                                                                <p class="muted">${translate('points_range')}: ${pointsGraph.min} – ${pointsGraph.max}</p>
+                                                        </div>
+                                                        <div>
+                                                                <h3>${translate('attendance_overview')}</h3>
+                                                                <div class="chip-row">${attendanceChips || translate('no_attendance_data')}</div>
+                                                        </div>
+                                                </div>
+                                                <div>
+                                                        <h3>${translate('timeline_title')}</h3>
+                                                        <div class="timeline">${timeline}</div>
+                                                </div>
+                                        </div>
+                                ` : `<p class="muted">${translate('select_participant_prompt')}</p>`}
+                        </div>
+                `;
+        }
+
+        attachParticipantProgressListeners() {
+                const select = document.getElementById('participant-progress-select');
+                if (select) {
+                        select.addEventListener('change', async (event) => {
+                                this.selectedParticipantId = event.target.value || null;
+                                const content = await this.fetchAndRenderParticipantProgress();
+                                document.getElementById('report-content').innerHTML = content;
+                                this.attachParticipantProgressListeners();
+                        });
+                }
+        }
+
+        async fetchAndRenderParticipantProgress() {
+                try {
+                        const response = await getParticipantProgressReport(this.selectedParticipantId);
+                        if (response?.data?.participants) {
+                                this.participantList = response.data.participants;
+                                if (!this.selectedParticipantId && this.participantList.length) {
+                                        this.selectedParticipantId = this.participantList[0].id;
+                                        return await this.fetchAndRenderParticipantProgress();
+                                }
+                        }
+
+                        if (response?.data?.progress && this.selectedParticipantId) {
+                                this.cacheParticipantProgress(this.selectedParticipantId, response.data.progress);
+                        }
+
+                        const progressData = response?.data?.progress || null;
+                        const markup = this.renderParticipantProgressReport(progressData);
+                        return markup;
+                } catch (error) {
+                        debugError('Error loading participant progress', error);
+                        if (this.selectedParticipantId) {
+                                const cached = this.getCachedParticipantProgress(this.selectedParticipantId);
+                                if (cached?.progress) {
+                                        return this.renderParticipantProgressReport(cached.progress, true);
+                                }
+                        }
+                        return `<p class="error-message">${translate('error_loading_report')}: ${error.message}</p>`;
+                }
+        }
+
+printReport() {
 		const printWindow = window.open('', '_blank');
 		printWindow.document.write(`
 			<html>
