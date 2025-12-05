@@ -47,17 +47,23 @@ module.exports = (pool, logger) => {
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const fundraiserId = req.query.fundraiser_id;
+
+      if (!fundraiserId) {
+        return res.status(400).json({ success: false, message: 'fundraiser_id is required' });
+      }
 
       const result = await pool.query(
-        `SELECT c.participant_id, c.amount, c.amount_paid, c.paid, c.updated_at,
-                p.first_name, p.last_name, g.name as group_name
+        `SELECT c.id, c.participant_id, c.amount as calendar_amount, c.amount_paid, c.paid, c.updated_at, c.fundraiser,
+                p.first_name, p.last_name, g.name as group_name, pg.group_id
          FROM calendars c
          JOIN participants p ON c.participant_id = p.id
+         JOIN participant_organizations po ON p.id = po.participant_id AND po.organization_id = $1
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
          LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE c.organization_id = $1
+         WHERE c.fundraiser = $2 AND c.archived = false
          ORDER BY p.first_name, p.last_name`,
-        [organizationId]
+        [organizationId, fundraiserId]
       );
 
       res.json({
@@ -131,20 +137,29 @@ module.exports = (pool, logger) => {
       }
 
       const { id } = req.params;
-      const { participant_id, date, amount_due, amount_paid, paid, notes } = req.body;
+      const { amount, amount_paid, paid } = req.body;
+
+      // Verify the calendar entry belongs to this organization through its fundraiser
+      const verifyResult = await pool.query(
+        `SELECT c.* FROM calendars c
+         JOIN fundraisers f ON c.fundraiser = f.id
+         WHERE c.id = $1 AND f.organization = $2`,
+        [id, organizationId]
+      );
+
+      if (verifyResult.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Calendar entry not found' });
+      }
 
       const result = await pool.query(
         `UPDATE calendars
-         SET participant_id = COALESCE($1, participant_id),
-             date = COALESCE($2, date),
-             amount_due = COALESCE($3, amount_due),
-             amount_paid = COALESCE($4, amount_paid),
-             paid = COALESCE($5, paid),
-             notes = COALESCE($6, notes),
+         SET amount = COALESCE($1, amount),
+             amount_paid = COALESCE($2, amount_paid),
+             paid = COALESCE($3, paid),
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $7 AND organization_id = $8
+         WHERE id = $4
          RETURNING *`,
-        [participant_id, date, amount_due, amount_paid, paid, notes, id, organizationId]
+        [amount, amount_paid, paid, id]
       );
 
       if (result.rows.length === 0) {
@@ -219,9 +234,11 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Amount paid is required' });
       }
 
-      // Get current amount due to determine if fully paid
+      // Get current amount and verify organization
       const currentResult = await pool.query(
-        `SELECT amount_due FROM calendars WHERE id = $1 AND organization_id = $2`,
+        `SELECT c.amount FROM calendars c
+         JOIN fundraisers f ON c.fundraiser = f.id
+         WHERE c.id = $1 AND f.organization = $2`,
         [id, organizationId]
       );
 
@@ -229,7 +246,7 @@ module.exports = (pool, logger) => {
         return res.status(404).json({ success: false, message: 'Calendar entry not found' });
       }
 
-      const amountDue = parseFloat(currentResult.rows[0].amount_due);
+      const amountDue = parseFloat(currentResult.rows[0].amount) || 0;
       const paid = parseFloat(amount_paid) >= amountDue;
 
       const result = await pool.query(
@@ -237,9 +254,9 @@ module.exports = (pool, logger) => {
          SET amount_paid = $1,
              paid = $2,
              updated_at = CURRENT_TIMESTAMP
-         WHERE id = $3 AND organization_id = $4
+         WHERE id = $3
          RETURNING *`,
-        [amount_paid, paid, id, organizationId]
+        [amount_paid, paid, id]
       );
 
       res.json({ success: true, data: result.rows[0] });
@@ -290,11 +307,12 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       const result = await pool.query(
-        `SELECT c.*, p.first_name, p.last_name
+        `SELECT c.*, p.first_name, p.last_name, f.name as fundraiser_name
          FROM calendars c
          JOIN participants p ON c.participant_id = p.id
-         WHERE c.participant_id = $1 AND c.organization_id = $2
-         ORDER BY c.date DESC`,
+         JOIN fundraisers f ON c.fundraiser = f.id
+         WHERE c.participant_id = $1 AND f.organization = $2
+         ORDER BY f.start_date DESC`,
         [participant_id, organizationId]
       );
 

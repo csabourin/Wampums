@@ -148,6 +148,16 @@ export {
     updateCalendarAmountPaid,
     getParticipantCalendar,
 
+    // Fundraisers
+    getFundraisers,
+    getFundraiser,
+    createFundraiser,
+    updateFundraiser,
+    archiveFundraiser,
+    getCalendarsForFundraiser,
+    updateCalendarEntry,
+    updateCalendarPayment,
+
     // Reunions / Meetings
     getReunionPreparation,
     saveReunionPreparation,
