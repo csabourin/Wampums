@@ -665,16 +665,29 @@ export async function saveAcceptationRisque(data) {
  * Get participants with documents info
  */
 export async function getParticipantsWithDocuments() {
-    const data = await API.get('participant-details');
-    const settings = await getOrganizationSettings();
+    const response = await API.get('participant-details');
+    const settingsResponse = await getOrganizationSettings();
+
+    const settings = settingsResponse?.data || {};
     const formTypes = Object.keys(settings)
         .filter(key => key.endsWith('_structure'))
         .map(key => key.replace('_structure', ''));
-    data.participants = data.participants.map(p => {
-        formTypes.forEach(ft => { p[`has_${ft}`] = !!p[`has_${ft}`]; });
-        return p;
+
+    const participants = (response?.data?.participants || response?.participants || []).map(participant => {
+        formTypes.forEach(formType => {
+            participant[`has_${formType}`] = Boolean(participant[`has_${formType}`]);
+        });
+        return participant;
     });
-    return data;
+
+    return {
+        ...response,
+        participants,
+        data: {
+            ...(response?.data || {}),
+            participants
+        }
+    };
 }
 
 // ============================================================================
