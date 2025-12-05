@@ -344,11 +344,12 @@ module.exports = (pool, logger) => {
     async (req, res) => {
       try {
         const { email } = req.body;
+        const normalizedEmail = email.toLowerCase();
 
         // Check if user exists
         const user = await pool.query(
           'SELECT id FROM users WHERE email = $1',
-          [email]
+          [normalizedEmail]
         );
 
         // Always return success to prevent email enumeration
