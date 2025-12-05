@@ -61,7 +61,7 @@ module.exports = (pool, logger) => {
          JOIN participant_organizations po ON p.id = po.participant_id AND po.organization_id = $1
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
          LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE c.fundraiser = $2 AND c.archived = false
+         WHERE c.fundraiser = $2
          ORDER BY p.first_name, p.last_name`,
         [organizationId, fundraiserId]
       );
