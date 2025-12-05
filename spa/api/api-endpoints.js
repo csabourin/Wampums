@@ -67,7 +67,18 @@ export async function authenticate(apiKey) {
  */
 export async function login(email, password, organization_id) {
     try {
-        const orgId = organization_id || getCurrentOrganizationId();
+        let orgId = organization_id || getCurrentOrganizationId();
+
+        if (!orgId) {
+            debugWarn('Organization ID missing from storage, fetching from server...');
+            const orgResponse = await getOrganizationId();
+            orgId = orgResponse?.organization_id || orgResponse?.organizationId || orgResponse?.id;
+
+            if (orgId) {
+                localStorage.setItem(CONFIG.STORAGE_KEYS.CURRENT_ORGANIZATION_ID, orgId);
+                localStorage.setItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID, orgId);
+            }
+        }
 
         if (!orgId) {
             throw new Error('Organization ID is required for login');
@@ -90,7 +101,16 @@ export async function login(email, password, organization_id) {
             body: JSON.stringify(requestBody)
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            return {
+                success: false,
+                status: response.status,
+                message: data?.message || 'invalid_email_or_password'
+            };
+        }
+
         return data;
     } catch (error) {
         debugError("Error during login:", error);

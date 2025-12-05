@@ -46,7 +46,7 @@ export class Login {
     const content = `
       <div class="login-container">
         <h1>${translate("login")}</h1>
-        <h2>${organizationName}</h2> 
+        <h2>${organizationName}</h2>
         <form id="login-form">
           <div class="form-group">
             <input type="email" name="email" placeholder="${translate("email")}" autocomplete="email" required>
@@ -56,6 +56,7 @@ export class Login {
           </div>
           <button type="submit" class="btn-primary">${translate("submit_login")}</button>
         </form>
+        <div id="login-message" class="status-message" role="status" aria-live="polite"></div>
         <p><a href="/register">${translate("create_account")}</a></p>
         <p><a href="/reset-password">${translate("forgot_password")}</a></p>
       </div>
@@ -79,6 +80,16 @@ async attachLoginFormListener() {
   }
 
   debugLog("Attaching login form listener");
+  const statusElement = document.getElementById("login-message");
+
+  const setStatus = (message, type = "info") => {
+    if (!statusElement) {
+      return;
+    }
+    statusElement.textContent = message;
+    statusElement.className = `status-message ${type}`;
+  };
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     debugLog("Login form submitted");
@@ -88,10 +99,16 @@ async attachLoginFormListener() {
     // Extract the actual values from FormData
     const email = formData.get("email");
     const password = formData.get("password");
-    
+
+    setStatus("", "info");
+    const submitButton = form.querySelector("button[type='submit']");
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
     try {
       debugLog("Sending login request via ajax-functions.js..." + email);
-      
+
       // Pass individual parameters instead of FormData object
       const result = await login(email, password);
 
@@ -102,11 +119,16 @@ async attachLoginFormListener() {
         this.handleLoginSuccess(result);
       } else {
         debugWarn("Login failed:", result.message);
-        alert(result.message || "Login failed");
+        const friendlyMessage = this.translateApiMessage(result.message);
+        setStatus(friendlyMessage, "error");
       }
     } catch (error) {
       debugError("Login error:", error);
-      alert(`${translate("error_logging_in")}: ${error.message}`);
+      setStatus(`${translate("error_logging_in")}: ${error.message}`, "error");
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
     }
   });
   debugLog("Login form listener attached");
@@ -139,13 +161,21 @@ handleLoginSuccess(result) {
   // Validate required fields
   if (!token) {
     debugError("ERROR: No JWT token received in login response");
-    alert(translate("login_error_no_token"));
+    const statusElement = document.getElementById("login-message");
+    if (statusElement) {
+      statusElement.textContent = translate("login_error_no_token");
+      statusElement.className = "status-message error";
+    }
     return;
   }
 
   if (!userId) {
     debugError("ERROR: No user ID received in login response");
-    alert(translate("login_error_no_user_id"));
+    const statusElement = document.getElementById("login-message");
+    if (statusElement) {
+      statusElement.textContent = translate("login_error_no_user_id");
+      statusElement.className = "status-message error";
+    }
     return;
   }
 
@@ -201,6 +231,18 @@ handleLoginSuccess(result) {
     this.app.router.route("/dashboard");
   }
 }
+
+  translateApiMessage(message) {
+    const messageKey = message || "invalid_email_or_password";
+    const messageMap = {
+      invalid_email_or_password: translate("invalid_email_or_password"),
+      account_not_verified_login: translate("account_not_verified_login") || translate("invalid_email_or_password"),
+      too_many_login_attempts: translate("too_many_login_attempts") || translate("invalid_email_or_password"),
+      internal_server_error: translate("internal_server_error")
+    };
+
+    return messageMap[messageKey] || translate("invalid_credentials");
+  }
 
   static decodeJwt(token) {
     const base64Url = token.split(".")[1];
