@@ -53,12 +53,23 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'fundraiser_id is required' });
       }
 
+      // First verify the fundraiser belongs to this organization
+      const fundraiserCheck = await pool.query(
+        `SELECT id FROM fundraisers WHERE id = $1 AND organization = $2`,
+        [fundraiserId, organizationId]
+      );
+
+      if (fundraiserCheck.rows.length === 0) {
+        return res.status(403).json({ success: false, message: 'Access denied to this fundraiser' });
+      }
+
+      // Fetch all calendar entries for this fundraiser, regardless of participant's current organization status
+      // This is important for inactive fundraisers where participants may have left the organization
       const result = await pool.query(
         `SELECT c.id, c.participant_id, c.amount as calendar_amount, c.amount_paid, c.paid, c.updated_at, c.fundraiser,
                 p.first_name, p.last_name, g.name as group_name, pg.group_id
          FROM calendars c
          JOIN participants p ON c.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id AND po.organization_id = $1
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
          LEFT JOIN groups g ON pg.group_id = g.id
          WHERE c.fundraiser = $2
