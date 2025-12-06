@@ -48,20 +48,79 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const result = await pool.query(
-        `SELECT DISTINCT g.courriel as email, g.nom, g.prenom, p.first_name as participant_first_name, p.last_name as participant_last_name
-         FROM participant_guardians pg
-         JOIN parents_guardians g ON pg.guardian_id = g.id
-         JOIN participants p ON pg.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE po.organization_id = $1 AND g.courriel IS NOT NULL AND g.courriel != ''
-         ORDER BY g.nom, g.prenom`,
+      // Ensure the user belongs to the organization with the proper role
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Build email list by user role (admin/animation/etc.)
+      const usersEmailsResult = await pool.query(
+        `SELECT LOWER(u.email) AS email, uo.role
+         FROM user_organizations uo
+         JOIN users u ON u.id = uo.user_id
+         WHERE uo.organization_id = $1
+         AND u.email IS NOT NULL
+         AND u.email != ''`,
         [organizationId]
       );
 
+      const emailsByRole = usersEmailsResult.rows.reduce((acc, user) => {
+        if (!acc[user.role]) {
+          acc[user.role] = [];
+        }
+        acc[user.role].push(user.email);
+        return acc;
+      }, {});
+
+      // Guardian emails linked to participants in the current organization
+      const guardianEmailsResult = await pool.query(
+        `WITH guardian_children AS (
+           SELECT DISTINCT LOWER(pg.courriel) AS email,
+                  p.first_name || ' ' || p.last_name AS participant_name
+           FROM parents_guardians pg
+           JOIN participant_guardians pg_rel ON pg_rel.guardian_id = pg.id
+           JOIN participant_organizations po ON po.participant_id = pg_rel.participant_id
+           JOIN participants p ON p.id = pg_rel.participant_id
+           WHERE po.organization_id = $1
+             AND pg.courriel IS NOT NULL
+             AND pg.courriel <> ''
+         )
+         SELECT email,
+                string_agg(participant_name, ', ' ORDER BY participant_name) AS participants
+         FROM guardian_children
+         GROUP BY email`,
+        [organizationId]
+      );
+
+      emailsByRole.parent = guardianEmailsResult.rows.map((parent) => ({
+        email: parent.email,
+        participants: parent.participants,
+      }));
+
+      // Participant emails captured on their own forms
+      const participantEmailsResult = await pool.query(
+        `SELECT LOWER(fs.submission_data->>'courriel') AS courriel
+         FROM form_submissions fs
+         WHERE (fs.submission_data->>'courriel') IS NOT NULL
+         AND (fs.submission_data->>'courriel') != ''
+         AND fs.organization_id = $1`,
+        [organizationId]
+      );
+
+      const participantEmails = participantEmailsResult.rows.map(row => row.courriel);
+      const uniqueEmails = [
+        ...new Set([
+          ...Object.values(emailsByRole).flat().map(item => (typeof item === 'string' ? item : item.email)),
+          ...participantEmails,
+        ]),
+      ];
+
       res.json({
         success: true,
-        contacts: result.rows
+        emails_by_role: emailsByRole,
+        participant_emails: participantEmails,
+        unique_emails: uniqueEmails,
       });
     } catch (error) {
       logger.error('Error fetching mailing list:', error);
