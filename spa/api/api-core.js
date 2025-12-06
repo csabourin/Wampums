@@ -108,6 +108,7 @@ export async function makeApiRequest(endpoint, options = {}) {
         method,
         headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             ...getAuthHeader(),
             ...headers
         }
