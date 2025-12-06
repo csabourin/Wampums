@@ -46,7 +46,16 @@ module.exports = function(pool, logger) {
   }
 
   router.post('/import-sisc', async (req, res) => {
+    logger.info('Starting SISC import...');
+    logger.info('Database pool config:', { 
+      host: pool.options?.host || 'default',
+      database: pool.options?.database || 'default',
+      hasConnectionString: !!pool.options?.connectionString
+    });
+    
     const client = await pool.connect();
+    logger.info('Database client connected successfully');
+    
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -305,11 +314,48 @@ module.exports = function(pool, logger) {
       }
 
       await client.query('COMMIT');
+      logger.info('Transaction COMMIT executed successfully');
+
+      // Verify data was actually saved
+      const verification = {};
+      try {
+        const participantCount = await pool.query(
+          `SELECT COUNT(*) as count FROM participants p 
+           JOIN participant_organizations po ON p.id = po.participant_id 
+           WHERE po.organization_id = $1`,
+          [organizationId]
+        );
+        verification.totalParticipants = parseInt(participantCount.rows[0].count);
+
+        const guardianCount = await pool.query(
+          `SELECT COUNT(DISTINCT pg.id) as count FROM parents_guardians pg
+           JOIN participant_guardians pgl ON pg.id = pgl.guardian_id
+           JOIN participants p ON pgl.participant_id = p.id
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE po.organization_id = $1`,
+          [organizationId]
+        );
+        verification.totalGuardians = parseInt(guardianCount.rows[0].count);
+
+        const userParticipantCount = await pool.query(
+          `SELECT COUNT(*) as count FROM user_participants up
+           JOIN participants p ON up.participant_id = p.id
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE po.organization_id = $1`,
+          [organizationId]
+        );
+        verification.totalUserParticipantLinks = parseInt(userParticipantCount.rows[0].count);
+
+        logger.info('Import verification:', verification);
+      } catch (verifyError) {
+        logger.error('Verification query failed:', verifyError);
+      }
 
       res.json({
         success: true,
         message: 'Import completed',
-        stats
+        stats,
+        verification
       });
 
     } catch (error) {

@@ -397,6 +397,14 @@ export class Admin {
                                                                                         ${stats.errors.map(err => `<li>${escapeHTML(err)}</li>`).join("")}
                                                                                 </ul>
                                                                         ` : ""}
+                                                                        ${result.verification ? `
+                                                                                <h5>${translate("database_verification")}:</h5>
+                                                                                <ul>
+                                                                                        <li>${translate("total_participants_in_org")}: ${result.verification.totalParticipants}</li>
+                                                                                        <li>${translate("total_guardians_in_org")}: ${result.verification.totalGuardians}</li>
+                                                                                        <li>${translate("total_parent_child_links")}: ${result.verification.totalUserParticipantLinks}</li>
+                                                                                </ul>
+                                                                        ` : ""}
                                                                 </div>
                                                         `;
                                                 } else {
