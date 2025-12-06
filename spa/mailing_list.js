@@ -8,30 +8,36 @@ export class MailingList {
 		this.mailingList = {};
 	}
 
-	async init() {
-		if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
-			this.app.router.navigate("/");
-			return;
-		}
+        async init() {
+                if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+                        this.app.router.navigate("/");
+                        return;
+                }
 
-		try {
-			await this.fetchData();
-			this.render();
-			this.attachEventListeners();
+                try {
+                        await this.fetchData();
+                        this.render();
+                        this.attachEventListeners();
 		} catch (error) {
 			debugError("Error initializing mailing list:", error);
 			this.renderError();
 		}
 	}
 
-	async fetchData() {
-		try {
-			this.mailingList = await getMailingList();
-		} catch (error) {
-			debugError("Error fetching mailing list:", error);
-			throw error;
-		}
-	}
+        async fetchData() {
+                try {
+                        const response = await getMailingList();
+
+                        if (!response?.success || !response.emails_by_role) {
+                                throw new Error(response?.message || "Invalid mailing list response");
+                        }
+
+                        this.mailingList = response;
+                } catch (error) {
+                        debugError("Error fetching mailing list:", error);
+                        throw error;
+                }
+        }
 
 	render() {
 		const content = `
@@ -44,17 +50,23 @@ export class MailingList {
 		document.getElementById("app").innerHTML = content;
 	}
 
-	renderMailingList() {
-		let html = "";
-		const groupedByChildren = {};
+        renderMailingList() {
+                let html = "";
+                const groupedByChildren = {};
+                const emailsByRole = this.mailingList?.emails_by_role || {};
+                const parentEmails = Array.isArray(emailsByRole.parent) ? emailsByRole.parent : [];
 
-		// Group emails by participants (children)
-		this.mailingList.emails_by_role['parent'].forEach((parent) => {
-			if (parent.participants) {
-				const children = parent.participants.split(", ");
-				children.forEach((child) => {
-					if (!groupedByChildren[child]) {
-						groupedByChildren[child] = [];
+                if (!Object.keys(emailsByRole).length) {
+                        return `<p>${translate("no_data_available")}</p>`;
+                }
+
+                // Group emails by participants (children)
+                parentEmails.forEach((parent) => {
+                        if (parent.participants) {
+                                const children = parent.participants.split(", ");
+                                children.forEach((child) => {
+                                        if (!groupedByChildren[child]) {
+                                                groupedByChildren[child] = [];
 					}
 					groupedByChildren[child].push(parent.email);
 				});
@@ -92,13 +104,13 @@ export class MailingList {
 						 <button class="copy-role-emails" data-role="parent">${translate('copy_emails_for')} ${translate('parents')}</button>
 						 </div>`;
 
-		// Render other groups (e.g., animation and admin)
-		Object.entries(this.mailingList.emails_by_role).forEach(([role, emails]) => {
-			if (role !== 'parent') {
-				html += `
-					<div class="group">
-						<div class="group-header">${translate(role)}</div>
-						<div class="group-content compact">
+                // Render other groups (e.g., animation and admin)
+                Object.entries(emailsByRole).forEach(([role, emails]) => {
+                        if (role !== 'parent') {
+                                html += `
+                                        <div class="group">
+                                                <div class="group-header">${translate(role)}</div>
+                                                <div class="group-content compact">
 							${this.renderEmails(emails)}
 						</div>
 						<button class="copy-role-emails" data-role="${role}">${translate(
@@ -113,13 +125,13 @@ export class MailingList {
 	}
 
 
-	renderEmails(data) {
-			debugLog('Data received:', JSON.stringify(data, null, 2));
+        renderEmails(data) {
+                        debugLog('Data received:', JSON.stringify(data, null, 2));
 
-			if (!Array.isArray(data)) {
-					debugError('Data is not an array. Converting to array.');
-					data = [data];
-			}
+                        if (!Array.isArray(data)) {
+                                        debugError('Data is not an array. Converting to array.');
+                                        data = [data];
+                        }
 
 			return data.map((item, index) => {
 					debugLog(`Processing item ${index}:`, JSON.stringify(item, null, 2));
@@ -159,17 +171,23 @@ export class MailingList {
 		});
 	}
 
-	copyRoleEmailsToClipboard(role) {
-		const emails = this.mailingList.emails_by_role[role];
+        copyRoleEmailsToClipboard(role) {
+                const emailsByRole = this.mailingList?.emails_by_role || {};
+                const emails = emailsByRole[role] || [];
 
-		let emailString;
-		if (role === 'parent') {
-			// Only copy the emails for the parent group
-			emailString = emails.map((entry) => entry.email).join(", ");
-		} else {
-			// For other groups, copy the emails directly
-			emailString = emails.join(", ");
-		}
+                let emailString;
+                if (role === 'parent') {
+                        // Only copy the emails for the parent group
+                        emailString = emails.map((entry) => entry.email).join(", ");
+                } else {
+                        // For other groups, copy the emails directly
+                        emailString = emails.join(", ");
+                }
+
+                if (!emailString) {
+                        alert(translate("no_data_available"));
+                        return;
+                }
 
 		navigator.clipboard
 			.writeText(emailString)
