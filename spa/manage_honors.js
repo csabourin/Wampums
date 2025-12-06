@@ -65,7 +65,8 @@ export class ManageHonors {
     const today = getTodayISO();
     const isCurrentDate = this.currentDate === today;
 
-    const participantMap = new Map();
+    // Create a flat list of participants instead of grouping by group
+    this.honorsData.names = [];
 
     this.allParticipants.forEach(participant => {
       const honorsForDate = this.allHonors.filter(
@@ -75,37 +76,36 @@ export class ManageHonors {
         honor => honor.participant_id === participant.participant_id && new Date(honor.date) <= new Date(this.currentDate)
       ).length;
 
+      // Get the reason from the honor if it exists
+      const honorReason = honorsForDate.length > 0 ? honorsForDate[0].reason || "" : "";
+
       const processedParticipant = {
         ...participant,
         honored_today: honorsForDate.length > 0,
         total_honors: totalHonors,
+        reason: honorReason,
         visible: isCurrentDate || honorsForDate.length > 0
       };
 
-      if (!participantMap.has(participant.group_id)) {
-        participantMap.set(participant.group_id, {
-          id: participant.group_id,
-          name: participant.group_name === "no_group" ? translate("no_group") : participant.group_name,
-          participants: []
-        });
-      }
-
       if (processedParticipant.visible) {
-        participantMap.get(participant.group_id).participants.push(processedParticipant);
+        this.honorsData.names.push(processedParticipant);
       }
     });
-
-    this.honorsData.groups = Array.from(participantMap.values());
   }
 
   render() {
+    const dateOptions = this.availableDates.map(date =>
+      `<option value="${date}" ${date === this.currentDate ? 'selected' : ''}>${formatDate(date, this.app.lang)}</option>`
+    ).join('');
+
     const content = `
         <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
         <h1>${translate("manage_honors")}</h1>
         <div class="date-navigation">
-            <button id="prevDate">&larr; ${translate("previous")}</button>
-            <h2 id="currentDate">${formatDate(this.currentDate, this.app.lang)}</h2>
-            <button id="nextDate">${translate("next")} &rarr;</button>
+            <label for="date-select">${translate("select_date")}:</label>
+            <select id="date-select" class="date-dropdown">
+                ${dateOptions}
+            </select>
         </div>
         <div class="controls-container">
             <div class="sort-options">
@@ -126,14 +126,12 @@ export class ManageHonors {
   }
 
   renderHonorsList() {
-    if (this.honorsData.groups.length === 0) {
+    if (this.honorsData.names.length === 0) {
       return `<p>${translate("no_honors_on_this_date")}</p>`;
     }
 
-    return this.honorsData.groups.map(group => `
-      <div class="group-header">${group.name}</div>
-      ${group.participants.map(participant => this.renderParticipantItem(participant)).join('')}
-    `).join('');
+    // Render participants without grouping
+    return this.honorsData.names.map(participant => this.renderParticipantItem(participant)).join('');
   }
 
   renderParticipantItem(participant) {
@@ -145,8 +143,7 @@ export class ManageHonors {
       <div class="list-item ${selectedClass} ${disabledClass}" data-participant-id="${participant.participant_id}" data-group-id="${participant.group_id}">
         <input type="checkbox" id="participant-${participant.participant_id}" ${isDisabled ? "disabled" : ""} ${participant.honored_today ? "checked" : ""}>
         <label for="participant-${participant.participant_id}">
-          ${participant.first_name} ${participant.last_name} 
-          (${participant.total_honors} ${translate("honors")})
+          ${participant.first_name} ${participant.last_name} - <strong>${participant.total_honors}</strong>${participant.reason ? ` - ${participant.reason}` : ''}
         </label>
       </div>
     `;
@@ -156,8 +153,13 @@ export class ManageHonors {
     document.querySelectorAll(".list-item").forEach((item) => {
       item.addEventListener("click", (event) => this.handleItemClick(event));
     });
-    document.getElementById("prevDate").addEventListener("click", () => this.changeDate("prev"));
-    document.getElementById("nextDate").addEventListener("click", () => this.changeDate("next"));
+
+    // Add listener for date dropdown
+    const dateSelect = document.getElementById("date-select");
+    if (dateSelect) {
+      dateSelect.addEventListener("change", (e) => this.onDateChange(e.target.value));
+    }
+
     document.querySelectorAll(".sort-options button").forEach((button) => {
       button.addEventListener("click", () => this.sortItems(button.dataset.sort));
     });
@@ -172,20 +174,14 @@ export class ManageHonors {
     item.classList.toggle("selected", checkbox.checked);
   }
 
-  async changeDate(direction) {
-    const currentIndex = this.availableDates.indexOf(this.currentDate);
-    if (direction === "next" && currentIndex > 0) {
-      this.currentDate = this.availableDates[currentIndex - 1];
-    } else if (direction === "prev" && currentIndex < this.availableDates.length - 1) {
-      this.currentDate = this.availableDates[currentIndex + 1];
-    }
+  async onDateChange(newDate) {
+    this.currentDate = newDate;
     await this.fetchData();
     this.processHonors();
     this.updateHonorsListUI();
   }
 
   updateHonorsListUI() {
-    document.getElementById("currentDate").textContent = formatDate(this.currentDate, this.app.lang);
     document.getElementById("honors-list").innerHTML = this.renderHonorsList();
     document.getElementById("awardHonorButton").disabled = this.isPastDate();
 
@@ -258,16 +254,14 @@ export class ManageHonors {
     }
 
     // Sort participants by name or honors
-    this.honorsData.groups.forEach(group => {
-      group.participants.sort((a, b) => {
-        let comparison = 0;
-        if (sortBy === "name") {
-          comparison = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
-        } else if (sortBy === "honors") {
-          comparison = a.total_honors - b.total_honors;
-        }
-        return this.currentSort.order === "asc" ? comparison : -comparison;
-      });
+    this.honorsData.names.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === "name") {
+        comparison = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
+      } else if (sortBy === "honors") {
+        comparison = a.total_honors - b.total_honors;
+      }
+      return this.currentSort.order === "asc" ? comparison : -comparison;
     });
 
     // Directly update the UI without reattaching event listeners
