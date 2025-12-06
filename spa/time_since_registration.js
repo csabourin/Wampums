@@ -75,11 +75,11 @@ export class TimeSinceRegistration {
     // Sort participants based on current sort settings
     const sortedParticipants = this.getSortedParticipants();
 
-    const html = sortedParticipants.map((participant) => {
+    const tableRows = sortedParticipants.map((participant) => {
       const fullName = `${participant.first_name} ${participant.last_name}`;
       const inscriptionDate = participant.inscription_date
         ? new Date(participant.inscription_date).toLocaleDateString()
-        : translate("date_unavailable");
+        : `<span class="unavailable">${translate("date_unavailable")}</span>`;
 
       let timeWithGroup = "";
       if (participant.inscription_date && participant.years_with_group !== null) {
@@ -109,18 +109,30 @@ export class TimeSinceRegistration {
       const groupName = participant.group_name || translate("no_group_assigned");
 
       return `
-        <div class="registration-item">
-          <div class="participant-info">
-            <div class="participant-name">${fullName}</div>
-            <div class="participant-group">${groupName}</div>
-          </div>
-          <div class="registration-info">
-            <div class="inscription-date">${translate("inscription_date")}: ${inscriptionDate}</div>
-            <div class="time-with-group">${translate("time_with_group")}: ${timeWithGroup}</div>
-          </div>
-        </div>
+        <tr>
+          <td>${fullName}</td>
+          <td>${groupName}</td>
+          <td>${inscriptionDate}</td>
+          <td>${timeWithGroup}</td>
+        </tr>
       `;
     }).join("");
+
+    const html = `
+      <table>
+        <thead>
+          <tr>
+            <th>${translate("name")}</th>
+            <th>${translate("group")}</th>
+            <th>${translate("inscription_date")}</th>
+            <th>${translate("time_with_group")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
 
     list.innerHTML = html;
   }
