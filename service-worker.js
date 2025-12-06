@@ -348,6 +348,18 @@ async function fetchAndCacheInIndexedDB(request) {
         headers: { "Content-Type": "application/json" },
       }); // Return the response
     }
+
+    // If the network responded with an error status, try a cached copy before failing
+    debugWarn("API responded with", networkResponse.status, "for", cacheKey);
+    const cachedData = await getCachedData(cacheKey);
+    if (cachedData) {
+      debugLog("Serving cached data after network error:", cacheKey);
+      return new Response(JSON.stringify(cachedData), {
+        headers: { "Content-Type": "application/json", "X-From-Cache": "true" },
+      });
+    }
+
+    return networkResponse;
   } catch (error) {
     debugError(
       "Network request failed, attempting to serve from cache:",
@@ -376,18 +388,6 @@ async function fetchAndCacheInIndexedDB(request) {
       },
     );
   }
-
-  // Return fallback if nothing is available
-  return new Response(
-    JSON.stringify({
-      success: false,
-      error: "No data available",
-    }),
-    {
-      status: 503,
-      headers: { "Content-Type": "application/json" },
-    },
-  );
 }
 
 // Handle mutation requests (POST, PUT, DELETE)
