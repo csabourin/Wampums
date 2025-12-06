@@ -31,7 +31,8 @@ try {
   logger.info('Compression not available. Install with: npm install compression');
 }
 
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
 // Security headers with Content Security Policy
 app.use(helmet({

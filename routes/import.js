@@ -1,5 +1,5 @@
 const express = require('express');
-const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils');
+const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
 
 module.exports = function(pool, logger) {
   const router = express.Router();
