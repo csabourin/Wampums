@@ -6,6 +6,7 @@ export class ParentContactList {
   constructor(app) {
     this.app = app;
     this.children = [];
+    this.searchFilter = "";
   }
 
   async init() {
@@ -87,6 +88,15 @@ export class ParentContactList {
     const content = `
             <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
             <h1>${translate("parent_contact_list")}</h1>
+            <div class="search-container">
+                <input
+                    type="text"
+                    id="contact-search"
+                    class="search-input"
+                    placeholder="${translate("search_participants")}..."
+                    value="${this.searchFilter}"
+                />
+            </div>
             <div id="contact-list">
                 ${this.renderChildrenByFirstName()}
             </div>
@@ -97,13 +107,28 @@ export class ParentContactList {
 
   renderChildrenByFirstName() {
     // Sort children by first name
-    const sortedChildren = Object.entries(this.children)
+    let sortedChildren = Object.entries(this.children)
       .map(([id, child]) => ({ id, ...child }))
       .sort((a, b) => {
         const aFirstName = a.name.split(" ")[0];
         const bFirstName = b.name.split(" ")[0];
         return aFirstName.localeCompare(bFirstName);
       });
+
+    // Apply search filter if exists
+    if (this.searchFilter) {
+      const filterLower = this.searchFilter.toLowerCase();
+      sortedChildren = sortedChildren.filter((child) => {
+        // Check if child name matches
+        if (child.name.toLowerCase().includes(filterLower)) {
+          return true;
+        }
+        // Check if any contact name matches
+        return child.contacts.some((contact) =>
+          contact.name.toLowerCase().includes(filterLower)
+        );
+      });
+    }
 
     // Group by first letter of first name
     const groupedByLetter = {};
@@ -119,8 +144,8 @@ export class ParentContactList {
     let html = "";
     for (const [letter, children] of Object.entries(groupedByLetter).sort()) {
       html += `
-        
-        
+
+
         `;
       for (const child of children) {
         html += this.renderChildCard(child.id, child);
@@ -180,7 +205,7 @@ export class ParentContactList {
                 ${
                   contact.is_emergency
                     ? `<span class="emergency-contact">${translate(
-                        "emergency_contact",
+                        "is_emergency_contact",
                       )}</span>`
                     : ""
                 }
@@ -215,6 +240,22 @@ export class ParentContactList {
     document.querySelectorAll(".group-header").forEach((header) => {
       header.addEventListener("click", (e) => this.toggleGroup(e.target));
     });
+
+    // Add search input listener
+    const searchInput = document.getElementById("contact-search");
+    if (searchInput) {
+      searchInput.addEventListener("input", (e) => {
+        this.searchFilter = e.target.value;
+        this.updateContactList();
+      });
+    }
+  }
+
+  updateContactList() {
+    const contactList = document.getElementById("contact-list");
+    if (contactList) {
+      contactList.innerHTML = this.renderChildrenByFirstName();
+    }
   }
 
   toggleGroup(header) {

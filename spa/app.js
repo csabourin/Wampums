@@ -503,6 +503,8 @@ export const app = {
                 // Set initial language
                 const savedLang = getStorage('lang', false, 'fr');
                 this.setLanguage(savedLang);
+                // Remove active class from all buttons first to avoid duplicates
+                toggleButtons.forEach(b => b.classList.remove('active'));
                 const activeBtn = document.querySelector(`.lang-btn[data-lang="${savedLang}"]`);
                 if (activeBtn) {
                         activeBtn.classList.add('active');

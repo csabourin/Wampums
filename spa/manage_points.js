@@ -167,7 +167,7 @@ export class ManagePoints {
           <button class="sort-btn" data-sort="name" title="${translate("sort_by_name")}">👤</button>
           <button class="sort-btn" data-sort="group" title="${translate("sort_by_group")}">👥</button>
           <button class="sort-btn" data-sort="points" title="${translate("sort_by_points")}">🏆</button>
-          <button class="filter-toggle-btn" id="filter-toggle" title="${translate("filter_by_group")}">⊙</button>
+          <button class="filter-toggle-btn" id="filter-toggle" title="${translate("filter_by_group")}">🔍</button>
         </div>
         <div class="filter-options hidden" id="filter-container">
           <label for="group-filter">${translate("filter_by_group")}:</label>
@@ -195,6 +195,14 @@ export class ManagePoints {
 
     // Render points list sorted by group initially
     this.sortByGroup(); // Call the sort by group function here
+
+    // Mark the group button as active initially
+    setTimeout(() => {
+      const groupBtn = document.querySelector('.sort-btn[data-sort="group"]');
+      if (groupBtn) {
+        groupBtn.classList.add('active');
+      }
+    }, 0);
   }
 
   renderPointsList() {
@@ -654,6 +662,15 @@ export class ManagePoints {
     } else {
       this.currentSort.key = key;
       this.currentSort.order = "asc";
+    }
+
+    // Update visual indicator for active sort button
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    const activeBtn = document.querySelector(`.sort-btn[data-sort="${key}"]`);
+    if (activeBtn) {
+      activeBtn.classList.add('active');
     }
 
     if (key === "group") {
