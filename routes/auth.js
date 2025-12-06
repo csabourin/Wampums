@@ -41,6 +41,17 @@ function getEmailTranslations(req) {
   return emailTranslations[preferredLanguage] || emailTranslations.en;
 }
 
+/**
+ * Normalize requested user type to a supported role
+ * @param {string} userType Raw user_type value from the request
+ * @returns {string} Canonical role value
+ */
+function mapRequestedRole(userType) {
+  const sanitizedUserType = (userType || 'parent').toLowerCase();
+  const animationAliases = ['animation', 'animator', 'animateur'];
+  return animationAliases.includes(sanitizedUserType) ? 'animation' : 'parent';
+}
+
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
 
@@ -261,8 +272,7 @@ module.exports = (pool, logger) => {
         const { email, password, full_name, user_type } = req.body;
         const normalizedEmail = email.toLowerCase();
         const trimmedPassword = password.trim();
-        const sanitizedUserType = (user_type || 'parent').toLowerCase();
-        const role = sanitizedUserType === 'animation' ? 'animation' : 'parent';
+        const role = mapRequestedRole(user_type);
 
         await client.query('BEGIN');
 
@@ -346,8 +356,7 @@ module.exports = (pool, logger) => {
         const { email, password, full_name, user_type } = req.body;
         const normalizedEmail = email.toLowerCase();
         const trimmedPassword = password.trim();
-        const sanitizedUserType = (user_type || 'parent').toLowerCase();
-        const role = sanitizedUserType === 'animation' ? 'animation' : 'parent';
+        const role = mapRequestedRole(user_type);
 
         await client.query('BEGIN');
 

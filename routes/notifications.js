@@ -76,17 +76,25 @@ module.exports = (pool, logger) => {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId);
+      if (!membership.authorized) {
+        return res.status(403).json({ success: false, message: membership.message || 'Insufficient permissions' });
+      }
+
       const { endpoint, expirationTime, keys } = req.body;
       const { p256dh, auth } = keys;
 
       await pool.query(
-        `INSERT INTO subscribers (user_id, endpoint, expiration_time, p256dh, auth)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO subscribers (user_id, organization_id, endpoint, expiration_time, p256dh, auth)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (endpoint) DO UPDATE
-         SET expiration_time = EXCLUDED.expiration_time,
+         SET organization_id = EXCLUDED.organization_id,
+             expiration_time = EXCLUDED.expiration_time,
              p256dh = EXCLUDED.p256dh,
              auth = EXCLUDED.auth`,
-        [payload.user_id, endpoint, expirationTime, p256dh, auth]
+        [payload.user_id, organizationId, endpoint, expirationTime, p256dh, auth]
       );
 
       res.json({ success: true });
@@ -130,11 +138,11 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT ps.*, u.email, u.full_name
-         FROM push_subscriptions ps
-         JOIN users u ON ps.user_id = u.id
-         WHERE ps.organization_id = $1
-         ORDER BY ps.created_at DESC`,
+        `SELECT s.*, u.email, u.full_name
+         FROM subscribers s
+         JOIN users u ON s.user_id = u.id
+         WHERE s.organization_id = $1
+         ORDER BY s.created_at DESC NULLS LAST`,
         [organizationId]
       );
 
@@ -192,6 +200,12 @@ module.exports = (pool, logger) => {
         return res.status(403).json({ error: 'Forbidden: Admin access required' });
       }
 
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin']);
+      if (!membership.authorized) {
+        return res.status(403).json({ error: membership.message || 'Forbidden: Admin access required' });
+      }
+
       const { title, body } = req.body;
 
       // Note: Web-push functionality requires additional npm package
@@ -219,8 +233,11 @@ module.exports = (pool, logger) => {
           vapidPrivateKey
         );
 
-        // Fetch all subscribers
-        const subscribersResult = await pool.query('SELECT * FROM subscribers');
+        // Fetch subscribers for the admin's organization only
+        const subscribersResult = await pool.query(
+          `SELECT * FROM subscribers WHERE organization_id = $1`,
+          [organizationId]
+        );
         const subscribers = subscribersResult.rows;
 
         if (subscribers.length === 0) {
