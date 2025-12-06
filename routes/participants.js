@@ -472,18 +472,19 @@ module.exports = (pool) => {
   router.post('/link-participant-to-organization', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
-    const { participant_id } = req.body;
+    const { participant_id, inscription_date } = req.body;
 
     if (!participant_id) {
       return error(res, 'Participant ID is required', 400);
     }
 
-    // Insert or do nothing if already linked
+    // Insert with inscription_date (defaults to today if not provided)
+    // On conflict, keep the existing inscription_date (don't update it)
     await pool.query(
-      `INSERT INTO participant_organizations (participant_id, organization_id)
-       VALUES ($1, $2)
+      `INSERT INTO participant_organizations (participant_id, organization_id, inscription_date)
+       VALUES ($1, $2, COALESCE($3::date, CURRENT_DATE))
        ON CONFLICT (participant_id, organization_id) DO NOTHING`,
-      [participant_id, organizationId]
+      [participant_id, organizationId, inscription_date]
     );
 
     return success(res, null, 'Participant linked to organization');
@@ -783,6 +784,7 @@ module.exports = (pool) => {
     // Base query to get participant data
     let query = `
       SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader,
+             po.inscription_date,
              COALESCE(
                (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                 FROM form_submissions

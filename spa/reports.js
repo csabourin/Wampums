@@ -57,6 +57,7 @@ export class Reports {
                                 <button class="report-btn" data-report="attendance" type="button">${translate("attendance_report")}</button>
                                 <button class="report-btn" data-report="honors" type="button">${translate("honors_report")}</button>
                                 <button class="report-btn" data-report="points" type="button">${translate("points_report")}</button>
+                                <button class="report-btn" data-report="time-since-registration" type="button">${translate("time_since_registration_report")}</button>
                                 <button class="report-btn report-btn--accent" data-report="participant-progress" type="button">${translate("participant_progress_report")}</button>
                         </section>
                         <div id="form-type-container" class="report-surface" aria-live="polite">
@@ -177,6 +178,10 @@ case 'participant-age':
                                         reportData = await getPointsReport();
                                         reportContent = this.renderPointsReport(reportData.data);
                                         break;
+                                case 'time-since-registration':
+                                        // Navigate to the dedicated time since registration page
+                                        this.app.router.navigate('/time-since-registration');
+                                        return; // Exit early since we're navigating away
                                 case 'participant-progress':
                                         reportContent = await this.fetchAndRenderParticipantProgress();
                                         break;

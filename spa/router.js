@@ -12,6 +12,7 @@ const lazyModules = {
   ParentDashboard: () => import('./parent_dashboard.js').then(m => m.ParentDashboard),
   FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
   ManagePoints: () => import('./manage_points.js').then(m => m.ManagePoints),
+  TimeSinceRegistration: () => import('./time_since_registration.js').then(m => m.TimeSinceRegistration),
   Attendance: () => import('./attendance.js').then(m => m.Attendance),
   ManageHonors: () => import('./manage_honors.js').then(m => m.ManageHonors),
   ManageParticipants: () => import('./manage_participants.js').then(m => m.ManageParticipants),
@@ -57,6 +58,7 @@ const routes = {
   "/attendance": "attendance",
   "/managePoints": "managePoints",
   "/manage-points": "managePoints",
+  "/time-since-registration": "timeSinceRegistration",
   "/manageHonors": "manageHonors",
   "/manage-participants": "manageParticipants",
   "/manage-groups": "manageGroups",
@@ -212,6 +214,9 @@ export class Router {
         case "managePoints":
           await this.loadManagePoints();
           break;
+        case "timeSinceRegistration":
+          await this.loadTimeSinceRegistration();
+          break;
         case "manageHonors":
           await this.loadManageHonors();
           break;
@@ -353,6 +358,12 @@ export class Router {
     const ManagePoints = await this.loadModule('ManagePoints');
     const managePoints = new ManagePoints(this.app);
     await managePoints.init();
+  }
+
+  async loadTimeSinceRegistration() {
+    const TimeSinceRegistration = await this.loadModule('TimeSinceRegistration');
+    const timeSinceRegistration = new TimeSinceRegistration(this.app);
+    await timeSinceRegistration.init();
   }
 
   async loadBadgeForm(participantId) {

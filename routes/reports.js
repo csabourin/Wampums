@@ -817,6 +817,59 @@ module.exports = (pool, logger) => {
   });
 
   /**
+   * GET /api/time-since-registration-report
+   * Get time since registration report for all participants
+   */
+  router.get('/time-since-registration-report', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+      }
+
+      const result = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+                po.inscription_date,
+                CASE
+                  WHEN po.inscription_date IS NOT NULL THEN
+                    EXTRACT(YEAR FROM AGE(CURRENT_DATE, po.inscription_date))
+                  ELSE NULL
+                END as years_with_group,
+                CASE
+                  WHEN po.inscription_date IS NOT NULL THEN
+                    EXTRACT(MONTH FROM AGE(CURRENT_DATE, po.inscription_date)) -
+                    (EXTRACT(YEAR FROM AGE(CURRENT_DATE, po.inscription_date)) * 12)
+                  ELSE NULL
+                END as months_with_group
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         WHERE po.organization_id = $1
+         ORDER BY
+           CASE WHEN po.inscription_date IS NOT NULL THEN 0 ELSE 1 END,
+           po.inscription_date ASC NULLS LAST,
+           p.first_name, p.last_name`,
+        [organizationId]
+      );
+
+      res.json({ success: true, data: result.rows });
+    } catch (error) {
+      logger.error('Error fetching time since registration report:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
    * @swagger
    * /api/participant-progress:
    *   get:
