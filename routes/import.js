@@ -96,30 +96,26 @@ module.exports = function(pool, logger) {
       logger.info(`Organization ${organizationId} has form types: ${orgFormTypes.join(', ')}`);
 
       // Mapping of SISC CSV fields to form submission data by form type
+      // SISC columns: nom, prenom, naissance, sexe, adresse, ville, province, code_postal, 
+      // courriel, tel_res, tel_tra, tel_autre, totem, ecole, annees_scoutes, photos, quitter
       const buildFormData = (get, formType) => {
+        const firstName = get('prenom');
+        const lastName = get('nom');
+        const birthDate = parseDate(get('naissance'));
+        const sex = get('sexe')?.toUpperCase() === 'H' ? 'M' : get('sexe')?.toUpperCase() === 'F' ? 'F' : null;
+        
+        // Helper to check SISC boolean values (O/N or Oui/Non)
+        const isYes = (val) => val === 'O' || val === 'Oui' || val === 'oui' || val === '1' || val === 'true';
+        
         if (formType === 'fiche_sante') {
+          // SISC doesn't contain health data - create empty form for parent to fill
           return {
-            allergies: get('allergies'),
-            allergies_details: get('allergies_details') || get('allergie_details'),
-            medicaments: get('medicaments') || get('medication'),
-            medicaments_details: get('medicaments_details') || get('medication_details'),
-            epipen: get('epipen') === 'O' || get('epipen') === 'oui' || get('epipen') === '1' ? 'yes' : 'no',
-            conditions_medicales: get('conditions_medicales') || get('conditions'),
-            assurance_maladie: get('assurance_maladie') || get('nam'),
-            date_expiration_assurance: get('date_exp_assurance') || get('nam_exp'),
-            medecin_famille: get('medecin_famille') || get('medecin') ? 'yes' : 'no',
-            nom_medecin: get('nom_medecin') || get('medecin'),
-            telephone_medecin: get('tel_medecin'),
-            hopital_preference: get('hopital') || get('hopital_preference'),
-            restrictions_alimentaires: get('restrictions_alimentaires') || get('diete'),
-            peut_nager: get('natation') === 'O' || get('peut_nager') === 'oui' ? 'yes' : 'no',
-            notes_sante: get('notes_sante') || get('remarques')
+            first_name: firstName,
+            last_name: lastName,
+            date_naissance: birthDate,
+            notes: get('notes') || ''
           };
         } else if (formType === 'participant_registration' || formType === 'inscription') {
-          const firstName = get('prenom');
-          const lastName = get('nom');
-          const birthDate = parseDate(get('naissance'));
-          const sex = get('sexe')?.toUpperCase() === 'H' ? 'M' : get('sexe')?.toUpperCase() === 'F' ? 'F' : null;
           return {
             first_name: firstName,
             last_name: lastName,
@@ -129,25 +125,36 @@ module.exports = function(pool, logger) {
             ville: get('ville'),
             province: get('province'),
             code_postal: get('code_postal'),
-            telephone: get('tel_res'),
+            telephone: cleanPhone(get('tel_res')),
+            telephone_travail: cleanPhone(get('tel_tra')),
+            telephone_cellulaire: cleanPhone(get('tel_autre')),
             courriel: get('courriel'),
             totem: get('totem'),
             ecole: get('ecole'),
-            annees_scoutes: get('annees_scoutes')
+            ecole_niveau: get('ecole_niveau'),
+            annees_scoutes: get('annees_scoutes'),
+            annees_jeunes: get('annees_jeunes')
           };
         } else if (formType === 'autorisation' || formType === 'autorisations') {
           return {
-            autorisation_photo: get('auth_photo') === 'O' || get('autorisation_photo') === 'oui' ? 'yes' : 'no',
-            autorisation_transport: get('auth_transport') === 'O' ? 'yes' : 'no',
-            autorisation_soins: get('auth_soins') === 'O' ? 'yes' : 'no',
-            autorisation_baignade: get('auth_baignade') === 'O' ? 'yes' : 'no'
+            first_name: firstName,
+            last_name: lastName,
+            autorisation_photo: isYes(get('photos')) ? 'yes' : 'no',
+            peut_quitter_seul: isYes(get('quitter')) ? 'yes' : 'no'
           };
         }
-        // Default: return basic participant info
+        // Default: return basic participant info for any unknown form type
         return {
-          first_name: get('prenom'),
-          last_name: get('nom'),
-          date_naissance: parseDate(get('naissance'))
+          first_name: firstName,
+          last_name: lastName,
+          date_naissance: birthDate,
+          sexe: sex,
+          adresse: get('adresse'),
+          ville: get('ville'),
+          province: get('province'),
+          code_postal: get('code_postal'),
+          telephone: cleanPhone(get('tel_res')),
+          courriel: get('courriel')
         };
       };
 
