@@ -220,9 +220,15 @@ module.exports = function(pool, logger) {
               );
               stats.guardiansUpdated++;
             } else {
+              // Use ON CONFLICT to handle race conditions where guardian was just created
               const newGuardian = await client.query(
                 `INSERT INTO parents_guardians (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire)
-                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (courriel) DO UPDATE SET
+                   telephone_residence = COALESCE(EXCLUDED.telephone_residence, parents_guardians.telephone_residence),
+                   telephone_travail = COALESCE(EXCLUDED.telephone_travail, parents_guardians.telephone_travail),
+                   telephone_cellulaire = COALESCE(EXCLUDED.telephone_cellulaire, parents_guardians.telephone_cellulaire)
+                 RETURNING id`,
                 [
                   gNom,
                   gPrenom,
@@ -244,35 +250,29 @@ module.exports = function(pool, logger) {
             );
 
             if (gEmail) {
-              const existingUser = await client.query(
-                `SELECT id FROM users WHERE LOWER(email) = LOWER($1)`,
-                [gEmail]
+              // Use upsert to handle duplicate emails gracefully
+              const fullName = `${gPrenom} ${gNom}`.trim();
+              const userResult = await client.query(
+                `INSERT INTO users (email, password, full_name, is_verified)
+                 VALUES (LOWER($1), '', $2, FALSE)
+                 ON CONFLICT (email) DO UPDATE SET email = users.email
+                 RETURNING id, (xmax = 0) AS inserted`,
+                [gEmail, fullName]
               );
-
-              let userId;
-              if (existingUser.rows.length === 0) {
-                const fullName = `${gPrenom} ${gNom}`.trim();
-                const newUser = await client.query(
-                  `INSERT INTO users (email, password, full_name, is_verified)
-                   VALUES ($1, '', $2, FALSE) RETURNING id`,
-                  [gEmail, fullName]
-                );
-                userId = newUser.rows[0].id;
+              
+              const userId = userResult.rows[0].id;
+              const wasInserted = userResult.rows[0].inserted;
+              
+              if (wasInserted) {
                 stats.usersCreated++;
-
-                await client.query(
-                  `INSERT INTO user_organizations (user_id, organization_id, role)
-                   VALUES ($1, $2, 'parent') ON CONFLICT DO NOTHING`,
-                  [userId, organizationId]
-                );
-              } else {
-                userId = existingUser.rows[0].id;
-                await client.query(
-                  `INSERT INTO user_organizations (user_id, organization_id, role)
-                   VALUES ($1, $2, 'parent') ON CONFLICT DO NOTHING`,
-                  [userId, organizationId]
-                );
               }
+              
+              // Always ensure user is linked to organization
+              await client.query(
+                `INSERT INTO user_organizations (user_id, organization_id, role)
+                 VALUES ($1, $2, 'parent') ON CONFLICT DO NOTHING`,
+                [userId, organizationId]
+              );
 
               await client.query(
                 `INSERT INTO guardian_users (guardian_id, user_id)
