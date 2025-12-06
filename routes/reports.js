@@ -48,20 +48,81 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const result = await pool.query(
-        `SELECT DISTINCT g.courriel as email, g.nom, g.prenom, p.first_name as participant_first_name, p.last_name as participant_last_name
-         FROM participant_guardians pg
-         JOIN parents_guardians g ON pg.guardian_id = g.id
-         JOIN participants p ON pg.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE po.organization_id = $1 AND g.courriel IS NOT NULL AND g.courriel != ''
-         ORDER BY g.nom, g.prenom`,
+      // Ensure the user belongs to the organization with the proper role
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Build email list by user role (admin/animation/etc.)
+      const usersEmailsResult = await pool.query(
+        `SELECT LOWER(u.email) AS email, uo.role
+         FROM user_organizations uo
+         JOIN users u ON u.id = uo.user_id
+         WHERE uo.organization_id = $1
+         AND u.email IS NOT NULL
+         AND u.email != ''`,
         [organizationId]
       );
 
+      const emailsByRole = usersEmailsResult.rows.reduce((acc, user) => {
+        if (!acc[user.role]) {
+          acc[user.role] = [];
+        }
+        acc[user.role].push(user.email);
+        return acc;
+      }, {});
+
+      // Guardian emails from registration forms
+      const guardianEmailsResult = await pool.query(
+        `SELECT LOWER(fs.submission_data->>'guardian_courriel_0') AS courriel,
+                string_agg(p.first_name || ' ' || p.last_name, ', ') AS participants
+         FROM form_submissions fs
+         JOIN participants p ON fs.participant_id = p.id
+         WHERE (fs.submission_data->>'guardian_courriel_0') IS NOT NULL
+         AND (fs.submission_data->>'guardian_courriel_0') != ''
+         AND fs.organization_id = $1
+         GROUP BY fs.submission_data->>'guardian_courriel_0'
+         UNION
+         SELECT LOWER(fs.submission_data->>'guardian_courriel_1') AS courriel,
+                string_agg(p.first_name || ' ' || p.last_name, ', ') AS participants
+         FROM form_submissions fs
+         JOIN participants p ON fs.participant_id = p.id
+         WHERE (fs.submission_data->>'guardian_courriel_1') IS NOT NULL
+         AND (fs.submission_data->>'guardian_courriel_1') != ''
+         AND fs.organization_id = $1
+         GROUP BY fs.submission_data->>'guardian_courriel_1'`,
+        [organizationId]
+      );
+
+      emailsByRole.parent = guardianEmailsResult.rows.map(parent => ({
+        email: parent.courriel,
+        participants: parent.participants,
+      }));
+
+      // Participant emails captured on their own forms
+      const participantEmailsResult = await pool.query(
+        `SELECT LOWER(fs.submission_data->>'courriel') AS courriel
+         FROM form_submissions fs
+         WHERE (fs.submission_data->>'courriel') IS NOT NULL
+         AND (fs.submission_data->>'courriel') != ''
+         AND fs.organization_id = $1`,
+        [organizationId]
+      );
+
+      const participantEmails = participantEmailsResult.rows.map(row => row.courriel);
+      const uniqueEmails = [
+        ...new Set([
+          ...Object.values(emailsByRole).flat().map(item => (typeof item === 'string' ? item : item.email)),
+          ...participantEmails,
+        ]),
+      ];
+
       res.json({
         success: true,
-        contacts: result.rows
+        emails_by_role: emailsByRole,
+        participant_emails: participantEmails,
+        unique_emails: uniqueEmails,
       });
     } catch (error) {
       logger.error('Error fetching mailing list:', error);
