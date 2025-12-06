@@ -42,7 +42,7 @@ CREATE TABLE public.badge_progress (
   CONSTRAINT badge_progress_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.calendars (
-  participant_id integer NOT NULL,
+  participant_id integer,
   amount integer NOT NULL DEFAULT 0,
   paid boolean NOT NULL DEFAULT false,
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
@@ -50,8 +50,8 @@ CREATE TABLE public.calendars (
   fundraiser integer,
   id integer GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
   CONSTRAINT calendars_pkey PRIMARY KEY (id),
-  CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
-  CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id)
+  CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
+  CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
 CREATE TABLE public.form_submissions (
   id integer NOT NULL DEFAULT nextval('form_submissions_id_seq'::regclass),
@@ -99,7 +99,9 @@ CREATE TABLE public.guests (
   name character varying NOT NULL,
   email character varying,
   attendance_date date NOT NULL,
-  CONSTRAINT guests_pkey PRIMARY KEY (id)
+  organization_id integer,
+  CONSTRAINT guests_pkey PRIMARY KEY (id),
+  CONSTRAINT guests_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.honors (
   id integer NOT NULL DEFAULT nextval('honors_id_seq'::regclass),
@@ -133,6 +135,7 @@ CREATE TABLE public.news (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   organization_id integer,
   expires date,
+  link text,
   CONSTRAINT news_pkey PRIMARY KEY (id),
   CONSTRAINT news_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
@@ -211,6 +214,7 @@ CREATE TABLE public.participant_guardians (
 CREATE TABLE public.participant_organizations (
   participant_id integer NOT NULL,
   organization_id integer NOT NULL,
+  inscription_date date,
   CONSTRAINT participant_organizations_pkey PRIMARY KEY (participant_id, organization_id),
   CONSTRAINT participant_organizations_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
   CONSTRAINT participant_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
