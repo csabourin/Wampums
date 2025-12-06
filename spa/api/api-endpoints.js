@@ -1268,6 +1268,13 @@ export async function getNews() {
 }
 
 /**
+ * Import SISC CSV data (admin only)
+ */
+export async function importSISC(csvContent) {
+    return API.post('import-sisc', { csvContent });
+}
+
+/**
  * Register for organization
  */
 export async function registerForOrganization(registrationData) {

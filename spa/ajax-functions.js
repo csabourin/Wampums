@@ -189,6 +189,9 @@ export {
     registerForOrganization,
     fetchOrganizationJwt,
 
+    // Admin / Import
+    importSISC,
+
     // Utility
     testApiConnection,
     getInitialData,

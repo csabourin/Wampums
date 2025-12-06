@@ -10,6 +10,7 @@ import {
         approveUser,
         getSubscribers,
         getCurrentOrganizationId,
+        importSISC,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
@@ -114,6 +115,22 @@ export class Admin {
 </form>
 
 <div id="notification-result"></div>
+
+<h2>${this.app.translate("import_data")}</h2>
+<div class="import-section">
+        <p>${this.app.translate("import_sisc_description")}</p>
+        <div class="file-upload-area">
+                <input type="file" id="sisc-file-input" accept=".csv" style="display: none;">
+                <button type="button" id="select-file-btn" class="secondary-button">${this.app.translate("select_csv_file")}</button>
+                <span id="selected-file-name"></span>
+        </div>
+        <button type="button" id="import-sisc-btn" class="primary-button" disabled>${this.app.translate("import_data")}</button>
+        <div id="import-progress" style="display: none;">
+                <div class="progress-bar"><div class="progress-fill"></div></div>
+                <p id="import-status">${this.app.translate("importing")}</p>
+        </div>
+        <div id="import-result"></div>
+</div>
 
                         <h2>${this.app.translate("user_management")}</h2>
                         <table>
@@ -239,6 +256,7 @@ export class Admin {
                 );
 
                 this.initNotificationForm();
+                this.initImportHandlers();
         }
 
         async updateUserRole(userId, newRole) {
@@ -304,6 +322,105 @@ export class Admin {
                                 "error",
                         );
                 }
+        }
+
+        initImportHandlers() {
+                const fileInput = document.getElementById("sisc-file-input");
+                const selectBtn = document.getElementById("select-file-btn");
+                const importBtn = document.getElementById("import-sisc-btn");
+                const fileNameSpan = document.getElementById("selected-file-name");
+                const progressDiv = document.getElementById("import-progress");
+                const resultDiv = document.getElementById("import-result");
+
+                let selectedFile = null;
+
+                selectBtn.addEventListener("click", () => {
+                        fileInput.click();
+                });
+
+                fileInput.addEventListener("change", (e) => {
+                        if (e.target.files.length > 0) {
+                                selectedFile = e.target.files[0];
+                                fileNameSpan.textContent = selectedFile.name;
+                                importBtn.disabled = false;
+                        } else {
+                                selectedFile = null;
+                                fileNameSpan.textContent = "";
+                                importBtn.disabled = true;
+                        }
+                });
+
+                importBtn.addEventListener("click", async () => {
+                        if (!selectedFile) return;
+
+                        importBtn.disabled = true;
+                        progressDiv.style.display = "block";
+                        resultDiv.innerHTML = "";
+
+                        try {
+                                const reader = new FileReader();
+                                reader.onload = async (e) => {
+                                        try {
+                                                const arrayBuffer = e.target.result;
+                                                const bytes = new Uint8Array(arrayBuffer);
+                                                
+                                                let csvContent;
+                                                try {
+                                                        const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+                                                        csvContent = utf8Decoder.decode(bytes);
+                                                } catch (utf8Error) {
+                                                        const iso88591Decoder = new TextDecoder("iso-8859-1");
+                                                        csvContent = iso88591Decoder.decode(bytes);
+                                                }
+
+                                                const result = await importSISC(csvContent);
+
+                                                progressDiv.style.display = "none";
+
+                                                if (result.success) {
+                                                        const stats = result.stats;
+                                                        resultDiv.innerHTML = `
+                                                                <div class="success-message">
+                                                                        <h4>${translate("import_successful")}</h4>
+                                                                        <ul>
+                                                                                <li>${translate("participants_created")}: ${stats.participantsCreated}</li>
+                                                                                <li>${translate("participants_updated")}: ${stats.participantsUpdated}</li>
+                                                                                <li>${translate("guardians_created")}: ${stats.guardiansCreated}</li>
+                                                                                <li>${translate("guardians_updated")}: ${stats.guardiansUpdated}</li>
+                                                                                <li>${translate("users_created")}: ${stats.usersCreated}</li>
+                                                                                <li>${translate("form_submissions_created")}: ${stats.formSubmissionsCreated}</li>
+                                                                        </ul>
+                                                                        ${stats.errors.length > 0 ? `
+                                                                                <h5>${translate("errors")}:</h5>
+                                                                                <ul class="error-list">
+                                                                                        ${stats.errors.map(err => `<li>${escapeHTML(err)}</li>`).join("")}
+                                                                                </ul>
+                                                                        ` : ""}
+                                                                </div>
+                                                        `;
+                                                } else {
+                                                        resultDiv.innerHTML = `<div class="error-message">${translate("import_failed")}: ${escapeHTML(result.message)}</div>`;
+                                                }
+                                        } catch (error) {
+                                                progressDiv.style.display = "none";
+                                                resultDiv.innerHTML = `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`;
+                                        }
+                                        importBtn.disabled = false;
+                                };
+
+                                reader.onerror = () => {
+                                        progressDiv.style.display = "none";
+                                        resultDiv.innerHTML = `<div class="error-message">${translate("file_read_error")}</div>`;
+                                        importBtn.disabled = false;
+                                };
+
+                                reader.readAsArrayBuffer(selectedFile);
+                        } catch (error) {
+                                progressDiv.style.display = "none";
+                                resultDiv.innerHTML = `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`;
+                                importBtn.disabled = false;
+                        }
+                });
         }
 
         initNotificationForm() {

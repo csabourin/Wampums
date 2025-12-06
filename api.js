@@ -409,6 +409,7 @@ const fundraisersRoutes = require('./routes/fundraisers')(pool, logger);
 const reportsRoutes = require('./routes/reports')(pool, logger);
 const dashboardsRoutes = require('./routes/dashboards')(pool, logger);
 const publicRoutes = require('./routes/public')(pool, logger);
+const importRoutes = require('./routes/import')(pool, logger);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -604,6 +605,12 @@ app.use('/api', publicRoutes);
 logger.info('✅ Public routes loaded');
 logger.info('   - GET /api/translations');
 logger.info('   - GET /api/news');
+
+// Import Routes (handles /api/import-sisc for CSV imports)
+// Admin-only endpoints for bulk data import
+app.use('/api', importRoutes);
+logger.info('✅ Import routes loaded');
+logger.info('   - POST /api/import-sisc');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
