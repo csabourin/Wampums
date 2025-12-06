@@ -48,7 +48,6 @@ CREATE TABLE public.calendars (
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   amount_paid double precision DEFAULT '0'::double precision,
   fundraiser integer,
-  archived boolean DEFAULT false,
   id integer GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
   CONSTRAINT calendars_pkey PRIMARY KEY (id),
   CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
@@ -77,6 +76,7 @@ CREATE TABLE public.fundraisers (
   result numeric,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   organization integer,
+  archived boolean NOT NULL DEFAULT false,
   CONSTRAINT fundraisers_pkey PRIMARY KEY (id),
   CONSTRAINT fundraisers_organization_fkey FOREIGN KEY (organization) REFERENCES public.organizations(id)
 );
@@ -132,6 +132,7 @@ CREATE TABLE public.news (
   content text NOT NULL,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   organization_id integer,
+  expires date,
   CONSTRAINT news_pkey PRIMARY KEY (id),
   CONSTRAINT news_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
@@ -230,7 +231,8 @@ CREATE TABLE public.points (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   organization_id integer,
   CONSTRAINT points_pkey PRIMARY KEY (id),
-  CONSTRAINT points_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+  CONSTRAINT points_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT points_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
 CREATE TABLE public.processed_transactions (
   id integer NOT NULL DEFAULT nextval('processed_transactions_id_seq'::regclass),
