@@ -87,6 +87,70 @@ module.exports = function(pool, logger) {
 
       await client.query('BEGIN');
 
+      // Fetch organization's form formats to know which form types to create
+      const formFormatsResult = await client.query(
+        `SELECT form_type, form_structure FROM organization_form_formats WHERE organization_id = $1`,
+        [organizationId]
+      );
+      const orgFormTypes = formFormatsResult.rows.map(r => r.form_type);
+      logger.info(`Organization ${organizationId} has form types: ${orgFormTypes.join(', ')}`);
+
+      // Mapping of SISC CSV fields to form submission data by form type
+      const buildFormData = (get, formType) => {
+        if (formType === 'fiche_sante') {
+          return {
+            allergies: get('allergies'),
+            allergies_details: get('allergies_details') || get('allergie_details'),
+            medicaments: get('medicaments') || get('medication'),
+            medicaments_details: get('medicaments_details') || get('medication_details'),
+            epipen: get('epipen') === 'O' || get('epipen') === 'oui' || get('epipen') === '1' ? 'yes' : 'no',
+            conditions_medicales: get('conditions_medicales') || get('conditions'),
+            assurance_maladie: get('assurance_maladie') || get('nam'),
+            date_expiration_assurance: get('date_exp_assurance') || get('nam_exp'),
+            medecin_famille: get('medecin_famille') || get('medecin') ? 'yes' : 'no',
+            nom_medecin: get('nom_medecin') || get('medecin'),
+            telephone_medecin: get('tel_medecin'),
+            hopital_preference: get('hopital') || get('hopital_preference'),
+            restrictions_alimentaires: get('restrictions_alimentaires') || get('diete'),
+            peut_nager: get('natation') === 'O' || get('peut_nager') === 'oui' ? 'yes' : 'no',
+            notes_sante: get('notes_sante') || get('remarques')
+          };
+        } else if (formType === 'participant_registration' || formType === 'inscription') {
+          const firstName = get('prenom');
+          const lastName = get('nom');
+          const birthDate = parseDate(get('naissance'));
+          const sex = get('sexe')?.toUpperCase() === 'H' ? 'M' : get('sexe')?.toUpperCase() === 'F' ? 'F' : null;
+          return {
+            first_name: firstName,
+            last_name: lastName,
+            date_naissance: birthDate,
+            sexe: sex,
+            adresse: get('adresse'),
+            ville: get('ville'),
+            province: get('province'),
+            code_postal: get('code_postal'),
+            telephone: get('tel_res'),
+            courriel: get('courriel'),
+            totem: get('totem'),
+            ecole: get('ecole'),
+            annees_scoutes: get('annees_scoutes')
+          };
+        } else if (formType === 'autorisation' || formType === 'autorisations') {
+          return {
+            autorisation_photo: get('auth_photo') === 'O' || get('autorisation_photo') === 'oui' ? 'yes' : 'no',
+            autorisation_transport: get('auth_transport') === 'O' ? 'yes' : 'no',
+            autorisation_soins: get('auth_soins') === 'O' ? 'yes' : 'no',
+            autorisation_baignade: get('auth_baignade') === 'O' ? 'yes' : 'no'
+          };
+        }
+        // Default: return basic participant info
+        return {
+          first_name: get('prenom'),
+          last_name: get('nom'),
+          date_naissance: parseDate(get('naissance'))
+        };
+      };
+
       const stats = {
         participantsCreated: 0,
         participantsUpdated: 0,
@@ -146,41 +210,52 @@ module.exports = function(pool, logger) {
             stats.participantsCreated++;
           }
 
-          const submissionData = {
-            first_name: firstName,
-            last_name: lastName,
-            date_naissance: birthDate,
-            sexe: sex,
-            adresse: get('adresse'),
-            ville: get('ville'),
-            province: get('province'),
-            code_postal: get('code_postal'),
-            telephone: cleanPhone(get('tel_res')),
-            courriel: get('courriel'),
-            totem: get('totem'),
-            ecole: get('ecole'),
-            annees_scoutes: get('annees_scoutes')
-          };
-
-          const existingSubmission = await client.query(
-            `SELECT id FROM form_submissions 
-             WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'participant_registration'`,
-            [participantId, organizationId]
-          );
-
-          if (existingSubmission.rows.length > 0) {
-            await client.query(
-              `UPDATE form_submissions SET submission_data = $1, updated_at = NOW()
-               WHERE id = $2`,
-              [JSON.stringify(submissionData), existingSubmission.rows[0].id]
+          // Create form submissions for each form type the organization has
+          for (const formType of orgFormTypes) {
+            const formData = buildFormData(get, formType);
+            
+            // Check if submission already exists for this participant/form type
+            const existingSubmission = await client.query(
+              `SELECT id FROM form_submissions 
+               WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
+              [participantId, organizationId, formType]
             );
-          } else {
-            await client.query(
-              `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
-               VALUES ($1, $2, 'participant_registration', $3)`,
-              [organizationId, participantId, JSON.stringify(submissionData)]
+
+            if (existingSubmission.rows.length > 0) {
+              // Update existing submission
+              await client.query(
+                `UPDATE form_submissions SET submission_data = $1, updated_at = NOW()
+                 WHERE id = $2`,
+                [JSON.stringify(formData), existingSubmission.rows[0].id]
+              );
+            } else {
+              // Create new submission
+              await client.query(
+                `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
+                 VALUES ($1, $2, $3, $4)`,
+                [organizationId, participantId, formType, JSON.stringify(formData)]
+              );
+              stats.formSubmissionsCreated++;
+            }
+          }
+          
+          // Also create participant_registration if not in org form types (for backward compatibility)
+          if (!orgFormTypes.includes('participant_registration') && !orgFormTypes.includes('inscription')) {
+            const regData = buildFormData(get, 'participant_registration');
+            const existingReg = await client.query(
+              `SELECT id FROM form_submissions 
+               WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'participant_registration'`,
+              [participantId, organizationId]
             );
-            stats.formSubmissionsCreated++;
+            
+            if (existingReg.rows.length === 0) {
+              await client.query(
+                `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
+                 VALUES ($1, $2, 'participant_registration', $3)`,
+                [organizationId, participantId, JSON.stringify(regData)]
+              );
+              stats.formSubmissionsCreated++;
+            }
           }
 
           for (const prefix of ['r1_', 'r2_']) {
