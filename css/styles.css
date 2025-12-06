@@ -2887,8 +2887,8 @@ details p {
 }
 
 .badge-chip-compact .badge-chip__image {
-  width: 32px;
-  height: 32px;
+  width: 72px;
+  height: 72px;
   object-fit: contain;
   flex-shrink: 0;
   border-radius: var(--radius-xs);
