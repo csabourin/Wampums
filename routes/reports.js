@@ -76,7 +76,7 @@ module.exports = (pool, logger) => {
       // Guardian emails linked to participants in the current organization
       const guardianEmailsResult = await pool.query(
         `WITH guardian_children AS (
-           SELECT LOWER(pg.courriel) AS email,
+           SELECT DISTINCT LOWER(pg.courriel) AS email,
                   p.first_name || ' ' || p.last_name AS participant_name
            FROM parents_guardians pg
            JOIN participant_guardians pg_rel ON pg_rel.guardian_id = pg.id
@@ -87,7 +87,7 @@ module.exports = (pool, logger) => {
              AND pg.courriel <> ''
          )
          SELECT email,
-                string_agg(DISTINCT participant_name, ', ' ORDER BY participant_name) AS participants
+                string_agg(participant_name, ', ' ORDER BY participant_name) AS participants
          FROM guardian_children
          GROUP BY email`,
         [organizationId]

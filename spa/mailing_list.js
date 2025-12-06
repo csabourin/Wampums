@@ -52,7 +52,6 @@ export class MailingList {
 
         renderMailingList() {
                 let html = "";
-                const groupedByChildren = {};
                 const emailsByRole = this.mailingList?.emails_by_role || {};
                 const parentEmails = Array.isArray(emailsByRole.parent) ? emailsByRole.parent : [];
 
@@ -60,49 +59,45 @@ export class MailingList {
                         return `<p>${translate("no_data_available")}</p>`;
                 }
 
-                // Group emails by participants (children)
-                parentEmails.forEach((parent) => {
-                        if (parent.participants) {
-                                const children = parent.participants.split(", ");
-                                children.forEach((child) => {
-                                        if (!groupedByChildren[child]) {
-                                                groupedByChildren[child] = [];
-					}
-					groupedByChildren[child].push(parent.email);
-				});
-			} else {
-				// If no participants, put parent in an "Unknown" group
-				if (!groupedByChildren["Unknown"]) {
-					groupedByChildren["Unknown"] = [];
-				}
-				groupedByChildren["Unknown"].push(parent.email);
-			}
-		});
+                // Group parent emails by their children to avoid duplicate rows when siblings share guardians
+                const families = parentEmails.reduce((acc, parent) => {
+                        const key = parent.participants || translate("unknown_child");
+                        if (!acc[key]) {
+                                acc[key] = new Set();
+                        }
+                        if (parent.email) {
+                                acc[key].add(parent.email);
+                        }
+                        return acc;
+                }, {});
 
-		// Sort participants (children) by last name
-		const sortedChildren = Object.keys(groupedByChildren).sort((a, b) => {
-			const lastNameA = a.split(" ").slice(-1)[0].toLowerCase();
-			const lastNameB = b.split(" ").slice(-1)[0].toLowerCase();
-			return lastNameA.localeCompare(lastNameB);
-		});
+                const sortedFamilies = Object.keys(families).sort((a, b) => {
+                        const lastNameA = a.split(" ").slice(-1)[0].toLowerCase();
+                        const lastNameB = b.split(" ").slice(-1)[0].toLowerCase();
+                        return lastNameA.localeCompare(lastNameB);
+                });
 
-		// Render parent group (grouped by children)
-		html += `<div class="group">
-							<div class="group-header">${translate('parents')}</div>
-							<div class="group-content compact">`;
+                html += `<div class="group">
+                                                        <div class="group-header">${translate('parents')}</div>
+                                                        <div class="group-content compact">`;
 
-		sortedChildren.forEach((child) => {
-			html += `
-				<div class="child-group">
-					<strong>${child}:</strong>
-					${groupedByChildren[child].map(email => `<span class="email-item">${email}</span>`).join(", ")}
-				</div>
-			`;
-		});
+                sortedFamilies.forEach((family) => {
+                        const emailList = Array.from(families[family]);
+                        const familyLabel = family.includes(', ')
+                                ? family.replace(', ', ` ${translate('and')} `)
+                                : family;
 
-		html += `</div>
-						 <button class="copy-role-emails" data-role="parent">${translate('copy_emails_for')} ${translate('parents')}</button>
-						 </div>`;
+                        html += `
+                                <div class="child-group">
+                                        <strong>${familyLabel}:</strong>
+                                        ${emailList.map(email => `<span class="email-item">${email}</span>`).join(", ")}
+                                </div>
+                        `;
+                });
+
+                html += `</div>
+                                                 <button class="copy-role-emails" data-role="parent">${translate('copy_emails_for')} ${translate('parents')}</button>
+                                                 </div>`;
 
                 // Render other groups (e.g., animation and admin)
                 Object.entries(emailsByRole).forEach(([role, emails]) => {
@@ -177,11 +172,13 @@ export class MailingList {
 
                 let emailString;
                 if (role === 'parent') {
-                        // Only copy the emails for the parent group
-                        emailString = emails.map((entry) => entry.email).join(", ");
+                        // Only copy the emails for the parent group and deduplicate them
+                        const uniqueParentEmails = [...new Set(emails.map((entry) => entry.email))];
+                        emailString = uniqueParentEmails.join(", ");
                 } else {
                         // For other groups, copy the emails directly
-                        emailString = emails.join(", ");
+                        const uniqueRoleEmails = [...new Set(emails)];
+                        emailString = uniqueRoleEmails.join(", ");
                 }
 
                 if (!emailString) {
