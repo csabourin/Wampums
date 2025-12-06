@@ -49,12 +49,13 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       const result = await pool.query(
-        `SELECT DISTINCT pg.courriel as email, pg.nom, pg.prenom, p.first_name as participant_first_name, p.last_name as participant_last_name
-         FROM parents_guardians pg
+        `SELECT DISTINCT g.courriel as email, g.nom, g.prenom, p.first_name as participant_first_name, p.last_name as participant_last_name
+         FROM participant_guardians pg
+         JOIN parents_guardians g ON pg.guardian_id = g.id
          JOIN participants p ON pg.participant_id = p.id
          JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE po.organization_id = $1 AND pg.courriel IS NOT NULL AND pg.courriel != ''
-         ORDER BY pg.nom, pg.prenom`,
+         WHERE po.organization_id = $1 AND g.courriel IS NOT NULL AND g.courriel != ''
+         ORDER BY g.nom, g.prenom`,
         [organizationId]
       );
 
