@@ -2,7 +2,8 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import {
   getParticipantsWithUsers,
   getParentUsers,
-  fetchFromApi
+  removeParticipantFromOrganization,
+  associateUser
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
@@ -43,9 +44,7 @@ export class ManageUsersParticipants {
           participantsResponse.participants ||
           participantsResponse.data ||
           [];
-        this.participants = Array.isArray(participantsData)
-          ? participantsData
-          : [];
+        this.participants = this.normalizeParticipants(participantsData);
       } else {
         throw new Error("Failed to fetch participants with users");
       }
@@ -56,9 +55,7 @@ export class ManageUsersParticipants {
           parentUsersResponse.users ||
           parentUsersResponse.data ||
           [];
-        this.parentUsers = Array.isArray(parentUsersData)
-          ? parentUsersData
-          : [];
+        this.parentUsers = this.normalizeParentUsers(parentUsersData);
       } else {
         throw new Error("Failed to fetch parent users");
       }
@@ -66,6 +63,76 @@ export class ManageUsersParticipants {
       debugError("Error fetching manage users participants data:", error);
       throw error;
     }
+  }
+
+  /**
+   * Normalize participants to ensure unique participants with deduped associated users.
+   * @param {Array} participantsData
+   * @returns {Array}
+   */
+  normalizeParticipants(participantsData) {
+    if (!Array.isArray(participantsData)) {
+      return [];
+    }
+
+    const participantMap = new Map();
+
+    participantsData.forEach((participant) => {
+      if (!participant || typeof participant !== "object") return;
+
+      const participantId = participant.id || participant.participant_id;
+      if (!participantId) return;
+
+      const existingEntry = participantMap.get(participantId) || {
+        ...participant,
+        associatedUsers: []
+      };
+
+      if (
+        !existingEntry.associatedUsers.length &&
+        typeof participant.associated_users === "string"
+      ) {
+        participant.associated_users
+          .split(",")
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .forEach((name) => existingEntry.associatedUsers.push(name));
+      }
+
+      const associatedName = (participant.user_full_name || participant.user_email || "").trim();
+      if (associatedName && !existingEntry.associatedUsers.includes(associatedName)) {
+        existingEntry.associatedUsers.push(associatedName);
+      }
+
+      participantMap.set(participantId, existingEntry);
+    });
+
+    return Array.from(participantMap.values()).map((participant) => ({
+      ...participant,
+      associated_users: participant.associatedUsers?.join(", ") || ""
+    }));
+  }
+
+  /**
+   * Normalize parent users to ensure unique options in the select list.
+   * @param {Array} parentUsersData
+   * @returns {Array}
+   */
+  normalizeParentUsers(parentUsersData) {
+    if (!Array.isArray(parentUsersData)) {
+      return [];
+    }
+
+    const parentUserMap = new Map();
+
+    parentUsersData.forEach((user) => {
+      if (!user || typeof user !== "object" || !user.id) return;
+      if (!parentUserMap.has(user.id)) {
+        parentUserMap.set(user.id, user);
+      }
+    });
+
+    return Array.from(parentUserMap.values());
   }
 
   render() {
@@ -155,9 +222,7 @@ export class ManageUsersParticipants {
     const participantId = event.target.getAttribute("data-participant-id");
     if (confirm(translate("confirm_remove_participant_from_organization"))) {
       try {
-        const result = await fetchFromApi('remove-participant-from-organization', 'POST', {
-          participant_id: participantId
-        });
+        const result = await removeParticipantFromOrganization(participantId);
         if (result.success) {
           this.showMessage(translate("participant_removed_from_organization"));
           await this.fetchData();
@@ -178,10 +243,7 @@ export class ManageUsersParticipants {
     const userId = event.target.previousElementSibling.value;
     if (userId) {
       try {
-        const result = await fetchFromApi('associate-user', 'POST', {
-          participant_id: participantId,
-          user_id: userId
-        });
+        const result = await associateUser(participantId, userId);
         if (result.success) {
           this.showMessage(translate("user_associated_successfully"));
           await this.fetchData();
