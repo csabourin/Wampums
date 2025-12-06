@@ -241,21 +241,36 @@ module.exports = (pool, logger) => {
     validateFullName,
     checkValidation,
     async (req, res) => {
+      const client = await pool.connect();
       try {
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password, full_name } = req.body;
         const normalizedEmail = email.toLowerCase();
         const trimmedPassword = password.trim();
+
+        await client.query('BEGIN');
 
         // Hash password
         const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
         // Insert user
-        const result = await pool.query(
+        const result = await client.query(
           `INSERT INTO users (email, password, full_name, is_verified)
            VALUES ($1, $2, $3, FALSE)
            RETURNING id, email, full_name, is_verified`,
           [normalizedEmail, hashedPassword, full_name]
         );
+
+        const userId = result.rows[0].id;
+
+        // Link user to organization with 'parent' role (default for new registrations)
+        await client.query(
+          `INSERT INTO user_organizations (user_id, organization_id, role)
+           VALUES ($1, $2, 'parent')`,
+          [userId, organizationId]
+        );
+
+        await client.query('COMMIT');
 
         res.status(201).json({
           success: true,
@@ -263,6 +278,7 @@ module.exports = (pool, logger) => {
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
+        await client.query('ROLLBACK');
         logger.error('Error registering user:', error);
 
         // Handle duplicate email error (PostgreSQL error code 23505)
@@ -274,6 +290,8 @@ module.exports = (pool, logger) => {
         }
 
         res.status(500).json({ success: false, message: 'registration_error' });
+      } finally {
+        client.release();
       }
     });
 
@@ -296,21 +314,36 @@ module.exports = (pool, logger) => {
     validateFullName,
     checkValidation,
     async (req, res) => {
+      const client = await pool.connect();
       try {
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password, full_name } = req.body;
         const normalizedEmail = email.toLowerCase();
         const trimmedPassword = password.trim();
+
+        await client.query('BEGIN');
 
         // Hash password
         const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
         // Insert user
-        const result = await pool.query(
+        const result = await client.query(
           `INSERT INTO users (email, password, full_name, is_verified)
            VALUES ($1, $2, $3, FALSE)
            RETURNING id, email, full_name, is_verified`,
           [normalizedEmail, hashedPassword, full_name]
         );
+
+        const userId = result.rows[0].id;
+
+        // Link user to organization with 'parent' role (default for new registrations)
+        await client.query(
+          `INSERT INTO user_organizations (user_id, organization_id, role)
+           VALUES ($1, $2, 'parent')`,
+          [userId, organizationId]
+        );
+
+        await client.query('COMMIT');
 
         res.status(201).json({
           success: true,
@@ -318,6 +351,7 @@ module.exports = (pool, logger) => {
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
+        await client.query('ROLLBACK');
         logger.error('Error registering user:', error);
 
         // Handle duplicate email error (PostgreSQL error code 23505)
@@ -329,6 +363,8 @@ module.exports = (pool, logger) => {
         }
 
         res.status(500).json({ success: false, message: 'registration_error' });
+      } finally {
+        client.release();
       }
     });
 
