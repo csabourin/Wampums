@@ -475,6 +475,7 @@
   "guardians_created": "Guardians created",
   "guardians_updated": "Guardians updated",
   "users_created": "User accounts created",
+  "user_participant_links_created": "Parent-child links created",
   "form_submissions_created": "Form submissions created",
   "file_read_error": "Error reading file",
   "errors": "Errors",

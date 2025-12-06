@@ -84,6 +84,7 @@ module.exports = function(pool, logger) {
         guardiansCreated: 0,
         guardiansUpdated: 0,
         usersCreated: 0,
+        userParticipantLinksCreated: 0,
         formSubmissionsCreated: 0,
         errors: []
       };
@@ -283,6 +284,17 @@ module.exports = function(pool, logger) {
                 `UPDATE parents_guardians SET user_uuid = $1 WHERE id = $2`,
                 [userId, guardianId]
               );
+
+              // Link user to participant so parent can see child in dashboard
+              const linkResult = await client.query(
+                `INSERT INTO user_participants (user_id, participant_id)
+                 VALUES ($1, $2) ON CONFLICT DO NOTHING
+                 RETURNING user_id`,
+                [userId, participantId]
+              );
+              if (linkResult.rows.length > 0) {
+                stats.userParticipantLinksCreated++;
+              }
             }
           }
 

@@ -388,6 +388,7 @@ export class Admin {
                                                                                 <li>${translate("guardians_created")}: ${stats.guardiansCreated}</li>
                                                                                 <li>${translate("guardians_updated")}: ${stats.guardiansUpdated}</li>
                                                                                 <li>${translate("users_created")}: ${stats.usersCreated}</li>
+                                                                                <li>${translate("user_participant_links_created")}: ${stats.userParticipantLinksCreated}</li>
                                                                                 <li>${translate("form_submissions_created")}: ${stats.formSubmissionsCreated}</li>
                                                                         </ul>
                                                                         ${stats.errors.length > 0 ? `

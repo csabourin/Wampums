@@ -475,6 +475,7 @@
   "guardians_created": "Tuteurs créés",
   "guardians_updated": "Tuteurs mis à jour",
   "users_created": "Comptes utilisateurs créés",
+  "user_participant_links_created": "Liens parent-enfant créés",
   "form_submissions_created": "Soumissions de formulaires créées",
   "file_read_error": "Erreur de lecture du fichier",
   "errors": "Erreurs",
