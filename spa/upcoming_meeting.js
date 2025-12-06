@@ -107,7 +107,7 @@ export class UpcomingMeeting {
                                                                                                 <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
                                                                                                 <span>${translate("back_to_dashboard")}</span>
                                                                                 </a>
-                                                                                <a href="/preparation-reunion?date=${this.closestMeeting}" aria-label="${translate("preparation_reunions")}">
+                                                                                <a href="/preparation-reunions?date=${this.closestMeeting}" aria-label="${translate("preparation_reunions")}">
                                                                                                 <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
                                                                                                 <span>${translate("preparation_reunions")}</span>
                                                                                 </a>
