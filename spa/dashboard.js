@@ -408,7 +408,7 @@ export class Dashboard {
           stripAll: true,
         },
       );
-      const safeLink = sanitizeURL(item.link || item.url || "");
+      const safeLink = sanitizeURL(item.link || item.url || null);
       const date = item.published_at || item.date || item.created_at || "";
 
       return {
