@@ -29,7 +29,17 @@ const {
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT } = require('../utils/api-helpers');
-const { sendEmail } = require('../utils/index');
+const { sendEmail, sendAdminVerificationEmail } = require('../utils/index');
+
+const emailTranslations = {
+  en: require('../lang/en.json'),
+  fr: require('../lang/fr.json')
+};
+
+function getEmailTranslations(req) {
+  const preferredLanguage = (req.headers['accept-language'] || '').split(',')[0]?.slice(0, 2);
+  return emailTranslations[preferredLanguage] || emailTranslations.en;
+}
 
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -229,6 +239,10 @@ module.exports = (pool, logger) => {
    *                 type: string
    *               full_name:
    *                 type: string
+   *               user_type:
+   *                 type: string
+   *                 enum: [parent, animation]
+   *                 description: Requested role for the new account (defaults to parent)
    *     responses:
    *       201:
    *         description: User registered successfully
@@ -244,9 +258,11 @@ module.exports = (pool, logger) => {
       const client = await pool.connect();
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
-        const { email, password, full_name } = req.body;
+        const { email, password, full_name, user_type } = req.body;
         const normalizedEmail = email.toLowerCase();
         const trimmedPassword = password.trim();
+        const sanitizedUserType = (user_type || 'parent').toLowerCase();
+        const role = sanitizedUserType === 'animation' ? 'animation' : 'parent';
 
         await client.query('BEGIN');
 
@@ -263,14 +279,24 @@ module.exports = (pool, logger) => {
 
         const userId = result.rows[0].id;
 
-        // Link user to organization with 'parent' role (default for new registrations)
+        // Link user to organization with the requested role (parent by default)
         await client.query(
           `INSERT INTO user_organizations (user_id, organization_id, role)
-           VALUES ($1, $2, 'parent')`,
-          [userId, organizationId]
+           VALUES ($1, $2, $3)`,
+          [userId, organizationId, role]
         );
 
         await client.query('COMMIT');
+
+        if (role === 'animation') {
+          await sendAdminVerificationEmail(
+            pool,
+            organizationId,
+            full_name,
+            normalizedEmail,
+            getEmailTranslations(req)
+          );
+        }
 
         res.status(201).json({
           success: true,
@@ -317,9 +343,11 @@ module.exports = (pool, logger) => {
       const client = await pool.connect();
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
-        const { email, password, full_name } = req.body;
+        const { email, password, full_name, user_type } = req.body;
         const normalizedEmail = email.toLowerCase();
         const trimmedPassword = password.trim();
+        const sanitizedUserType = (user_type || 'parent').toLowerCase();
+        const role = sanitizedUserType === 'animation' ? 'animation' : 'parent';
 
         await client.query('BEGIN');
 
@@ -336,14 +364,24 @@ module.exports = (pool, logger) => {
 
         const userId = result.rows[0].id;
 
-        // Link user to organization with 'parent' role (default for new registrations)
+        // Link user to organization with the requested role (parent by default)
         await client.query(
           `INSERT INTO user_organizations (user_id, organization_id, role)
-           VALUES ($1, $2, 'parent')`,
-          [userId, organizationId]
+           VALUES ($1, $2, $3)`,
+          [userId, organizationId, role]
         );
 
         await client.query('COMMIT');
+
+        if (role === 'animation') {
+          await sendAdminVerificationEmail(
+            pool,
+            organizationId,
+            full_name,
+            normalizedEmail,
+            getEmailTranslations(req)
+          );
+        }
 
         res.status(201).json({
           success: true,
