@@ -2,9 +2,11 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import {
   getParticipantsWithUsers,
   getParentUsers,
-  fetchFromApi
+  removeParticipantFromOrganization,
+  associateUser
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ManageUsersParticipants {
   constructor(app) {
@@ -31,14 +33,106 @@ export class ManageUsersParticipants {
 
   async fetchData() {
     try {
-      [this.participants, this.parentUsers] = await Promise.all([
+      const [participantsResponse, parentUsersResponse] = await Promise.all([
         getParticipantsWithUsers(),
         getParentUsers()
       ]);
+
+      if (participantsResponse?.success) {
+        const participantsData =
+          participantsResponse.data?.participants ||
+          participantsResponse.participants ||
+          participantsResponse.data ||
+          [];
+        this.participants = this.normalizeParticipants(participantsData);
+      } else {
+        throw new Error("Failed to fetch participants with users");
+      }
+
+      if (parentUsersResponse?.success) {
+        const parentUsersData =
+          parentUsersResponse.data?.users ||
+          parentUsersResponse.users ||
+          parentUsersResponse.data ||
+          [];
+        this.parentUsers = this.normalizeParentUsers(parentUsersData);
+      } else {
+        throw new Error("Failed to fetch parent users");
+      }
     } catch (error) {
       debugError("Error fetching manage users participants data:", error);
       throw error;
     }
+  }
+
+  /**
+   * Normalize participants to ensure unique participants with deduped associated users.
+   * @param {Array} participantsData
+   * @returns {Array}
+   */
+  normalizeParticipants(participantsData) {
+    if (!Array.isArray(participantsData)) {
+      return [];
+    }
+
+    const participantMap = new Map();
+
+    participantsData.forEach((participant) => {
+      if (!participant || typeof participant !== "object") return;
+
+      const participantId = participant.id || participant.participant_id;
+      if (!participantId) return;
+
+      const existingEntry = participantMap.get(participantId) || {
+        ...participant,
+        associatedUsers: []
+      };
+
+      if (
+        !existingEntry.associatedUsers.length &&
+        typeof participant.associated_users === "string"
+      ) {
+        participant.associated_users
+          .split(",")
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .forEach((name) => existingEntry.associatedUsers.push(name));
+      }
+
+      const associatedName = (participant.user_full_name || participant.user_email || "").trim();
+      if (associatedName && !existingEntry.associatedUsers.includes(associatedName)) {
+        existingEntry.associatedUsers.push(associatedName);
+      }
+
+      participantMap.set(participantId, existingEntry);
+    });
+
+    return Array.from(participantMap.values()).map((participant) => ({
+      ...participant,
+      associated_users: participant.associatedUsers?.join(", ") || ""
+    }));
+  }
+
+  /**
+   * Normalize parent users to ensure unique options in the select list.
+   * @param {Array} parentUsersData
+   * @returns {Array}
+   */
+  normalizeParentUsers(parentUsersData) {
+    if (!Array.isArray(parentUsersData)) {
+      return [];
+    }
+
+    const parentUserMap = new Map();
+
+    parentUsersData.forEach((user) => {
+      if (!user || typeof user !== "object" || !user.id) return;
+      if (!parentUserMap.has(user.id)) {
+        parentUserMap.set(user.id, user);
+      }
+    });
+
+    return Array.from(parentUserMap.values());
   }
 
   render() {
@@ -64,12 +158,20 @@ export class ManageUsersParticipants {
   }
 
   renderParticipantRows() {
+    if (!Array.isArray(this.participants) || this.participants.length === 0) {
+      return `
+        <tr>
+          <td colspan="3">${translate("no_participants_found")}</td>
+        </tr>
+      `;
+    }
+
     return this.participants
       .map(
         (participant) => `
           <tr>
-            <td>${participant.first_name} ${participant.last_name}</td>
-            <td>${participant.associated_users}</td>
+            <td>${escapeHTML(participant.first_name || "")} ${escapeHTML(participant.last_name || "")}</td>
+            <td>${escapeHTML(participant.associated_users || translate("no_associated_users"))}</td>
             <td>
               <button class="remove-from-organization" data-participant-id="${participant.id}">
                 ${translate("remove_from_organization")}
@@ -89,10 +191,14 @@ export class ManageUsersParticipants {
   }
 
   renderParentUserOptions() {
+    if (!Array.isArray(this.parentUsers) || this.parentUsers.length === 0) {
+      return "";
+    }
+
     return this.parentUsers
       .map(
         (user) => `
-          <option value="${user.id}">${user.full_name}</option>
+          <option value="${user.id}">${escapeHTML(user.full_name || "")}</option>
         `
       )
       .join("");
@@ -116,9 +222,7 @@ export class ManageUsersParticipants {
     const participantId = event.target.getAttribute("data-participant-id");
     if (confirm(translate("confirm_remove_participant_from_organization"))) {
       try {
-        const result = await fetchFromApi('remove-participant-from-organization', 'POST', {
-          participant_id: participantId
-        });
+        const result = await removeParticipantFromOrganization(participantId);
         if (result.success) {
           this.showMessage(translate("participant_removed_from_organization"));
           await this.fetchData();
@@ -139,10 +243,7 @@ export class ManageUsersParticipants {
     const userId = event.target.previousElementSibling.value;
     if (userId) {
       try {
-        const result = await fetchFromApi('associate-user', 'POST', {
-          participant_id: participantId,
-          user_id: userId
-        });
+        const result = await associateUser(participantId, userId);
         if (result.success) {
           this.showMessage(translate("user_associated_successfully"));
           await this.fetchData();
