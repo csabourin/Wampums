@@ -118,11 +118,21 @@ export class FormulaireInscription {
 
       createInitialStructure() {
         debugLog("Creating initial structure");
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date().toISOString().split('T')[0];
+        const inscriptionDate = this.formData.inscription_date || today;
+
         const content = `
          <button type="button" id="go-to-dashboard">${translate("go_to_dashboard")}</button>
           <h1>${this.participantId ? translate("edit_participant") : translate("add_participant")}</h1>
           <form id="inscription-form">
             <fieldset id="participant-form"></fieldset>  <!-- Changed to a fieldset -->
+
+            <div class="form-group">
+              <label for="inscription-date">${translate("inscription_date_label")}</label>
+              <input type="date" id="inscription-date" name="inscription_date" value="${inscriptionDate}" required>
+              <small class="form-text">${translate("inscription_date_help")}</small>
+            </div>
 
             <h2>${translate("informations_parents")}</h2>
             <button type="button" id="add-guardian">${translate("add_parent_guardian")}</button>
@@ -333,13 +343,20 @@ debugLog("linkUserParticipants result:",result);
     async linkParticipantToOrganization(participantId) {
       try {
         const organizationId = getCurrentOrganizationId();
+        const inscriptionDateInput = document.getElementById('inscription-date');
+        const inscriptionDate = inscriptionDateInput ? inscriptionDateInput.value : null;
+
         const response = await fetch(getApiUrl('link-participant-to-organization'), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...getAuthHeader(),
           },
-          body: JSON.stringify({ participant_id: participantId, organization_id: organizationId }),
+          body: JSON.stringify({
+            participant_id: participantId,
+            organization_id: organizationId,
+            inscription_date: inscriptionDate
+          }),
         });
         const result = await response.json();
         if (!result.success) {
