@@ -5,6 +5,7 @@ import {
   fetchFromApi
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ManageUsersParticipants {
   constructor(app) {
@@ -31,10 +32,36 @@ export class ManageUsersParticipants {
 
   async fetchData() {
     try {
-      [this.participants, this.parentUsers] = await Promise.all([
+      const [participantsResponse, parentUsersResponse] = await Promise.all([
         getParticipantsWithUsers(),
         getParentUsers()
       ]);
+
+      if (participantsResponse?.success) {
+        const participantsData =
+          participantsResponse.data?.participants ||
+          participantsResponse.participants ||
+          participantsResponse.data ||
+          [];
+        this.participants = Array.isArray(participantsData)
+          ? participantsData
+          : [];
+      } else {
+        throw new Error("Failed to fetch participants with users");
+      }
+
+      if (parentUsersResponse?.success) {
+        const parentUsersData =
+          parentUsersResponse.data?.users ||
+          parentUsersResponse.users ||
+          parentUsersResponse.data ||
+          [];
+        this.parentUsers = Array.isArray(parentUsersData)
+          ? parentUsersData
+          : [];
+      } else {
+        throw new Error("Failed to fetch parent users");
+      }
     } catch (error) {
       debugError("Error fetching manage users participants data:", error);
       throw error;
@@ -64,12 +91,20 @@ export class ManageUsersParticipants {
   }
 
   renderParticipantRows() {
+    if (!Array.isArray(this.participants) || this.participants.length === 0) {
+      return `
+        <tr>
+          <td colspan="3">${translate("no_participants_found")}</td>
+        </tr>
+      `;
+    }
+
     return this.participants
       .map(
         (participant) => `
           <tr>
-            <td>${participant.first_name} ${participant.last_name}</td>
-            <td>${participant.associated_users}</td>
+            <td>${escapeHTML(participant.first_name || "")} ${escapeHTML(participant.last_name || "")}</td>
+            <td>${escapeHTML(participant.associated_users || translate("no_associated_users"))}</td>
             <td>
               <button class="remove-from-organization" data-participant-id="${participant.id}">
                 ${translate("remove_from_organization")}
@@ -89,10 +124,14 @@ export class ManageUsersParticipants {
   }
 
   renderParentUserOptions() {
+    if (!Array.isArray(this.parentUsers) || this.parentUsers.length === 0) {
+      return "";
+    }
+
     return this.parentUsers
       .map(
         (user) => `
-          <option value="${user.id}">${user.full_name}</option>
+          <option value="${user.id}">${escapeHTML(user.full_name || "")}</option>
         `
       )
       .join("");
