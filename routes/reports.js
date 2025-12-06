@@ -73,32 +73,24 @@ module.exports = (pool, logger) => {
         return acc;
       }, {});
 
-      // Guardian emails from registration forms
-      const guardianEmailsResult = await pool.query(
-        `SELECT LOWER(fs.submission_data->>'guardian_courriel_0') AS courriel,
-                string_agg(p.first_name || ' ' || p.last_name, ', ') AS participants
-         FROM form_submissions fs
-         JOIN participants p ON fs.participant_id = p.id
-         WHERE (fs.submission_data->>'guardian_courriel_0') IS NOT NULL
-         AND (fs.submission_data->>'guardian_courriel_0') != ''
-         AND fs.organization_id = $1
-         GROUP BY fs.submission_data->>'guardian_courriel_0'
-         UNION
-         SELECT LOWER(fs.submission_data->>'guardian_courriel_1') AS courriel,
-                string_agg(p.first_name || ' ' || p.last_name, ', ') AS participants
-         FROM form_submissions fs
-         JOIN participants p ON fs.participant_id = p.id
-         WHERE (fs.submission_data->>'guardian_courriel_1') IS NOT NULL
-         AND (fs.submission_data->>'guardian_courriel_1') != ''
-         AND fs.organization_id = $1
-         GROUP BY fs.submission_data->>'guardian_courriel_1'`,
-        [organizationId]
-      );
+        // Guardian emails linked to participants in the current organization
+        const guardianEmailsResult = await pool.query(
+          `SELECT LOWER(pg.courriel) AS email,
+                  string_agg(DISTINCT p.first_name || ' ' || p.last_name, ', ' ORDER BY p.last_name, p.first_name) AS participants
+           FROM parents_guardians pg
+           JOIN participant_guardians pg_rel ON pg_rel.guardian_id = pg.id
+           JOIN participant_organizations po ON po.participant_id = pg_rel.participant_id AND po.organization_id = $1
+           JOIN participants p ON p.id = pg_rel.participant_id
+           WHERE pg.courriel IS NOT NULL
+             AND pg.courriel <> ''
+           GROUP BY LOWER(pg.courriel)`,
+          [organizationId]
+        );
 
-      emailsByRole.parent = guardianEmailsResult.rows.map(parent => ({
-        email: parent.courriel,
-        participants: parent.participants,
-      }));
+        emailsByRole.parent = guardianEmailsResult.rows.map(parent => ({
+          email: parent.email,
+          participants: parent.participants,
+        }));
 
       // Participant emails captured on their own forms
       const participantEmailsResult = await pool.query(
