@@ -16,7 +16,7 @@ const swaggerSpecs = require('./config/swagger');
 const { success, error: errorResponse } = require('./middleware/response');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 const HOST = "0.0.0.0";
 
 // Determine if we're in production mode

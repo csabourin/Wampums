@@ -7,8 +7,8 @@ modules = ["nodejs-20", "postgresql-16"]
 channel = "stable-22_11"
 
 [deployment]
-run = ["npm", "start"]
-deploymentTarget = "cloudrun"
+deploymentTarget = "autoscale"
+run = ["node", "api.js"]
 
 [[ports]]
 localPort = 3000
@@ -25,6 +25,10 @@ externalPort = 5173
 [[ports]]
 localPort = 33341
 externalPort = 3001
+
+[[ports]]
+localPort = 45253
+externalPort = 3003
 
 [[ports]]
 localPort = 45639
