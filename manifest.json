@@ -1,7 +1,7 @@
 {
-  "name": "Meute 6A St-Paul",
-  "short_name": "Meute 6A",
-  "description": "Application de points pour la meute 6e A St-Paul d'Aylmer",
+  "name": "Wampums",
+  "short_name": "Wampums",
+  "description": "Scouts au bout des doigts",
   "start_url": "/",
   "scope": "/",
   "id": "/",

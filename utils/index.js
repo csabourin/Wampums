@@ -24,7 +24,7 @@ let brevoSmtpTransport = null;
 
 // Normalize Brevo API key and sender configuration
 const brevoApiKeyValue = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
-const senderEmail = process.env.EMAIL_FROM || 'info@meute6a.app';
+const senderEmail = process.env.EMAIL_FROM || "info@wampums.app";
 const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
 const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
 const brevoSmtpUser = process.env.BREVO_SMTP_USER || '9d142c001@smtp-brevo.com';

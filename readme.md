@@ -1,7 +1,7 @@
-# Meute 6A Scout Management Application
+# Wampums Scout Management Application
 
 ## Overview
-This application is a comprehensive scout management system designed specifically for Meute 6A St-Paul d'Aylmer. It provides a centralized platform for managing scout activities, tracking progress, and facilitating communication between scout leaders, parents, and scouts.
+Wampums is a comprehensive scout management system designed for scouting groups. It provides a centralized platform for managing scout activities, tracking progress, and facilitating communication between scout leaders, parents, and scouts.
 
 ## Features and Advantages
 
@@ -151,4 +151,4 @@ This application is a comprehensive scout management system designed specificall
     - Secure login to protect personal and child's information
     - Control over personal data sharing
 
-This comprehensive system provides a robust platform for managing all aspects of the Meute 6A scout program, enhancing communication, streamlining processes, and improving the overall experience for scouts, parents, and leaders alike.
+This comprehensive system provides a robust platform for managing all aspects of a scout program, enhancing communication, streamlining processes, and improving the overall experience for scouts, parents, and leaders alike.
