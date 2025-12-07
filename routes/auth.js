@@ -455,12 +455,17 @@ module.exports = (pool, logger) => {
         const resetToken = crypto.randomBytes(16).toString('hex');
 
         // Store reset token in users table
-        await pool.query(
-          `UPDATE users 
+        const tokenUpdate = await pool.query(
+          `UPDATE users
            SET reset_token = $1, reset_token_expiry = NOW() + INTERVAL '1 hour'
            WHERE id = $2`,
           [resetToken, user.rows[0].id]
         );
+
+        if (tokenUpdate.rowCount === 0) {
+          logger.error(`Failed to persist reset token for user ID ${user.rows[0].id}`);
+          return res.status(500).json({ success: false, message: 'reset_token_not_saved' });
+        }
 
         // Get the domain for the reset link
         const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || 'wampums.app';
@@ -479,7 +484,7 @@ module.exports = (pool, logger) => {
           <p>If you did not request this reset, please ignore this email.</p>
         `;
 
-        const emailSent = await sendEmail(email, subject, message, html);
+        const emailSent = await sendEmail(normalizedEmail, subject, message, html);
         
         if (!emailSent) {
           logger.error('Failed to send password reset email to:', email);
