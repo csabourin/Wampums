@@ -20,10 +20,15 @@ const logger = winston.createLogger({
 const brevoClient = Brevo.ApiClient.instance;
 let brevoTransactionalApi = null;
 
+// Normalize Brevo API key and sender configuration
+const brevoApiKey = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
+const senderEmail = process.env.EMAIL_FROM || 'info@meute6a.app';
+const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
+
 // Initialize Brevo
-if (process.env.BREVO_KEY) {
+if (brevoApiKey) {
   const apiKey = brevoClient.authentications['api-key'];
-  apiKey.apiKey = process.env.BREVO_KEY;
+  apiKey.apiKey = brevoApiKey;
   brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
 }
 
@@ -133,19 +138,19 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
  * @returns {Promise<boolean>} Success status
  */
 async function sendEmail(to, subject, message, html = null) {
-  if (!process.env.BREVO_KEY) {
-    logger.error('Brevo API key not found in environment variables');
+  if (!brevoApiKey) {
+    logger.error('Brevo API key not found in environment variables (BREVO_KEY/BREVO_API_KEY)');
     return false;
   }
 
   if (!brevoTransactionalApi) {
     const apiKey = brevoClient.authentications['api-key'];
-    apiKey.apiKey = process.env.BREVO_KEY;
+    apiKey.apiKey = brevoApiKey;
     brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
   }
 
   const emailPayload = {
-    sender: { email: 'info@meute6a.app', name: 'Wampums' },
+    sender: { email: senderEmail, name: senderName },
     to: [{ email: to }],
     subject,
     textContent: message,
