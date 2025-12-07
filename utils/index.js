@@ -29,6 +29,11 @@ const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
 const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
 const brevoSmtpUser = process.env.BREVO_SMTP_USER || '9d142c001@smtp-brevo.com';
 
+// Normalize Brevo API key and sender configuration
+const brevoApiKey = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
+const senderEmail = process.env.EMAIL_FROM || 'info@meute6a.app';
+const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
+
 // Initialize Brevo
 if (brevoApiKey) {
   const apiKey = brevoClient.authentications['api-key'];
