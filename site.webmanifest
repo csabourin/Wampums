@@ -1,6 +1,7 @@
 {
-  "name": "Meute 6A d'Aylmer",
-  "short_name": "Meute 6a",
+  "name": "Wampums",
+  "short_name": "Wampums",
+  "description": "Scouts au bout des doigts",
   "icons": [
     {
       "src": "./images/android-chrome-192x192.png",

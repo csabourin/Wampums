@@ -1,72 +1,72 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://meute6a.app/</loc>
+    <loc>https://wampums.app/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/login</loc>
+    <loc>https://wampums.app/login</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/dashboard</loc>
+    <loc>https://wampums.app/dashboard</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/parent-dashboard</loc>
+    <loc>https://wampums.app/parent-dashboard</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/formulaire-inscription</loc>
+    <loc>https://wampums.app/formulaire-inscription</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/attendance</loc>
+    <loc>https://wampums.app/attendance</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/manage_points</loc>
+    <loc>https://wampums.app/manage_points</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/manage_honors</loc>
+    <loc>https://wampums.app/manage_honors</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/manage_participants</loc>
+    <loc>https://wampums.app/manage_participants</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/manage_groups</loc>
+    <loc>https://wampums.app/manage_groups</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/view_participant_documents</loc>
+    <loc>https://wampums.app/view_participant_documents</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/approve_badges</loc>
+    <loc>https://wampums.app/approve_badges</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/parent_contact_list</loc>
+    <loc>https://wampums.app/parent_contact_list</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://meute6a.app/manage_users_participants</loc>
+    <loc>https://wampums.app/manage_users_participants</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
