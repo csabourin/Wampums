@@ -24,7 +24,8 @@ const {
   validateNewPassword,
   validateToken,
   validateFullName,
-  checkValidation
+  checkValidation,
+  normalizeEmailInput
 } = require('../middleware/validation');
 
 // Import utilities
@@ -138,7 +139,7 @@ module.exports = (pool, logger) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password } = req.body;
-        const normalizedEmail = email.toLowerCase();
+        const normalizedEmail = normalizeEmailInput(email);
         const trimmedPassword = password.trim();
 
         const userResult = await pool.query(
@@ -270,7 +271,7 @@ module.exports = (pool, logger) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password, full_name, user_type } = req.body;
-        const normalizedEmail = email.toLowerCase();
+        const normalizedEmail = normalizeEmailInput(email);
         const trimmedPassword = password.trim();
         const role = mapRequestedRole(user_type);
 
@@ -354,7 +355,7 @@ module.exports = (pool, logger) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password, full_name, user_type } = req.body;
-        const normalizedEmail = email.toLowerCase();
+        const normalizedEmail = normalizeEmailInput(email);
         const trimmedPassword = password.trim();
         const role = mapRequestedRole(user_type);
 
@@ -435,7 +436,7 @@ module.exports = (pool, logger) => {
     async (req, res) => {
       try {
         const { email } = req.body;
-        const normalizedEmail = email.trim().toLowerCase();
+        const normalizedEmail = normalizeEmailInput(email);
 
         logger.info('Password reset request received', {
           email: normalizedEmail,
