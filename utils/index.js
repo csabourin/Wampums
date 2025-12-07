@@ -5,6 +5,7 @@
 
 const jwt = require('jsonwebtoken');
 const Brevo = require('sib-api-v3-sdk');
+const nodemailer = require('nodemailer');
 const winston = require('winston');
 
 // Configure logger for utilities
@@ -19,11 +20,19 @@ const logger = winston.createLogger({
 
 const brevoClient = Brevo.ApiClient.instance;
 let brevoTransactionalApi = null;
+let brevoSmtpTransport = null;
+
+// Normalize Brevo API key and sender configuration
+const brevoApiKey = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
+const senderEmail = process.env.EMAIL_FROM || 'info@meute6a.app';
+const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
+const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
+const brevoSmtpUser = process.env.BREVO_SMTP_USER || '9d142c001@smtp-brevo.com';
 
 // Initialize Brevo
-if (process.env.BREVO_KEY) {
+if (brevoApiKey) {
   const apiKey = brevoClient.authentications['api-key'];
-  apiKey.apiKey = process.env.BREVO_KEY;
+  apiKey.apiKey = brevoApiKey;
   brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
 }
 
@@ -133,33 +142,55 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
  * @returns {Promise<boolean>} Success status
  */
 async function sendEmail(to, subject, message, html = null) {
-  if (!process.env.BREVO_KEY) {
-    logger.error('Brevo API key not found in environment variables');
-    return false;
-  }
-
-  if (!brevoTransactionalApi) {
-    const apiKey = brevoClient.authentications['api-key'];
-    apiKey.apiKey = process.env.BREVO_KEY;
-    brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
-  }
-
-  const emailPayload = {
-    sender: { email: 'info@meute6a.app', name: 'Wampums' },
-    to: [{ email: to }],
-    subject,
-    textContent: message,
-  };
-
-  if (html) {
-    emailPayload.htmlContent = html;
-  }
-
   try {
-    logger.info('Sending email to:', to, 'from:', emailPayload.sender.email);
-    const result = await brevoTransactionalApi.sendTransacEmail(emailPayload);
-    logger.info('Email sent successfully, messageId:', result?.messageId);
-    return true;
+    // Prefer Brevo transactional API when available
+    if (brevoApiKey) {
+      if (!brevoTransactionalApi) {
+        const apiKey = brevoClient.authentications['api-key'];
+        apiKey.apiKey = brevoApiKey;
+        brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
+      }
+
+      logger.info('Sending email via Brevo API', { to, from: senderEmail });
+      const apiPayload = {
+        sender: { email: senderEmail, name: senderName },
+        to: [{ email: to }],
+        subject,
+        textContent: message,
+        ...(html ? { htmlContent: html } : {})
+      };
+      const result = await brevoTransactionalApi.sendTransacEmail(apiPayload);
+      logger.info('Email sent successfully via Brevo API', { messageId: result?.messageId, to });
+      return true;
+    }
+
+    if (brevoSmtpKey) {
+      if (!brevoSmtpTransport) {
+        brevoSmtpTransport = nodemailer.createTransport({
+          host: 'smtp-relay.brevo.com',
+          port: 587,
+          secure: false,
+          auth: {
+            user: brevoSmtpUser,
+            pass: brevoSmtpKey
+          }
+        });
+      }
+
+      logger.info('Sending email via Brevo SMTP relay', { to, from: senderEmail, user: brevoSmtpUser });
+      const smtpResult = await brevoSmtpTransport.sendMail({
+        from: `${senderName} <${senderEmail}>`,
+        to,
+        subject,
+        text: message,
+        ...(html ? { html } : {})
+      });
+      logger.info('Email sent successfully via SMTP', { messageId: smtpResult?.messageId, to });
+      return true;
+    }
+
+    logger.error('Brevo API key not found and no SMTP key provided (BREVO_SMTP_KEY)');
+    return false;
   } catch (error) {
     logger.error('Error sending email:', error.message || error);
     if (error.response?.body) {
