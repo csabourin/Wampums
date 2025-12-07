@@ -435,7 +435,11 @@ module.exports = (pool, logger) => {
     async (req, res) => {
       try {
         const { email } = req.body;
-        const normalizedEmail = email.toLowerCase();
+        const normalizedEmail = email.trim().toLowerCase();
+
+        logger.info('Password reset request received', {
+          email: normalizedEmail,
+        });
 
         // Check if user exists
         const user = await pool.query(
@@ -445,21 +449,32 @@ module.exports = (pool, logger) => {
 
         // Always return success to prevent email enumeration
         if (user.rows.length === 0) {
+          logger.info('Password reset requested for non-existent account', {
+            email: normalizedEmail,
+          });
           return res.json({
             success: true,
             message: 'reset_link_sent_if_exists'
           });
         }
 
-        // Generate a short random reset token (32 hex chars = 64 chars max)
-        const resetToken = crypto.randomBytes(16).toString('hex');
+        // Generate a strong reset token and hash it before storage
+        const rawResetToken = crypto.randomBytes(32).toString('hex');
+        const hashedToken = crypto.createHash('sha256').update(rawResetToken).digest('hex');
+
+        // Persist reset token securely
+        logger.info('Persisting password reset token', {
+          userId: user.rows[0].id,
+          email: normalizedEmail,
+          expiryMinutes: 60,
+        });
 
         // Store reset token in users table
         const tokenUpdate = await pool.query(
           `UPDATE users
            SET reset_token = $1, reset_token_expiry = NOW() + INTERVAL '1 hour'
            WHERE id = $2`,
-          [resetToken, user.rows[0].id]
+          [hashedToken, user.rows[0].id]
         );
 
         if (tokenUpdate.rowCount === 0) {
@@ -468,17 +483,16 @@ module.exports = (pool, logger) => {
         }
 
         if (!isProduction) {
-          logger.info('Password reset token generated', {
+          logger.info('Password reset token generated (development)', {
             userId: user.rows[0].id,
             email: normalizedEmail,
-            resetToken
           });
         }
 
         // Get the domain for the reset link
         const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || 'wampums.app';
         const baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;
-        const resetLink = `${baseUrl}/reset-password?token=${resetToken}`;
+        const resetLink = `${baseUrl}/reset-password?token=${rawResetToken}`;
 
         // Send password reset email
         const subject = 'Wampums - Password Reset Request';
@@ -493,16 +507,18 @@ module.exports = (pool, logger) => {
         `;
 
         const emailSent = await sendEmail(normalizedEmail, subject, message, html);
-        
+
         if (!emailSent) {
-          logger.error('Failed to send password reset email to:', email);
+          logger.error('Failed to send password reset email', { email: normalizedEmail });
+        } else {
+          logger.info('Password reset email dispatched', { email: normalizedEmail });
         }
 
         res.json({
           success: true,
           message: 'reset_link_sent_if_exists',
           // In development, return token for testing
-          ...(process.env.NODE_ENV !== 'production' && { resetToken })
+          ...(process.env.NODE_ENV !== 'production' && { resetToken: rawResetToken })
         });
       } catch (error) {
         logger.error('Error requesting password reset:', error);
@@ -533,14 +549,19 @@ module.exports = (pool, logger) => {
         const { token, new_password } = req.body;
         const trimmedPassword = new_password.trim();
 
+        logger.info('Password reset submission received');
+
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
         // Check if token exists in database and is not expired
         const tokenResult = await pool.query(
           `SELECT id FROM users
            WHERE reset_token = $1 AND reset_token_expiry > NOW()`,
-          [token]
+          [hashedToken]
         );
 
         if (tokenResult.rows.length === 0) {
+          logger.warn('Invalid or expired password reset token');
           return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
         }
 
@@ -554,6 +575,8 @@ module.exports = (pool, logger) => {
           'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
           [hashedPassword, userId]
         );
+
+        logger.info('Password reset completed', { userId });
 
         res.json({
           success: true,
