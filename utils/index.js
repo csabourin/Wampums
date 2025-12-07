@@ -3,18 +3,18 @@
  * Replaces PHP functions.php with Node.js equivalents
  */
 
-const jwt = require('jsonwebtoken');
-const Brevo = require('sib-api-v3-sdk');
-const nodemailer = require('nodemailer');
-const winston = require('winston');
+const jwt = require("jsonwebtoken");
+const Brevo = require("sib-api-v3-sdk");
+const nodemailer = require("nodemailer");
+const winston = require("winston");
 
 // Configure logger for utilities
 const logger = winston.createLogger({
-  level: 'info',
+  level: "info",
   format: winston.format.json(),
   transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
+    new winston.transports.File({ filename: "error.log", level: "error" }),
+    new winston.transports.File({ filename: "combined.log" }),
   ],
 });
 
@@ -24,19 +24,14 @@ let brevoSmtpTransport = null;
 
 // Normalize Brevo API key and sender configuration
 const brevoApiKey = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
-const senderEmail = process.env.EMAIL_FROM || 'info@meute6a.app';
-const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
+const senderEmail = process.env.EMAIL_FROM || "info@meute6a.app";
+const senderName = process.env.EMAIL_FROM_NAME || "Wampums";
 const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
-const brevoSmtpUser = process.env.BREVO_SMTP_USER || '9d142c001@smtp-brevo.com';
-
-// Normalize Brevo API key and sender configuration
-const brevoApiKey = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
-const senderEmail = process.env.EMAIL_FROM || 'info@meute6a.app';
-const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
+const brevoSmtpUser = process.env.BREVO_SMTP_USER || "9d142c001@smtp-brevo.com";
 
 // Initialize Brevo
 if (brevoApiKey) {
-  const apiKey = brevoClient.authentications['api-key'];
+  const apiKey = brevoClient.authentications["api-key"];
   apiKey.apiKey = brevoApiKey;
   brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
 }
@@ -65,9 +60,9 @@ function calculateAge(dateOfBirth) {
  * @returns {string} Sanitized input
  */
 function sanitizeInput(input) {
-  if (!input) return '';
+  if (!input) return "";
   return String(input)
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/<[^>]*>/g, "") // Remove HTML tags
     .trim();
 }
 
@@ -77,19 +72,25 @@ function sanitizeInput(input) {
  * @returns {string} 't' or 'f'
  */
 function toBool(value) {
-  if (typeof value === 'boolean') {
-    return value ? 't' : 'f';
+  if (typeof value === "boolean") {
+    return value ? "t" : "f";
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const lower = value.toLowerCase();
-    if (lower === 'true' || lower === '1' || lower === 'yes' || lower === 'on' || lower === 't') {
-      return 't';
+    if (
+      lower === "true" ||
+      lower === "1" ||
+      lower === "yes" ||
+      lower === "on" ||
+      lower === "t"
+    ) {
+      return "t";
     }
   }
-  if (typeof value === 'number') {
-    return value ? 't' : 'f';
+  if (typeof value === "number") {
+    return value ? "t" : "f";
   }
-  return 'f';
+  return "f";
 }
 
 /**
@@ -98,9 +99,9 @@ function toBool(value) {
  * @returns {boolean}
  */
 function fromBool(value) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') {
-    return value === 't' || value === 'true' || value === '1';
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    return value === "t" || value === "true" || value === "1";
   }
   return Boolean(value);
 }
@@ -117,7 +118,7 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
   const guardianCheck = await pool.query(
     `SELECT 1 FROM user_participants
      WHERE user_id = $1 AND participant_id = $2`,
-    [userId, participantId]
+    [userId, participantId],
   );
 
   if (guardianCheck.rows.length > 0) {
@@ -132,7 +133,7 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
      WHERE uo.user_id = $1
        AND po.participant_id = $2
        AND uo.role IN ('animation', 'admin')`,
-    [userId, participantId]
+    [userId, participantId],
   );
 
   return roleCheck.rows.length > 0;
@@ -151,55 +152,70 @@ async function sendEmail(to, subject, message, html = null) {
     // Prefer Brevo transactional API when available
     if (brevoApiKey) {
       if (!brevoTransactionalApi) {
-        const apiKey = brevoClient.authentications['api-key'];
+        const apiKey = brevoClient.authentications["api-key"];
         apiKey.apiKey = brevoApiKey;
         brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
       }
 
-      logger.info('Sending email via Brevo API', { to, from: senderEmail });
+      logger.info("Sending email via Brevo API", { to, from: senderEmail });
       const apiPayload = {
         sender: { email: senderEmail, name: senderName },
         to: [{ email: to }],
         subject,
         textContent: message,
-        ...(html ? { htmlContent: html } : {})
+        ...(html ? { htmlContent: html } : {}),
       };
       const result = await brevoTransactionalApi.sendTransacEmail(apiPayload);
-      logger.info('Email sent successfully via Brevo API', { messageId: result?.messageId, to });
+      logger.info("Email sent successfully via Brevo API", {
+        messageId: result?.messageId,
+        to,
+      });
       return true;
     }
 
     if (brevoSmtpKey) {
       if (!brevoSmtpTransport) {
         brevoSmtpTransport = nodemailer.createTransport({
-          host: 'smtp-relay.brevo.com',
+          host: "smtp-relay.brevo.com",
           port: 587,
           secure: false,
           auth: {
             user: brevoSmtpUser,
-            pass: brevoSmtpKey
-          }
+            pass: brevoSmtpKey,
+          },
         });
       }
 
-      logger.info('Sending email via Brevo SMTP relay', { to, from: senderEmail, user: brevoSmtpUser });
+      logger.info("Sending email via Brevo SMTP relay", {
+        to,
+        from: senderEmail,
+        user: brevoSmtpUser,
+      });
       const smtpResult = await brevoSmtpTransport.sendMail({
         from: `${senderName} <${senderEmail}>`,
         to,
         subject,
         text: message,
-        ...(html ? { html } : {})
+        ...(html ? { html } : {}),
       });
-      logger.info('Email sent successfully via SMTP', { messageId: smtpResult?.messageId, to });
+      logger.info("Email sent successfully via SMTP", {
+        messageId: smtpResult?.messageId,
+        to,
+      });
       return true;
     }
 
-    logger.error('Brevo API key not found and no SMTP key provided (BREVO_SMTP_KEY)');
+    logger.error(
+      "Brevo API key not found and no SMTP key provided (BREVO_SMTP_KEY)",
+    );
     return false;
   } catch (error) {
-    logger.error('Error sending email:', error.message || error);
+    logger.error("Error sending email:", error.message || error);
     if (error.response?.body) {
-      logger.error('Brevo API error details:', JSON.stringify(error.response.body));
+      logger.error(
+        "Brevo API error details:",
+        JSON.stringify(error.response.body),
+      );
     }
     return false;
   }
@@ -224,7 +240,13 @@ async function sendResetEmail(to, subject, message) {
  * @param {string} animatorEmail - Animator email
  * @param {object} translations - Translation object
  */
-async function sendAdminVerificationEmail(pool, organizationId, animatorName, animatorEmail, translations = {}) {
+async function sendAdminVerificationEmail(
+  pool,
+  organizationId,
+  animatorName,
+  animatorEmail,
+  translations = {},
+) {
   try {
     // Fetch admin emails for the organization
     const adminResult = await pool.query(
@@ -232,13 +254,15 @@ async function sendAdminVerificationEmail(pool, organizationId, animatorName, an
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE uo.organization_id = $1 AND uo.role = 'admin'`,
-      [organizationId]
+      [organizationId],
     );
 
-    const adminEmails = adminResult.rows.map(row => row.email);
+    const adminEmails = adminResult.rows.map((row) => row.email);
 
     if (adminEmails.length === 0) {
-      logger.error(`No admin emails found for organization ID: ${organizationId}`);
+      logger.error(
+        `No admin emails found for organization ID: ${organizationId}`,
+      );
       return;
     }
 
@@ -247,29 +271,35 @@ async function sendAdminVerificationEmail(pool, organizationId, animatorName, an
       `SELECT setting_value->>'name' as org_name
        FROM organization_settings
        WHERE organization_id = $1 AND setting_key = 'organization_info'`,
-      [organizationId]
+      [organizationId],
     );
 
-    const orgName = orgResult.rows[0]?.org_name || 'Wampums.app';
+    const orgName = orgResult.rows[0]?.org_name || "Wampums.app";
 
-    const subject = (translations.new_animator_registration_subject || 'New Animator Registration for {orgName}')
-      .replace('{orgName}', orgName);
+    const subject = (
+      translations.new_animator_registration_subject ||
+      "New Animator Registration for {orgName}"
+    ).replace("{orgName}", orgName);
 
-    const message = (translations.new_animator_registration_body ||
-      'A new animator has registered for {orgName}:\n\nName: {animatorName}\nEmail: {animatorEmail}\n\nPlease review and approve their account.')
-      .replace('{orgName}', orgName)
-      .replace('{animatorName}', animatorName)
-      .replace('{animatorEmail}', animatorEmail);
+    const message = (
+      translations.new_animator_registration_body ||
+      "A new animator has registered for {orgName}:\n\nName: {animatorName}\nEmail: {animatorEmail}\n\nPlease review and approve their account."
+    )
+      .replace("{orgName}", orgName)
+      .replace("{animatorName}", animatorName)
+      .replace("{animatorEmail}", animatorEmail);
 
     // Send email to all admins
     for (const adminEmail of adminEmails) {
       const result = await sendEmail(adminEmail, subject, message);
       if (!result) {
-        logger.error(`Failed to send admin verification email to: ${adminEmail}`);
+        logger.error(
+          `Failed to send admin verification email to: ${adminEmail}`,
+        );
       }
     }
   } catch (error) {
-    logger.error('Error in sendAdminVerificationEmail:', error);
+    logger.error("Error in sendAdminVerificationEmail:", error);
   }
 }
 
@@ -287,12 +317,12 @@ async function determineOrganizationId(pool, domain) {
        WHERE domain = $1
           OR $2 LIKE REPLACE(domain, '*', '%')
        LIMIT 1`,
-      [domain, domain]
+      [domain, domain],
     );
 
     return result.rows[0]?.organization_id || null;
   } catch (error) {
-    logger.error('Error determining organization ID:', error);
+    logger.error("Error determining organization ID:", error);
     return null;
   }
 }
@@ -305,7 +335,7 @@ async function determineOrganizationId(pool, domain) {
 function getJWTPayload(req) {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
   }
 
@@ -315,7 +345,7 @@ function getJWTPayload(req) {
     const decoded = jwt.decode(token);
     return decoded;
   } catch (error) {
-    logger.error('Error decoding JWT:', error);
+    logger.error("Error decoding JWT:", error);
     return null;
   }
 }
@@ -396,13 +426,18 @@ function safeJSONParse(jsonString, defaultValue = null) {
  * @param {string[]} allowedRoles - Allowed roles (e.g., ['admin', 'animation'])
  * @returns {Promise<boolean>}
  */
-async function hasPermission(pool, userId, organizationId, allowedRoles = ['admin']) {
+async function hasPermission(
+  pool,
+  userId,
+  organizationId,
+  allowedRoles = ["admin"],
+) {
   try {
     const result = await pool.query(
       `SELECT role
        FROM user_organizations
        WHERE user_id = $1 AND organization_id = $2`,
-      [userId, organizationId]
+      [userId, organizationId],
     );
 
     if (result.rows.length === 0) {
@@ -411,7 +446,7 @@ async function hasPermission(pool, userId, organizationId, allowedRoles = ['admi
 
     return allowedRoles.includes(result.rows[0].role);
   } catch (error) {
-    logger.error('Error checking permission:', error);
+    logger.error("Error checking permission:", error);
     return false;
   }
 }
@@ -428,23 +463,23 @@ async function getPointSystemRules(pool, organizationId) {
     const result = await pool.query(
       `SELECT setting_value FROM organization_settings
        WHERE organization_id = $1 AND setting_key = 'point_system_rules'`,
-      [organizationId]
+      [organizationId],
     );
 
     if (result.rows.length > 0) {
       const value = result.rows[0].setting_value;
       // Handle both JSON string and already-parsed object (JSONB)
-      if (typeof value === 'object' && value !== null) {
+      if (typeof value === "object" && value !== null) {
         return value;
       }
       try {
         return JSON.parse(value);
       } catch (e) {
-        logger.warn('Error parsing point_system_rules:', e);
+        logger.warn("Error parsing point_system_rules:", e);
       }
     }
   } catch (error) {
-    logger.error('Error getting point system rules:', error);
+    logger.error("Error getting point system rules:", error);
   }
 
   // Default rules if not found or error occurred
@@ -453,8 +488,8 @@ async function getPointSystemRules(pool, organizationId) {
       present: 1,
       late: 0,
       absent: -1,
-      excused: 0
-    }
+      excused: 0,
+    },
   };
 }
 
@@ -476,5 +511,5 @@ module.exports = {
   formatDateForDB,
   safeJSONParse,
   hasPermission,
-  getPointSystemRules
+  getPointSystemRules,
 };
