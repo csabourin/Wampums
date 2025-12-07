@@ -38,7 +38,13 @@ const checkValidation = (req, res, next) => {
 const validateEmail = check('email')
   .trim()
   .isEmail()
-  .normalizeEmail()
+  .normalizeEmail({
+    gmail_remove_dots: false,
+    gmail_remove_subaddress: false,
+    outlookdotcom_remove_subaddress: false,
+    yahoo_remove_subaddress: false,
+    icloud_remove_subaddress: false,
+  })
   .withMessage('Valid email is required')
   .isLength({ max: 255 })
   .withMessage('Email too long');
@@ -50,7 +56,13 @@ const validateEmailOptional = check('email')
   .optional()
   .trim()
   .isEmail()
-  .normalizeEmail()
+  .normalizeEmail({
+    gmail_remove_dots: false,
+    gmail_remove_subaddress: false,
+    outlookdotcom_remove_subaddress: false,
+    yahoo_remove_subaddress: false,
+    icloud_remove_subaddress: false,
+  })
   .withMessage('Valid email is required')
   .isLength({ max: 255 })
   .withMessage('Email too long');
