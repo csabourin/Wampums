@@ -467,6 +467,14 @@ module.exports = (pool, logger) => {
           return res.status(500).json({ success: false, message: 'reset_token_not_saved' });
         }
 
+        if (!isProduction) {
+          logger.info('Password reset token generated', {
+            userId: user.rows[0].id,
+            email: normalizedEmail,
+            resetToken
+          });
+        }
+
         // Get the domain for the reset link
         const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || 'wampums.app';
         const baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;

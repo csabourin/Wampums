@@ -30,6 +30,7 @@
     "helmet": "^4.6.0",
     "jsonwebtoken": "^9.0.2",
     "node-pg-migrate": "^8.0.3",
+    "nodemailer": "^6.10.1",
     "pg": "^8.6.0",
     "rimraf": "^6.0.1",
     "sib-api-v3-sdk": "^8.5.0",
