@@ -33,7 +33,7 @@ const checkValidation = (req, res, next) => {
 
 /**
  * Validate email format and length
- * Normalizes email to lowercase
+ * Normalizes email to lowercase without altering provider-specific formatting
  */
 const validateEmail = check('email')
   .trim()
@@ -44,6 +44,7 @@ const validateEmail = check('email')
     outlookdotcom_remove_subaddress: false,
     yahoo_remove_subaddress: false,
     icloud_remove_subaddress: false,
+    gmail_convert_googlemaildotcom: false,
   })
   .withMessage('Valid email is required')
   .isLength({ max: 255 })
@@ -62,10 +63,18 @@ const validateEmailOptional = check('email')
     outlookdotcom_remove_subaddress: false,
     yahoo_remove_subaddress: false,
     icloud_remove_subaddress: false,
+    gmail_convert_googlemaildotcom: false,
   })
   .withMessage('Valid email is required')
   .isLength({ max: 255 })
   .withMessage('Email too long');
+
+/**
+ * Canonicalize email without removing dots or subaddresses
+ * @param {string} email - Raw email input
+ * @returns {string} Trimmed, lowercase email preserving user formatting
+ */
+const normalizeEmailInput = (email = '') => email.toString().trim().toLowerCase();
 
 // ============================================
 // PASSWORD VALIDATIONS
@@ -325,5 +334,8 @@ module.exports = {
   validateToken,
 
   // Attendance
-  validateAttendanceStatus
+  validateAttendanceStatus,
+
+  // Helpers
+  normalizeEmailInput
 };
