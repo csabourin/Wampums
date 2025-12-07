@@ -23,16 +23,16 @@ let brevoTransactionalApi = null;
 let brevoSmtpTransport = null;
 
 // Normalize Brevo API key and sender configuration
-const brevoApiKey = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
-const senderEmail = process.env.EMAIL_FROM || "info@meute6a.app";
-const senderName = process.env.EMAIL_FROM_NAME || "Wampums";
+const brevoApiKeyValue = process.env.BREVO_KEY || process.env.BREVO_API_KEY;
+const senderEmail = process.env.EMAIL_FROM || 'info@meute6a.app';
+const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
 const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
-const brevoSmtpUser = process.env.BREVO_SMTP_USER || "9d142c001@smtp-brevo.com";
+const brevoSmtpUser = process.env.BREVO_SMTP_USER || '9d142c001@smtp-brevo.com';
 
 // Initialize Brevo
-if (brevoApiKey) {
-  const apiKey = brevoClient.authentications["api-key"];
-  apiKey.apiKey = brevoApiKey;
+if (brevoApiKeyValue) {
+  const apiKey = brevoClient.authentications['api-key'];
+  apiKey.apiKey = brevoApiKeyValue;
   brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
 }
 
@@ -147,15 +147,15 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
  * @param {string} html - Optional HTML content
  * @returns {Promise<boolean>} Success status
  */
-async function sendEmail(to, subject, message, html = null) {
-  try {
-    // Prefer Brevo transactional API when available
-    if (brevoApiKey) {
-      if (!brevoTransactionalApi) {
-        const apiKey = brevoClient.authentications["api-key"];
-        apiKey.apiKey = brevoApiKey;
-        brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
-      }
+  async function sendEmail(to, subject, message, html = null) {
+    try {
+      // Prefer Brevo transactional API when available
+      if (brevoApiKeyValue) {
+        if (!brevoTransactionalApi) {
+          const apiKey = brevoClient.authentications['api-key'];
+          apiKey.apiKey = brevoApiKeyValue;
+          brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
+        }
 
       logger.info("Sending email via Brevo API", { to, from: senderEmail });
       const apiPayload = {
