@@ -13,7 +13,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 // Import utilities
-const { getCurrentOrganizationId } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 /**
  * Helper function to escape HTML
@@ -159,6 +159,9 @@ module.exports = (pool, logger) => {
         res.send(html);
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching news:', error);
       res.status(500).json({ error: 'Failed to fetch news' });
     }

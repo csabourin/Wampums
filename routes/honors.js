@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities and middleware
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, getPointSystemRules } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getPointSystemRules } = require('../utils/api-helpers');
 const { success, error: errorResponse } = require('../middleware/response');
 
 /**
@@ -94,6 +94,9 @@ module.exports = (pool, logger) => {
         availableDates: datesResult.rows.map(r => r.date)
       }, 'Honors retrieved successfully');
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching honors:', error);
       return errorResponse(res, error.message, 500);
     }
@@ -207,12 +210,18 @@ module.exports = (pool, logger) => {
         await client.query('COMMIT');
         res.json({ success: true, status: 'success', results });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         await client.query('ROLLBACK');
         throw error;
       } finally {
         client.release();
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error awarding honor:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -319,6 +328,9 @@ module.exports = (pool, logger) => {
         summary: summaryResult.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching honors history:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -369,6 +381,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching honors report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -419,6 +434,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching recent honors:', error);
       res.status(500).json({ success: false, message: error.message });
     }

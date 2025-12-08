@@ -29,7 +29,7 @@ const {
 } = require('../middleware/validation');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail, sendAdminVerificationEmail } = require('../utils/index');
 
 const emailTranslations = {
@@ -212,15 +212,18 @@ module.exports = (pool, logger) => {
           user_id: user.id
         };
 
-        if (guardianResult.rows.length > 0) {
-          response.guardian_participants = guardianResult.rows;
-        }
+      if (guardianResult.rows.length > 0) {
+        response.guardian_participants = guardianResult.rows;
+      }
 
-        res.json(response);
-      } catch (error) {
-        logger.error('Login error:', error);
-        res.status(500).json({
-          success: false,
+      res.json(response);
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Login error:', error);
+      res.status(500).json({
+        success: false,
           message: 'internal_server_error'
         });
       }
@@ -315,6 +318,9 @@ module.exports = (pool, logger) => {
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         await client.query('ROLLBACK');
         logger.error('Error registering user:', error);
 
@@ -399,6 +405,9 @@ module.exports = (pool, logger) => {
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         await client.query('ROLLBACK');
         logger.error('Error registering user:', error);
 
@@ -522,6 +531,9 @@ module.exports = (pool, logger) => {
           ...(process.env.NODE_ENV !== 'production' && { resetToken: rawResetToken })
         });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         logger.error('Error requesting password reset:', error);
         res.status(500).json({ success: false, message: error.message });
       }
@@ -584,6 +596,9 @@ module.exports = (pool, logger) => {
           message: 'password_reset_successful'
         });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         logger.error('Error resetting password:', error);
         res.status(500).json({ success: false, message: error.message });
       }
@@ -617,6 +632,9 @@ module.exports = (pool, logger) => {
         message: 'Session valid'
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error verifying session:', error);
       res.status(500).json({ success: false, message: error.message });
     }

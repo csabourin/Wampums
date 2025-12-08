@@ -1,5 +1,5 @@
 const express = require('express');
-const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 module.exports = function(pool, logger) {
   const router = express.Router();
@@ -442,6 +442,9 @@ module.exports = function(pool, logger) {
 
     } catch (error) {
       await client.query('ROLLBACK');
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('SISC import error:', error);
       res.status(500).json({ success: false, message: error.message });
     } finally {

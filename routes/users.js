@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -68,6 +68,9 @@ module.exports = (pool, logger) => {
         users: result.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching users:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -116,6 +119,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching pending users:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -159,6 +165,9 @@ module.exports = (pool, logger) => {
         animateurs: result.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching animateurs:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -202,6 +211,9 @@ module.exports = (pool, logger) => {
         users: result.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching parent users:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -246,6 +258,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching user children:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -321,6 +336,9 @@ module.exports = (pool, logger) => {
       console.log(`[user] User ${user_id} approved by admin ${decoded.user_id}`);
       res.json({ success: true, message: 'User approved successfully' });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error approving user:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -408,6 +426,9 @@ module.exports = (pool, logger) => {
       console.log(`[user] User ${user_id} role updated to ${role} by admin ${decoded.user_id}`);
       res.json({ success: true, message: 'User role updated successfully' });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error updating user role:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -529,12 +550,18 @@ module.exports = (pool, logger) => {
         console.log(`[user] User ${user_id} linked to ${participant_ids.length} participants`);
         res.json({ success: true, message: 'User linked to participants successfully' });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         await client.query('ROLLBACK');
         throw error;
       } finally {
         client.release();
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error linking user to participants:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -601,6 +628,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, message: 'User associated with participant successfully' });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error associating user with participant:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -661,6 +691,9 @@ module.exports = (pool, logger) => {
 
       res.json({ hasPermission });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error checking permission:', error);
       res.json({ hasPermission: false });
     }

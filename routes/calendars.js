@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -82,6 +82,9 @@ module.exports = (pool, logger) => {
         calendars: result.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching calendars:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -179,6 +182,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows[0] });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error updating calendar:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -272,6 +278,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows[0] });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error updating calendar payment:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -329,6 +338,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching participant calendar:', error);
       res.status(500).json({ success: false, message: error.message });
     }

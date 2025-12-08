@@ -12,7 +12,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -82,6 +82,9 @@ module.exports = (pool, logger) => {
         organizationId
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error generating organization JWT:', error);
       res.status(500).json({
         success: false,
@@ -109,6 +112,9 @@ module.exports = (pool, logger) => {
         organizationId: organizationId
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error getting organization ID:', error);
       res.status(500).json({
         success: false,
@@ -164,6 +170,9 @@ module.exports = (pool, logger) => {
         data: settings
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error getting organization settings:', error);
       res.status(500).json({
         success: false,
@@ -358,6 +367,9 @@ module.exports = (pool, logger) => {
         client.release();
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error registering for organization:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -447,6 +459,9 @@ module.exports = (pool, logger) => {
         message: 'Organization switched successfully'
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error switching organization:', error);
       res.status(500).json({ success: false, message: error.message });
     }

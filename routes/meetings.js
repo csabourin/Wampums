@@ -12,7 +12,7 @@ const router = express.Router();
 const { check } = require('express-validator');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
 
 /**
@@ -78,6 +78,9 @@ module.exports = (pool, logger) => {
         });
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching reunion preparation:', error);
       res.status(500).json({
         success: false,
@@ -174,6 +177,9 @@ module.exports = (pool, logger) => {
         preparation: result.rows[0]
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error saving reunion preparation:', error);
       res.status(500).json({
         success: false,
@@ -218,6 +224,9 @@ module.exports = (pool, logger) => {
         dates: result.rows.map(row => row.date)
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching reunion dates:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -265,6 +274,9 @@ module.exports = (pool, logger) => {
         res.json({ success: true, meeting: null, message: 'No upcoming meetings found' });
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching next meeting info:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -322,6 +334,9 @@ module.exports = (pool, logger) => {
         }
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching guests:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -401,6 +416,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, guest: { id: result.rows[0].id, name, email, attendance_date } });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error saving guest:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -446,6 +464,9 @@ module.exports = (pool, logger) => {
         res.json({ success: true, reminder: null });
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching reminder:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -508,6 +529,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, message: 'Reminder saved successfully' });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error saving reminder:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -543,6 +567,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching activites rencontre:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -583,6 +610,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching activity templates:', error);
       res.status(500).json({ success: false, message: error.message });
     }
