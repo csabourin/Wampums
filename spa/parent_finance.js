@@ -264,7 +264,9 @@ export class ParentFinance {
     const endYear = this.extractYear(end);
 
     if (startYear && endYear) {
-      return `${startYear} - ${endYear}`;
+      return startYear === endYear
+        ? String(startYear)
+        : `${startYear}-${endYear}`;
     }
     if (startYear || endYear) {
       return String(startYear || endYear);
