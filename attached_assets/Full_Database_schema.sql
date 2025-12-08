@@ -53,6 +53,17 @@ CREATE TABLE public.calendars (
   CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
   CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
+CREATE TABLE public.fee_definitions (
+  id integer NOT NULL DEFAULT nextval('fee_definitions_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  registration_fee numeric NOT NULL,
+  membership_fee numeric NOT NULL,
+  created_at timestamp without time zone DEFAULT now(),
+  year_start date NOT NULL,
+  year_end date NOT NULL,
+  CONSTRAINT fee_definitions_pkey PRIMARY KEY (id),
+  CONSTRAINT fee_definitions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
 CREATE TABLE public.form_submissions (
   id integer NOT NULL DEFAULT nextval('form_submissions_id_seq'::regclass),
   organization_id integer NOT NULL,
@@ -192,6 +203,22 @@ CREATE TABLE public.parents_guardians (
   user_uuid uuid,
   CONSTRAINT parents_guardians_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.participant_fees (
+  id integer NOT NULL DEFAULT nextval('participant_fees_id_seq'::regclass),
+  participant_id integer NOT NULL,
+  organization_id integer NOT NULL,
+  fee_definition_id integer NOT NULL,
+  total_registration_fee numeric NOT NULL,
+  total_membership_fee numeric NOT NULL,
+  total_amount numeric DEFAULT (total_registration_fee + total_membership_fee),
+  status character varying DEFAULT 'unpaid'::character varying,
+  notes text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT participant_fees_pkey PRIMARY KEY (id),
+  CONSTRAINT participant_fees_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT participant_fees_fee_definition_id_fkey FOREIGN KEY (fee_definition_id) REFERENCES public.fee_definitions(id),
+  CONSTRAINT participant_fees_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
 CREATE TABLE public.participant_groups (
   participant_id integer NOT NULL,
   group_id integer,
@@ -226,6 +253,31 @@ CREATE TABLE public.participants (
   date_naissance date,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT participants_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.payment_plans (
+  id integer NOT NULL DEFAULT nextval('payment_plans_id_seq'::regclass),
+  participant_fee_id integer NOT NULL,
+  number_of_payments integer NOT NULL,
+  amount_per_payment numeric NOT NULL,
+  start_date date NOT NULL,
+  frequency character varying NOT NULL,
+  notes text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT payment_plans_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_plans_participant_fee_id_fkey FOREIGN KEY (participant_fee_id) REFERENCES public.participant_fees(id)
+);
+CREATE TABLE public.payments (
+  id integer NOT NULL DEFAULT nextval('payments_id_seq'::regclass),
+  participant_fee_id integer NOT NULL,
+  payment_plan_id integer,
+  amount numeric NOT NULL,
+  payment_date date NOT NULL,
+  method character varying,
+  reference_number character varying,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT payments_pkey PRIMARY KEY (id),
+  CONSTRAINT payments_participant_fee_id_fkey FOREIGN KEY (participant_fee_id) REFERENCES public.participant_fees(id),
+  CONSTRAINT payments_payment_plan_id_fkey FOREIGN KEY (payment_plan_id) REFERENCES public.payment_plans(id)
 );
 CREATE TABLE public.points (
   id integer NOT NULL DEFAULT nextval('points_id_seq'::regclass),
@@ -350,7 +402,7 @@ CREATE TABLE public.users (
   email text NOT NULL UNIQUE,
   password character varying NOT NULL,
   is_verified boolean DEFAULT false,
-  verification_token character varying,
+  verification_token character varying UNIQUE,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   role text,
   full_name character varying,
