@@ -253,8 +253,6 @@ module.exports = (pool, logger) => {
       return error(res, 'Fee definition not found for this organization', 404);
     }
 
-    const totalAmount = toNumeric(registrationValidation.value) + toNumeric(membershipValidation.value);
-
     const insertResult = await pool.query(
       `INSERT INTO participant_fees (
          participant_id,
@@ -262,10 +260,9 @@ module.exports = (pool, logger) => {
          fee_definition_id,
          total_registration_fee,
          total_membership_fee,
-         total_amount,
          status,
          notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         participant_id,
@@ -273,7 +270,6 @@ module.exports = (pool, logger) => {
         fee_definition_id,
         registrationValidation.value,
         membershipValidation.value,
-        totalAmount,
         status,
         notes
       ]
@@ -319,21 +315,17 @@ module.exports = (pool, logger) => {
       return error(res, registrationValidation.message || membershipValidation.message, 400);
     }
 
-    const totalAmount = toNumeric(registrationValidation.value) + toNumeric(membershipValidation.value);
-
     const updateResult = await pool.query(
       `UPDATE participant_fees
        SET total_registration_fee = $1,
            total_membership_fee = $2,
-           total_amount = $3,
-           status = $4,
-           notes = $5
-       WHERE id = $6 AND organization_id = $7
+           status = $3,
+           notes = $4
+       WHERE id = $5 AND organization_id = $6
        RETURNING *`,
       [
         registrationValidation.value,
         membershipValidation.value,
-        totalAmount,
         status || base.status,
         notes !== undefined ? notes : base.notes,
         id,
