@@ -37,7 +37,8 @@ const lazyModules = {
   RegisterOrganization: () => import('./register_organization.js').then(m => m.RegisterOrganization),
   CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
   PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
-  UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting)
+  UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
+  Finance: () => import('./finance.js').then(m => m.Finance)
 };
 
 // Cache for loaded modules
@@ -82,6 +83,7 @@ const routes = {
   "/create-organization": "createOrganization",
   "/group-participant-report": "PrintableGroupParticipantReport",
   "/upcoming-meeting": "UpcomingMeeting",
+  "/finance": "finance",
 
 };
 
@@ -155,6 +157,15 @@ export class Router {
             this.loadNotAuthorizedPage();
           } else {
             await this.loadFundraisersPage();
+          }
+          break;
+        case "finance":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const Finance = await this.loadModule('Finance');
+            const finance = new Finance(this.app);
+            await finance.init();
           }
           break;
         case "calendars":
@@ -307,12 +318,13 @@ export class Router {
   }
 
   getRouteNameAndParam(path) {
-      const parts = path.split("/");
+      const cleanPath = path.split("?")[0];
+      const parts = cleanPath.split("/");
       if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
         return [routes[`/${parts[1]}/:id`], parts[2]];
       }
-      debugLog(`Path: ${path}, RouteName: ${routes[path]}`);
-      return [routes[path] || "notFound", null];
+      debugLog(`Path: ${cleanPath}, RouteName: ${routes[cleanPath]}`);
+      return [routes[cleanPath] || "notFound", null];
   }
 
 

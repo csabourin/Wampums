@@ -411,6 +411,7 @@ const reportsRoutes = require('./routes/reports')(pool, logger);
 const dashboardsRoutes = require('./routes/dashboards')(pool, logger);
 const publicRoutes = require('./routes/public')(pool, logger);
 const importRoutes = require('./routes/import')(pool, logger);
+const financeRoutes = require('./routes/finance')(pool, logger);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -612,6 +613,13 @@ logger.info('   - GET /api/news');
 app.use('/api', importRoutes);
 logger.info('✅ Import routes loaded');
 logger.info('   - POST /api/import-sisc');
+
+// Finance Routes (handles fee definitions, participant fees, payments, and finance reports)
+app.use('/api', financeRoutes);
+logger.info('✅ Finance routes loaded');
+logger.info('   - CRUD /api/v1/finance/fee-definitions');
+logger.info('   - CRUD /api/v1/finance/participant-fees');
+logger.info('   - GET /api/v1/finance/reports/summary');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
