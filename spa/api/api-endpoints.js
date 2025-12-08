@@ -223,7 +223,7 @@ export async function updateUserRole(userId, role) {
  */
 export async function getParticipants() {
     return API.get('v1/participants', {}, {
-        cacheKey: 'participants',
+        cacheKey: 'participants_v2', // v2: includes roles field from participant_groups
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
     });
 }

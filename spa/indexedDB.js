@@ -239,6 +239,7 @@ export async function clearGroupRelatedCaches() {
   const keysToDelete = [
     'groups',
     'participants',
+    'participants_v2', // Clear new versioned cache
     'manage_points_data',
     'dashboard_groups',
     'dashboard_participant_info'
