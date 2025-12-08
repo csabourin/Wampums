@@ -79,6 +79,54 @@ export class Finance {
     }).format(value);
   }
 
+  /**
+   * Extracts a numeric year from a date-like value.
+   * Falls back to matching a 4-digit year when Date parsing fails.
+   * @param {string | number | Date} dateValue
+   * @returns {number | null}
+   */
+  extractYear(dateValue) {
+    if (!dateValue) return null;
+    const parsedDate = new Date(dateValue);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      return parsedDate.getFullYear();
+    }
+
+    const match = String(dateValue).match(/\d{4}/);
+    return match ? Number(match[0]) : null;
+  }
+
+  /**
+   * Formats a year range for display while avoiding invalid date output.
+   * @param {string | number | Date} start
+   * @param {string | number | Date} end
+   * @returns {string}
+   */
+  formatYearRange(start, end) {
+    const startYear = this.extractYear(start);
+    const endYear = this.extractYear(end);
+
+    if (startYear && endYear) {
+      return `${startYear} - ${endYear}`;
+    }
+    if (startYear || endYear) {
+      return String(startYear || endYear);
+    }
+    return translate("unknown");
+  }
+
+  /**
+   * Returns a sorted copy of fee definitions with the most recent year first.
+   * @returns {Array}
+   */
+  getSortedFeeDefinitions() {
+    return [...this.feeDefinitions].sort((a, b) => {
+      const bYear = this.extractYear(b.year_end || b.year_start) || -Infinity;
+      const aYear = this.extractYear(a.year_end || a.year_start) || -Infinity;
+      return bYear - aYear;
+    });
+  }
+
   render() {
     const content = `
       <section class="finance-page">
@@ -132,9 +180,11 @@ export class Finance {
       return `<p class="finance-helper">${translate("finance_admin_only")}</p>`;
     }
 
-    const options = this.feeDefinitions
+    const sortedDefinitions = this.getSortedFeeDefinitions();
+
+    const options = sortedDefinitions
       .map((def) => {
-        const yearRange = `${formatDateShort(def.year_start)} → ${formatDateShort(def.year_end)}`;
+        const yearRange = this.formatYearRange(def.year_start, def.year_end);
         return `
           <article class="finance-card" data-definition-id="${def.id}">
             <div class="finance-card__header">
@@ -218,10 +268,10 @@ export class Finance {
             <label for="fee_definition">${translate("select_fee_definition")}</label>
             <select id="fee_definition" name="fee_definition_id" required>
               <option value="">${translate("select_fee_definition")}</option>
-              ${this.feeDefinitions
+              ${this.getSortedFeeDefinitions()
                 .map(
                   (def) => `
-                    <option value="${def.id}">${formatDateShort(def.year_start)} → ${formatDateShort(def.year_end)}</option>
+                    <option value="${def.id}">${this.formatYearRange(def.year_start, def.year_end)}</option>
                   `
                 )
                 .join("")}

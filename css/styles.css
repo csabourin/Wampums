@@ -4199,10 +4199,16 @@ details p {
 }
 
 .finance-tabs {
-  display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .finance-tabs {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
 }
 
 .finance-tab {
