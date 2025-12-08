@@ -225,6 +225,7 @@ CREATE TABLE public.participant_groups (
   organization_id integer NOT NULL,
   is_leader boolean NOT NULL DEFAULT false,
   is_second_leader boolean NOT NULL DEFAULT false,
+  roles text,
   CONSTRAINT participant_groups_pkey PRIMARY KEY (participant_id, organization_id),
   CONSTRAINT participant_groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT participant_groups_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
