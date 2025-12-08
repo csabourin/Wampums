@@ -223,6 +223,17 @@ export const API = {
     },
 
     /**
+     * PATCH request
+     */
+    async patch(endpoint, body = {}, params = {}) {
+        return makeApiRequest(endpoint, {
+            method: 'PATCH',
+            body,
+            params
+        });
+    },
+
+    /**
      * DELETE request
      */
     async delete(endpoint, params = {}) {
