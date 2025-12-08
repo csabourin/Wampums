@@ -109,14 +109,13 @@ module.exports = (pool, logger) => {
 
       // Auto-create participant fees for all active participants in this organization
       await client.query(
-        `INSERT INTO participant_fees (participant_id, organization_id, fee_definition_id, total_registration_fee, total_membership_fee, total_amount, status, notes)
+        `INSERT INTO participant_fees (participant_id, organization_id, fee_definition_id, total_registration_fee, total_membership_fee, status, notes)
          SELECT
            po.participant_id,
            po.organization_id,
            $1,
            $2,
            $3,
-           $2::numeric + $3::numeric,
            'unpaid',
            ''
          FROM participant_organizations po
