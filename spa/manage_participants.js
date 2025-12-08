@@ -253,11 +253,14 @@ export class ManageParticipants {
                   roleSelect.value = "none";
                   rolesInput.value = "";
               }
-            await clearGroupRelatedCaches();
-            await this.fetchData();
-            this.render();
-            this.attachEventListeners();
             this.app.showMessage(translate("group_updated_successfully"), "success");
+            // Wait for DB transaction to complete before refreshing
+            setTimeout(async () => {
+              await clearGroupRelatedCaches();
+              await this.fetchData();
+              this.render();
+              this.attachEventListeners();
+            }, 500);
           } else {
               throw new Error(result.message || translate("error_updating_group"));
           }
@@ -303,11 +306,14 @@ export class ManageParticipants {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
       if (result.success) {
-        await clearGroupRelatedCaches();
-        await this.fetchData();
-        this.render();
-        this.attachEventListeners();
         this.app.showMessage(translate("role_updated_successfully"), "success");
+        // Wait for DB transaction to complete before refreshing
+        setTimeout(async () => {
+          await clearGroupRelatedCaches();
+          await this.fetchData();
+          this.render();
+          this.attachEventListeners();
+        }, 500);
       } else {
         this.app.showMessage(result.message || translate("error_updating_role"), "error");
       }
@@ -350,17 +356,20 @@ export class ManageParticipants {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
       if (result.success) {
-        await clearGroupRelatedCaches();
-        await this.fetchData();
-        this.render();
-        this.attachEventListeners();
         this.app.showMessage(translate("role_updated_successfully"), "success");
+        // Wait for DB transaction to complete before refreshing
+        setTimeout(async () => {
+          await clearGroupRelatedCaches();
+          await this.fetchData();
+          this.render();
+          this.attachEventListeners();
+        }, 500);
       } else {
         this.app.showMessage(result.message || translate("error_updating_role"), "error");
       }
     } catch (error) {
       debugError("Error updating participant roles:", error);
-      this.app.showMessage(translate("error_updating_role"), "error");
+      this.app.showMessage(error.message || translate("error_updating_role"), "error");
     }
   }
 
