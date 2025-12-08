@@ -626,6 +626,9 @@ input[type="radio"] {
   border-radius: var(--radius-md);
   transition: all var(--transition-base);
   box-shadow: var(--shadow-sm);
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
 }
 
 .dashboard-button:hover {
@@ -635,6 +638,35 @@ input[type="radio"] {
   text-decoration: none;
 }
 
+/* Dashboard Button Variants */
+.dashboard-button--primary {
+  background-color: var(--color-primary);
+}
+
+.dashboard-button--primary:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.dashboard-button--secondary {
+  background-color: var(--color-secondary);
+  color: var(--color-text);
+  border: 2px solid var(--color-border);
+}
+
+.dashboard-button--secondary:hover {
+  background-color: var(--color-border-light);
+  border-color: var(--color-primary);
+}
+
+.dashboard-button--logout {
+  background-color: var(--color-error);
+}
+
+.dashboard-button--logout:hover {
+  background-color: var(--color-error-light);
+}
+
+/* Legacy logout button for backwards compatibility */
 .logout-button {
   background-color: var(--color-error);
 }
@@ -828,16 +860,170 @@ tr:hover {
    ---------------------------------------------------------------------------- */
 
 .participant-item,
+/* ----------------------------------------------------------------------------
+   5.8 PARTICIPANT CARDS - Mobile-First Design
+   ---------------------------------------------------------------------------- */
+
 .participant-card {
-  background-color: var(--color-secondary);
+  background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-lg);
-  margin-block-end: var(--space-md);
+  box-shadow: var(--shadow-base);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
   word-break: break-word;
   overflow-wrap: break-word;
+  transition: box-shadow var(--transition-fast);
 }
 
+.participant-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Participant Card Header */
+.participant-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+  padding-block-end: var(--space-sm);
+  border-block-end: 2px solid var(--color-border-light);
+}
+
+.participant-card__name {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+  margin: 0;
+  color: var(--color-primary);
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.participant-card__edit-btn {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-primary);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.participant-card__edit-btn:hover {
+  background-color: var(--color-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Statement Button */
+.participant-card__statement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  background: linear-gradient(135deg, var(--color-warning) 0%, var(--color-warning-light) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: start;
+  box-shadow: var(--shadow-sm);
+}
+
+.participant-card__statement:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.participant-card__statement-label {
+  font-size: var(--font-size-sm);
+  opacity: 0.95;
+}
+
+.participant-card__statement-amount {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Forms Section */
+.participant-card__forms {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+}
+
+/* Form Buttons */
+.form-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.form-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+.form-btn__icon {
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+}
+
+.form-btn__label {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+/* Form Button States */
+.form-btn--completed {
+  background-color: var(--color-success-light);
+  border-color: var(--color-success);
+  color: white;
+}
+
+.form-btn--completed:hover {
+  background-color: var(--color-success);
+}
+
+.form-btn--incomplete {
+  background-color: var(--color-secondary);
+  border-color: var(--color-border);
+}
+
+.form-btn--incomplete:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-light);
+}
+
+.form-btn--badge {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  border-color: #ffd700;
+  color: #000;
+  font-weight: var(--font-weight-semibold);
+}
+
+.form-btn--badge:hover {
+  background: linear-gradient(135deg, #ffed4e 0%, #ffd700 100%);
+}
+
+/* Legacy participant styles for backwards compatibility */
 .participant-name {
   font-weight: var(--font-weight-bold);
   margin-block-end: var(--space-sm);
@@ -1743,6 +1929,15 @@ tr:hover {
   .status-buttons {
     grid-template-columns: repeat(4, 1fr);
   }
+
+  /* Parent Dashboard - Tablet */
+  .parent-dashboard__actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .participant-card__forms {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* ============================================================================
@@ -1777,6 +1972,31 @@ tr:hover {
   .status-buttons {
     padding: var(--space-xl);
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  /* Parent Dashboard - Tablet & Desktop */
+  .parent-dashboard {
+    max-inline-size: var(--container-md);
+    padding: var(--space-xl);
+  }
+
+  .parent-dashboard__actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .participant-card__forms {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .parent-dashboard__footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .parent-dashboard__footer-actions {
+    flex-direction: row;
+    flex: 1;
   }
 
   /* Desktop-specific card layouts */
@@ -1821,10 +2041,25 @@ tr:hover {
   }
 
   /* Desktop content constraints */
-  .attendance-container,
-  .parent-dashboard {
+  .attendance-container {
     max-inline-size: var(--container-sm);
     margin-inline: auto;
+  }
+
+  /* Parent Dashboard - Large Desktop */
+  .parent-dashboard {
+    max-inline-size: var(--container-lg);
+    margin-inline: auto;
+  }
+
+  .participant-card__forms {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .participant-card__statement {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
   }
 
   /* Fixed bottom bar can be more spacious */
@@ -1930,12 +2165,107 @@ tr:hover {
    11.1 PARENT DASHBOARD & ITEMS
    ---------------------------------------------------------------------------- */
 
+/* ----------------------------------------------------------------------------
+   11.1 PARENT DASHBOARD - Mobile-First Design
+   ---------------------------------------------------------------------------- */
+
 .parent-dashboard {
-  max-inline-size: var(--container-sm);
+  max-inline-size: 100%;
   margin-inline: auto;
-  padding: var(--space-lg);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
 }
 
+/* Header Section */
+.parent-dashboard__header {
+  text-align: center;
+  padding: var(--space-lg) var(--space-md);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  color: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.parent-dashboard__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.parent-dashboard__subtitle {
+  font-size: var(--font-size-base);
+  margin: 0;
+  opacity: 0.95;
+  font-weight: var(--font-weight-medium);
+}
+
+.back-link {
+  display: inline-block;
+  margin-block-start: var(--space-md);
+  color: white;
+  text-decoration: underline;
+  font-size: var(--font-size-sm);
+}
+
+.back-link:hover {
+  opacity: 0.8;
+}
+
+/* Main Actions Section */
+.parent-dashboard__actions {
+  padding: 0;
+}
+
+.parent-dashboard__actions-grid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: 1fr;
+}
+
+/* Participants Section */
+.parent-dashboard__participants {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.parent-dashboard__empty {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* Footer Section */
+.parent-dashboard__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-block-start: var(--space-lg);
+}
+
+.parent-dashboard__footer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Visually hidden but accessible to screen readers */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Legacy parent-item for backwards compatibility */
 .parent-item {
   background-color: var(--color-surface);
   border-radius: var(--radius-md);
