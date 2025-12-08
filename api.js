@@ -641,6 +641,11 @@ logger.info('   - GET /api/participants-with-documents');
 // CORE APPLICATION ROUTES
 // ============================================
 
+// Health check endpoint for deployment (responds immediately, no auth required)
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Serve index.html for root route
 app.get('/', (req, res) => {
   const indexPath = isProduction
