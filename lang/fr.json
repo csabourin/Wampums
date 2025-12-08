@@ -1006,6 +1006,7 @@
   "select_participant": "Sélectionner un participant",
   "select_membership_fee": "Sélectionner une cotisation",
   "select_fee_definition": "Sélectionner une définition de frais",
+  "participant_fees": "Frais des participants",
   "no_participant_fees": "Aucun frais assigné pour l'instant.",
   "view_payments": "Paiements",
   "record_payments": "Enregistrer des paiements",

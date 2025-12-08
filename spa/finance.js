@@ -759,6 +759,7 @@ export class Finance {
       } else {
         await createFeeDefinition(payload);
       }
+      await clearFinanceRelatedCaches();
       await this.loadCoreData();
       this.render();
       this.attachEventListeners();

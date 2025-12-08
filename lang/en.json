@@ -1006,6 +1006,7 @@
   "select_participant": "Select participant",
   "select_membership_fee": "Select a membership fee",
   "select_fee_definition": "Select fee definition",
+  "participant_fees": "Participant Fees",
   "no_participant_fees": "No participant fees yet.",
   "view_payments": "Payments",
   "record_payments": "Record payments",
