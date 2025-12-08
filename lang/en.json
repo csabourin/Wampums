@@ -949,6 +949,8 @@
     "risques_inherents_activites_texte": "<p>By signing this document, I acknowledge having been informed of the inherent risks of scouting and its activities, both current and future, regardless of the level of supervision or my ability and experience. Furthermore, there are no factors or conditions I should disclose to the organizers that would make my participation in scouting activities dangerous. I also acknowledge that it is my duty to follow the rules, instructions, and procedures applicable to the activities in which I participate.</p>",
     "role": "Role",
     "role_updated_successfully": "Role updated successfully",
+    "roles": "Roles",
+    "additional_roles": "Additional Roles",
     "s": "s",
     "salons": "Shows",
     "salons_label": "Exhibitions",
