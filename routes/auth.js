@@ -284,11 +284,12 @@ module.exports = (pool, logger) => {
         const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
         // Insert user
+        // Parent role users are auto-verified, animation role requires admin approval
         const result = await client.query(
           `INSERT INTO users (email, password, full_name, is_verified)
-           VALUES ($1, $2, $3, FALSE)
+           VALUES ($1, $2, $3, $4)
            RETURNING id, email, full_name, is_verified`,
-          [normalizedEmail, hashedPassword, full_name]
+          [normalizedEmail, hashedPassword, full_name, role === 'parent']
         );
 
         const userId = result.rows[0].id;
@@ -371,11 +372,12 @@ module.exports = (pool, logger) => {
         const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
         // Insert user
+        // Parent role users are auto-verified, animation role requires admin approval
         const result = await client.query(
           `INSERT INTO users (email, password, full_name, is_verified)
-           VALUES ($1, $2, $3, FALSE)
+           VALUES ($1, $2, $3, $4)
            RETURNING id, email, full_name, is_verified`,
-          [normalizedEmail, hashedPassword, full_name]
+          [normalizedEmail, hashedPassword, full_name, role === 'parent']
         );
 
         const userId = result.rows[0].id;
