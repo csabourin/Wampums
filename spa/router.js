@@ -189,6 +189,13 @@ export class Router {
         case "parentDashboard":
           await this.loadParentDashboard();
           break;
+        case "parentFinance":
+          if (this.app.userRole !== "parent") {
+            this.loadNotAuthorizedPage();
+          } else {
+            await this.loadParentFinance();
+          }
+          break;
         case "login":
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
@@ -366,6 +373,12 @@ export class Router {
     const ParentDashboard = await this.loadModule('ParentDashboard');
     const parentDashboard = new ParentDashboard(this.app);
     await parentDashboard.init();
+  }
+
+  async loadParentFinance() {
+    const ParentFinance = await this.loadModule('ParentFinance');
+    const parentFinance = new ParentFinance(this.app);
+    await parentFinance.init();
   }
 
   async loadManagePoints() {

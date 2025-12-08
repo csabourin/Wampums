@@ -3164,6 +3164,11 @@ details p {
   z-index: var(--z-modal);
 }
 
+.modal-screen .modal {
+  display: block;
+  position: relative;
+}
+
 .statement-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
