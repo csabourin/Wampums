@@ -1,7 +1,7 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { getReunionDates, getReunionPreparation } from "./ajax-functions.js";
-import { formatDate, isToday } from "./utils/DateUtils.js";
+import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
 
 export class UpcomingMeeting {
                 constructor(app) {
@@ -14,7 +14,7 @@ export class UpcomingMeeting {
                 async init() {
                                 try {
                                                 await this.fetchMeetingDates();
-                                                this.closestMeeting = this.getClosestMeeting();
+                                                this.closestMeeting = await this.getClosestMeeting();
                                                 if (this.closestMeeting) {
                                                                 await this.fetchMeetingDetails(this.closestMeeting);
                                                 }
@@ -35,30 +35,72 @@ export class UpcomingMeeting {
                                 }
                 }
 
-                getClosestMeeting() {
+                async getClosestMeeting() {
+                                const now = new Date();
                                 const today = new Date();
                                 today.setHours(0, 0, 0, 0);
 
-                                // Convert and filter meetings
+                                // Convert and filter meetings to get today and future meetings
                                 const futureMeetings = this.meetingDates
                                                 .map(dateStr => {
                                                                 // Handle both ISO format and plain date strings
-                                                                const meetingDate = new Date(dateStr);
-                                                                meetingDate.setHours(0, 0, 0, 0);
-                                                                // Get plain date string in YYYY-MM-DD format for display
                                                                 const plainDateStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+                                                                // Use parseDate to avoid timezone issues
+                                                                const meetingDate = parseDate(plainDateStr);
                                                                 return {
                                                                                 date: meetingDate,
                                                                                 dateStr: plainDateStr
                                                                 };
                                                 })
                                                 .filter(meeting => {
-                                                                // Include today's meetings and future meetings
-                                                                return isToday(meeting.dateStr) || meeting.date > today;
+                                                                if (!meeting.date) return false;
+                                                                // Include today's and future meetings
+                                                                return meeting.date >= today;
                                                 })
                                                 .sort((a, b) => a.date - b.date);
 
-                                return futureMeetings.length > 0 ? futureMeetings[0].dateStr : null;
+                                if (futureMeetings.length === 0) return null;
+
+                                const firstMeeting = futureMeetings[0];
+
+                                // If the first meeting is today, check if it has ended
+                                if (isToday(firstMeeting.dateStr)) {
+                                                const hasEnded = await this.hasMeetingEnded(firstMeeting.dateStr, now);
+                                                if (hasEnded) {
+                                                                // Meeting has ended, return the next one if available
+                                                                return futureMeetings.length > 1 ? futureMeetings[1].dateStr : null;
+                                                }
+                                }
+
+                                return firstMeeting.dateStr;
+                }
+
+                async hasMeetingEnded(dateStr, currentTime) {
+                                try {
+                                                // Fetch meeting details to get the actual end time
+                                                const response = await getReunionPreparation(dateStr);
+                                                if (!response.success || !response.preparation) return false;
+
+                                                let activities = response.preparation.activities;
+                                                if (typeof activities === 'string') {
+                                                                activities = JSON.parse(activities);
+                                                }
+
+                                                const endTime = this.calculateMeetingEndTime(activities);
+                                                if (!endTime) return false;
+
+                                                // Compare current time with meeting end time
+                                                const currentHours = currentTime.getHours();
+                                                const currentMinutes = currentTime.getMinutes();
+                                                const currentTotalMinutes = currentHours * 60 + currentMinutes;
+                                                const endTotalMinutes = endTime.hours * 60 + endTime.minutes;
+
+                                                return currentTotalMinutes >= endTotalMinutes;
+                                } catch (error) {
+                                                debugError("Error checking if meeting has ended:", error);
+                                                // If we can't determine, assume it hasn't ended yet
+                                                return false;
+                                }
                 }
 
                 async fetchMeetingDetails(date) {
@@ -70,12 +112,44 @@ export class UpcomingMeeting {
                                                                 if (typeof this.meetingDetails.activities === 'string') {
                                                                         this.meetingDetails.activities = JSON.parse(this.meetingDetails.activities);
                                                                 }
+                                                                // Calculate meeting end time from activities
+                                                                this.meetingDetails.endTime = this.calculateMeetingEndTime(this.meetingDetails.activities);
                                                 } else {
                                                                 this.meetingDetails = null;
                                                 }
                                 } catch (error) {
                                                 debugError("Error fetching meeting details:", error);
                                                 this.meetingDetails = null;
+                                }
+                }
+
+                calculateMeetingEndTime(activities) {
+                                if (!activities || activities.length === 0) return null;
+
+                                // Get the last activity
+                                const lastActivity = activities[activities.length - 1];
+                                if (!lastActivity.time || !lastActivity.duration) return null;
+
+                                try {
+                                                // Parse time (format: "HH:MM")
+                                                const [hours, minutes] = lastActivity.time.split(':').map(Number);
+
+                                                // Parse duration (format: "HH:MM")
+                                                const [durationHours, durationMinutes] = lastActivity.duration.split(':').map(Number);
+
+                                                // Calculate end time in minutes
+                                                const startMinutes = hours * 60 + minutes;
+                                                const durationTotalMinutes = durationHours * 60 + durationMinutes;
+                                                const endMinutes = startMinutes + durationTotalMinutes;
+
+                                                // Convert back to hours and minutes
+                                                const endHours = Math.floor(endMinutes / 60);
+                                                const endMins = endMinutes % 60;
+
+                                                return { hours: endHours, minutes: endMins };
+                                } catch (error) {
+                                                debugError("Error calculating meeting end time:", error);
+                                                return null;
                                 }
                 }
 
