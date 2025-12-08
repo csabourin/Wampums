@@ -3795,6 +3795,7 @@ details p {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  justify-content: center
 }
 
 .sort-btn {
