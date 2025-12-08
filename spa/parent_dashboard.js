@@ -198,41 +198,56 @@ export class ParentDashboard {
         render() {
                  const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
                 const notificationButton = this.shouldShowNotificationButton()
-                        ? `<li>
-                                        <button id="enableNotifications" class="dashboard-button">
+                        ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
                                                 ${translate("enable_notifications")}
-                                        </button>
-                                </li>`
+                                        </button>`
                         : ''; // Only render the button if needed
 
-                const installButton = `<li>
-                                        <button id="installPwaButton" style="display: none;" class="dashboard-button">
+                const installButton = `<button id="installPwaButton" style="display: none;" class="dashboard-button dashboard-button--secondary">
                                                 ${translate("install_app")}
-                                        </button>
-                                </li>`; // Initially hidden
+                                        </button>`; // Initially hidden
 
                 // Check if the user role is admin or animation
                 const backLink = this.app.userRole === "admin" || this.app.userRole === "animation"
-                        ? `<a href="/dashboard">${translate("back_to_dashboard")}</a>`
+                        ? `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
                         : ``;
 
                 // Dynamically replace the title with the organization name
                 const userName = this.app.userFullName || localStorage.getItem('userFullName') || '';
                 const content = `
                         <div class="parent-dashboard">
-                                <h1>${translate("bienvenue")}${userName ? ' ' + userName : ''}</h1>
-                                <h2>${organizationName}</h2>
-                                ${backLink}
-                                <nav>
-                                        <ul class="dashboard-menu">
-                                                <li><a href="/formulaire-inscription" class="dashboard-button">${translate("ajouter_participant")}</a></li>
-                                                <li><a href="/parent-finance" class="dashboard-button">${translate("my_finances")}</a></li>
-                                                ${this.renderParticipantsList()}
+                                <header class="parent-dashboard__header">
+                                        <h1 class="parent-dashboard__title">${translate("bienvenue")}${userName ? ' ' + userName : ''}</h1>
+                                        <p class="parent-dashboard__subtitle">${organizationName}</p>
+                                        ${backLink}
+                                </header>
+
+                                <section class="parent-dashboard__actions">
+                                        <h2 class="visually-hidden">${translate("main_actions")}</h2>
+                                        <div class="parent-dashboard__actions-grid">
+                                                <a href="/formulaire-inscription" class="dashboard-button dashboard-button--primary">
+                                                        ${translate("ajouter_participant")}
+                                                </a>
+                                                <a href="/parent-finance" class="dashboard-button dashboard-button--primary">
+                                                        ${translate("my_finances")}
+                                                </a>
+                                        </div>
+                                </section>
+
+                                <section class="parent-dashboard__participants">
+                                        <h2 class="visually-hidden">${translate("participants_list")}</h2>
+                                        ${this.renderParticipantsList()}
+                                </section>
+
+                                <footer class="parent-dashboard__footer">
+                                        <div class="parent-dashboard__footer-actions">
                                                 ${notificationButton}
                                                 ${installButton}
-                                                <li><a href="/logout" class="dashboard-button logout-button">${translate("deconnexion")}</a></li>
-                                        </ul>
-                                </nav>
+                                        </div>
+                                        <a href="/logout" class="dashboard-button dashboard-button--logout">
+                                                ${translate("deconnexion")}
+                                        </a>
+                                </footer>
                         </div>
                 `;
                 document.getElementById("app").innerHTML = content;
@@ -265,8 +280,11 @@ export class ParentDashboard {
                 }
 
                 return `
-                        <button type="button" class="dashboard-button statement-button" data-participant-id="${participant.id}">
-                                ${translate("view_statement")} · ${translate("amount_due")}: ${this.formatCurrency(outstanding)}
+                        <button type="button" class="participant-card__statement" data-participant-id="${participant.id}">
+                                <span class="participant-card__statement-label">${translate("view_statement")}</span>
+                                <span class="participant-card__statement-amount">
+                                        ${translate("amount_due")}: ${this.formatCurrency(outstanding)}
+                                </span>
                         </button>
                 `;
         }
@@ -281,7 +299,7 @@ export class ParentDashboard {
 
         renderParticipantsList() {
                 if (!Array.isArray(this.participants) || this.participants.length === 0) {
-                        return `<p>${translate("no_participants")}</p>`;
+                        return `<p class="parent-dashboard__empty">${translate("no_participants")}</p>`;
                 }
 
                 return this.participants.map(participant => {
@@ -289,14 +307,18 @@ export class ParentDashboard {
                         const statementLink = this.renderStatementLink(participant);
 
                         return `
-                        <div class="participant-card">
-                                <h3>${participantName}</h3>
-                                <a href="/formulaire-inscription/${participant.id}" class="dashboard-button">${translate("modifier")}</a>
-                                <div class="participant-actions">
-                                ${this.renderFormButtons(participant)}
-                                </div>
+                        <article class="participant-card">
+                                <header class="participant-card__header">
+                                        <h3 class="participant-card__name">${participantName}</h3>
+                                        <a href="/formulaire-inscription/${participant.id}" class="participant-card__edit-btn">
+                                                ${translate("modifier")}
+                                        </a>
+                                </header>
                                 ${statementLink}
-                        </div>
+                                <div class="participant-card__forms">
+                                        ${this.renderFormButtons(participant)}
+                                </div>
+                        </article>
                 `;
                 }).join("");
         }
@@ -315,17 +337,20 @@ renderFormButtons(participant) {
         .map(formType => {
             const formLabel = translate(formType);
             const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
-            const status = isCompleted ? "✅" : "❌";
-            
+            const statusClass = isCompleted ? "form-btn--completed" : "form-btn--incomplete";
+            const statusIcon = isCompleted ? "✅" : "❌";
+
             return `
-                <a href="/dynamic-form/${formType}/${participant.id}">
-                    ${status} ${formLabel}
+                <a href="/dynamic-form/${formType}/${participant.id}" class="form-btn ${statusClass}">
+                    <span class="form-btn__icon">${statusIcon}</span>
+                    <span class="form-btn__label">${formLabel}</span>
                 </a>
             `;
         })
                         .join("") + `
-                                <a href="/badge-form/${participant.id}">
-                                        ${translate('manage_badge_progress')}
+                                <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
+                                        <span class="form-btn__icon">🏅</span>
+                                        <span class="form-btn__label">${translate('manage_badge_progress')}</span>
                                 </a>
                         `;
 }
@@ -383,7 +408,7 @@ renderFormButtons(participant) {
         }
 
         bindStatementHandlers() {
-                const statementButtons = document.querySelectorAll('.statement-button');
+                const statementButtons = document.querySelectorAll('.participant-card__statement');
 
                 statementButtons.forEach((button) => {
                         button.addEventListener('click', async (event) => {
