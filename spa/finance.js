@@ -259,31 +259,8 @@ export class Finance {
 
   renderMembershipsSection() {
     const defaultDefinitionId = this.getDefaultFeeDefinitionId();
-    const participantFeeOptions = this.participantFees
-      .map(
-        (fee) => `
-          <option value="${fee.id}">${escapeHTML(fee.first_name || "")} ${escapeHTML(fee.last_name || "")} • ${formatDateShort(fee.year_start)} → ${formatDateShort(fee.year_end)}</option>
-        `
-      )
-      .join("");
     return `
       <div class="finance-grid">
-        <section class="finance-card finance-card--highlight">
-          <h2>${translate("installment_overview_title")}</h2>
-          <p class="finance-helper">${translate("installment_overview_description")}</p>
-          <form id="installment-shortcut" class="finance-form" novalidate>
-            <label for="installment_fee_select">${translate("select_membership_fee")}</label>
-            <select id="installment_fee_select" name="installment_fee_select">
-              <option value="">${translate("select_membership_fee")}</option>
-              ${participantFeeOptions}
-            </select>
-            <div class="finance-actions">
-              <button type="button" class="ghost-button" id="open-plan-shortcut">${translate("manage_installments")}</button>
-              <button type="button" class="primary-button" id="open-payment-shortcut">${translate("record_payments")}</button>
-            </div>
-            <p class="finance-helper">${translate("installment_shortcut_help")}</p>
-          </form>
-        </section>
         <section class="finance-card">
           <h2>${translate("assign_membership_fee")}</h2>
           <form id="participant-fee-form" class="finance-form" novalidate>
