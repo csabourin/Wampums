@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Organization not found</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            font-family: "Inter", system-ui, -apple-system, sans-serif;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0c2340, #123b6b);
+            color: #f7f9fb;
+            padding: 1.5rem;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 16px;
+            padding: 1.75rem;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 14px 45px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(6px);
+        }
+        h1 {
+            font-size: 1.6rem;
+            margin: 0 0 0.5rem;
+            letter-spacing: -0.02em;
+        }
+        p {
+            margin: 0.25rem 0 1rem;
+            line-height: 1.5;
+            color: #e2e8f0;
+        }
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        a.button, button.button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.9rem 1rem;
+            background: #fbbf24;
+            color: #0c2340;
+            font-weight: 700;
+            border-radius: 12px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: transform 120ms ease, box-shadow 120ms ease;
+            box-shadow: 0 10px 30px rgba(251, 191, 36, 0.35);
+        }
+        a.button:focus-visible, button.button:focus-visible {
+            outline: 3px solid #fde68a;
+            outline-offset: 3px;
+        }
+        a.button:hover, button.button:hover {
+            transform: translateY(-1px);
+        }
+        .secondary {
+            background: transparent;
+            color: #f7f9fb;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: none;
+        }
+        footer {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <main class="card" aria-live="polite">
+        <h1 data-i18n="title">Organization not found</h1>
+        <p data-i18n="message">
+            We could not match this site to a Scout organization. Please confirm the link you used or contact your administrator for the correct address.
+        </p>
+        <div class="actions">
+            <a class="button" href="mailto:support@wampums.app?subject=Organization%20support" data-i18n="contact">
+                Contact support
+            </a>
+            <button class="button secondary" type="button" onclick="window.location.reload()" data-i18n="retry">
+                Try again
+            </button>
+        </div>
+        <footer>
+            <span data-i18n="host"></span>
+            <span data-i18n="language"></span>
+        </footer>
+    </main>
+    <script>
+        (function () {
+            const translations = {
+                en: {
+                    title: "Organization not found",
+                    message:
+                        "We could not match this site to a Scout organization. Please confirm the link you used or contact your administrator for the correct address.",
+                    contact: "Contact support",
+                    retry: "Try again",
+                    host: `Host: ${location.hostname}`,
+                    language: "Language: English",
+                },
+                fr: {
+                    title: "Organisation introuvable",
+                    message:
+                        "Nous n'avons pas pu associer ce site à une organisation scoute. Vérifiez le lien utilisé ou contactez votre administrateur pour obtenir l'adresse correcte.",
+                    contact: "Contacter le soutien",
+                    retry: "Réessayer",
+                    host: `Hôte : ${location.hostname}`,
+                    language: "Langue : Français",
+                },
+            };
+
+            const urlLang = new URLSearchParams(location.search).get("lang");
+            const browserLang = (navigator.language || "en").slice(0, 2);
+            const lang = urlLang === "fr" || urlLang === "en" ? urlLang : browserLang === "fr" ? "fr" : "en";
+
+            document.documentElement.lang = lang;
+
+            document.querySelectorAll("[data-i18n]").forEach((el) => {
+                const key = el.getAttribute("data-i18n");
+                const value = translations[lang][key];
+                if (value) {
+                    el.textContent = value;
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

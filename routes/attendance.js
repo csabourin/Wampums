@@ -5,7 +5,7 @@ const { authenticate, authorize, getOrganizationId } = require('../middleware/au
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
-const { verifyJWT, calculateAttendancePoints, getCurrentOrganizationId } = require('../utils/api-helpers');
+const { verifyJWT, calculateAttendancePoints, getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 module.exports = (pool, logger) => {
   /**

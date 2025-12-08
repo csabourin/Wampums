@@ -12,7 +12,7 @@ const router = express.Router();
 const { check } = require('express-validator');
 
 // Import utilities
-const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { checkValidation } = require('../middleware/validation');
 
 /**
@@ -99,6 +99,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error saving subscription:', error);
       res.status(500).json({ error: 'Failed to save subscription' });
     }
@@ -148,6 +151,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching push subscribers:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -275,6 +281,9 @@ module.exports = (pool, logger) => {
 
         res.json({ success: true });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         if (error.code === 'MODULE_NOT_FOUND') {
           logger.warn('web-push not installed. Install with: npm install web-push');
           res.json({ success: false, message: 'Web push not configured. Install web-push package.' });
@@ -283,6 +292,9 @@ module.exports = (pool, logger) => {
         }
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error sending notification:', error);
       res.status(500).json({ error: error.message });
     }

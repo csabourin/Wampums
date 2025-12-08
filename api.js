@@ -14,6 +14,7 @@ const fs = require('fs').promises;
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
 const { success, error: errorResponse } = require('./middleware/response');
+const { respondWithOrganizationFallback, OrganizationNotFoundError } = require('./utils/api-helpers');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1803,6 +1804,18 @@ app.get('/api', [
   } finally {
     client.release();
   }
+});
+
+// ============================================
+// GLOBAL ERROR HANDLER
+// ============================================
+app.use((err, req, res, next) => {
+  if (err instanceof OrganizationNotFoundError) {
+    return respondWithOrganizationFallback(res);
+  }
+
+  logger.error('Unhandled error:', err);
+  return res.status(500).json({ success: false, message: 'internal_server_error' });
 });
 
 // ============================================

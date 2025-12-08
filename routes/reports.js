@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -123,6 +123,9 @@ module.exports = (pool, logger) => {
         unique_emails: uniqueEmails,
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching mailing list:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -219,6 +222,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: healthReport });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching health report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -355,6 +361,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: attendanceReport });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching attendance report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -449,6 +458,9 @@ module.exports = (pool, logger) => {
         required_forms: requiredForms
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching missing documents report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -503,6 +515,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching health contact report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -556,6 +571,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching allergies report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -609,6 +627,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching medication report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -661,6 +682,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching vaccine report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -712,6 +736,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching leave alone report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -763,6 +790,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching media authorization report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -815,6 +845,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching honors report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -871,6 +904,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching points report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -924,6 +960,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching time since registration report:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -1056,6 +1095,9 @@ module.exports = (pool, logger) => {
         }
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching participant progress:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -1127,6 +1169,9 @@ module.exports = (pool, logger) => {
         contacts: result.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching parent contact list:', error);
       res.status(500).json({ success: false, message: error.message });
     }

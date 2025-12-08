@@ -12,7 +12,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 
 // Import utilities
-const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 // Load JWT secret key - fail fast if not configured
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -159,6 +159,9 @@ document.addEventListener("DOMContentLoaded", function() {
 });
       `);
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error generating initial data:', error);
       res.status(500).type('application/javascript').send('console.error("Failed to load initial data");');
     }
@@ -281,6 +284,9 @@ document.addEventListener("DOMContentLoaded", function() {
         }
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching parent dashboard:', error);
       res.status(500).json({ success: false, message: error.message });
     }

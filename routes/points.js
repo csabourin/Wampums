@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities and middleware
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { success, error: errorResponse } = require('../middleware/response');
 
 /**
@@ -68,6 +68,9 @@ module.exports = (pool, logger) => {
         participants: participantsResult.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching points data:', error);
       res.status(500).json({
         success: false,
@@ -249,6 +252,9 @@ module.exports = (pool, logger) => {
     } catch (error) {
       console.error('[update-points] ERROR:', error.message);
       console.error('[update-points] Stack:', error.stack);
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error updating points:', error);
       return errorResponse(res, error.message, 500);
     }
@@ -337,6 +343,9 @@ module.exports = (pool, logger) => {
         res.json({ success: true, data: result.rows, type: 'individuals' });
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching points leaderboard:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -391,6 +400,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching points report:', error);
       res.status(500).json({ success: false, message: error.message });
     }

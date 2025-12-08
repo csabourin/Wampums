@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -150,6 +150,9 @@ module.exports = (pool, logger) => {
         }
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching form submission:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -248,12 +251,18 @@ module.exports = (pool, logger) => {
         console.log(`[form] Form ${form_type} saved for participant ${participant_id}`);
         res.json({ success: true, data: result.rows[0], message: 'Form saved successfully' });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         await client.query('ROLLBACK');
         throw error;
       } finally {
         client.release();
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error saving form submission:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -310,6 +319,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: formatsObject });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching form formats:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -351,6 +363,9 @@ module.exports = (pool, logger) => {
         data: result.rows.map(row => row.form_type)
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching form types:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -412,6 +427,9 @@ module.exports = (pool, logger) => {
         data: JSON.parse(result.rows[0].form_structure)
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching form structure:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -502,6 +520,9 @@ module.exports = (pool, logger) => {
         });
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching form submissions:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -590,6 +611,9 @@ module.exports = (pool, logger) => {
         });
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching form submissions:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -646,6 +670,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows[0] });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching risk acceptance:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -745,6 +772,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows[0] });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error saving risk acceptance:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -897,6 +927,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, message: 'Health form saved successfully' });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       await client.query('ROLLBACK');
       logger.error('Error saving health form:', error);
       res.status(500).json({ success: false, message: 'Error saving health form: ' + error.message });

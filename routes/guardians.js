@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -94,6 +94,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, data: result.rows });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching guardians:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -255,12 +258,18 @@ module.exports = (pool, logger) => {
         console.log(`[guardian] Guardian ${guardianIdToLink} saved for participant ${participant_id}`);
         res.json({ success: true, data: { guardian_id: guardianIdToLink }, message: 'Guardian saved successfully' });
       } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
         await client.query('ROLLBACK');
         throw error;
       } finally {
         client.release();
       }
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error saving guardian:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -339,6 +348,9 @@ module.exports = (pool, logger) => {
       console.log(`[guardian] Guardian ${guardian_id} removed from participant ${participant_id}`);
       res.json({ success: true, message: 'Guardian removed successfully' });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error removing guardian:', error);
       res.status(500).json({ success: false, message: error.message });
     }

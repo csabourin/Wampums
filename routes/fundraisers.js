@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -89,6 +89,9 @@ module.exports = (pool, logger) => {
         fundraisers: result.rows
       });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching fundraisers:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -147,6 +150,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, fundraiser: result.rows[0] });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error fetching fundraiser:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -274,6 +280,9 @@ module.exports = (pool, logger) => {
       }
     } catch (error) {
       logger.error('Error creating fundraiser:', error);
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       res.status(500).json({ success: false, message: error.message });
     }
   });
@@ -358,6 +367,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, fundraiser: updateResult.rows[0] });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error updating fundraiser:', error);
       res.status(500).json({ success: false, message: error.message });
     }
@@ -436,6 +448,9 @@ module.exports = (pool, logger) => {
 
       res.json({ success: true, fundraiser: result.rows[0] });
     } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
       logger.error('Error archiving fundraiser:', error);
       res.status(500).json({ success: false, message: error.message });
     }

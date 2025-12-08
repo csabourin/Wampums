@@ -21,12 +21,62 @@ const logger = winston.createLogger({
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
 
+const path = require('path');
+
+class OrganizationNotFoundError extends Error {
+  constructor(message = 'Organization not found') {
+    super(message);
+    this.name = 'OrganizationNotFoundError';
+  }
+}
+
+/**
+ * Respond with a dedicated fallback experience when no organization is found.
+ * Sends HTML when the client accepts it, otherwise returns a JSON payload with
+ * a pointer to the fallback page so the SPA can redirect gracefully.
+ *
+ * @param {Object} res - Express response object
+ * @returns {Object} Express response
+ */
+function respondWithOrganizationFallback(res) {
+  const fallbackPath = path.join(__dirname, '..', 'organization-not-found.html');
+  const acceptsHtml = (res.req?.headers?.accept || '').includes('text/html');
+
+  if (acceptsHtml) {
+    return res.status(404).sendFile(fallbackPath);
+  }
+
+  return res.status(404).json({
+    success: false,
+    message: 'organization_not_found',
+    fallback: '/organization-not-found.html'
+  });
+}
+
+/**
+ * Handle errors arising from organization resolution and return a fallback page
+ * when appropriate. Returns true when a fallback response was sent.
+ *
+ * @param {Object} res - Express response object
+ * @param {Error} error - Error encountered during organization resolution
+ * @param {Object} loggerInstance - Winston logger instance
+ * @returns {boolean} Whether the response has been handled
+ */
+function handleOrganizationResolutionError(res, error, loggerInstance = logger) {
+  if (error instanceof OrganizationNotFoundError) {
+    loggerInstance?.warn('Organization mapping not found; rendering fallback page');
+    respondWithOrganizationFallback(res);
+    return true;
+  }
+  return false;
+}
+
 /**
  * Get current organization ID from request
  * Tries multiple sources in priority order:
  * 1. x-organization-id header
  * 2. Domain mapping from database
- * 3. Default to organization ID 1
+ * 3. Throws when no organization mapping is available
  *
  * @param {Object} req - Express request object
  * @param {Object} pool - Database pool
@@ -62,8 +112,7 @@ async function getCurrentOrganizationId(req, pool, logger) {
     }
   }
 
-  // Default to organization ID 1 if not found
-  return 1;
+  throw new OrganizationNotFoundError('Organization mapping not found for request');
 }
 
 /**
@@ -286,6 +335,9 @@ function escapeHtml(text) {
 // Export all helper functions
 module.exports = {
   getCurrentOrganizationId,
+  OrganizationNotFoundError,
+  respondWithOrganizationFallback,
+  handleOrganizationResolutionError,
   getUserIdFromToken,
   verifyJWT,
   getPointSystemRules,

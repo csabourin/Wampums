@@ -1,6 +1,7 @@
 // Authentication and Authorization Middleware
 const jwt = require('jsonwebtoken');
 const winston = require('winston');
+const { OrganizationNotFoundError, respondWithOrganizationFallback } = require('../utils/api-helpers');
 
 // Configure logger for auth middleware
 const logger = winston.createLogger({
@@ -135,8 +136,7 @@ exports.getOrganizationId = async (req, pool) => {
     logger.error('Error getting organization ID:', error);
   }
 
-  // Default fallback
-  return 1;
+  throw new OrganizationNotFoundError('Organization mapping not found for request');
 };
 
 /**
@@ -201,6 +201,10 @@ exports.requireOrganizationRole = (allowedRoles = null) => {
 
       next();
     } catch (error) {
+      if (error instanceof OrganizationNotFoundError) {
+        return respondWithOrganizationFallback(res);
+      }
+
       logger.error('Error in requireOrganizationRole middleware:', error);
       return res.status(500).json({
         success: false,
