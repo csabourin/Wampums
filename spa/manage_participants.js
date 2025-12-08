@@ -4,7 +4,8 @@ import {
   updateParticipantGroup,
 } from "./ajax-functions.js";
 import {
-  saveOfflineData
+  saveOfflineData,
+  clearGroupRelatedCaches
 } from "./indexedDB.js";
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
@@ -252,8 +253,11 @@ export class ManageParticipants {
                   roleSelect.value = "none";
                   rolesInput.value = "";
               }
-            await this.fetchData()
-              this.app.showMessage(translate("group_updated_successfully"), "success");
+            await clearGroupRelatedCaches();
+            await this.fetchData();
+            this.render();
+            this.attachEventListeners();
+            this.app.showMessage(translate("group_updated_successfully"), "success");
           } else {
               throw new Error(result.message || translate("error_updating_group"));
           }
@@ -299,7 +303,10 @@ export class ManageParticipants {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
       if (result.success) {
-        await this.fetchData()
+        await clearGroupRelatedCaches();
+        await this.fetchData();
+        this.render();
+        this.attachEventListeners();
         this.app.showMessage(translate("role_updated_successfully"), "success");
       } else {
         this.app.showMessage(result.message || translate("error_updating_role"), "error");
@@ -343,7 +350,10 @@ export class ManageParticipants {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
       if (result.success) {
-        await this.fetchData()
+        await clearGroupRelatedCaches();
+        await this.fetchData();
+        this.render();
+        this.attachEventListeners();
         this.app.showMessage(translate("role_updated_successfully"), "success");
       } else {
         this.app.showMessage(result.message || translate("error_updating_role"), "error");
