@@ -93,14 +93,46 @@ module.exports = (pool, logger) => {
       );
     }
 
-    const insertResult = await pool.query(
-      `INSERT INTO fee_definitions (organization_id, registration_fee, membership_fee, year_start, year_end)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, organization_id, registration_fee, membership_fee, year_start, year_end, created_at`,
-      [organizationId, regValidation.value, membershipValidation.value, year_start, year_end]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    return success(res, insertResult.rows[0], 'Fee definition created', 201);
+      // Create fee definition
+      const insertResult = await client.query(
+        `INSERT INTO fee_definitions (organization_id, registration_fee, membership_fee, year_start, year_end)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, organization_id, registration_fee, membership_fee, year_start, year_end, created_at`,
+        [organizationId, regValidation.value, membershipValidation.value, year_start, year_end]
+      );
+
+      const feeDefinition = insertResult.rows[0];
+
+      // Auto-create participant fees for all active participants in this organization
+      await client.query(
+        `INSERT INTO participant_fees (participant_id, organization_id, fee_definition_id, total_registration_fee, total_membership_fee, total_amount, status, notes)
+         SELECT
+           po.participant_id,
+           po.organization_id,
+           $1,
+           $2,
+           $3,
+           $2 + $3,
+           'unpaid',
+           ''
+         FROM participant_organizations po
+         WHERE po.organization_id = $4
+         ON CONFLICT (participant_id, fee_definition_id, organization_id) DO NOTHING`,
+        [feeDefinition.id, regValidation.value, membershipValidation.value, organizationId]
+      );
+
+      await client.query('COMMIT');
+      return success(res, feeDefinition, 'Fee definition created and assigned to all participants', 201);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   router.put('/v1/finance/fee-definitions/:id', authenticate, asyncHandler(async (req, res) => {
@@ -392,14 +424,38 @@ module.exports = (pool, logger) => {
       return error(res, amountValidation.message || dateValidation.message, 400);
     }
 
-    const insertResult = await pool.query(
-       `INSERT INTO payments (participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number, created_at`,
-      [id, payment_plan_id || null, amountValidation.value, payment_date, method || null, reference_number || null]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    return success(res, insertResult.rows[0], 'Payment recorded', 201);
+      // Insert payment
+      const insertResult = await client.query(
+         `INSERT INTO payments (participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id, participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number, created_at`,
+        [id, payment_plan_id || null, amountValidation.value, payment_date, method || null, reference_number || null]
+      );
+
+      // Auto-calculate and update status
+      await client.query(
+        `UPDATE participant_fees pf
+         SET status = CASE
+           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) >= pf.total_amount THEN 'paid'
+           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) > 0 THEN 'partial'
+           ELSE 'unpaid'
+         END
+         WHERE pf.id = $1`,
+        [id]
+      );
+
+      await client.query('COMMIT');
+      return success(res, insertResult.rows[0], 'Payment recorded', 201);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   router.put('/v1/finance/payments/:paymentId', authenticate, asyncHandler(async (req, res) => {
@@ -436,18 +492,43 @@ module.exports = (pool, logger) => {
       return error(res, 'Payment does not belong to this organization', 403);
     }
 
-    const updated = await pool.query(
-      `UPDATE payments
-       SET amount = $1,
-           payment_date = $2,
-           method = $3,
-           reference_number = $4
-       WHERE id = $5
-       RETURNING id, participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number, created_at`,
-      [amountValidation.value, payment_date, method || null, reference_number || null, paymentId]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    return success(res, updated.rows[0], 'Payment updated');
+      // Update payment
+      const updated = await client.query(
+        `UPDATE payments
+         SET amount = $1,
+             payment_date = $2,
+             method = $3,
+             reference_number = $4
+         WHERE id = $5
+         RETURNING id, participant_fee_id, payment_plan_id, amount, payment_date, method, reference_number, created_at`,
+        [amountValidation.value, payment_date, method || null, reference_number || null, paymentId]
+      );
+
+      // Auto-calculate and update status
+      const feeId = updated.rows[0].participant_fee_id;
+      await client.query(
+        `UPDATE participant_fees pf
+         SET status = CASE
+           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) >= pf.total_amount THEN 'paid'
+           WHEN COALESCE((SELECT SUM(amount) FROM payments WHERE participant_fee_id = pf.id), 0) > 0 THEN 'partial'
+           ELSE 'unpaid'
+         END
+         WHERE pf.id = $1`,
+        [feeId]
+      );
+
+      await client.query('COMMIT');
+      return success(res, updated.rows[0], 'Payment updated');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   router.get('/v1/finance/participant-fees/:id/payment-plans', authenticate, asyncHandler(async (req, res) => {
