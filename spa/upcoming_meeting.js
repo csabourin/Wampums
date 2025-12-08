@@ -36,6 +36,7 @@ export class UpcomingMeeting {
                 }
 
                 getClosestMeeting() {
+                                const now = new Date();
                                 const today = new Date();
                                 today.setHours(0, 0, 0, 0);
 
@@ -52,8 +53,17 @@ export class UpcomingMeeting {
                                                                 };
                                                 })
                                                 .filter(meeting => {
-                                                                // Include today's meetings and future meetings
-                                                                return meeting.date && (isToday(meeting.dateStr) || meeting.date >= today);
+                                                                if (!meeting.date) return false;
+
+                                                                // If meeting is in the future, include it
+                                                                if (meeting.date > today) return true;
+
+                                                                // If meeting is today, only include if before 8 PM (meeting hasn't ended yet)
+                                                                if (isToday(meeting.dateStr)) {
+                                                                                return now.getHours() < 20;
+                                                                }
+
+                                                                return false;
                                                 })
                                                 .sort((a, b) => a.date - b.date);
 
