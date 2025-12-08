@@ -127,6 +127,33 @@ export class Finance {
     });
   }
 
+  /**
+   * Returns the active fee definition id based on today's date.
+   * @returns {number | null}
+   */
+  getDefaultFeeDefinitionId() {
+    const today = new Date(getTodayISO());
+    const active = this.feeDefinitions.find((def) => {
+      const start = new Date(def.year_start);
+      const end = new Date(def.year_end);
+      return start <= today && today <= end;
+    });
+    return active ? Number(active.id) : null;
+  }
+
+  /**
+   * Populate the fee totals using a selected definition.
+   * @param {string | number} definitionId
+   */
+  populateFeesFromDefinition(definitionId) {
+    const form = document.getElementById("participant-fee-form");
+    if (!form) return;
+    const definition = this.feeDefinitions.find((item) => String(item.id) === String(definitionId));
+    if (!definition) return;
+    form.total_registration_fee.value = definition.registration_fee ?? "";
+    form.total_membership_fee.value = definition.membership_fee ?? "";
+  }
+
   render() {
     const content = `
       <section class="finance-page">
@@ -231,26 +258,9 @@ export class Finance {
   }
 
   renderMembershipsSection() {
-    const totals = this.financeSummary?.totals || {};
+    const defaultDefinitionId = this.getDefaultFeeDefinitionId();
     return `
       <div class="finance-grid">
-        <section class="finance-card finance-card--highlight">
-          <h2>${translate("finance_snapshot")}</h2>
-          <div class="finance-stats">
-            <div>
-              <p class="finance-stat__label">${translate("total_billed")}</p>
-              <p class="finance-stat__value">${this.formatCurrency(totals.total_billed)}</p>
-            </div>
-            <div>
-              <p class="finance-stat__label">${translate("total_paid")}</p>
-              <p class="finance-stat__value">${this.formatCurrency(totals.total_paid)}</p>
-            </div>
-            <div>
-              <p class="finance-stat__label">${translate("outstanding_balance")}</p>
-              <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(totals.total_outstanding)}</p>
-            </div>
-          </div>
-        </section>
         <section class="finance-card">
           <h2>${translate("assign_membership_fee")}</h2>
           <form id="participant-fee-form" class="finance-form" novalidate>
@@ -271,7 +281,7 @@ export class Finance {
               ${this.getSortedFeeDefinitions()
                 .map(
                   (def) => `
-                    <option value="${def.id}">${this.formatYearRange(def.year_start, def.year_end)}</option>
+                    <option value="${def.id}" ${defaultDefinitionId === Number(def.id) ? "selected" : ""}>${this.formatYearRange(def.year_start, def.year_end)}</option>
                   `
                 )
                 .join("")}
@@ -288,6 +298,28 @@ export class Finance {
             </select>
             <label for="fee_notes">${translate("notes")}</label>
             <textarea id="fee_notes" name="notes" rows="2"></textarea>
+            <div class="finance-plan-toggle">
+              <label for="enable_plan" class="checkbox-label">
+                <input type="checkbox" id="enable_plan" name="enable_plan"> ${translate("add_payment_plan_optional")}
+              </label>
+              <p class="finance-helper">${translate("add_payment_plan_optional_helper")}</p>
+            </div>
+            <div id="inline-plan-fields" class="finance-plan-fields hidden">
+              <label for="inline_number_of_payments">${translate("number_of_payments")}</label>
+              <input type="number" min="1" id="inline_number_of_payments" name="plan_number_of_payments">
+              <label for="inline_amount_per_payment">${translate("amount_per_payment")}</label>
+              <input type="number" step="0.01" min="0" id="inline_amount_per_payment" name="plan_amount_per_payment">
+              <label for="inline_start_date">${translate("start_date")}</label>
+              <input type="date" id="inline_start_date" name="plan_start_date" value="${getTodayISO()}">
+              <label for="inline_frequency">${translate("frequency")}</label>
+              <select id="inline_frequency" name="plan_frequency">
+                <option value="monthly">${translate("monthly")}</option>
+                <option value="biweekly">${translate("biweekly")}</option>
+                <option value="weekly">${translate("weekly")}</option>
+              </select>
+              <label for="inline_plan_notes">${translate("notes")}</label>
+              <textarea id="inline_plan_notes" name="plan_notes" rows="2"></textarea>
+            </div>
             <button type="submit" class="primary-button">${translate("save")}</button>
           </form>
         </section>
@@ -433,25 +465,50 @@ export class Finance {
             <div id="payment-history" class="finance-list"></div>
             <form id="payment-form" class="finance-form" novalidate>
               <input type="hidden" id="payment_fee_id" name="participant_fee_id">
-              <label for="payment_amount">${translate("amount")}</label>
-              <input type="number" step="0.01" min="0" id="payment_amount" name="amount" required>
-              <label for="payment_date">${translate("payment_date")}</label>
-              <input type="date" id="payment_date" name="payment_date" required value="${getTodayISO()}">
-              <label for="payment_method">${translate("payment_method")}</label>
-              <select id="payment_method" name="method">
-                <option value="cash">${translate("cash")}</option>
-                <option value="card">${translate("card")}</option>
-                <option value="etransfer">${translate("etransfer")}</option>
-                <option value="cheque">${translate("cheque")}</option>
-              </select>
-              <label for="payment_reference">${translate("reference_number")}</label>
-              <input type="text" id="payment_reference" name="reference_number">
+              <div id="payment-rows">${this.renderPaymentRow(0)}</div>
+              <button type="button" class="ghost-button" id="add-payment-row">${translate("add_payment_row")}</button>
               <button type="submit" class="primary-button">${translate("save_payment")}</button>
             </form>
           </div>
         </div>
       </div>
     `;
+  }
+
+  renderPaymentRow(index) {
+    const today = getTodayISO();
+    return `
+      <fieldset class="payment-row" data-index="${index}">
+        <legend class="sr-only">${translate("payment_entry")} ${index + 1}</legend>
+        <label for="payment_amount_${index}">${translate("amount")}</label>
+        <input type="number" step="0.01" min="0" id="payment_amount_${index}" name="amount_${index}">
+        <label for="payment_date_${index}">${translate("payment_date")}</label>
+        <input type="date" id="payment_date_${index}" name="payment_date_${index}" value="${today}">
+        <label for="payment_method_${index}">${translate("payment_method")}</label>
+        <select id="payment_method_${index}" name="method_${index}">
+          <option value="cash">${translate("cash")}</option>
+          <option value="card">${translate("card")}</option>
+          <option value="etransfer">${translate("etransfer")}</option>
+          <option value="cheque">${translate("cheque")}</option>
+        </select>
+        <label for="payment_reference_${index}">${translate("reference_number")}</label>
+        <input type="text" id="payment_reference_${index}" name="reference_number_${index}">
+      </fieldset>
+    `;
+  }
+
+  addPaymentRow() {
+    const container = document.getElementById('payment-rows');
+    if (!container) return;
+    const newIndex = container.querySelectorAll('.payment-row').length;
+    container.insertAdjacentHTML('beforeend', this.renderPaymentRow(newIndex));
+  }
+
+  resetPaymentRows() {
+    const container = document.getElementById('payment-rows');
+    if (container) {
+      container.innerHTML = this.renderPaymentRow(0);
+    }
   }
 
   renderPlanModal() {
@@ -534,6 +591,28 @@ export class Finance {
       participantFeeForm.addEventListener('submit', (e) => this.handleParticipantFeeSubmit(e));
     }
 
+    const feeDefinitionSelect = document.getElementById('fee_definition');
+    if (feeDefinitionSelect) {
+      feeDefinitionSelect.addEventListener('change', (e) => this.populateFeesFromDefinition(e.target.value));
+      if (feeDefinitionSelect.value) {
+        this.populateFeesFromDefinition(feeDefinitionSelect.value);
+      } else {
+        const defaultDefinitionId = this.getDefaultFeeDefinitionId();
+        if (defaultDefinitionId) {
+          feeDefinitionSelect.value = defaultDefinitionId;
+          this.populateFeesFromDefinition(defaultDefinitionId);
+        }
+      }
+    }
+
+    const planToggle = document.getElementById('enable_plan');
+    const inlinePlanFields = document.getElementById('inline-plan-fields');
+    if (planToggle && inlinePlanFields) {
+      const syncVisibility = () => inlinePlanFields.classList.toggle('hidden', !planToggle.checked);
+      planToggle.addEventListener('change', syncVisibility);
+      syncVisibility();
+    }
+
     document.querySelectorAll('[data-action="open-payment"]').forEach((btn) => {
       btn.addEventListener('click', (e) => this.openPaymentModal(e.currentTarget.dataset.id));
     });
@@ -556,6 +635,7 @@ export class Finance {
       });
       const paymentForm = document.getElementById('payment-form');
       paymentForm?.addEventListener('submit', (e) => this.handlePaymentSubmit(e));
+      document.getElementById('add-payment-row')?.addEventListener('click', () => this.addPaymentRow());
     }
 
     const planModal = document.getElementById('plan-modal');
@@ -622,6 +702,7 @@ export class Finance {
   async handleParticipantFeeSubmit(event) {
     event.preventDefault();
     const form = event.target;
+    const planEnabled = form.enable_plan?.checked;
     const payload = {
       participant_id: parseInt(form.participant_id.value, 10),
       fee_definition_id: parseInt(form.fee_definition_id.value, 10),
@@ -631,8 +712,33 @@ export class Finance {
       notes: form.notes.value
     };
 
+    if (
+      planEnabled &&
+      (!form.plan_number_of_payments.value || !form.plan_amount_per_payment.value || !form.plan_start_date.value)
+    ) {
+      this.app.showMessage(translate('plan_fields_required'), 'error');
+      return;
+    }
+
     try {
-      await createParticipantFee(payload);
+      const created = await createParticipantFee(payload);
+      const createdFeeId = created?.data?.id || created?.participant_fee?.id || created?.id;
+      if (planEnabled && createdFeeId) {
+        const paymentsCount = parseInt(form.plan_number_of_payments.value || 0, 10);
+        const amountPerPayment = parseFloat(form.plan_amount_per_payment.value || 0);
+        if (!paymentsCount || !amountPerPayment) {
+          this.app.showMessage(translate('plan_fields_required'), 'error');
+          return;
+        }
+        const planPayload = {
+          number_of_payments: paymentsCount,
+          amount_per_payment: amountPerPayment,
+          start_date: form.plan_start_date.value,
+          frequency: form.plan_frequency.value,
+          notes: form.plan_notes.value
+        };
+        await createPaymentPlan(createdFeeId, planPayload);
+      }
       await this.loadCoreData();
       this.render();
       this.attachEventListeners();
@@ -667,6 +773,7 @@ export class Finance {
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     document.getElementById('payment_fee_id').value = feeId;
+    this.resetPaymentRows();
     await this.renderPaymentHistory(feeId);
   }
 
@@ -712,15 +819,32 @@ export class Finance {
     event.preventDefault();
     const form = event.target;
     const feeId = form.participant_fee_id.value;
-    const payload = {
-      amount: parseFloat(form.amount.value || 0),
-      payment_date: form.payment_date.value,
-      method: form.method.value,
-      reference_number: form.reference_number.value
-    };
+    const rows = Array.from(document.querySelectorAll('#payment-rows .payment-row'));
+    const payments = rows
+      .map((row) => {
+        const index = row.dataset.index;
+        const amount = parseFloat(row.querySelector(`[name="amount_${index}"]`)?.value || 0);
+        const payment_date = row.querySelector(`[name="payment_date_${index}"]`)?.value;
+        const method = row.querySelector(`[name="method_${index}"]`)?.value || 'cash';
+        const reference_number = row.querySelector(`[name="reference_number_${index}"]`)?.value || '';
+        if (!amount || amount <= 0 || !payment_date) {
+          return null;
+        }
+        return { amount, payment_date, method, reference_number };
+      })
+      .filter(Boolean);
+
+    if (!payments.length) {
+      this.app.showMessage(translate('enter_payment_before_save'), 'error');
+      return;
+    }
 
     try {
-      await createParticipantPayment(feeId, payload);
+      for (const payment of payments) {
+        // eslint-disable-next-line no-await-in-loop
+        await createParticipantPayment(feeId, payment);
+      }
+      this.resetPaymentRows();
       this.paymentsCache.delete(feeId);
       await this.renderPaymentHistory(feeId);
       await this.loadCoreData();
