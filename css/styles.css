@@ -2182,8 +2182,7 @@ tr:hover {
 .parent-dashboard__header {
   text-align: center;
   padding: var(--space-lg) var(--space-md);
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
-  color: white;
+  background: white;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
 }
@@ -2192,25 +2191,26 @@ tr:hover {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
   margin: 0 0 var(--space-xs) 0;
+  color: var(--color-text);
 }
 
 .parent-dashboard__subtitle {
   font-size: var(--font-size-base);
   margin: 0;
-  opacity: 0.95;
   font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
 }
 
 .back-link {
   display: inline-block;
   margin-block-start: var(--space-md);
-  color: white;
+  color: var(--color-primary);
   text-decoration: underline;
   font-size: var(--font-size-sm);
 }
 
 .back-link:hover {
-  opacity: 0.8;
+  color: var(--color-primary-dark);
 }
 
 /* Main Actions Section */
