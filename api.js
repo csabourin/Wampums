@@ -651,6 +651,10 @@ app.get('/', (req, res) => {
   const indexPath = isProduction
     ? path.join(__dirname, 'dist', 'index.html')
     : path.join(__dirname, 'index.html');
+  // Prevent caching of index.html to ensure PWA updates work properly
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(indexPath);
 });
 
@@ -1837,6 +1841,10 @@ app.get('*', (req, res) => {
   const indexPath = isProduction
     ? path.join(__dirname, 'dist', 'index.html')
     : path.join(__dirname, 'index.html');
+  // Prevent caching of index.html to ensure PWA updates work properly
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(indexPath);
 });
 
