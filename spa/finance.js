@@ -621,6 +621,27 @@ export class Finance {
       btn.addEventListener('click', (e) => this.openPlanModal(e.currentTarget.dataset.id));
     });
 
+    const installmentSelect = document.getElementById('installment_fee_select');
+    const planShortcut = document.getElementById('open-plan-shortcut');
+    const paymentShortcut = document.getElementById('open-payment-shortcut');
+    const requireSelection = () => this.app.showMessage(translate('select_fee_before_action'), 'error');
+    planShortcut?.addEventListener('click', () => {
+      const selectedId = installmentSelect?.value;
+      if (selectedId) {
+        this.openPlanModal(selectedId);
+      } else {
+        requireSelection();
+      }
+    });
+    paymentShortcut?.addEventListener('click', () => {
+      const selectedId = installmentSelect?.value;
+      if (selectedId) {
+        this.openPaymentModal(selectedId);
+      } else {
+        requireSelection();
+      }
+    });
+
     document.querySelectorAll('[data-action="save-fee"]').forEach((btn) => {
       btn.addEventListener('click', (e) => this.saveFeeUpdates(e.currentTarget.dataset.id));
     });
