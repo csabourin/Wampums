@@ -87,6 +87,24 @@ export {
     getParentContactList,
     getUserChildren,
 
+    // Finance
+    getFeeDefinitions,
+    createFeeDefinition,
+    updateFeeDefinition,
+    deleteFeeDefinition,
+    getParticipantFees,
+    createParticipantFee,
+    updateParticipantFee,
+    getParticipantPayments,
+    createParticipantPayment,
+    updatePayment,
+    getPaymentPlans,
+    createPaymentPlan,
+    updatePaymentPlan,
+    deletePaymentPlan,
+    getFinanceReport,
+    getParticipantStatement,
+
     // Groups
     getGroups,
     addGroup,

@@ -1,20 +1,30 @@
-import { getCurrentOrganizationId, fetchParticipants, getOrganizationFormFormats, getOrganizationSettings, linkUserParticipants } from "./ajax-functions.js";
+import {
+  getCurrentOrganizationId,
+  fetchParticipants,
+  getOrganizationFormFormats,
+  getOrganizationSettings,
+  getParticipantStatement,
+  linkUserParticipants
+} from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
 import { CONFIG } from './config.js';
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ParentDashboard {
         constructor(app) {
                 this.app = app;
                 this.participants = [];
                 this.formStructures = {};
+                this.participantStatements = new Map();
         }
 
         async init() {
                 try {
                         await this.fetchParticipants();
                         await this.fetchFormFormats();
+                        await this.fetchParticipantStatements();
                         this.render();
                         this.attachEventListeners();
                          this.checkAndShowLinkParticipantsDialog();
@@ -101,6 +111,33 @@ export class ParentDashboard {
                                         debugError("Error fetching participants:", error);
                                         this.participants = [];
                         }
+        }
+
+        async fetchParticipantStatements() {
+                if (!Array.isArray(this.participants) || this.participants.length === 0) {
+                        return;
+                }
+
+                await Promise.all(
+                        this.participants.map(async (participant) => this.loadSingleStatement(participant.id))
+                );
+        }
+
+        async loadSingleStatement(participantId) {
+                try {
+                        const response = await getParticipantStatement(participantId);
+                        const payload = response?.data || response;
+                        const statementData = payload?.data || payload;
+
+                        if (statementData?.participant?.id) {
+                                this.participantStatements.set(statementData.participant.id, statementData);
+                                return statementData;
+                        }
+                } catch (error) {
+                        debugWarn("Unable to load participant statement", error);
+                }
+
+                return null;
         }
 
         async fetchFormFormats() {
@@ -198,6 +235,39 @@ export class ParentDashboard {
                         </div>
                 `;
                 document.getElementById("app").innerHTML = content;
+                this.bindStatementHandlers();
+        }
+
+        formatCurrency(amount = 0) {
+                const numericValue = Number.parseFloat(amount);
+                if (!Number.isFinite(numericValue)) {
+                        return this.formatCurrency(0);
+                }
+
+                const locale = this.app?.language || CONFIG.DEFAULT_LANG || 'en';
+                const currency = CONFIG.DEFAULT_CURRENCY || 'USD';
+
+                return new Intl.NumberFormat(locale, {
+                        style: 'currency',
+                        currency,
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                }).format(numericValue);
+        }
+
+        renderStatementLink(participant) {
+                const statement = this.participantStatements.get(participant.id);
+                const outstanding = statement?.totals?.total_outstanding ?? 0;
+
+                if (!statement || outstanding <= 0) {
+                        return '';
+                }
+
+                return `
+                        <button type="button" class="dashboard-button statement-button" data-participant-id="${participant.id}">
+                                ${translate("view_statement")} · ${translate("amount_due")}: ${this.formatCurrency(outstanding)}
+                        </button>
+                `;
         }
 
 
@@ -213,15 +283,21 @@ export class ParentDashboard {
                         return `<p>${translate("no_participants")}</p>`;
                 }
 
-                return this.participants.map(participant => `
+                return this.participants.map(participant => {
+                        const participantName = escapeHTML(`${participant.first_name} ${participant.last_name}`);
+                        const statementLink = this.renderStatementLink(participant);
+
+                        return `
                         <div class="participant-card">
-                                <h3>${participant.first_name} ${participant.last_name}</h3>
+                                <h3>${participantName}</h3>
                                 <a href="/formulaire-inscription/${participant.id}" class="dashboard-button">${translate("modifier")}</a>
                                 <div class="participant-actions">
                                 ${this.renderFormButtons(participant)}
                                 </div>
+                                ${statementLink}
                         </div>
-                `).join("");
+                `;
+                }).join("");
         }
 
 renderFormButtons(participant) {
@@ -302,6 +378,97 @@ renderFormButtons(participant) {
 
                 window.addEventListener('appinstalled', () => {
                         debugLog('App has been installed');
+                });
+        }
+
+        bindStatementHandlers() {
+                const statementButtons = document.querySelectorAll('.statement-button');
+
+                statementButtons.forEach((button) => {
+                        button.addEventListener('click', async (event) => {
+                                const participantId = event.currentTarget?.dataset?.participantId;
+                                await this.showStatementModal(participantId);
+                        });
+                });
+        }
+
+        async showStatementModal(participantId) {
+                if (!participantId) return;
+
+                const numericId = Number.parseInt(participantId, 10);
+                const existingStatement = this.participantStatements.get(numericId) || await this.loadSingleStatement(numericId);
+
+                if (!existingStatement) {
+                        this.app.showMessage(translate("statement_unavailable"), "error");
+                        return;
+                }
+
+                const totals = existingStatement.totals || { total_billed: 0, total_paid: 0, total_outstanding: 0 };
+                const feeLines = Array.isArray(existingStatement.fees) && existingStatement.fees.length > 0
+                        ? existingStatement.fees.map((fee) => {
+                                const yearRange = fee.year_start && fee.year_end
+                                        ? `${fee.year_start} – ${fee.year_end}`
+                                        : translate("membership_period");
+                                const safeStatus = escapeHTML(fee.status || translate("status"));
+
+                                return `
+                                        <div class="statement-line">
+                                                <div>
+                                                        <p class="muted-text">${translate("membership_period")}: ${escapeHTML(yearRange)}</p>
+                                                        <p>${translate("status")}: ${safeStatus}</p>
+                                                </div>
+                                                <div class="statement-amounts">
+                                                        <span>${translate("total_billed")}: ${this.formatCurrency(fee.total_amount)}</span>
+                                                        <span>${translate("payments_to_date")}: ${this.formatCurrency(fee.total_paid)}</span>
+                                                        <span class="${fee.outstanding > 0 ? 'text-warning' : 'text-success'}">${translate("amount_due")}: ${this.formatCurrency(fee.outstanding)}</span>
+                                                </div>
+                                        </div>
+                                `;
+                        }).join("")
+                        : `<p class="muted-text">${translate("no_financial_activity")}</p>`;
+
+                const participantName = escapeHTML(`${existingStatement.participant.first_name} ${existingStatement.participant.last_name}`);
+
+                const modal = document.createElement('div');
+                modal.className = 'modal-screen';
+                modal.innerHTML = `
+                        <div class="modal">
+                                <div class="modal__header">
+                                        <div>
+                                                <p class="muted-text">${translate("membership_statement_title")}</p>
+                                                <h3>${participantName}</h3>
+                                        </div>
+                                        <button type="button" class="ghost-button" id="close-statement-modal">${translate("close")}</button>
+                                </div>
+                                <div class="statement-summary">
+                                        <div>
+                                                <span>${translate("total_billed")}</span>
+                                                <strong>${this.formatCurrency(totals.total_billed)}</strong>
+                                        </div>
+                                        <div>
+                                                <span>${translate("payments_to_date")}</span>
+                                                <strong>${this.formatCurrency(totals.total_paid)}</strong>
+                                        </div>
+                                        <div>
+                                                <span>${translate("amount_due")}</span>
+                                                <strong>${this.formatCurrency(totals.total_outstanding)}</strong>
+                                        </div>
+                                </div>
+                                <div class="statement-lines">${feeLines}</div>
+                        </div>
+                `;
+
+                document.body.appendChild(modal);
+
+                const closeButton = modal.querySelector('#close-statement-modal');
+                if (closeButton) {
+                        closeButton.addEventListener('click', () => modal.remove());
+                }
+
+                modal.addEventListener('click', (event) => {
+                        if (event.target === modal) {
+                                modal.remove();
+                        }
                 });
         }
 

@@ -71,6 +71,11 @@ export const CONFIG = {
     DEFAULT_LANG: "fr",
 
     /**
+     * Default currency for financial displays
+     */
+    DEFAULT_CURRENCY: "CAD",
+
+    /**
      * Supported Languages
      */
     SUPPORTED_LANGS: ["en", "fr"],

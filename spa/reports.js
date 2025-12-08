@@ -16,8 +16,13 @@ import {
         getParticipantAgeReport,
         getFormStructure,
         getFormSubmissions,
-        getFormTypes
+        getFormTypes,
+        getFinanceReport
 } from "./ajax-functions.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
+import { formatDateShort } from "./utils/DateUtils.js";
+
+const REPORT_CURRENCY = "CAD";
 
 export class Reports {
         constructor(app) {
@@ -58,6 +63,7 @@ export class Reports {
                                 <button class="report-btn" data-report="honors" type="button">${translate("honors_report")}</button>
                                 <button class="report-btn" data-report="points" type="button">${translate("points_report")}</button>
                                 <button class="report-btn" data-report="time-since-registration" type="button">${translate("time_since_registration_report")}</button>
+                                <button class="report-btn" data-report="financial" type="button">${translate("financial_report")}</button>
                                 <button class="report-btn report-btn--accent" data-report="participant-progress" type="button">${translate("participant_progress_report")}</button>
                         </section>
                         <div id="form-type-container" class="report-surface" aria-live="polite">
@@ -79,10 +85,10 @@ export class Reports {
                 document.getElementById("app").innerHTML = content;
         }
 
-	attachEventListeners() {
-		document.querySelectorAll('.report-btn').forEach(button => {
-			button.addEventListener('click', (e) => this.loadReport(e.target.dataset.report));
-		});
+        attachEventListeners() {
+                document.querySelectorAll('.report-btn').forEach(button => {
+                        button.addEventListener('click', (e) => this.loadReport(e.target.dataset.report));
+                });
 
 		document.getElementById('print-report').addEventListener('click', () => this.printReport());
 	}
@@ -177,6 +183,10 @@ case 'participant-age':
                                 case 'points':
                                         reportData = await getPointsReport();
                                         reportContent = this.renderPointsReport(reportData.data);
+                                        break;
+                                case 'financial':
+                                        reportData = await getFinanceReport();
+                                        reportContent = this.renderFinancialReport(reportData.data);
                                         break;
                                 case 'time-since-registration':
                                         // Navigate to the dedicated time since registration page
@@ -999,6 +1009,75 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
                                                 </div>
                                         </div>
                                 ` : `<p class="muted">${translate('select_participant_prompt')}</p>`}
+                        </div>
+                `;
+        }
+
+        formatCurrency(amount) {
+                return new Intl.NumberFormat(this.app.lang || 'en', {
+                        style: 'currency',
+                        currency: REPORT_CURRENCY,
+                        maximumFractionDigits: 2
+                }).format(Number(amount) || 0);
+        }
+
+        renderFinancialReport(data) {
+                const totals = data?.totals || {};
+                const definitions = data?.definitions || [];
+                const participants = data?.participants || [];
+
+                const definitionRows = definitions.map((row) => `
+                        <div class="finance-list__row">
+                                <div>
+                                        <p class="finance-meta">${formatDateShort(row.year_start)} → ${formatDateShort(row.year_end)}</p>
+                                </div>
+                                <div class="finance-row-values">
+                                        <span>${this.formatCurrency(row.total_billed)}</span>
+                                        <span>${this.formatCurrency(row.total_paid)}</span>
+                                        <span class="finance-stat__value--alert">${this.formatCurrency(row.total_outstanding)}</span>
+                                </div>
+                        </div>
+                `).join('');
+
+                const participantRows = participants.map((p) => `
+                        <div class="finance-list__row">
+                                <div>
+                                        <p class="finance-meta">${escapeHTML(p.first_name || '')} ${escapeHTML(p.last_name || '')}</p>
+                                </div>
+                                <div class="finance-row-values">
+                                        <span>${this.formatCurrency(p.total_billed)}</span>
+                                        <span>${this.formatCurrency(p.total_paid)}</span>
+                                        <span class="finance-stat__value--alert">${this.formatCurrency(p.total_outstanding)}</span>
+                                </div>
+                        </div>
+                `).join('');
+
+                return `
+                        <div class="report-surface financial-report">
+                                <div class="finance-stats">
+                                        <div>
+                                                <p class="finance-stat__label">${translate('total_billed')}</p>
+                                                <p class="finance-stat__value">${this.formatCurrency(totals.total_billed)}</p>
+                                        </div>
+                                        <div>
+                                                <p class="finance-stat__label">${translate('total_paid')}</p>
+                                                <p class="finance-stat__value">${this.formatCurrency(totals.total_paid)}</p>
+                                        </div>
+                                        <div>
+                                                <p class="finance-stat__label">${translate('outstanding_balance')}</p>
+                                                <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(totals.total_outstanding)}</p>
+                                        </div>
+                                </div>
+                                <div class="finance-grid">
+                                        <section class="finance-card">
+                                                <h3>${translate('by_year')}</h3>
+                                                ${definitionRows || `<p class="finance-helper">${translate('no_definitions')}</p>`}
+                                        </section>
+                                        <section class="finance-card">
+                                                <h3>${translate('by_participant')}</h3>
+                                                ${participantRows || `<p class="finance-helper">${translate('no_participant_fees')}</p>`}
+                                        </section>
+                                </div>
                         </div>
                 `;
         }

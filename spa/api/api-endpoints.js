@@ -1225,6 +1225,137 @@ export async function getReports(reportType) {
 }
 
 // ============================================================================
+// FINANCE
+// ============================================================================
+
+/**
+ * Get fee definitions for the current organization
+ */
+export async function getFeeDefinitions() {
+    return API.get('v1/finance/fee-definitions', {}, {
+        cacheKey: 'fee_definitions',
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+    });
+}
+
+/**
+ * Create a fee definition
+ */
+export async function createFeeDefinition(payload) {
+    return API.post('v1/finance/fee-definitions', payload);
+}
+
+/**
+ * Update a fee definition
+ */
+export async function updateFeeDefinition(id, payload) {
+    return API.put(`v1/finance/fee-definitions/${id}`, payload);
+}
+
+/**
+ * Delete a fee definition
+ */
+export async function deleteFeeDefinition(id) {
+    return API.delete(`v1/finance/fee-definitions/${id}`);
+}
+
+/**
+ * Get participant fees
+ */
+export async function getParticipantFees() {
+    return API.get('v1/finance/participant-fees', {}, {
+        cacheKey: 'participant_fees',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create participant fee
+ */
+export async function createParticipantFee(payload) {
+    return API.post('v1/finance/participant-fees', payload);
+}
+
+/**
+ * Update participant fee
+ */
+export async function updateParticipantFee(id, payload) {
+    return API.put(`v1/finance/participant-fees/${id}`, payload);
+}
+
+/**
+ * Get payments for a participant fee
+ */
+export async function getParticipantPayments(participantFeeId) {
+    return API.get(`v1/finance/participant-fees/${participantFeeId}/payments`, {}, {
+        cacheKey: `participant_fee_payments_${participantFeeId}`,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create a payment for a participant fee
+ */
+export async function createParticipantPayment(participantFeeId, payload) {
+    return API.post(`v1/finance/participant-fees/${participantFeeId}/payments`, payload);
+}
+
+/**
+ * Update an existing payment
+ */
+export async function updatePayment(paymentId, payload) {
+    return API.put(`v1/finance/payments/${paymentId}`, payload);
+}
+
+/**
+ * Get payment plans for a participant fee
+ */
+export async function getPaymentPlans(participantFeeId) {
+    return API.get(`v1/finance/participant-fees/${participantFeeId}/payment-plans`, {}, {
+        cacheKey: `payment_plans_${participantFeeId}`,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create a payment plan for a participant fee
+ */
+export async function createPaymentPlan(participantFeeId, payload) {
+    return API.post(`v1/finance/participant-fees/${participantFeeId}/payment-plans`, payload);
+}
+
+/**
+ * Update an existing payment plan
+ */
+export async function updatePaymentPlan(planId, payload) {
+    return API.put(`v1/finance/payment-plans/${planId}`, payload);
+}
+
+/**
+ * Delete a payment plan
+ */
+export async function deletePaymentPlan(planId) {
+    return API.delete(`v1/finance/payment-plans/${planId}`);
+}
+
+/**
+ * Get finance summary report
+ */
+export async function getFinanceReport() {
+    return API.get('v1/finance/reports/summary', {}, {
+        cacheKey: 'finance_report',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Get a participant-level finance statement (guardian or staff scope)
+ */
+export async function getParticipantStatement(participantId) {
+    return API.get(`v1/finance/participants/${participantId}/statement`);
+}
+
+// ============================================================================
 // ORGANIZATION
 // ============================================================================
 
