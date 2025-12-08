@@ -664,9 +664,17 @@ export class Finance {
       participantFeeForm.addEventListener('submit', (e) => this.handleParticipantFeeSubmit(e));
     }
 
+    const participantSelect = document.getElementById('participant_select');
+    if (participantSelect) {
+      participantSelect.addEventListener('change', () => this.syncParticipantFeeFormState());
+    }
+
     const feeDefinitionSelect = document.getElementById('fee_definition');
     if (feeDefinitionSelect) {
-      feeDefinitionSelect.addEventListener('change', (e) => this.populateFeesFromDefinition(e.target.value));
+      feeDefinitionSelect.addEventListener('change', (e) => {
+        this.populateFeesFromDefinition(e.target.value);
+        this.syncParticipantFeeFormState();
+      });
       if (feeDefinitionSelect.value) {
         this.populateFeesFromDefinition(feeDefinitionSelect.value);
       } else {
@@ -678,13 +686,27 @@ export class Finance {
       }
     }
 
+    this.syncParticipantFeeFormState();
+
     const planToggle = document.getElementById('enable_plan');
     const inlinePlanFields = document.getElementById('inline-plan-fields');
     if (planToggle && inlinePlanFields) {
       const syncVisibility = () => inlinePlanFields.classList.toggle('hidden', !planToggle.checked);
-      planToggle.addEventListener('change', syncVisibility);
+      planToggle.addEventListener('change', () => {
+        syncVisibility();
+        this.updateInlinePlanAmount();
+      });
       syncVisibility();
     }
+
+    const planPaymentsInput = document.getElementById('inline_number_of_payments');
+    const membershipTotalInput = document.getElementById('membership_total');
+    const registrationTotalInput = document.getElementById('registration_total');
+    const recalcPlanAmount = () => this.updateInlinePlanAmount();
+
+    planPaymentsInput?.addEventListener('input', recalcPlanAmount);
+    membershipTotalInput?.addEventListener('input', recalcPlanAmount);
+    registrationTotalInput?.addEventListener('input', recalcPlanAmount);
 
     document.querySelectorAll('[data-action="open-payment"]').forEach((btn) => {
       btn.addEventListener('click', (e) => this.openPaymentModal(e.currentTarget.dataset.id));
@@ -790,14 +812,124 @@ export class Finance {
     form.membership_fee.value = def.membership_fee;
   }
 
+  /**
+   * Finds an existing participant fee for the current selection.
+   * Prefers an exact fee definition match before falling back to any fee for the participant.
+   * @param {number | null} participantId
+   * @param {number | null} feeDefinitionId
+   * @returns {object | null}
+   */
+  findExistingParticipantFee(participantId, feeDefinitionId) {
+    if (!participantId) return null;
+    if (feeDefinitionId) {
+      const exactMatch = this.participantFees.find(
+        (fee) => Number(fee.participant_id) === participantId && Number(fee.fee_definition_id) === feeDefinitionId
+      );
+      if (exactMatch) return exactMatch;
+    }
+    return this.participantFees.find((fee) => Number(fee.participant_id) === participantId) || null;
+  }
+
+  /**
+   * Syncs the membership fee form with existing data and toggles the submit label.
+   */
+  syncParticipantFeeFormState() {
+    const form = document.getElementById('participant-fee-form');
+    if (!form) return;
+
+    const participantId = Number.parseInt(form.participant_id.value, 10);
+    const feeDefinitionId = Number.parseInt(form.fee_definition_id.value, 10);
+    const normalizedParticipantId = Number.isNaN(participantId) ? null : participantId;
+    const normalizedDefinitionId = Number.isNaN(feeDefinitionId) ? null : feeDefinitionId;
+    const submitButton = form.querySelector('button[type="submit"]');
+
+    if (!submitButton) return;
+
+    const existingFee = this.findExistingParticipantFee(normalizedParticipantId, normalizedDefinitionId);
+
+    if (existingFee) {
+      form.dataset.participantFeeId = existingFee.id;
+      if (existingFee.fee_definition_id) {
+        form.fee_definition_id.value = existingFee.fee_definition_id;
+      }
+      if (existingFee.total_registration_fee !== undefined) {
+        form.total_registration_fee.value = existingFee.total_registration_fee;
+      }
+      if (existingFee.total_membership_fee !== undefined) {
+        form.total_membership_fee.value = existingFee.total_membership_fee;
+      }
+      form.notes.value = existingFee.notes || '';
+      submitButton.textContent = translate('modify');
+    } else {
+      form.dataset.participantFeeId = '';
+      submitButton.textContent = translate('save');
+      form.notes.value = '';
+      if (normalizedDefinitionId) {
+        this.populateFeesFromDefinition(normalizedDefinitionId);
+      }
+    }
+
+    this.updateInlinePlanAmount();
+  }
+
+  /**
+   * Calculates the base total for plan generation using the outstanding amount when available.
+   * Falls back to the current form totals when creating a new fee.
+   * @param {HTMLFormElement} form
+   * @param {object | null} existingFee
+   * @returns {number}
+   */
+  getPlanBaseAmount(form, existingFee) {
+    if (existingFee) {
+      const outstanding = this.getOutstanding(existingFee);
+      if (outstanding > 0) {
+        return outstanding;
+      }
+      const totalAmount = Number(existingFee.total_amount) || 0;
+      if (totalAmount > 0) {
+        return totalAmount - (Number(existingFee.total_paid) || 0);
+      }
+      const registration = Number(existingFee.total_registration_fee) || 0;
+      const membership = Number(existingFee.total_membership_fee) || 0;
+      return registration + membership;
+    }
+
+    const registration = Number.parseFloat(form.total_registration_fee.value || 0) || 0;
+    const membership = Number.parseFloat(form.total_membership_fee.value || 0) || 0;
+    return registration + membership;
+  }
+
+  /**
+   * Auto-calculates the inline plan amount per payment using the number of installments.
+   */
+  updateInlinePlanAmount() {
+    const form = document.getElementById('participant-fee-form');
+    if (!form || !form.enable_plan?.checked) return;
+
+    const paymentsCount = Number.parseInt(form.plan_number_of_payments.value, 10);
+    if (!paymentsCount || paymentsCount <= 0) return;
+
+    const participantId = Number.parseInt(form.participant_id.value, 10);
+    const feeDefinitionId = Number.parseInt(form.fee_definition_id.value, 10);
+    const normalizedParticipantId = Number.isNaN(participantId) ? null : participantId;
+    const normalizedDefinitionId = Number.isNaN(feeDefinitionId) ? null : feeDefinitionId;
+    const existingFee = this.findExistingParticipantFee(normalizedParticipantId, normalizedDefinitionId);
+    const baseAmount = this.getPlanBaseAmount(form, existingFee);
+
+    if (baseAmount <= 0) return;
+
+    const amountPerPayment = baseAmount / paymentsCount;
+    form.plan_amount_per_payment.value = amountPerPayment.toFixed(2);
+  }
+
   async handleParticipantFeeSubmit(event) {
     event.preventDefault();
     const form = event.target;
     const planEnabled = form.enable_plan?.checked;
+    const existingFeeId = form.dataset.participantFeeId;
     const payload = {
       participant_id: parseInt(form.participant_id.value, 10),
       fee_definition_id: parseInt(form.fee_definition_id.value, 10),
-      total_registration_fee: parseFloat(form.total_registration_fee.value || 0),
       total_membership_fee: parseFloat(form.total_membership_fee.value || 0),
       notes: form.notes.value || ''
     };
@@ -811,37 +943,40 @@ export class Finance {
     }
 
     try {
-      const created = await createParticipantFee(payload);
-      const createdFeeId = created?.data?.id || created?.participant_fee?.id || created?.id;
-      if (planEnabled && createdFeeId) {
-        const paymentsCount = parseInt(form.plan_number_of_payments.value || 0, 10);
-        const amountPerPayment = parseFloat(form.plan_amount_per_payment.value || 0);
-        if (!paymentsCount || !amountPerPayment) {
-          this.app.showMessage(translate('plan_fields_required'), 'error');
-          return;
-        }
-        const planPayload = {
-          number_of_payments: paymentsCount,
-          amount_per_payment: amountPerPayment,
-          start_date: form.plan_start_date.value,
-          frequency: form.plan_frequency.value,
-          notes: form.plan_notes.value
-        };
-        await createPaymentPlan(createdFeeId, planPayload);
+      let targetFeeId = existingFeeId || null;
 
-        // Clear finance caches for the new fee
-        await clearFinanceRelatedCaches(createdFeeId);
+      if (existingFeeId) {
+        await updateParticipantFee(existingFeeId, payload);
+      } else {
+        const created = await createParticipantFee(payload);
+        targetFeeId = created?.data?.id || created?.participant_fee?.id || created?.id;
+        if (planEnabled && targetFeeId) {
+          const paymentsCount = parseInt(form.plan_number_of_payments.value || 0, 10);
+          const amountPerPayment = parseFloat(form.plan_amount_per_payment.value || 0);
+          if (!paymentsCount || !amountPerPayment) {
+            this.app.showMessage(translate('plan_fields_required'), 'error');
+            return;
+          }
+          const planPayload = {
+            number_of_payments: paymentsCount,
+            amount_per_payment: amountPerPayment,
+            start_date: form.plan_start_date.value,
+            frequency: form.plan_frequency.value,
+            notes: form.plan_notes.value
+          };
+          await createPaymentPlan(targetFeeId, planPayload);
+        }
       }
 
       // Clear all finance caches
-      await clearFinanceRelatedCaches();
+      await clearFinanceRelatedCaches(targetFeeId);
 
       await this.loadCoreData();
       this.render();
       this.attachEventListeners();
       this.app.showMessage(translate('data_saved'), 'success');
     } catch (error) {
-      debugError('Error creating participant fee', error);
+      debugError('Error saving participant fee', error);
       this.app.showMessage(translate('error_saving_changes'), 'error');
     }
   }
