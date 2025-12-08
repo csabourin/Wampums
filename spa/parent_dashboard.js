@@ -314,7 +314,6 @@ export class ParentDashboard {
                                                 ${translate("modifier")}
                                         </a>
                                 </header>
-                                ${statementLink}
                                 <div class="participant-card__forms">
                                         ${this.renderFormButtons(participant)}
                                 </div>
