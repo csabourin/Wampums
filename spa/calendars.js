@@ -141,35 +141,35 @@ export class Calendars {
 		`;
 	}
 
-	renderCalendarRow(calendar) {
-		return `
-			<tr data-calendar-id="${calendar.id}">
-				<td>${calendar.first_name} ${calendar.last_name}</td>
-				<td>${calendar.group_name || translate('no_group')}</td>
-				<td>
-					<input
-						type="number"
-						class="amount-input"
-						data-calendar-id="${calendar.id}"
-						value="${calendar.calendar_amount || 0}"
+        renderCalendarRow(calendar) {
+                return `
+                        <tr data-calendar-id="${calendar.id}">
+                                <td data-label="${translate('name')}">${calendar.first_name} ${calendar.last_name}</td>
+                                <td data-label="${translate('group')}">${calendar.group_name || translate('no_group')}</td>
+                                <td data-label="${translate('amount')}">
+                                        <input
+                                                type="number"
+                                                class="amount-input"
+                                                data-calendar-id="${calendar.id}"
+                                                value="${calendar.calendar_amount || 0}"
 						min="0"
-						aria-label="${translate('amount_for')} ${calendar.first_name} ${calendar.last_name}">
-				</td>
-				<td>
-					<input
-						type="number"
-						step="0.01"
-						class="amount-paid-input"
-						data-calendar-id="${calendar.id}"
+                                                aria-label="${translate('amount_for')} ${calendar.first_name} ${calendar.last_name}">
+                                </td>
+                                <td data-label="${translate('amount_paid')}">
+                                        <input
+                                                type="number"
+                                                step="0.01"
+                                                class="amount-paid-input"
+                                                data-calendar-id="${calendar.id}"
 						value="${calendar.amount_paid || 0}"
 						min="0"
-						aria-label="${translate('amount_paid_for')} ${calendar.first_name} ${calendar.last_name}">
-				</td>
-				<td>
-					<input
-						type="checkbox"
-						class="paid-checkbox"
-						data-calendar-id="${calendar.id}"
+                                                aria-label="${translate('amount_paid_for')} ${calendar.first_name} ${calendar.last_name}">
+                                </td>
+                                <td data-label="${translate('paid')}">
+                                        <input
+                                                type="checkbox"
+                                                class="paid-checkbox"
+                                                data-calendar-id="${calendar.id}"
 						${calendar.paid ? 'checked' : ''}
 						aria-label="${translate('paid_status_for')} ${calendar.first_name} ${calendar.last_name}">
 				</td>

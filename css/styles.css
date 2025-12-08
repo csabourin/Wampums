@@ -1994,68 +1994,101 @@ tr:hover {
 .calendars-table {
   inline-size: 100%;
   border-collapse: collapse;
+  background-color: var(--color-surface);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: block;
 }
 
-.calendars-table th,
-.calendars-table td {
-  padding: var(--space-md);
-  border: 1px solid var(--color-border);
-  text-align: start;
-}
-
+.calendars-table thead,
 .calendars-table th {
-  background-color: var(--color-secondary);
+  display: none;
+}
+
+.calendars-table tr {
+  display: block;
+  border: 1px solid var(--color-border);
+  margin-block-end: var(--space-md);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.calendars-table td {
+  display: block;
+  position: relative;
+  padding: var(--space-sm) var(--space-md) var(--space-sm) 45%;
+  border-bottom: 1px solid var(--color-border-light);
+  text-align: end;
+}
+
+.calendars-table td:last-child {
+  border-bottom: none;
+}
+
+.calendars-table td::before {
+  content: attr(data-label);
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: var(--space-md);
+  transform: translateY(-50%);
+  inline-size: 40%;
+  padding-inline-end: var(--space-sm);
+  white-space: nowrap;
   font-weight: var(--font-weight-semibold);
+  text-align: start;
+  color: var(--color-text-muted);
 }
 
-.amount-input {
-  inline-size: 60px;
-  padding: var(--space-xs);
+.calendars-table input[type="number"] {
+  inline-size: 100%;
+  max-inline-size: none;
+  padding: var(--space-sm);
+  box-sizing: border-box;
 }
 
-@media (width <= 600px) {
-  .calendars-table,
-  .calendars-table thead,
-  .calendars-table tbody,
-  .calendars-table th,
-  .calendars-table td,
-  .calendars-table tr {
-    display: block;
+@media (min-width: 720px) {
+  .calendars-table {
+    display: table;
   }
 
-  .calendars-table thead tr {
-    position: absolute;
-    inset-block-start: -9999px;
-    inset-inline-start: -9999px;
+  .calendars-table thead {
+    display: table-header-group;
+  }
+
+  .calendars-table tbody {
+    display: table-row-group;
   }
 
   .calendars-table tr {
-    border: 1px solid var(--color-border);
-    margin-block-end: var(--space-md);
-    border-radius: var(--radius-sm);
-  }
-
-  .calendars-table td {
+    display: table-row;
     border: none;
-    position: relative;
-    padding-inline-start: 50%;
-    text-align: end;
+    margin: 0;
+  }
+
+  .calendars-table td,
+  .calendars-table th {
+    display: table-cell;
+    padding: var(--space-md);
+    text-align: start;
+    border: 1px solid var(--color-border);
+  }
+
+  .calendars-table th {
+    background-color: var(--color-secondary);
+    font-weight: var(--font-weight-semibold);
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   .calendars-table td::before {
-    position: absolute;
-    inset-block-start: var(--space-sm);
-    inset-inline-start: var(--space-sm);
-    inline-size: 45%;
-    padding-inline-end: var(--space-sm);
-    white-space: nowrap;
-    font-weight: var(--font-weight-semibold);
-    text-align: start;
+    content: none;
   }
 
-  .calendars-table td:nth-of-type(1)::before { content: "Nom"; }
-  .calendars-table td:nth-of-type(2)::before { content: "Quantité"; }
-  .calendars-table td:nth-of-type(3)::before { content: "Payé"; }
+  .calendars-table input[type="number"] {
+    inline-size: 100%;
+    max-inline-size: 110px;
+  }
 }
 
 .pending-update {
@@ -3806,30 +3839,14 @@ details p {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.calendars-table th,
-.calendars-table td {
-  padding: 0.75rem;
-  text-align: left;
-  border-bottom: 1px solid var(--color-border-light);
-}
-
-.calendars-table th {
-  background: var(--color-secondary);
-  font-weight: 600;
-  color: var(--color-text);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
 .calendars-table tbody tr:hover {
   background: var(--color-secondary);
 }
 
 .calendars-table input[type="number"] {
   width: 100%;
-  max-width: 100px;
-  padding: 0.375rem 0.5rem;
+  max-width: none;
+  padding: 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: 4px;
   font-size: 0.9375rem;
@@ -4075,11 +4092,6 @@ details p {
 
   .calendars-table {
     font-size: 0.875rem;
-  }
-
-  .calendars-table th,
-  .calendars-table td {
-    padding: 0.5rem 0.25rem;
   }
 }
 
