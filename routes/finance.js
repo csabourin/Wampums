@@ -116,7 +116,7 @@ module.exports = (pool, logger) => {
            $1,
            $2,
            $3,
-           $2 + $3,
+           $2::numeric + $3::numeric,
            'unpaid',
            ''
          FROM participant_organizations po
