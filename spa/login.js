@@ -1,7 +1,8 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import {login, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
-import { setStorage, getStorage, removeStorage, setStorageMultiple, removeStorageMultiple } from "./utils/StorageUtils.js";
+import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
+import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
 
 export class Login {
   constructor(app) {
@@ -296,10 +297,12 @@ handleLoginSuccess(result) {
       // Continue with client-side logout even if server logout fails
     }
 
-    // Clear user data from localStorage using StorageUtils
-    removeStorageMultiple(["jwtToken", "userRole", "userFullName", "userId", "guardianParticipants"]);
-
-    debugLog("Local storage cleared, redirecting to login page");
+    try {
+      await clearAllClientData();
+      debugLog("Client data cleared, redirecting to login page");
+    } catch (cleanupError) {
+      debugWarn("Error during client cleanup:", cleanupError);
+    }
 
     // Redirect to login page
     window.location.href = "/login";
