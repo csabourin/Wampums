@@ -4,6 +4,31 @@ const DB_NAME = "WampumsAppDB";
 const DB_VERSION = 12;
 const STORE_NAME = "offlineData";
 
+/**
+ * Delete the IndexedDB database for the application.
+ * Used on logout to ensure no cached data remains available across accounts.
+ * @returns {Promise<void>} Resolves when the database is deleted
+ */
+export function deleteIndexedDB() {
+  return new Promise((resolve, reject) => {
+    const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
+
+    deleteRequest.onsuccess = () => {
+      debugLog("IndexedDB deleted successfully");
+      resolve();
+    };
+
+    deleteRequest.onerror = () => {
+      debugError("Error deleting IndexedDB:", deleteRequest.error);
+      reject(deleteRequest.error);
+    };
+
+    deleteRequest.onblocked = () => {
+      debugWarn("IndexedDB deletion blocked. Close other tabs using the app to complete cleanup.");
+    };
+  });
+}
+
 export function openDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
