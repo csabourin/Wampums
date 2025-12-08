@@ -778,8 +778,7 @@ tr:hover {
   thead,
   tbody,
   th,
-  td,
-  tr {
+  td   {
     display: block;
   }
 
@@ -794,12 +793,13 @@ tr:hover {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--space-md);
+    display:flex;
+    flex-wrap: wrap;
   }
 
   td {
     border: none;
     position: relative;
-    padding-inline-start: 50%;
     text-align: end;
   }
 
