@@ -949,6 +949,8 @@
     "risques_inherents_activites_texte": "<p>En signant le présent document, je reconnais avoir été informé(e) sur les risques inhérents du scoutisme et de ses activités, en cours ou futures, peu importe le niveau de supervision ainsi que du niveau de mon habileté et de mon expérience. De plus, il n’y a aucun facteur ou condition que je devrais dévoiler aux organisateurs qui rendrait dangereuse ma participation aux activités de scoutisme. Je reconnais également qu’il est de mon devoir de respecter les règles, les consignes et les façons de faire applicable aux activités à laquelle je participe.</p>",
     "role": "Rôle",
     "role_updated_successfully": "Rôle mis à jour avec succès",
+    "roles": "Rôles",
+    "additional_roles": "Rôles additionnels",
     "s": "s",
     "salons": "Salons",
     "salons_label": "Salons",
