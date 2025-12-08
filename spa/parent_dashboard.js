@@ -226,6 +226,7 @@ export class ParentDashboard {
                                 <nav>
                                         <ul class="dashboard-menu">
                                                 <li><a href="/formulaire-inscription" class="dashboard-button">${translate("ajouter_participant")}</a></li>
+                                                <li><a href="/parent-finance" class="dashboard-button">${translate("my_finances")}</a></li>
                                                 ${this.renderParticipantsList()}
                                                 ${notificationButton}
                                                 ${installButton}

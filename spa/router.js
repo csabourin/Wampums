@@ -10,6 +10,7 @@ import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils
 // These will be dynamically imported when the route is accessed
 const lazyModules = {
   ParentDashboard: () => import('./parent_dashboard.js').then(m => m.ParentDashboard),
+  ParentFinance: () => import('./parent_finance.js').then(m => m.ParentFinance),
   FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
   ManagePoints: () => import('./manage_points.js').then(m => m.ManagePoints),
   TimeSinceRegistration: () => import('./time_since_registration.js').then(m => m.TimeSinceRegistration),
@@ -54,6 +55,7 @@ const routes = {
   "/login": "login",
   "/logout": "logout",
   "/parent-dashboard": "parentDashboard",
+  "/parent-finance": "parentFinance",
   "/formulaire-inscription": "formulaireInscription",
   "/formulaire-inscription/:id": "formulaireInscription",
   "/attendance": "attendance",

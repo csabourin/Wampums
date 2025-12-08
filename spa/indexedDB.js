@@ -305,6 +305,50 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
   }
 }
 
+export async function clearFinanceRelatedCaches(participantFeeId = null) {
+  const baseKeys = new Set([
+    'participant_fees',
+    'finance_report'
+  ]);
+
+  if (participantFeeId) {
+    baseKeys.add(`participant_fee_payments_${participantFeeId}`);
+    baseKeys.add(`payment_plans_${participantFeeId}`);
+  }
+
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  allKeys.forEach(key => {
+    if (key.startsWith('participant_fee_payments_')) {
+      if (!participantFeeId || key === `participant_fee_payments_${participantFeeId}`) {
+        baseKeys.add(key);
+      }
+    }
+    if (key.startsWith('payment_plans_')) {
+      if (!participantFeeId || key === `payment_plans_${participantFeeId}`) {
+        baseKeys.add(key);
+      }
+    }
+  });
+
+  debugLog("Clearing finance-related caches:", Array.from(baseKeys));
+
+  for (const key of baseKeys) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {
