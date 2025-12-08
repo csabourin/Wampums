@@ -647,5 +647,15 @@
     "error_linking_participants": "Error occurred while linking participants",
     "no_participants_selected": "No participants selected",
     "new_animator_registration_subject": "New Animator Registration for {orgName}",
-    "new_animator_registration_body": "\n  Dear Admin,\n\n  A new user has registered as an animator for {orgName} and requires verification:\n\n  Name: {animatorName}\n  Email: {animatorEmail}\n\n  Please log in to the admin dashboard to verify this user.\n\n  Best regards,\n  The System\n  "
+    "new_animator_registration_body": "\n  Dear Admin,\n\n  A new user has registered as an animator for {orgName} and requires verification:\n\n  Name: {animatorName}\n  Email: {animatorEmail}\n\n  Please log in to the admin dashboard to verify this user.\n\n  Best regards,\n  The System\n  ",
+    "amount_due": "Amount Due",
+    "by_participant": "By Participant",
+    "consolidated_balance": "Consolidated Balance",
+    "error_loading_data": "Error loading data",
+    "my_finances": "My Finances",
+    "outstanding_balance": "Outstanding Balance",
+    "status": "Status",
+    "total_billed": "Total Billed",
+    "total_paid": "Total Paid",
+    "view_your_financial_summary": "View your financial summary and payment history"
 }

@@ -20,6 +20,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
+import { clearFinanceRelatedCaches } from "./indexedDB.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -33,6 +34,7 @@ export class Finance {
     this.activeTab = "memberships";
     this.paymentsCache = new Map();
     this.paymentPlanCache = new Map();
+    this.lastPaymentAmounts = new Map(); // Cache for last entered payment amounts
   }
 
   async init() {
@@ -347,12 +349,19 @@ export class Finance {
     const plan = (this.paymentPlanCache.get(fee.id) || [])[0];
     const statusLabel = translate(fee.status) || fee.status;
     const planSummaryLabel = translate("payment_plan_summary");
+
+    // Get the fee definition to display proper year range
+    const feeDefinition = this.feeDefinitions.find(def => String(def.id) === String(fee.fee_definition_id));
+    const yearRange = feeDefinition
+      ? this.formatYearRange(feeDefinition.year_start, feeDefinition.year_end)
+      : translate("unknown");
+
     return `
       <article class="finance-card" data-fee-id="${fee.id}">
         <div class="finance-card__header">
           <div>
             <h3>${participantName}</h3>
-            <p class="finance-meta">${translate("billing_period")}: ${formatDateShort(fee.year_start)} → ${formatDateShort(fee.year_end)}</p>
+            <p class="finance-meta">${translate("billing_period")}: ${yearRange}</p>
           </div>
           <span class="finance-pill">${statusLabel}</span>
         </div>
@@ -777,7 +786,14 @@ export class Finance {
           notes: form.plan_notes.value
         };
         await createPaymentPlan(createdFeeId, planPayload);
+
+        // Clear finance caches for the new fee
+        await clearFinanceRelatedCaches(createdFeeId);
       }
+
+      // Clear all finance caches
+      await clearFinanceRelatedCaches();
+
       await this.loadCoreData();
       this.render();
       this.attachEventListeners();
@@ -791,11 +807,23 @@ export class Finance {
   async saveFeeUpdates(feeId) {
     const statusField = document.getElementById(`status-${feeId}`);
     const notesField = document.getElementById(`notes-${feeId}`);
+
+    // Optimistic update
+    const feeIndex = this.participantFees.findIndex(f => String(f.id) === String(feeId));
+    if (feeIndex >= 0) {
+      this.participantFees[feeIndex].status = statusField?.value;
+      this.participantFees[feeIndex].notes = notesField?.value;
+    }
+
     try {
       await updateParticipantFee(feeId, {
         status: statusField?.value,
         notes: notesField?.value
       });
+
+      // Clear finance caches
+      await clearFinanceRelatedCaches(feeId);
+
       await this.loadCoreData();
       this.render();
       this.attachEventListeners();
@@ -803,6 +831,10 @@ export class Finance {
     } catch (error) {
       debugError('Error updating participant fee', error);
       this.app.showMessage(translate('error_saving_changes'), 'error');
+      // Reload to revert optimistic update
+      await this.loadCoreData();
+      this.render();
+      this.attachEventListeners();
     }
   }
 
@@ -882,6 +914,14 @@ export class Finance {
     const firstAmountInput = document.querySelector('#payment-rows [name="amount_0"]');
     if (!firstAmountInput || !fee) return;
 
+    // Check if there's a cached last payment amount for this fee
+    const lastAmount = this.lastPaymentAmounts.get(fee.id);
+    if (lastAmount !== undefined && lastAmount > 0) {
+      firstAmountInput.value = lastAmount.toFixed(2);
+      return;
+    }
+
+    // Otherwise use outstanding balance or total amount
     const totalAmount = Number(fee.total_amount) || 0;
     const outstanding = this.getOutstanding(fee);
     const preferredAmount = fee.status === 'paid'
@@ -919,11 +959,20 @@ export class Finance {
       return;
     }
 
+    // Cache the first payment amount for this fee
+    if (payments.length > 0) {
+      this.lastPaymentAmounts.set(feeId, payments[0].amount);
+    }
+
     try {
       for (const payment of payments) {
         // eslint-disable-next-line no-await-in-loop
         await createParticipantPayment(feeId, payment);
       }
+
+      // Clear finance caches
+      await clearFinanceRelatedCaches(feeId);
+
       this.resetPaymentRows();
       this.paymentsCache.delete(feeId);
       await this.renderPaymentHistory(feeId);
@@ -1010,6 +1059,10 @@ export class Finance {
       } else {
         await createPaymentPlan(feeId, payload);
       }
+
+      // Clear finance caches
+      await clearFinanceRelatedCaches(feeId);
+
       this.paymentPlanCache.delete(feeId);
       await this.renderPlanDetails(feeId);
       await this.loadCoreData();
@@ -1030,6 +1083,10 @@ export class Finance {
     if (!confirm(translate('confirm_delete'))) return;
     try {
       await deletePaymentPlan(planId);
+
+      // Clear finance caches
+      await clearFinanceRelatedCaches(feeId);
+
       this.paymentPlanCache.delete(feeId);
       await this.renderPlanDetails(feeId);
       await this.loadCoreData();
