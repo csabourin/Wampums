@@ -1,7 +1,7 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { getReunionDates, getReunionPreparation } from "./ajax-functions.js";
-import { formatDate, isToday } from "./utils/DateUtils.js";
+import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
 
 export class UpcomingMeeting {
                 constructor(app) {
@@ -43,10 +43,9 @@ export class UpcomingMeeting {
                                 const futureMeetings = this.meetingDates
                                                 .map(dateStr => {
                                                                 // Handle both ISO format and plain date strings
-                                                                const meetingDate = new Date(dateStr);
-                                                                meetingDate.setHours(0, 0, 0, 0);
-                                                                // Get plain date string in YYYY-MM-DD format for display
                                                                 const plainDateStr = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+                                                                // Use parseDate to avoid timezone issues
+                                                                const meetingDate = parseDate(plainDateStr);
                                                                 return {
                                                                                 date: meetingDate,
                                                                                 dateStr: plainDateStr
@@ -54,7 +53,7 @@ export class UpcomingMeeting {
                                                 })
                                                 .filter(meeting => {
                                                                 // Include today's meetings and future meetings
-                                                                return isToday(meeting.dateStr) || meeting.date > today;
+                                                                return meeting.date && (isToday(meeting.dateStr) || meeting.date >= today);
                                                 })
                                                 .sort((a, b) => a.date - b.date);
 
