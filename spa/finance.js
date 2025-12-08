@@ -116,6 +116,18 @@ export class Finance {
   }
 
   /**
+   * Computes the outstanding balance for a fee row.
+   * @param {object} fee
+   * @returns {number}
+   */
+  getOutstanding(fee) {
+    if (!fee) return 0;
+    const totalAmount = Number(fee.total_amount) || 0;
+    const totalPaid = Number(fee.total_paid) || 0;
+    return Math.max(totalAmount - totalPaid, 0);
+  }
+
+  /**
    * Returns a sorted copy of fee definitions with the most recent year first.
    * @returns {Array}
    */
@@ -462,6 +474,12 @@ export class Finance {
             <button class="modal-close" aria-label="${translate("close")}">&times;</button>
           </div>
           <div class="modal-body">
+            <div class="finance-amounts">
+              <div>
+                <p id="payment-total-label" class="finance-stat__label">${translate("total_amount")}</p>
+                <output id="payment-total-output" class="finance-stat__value">--</output>
+              </div>
+            </div>
             <div id="payment-history" class="finance-list"></div>
             <form id="payment-form" class="finance-form" novalidate>
               <input type="hidden" id="payment_fee_id" name="participant_fee_id">
@@ -795,6 +813,9 @@ export class Finance {
     modal.setAttribute('aria-hidden', 'false');
     document.getElementById('payment_fee_id').value = feeId;
     this.resetPaymentRows();
+    const fee = this.participantFees.find((item) => String(item.id) === String(feeId));
+    this.updatePaymentSummary(fee);
+    this.prefillPaymentRowAmounts(fee);
     await this.renderPaymentHistory(feeId);
   }
 
@@ -833,6 +854,44 @@ export class Finance {
     } catch (error) {
       debugError('Error loading payments', error);
       historyContainer.innerHTML = `<p class="finance-helper">${translate("error_loading_data")}</p>`;
+    }
+  }
+
+  updatePaymentSummary(fee) {
+    const labelEl = document.getElementById('payment-total-label');
+    const outputEl = document.getElementById('payment-total-output');
+    if (!labelEl || !outputEl) return;
+
+    if (!fee) {
+      labelEl.textContent = translate('total_amount');
+      outputEl.value = '--';
+      return;
+    }
+
+    const outstanding = this.getOutstanding(fee);
+    const totalAmount = Number(fee.total_amount) || 0;
+    const hasPartialBalance = outstanding > 0 && outstanding < totalAmount;
+    const labelKey = hasPartialBalance ? 'balance_due' : 'total_amount';
+    const displayAmount = hasPartialBalance ? outstanding : totalAmount || outstanding;
+
+    labelEl.textContent = translate(labelKey);
+    outputEl.value = this.formatCurrency(displayAmount);
+  }
+
+  prefillPaymentRowAmounts(fee) {
+    const firstAmountInput = document.querySelector('#payment-rows [name="amount_0"]');
+    if (!firstAmountInput || !fee) return;
+
+    const totalAmount = Number(fee.total_amount) || 0;
+    const outstanding = this.getOutstanding(fee);
+    const preferredAmount = fee.status === 'paid'
+      ? totalAmount || outstanding
+      : outstanding || totalAmount;
+
+    if (preferredAmount > 0) {
+      firstAmountInput.value = preferredAmount.toFixed(2);
+    } else {
+      firstAmountInput.value = '';
     }
   }
 
