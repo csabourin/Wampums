@@ -657,5 +657,9 @@
     "status": "Status",
     "total_billed": "Total Billed",
     "total_paid": "Total Paid",
-    "view_your_financial_summary": "View your financial summary and payment history"
+    "view_your_financial_summary": "View your financial summary and payment history",
+    "make_payment": "Make Payment",
+    "period": "Period",
+    "participant_fees": "Participant Fees",
+    "participant": "Participant"
 }

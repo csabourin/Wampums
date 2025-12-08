@@ -35,6 +35,8 @@ export class Finance {
     this.paymentsCache = new Map();
     this.paymentPlanCache = new Map();
     this.lastPaymentAmounts = new Map(); // Cache for last entered payment amounts
+    this.sortField = 'name'; // Default sort field: name, outstanding, total
+    this.sortDirection = 'asc'; // asc or desc
   }
 
   async init() {
@@ -272,11 +274,17 @@ export class Finance {
   }
 
   renderMembershipsSection() {
-    const defaultDefinitionId = this.getDefaultFeeDefinitionId();
+    const sortedFees = this.getSortedParticipantFees();
+
     return `
-      <div class="finance-grid">
-        <section class="finance-card">
-          <h2>${translate("assign_membership_fee")}</h2>
+      <div class="finance-section">
+        <h2>${translate("participant_fees")}</h2>
+        ${sortedFees.length > 0 ? this.renderParticipantFeesTable(sortedFees) : `<p class="finance-helper">${translate("no_participant_fees")}</p>`}
+      </div>
+
+      <div class="finance-section">
+        <details class="finance-card">
+          <summary><h2>${translate("assign_membership_fee")}</h2></summary>
           <form id="participant-fee-form" class="finance-form" novalidate>
             <label for="participant_select">${translate("select_participant")}</label>
             <select id="participant_select" name="participant_id" required>
@@ -295,7 +303,7 @@ export class Finance {
               ${this.getSortedFeeDefinitions()
                 .map(
                   (def) => `
-                    <option value="${def.id}" ${defaultDefinitionId === Number(def.id) ? "selected" : ""}>${this.formatYearRange(def.year_start, def.year_end)}</option>
+                    <option value="${def.id}">${this.formatYearRange(def.year_start, def.year_end)}</option>
                   `
                 )
                 .join("")}
@@ -304,12 +312,6 @@ export class Finance {
             <input type="number" step="0.01" min="0" id="registration_total" name="total_registration_fee" required>
             <label for="membership_total">${translate("membership_fee_label")}</label>
             <input type="number" step="0.01" min="0" id="membership_total" name="total_membership_fee" required>
-            <label for="fee_status">${translate("status")}</label>
-            <select id="fee_status" name="status">
-              <option value="unpaid">${translate("unpaid")}</option>
-              <option value="partial">${translate("partial")}</option>
-              <option value="paid">${translate("paid")}</option>
-            </select>
             <label for="fee_notes">${translate("notes")}</label>
             <textarea id="fee_notes" name="notes" rows="2"></textarea>
             <div class="finance-plan-toggle">
@@ -336,70 +338,97 @@ export class Finance {
             </div>
             <button type="submit" class="primary-button">${translate("save")}</button>
           </form>
-        </section>
+        </details>
       </div>
-      <section class="finance-list">
-        ${this.participantFees.length ? this.participantFees.map((fee) => this.renderParticipantFeeCard(fee)).join("") : `<p class="finance-helper">${translate("no_participant_fees")}</p>`}
-      </section>
     `;
   }
 
-  renderParticipantFeeCard(fee) {
-    const participantName = `${escapeHTML(fee.first_name || "")} ${escapeHTML(fee.last_name || "")}`;
-    const plan = (this.paymentPlanCache.get(fee.id) || [])[0];
-    const statusLabel = translate(fee.status) || fee.status;
-    const planSummaryLabel = translate("payment_plan_summary");
+  getSortedParticipantFees() {
+    const fees = [...this.participantFees];
+    fees.sort((a, b) => {
+      let valA, valB;
 
-    // Get the fee definition to display proper year range
+      switch (this.sortField) {
+        case 'name':
+          valA = `${a.first_name} ${a.last_name}`.toLowerCase();
+          valB = `${b.first_name} ${b.last_name}`.toLowerCase();
+          break;
+        case 'outstanding':
+          valA = this.getOutstanding(a);
+          valB = this.getOutstanding(b);
+          break;
+        case 'total':
+          valA = Number(a.total_amount) || 0;
+          valB = Number(b.total_amount) || 0;
+          break;
+        case 'paid':
+          valA = Number(a.total_paid) || 0;
+          valB = Number(b.total_paid) || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (valA < valB) return this.sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return this.sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return fees;
+  }
+
+  renderParticipantFeesTable(fees) {
+    const sortIcon = (field) => {
+      if (this.sortField === field) {
+        return this.sortDirection === 'asc' ? ' ▲' : ' ▼';
+      }
+      return '';
+    };
+
+    return `
+      <div class="finance-table-container">
+        <table class="finance-table">
+          <thead>
+            <tr>
+              <th><button class="sort-btn" data-sort="name">${translate("participant")}${sortIcon('name')}</button></th>
+              <th>${translate("period")}</th>
+              <th><button class="sort-btn" data-sort="total">${translate("total_billed")}${sortIcon('total')}</button></th>
+              <th><button class="sort-btn" data-sort="paid">${translate("total_paid")}${sortIcon('paid')}</button></th>
+              <th><button class="sort-btn" data-sort="outstanding">${translate("outstanding_balance")}${sortIcon('outstanding')}</button></th>
+              <th>${translate("status")}</th>
+              <th>${translate("actions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${fees.map((fee) => this.renderParticipantFeeRow(fee)).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderParticipantFeeRow(fee) {
+    const participantName = `${escapeHTML(fee.first_name || "")} ${escapeHTML(fee.last_name || "")}`;
     const feeDefinition = this.feeDefinitions.find(def => String(def.id) === String(fee.fee_definition_id));
     const yearRange = feeDefinition
       ? this.formatYearRange(feeDefinition.year_start, feeDefinition.year_end)
       : translate("unknown");
+    const outstanding = this.getOutstanding(fee);
+    const statusLabel = translate(fee.status) || fee.status;
+    const statusClass = fee.status === 'paid' ? 'success' : fee.status === 'partial' ? 'warning' : 'danger';
 
     return `
-      <article class="finance-card" data-fee-id="${fee.id}">
-        <div class="finance-card__header">
-          <div>
-            <h3>${participantName}</h3>
-            <p class="finance-meta">${translate("billing_period")}: ${yearRange}</p>
-          </div>
-          <span class="finance-pill">${statusLabel}</span>
-        </div>
-        <div class="finance-amounts">
-          <div>
-            <p class="finance-stat__label">${translate("total_billed")}</p>
-            <p class="finance-stat__value">${this.formatCurrency(fee.total_amount)}</p>
-          </div>
-          <div>
-            <p class="finance-stat__label">${translate("total_paid")}</p>
-            <p class="finance-stat__value">${this.formatCurrency(fee.total_paid)}</p>
-          </div>
-          <div>
-            <p class="finance-stat__label">${translate("outstanding_balance")}</p>
-            <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(fee.outstanding)}</p>
-          </div>
-        </div>
-        <div class="finance-inline-form">
-          <div>
-            <label for="status-${fee.id}">${translate("status")}</label>
-            <select id="status-${fee.id}" data-field="status">
-              <option value="unpaid" ${fee.status === "unpaid" ? "selected" : ""}>${translate("unpaid")}</option>
-              <option value="partial" ${fee.status === "partial" ? "selected" : ""}>${translate("partial")}</option>
-              <option value="paid" ${fee.status === "paid" ? "selected" : ""}>${translate("paid")}</option>
-            </select>
-          </div>
-          <div>
-            <label for="notes-${fee.id}">${translate("notes")}</label>
-            <textarea id="notes-${fee.id}" data-field="notes" rows="2">${escapeHTML(fee.notes || "")}</textarea>
-          </div>
-          <button class="secondary-button" data-action="save-fee" data-id="${fee.id}">${translate("save")}</button>
-        </div>
-        ${plan ? `<p class="finance-meta">${planSummaryLabel}: ${plan.number_of_payments} × ${this.formatCurrency(plan.amount_per_payment)} • ${translate(plan.frequency || "")}</p>` : ""}
-        <div class="finance-actions">
-          <button class="primary-button" data-action="open-payment" data-id="${fee.id}">${translate("view_payments")}</button>
+      <tr data-fee-id="${fee.id}">
+        <td><strong>${participantName}</strong></td>
+        <td>${yearRange}</td>
+        <td>${this.formatCurrency(fee.total_amount)}</td>
+        <td>${this.formatCurrency(fee.total_paid)}</td>
+        <td><strong class="text-${statusClass}">${this.formatCurrency(outstanding)}</strong></td>
+        <td><span class="finance-pill finance-pill--${statusClass}">${statusLabel}</span></td>
+        <td class="finance-actions">
+          <button class="secondary-button" data-action="open-payment" data-id="${fee.id}">${translate("make_payment")}</button>
           <button class="ghost-button" data-action="open-plan" data-id="${fee.id}">${translate("manage_installments")}</button>
-        </div>
-      </article>
+        </td>
+      </tr>
     `;
   }
 
@@ -587,6 +616,23 @@ export class Finance {
       });
     });
 
+    // Sort button listeners
+    document.querySelectorAll('.sort-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const newSortField = e.currentTarget.dataset.sort;
+        if (this.sortField === newSortField) {
+          // Toggle direction if clicking the same field
+          this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+          // New field, default to ascending
+          this.sortField = newSortField;
+          this.sortDirection = 'asc';
+        }
+        this.render();
+        this.attachEventListeners();
+      });
+    });
+
     const definitionForm = document.getElementById('fee-definition-form');
     if (definitionForm) {
       definitionForm.addEventListener('submit', (e) => this.handleDefinitionSubmit(e));
@@ -667,10 +713,6 @@ export class Finance {
       } else {
         requireSelection();
       }
-    });
-
-    document.querySelectorAll('[data-action="save-fee"]').forEach((btn) => {
-      btn.addEventListener('click', (e) => this.saveFeeUpdates(e.currentTarget.dataset.id));
     });
 
     const paymentModal = document.getElementById('payment-modal');
@@ -756,8 +798,7 @@ export class Finance {
       fee_definition_id: parseInt(form.fee_definition_id.value, 10),
       total_registration_fee: parseFloat(form.total_registration_fee.value || 0),
       total_membership_fee: parseFloat(form.total_membership_fee.value || 0),
-      status: form.status.value,
-      notes: form.notes.value
+      notes: form.notes.value || ''
     };
 
     if (
@@ -801,40 +842,6 @@ export class Finance {
     } catch (error) {
       debugError('Error creating participant fee', error);
       this.app.showMessage(translate('error_saving_changes'), 'error');
-    }
-  }
-
-  async saveFeeUpdates(feeId) {
-    const statusField = document.getElementById(`status-${feeId}`);
-    const notesField = document.getElementById(`notes-${feeId}`);
-
-    // Optimistic update
-    const feeIndex = this.participantFees.findIndex(f => String(f.id) === String(feeId));
-    if (feeIndex >= 0) {
-      this.participantFees[feeIndex].status = statusField?.value;
-      this.participantFees[feeIndex].notes = notesField?.value;
-    }
-
-    try {
-      await updateParticipantFee(feeId, {
-        status: statusField?.value,
-        notes: notesField?.value
-      });
-
-      // Clear finance caches
-      await clearFinanceRelatedCaches(feeId);
-
-      await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
-      this.app.showMessage(translate('data_saved'), 'success');
-    } catch (error) {
-      debugError('Error updating participant fee', error);
-      this.app.showMessage(translate('error_saving_changes'), 'error');
-      // Reload to revert optimistic update
-      await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
     }
   }
 
