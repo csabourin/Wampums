@@ -234,6 +234,99 @@ module.exports = (pool) => {
     }
   }));
 
+  /**
+   * @swagger
+   * /api/v1/participants/{id}/group-membership:
+   *   patch:
+   *     summary: Update participant's group membership and roles
+   *     tags: [Participants]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: Participant ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               group_id:
+   *                 type: integer
+   *                 description: Group ID (null to remove from group)
+   *               is_leader:
+   *                 type: boolean
+   *                 default: false
+   *               is_second_leader:
+   *                 type: boolean
+   *                 default: false
+   *               roles:
+   *                 type: string
+   *                 description: Additional roles text
+   *     responses:
+   *       200:
+   *         description: Group membership updated successfully
+   *       404:
+   *         description: Participant not found
+   */
+  router.patch('/:id/group-membership', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { group_id, is_leader, is_second_leader, roles } = req.body;
+    const organizationId = await getOrganizationId(req, pool);
+
+    // Verify user belongs to this organization
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    // Verify participant exists and belongs to organization
+    const participantCheck = await pool.query(
+      `SELECT p.id FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE p.id = $1 AND po.organization_id = $2`,
+      [id, organizationId]
+    );
+
+    if (participantCheck.rows.length === 0) {
+      return error(res, 'Participant not found in this organization', 404);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Remove existing group assignment for this participant and organization
+      await client.query(
+        `DELETE FROM participant_groups WHERE participant_id = $1 AND organization_id = $2`,
+        [id, organizationId]
+      );
+
+      // Add new group assignment if group_id is provided
+      if (group_id) {
+        await client.query(
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [id, group_id, organizationId, is_leader || false, is_second_leader || false, roles || null]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      return success(res, null, group_id ? 'Group membership updated successfully' : 'Participant removed from group');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
   // ============================================
   // NON-VERSIONED PARTICIPANT ENDPOINTS
   // These routes are mounted at /api, so 'participants' becomes '/api/participants'

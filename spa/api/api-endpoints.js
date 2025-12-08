@@ -512,11 +512,10 @@ export async function updateGroupName(groupId, newName) {
 }
 
 /**
- * Update participant's group
+ * Update participant's group membership (RESTful v1 endpoint)
  */
 export async function updateParticipantGroup(participantId, groupId, isLeader = false, isSecondLeader = false, roles = null) {
-    return API.post('update-participant-group', {
-        participant_id: participantId,
+    return API.patch(`v1/participants/${participantId}/group-membership`, {
         group_id: groupId,
         is_leader: isLeader,
         is_second_leader: isSecondLeader,

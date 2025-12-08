@@ -245,7 +245,7 @@ export class ManageParticipants {
               requestData.roles
           );
 
-          if (result.status === "success") {
+          if (result.success) {
               roleSelect.disabled = !groupId;
               rolesInput.disabled = !groupId;
               if (!groupId) {
@@ -298,7 +298,7 @@ export class ManageParticipants {
     try {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
-      if (result.status === "success") {
+      if (result.success) {
         await this.fetchData()
         this.app.showMessage(translate("role_updated_successfully"), "success");
       } else {
@@ -342,7 +342,7 @@ export class ManageParticipants {
     try {
       const result = await updateParticipantGroup(participantId, groupId, isLeader, isSecondLeader, roles);
 
-      if (result.status === "success") {
+      if (result.success) {
         await this.fetchData()
         this.app.showMessage(translate("role_updated_successfully"), "success");
       } else {
