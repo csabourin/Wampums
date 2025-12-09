@@ -3,27 +3,14 @@ const router = express.Router();
 const { authenticate, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
-
-function toNumeric(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function validateMoney(value, fieldName) {
-  const numeric = Number.parseFloat(value);
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    return { valid: false, message: `${fieldName} must be a non-negative number` };
-  }
-  return { valid: true, value: Math.round(numeric * 100) / 100 };
-}
-
-function validateDate(value, fieldName) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return { valid: false, message: `${fieldName} must be a valid date` };
-  }
-  return { valid: true };
-}
+const {
+  toNumeric,
+  validateMoney,
+  validateDate,
+  cleanExternalRevenueNotes,
+  extractRevenueType,
+  formatExternalRevenueNotes
+} = require('../utils/validation-helpers');
 
 module.exports = (pool, logger) => {
   /**
@@ -89,18 +76,12 @@ module.exports = (pool, logger) => {
     const result = await pool.query(query, params);
 
     // Parse revenue type from notes
-    const revenues = result.rows.map(row => {
-      const typeMatch = row.notes?.match(/\[TYPE:([^\]]+)\]/);
-      const revenueType = typeMatch ? typeMatch[1] : 'other';
-      const cleanNotes = row.notes?.replace(/\[EXTERNAL_REVENUE\]/g, '').replace(/\[TYPE:[^\]]+\]/g, '').trim() || '';
-      
-      return {
-        ...row,
-        revenue_type: revenueType,
-        notes: cleanNotes,
-        amount: toNumeric(row.amount)
-      };
-    });
+    const revenues = result.rows.map(row => ({
+      ...row,
+      revenue_type: extractRevenueType(row.notes),
+      notes: cleanExternalRevenueNotes(row.notes),
+      amount: toNumeric(row.amount)
+    }));
 
     return success(res, revenues, 'External revenue entries loaded');
   }));
@@ -143,7 +124,7 @@ module.exports = (pool, logger) => {
 
     // Store as negative amount in budget_expenses to represent revenue
     // Mark as external revenue with special notes tag
-    const markedNotes = `[EXTERNAL_REVENUE][TYPE:${revenue_type}] ${notes || ''}`.trim();
+    const markedNotes = formatExternalRevenueNotes(revenue_type, notes);
 
     const result = await pool.query(
       `INSERT INTO budget_expenses
@@ -236,9 +217,9 @@ module.exports = (pool, logger) => {
     // Build update notes
     let updateNotes = checkResult.rows[0].notes;
     if (notes !== undefined || revenue_type !== undefined) {
-      const currentType = updateNotes?.match(/\[TYPE:([^\]]+)\]/)?.[1] || 'other';
+      const currentType = extractRevenueType(updateNotes);
       const newType = revenue_type || currentType;
-      updateNotes = `[EXTERNAL_REVENUE][TYPE:${newType}] ${notes || ''}`.trim();
+      updateNotes = formatExternalRevenueNotes(newType, notes || '');
     }
 
     const result = await pool.query(
@@ -270,14 +251,11 @@ module.exports = (pool, logger) => {
 
     logger.info(`External revenue updated: ${id} for organization ${organizationId}`);
 
-    const typeMatch = result.rows[0].notes?.match(/\[TYPE:([^\]]+)\]/);
-    const cleanNotes = result.rows[0].notes?.replace(/\[EXTERNAL_REVENUE\]/g, '').replace(/\[TYPE:[^\]]+\]/g, '').trim() || '';
-
     const revenue = {
       ...result.rows[0],
       amount: Math.abs(toNumeric(result.rows[0].amount)),
-      revenue_type: typeMatch ? typeMatch[1] : 'other',
-      notes: cleanNotes
+      revenue_type: extractRevenueType(result.rows[0].notes),
+      notes: cleanExternalRevenueNotes(result.rows[0].notes)
     };
 
     return success(res, revenue, 'External revenue updated successfully');
@@ -370,8 +348,7 @@ module.exports = (pool, logger) => {
     let totalCount = 0;
 
     result.rows.forEach(row => {
-      const typeMatch = row.notes?.match(/\[TYPE:([^\]]+)\]/);
-      const revenueType = typeMatch ? typeMatch[1] : 'other';
+      const revenueType = extractRevenueType(row.notes);
       const amount = toNumeric(row.total_amount);
       const count = parseInt(row.entry_count || 0);
 

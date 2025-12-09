@@ -3,27 +3,10 @@ const router = express.Router();
 const { authenticate, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
+const { toNumeric, validateMoney, validateDate } = require('../utils/validation-helpers');
 
-function toNumeric(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function validateMoney(value, fieldName) {
-  const numeric = Number.parseFloat(value);
-  if (!Number.isFinite(numeric) || numeric < 0) {
-    return { valid: false, message: `${fieldName} must be a non-negative number` };
-  }
-  return { valid: true, value: Math.round(numeric * 100) / 100 };
-}
-
-function validateDate(value, fieldName) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return { valid: false, message: `${fieldName} must be a valid date` };
-  }
-  return { valid: true };
-}
+// Configuration constants
+const MAX_BULK_EXPENSES = 100;
 
 module.exports = (pool, logger) => {
   // ===== BUDGET CATEGORIES =====
@@ -1144,8 +1127,8 @@ module.exports = (pool, logger) => {
       return error(res, 'Expenses array is required and must not be empty', 400);
     }
 
-    if (expenses.length > 100) {
-      return error(res, 'Maximum 100 expenses can be created at once', 400);
+    if (expenses.length > MAX_BULK_EXPENSES) {
+      return error(res, `Maximum ${MAX_BULK_EXPENSES} expenses can be created at once`, 400);
     }
 
     const client = await pool.connect();
