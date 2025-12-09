@@ -199,7 +199,7 @@ module.exports = (pool, logger) => {
 
       const result = await pool.query(query, params);
 
-      // Process health data to extract key fields
+      // Process health data to extract key fields (using actual fiche_sante field names)
       const healthReport = result.rows.map(row => {
         const healthData = row.health_data || {};
         return {
@@ -208,14 +208,19 @@ module.exports = (pool, logger) => {
           last_name: row.last_name,
           date_naissance: row.date_naissance,
           group_name: row.group_name,
-          allergies: healthData.allergies || healthData.allergie || null,
-          allergies_details: healthData.allergies_details || healthData.allergie_details || null,
-          medications: healthData.medicaments || healthData.medications || null,
-          epipen: healthData.epipen || healthData.auto_injecteur || false,
+          // Using actual field names from fiche_sante form
+          has_allergies: healthData.has_allergies || null,
+          allergies: healthData.allergie || null,
+          epipen: healthData.epipen || false,
+          has_medication: healthData.has_medication || null,
+          medications: healthData.medicament || null,
+          has_probleme_sante: healthData.has_probleme_sante || null,
+          probleme_sante: healthData.probleme_sante || null,
           medecin_famille: healthData.medecin_famille || null,
           nom_medecin: healthData.nom_medecin || null,
-          telephone_medecin: healthData.telephone_medecin || null,
-          carte_assurance_maladie: healthData.carte_assurance_maladie || null,
+          niveau_natation: healthData.niveau_natation || null,
+          doit_porter_vfi: healthData.doit_porter_vfi || false,
+          vaccins_a_jour: healthData.vaccins_a_jour || false,
           has_health_form: !!row.health_data
         };
       });
@@ -557,15 +562,18 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name,
-                fs.submission_data->>'allergies' as allergies,
-                fs.submission_data->>'allergies_details' as allergies_details
+        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+                fs.submission_data->>'has_allergies' as has_allergies,
+                fs.submission_data->>'allergie' as allergies,
+                fs.submission_data->>'epipen' as epipen
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
          WHERE po.organization_id = $1
-           AND (fs.submission_data->>'allergies' = 'true' OR fs.submission_data->>'allergies_details' IS NOT NULL)
-         ORDER BY p.first_name, p.last_name`,
+           AND fs.submission_data->>'has_allergies' = 'yes'
+         ORDER BY g.name, p.last_name, p.first_name`,
         [organizationId]
       );
 
@@ -613,15 +621,17 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name,
-                fs.submission_data->>'medication' as medication,
-                fs.submission_data->>'medication_details' as medication_details
+        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+                fs.submission_data->>'has_medication' as has_medication,
+                fs.submission_data->>'medicament' as medication
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
          WHERE po.organization_id = $1
-           AND (fs.submission_data->>'medication' = 'true' OR fs.submission_data->>'medication_details' IS NOT NULL)
-         ORDER BY p.first_name, p.last_name`,
+           AND fs.submission_data->>'has_medication' = 'yes'
+         ORDER BY g.name, p.last_name, p.first_name`,
         [organizationId]
       );
 
@@ -669,14 +679,15 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name,
-                fs.submission_data->>'vaccinations' as vaccinations,
-                fs.submission_data->>'vaccination_date' as vaccination_date
+        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+                fs.submission_data->>'vaccins_a_jour' as vaccines_up_to_date
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
          WHERE po.organization_id = $1
-         ORDER BY p.first_name, p.last_name`,
+         ORDER BY g.name, p.last_name, p.first_name`,
         [organizationId]
       );
 
@@ -724,13 +735,15 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name,
-                fs.submission_data->>'can_leave_alone' as can_leave_alone
+        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+                fs.submission_data->>'peut_partir_seul' as can_leave_alone
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'guardian_form'
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
          WHERE po.organization_id = $1
-         ORDER BY p.first_name, p.last_name`,
+         ORDER BY g.name, p.last_name, p.first_name`,
         [organizationId]
       );
 
@@ -778,13 +791,15 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name,
-                fs.submission_data->>'media_authorization' as media_authorization
+        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+                fs.submission_data->>'consentement_photos_videos' as media_authorized
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'guardian_form'
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
          WHERE po.organization_id = $1
-         ORDER BY p.first_name, p.last_name`,
+         ORDER BY g.name, p.last_name, p.first_name`,
         [organizationId]
       );
 

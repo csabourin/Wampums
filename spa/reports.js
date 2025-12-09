@@ -50,48 +50,197 @@ export class Reports {
                                 <h1>${translate("reports_title")}</h1>
                                 <p class="reports-subtitle">${translate("reports_intro")}</p>
                         </section>
-                        <section class="reports-menu-grid" role="menu" aria-label="${translate("reports")}">
-                                <button class="report-btn" data-report="health" type="button">${translate("health_report")}</button>
-                                <button class="report-btn" data-report="allergies" type="button">${translate("allergies_report")}</button>
-                                <button class="report-btn" data-report="medication" type="button">${translate("medication_report")}</button>
-                                <button class="report-btn" data-report="vaccines" type="button">${translate("vaccine_report")}</button>
-                                <button class="report-btn" data-report="leave-alone" type="button">${translate("leave_alone_report")}</button>
-                                <button class="report-btn" data-report="media-authorization" type="button">${translate("media_authorization_report")}</button>
-                                <button class="report-btn" data-report="participant-age" type="button">${translate("participant_age_report")}</button>
-                                <button class="report-btn" data-report="missing-documents" type="button">${translate("missing_documents_report")}</button>
-                                <button class="report-btn" data-report="attendance" type="button">${translate("attendance_report")}</button>
-                                <button class="report-btn" data-report="honors" type="button">${translate("honors_report")}</button>
-                                <button class="report-btn" data-report="points" type="button">${translate("points_report")}</button>
-                                <button class="report-btn" data-report="time-since-registration" type="button">${translate("time_since_registration_report")}</button>
-                                <button class="report-btn" data-report="financial" type="button">${translate("financial_report")}</button>
-                                <button class="report-btn report-btn--accent" data-report="participant-progress" type="button">${translate("participant_progress_report")}</button>
-                        </section>
-                        <div id="form-type-container" class="report-surface" aria-live="polite">
-                                        <div class="form-field">
-                                                <label for="form-type-select">${translate("select_form_type")}</label>
-                                                <select id="form-type-select">
-                                                        <option value="">${translate("select_form_type")}</option>
-                                                </select>
-                                        </div>
-                        </div>
-                        <section class="report-view">
-                                <div id="report-content" class="report-surface" aria-live="polite"></div>
-                                <div class="report-actions">
-                                        <button id="print-report" class="button" style="display: none;" type="button">${translate("print_report")}</button>
-                                        <p class="report-back"><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+
+                        <!-- Health & Medical Section -->
+                        <section class="report-category">
+                                <h2 class="report-category-title">${translate("health_medical_category")}</h2>
+                                <div class="reports-menu-grid" role="menu" aria-label="${translate("health_medical_category")}">
+                                        <button class="report-btn" data-report="health" type="button">
+                                                <span class="report-btn-icon">🏥</span>
+                                                <span class="report-btn-label">${translate("health_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("health_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="allergies" type="button">
+                                                <span class="report-btn-icon">⚠️</span>
+                                                <span class="report-btn-label">${translate("allergies_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("allergies_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="medication" type="button">
+                                                <span class="report-btn-icon">💊</span>
+                                                <span class="report-btn-label">${translate("medication_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("medication_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="vaccines" type="button">
+                                                <span class="report-btn-icon">💉</span>
+                                                <span class="report-btn-label">${translate("vaccine_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("vaccine_report_desc")}</span>
+                                        </button>
                                 </div>
                         </section>
+
+                        <!-- Permissions & Documents Section -->
+                        <section class="report-category">
+                                <h2 class="report-category-title">${translate("permissions_documents_category")}</h2>
+                                <div class="reports-menu-grid" role="menu" aria-label="${translate("permissions_documents_category")}">
+                                        <button class="report-btn" data-report="leave-alone" type="button">
+                                                <span class="report-btn-icon">🚶</span>
+                                                <span class="report-btn-label">${translate("leave_alone_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("leave_alone_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="media-authorization" type="button">
+                                                <span class="report-btn-icon">📸</span>
+                                                <span class="report-btn-label">${translate("media_authorization_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("media_authorization_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="missing-documents" type="button">
+                                                <span class="report-btn-icon">📋</span>
+                                                <span class="report-btn-label">${translate("missing_documents_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("missing_documents_report_desc")}</span>
+                                        </button>
+                                </div>
+                        </section>
+
+                        <!-- Attendance & Participation Section -->
+                        <section class="report-category">
+                                <h2 class="report-category-title">${translate("attendance_participation_category")}</h2>
+                                <div class="reports-menu-grid" role="menu" aria-label="${translate("attendance_participation_category")}">
+                                        <button class="report-btn" data-report="attendance" type="button">
+                                                <span class="report-btn-icon">✓</span>
+                                                <span class="report-btn-label">${translate("attendance_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("attendance_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="participant-age" type="button">
+                                                <span class="report-btn-icon">🎂</span>
+                                                <span class="report-btn-label">${translate("participant_age_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("participant_age_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="time-since-registration" type="button">
+                                                <span class="report-btn-icon">📅</span>
+                                                <span class="report-btn-label">${translate("time_since_registration_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("time_since_registration_report_desc")}</span>
+                                        </button>
+                                </div>
+                        </section>
+
+                        <!-- Progression & Recognition Section -->
+                        <section class="report-category">
+                                <h2 class="report-category-title">${translate("progression_recognition_category")}</h2>
+                                <div class="reports-menu-grid" role="menu" aria-label="${translate("progression_recognition_category")}">
+                                        <button class="report-btn report-btn--featured" data-report="participant-progress" type="button">
+                                                <span class="report-btn-icon">📊</span>
+                                                <span class="report-btn-label">${translate("participant_progress_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("participant_progress_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="honors" type="button">
+                                                <span class="report-btn-icon">🏆</span>
+                                                <span class="report-btn-label">${translate("honors_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("honors_report_desc")}</span>
+                                        </button>
+                                        <button class="report-btn" data-report="points" type="button">
+                                                <span class="report-btn-icon">⭐</span>
+                                                <span class="report-btn-label">${translate("points_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("points_report_desc")}</span>
+                                        </button>
+                                </div>
+                        </section>
+
+                        <!-- Financial Section -->
+                        <section class="report-category">
+                                <h2 class="report-category-title">${translate("financial_category")}</h2>
+                                <div class="reports-menu-grid" role="menu" aria-label="${translate("financial_category")}">
+                                        <button class="report-btn" data-report="financial" type="button">
+                                                <span class="report-btn-icon">💰</span>
+                                                <span class="report-btn-label">${translate("financial_report_title")}</span>
+                                                <span class="report-btn-desc">${translate("financial_report_desc")}</span>
+                                        </button>
+                                </div>
+                        </section>
+
+                        <!-- Advanced Reports Section -->
+                        <section class="report-category report-category--advanced">
+                                <details class="report-advanced-toggle">
+                                        <summary class="report-advanced-summary">
+                                                <h2 class="report-category-title">${translate("advanced_reports_category")}</h2>
+                                                <span class="report-advanced-icon">▼</span>
+                                        </summary>
+                                        <div class="report-advanced-content">
+                                                <p class="report-advanced-desc">${translate("advanced_reports_desc")}</p>
+                                                <div class="form-field">
+                                                        <label for="form-type-select">${translate("missing_fields_form_selector_label")}</label>
+                                                        <select id="form-type-select" class="form-control">
+                                                                <option value="">${translate("select_form_type")}</option>
+                                                        </select>
+                                                        <small class="form-help">${translate("missing_fields_form_selector_help")}</small>
+                                                </div>
+                                        </div>
+                                </details>
+                        </section>
+
+                        <!-- Report Modal -->
+                        <div id="report-modal" class="report-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+                                <div class="report-modal-overlay" id="report-modal-overlay"></div>
+                                <div class="report-modal-container">
+                                        <div class="report-modal-header">
+                                                <h2 id="report-modal-title" class="report-modal-title"></h2>
+                                                <div class="report-modal-actions">
+                                                        <button id="print-report" class="button button--secondary" type="button">
+                                                                <span class="button-icon">🖨️</span>
+                                                                ${translate("print_report")}
+                                                        </button>
+                                                        <button id="close-report-modal" class="button button--ghost" type="button" aria-label="${translate("close")}">
+                                                                <span class="button-icon">✕</span>
+                                                        </button>
+                                                </div>
+                                        </div>
+                                        <div class="report-modal-content" id="report-content" aria-live="polite"></div>
+                                </div>
+                        </div>
                 `;
                 document.getElementById("app").innerHTML = content;
         }
 
         attachEventListeners() {
                 document.querySelectorAll('.report-btn').forEach(button => {
-                        button.addEventListener('click', (e) => this.loadReport(e.target.dataset.report));
+                        button.addEventListener('click', (e) => {
+                                const reportType = e.target.closest('.report-btn').dataset.report;
+                                this.loadReport(reportType);
+                        });
                 });
 
-		document.getElementById('print-report').addEventListener('click', () => this.printReport());
-	}
+                // Modal close handlers
+                const closeModalBtn = document.getElementById('close-report-modal');
+                const modalOverlay = document.getElementById('report-modal-overlay');
+
+                closeModalBtn?.addEventListener('click', () => this.closeReportModal());
+                modalOverlay?.addEventListener('click', () => this.closeReportModal());
+
+                // ESC key to close modal
+                document.addEventListener('keydown', (e) => {
+                        if (e.key === 'Escape') {
+                                const modal = document.getElementById('report-modal');
+                                if (modal && modal.style.display !== 'none') {
+                                        this.closeReportModal();
+                                }
+                        }
+                });
+
+                document.getElementById('print-report')?.addEventListener('click', () => this.printReport());
+        }
+
+        openReportModal(title) {
+                const modal = document.getElementById('report-modal');
+                const modalTitle = document.getElementById('report-modal-title');
+
+                modalTitle.textContent = title;
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        }
+
+        closeReportModal() {
+                const modal = document.getElementById('report-modal');
+                modal.style.display = 'none';
+                document.body.style.overflow = ''; // Restore scrolling
+        }
 
 	async loadFormTypes() {
 		try {
@@ -130,6 +279,27 @@ export class Reports {
 
 	async loadReport(reportType,formType=null) {
 		try {
+			// Get report title for modal
+			const reportTitles = {
+				'health': translate('health_report_title'),
+				'allergies': translate('allergies_report_title'),
+				'medication': translate('medication_report_title'),
+				'vaccines': translate('vaccine_report_title'),
+				'leave-alone': translate('leave_alone_report_title'),
+				'media-authorization': translate('media_authorization_report_title'),
+				'missing-documents': translate('missing_documents_report_title'),
+				'attendance': translate('attendance_report_title'),
+				'participant-age': translate('participant_age_report_title'),
+				'honors': translate('honors_report_title'),
+				'points': translate('points_report_title'),
+				'financial': translate('financial_report_title'),
+				'participant-progress': translate('participant_progress_report_title'),
+				'missing-fields': translate('missing_fields_report')
+			};
+
+			// Open modal with report title
+			this.openReportModal(reportTitles[reportType] || translate('report'));
+
 			let reportData;
 			let reportContent;
 
@@ -203,13 +373,11 @@ case 'participant-age':
                         if (reportType === 'participant-progress') {
                                 this.attachParticipantProgressListeners();
                         }
-                        document.getElementById('print-report').style.display = 'block';
                 } catch (error) {
                         debugError(`Error loading ${reportType} report:`, error);
 			document.getElementById('report-content').innerHTML = `
 				<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>
 			`;
-			document.getElementById('print-report').style.display = 'none';
 		}
 	}
 
@@ -430,10 +598,10 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.allergies}</td>
-							<td>${item.epipen ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.allergies || '-'}</td>
+							<td>${item.epipen === 'on' || item.epipen === 'true' || item.epipen === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -459,9 +627,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.medication}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.medication || '-'}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -487,9 +655,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.vaccines_up_to_date ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.vaccines_up_to_date === 'on' || item.vaccines_up_to_date === 'true' || item.vaccines_up_to_date === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -544,9 +712,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.can_leave_alone ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.can_leave_alone === 'on' || item.can_leave_alone === 'true' || item.can_leave_alone === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -572,9 +740,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.media_authorized ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.media_authorized === 'on' || item.media_authorized === 'true' || item.media_authorized === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -600,7 +768,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${reportData.map(item => `
 						<tr>
-							<td>${item.name}</td>
+							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${this.formatMissingDocuments(item.missing_documents)}</td>
 						</tr>
