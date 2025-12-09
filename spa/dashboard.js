@@ -572,11 +572,6 @@ export class Dashboard {
       maximumFractionDigits: 2
     }).format(value);
   }
-      /**
-   * Render budget widget
-   */;
-    }
-    
 
   renderError() {
     document.getElementById("app").innerHTML = `
