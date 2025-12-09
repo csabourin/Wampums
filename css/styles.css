@@ -3971,6 +3971,114 @@ details p {
   gap: var(--space-xs);
 }
 
+/* Report Categories */
+.report-category {
+  margin-bottom: var(--space-2xl);
+}
+
+.report-category-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin: 0 0 var(--space-md) 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 2px solid var(--color-border-light);
+}
+
+/* Enhanced Report Buttons */
+.report-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-btn-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.report-btn-label {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  display: block;
+}
+
+.report-btn-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+  display: block;
+}
+
+.report-btn--featured {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  border-color: transparent;
+}
+
+.report-btn--featured .report-btn-label,
+.report-btn--featured .report-btn-desc {
+  color: var(--color-selected-text);
+}
+
+/* Advanced Reports Section */
+.report-category--advanced {
+  background: var(--color-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin-top: var(--space-xl);
+}
+
+.report-advanced-toggle {
+  cursor: pointer;
+}
+
+.report-advanced-toggle[open] .report-advanced-icon {
+  transform: rotate(180deg);
+}
+
+.report-advanced-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.report-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-advanced-icon {
+  font-size: var(--font-size-sm);
+  transition: transform var(--transition-base);
+  color: var(--color-text-muted);
+}
+
+.report-advanced-content {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.report-advanced-desc {
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-md);
+}
+
+.form-help {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  display: block;
+  margin-top: var(--space-xs);
+}
+
 @media (max-width: 960px) {
   .badge-table__header,
   .badge-table__row {
