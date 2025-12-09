@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "2.2.4";
+const APP_VERSION = "2.2.5";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
@@ -33,7 +33,7 @@ const staticAssets = [
   "/spa/api/api-core.js",
   "/spa/api/api-endpoints.js",
   "/spa/api/api-helpers.js",
-  "/spa/config.js",
+  // Note: config.js is NOT cached here - it should always be network-first to get latest version
   "/manifest.json",
 ];
 

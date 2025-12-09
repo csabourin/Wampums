@@ -224,7 +224,6 @@ class PWAUpdateManager {
                 <div class="pwa-update-text">
                     <h3>${msg.title}</h3>
                     <p>${msg.message}</p>
-                    <p class="pwa-update-version">Version ${CONFIG.VERSION}</p>
                 </div>
                 <div class="pwa-update-actions">
                     <button class="pwa-update-btn pwa-update-btn-primary" id="pwa-update-now">
@@ -308,12 +307,6 @@ class PWAUpdateManager {
                 color: #666;
                 font-size: 14px;
                 line-height: 1.5;
-            }
-
-            .pwa-update-version {
-                color: #4c65ae;
-                font-weight: 500;
-                font-size: 13px !important;
             }
 
             .pwa-update-actions {
