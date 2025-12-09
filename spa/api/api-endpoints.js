@@ -590,6 +590,8 @@ export async function getFormSubmission(participantId, formType) {
     return API.get('form-submission', {
         participant_id: participantId,
         form_type: formType
+    }, {
+        cacheKey: `form-submission-${formType}-${participantId}`
     });
 }
 
@@ -606,17 +608,40 @@ export async function getFormSubmissions(participantId = null, formType) {
  * Save form submission
  */
 export async function saveFormSubmission(formTypeOrData, participantId, submissionData) {
+    // Import deleteCachedData dynamically to avoid circular dependencies
+    const { deleteCachedData } = await import('../indexedDB.js');
+
+    let formType, pId;
+
     // Support both signatures:
     // 1. saveFormSubmission({ form_type, participant_id, submission_data })
     // 2. saveFormSubmission(formType, participantId, submissionData)
     if (typeof formTypeOrData === 'object' && formTypeOrData !== null && participantId === undefined) {
-        return API.post('save-form-submission', formTypeOrData);
+        formType = formTypeOrData.form_type;
+        pId = formTypeOrData.participant_id;
+        const result = await API.post('save-form-submission', formTypeOrData);
+
+        // Clear cache for this specific form submission
+        if (formType && pId) {
+            await deleteCachedData(`form-submission-${formType}-${pId}`);
+        }
+
+        return result;
     } else {
-        return API.post('save-form-submission', {
-            form_type: formTypeOrData,
-            participant_id: participantId,
+        formType = formTypeOrData;
+        pId = participantId;
+        const result = await API.post('save-form-submission', {
+            form_type: formType,
+            participant_id: pId,
             submission_data: submissionData
         });
+
+        // Clear cache for this specific form submission
+        if (formType && pId) {
+            await deleteCachedData(`form-submission-${formType}-${pId}`);
+        }
+
+        return result;
     }
 }
 
@@ -657,28 +682,50 @@ export async function getOrganizationFormFormats(organizationId = null) {
  * Get health form (fiche santé)
  */
 export async function fetchFicheSante(participantId) {
-    return API.get('fiche-sante', { participant_id: participantId });
+    return API.get('fiche-sante', { participant_id: participantId }, {
+        cacheKey: `fiche-sante-${participantId}`
+    });
 }
 
 /**
  * Save health form
  */
 export async function saveFicheSante(ficheSanteData) {
-    return API.post('save-fiche-sante', ficheSanteData);
+    const { deleteCachedData } = await import('../indexedDB.js');
+    const result = await API.post('save-fiche-sante', ficheSanteData);
+
+    // Clear cache for this participant's fiche sante
+    if (ficheSanteData.participant_id) {
+        await deleteCachedData(`fiche-sante-${ficheSanteData.participant_id}`);
+        await deleteCachedData(`form-submission-fiche_sante-${ficheSanteData.participant_id}`);
+    }
+
+    return result;
 }
 
 /**
  * Get risk acceptance form
  */
 export async function fetchAcceptationRisque(participantId) {
-    return API.get('acceptation-risque', { participant_id: participantId });
+    return API.get('acceptation-risque', { participant_id: participantId }, {
+        cacheKey: `acceptation-risque-${participantId}`
+    });
 }
 
 /**
  * Save risk acceptance form
  */
 export async function saveAcceptationRisque(data) {
-    return API.post('save-acceptation-risque', data);
+    const { deleteCachedData } = await import('../indexedDB.js');
+    const result = await API.post('save-acceptation-risque', data);
+
+    // Clear cache for this participant's risk acceptance form
+    if (data.participant_id) {
+        await deleteCachedData(`acceptation-risque-${data.participant_id}`);
+        await deleteCachedData(`form-submission-acceptation_risque-${data.participant_id}`);
+    }
+
+    return result;
 }
 
 /**
