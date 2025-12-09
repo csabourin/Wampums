@@ -41,6 +41,72 @@ CREATE TABLE public.badge_progress (
   CONSTRAINT badge_progress_pkey PRIMARY KEY (id),
   CONSTRAINT badge_progress_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+CREATE TABLE public.budget_categories (
+  id integer NOT NULL DEFAULT nextval('budget_categories_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  name character varying NOT NULL,
+  description text,
+  category_type character varying DEFAULT 'other'::character varying CHECK (category_type::text = ANY (ARRAY['registration'::character varying, 'fundraising'::character varying, 'activity'::character varying, 'operations'::character varying, 'other'::character varying]::text[])),
+  display_order integer DEFAULT 0,
+  active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT budget_categories_pkey PRIMARY KEY (id),
+  CONSTRAINT budget_categories_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.budget_expenses (
+  id integer NOT NULL DEFAULT nextval('budget_expenses_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  budget_category_id integer,
+  budget_item_id integer,
+  amount numeric NOT NULL CHECK (amount >= 0::numeric),
+  expense_date date NOT NULL,
+  description text NOT NULL,
+  payment_method character varying,
+  reference_number character varying,
+  receipt_url text,
+  notes text,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT budget_expenses_pkey PRIMARY KEY (id),
+  CONSTRAINT budget_expenses_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT budget_expenses_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
+  CONSTRAINT budget_expenses_budget_item_id_fkey FOREIGN KEY (budget_item_id) REFERENCES public.budget_items(id),
+  CONSTRAINT budget_expenses_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.budget_items (
+  id integer NOT NULL DEFAULT nextval('budget_items_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  budget_category_id integer NOT NULL,
+  name character varying NOT NULL,
+  description text,
+  item_type character varying DEFAULT 'other'::character varying CHECK (item_type::text = ANY (ARRAY['revenue'::character varying, 'expense'::character varying, 'both'::character varying]::text[])),
+  unit_price numeric,
+  estimated_quantity integer,
+  display_order integer DEFAULT 0,
+  active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT budget_items_pkey PRIMARY KEY (id),
+  CONSTRAINT budget_items_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT budget_items_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id)
+);
+CREATE TABLE public.budget_plans (
+  id integer NOT NULL DEFAULT nextval('budget_plans_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  budget_item_id integer,
+  fiscal_year_start date NOT NULL,
+  fiscal_year_end date NOT NULL,
+  budgeted_revenue numeric DEFAULT 0,
+  budgeted_expense numeric DEFAULT 0,
+  notes text,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT budget_plans_pkey PRIMARY KEY (id),
+  CONSTRAINT budget_plans_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT budget_plans_budget_item_id_fkey FOREIGN KEY (budget_item_id) REFERENCES public.budget_items(id)
+);
 CREATE TABLE public.calendars (
   participant_id integer,
   amount integer NOT NULL DEFAULT 0,
@@ -61,7 +127,9 @@ CREATE TABLE public.fee_definitions (
   created_at timestamp without time zone DEFAULT now(),
   year_start date NOT NULL,
   year_end date NOT NULL,
+  budget_category_id integer,
   CONSTRAINT fee_definitions_pkey PRIMARY KEY (id),
+  CONSTRAINT fee_definitions_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
   CONSTRAINT fee_definitions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.form_submissions (
@@ -88,7 +156,9 @@ CREATE TABLE public.fundraisers (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   organization integer,
   archived boolean NOT NULL DEFAULT false,
+  budget_category_id integer,
   CONSTRAINT fundraisers_pkey PRIMARY KEY (id),
+  CONSTRAINT fundraisers_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
   CONSTRAINT fundraisers_organization_fkey FOREIGN KEY (organization) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.groups (
