@@ -57,7 +57,7 @@ export const CONFIG = {
     /**
      * Application Version
      */
-    VERSION: "2.2.5",
+    VERSION: "2.3.0",
 
     /**
      * Application Name
