@@ -340,7 +340,7 @@ module.exports = (pool, logger) => {
         be.*,
         bc.name as category_name,
         bi.name as item_name,
-        u.name as created_by_name
+        u.full_name as created_by_name
       FROM budget_expenses be
       LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
       LEFT JOIN budget_items bi ON be.budget_item_id = bi.id
