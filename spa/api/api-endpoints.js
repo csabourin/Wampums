@@ -1591,6 +1591,160 @@ export async function deleteBudgetPlan(id) {
     return API.delete(`v1/budget/plans/${id}`);
 }
 
+/**
+ * Get expense summary by category
+ */
+export async function getExpenseSummary(startDate = null, endDate = null, categoryId = null) {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    if (categoryId) params.category_id = categoryId;
+    
+    const cacheKey = `expense_summary_${startDate || 'all'}_${endDate || 'all'}_${categoryId || 'all'}`;
+    return API.get('v1/expenses/summary', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Get monthly expense breakdown
+ */
+export async function getExpensesMonthly(fiscalYearStart = null, fiscalYearEnd = null, categoryId = null) {
+    const params = {};
+    if (fiscalYearStart) params.fiscal_year_start = fiscalYearStart;
+    if (fiscalYearEnd) params.fiscal_year_end = fiscalYearEnd;
+    if (categoryId) params.category_id = categoryId;
+    
+    const cacheKey = `expenses_monthly_${fiscalYearStart || 'all'}_${fiscalYearEnd || 'all'}_${categoryId || 'all'}`;
+    return API.get('v1/expenses/monthly', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Bulk create expenses
+ */
+export async function createExpensesBulk(expenses) {
+    return API.post('v1/expenses/bulk', { expenses });
+}
+
+// ============================================================================
+// EXTERNAL REVENUE (Donations, Sponsorships, Grants)
+// ============================================================================
+
+/**
+ * Get external revenue entries with optional filters
+ */
+export async function getExternalRevenue(filters = {}) {
+    return API.get('v1/revenue/external', filters, {
+        cacheKey: 'external_revenue',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create external revenue entry
+ */
+export async function createExternalRevenue(payload) {
+    return API.post('v1/revenue/external', payload);
+}
+
+/**
+ * Update external revenue entry
+ */
+export async function updateExternalRevenue(id, payload) {
+    return API.put(`v1/revenue/external/${id}`, payload);
+}
+
+/**
+ * Delete external revenue entry
+ */
+export async function deleteExternalRevenue(id) {
+    return API.delete(`v1/revenue/external/${id}`);
+}
+
+/**
+ * Get external revenue summary
+ */
+export async function getExternalRevenueSummary(startDate = null, endDate = null) {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    
+    const cacheKey = `external_revenue_summary_${startDate || 'all'}_${endDate || 'all'}`;
+    return API.get('v1/revenue/external/summary', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+// ============================================================================
+// REVENUE DASHBOARD
+// ============================================================================
+
+/**
+ * Get aggregated revenue dashboard data
+ */
+export async function getRevenueDashboard(fiscalYearStart = null, fiscalYearEnd = null) {
+    const params = {};
+    if (fiscalYearStart) params.fiscal_year_start = fiscalYearStart;
+    if (fiscalYearEnd) params.fiscal_year_end = fiscalYearEnd;
+    
+    const cacheKey = `revenue_dashboard_${fiscalYearStart || 'all'}_${fiscalYearEnd || 'all'}`;
+    return API.get('v1/revenue/dashboard', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Get revenue breakdown by source
+ */
+export async function getRevenueBySource(startDate = null, endDate = null) {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    
+    const cacheKey = `revenue_by_source_${startDate || 'all'}_${endDate || 'all'}`;
+    return API.get('v1/revenue/by-source', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Get revenue breakdown by category
+ */
+export async function getRevenueByCategory(startDate = null, endDate = null) {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    
+    const cacheKey = `revenue_by_category_${startDate || 'all'}_${endDate || 'all'}`;
+    return API.get('v1/revenue/by-category', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Get revenue comparison (actual vs budgeted)
+ */
+export async function getRevenueComparison(fiscalYearStart, fiscalYearEnd) {
+    const params = {
+        fiscal_year_start: fiscalYearStart,
+        fiscal_year_end: fiscalYearEnd
+    };
+    
+    const cacheKey = `revenue_comparison_${fiscalYearStart}_${fiscalYearEnd}`;
+    return API.get('v1/revenue/comparison', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
 // ============================================================================
 // ORGANIZATION
 // ============================================================================
