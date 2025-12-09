@@ -414,6 +414,7 @@ const publicRoutes = require('./routes/public')(pool, logger);
 const importRoutes = require('./routes/import')(pool, logger);
 const financeRoutes = require('./routes/finance')(pool, logger);
 const budgetsRoutes = require('./routes/budgets')(pool, logger);
+const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -630,6 +631,19 @@ logger.info('   - CRUD /api/v1/budget/categories');
 logger.info('   - CRUD /api/v1/budget/items');
 logger.info('   - CRUD /api/v1/budget/expenses');
 logger.info('   - GET /api/v1/budget/reports/summary');
+logger.info('   - GET /api/v1/expenses/summary');
+logger.info('   - GET /api/v1/expenses/monthly');
+logger.info('   - POST /api/v1/expenses/bulk');
+logger.info('   - GET /api/v1/revenue/dashboard');
+logger.info('   - GET /api/v1/revenue/by-source');
+logger.info('   - GET /api/v1/revenue/by-category');
+logger.info('   - GET /api/v1/revenue/comparison');
+
+// External Revenue Routes (handles external donations, sponsorships, grants)
+app.use('/api', externalRevenueRoutes);
+logger.info('✅ External Revenue routes loaded');
+logger.info('   - CRUD /api/v1/revenue/external');
+logger.info('   - GET /api/v1/revenue/external/summary');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents

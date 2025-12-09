@@ -40,7 +40,10 @@ const lazyModules = {
   PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
   UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
   Finance: () => import('./finance.js').then(m => m.Finance),
-  Budgets: () => import('./budgets.js').then(m => m.Budgets)
+  Budgets: () => import('./budgets.js').then(m => m.Budgets),
+  ExternalRevenue: () => import('./external-revenue.js').then(m => m.ExternalRevenue),
+  Expenses: () => import('./expenses.js').then(m => m.Expenses),
+  RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard)
 };
 
 // Cache for loaded modules
@@ -88,6 +91,9 @@ const routes = {
   "/upcoming-meeting": "UpcomingMeeting",
   "/finance": "finance",
   "/budgets": "budgets",
+  "/external-revenue": "externalRevenue",
+  "/expenses": "expenses",
+  "/revenue-dashboard": "revenueDashboard",
 
 };
 
@@ -179,6 +185,33 @@ export class Router {
             const Budgets = await this.loadModule('Budgets');
             const budgets = new Budgets(this.app);
             await budgets.init();
+          }
+          break;
+        case "externalRevenue":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const ExternalRevenue = await this.loadModule('ExternalRevenue');
+            const externalRevenue = new ExternalRevenue(this.app);
+            await externalRevenue.init();
+          }
+          break;
+        case "expenses":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const Expenses = await this.loadModule('Expenses');
+            const expenses = new Expenses(this.app);
+            await expenses.init();
+          }
+          break;
+        case "revenueDashboard":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const RevenueDashboard = await this.loadModule('RevenueDashboard');
+            const revenueDashboard = new RevenueDashboard(this.app);
+            await revenueDashboard.init();
           }
           break;
         case "calendars":
