@@ -568,6 +568,7 @@
     "internal_server_error": "Internal server error",
     "internet": "Internet",
     "invalid_account_creation_password": "Invalid account creation password.",
+    "invalid_amount": "Invalid amount",
     "invalid_credentials": "Invalid credentials",
     "invalid_date": "Invalid date",
     "invalid_document_type": "Invalid Document Type",

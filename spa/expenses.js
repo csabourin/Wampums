@@ -611,7 +611,7 @@ export class Expenses {
                   <select id="expense-category">
                     <option value="">${translate("uncategorized")}</option>
                     ${this.categories.map(cat => `
-                      <option value="${cat.id}" ${expense?.budget_category_id === cat.id ? "selected" : ""}>
+                      <option value="${cat.id}" ${expense?.budget_category_id == cat.id ? "selected" : ""}>
                         ${escapeHTML(cat.name)}
                       </option>
                     `).join("")}
@@ -623,7 +623,7 @@ export class Expenses {
                   <select id="expense-item">
                     <option value="">${translate("select_item")}</option>
                     ${this.items.map(item => `
-                      <option value="${item.id}" ${expense?.budget_item_id === item.id ? "selected" : ""}>
+                      <option value="${item.id}" ${expense?.budget_item_id == item.id ? "selected" : ""}>
                         ${escapeHTML(item.name)}
                       </option>
                     `).join("")}
@@ -824,14 +824,24 @@ export class Expenses {
 
   async saveExpense(expenseId = null) {
     const expenseDate = document.getElementById("expense-date").value;
-    const categoryId = document.getElementById("expense-category").value || null;
-    const itemId = document.getElementById("expense-item").value || null;
+    const categoryValue = document.getElementById("expense-category").value;
+    const itemValue = document.getElementById("expense-item").value;
     const description = document.getElementById("expense-description").value;
     const amount = parseFloat(document.getElementById("expense-amount").value);
     const paymentMethod = document.getElementById("expense-payment-method").value;
     const referenceNumber = document.getElementById("expense-reference").value;
     const receiptUrl = document.getElementById("expense-receipt-url").value;
     const notes = document.getElementById("expense-notes").value;
+
+    // Validate amount
+    if (Number.isNaN(amount)) {
+      this.app.showMessage(translate("invalid_amount"), "error");
+      return;
+    }
+
+    // Normalize category and item IDs to integers or null
+    const categoryId = categoryValue ? parseInt(categoryValue, 10) : null;
+    const itemId = itemValue ? parseInt(itemValue, 10) : null;
 
     try {
       const payload = {
@@ -874,10 +884,13 @@ export class Expenses {
 
     rows.forEach(row => {
       const date = row.querySelector(".bulk-date").value;
-      const categoryId = row.querySelector(".bulk-category").value || null;
+      const categoryValue = row.querySelector(".bulk-category").value;
       const description = row.querySelector(".bulk-description").value;
       const amount = parseFloat(row.querySelector(".bulk-amount").value);
       const reference = row.querySelector(".bulk-reference").value;
+
+      // Normalize category ID to integer or null
+      const categoryId = categoryValue ? parseInt(categoryValue, 10) : null;
 
       if (date && description && amount) {
         expenses.push({
