@@ -111,7 +111,7 @@ export class Budgets {
   }
 
   render() {
-    const container = document.getElementById("main-content");
+    const container = document.getElementById("app");
     if (!container) return;
 
     container.innerHTML = `
