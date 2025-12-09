@@ -1006,5 +1006,637 @@ module.exports = (pool, logger) => {
     return success(res, result.rows[0], 'Budget plan deleted successfully');
   }));
 
+  // ===== ENHANCED EXPENSE ENDPOINTS =====
+
+  /**
+   * GET /v1/expenses/summary
+   * Get expense summary by category for a date range
+   */
+  router.get('/v1/expenses/summary', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { start_date, end_date, category_id } = req.query;
+
+    let query = `
+      SELECT
+        be.budget_category_id,
+        bc.name as category_name,
+        COUNT(*) as expense_count,
+        SUM(be.amount) as total_amount,
+        AVG(be.amount) as average_amount,
+        MIN(be.expense_date) as first_expense_date,
+        MAX(be.expense_date) as last_expense_date
+      FROM budget_expenses be
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+      WHERE be.organization_id = $1
+        AND (be.notes NOT LIKE '%[EXTERNAL_REVENUE]%' OR be.notes IS NULL)
+    `;
+    const params = [organizationId];
+    let paramCount = 1;
+
+    if (start_date) {
+      paramCount++;
+      query += ` AND be.expense_date >= $${paramCount}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      paramCount++;
+      query += ` AND be.expense_date <= $${paramCount}`;
+      params.push(end_date);
+    }
+
+    if (category_id) {
+      paramCount++;
+      query += ` AND be.budget_category_id = $${paramCount}`;
+      params.push(category_id);
+    }
+
+    query += ` GROUP BY be.budget_category_id, bc.name
+               ORDER BY total_amount DESC`;
+
+    const result = await pool.query(query, params);
+
+    const summary = result.rows.map(row => ({
+      ...row,
+      total_amount: toNumeric(row.total_amount),
+      average_amount: toNumeric(row.average_amount),
+      expense_count: parseInt(row.expense_count || 0)
+    }));
+
+    const totals = summary.reduce(
+      (acc, cat) => ({
+        total_amount: acc.total_amount + cat.total_amount,
+        expense_count: acc.expense_count + cat.expense_count
+      }),
+      { total_amount: 0, expense_count: 0 }
+    );
+
+    return success(res, { summary, totals }, 'Expense summary loaded');
+  }));
+
+  /**
+   * GET /v1/expenses/monthly
+   * Get monthly expense breakdown
+   */
+  router.get('/v1/expenses/monthly', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { fiscal_year_start, fiscal_year_end, category_id } = req.query;
+
+    let query = `
+      SELECT
+        DATE_TRUNC('month', be.expense_date) as month,
+        be.budget_category_id,
+        bc.name as category_name,
+        COUNT(*) as expense_count,
+        SUM(be.amount) as total_amount
+      FROM budget_expenses be
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+      WHERE be.organization_id = $1
+        AND (be.notes NOT LIKE '%[EXTERNAL_REVENUE]%' OR be.notes IS NULL)
+    `;
+    const params = [organizationId];
+    let paramCount = 1;
+
+    if (fiscal_year_start && fiscal_year_end) {
+      paramCount++;
+      const startParam = paramCount;
+      paramCount++;
+      const endParam = paramCount;
+      query += ` AND be.expense_date BETWEEN $${startParam} AND $${endParam}`;
+      params.push(fiscal_year_start, fiscal_year_end);
+    }
+
+    if (category_id) {
+      paramCount++;
+      query += ` AND be.budget_category_id = $${paramCount}`;
+      params.push(category_id);
+    }
+
+    query += ` GROUP BY DATE_TRUNC('month', be.expense_date), be.budget_category_id, bc.name
+               ORDER BY month DESC, total_amount DESC`;
+
+    const result = await pool.query(query, params);
+
+    const breakdown = result.rows.map(row => ({
+      ...row,
+      total_amount: toNumeric(row.total_amount),
+      expense_count: parseInt(row.expense_count || 0)
+    }));
+
+    return success(res, breakdown, 'Monthly expense breakdown loaded');
+  }));
+
+  /**
+   * POST /v1/expenses/bulk
+   * Bulk create expenses (useful for import or batch entry)
+   */
+  router.post('/v1/expenses/bulk', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const { expenses } = req.body;
+
+    if (!Array.isArray(expenses) || expenses.length === 0) {
+      return error(res, 'Expenses array is required and must not be empty', 400);
+    }
+
+    if (expenses.length > 100) {
+      return error(res, 'Maximum 100 expenses can be created at once', 400);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const created = [];
+      for (const expense of expenses) {
+        const {
+          budget_category_id,
+          budget_item_id,
+          amount,
+          expense_date,
+          description,
+          payment_method,
+          reference_number,
+          receipt_url,
+          notes
+        } = expense;
+
+        // Validation
+        const amountValidation = validateMoney(amount, 'amount');
+        const dateValidation = validateDate(expense_date, 'expense_date');
+
+        if (!amountValidation.valid || !dateValidation.valid) {
+          throw new Error(amountValidation.message || dateValidation.message);
+        }
+
+        if (!description || description.trim().length === 0) {
+          throw new Error('Description is required for all expenses');
+        }
+
+        const result = await client.query(
+          `INSERT INTO budget_expenses
+            (organization_id, budget_category_id, budget_item_id, amount, expense_date,
+             description, payment_method, reference_number, receipt_url, notes, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          RETURNING *`,
+          [
+            organizationId,
+            budget_category_id,
+            budget_item_id,
+            amountValidation.value,
+            expense_date,
+            description.trim(),
+            payment_method,
+            reference_number,
+            receipt_url,
+            notes,
+            req.user.id
+          ]
+        );
+
+        created.push({
+          ...result.rows[0],
+          amount: toNumeric(result.rows[0].amount)
+        });
+      }
+
+      await client.query('COMMIT');
+
+      logger.info(`Bulk expenses created: ${created.length} for organization ${organizationId}`);
+      return success(res, { count: created.length, expenses: created }, 'Expenses created successfully', 201);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
+  // ===== REVENUE DASHBOARD ENDPOINTS =====
+
+  /**
+   * GET /v1/revenue/dashboard
+   * Get aggregated revenue data from all sources
+   */
+  router.get('/v1/revenue/dashboard', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { fiscal_year_start, fiscal_year_end } = req.query;
+
+    // Get revenue from v_budget_revenue view (includes fees, fundraisers, calendars)
+    let revenueQuery = `
+      SELECT
+        revenue_source,
+        budget_category_id,
+        category_name,
+        COUNT(*) as transaction_count,
+        SUM(amount) as total_amount
+      FROM v_budget_revenue
+      WHERE organization_id = $1
+    `;
+    const params = [organizationId];
+    let paramCount = 1;
+
+    if (fiscal_year_start && fiscal_year_end) {
+      paramCount++;
+      const startParam = paramCount;
+      paramCount++;
+      const endParam = paramCount;
+      revenueQuery += ` AND revenue_date BETWEEN $${startParam} AND $${endParam}`;
+      params.push(fiscal_year_start, fiscal_year_end);
+    }
+
+    revenueQuery += ` GROUP BY revenue_source, budget_category_id, category_name`;
+
+    const revenueResult = await pool.query(revenueQuery, params);
+
+    // Get external revenue (from budget_expenses with negative amounts)
+    let externalQuery = `
+      SELECT
+        'external' as revenue_source,
+        budget_category_id,
+        bc.name as category_name,
+        COUNT(*) as transaction_count,
+        ABS(SUM(amount)) as total_amount
+      FROM budget_expenses be
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+      WHERE be.organization_id = $1
+        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
+    `;
+    const externalParams = [organizationId];
+    let externalParamCount = 1;
+
+    if (fiscal_year_start && fiscal_year_end) {
+      externalParamCount++;
+      const startParam = externalParamCount;
+      externalParamCount++;
+      const endParam = externalParamCount;
+      externalQuery += ` AND be.expense_date BETWEEN $${startParam} AND $${endParam}`;
+      externalParams.push(fiscal_year_start, fiscal_year_end);
+    }
+
+    externalQuery += ` GROUP BY budget_category_id, bc.name`;
+
+    const externalResult = await pool.query(externalQuery, externalParams);
+
+    // Combine all revenue sources
+    const allRevenue = [
+      ...revenueResult.rows.map(row => ({
+        ...row,
+        total_amount: toNumeric(row.total_amount),
+        transaction_count: parseInt(row.transaction_count || 0)
+      })),
+      ...externalResult.rows.map(row => ({
+        ...row,
+        total_amount: toNumeric(row.total_amount),
+        transaction_count: parseInt(row.transaction_count || 0)
+      }))
+    ];
+
+    // Aggregate by source
+    const bySource = {};
+    allRevenue.forEach(item => {
+      const source = item.revenue_source || 'other';
+      if (!bySource[source]) {
+        bySource[source] = {
+          revenue_source: source,
+          total_amount: 0,
+          transaction_count: 0
+        };
+      }
+      bySource[source].total_amount += item.total_amount;
+      bySource[source].transaction_count += item.transaction_count;
+    });
+
+    // Calculate totals
+    const totals = {
+      total_revenue: allRevenue.reduce((sum, item) => sum + item.total_amount, 0),
+      total_transactions: allRevenue.reduce((sum, item) => sum + item.transaction_count, 0),
+      sources_count: Object.keys(bySource).length
+    };
+
+    return success(res, {
+      totals,
+      by_source: Object.values(bySource),
+      breakdown: allRevenue
+    }, 'Revenue dashboard data loaded');
+  }));
+
+  /**
+   * GET /v1/revenue/by-source
+   * Get revenue breakdown by source
+   */
+  router.get('/v1/revenue/by-source', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { start_date, end_date } = req.query;
+
+    let query = `
+      SELECT
+        revenue_source,
+        COUNT(*) as transaction_count,
+        SUM(amount) as total_amount
+      FROM v_budget_revenue
+      WHERE organization_id = $1
+    `;
+    const params = [organizationId];
+    let paramCount = 1;
+
+    if (start_date && end_date) {
+      paramCount++;
+      const startParam = paramCount;
+      paramCount++;
+      const endParam = paramCount;
+      query += ` AND revenue_date BETWEEN $${startParam} AND $${endParam}`;
+      params.push(start_date, end_date);
+    }
+
+    query += ` GROUP BY revenue_source ORDER BY total_amount DESC`;
+
+    const result = await pool.query(query, params);
+
+    // Also get external revenue
+    let externalQuery = `
+      SELECT
+        'external' as revenue_source,
+        COUNT(*) as transaction_count,
+        ABS(SUM(amount)) as total_amount
+      FROM budget_expenses
+      WHERE organization_id = $1
+        AND notes LIKE '%[EXTERNAL_REVENUE]%'
+    `;
+    const externalParams = [organizationId];
+    let externalParamCount = 1;
+
+    if (start_date && end_date) {
+      externalParamCount++;
+      const startParam = externalParamCount;
+      externalParamCount++;
+      const endParam = externalParamCount;
+      externalQuery += ` AND expense_date BETWEEN $${startParam} AND $${endParam}`;
+      externalParams.push(start_date, end_date);
+    }
+
+    const externalResult = await pool.query(externalQuery, externalParams);
+
+    const breakdown = [
+      ...result.rows.map(row => ({
+        ...row,
+        total_amount: toNumeric(row.total_amount),
+        transaction_count: parseInt(row.transaction_count || 0)
+      })),
+      ...externalResult.rows.map(row => ({
+        ...row,
+        total_amount: toNumeric(row.total_amount),
+        transaction_count: parseInt(row.transaction_count || 0)
+      }))
+    ];
+
+    return success(res, breakdown, 'Revenue by source loaded');
+  }));
+
+  /**
+   * GET /v1/revenue/by-category
+   * Get revenue breakdown by budget category
+   */
+  router.get('/v1/revenue/by-category', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { start_date, end_date } = req.query;
+
+    let query = `
+      SELECT
+        budget_category_id,
+        category_name,
+        COUNT(*) as transaction_count,
+        SUM(amount) as total_amount
+      FROM v_budget_revenue
+      WHERE organization_id = $1
+    `;
+    const params = [organizationId];
+    let paramCount = 1;
+
+    if (start_date && end_date) {
+      paramCount++;
+      const startParam = paramCount;
+      paramCount++;
+      const endParam = paramCount;
+      query += ` AND revenue_date BETWEEN $${startParam} AND $${endParam}`;
+      params.push(start_date, end_date);
+    }
+
+    query += ` GROUP BY budget_category_id, category_name ORDER BY total_amount DESC`;
+
+    const result = await pool.query(query, params);
+
+    // Also get external revenue by category
+    let externalQuery = `
+      SELECT
+        be.budget_category_id,
+        bc.name as category_name,
+        COUNT(*) as transaction_count,
+        ABS(SUM(be.amount)) as total_amount
+      FROM budget_expenses be
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+      WHERE be.organization_id = $1
+        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
+    `;
+    const externalParams = [organizationId];
+    let externalParamCount = 1;
+
+    if (start_date && end_date) {
+      externalParamCount++;
+      const startParam = externalParamCount;
+      externalParamCount++;
+      const endParam = externalParamCount;
+      externalQuery += ` AND be.expense_date BETWEEN $${startParam} AND $${endParam}`;
+      externalParams.push(start_date, end_date);
+    }
+
+    externalQuery += ` GROUP BY be.budget_category_id, bc.name`;
+
+    const externalResult = await pool.query(externalQuery, externalParams);
+
+    // Merge results by category
+    const categoryMap = new Map();
+
+    result.rows.forEach(row => {
+      const key = `${row.budget_category_id || 0}-${row.category_name || 'Uncategorized'}`;
+      categoryMap.set(key, {
+        budget_category_id: row.budget_category_id,
+        category_name: row.category_name || 'Uncategorized',
+        total_amount: toNumeric(row.total_amount),
+        transaction_count: parseInt(row.transaction_count || 0)
+      });
+    });
+
+    externalResult.rows.forEach(row => {
+      const key = `${row.budget_category_id || 0}-${row.category_name || 'Uncategorized'}`;
+      if (categoryMap.has(key)) {
+        const existing = categoryMap.get(key);
+        existing.total_amount += toNumeric(row.total_amount);
+        existing.transaction_count += parseInt(row.transaction_count || 0);
+      } else {
+        categoryMap.set(key, {
+          budget_category_id: row.budget_category_id,
+          category_name: row.category_name || 'Uncategorized',
+          total_amount: toNumeric(row.total_amount),
+          transaction_count: parseInt(row.transaction_count || 0)
+        });
+      }
+    });
+
+    const breakdown = Array.from(categoryMap.values()).sort((a, b) => b.total_amount - a.total_amount);
+
+    return success(res, breakdown, 'Revenue by category loaded');
+  }));
+
+  /**
+   * GET /v1/revenue/comparison
+   * Compare actual revenue vs budgeted revenue
+   */
+  router.get('/v1/revenue/comparison', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { fiscal_year_start, fiscal_year_end } = req.query;
+
+    if (!fiscal_year_start || !fiscal_year_end) {
+      return error(res, 'Fiscal year start and end dates are required', 400);
+    }
+
+    // Get budgeted revenue from plans
+    const plansResult = await pool.query(
+      `SELECT
+        bp.budget_item_id,
+        bi.name as item_name,
+        bi.budget_category_id,
+        bc.name as category_name,
+        SUM(bp.budgeted_revenue) as budgeted_revenue
+      FROM budget_plans bp
+      LEFT JOIN budget_items bi ON bp.budget_item_id = bi.id
+      LEFT JOIN budget_categories bc ON bi.budget_category_id = bc.id
+      WHERE bp.organization_id = $1
+        AND bp.fiscal_year_start = $2
+        AND bp.fiscal_year_end = $3
+      GROUP BY bp.budget_item_id, bi.name, bi.budget_category_id, bc.name`,
+      [organizationId, fiscal_year_start, fiscal_year_end]
+    );
+
+    // Get actual revenue
+    const actualResult = await pool.query(
+      `SELECT
+        budget_category_id,
+        category_name,
+        SUM(amount) as actual_revenue
+      FROM v_budget_revenue
+      WHERE organization_id = $1
+        AND revenue_date BETWEEN $2 AND $3
+      GROUP BY budget_category_id, category_name`,
+      [organizationId, fiscal_year_start, fiscal_year_end]
+    );
+
+    // Get external revenue
+    const externalResult = await pool.query(
+      `SELECT
+        budget_category_id,
+        bc.name as category_name,
+        ABS(SUM(be.amount)) as actual_revenue
+      FROM budget_expenses be
+      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
+      WHERE be.organization_id = $1
+        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
+        AND be.expense_date BETWEEN $2 AND $3
+      GROUP BY budget_category_id, bc.name`,
+      [organizationId, fiscal_year_start, fiscal_year_end]
+    );
+
+    // Combine actual revenue
+    const actualMap = new Map();
+    
+    actualResult.rows.forEach(row => {
+      const key = `${row.budget_category_id || 0}`;
+      actualMap.set(key, {
+        budget_category_id: row.budget_category_id,
+        category_name: row.category_name || 'Uncategorized',
+        actual_revenue: toNumeric(row.actual_revenue)
+      });
+    });
+
+    externalResult.rows.forEach(row => {
+      const key = `${row.budget_category_id || 0}`;
+      if (actualMap.has(key)) {
+        const existing = actualMap.get(key);
+        existing.actual_revenue += toNumeric(row.actual_revenue);
+      } else {
+        actualMap.set(key, {
+          budget_category_id: row.budget_category_id,
+          category_name: row.category_name || 'Uncategorized',
+          actual_revenue: toNumeric(row.actual_revenue)
+        });
+      }
+    });
+
+    // Build comparison
+    const categoryMap = new Map();
+
+    plansResult.rows.forEach(row => {
+      const key = `${row.budget_category_id || 0}`;
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, {
+          budget_category_id: row.budget_category_id,
+          category_name: row.category_name || 'Uncategorized',
+          budgeted_revenue: 0,
+          actual_revenue: 0
+        });
+      }
+      const cat = categoryMap.get(key);
+      cat.budgeted_revenue += toNumeric(row.budgeted_revenue);
+    });
+
+    actualMap.forEach((value, key) => {
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, {
+          budget_category_id: value.budget_category_id,
+          category_name: value.category_name,
+          budgeted_revenue: 0,
+          actual_revenue: 0
+        });
+      }
+      const cat = categoryMap.get(key);
+      cat.actual_revenue = value.actual_revenue;
+    });
+
+    // Calculate variance
+    const comparison = Array.from(categoryMap.values()).map(cat => {
+      const variance = cat.actual_revenue - cat.budgeted_revenue;
+      const variancePercent = cat.budgeted_revenue > 0 
+        ? (variance / cat.budgeted_revenue * 100) 
+        : 0;
+      
+      return {
+        ...cat,
+        variance,
+        variance_percent: variancePercent
+      };
+    });
+
+    // Calculate totals
+    const totals = comparison.reduce(
+      (acc, cat) => ({
+        budgeted_revenue: acc.budgeted_revenue + cat.budgeted_revenue,
+        actual_revenue: acc.actual_revenue + cat.actual_revenue,
+        variance: acc.variance + cat.variance
+      }),
+      { budgeted_revenue: 0, actual_revenue: 0, variance: 0 }
+    );
+
+    totals.variance_percent = totals.budgeted_revenue > 0
+      ? (totals.variance / totals.budgeted_revenue * 100)
+      : 0;
+
+    return success(res, { comparison, totals }, 'Revenue comparison loaded');
+  }));
+
   return router;
 };
