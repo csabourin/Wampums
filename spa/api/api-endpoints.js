@@ -1531,6 +1531,42 @@ export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, 
     });
 }
 
+/**
+ * Get budget plans with optional fiscal year filter
+ */
+export async function getBudgetPlans(fiscalYearStart = null, fiscalYearEnd = null) {
+    const params = {};
+    if (fiscalYearStart && fiscalYearEnd) {
+        params.fiscal_year_start = fiscalYearStart;
+        params.fiscal_year_end = fiscalYearEnd;
+    }
+    return API.get('v1/budget/plans', params, {
+        cacheKey: fiscalYearStart ? `budget_plans_${fiscalYearStart}_${fiscalYearEnd}` : 'budget_plans',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create a budget plan
+ */
+export async function createBudgetPlan(payload) {
+    return API.post('v1/budget/plans', payload);
+}
+
+/**
+ * Update a budget plan
+ */
+export async function updateBudgetPlan(id, payload) {
+    return API.put(`v1/budget/plans/${id}`, payload);
+}
+
+/**
+ * Delete a budget plan
+ */
+export async function deleteBudgetPlan(id) {
+    return API.delete(`v1/budget/plans/${id}`);
+}
+
 // ============================================================================
 // ORGANIZATION
 // ============================================================================

@@ -12,7 +12,11 @@ import {
   updateBudgetExpense,
   deleteBudgetExpense,
   getBudgetSummaryReport,
-  getBudgetRevenueBreakdown
+  getBudgetRevenueBreakdown,
+  getBudgetPlans,
+  createBudgetPlan,
+  updateBudgetPlan,
+  deleteBudgetPlan
 } from "./api/api-endpoints.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
@@ -34,6 +38,7 @@ export class Budgets {
     this.expenses = [];
     this.summaryReport = null;
     this.revenueBreakdown = null;
+    this.budgetPlans = [];
     this.activeTab = "overview";
     this.fiscalYear = this.getCurrentFiscalYear();
   }
@@ -84,22 +89,24 @@ export class Budgets {
 
   async loadCoreData() {
     debugLog("Loading budget data...");
-    const [categories, items, expenses, summary] = await Promise.all([
+    const [categories, items, expenses, summary, plans] = await Promise.all([
       getBudgetCategories(),
       getBudgetItems(),
       getBudgetExpenses({
         start_date: this.fiscalYear.start,
         end_date: this.fiscalYear.end
       }),
-      getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end)
+      getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end),
+      getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end)
     ]);
 
     this.categories = categories?.data || [];
     this.items = items?.data || [];
     this.expenses = expenses?.data || [];
     this.summaryReport = summary?.data || null;
+    this.budgetPlans = plans?.data || [];
 
-    debugLog(`Loaded ${this.categories.length} categories, ${this.expenses.length} expenses`);
+    debugLog(`Loaded ${this.categories.length} categories, ${this.expenses.length} expenses, ${this.budgetPlans.length} plans`);
   }
 
   formatCurrency(amount) {
@@ -141,6 +148,10 @@ export class Budgets {
           <button class="tab-btn ${this.activeTab === "expenses" ? "active" : ""}"
                   data-tab="expenses">
             ${translate("expenses")}
+          </button>
+          <button class="tab-btn ${this.activeTab === "planning" ? "active" : ""}"
+                  data-tab="planning">
+            ${translate("planning")}
           </button>
           <button class="tab-btn ${this.activeTab === "reports" ? "active" : ""}"
                   data-tab="reports">
@@ -202,6 +213,8 @@ export class Budgets {
         return this.renderCategories();
       case "expenses":
         return this.renderExpenses();
+      case "planning":
+        return this.renderPlanning();
       case "reports":
         return this.renderReports();
       default:
@@ -321,6 +334,128 @@ export class Budgets {
                 </tr>
               `).join("")
             }
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderPlanning() {
+    return `
+      <div class="planning-content">
+        <div class="section-header">
+          <h2>${translate("budget_planning")}</h2>
+          <button class="btn btn-primary" id="add-plan-btn">
+            ${translate("add_budget_plan")}
+          </button>
+        </div>
+
+        <div class="planning-info">
+          <p>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></p>
+        </div>
+
+        <div id="plans-list">
+          ${this.renderPlansList()}
+        </div>
+
+        ${this.renderBudgetVsActual()}
+      </div>
+    `;
+  }
+
+  renderPlansList() {
+    if (!this.budgetPlans || this.budgetPlans.length === 0) {
+      return `<p class="no-data">${translate("no_budget_plans")}</p>`;
+    }
+
+    return `
+      <table class="data-table plans-table">
+        <thead>
+          <tr>
+            <th>${translate("budget_item")}</th>
+            <th>${translate("category")}</th>
+            <th class="text-right">${translate("budgeted_revenue")}</th>
+            <th class="text-right">${translate("budgeted_expense")}</th>
+            <th>${translate("notes")}</th>
+            <th>${translate("actions")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${this.budgetPlans.map(plan => `
+            <tr data-plan-id="${plan.id}">
+              <td>${escapeHTML(plan.item_name || "-")}</td>
+              <td>${escapeHTML(plan.category_name || "-")}</td>
+              <td class="text-right amount revenue">${this.formatCurrency(plan.budgeted_revenue)}</td>
+              <td class="text-right amount expense">${this.formatCurrency(plan.budgeted_expense)}</td>
+              <td class="notes-cell">${escapeHTML(plan.notes || "")}</td>
+              <td>
+                <button class="btn btn-sm btn-secondary edit-plan-btn" data-id="${plan.id}">
+                  ${translate("edit")}
+                </button>
+                <button class="btn btn-sm btn-danger delete-plan-btn" data-id="${plan.id}">
+                  ${translate("delete")}
+                </button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  renderBudgetVsActual() {
+    if (!this.budgetPlans || this.budgetPlans.length === 0 || !this.summaryReport) {
+      return '';
+    }
+
+    const totals = this.summaryReport.totals || {};
+    const actualRevenue = totals.total_revenue || 0;
+    const actualExpense = totals.total_expense || 0;
+
+    const plannedRevenue = this.budgetPlans.reduce((sum, plan) => sum + (parseFloat(plan.budgeted_revenue) || 0), 0);
+    const plannedExpense = this.budgetPlans.reduce((sum, plan) => sum + (parseFloat(plan.budgeted_expense) || 0), 0);
+
+    const revenueVariance = actualRevenue - plannedRevenue;
+    const expenseVariance = actualExpense - plannedExpense;
+    const revenueVariancePct = plannedRevenue > 0 ? (revenueVariance / plannedRevenue * 100) : 0;
+    const expenseVariancePct = plannedExpense > 0 ? (expenseVariance / plannedExpense * 100) : 0;
+
+    return `
+      <div class="budget-vs-actual">
+        <h3>${translate("budget_vs_actual")}</h3>
+        <table class="data-table comparison-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="text-right">${translate("planned_budget")}</th>
+              <th class="text-right">${translate("actual_amount")}</th>
+              <th class="text-right">${translate("variance")}</th>
+              <th class="text-right">${translate("variance_percentage")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>${translate("revenue")}</strong></td>
+              <td class="text-right amount">${this.formatCurrency(plannedRevenue)}</td>
+              <td class="text-right amount revenue">${this.formatCurrency(actualRevenue)}</td>
+              <td class="text-right amount ${revenueVariance >= 0 ? 'positive' : 'negative'}">
+                ${this.formatCurrency(revenueVariance)}
+              </td>
+              <td class="text-right ${revenueVariance >= 0 ? 'positive' : 'negative'}">
+                ${revenueVariancePct.toFixed(1)}%
+              </td>
+            </tr>
+            <tr>
+              <td><strong>${translate("expenses")}</strong></td>
+              <td class="text-right amount">${this.formatCurrency(plannedExpense)}</td>
+              <td class="text-right amount expense">${this.formatCurrency(actualExpense)}</td>
+              <td class="text-right amount ${expenseVariance <= 0 ? 'positive' : 'negative'}">
+                ${this.formatCurrency(Math.abs(expenseVariance))} ${expenseVariance > 0 ? translate("over_budget") : translate("under_budget")}
+              </td>
+              <td class="text-right ${expenseVariance <= 0 ? 'positive' : 'negative'}">
+                ${Math.abs(expenseVariancePct).toFixed(1)}%
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -624,6 +759,33 @@ export class Budgets {
         }
       });
     });
+
+    // Add budget plan button
+    const addPlanBtn = document.getElementById("add-plan-btn");
+    if (addPlanBtn) {
+      addPlanBtn.addEventListener("click", () => this.showPlanModal());
+    }
+
+    // Edit plan buttons
+    document.querySelectorAll(".edit-plan-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const id = parseInt(e.target.dataset.id);
+        const plan = this.budgetPlans.find(p => p.id === id);
+        if (plan) {
+          this.showPlanModal(plan);
+        }
+      });
+    });
+
+    // Delete plan buttons
+    document.querySelectorAll(".delete-plan-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const id = parseInt(e.target.dataset.id);
+        if (confirm(translate("confirm_delete_budget_plan"))) {
+          await this.deletePlan(id);
+        }
+      });
+    });
   }
 
   updateURL() {
@@ -846,6 +1008,135 @@ export class Budgets {
     } catch (error) {
       debugError("Error deleting expense", error);
       this.app.showMessage(translate("error_deleting_expense"), "error");
+    }
+  }
+
+  showPlanModal(plan = null) {
+    const isEdit = !!plan;
+    const modalHTML = `
+      <div class="modal-overlay" id="plan-modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>${isEdit ? translate("edit_budget_plan") : translate("add_budget_plan")}</h3>
+            <button class="modal-close" id="close-plan-modal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form id="plan-form">
+              <div class="form-group">
+                <label for="plan-item">${translate("budget_item")}</label>
+                <select id="plan-item">
+                  <option value="">${translate("select")}...</option>
+                  ${this.items.map(item => `
+                    <option value="${item.id}" ${plan?.budget_item_id === item.id ? "selected" : ""}>
+                      ${escapeHTML(item.name)} (${escapeHTML(item.category_name || "-")})
+                    </option>
+                  `).join("")}
+                </select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="plan-fy-start">${translate("fiscal_year")} ${translate("start_date")}</label>
+                  <input type="date" id="plan-fy-start" required
+                         value="${plan ? plan.fiscal_year_start : this.fiscalYear.start}">
+                </div>
+                <div class="form-group">
+                  <label for="plan-fy-end">${translate("end_date")}</label>
+                  <input type="date" id="plan-fy-end" required
+                         value="${plan ? plan.fiscal_year_end : this.fiscalYear.end}">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="plan-revenue">${translate("budgeted_revenue")}</label>
+                  <input type="number" id="plan-revenue" step="0.01" min="0"
+                         value="${plan ? plan.budgeted_revenue : 0}">
+                </div>
+                <div class="form-group">
+                  <label for="plan-expense">${translate("budgeted_expense")}</label>
+                  <input type="number" id="plan-expense" step="0.01" min="0"
+                         value="${plan ? plan.budgeted_expense : 0}">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="plan-notes">${translate("notes")}</label>
+                <textarea id="plan-notes" rows="3">${plan ? escapeHTML(plan.notes || "") : ""}</textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="cancel-plan-btn">
+                  ${translate("cancel")}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  ${isEdit ? translate("update") : translate("create")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+    document.getElementById("close-plan-modal").addEventListener("click", () => {
+      document.getElementById("plan-modal").remove();
+    });
+
+    document.getElementById("cancel-plan-btn").addEventListener("click", () => {
+      document.getElementById("plan-modal").remove();
+    });
+
+    document.getElementById("plan-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await this.savePlan(plan?.id);
+    });
+  }
+
+  async savePlan(planId = null) {
+    const itemId = document.getElementById("plan-item").value || null;
+    const fyStart = document.getElementById("plan-fy-start").value;
+    const fyEnd = document.getElementById("plan-fy-end").value;
+    const revenue = parseFloat(document.getElementById("plan-revenue").value) || 0;
+    const expense = parseFloat(document.getElementById("plan-expense").value) || 0;
+    const notes = document.getElementById("plan-notes").value;
+
+    try {
+      const payload = {
+        budget_item_id: itemId,
+        fiscal_year_start: fyStart,
+        fiscal_year_end: fyEnd,
+        budgeted_revenue: revenue,
+        budgeted_expense: expense,
+        notes
+      };
+
+      if (planId) {
+        await updateBudgetPlan(planId, payload);
+        this.app.showMessage(translate("budget_plan_updated"), "success");
+      } else {
+        await createBudgetPlan(payload);
+        this.app.showMessage(translate("budget_plan_created"), "success");
+      }
+
+      document.getElementById("plan-modal").remove();
+      await this.loadCoreData();
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError("Error saving budget plan", error);
+      this.app.showMessage(translate("error_saving_budget_plan"), "error");
+    }
+  }
+
+  async deletePlan(planId) {
+    try {
+      await deleteBudgetPlan(planId);
+      this.app.showMessage(translate("budget_plan_deleted"), "success");
+      await this.loadCoreData();
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError("Error deleting budget plan", error);
+      this.app.showMessage(translate("error_deleting_budget_plan"), "error");
     }
   }
 }
