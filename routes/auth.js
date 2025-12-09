@@ -209,7 +209,8 @@ module.exports = (pool, logger) => {
           token: token,
           user_role: user.role,
           user_full_name: user.full_name,
-          user_id: user.id
+          user_id: user.id,
+          organization_id: organizationId
         };
 
       if (guardianResult.rows.length > 0) {
