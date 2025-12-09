@@ -843,16 +843,6 @@ export class Expenses {
     const categoryId = categoryValue ? parseInt(categoryValue, 10) : null;
     const itemId = itemValue ? parseInt(itemValue, 10) : null;
 
-    // Additional validation to ensure parsed values are valid
-    if (categoryValue && Number.isNaN(categoryId)) {
-      this.app.showMessage(translate("invalid_amount"), "error");
-      return;
-    }
-    if (itemValue && Number.isNaN(itemId)) {
-      this.app.showMessage(translate("invalid_amount"), "error");
-      return;
-    }
-
     try {
       const payload = {
         expense_date: expenseDate,
