@@ -61,16 +61,19 @@ export class ExternalRevenue {
       this.filters.start_date = this.fiscalYear.start;
       this.filters.end_date = this.fiscalYear.end;
 
-      await Promise.all([
-        this.loadCategories(),
-        this.loadRevenues(),
-        this.loadSummary()
-      ]);
+      // Load data - each function handles its own errors
+      await this.loadCategories();
+      await this.loadRevenues();
+      await this.loadSummary();
+      
+      // Always render, even if data loading failed
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError("Unable to initialize external revenue page", error);
       this.app.showMessage(translate("error_loading_data"), "error");
+      // Still try to render a basic page
+      this.render();
     }
   }
 
@@ -93,7 +96,7 @@ export class ExternalRevenue {
     } catch (error) {
       debugError("Error loading external revenues", error);
       this.revenues = [];
-      throw error;
+      // Don't throw - allow page to render with empty data
     }
   }
 
