@@ -40,7 +40,10 @@ const lazyModules = {
   PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
   UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
   Finance: () => import('./finance.js').then(m => m.Finance),
-  Budgets: () => import('./budgets.js').then(m => m.Budgets)
+  Budgets: () => import('./budgets.js').then(m => m.Budgets),
+  ExternalRevenue: () => import('./external-revenue.js').then(m => m.ExternalRevenue),
+  Expenses: () => import('./expenses.js').then(m => m.Expenses),
+  RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard)
 };
 
 // Cache for loaded modules
@@ -88,6 +91,9 @@ const routes = {
   "/upcoming-meeting": "UpcomingMeeting",
   "/finance": "finance",
   "/budgets": "budgets",
+  "/external-revenue": "externalRevenue",
+  "/expenses": "expenses",
+  "/revenue-dashboard": "revenueDashboard",
 
 };
 
