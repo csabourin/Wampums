@@ -4972,9 +4972,21 @@ details p {
 
 .budgets-page .page-header {
   display: flex;
+  align-items: flex-start;
+  margin-bottom: var(--space-xl);
+  gap: var(--space-md);
+}
+
+.budgets-page .page-header .home-icon {
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.budgets-page .page-header-content {
+  flex: 1;
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-xl);
   flex-wrap: wrap;
   gap: var(--space-md);
 }
