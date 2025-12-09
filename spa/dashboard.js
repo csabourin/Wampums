@@ -203,7 +203,6 @@ export class Dashboard {
 <a href="/upcoming-meeting"><i class="fa-solid fa-calendar-day"></i><span>${translate("upcoming_meeting")}</span></a>
 </div>
 </div>
-      ${this.renderBudgetWidget()}
       <div class="logo-container">
         <img class="logo" src="${this.organizationLogo}" width="335" height="366" alt="Logo">
       </div>
@@ -539,17 +538,18 @@ export class Dashboard {
     const year = now.getFullYear();
     const month = now.getMonth(); // 0-indexed
 
-    if (month >= 8) { // September or later (month 8 = September)
+    if (month >= 8) {
+      // September or later (month 8 = September)
       return {
         start: `${year}-09-01`,
         end: `${year + 1}-08-31`,
-        label: `${year}-${year + 1}`
+        label: `${year}-${year + 1}`,
       };
     } else {
       return {
         start: `${year - 1}-09-01`,
         end: `${year}-08-31`,
-        label: `${year - 1}-${year}`
+        label: `${year - 1}-${year}`,
       };
     }
   }
@@ -558,7 +558,7 @@ export class Dashboard {
    * Check if budget features should be visible for current user role
    */
   canAccessBudgetFeatures() {
-    return ['admin', 'animation'].includes(this.app.userRole);
+    return ["admin", "animation"].includes(this.app.userRole);
   }
 
   /**
@@ -572,8 +572,11 @@ export class Dashboard {
 
     try {
       const fiscalYear = this.getCurrentFiscalYear();
-      const response = await getBudgetSummaryReport(fiscalYear.start, fiscalYear.end);
-      
+      const response = await getBudgetSummaryReport(
+        fiscalYear.start,
+        fiscalYear.end,
+      );
+
       if (response?.success && response?.data) {
         this.budgetSummary = response.data;
         this.updateBudgetWidget();
@@ -593,7 +596,7 @@ export class Dashboard {
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "CAD",
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value);
   }
 
@@ -603,7 +606,7 @@ export class Dashboard {
   renderBudgetWidget() {
     // Only show for admin and animation roles
     if (!this.canAccessBudgetFeatures()) {
-      return '';
+      return "";
     }
 
     if (!this.budgetSummary) {
@@ -620,7 +623,7 @@ export class Dashboard {
     const totals = this.budgetSummary.totals || {};
     const totalRevenue = totals.total_revenue || 0;
     const totalExpense = totals.total_expense || 0;
-    const netAmount = totals.net_amount || (totalRevenue - totalExpense);
+    const netAmount = totals.net_amount || totalRevenue - totalExpense;
     const isPositive = netAmount >= 0;
 
     return `
@@ -640,13 +643,13 @@ export class Dashboard {
           </div>
           <div class="budget-stat">
             <span class="budget-stat-label">${translate("net_position")}</span>
-            <span class="budget-stat-value ${isPositive ? 'positive' : 'negative'}">
+            <span class="budget-stat-value ${isPositive ? "positive" : "negative"}">
               ${this.formatCurrency(netAmount)}
             </span>
           </div>
         </div>
         <p class="budget-widget-fiscal-year muted-text">
-          ${translate("current_fiscal_year")}: ${escapeHTML(this.budgetSummary.fiscal_year?.start || '')} - ${escapeHTML(this.budgetSummary.fiscal_year?.end || '')}
+          ${translate("current_fiscal_year")}: ${escapeHTML(this.budgetSummary.fiscal_year?.start || "")} - ${escapeHTML(this.budgetSummary.fiscal_year?.end || "")}
         </p>
       </div>
     `;
@@ -661,7 +664,7 @@ export class Dashboard {
       const totals = this.budgetSummary.totals || {};
       const totalRevenue = totals.total_revenue || 0;
       const totalExpense = totals.total_expense || 0;
-      const netAmount = totals.net_amount || (totalRevenue - totalExpense);
+      const netAmount = totals.net_amount || totalRevenue - totalExpense;
       const isPositive = netAmount >= 0;
 
       widget.innerHTML = `
@@ -680,13 +683,13 @@ export class Dashboard {
           </div>
           <div class="budget-stat">
             <span class="budget-stat-label">${translate("net_position")}</span>
-            <span class="budget-stat-value ${isPositive ? 'positive' : 'negative'}">
+            <span class="budget-stat-value ${isPositive ? "positive" : "negative"}">
               ${this.formatCurrency(netAmount)}
             </span>
           </div>
         </div>
         <p class="budget-widget-fiscal-year muted-text">
-          ${translate("current_fiscal_year")}: ${escapeHTML(this.budgetSummary.fiscal_year?.start || '')} - ${escapeHTML(this.budgetSummary.fiscal_year?.end || '')}
+          ${translate("current_fiscal_year")}: ${escapeHTML(this.budgetSummary.fiscal_year?.start || "")} - ${escapeHTML(this.budgetSummary.fiscal_year?.end || "")}
         </p>
       `;
     }
