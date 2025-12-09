@@ -25,7 +25,7 @@ import {
 	getFinanceReport,
 } from "./ajax-functions.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { formatDateShort } from "./utils/DateUtils.js";
+import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
 
 const REPORT_CURRENCY = "CAD";
 
@@ -940,7 +940,7 @@ export class Reports {
 			if (Array.isArray(attendanceArray)) {
 				attendanceArray.forEach((attendance) => {
 					if (attendance.date) {
-						uniqueDates.add(attendance.date);
+						uniqueDates.add(isoToDateString(attendance.date));
 					}
 				});
 			} else {
@@ -960,7 +960,7 @@ export class Reports {
 									<tr>
 											<th>${translate("name")}</th>
 											<th>${translate("group")}</th>
-											${uniqueDates.map((date) => `<th>${date}</th>`).join("")} <!-- Display date as string -->
+											${uniqueDates.map((date) => `<th>${formatDateShort(date, this.app.lang || 'en')}</th>`).join("")}
 									</tr>
 							</thead>
 							<tbody>
@@ -976,7 +976,7 @@ export class Reports {
 				if (Array.isArray(attendanceArray)) {
 					attendanceArray.forEach((attendance) => {
 						if (attendance.date) {
-							attendanceMap[attendance.date] = normalizeStatus(
+							attendanceMap[isoToDateString(attendance.date)] = normalizeStatus(
 								attendance.status,
 							);
 						}
