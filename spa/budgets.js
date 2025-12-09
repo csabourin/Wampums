@@ -117,9 +117,12 @@ export class Budgets {
     container.innerHTML = `
       <div class="page-container budgets-page">
         <div class="page-header">
-          <h1>${translate("budget_management")}</h1>
-          <div class="fiscal-year-display">
-            <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <div class="page-header-content">
+            <h1>${translate("budget_management")}</h1>
+            <div class="fiscal-year-display">
+              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+            </div>
           </div>
         </div>
 
