@@ -435,6 +435,14 @@ class PWAUpdateManager {
             </div>
         `;
         document.body.appendChild(loader);
+
+        // Safety timeout: if update doesn't complete in 5 seconds, reload anyway
+        setTimeout(() => {
+            const loaderElement = document.getElementById('pwa-update-loader');
+            if (loaderElement) {
+                window.location.reload();
+            }
+        }, 5000);
     }
 
     /**
