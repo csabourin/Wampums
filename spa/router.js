@@ -187,6 +187,33 @@ export class Router {
             await budgets.init();
           }
           break;
+        case "externalRevenue":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const ExternalRevenue = await this.loadModule('ExternalRevenue');
+            const externalRevenue = new ExternalRevenue(this.app);
+            await externalRevenue.init();
+          }
+          break;
+        case "expenses":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const Expenses = await this.loadModule('Expenses');
+            const expenses = new Expenses(this.app);
+            await expenses.init();
+          }
+          break;
+        case "revenueDashboard":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const RevenueDashboard = await this.loadModule('RevenueDashboard');
+            const revenueDashboard = new RevenueDashboard(this.app);
+            await revenueDashboard.init();
+          }
+          break;
         case "calendars":
           if (this.app.userRole !== "admin" && this.app.userRole !== "animation"){
             this.loadNotAuthorizedPage();

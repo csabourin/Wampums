@@ -17,7 +17,6 @@ import {
   sanitizeHTML,
   sanitizeURL,
 } from "./utils/SecurityUtils.js";
-import { getBudgetSummaryReport } from "./api/api-endpoints.js";
 
 export class Dashboard {
   constructor(app) {
@@ -29,7 +28,6 @@ export class Dashboard {
     this.newsLoading = true;
     this.newsError = null;
     this.pointsCollapsed = this.loadPointsCollapsedState();
-    this.budgetSummary = null;
   }
 
   async init() {
@@ -39,7 +37,6 @@ export class Dashboard {
       this.attachEventListeners();
       await this.preloadAttendanceData();
       this.loadNews();
-      this.loadBudgetWidget();
     } catch (error) {
       debugError("Error initializing dashboard:", error);
       this.renderError();
@@ -203,7 +200,6 @@ export class Dashboard {
 <a href="/upcoming-meeting"><i class="fa-solid fa-calendar-day"></i><span>${translate("upcoming_meeting")}</span></a>
 </div>
 </div>
-      ${this.renderBudgetWidget()}
       <div class="logo-container">
         <img class="logo" src="${this.organizationLogo}" width="335" height="366" alt="Logo">
       </div>
@@ -558,36 +554,6 @@ export class Dashboard {
   }
 
   /**
-   * Check if budget features should be visible for current user role
-   */
-  canAccessBudgetFeatures() {
-    return ['admin', 'animation'].includes(this.app.userRole);
-  }
-
-  /**
-   * Load budget widget data (only for admin/animation roles)
-   */
-  async loadBudgetWidget() {
-    // Only show budget widget for admin and animation roles
-    if (!this.canAccessBudgetFeatures()) {
-      return;
-    }
-
-    try {
-      const fiscalYear = this.getCurrentFiscalYear();
-      const response = await getBudgetSummaryReport(fiscalYear.start, fiscalYear.end);
-      
-      if (response?.success && response?.data) {
-        this.budgetSummary = response.data;
-        this.updateBudgetWidget();
-      }
-    } catch (error) {
-      debugError("Error loading budget widget:", error);
-      // Fail silently - budget widget is optional
-    }
-  }
-
-  /**
    * Format currency value
    */
   formatCurrency(amount) {
@@ -599,98 +565,6 @@ export class Dashboard {
       maximumFractionDigits: 2
     }).format(value);
   }
-
-  /**
-   * Render budget widget (only shown for admin/animation roles)
-   */
-  renderBudgetWidget() {
-    // Only show for admin and animation roles
-    if (!this.canAccessBudgetFeatures()) {
-      return '';
-    }
-
-    if (!this.budgetSummary) {
-      return `
-        <div class="dashboard-card budget-widget-card" id="budget-widget">
-          <div class="section-header">
-            <h3><i class="fa-solid fa-sack-dollar"></i> ${translate("budget_widget_title")}</h3>
-          </div>
-          <p class="muted-text">${translate("loading")}...</p>
-        </div>
-      `;
-    }
-
-    const totals = this.budgetSummary.totals || {};
-    const totalRevenue = totals.total_revenue || 0;
-    const totalExpense = totals.total_expense || 0;
-    const netAmount = totals.net_amount || (totalRevenue - totalExpense);
-    const isPositive = netAmount >= 0;
-
-    return `
-      <div class="dashboard-card budget-widget-card" id="budget-widget">
-        <div class="section-header">
-          <h3><i class="fa-solid fa-sack-dollar"></i> ${translate("budget_widget_title")}</h3>
-          <a href="/budgets" class="text-link">${translate("view_full_budget")} →</a>
-        </div>
-        <div class="budget-widget-summary">
-          <div class="budget-stat">
-            <span class="budget-stat-label">${translate("total_revenue")}</span>
-            <span class="budget-stat-value revenue">${this.formatCurrency(totalRevenue)}</span>
-          </div>
-          <div class="budget-stat">
-            <span class="budget-stat-label">${translate("total_expenses")}</span>
-            <span class="budget-stat-value expense">${this.formatCurrency(totalExpense)}</span>
-          </div>
-          <div class="budget-stat">
-            <span class="budget-stat-label">${translate("net_position")}</span>
-            <span class="budget-stat-value ${isPositive ? 'positive' : 'negative'}">
-              ${this.formatCurrency(netAmount)}
-            </span>
-          </div>
-        </div>
-        <p class="budget-widget-fiscal-year muted-text">
-          ${translate("current_fiscal_year")}: ${escapeHTML(this.budgetSummary.fiscal_year?.start || '')} - ${escapeHTML(this.budgetSummary.fiscal_year?.end || '')}
-        </p>
-      </div>
-    `;
-  }
-
-  /**
-   * Update budget widget after initial render
-   */
-  updateBudgetWidget() {
-    const widget = document.getElementById("budget-widget");
-    if (widget && this.budgetSummary) {
-      const totals = this.budgetSummary.totals || {};
-      const totalRevenue = totals.total_revenue || 0;
-      const totalExpense = totals.total_expense || 0;
-      const netAmount = totals.net_amount || (totalRevenue - totalExpense);
-      const isPositive = netAmount >= 0;
-
-      widget.innerHTML = `
-        <div class="section-header">
-          <h3><i class="fa-solid fa-sack-dollar"></i> ${translate("budget_widget_title")}</h3>
-          <a href="/budgets" class="text-link">${translate("view_full_budget")} →</a>
-        </div>
-        <div class="budget-widget-summary">
-          <div class="budget-stat">
-            <span class="budget-stat-label">${translate("total_revenue")}</span>
-            <span class="budget-stat-value revenue">${this.formatCurrency(totalRevenue)}</span>
-          </div>
-          <div class="budget-stat">
-            <span class="budget-stat-label">${translate("total_expenses")}</span>
-            <span class="budget-stat-value expense">${this.formatCurrency(totalExpense)}</span>
-          </div>
-          <div class="budget-stat">
-            <span class="budget-stat-label">${translate("net_position")}</span>
-            <span class="budget-stat-value ${isPositive ? 'positive' : 'negative'}">
-              ${this.formatCurrency(netAmount)}
-            </span>
-          </div>
-        </div>
-        <p class="budget-widget-fiscal-year muted-text">
-          ${translate("current_fiscal_year")}: ${escapeHTML(this.budgetSummary.fiscal_year?.start || '')} - ${escapeHTML(this.budgetSummary.fiscal_year?.end || '')}
-        </p>
       `;
     }
   }
