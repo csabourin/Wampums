@@ -209,7 +209,6 @@ export class Dashboard {
   <div class="manage-items">
     <a href="/approve-badges"><i class="fa-solid fa-certificate"></i><span>${translate("approve_badges")}</span></a>
     <a href="/badge-dashboard"><i class="fa-solid fa-chart-bar"></i><span>${translate("badge_dashboard_link")}</span></a>
-    <a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>
     <a href="/parent-contact-list"><i class="fa-solid fa-address-book"></i><span>${translate("parent_contact_list")}</span></a>
     <a href="/parent-dashboard"><i class="fa-solid fa-users"></i><span>${translate("vue_parents")}</span></a>
   </div>
@@ -231,9 +230,7 @@ export class Dashboard {
     <a href="/finance"><i class="fa-solid fa-coins"></i><span>${translate("finance_memberships_tab")}</span></a>
     <a href="/finance?tab=definitions"><i class="fa-solid fa-file-invoice-dollar"></i><span>${translate("finance_definitions_tab")}</span></a>
     <a href="/finance?tab=reports"><i class="fa-solid fa-chart-pie"></i><span>${translate("financial_report")}</span></a>
-    <a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>
-    <a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>
-    <a href="/expenses"><i class="fa-solid fa-receipt"></i><span>${translate("expense_tracking")}</span></a>
+    <a href="/expenses"><i class="fa-solid fa-wallet"></i><span>${translate("expense_tracking")}</span></a>
     <a href="/external-revenue"><i class="fa-solid fa-hand-holding-dollar"></i><span>${translate("external_revenue")}</span></a>
   </div>
 </section>
@@ -246,6 +243,9 @@ export class Dashboard {
     <a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>
     <a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>
     <a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>
+    <a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>
+    <a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>
+    <a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>
     <a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>
     <a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>
     ${adminLink}
