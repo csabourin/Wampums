@@ -687,11 +687,18 @@ module.exports = (pool, logger) => {
 
   /**
    * GET /v1/budget/reports/revenue-breakdown
-   * Get detailed revenue breakdown by source
+   * Get detailed revenue breakdown by source with filtering options
    */
   router.get('/v1/budget/reports/revenue-breakdown', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const { fiscal_year_start, fiscal_year_end, category_id } = req.query;
+    const { 
+      fiscal_year_start, 
+      fiscal_year_end, 
+      category_id,
+      revenue_source,
+      start_date,
+      end_date
+    } = req.query;
 
     let query = `
       SELECT
@@ -706,17 +713,35 @@ module.exports = (pool, logger) => {
     const params = [organizationId];
     let paramCount = 1;
 
-    if (fiscal_year_start && fiscal_year_end) {
+    // Date filtering - prioritize specific date range over fiscal year
+    if (start_date && end_date) {
       paramCount++;
-      query += ` AND revenue_date BETWEEN $${paramCount} AND $${paramCount + 1}`;
+      const startParam = paramCount;
+      paramCount++;
+      const endParam = paramCount;
+      query += ` AND revenue_date BETWEEN $${startParam} AND $${endParam}`;
+      params.push(start_date, end_date);
+    } else if (fiscal_year_start && fiscal_year_end) {
+      paramCount++;
+      const startParam = paramCount;
+      paramCount++;
+      const endParam = paramCount;
+      query += ` AND revenue_date BETWEEN $${startParam} AND $${endParam}`;
       params.push(fiscal_year_start, fiscal_year_end);
-      paramCount++;
     }
 
+    // Category filtering
     if (category_id) {
       paramCount++;
       query += ` AND budget_category_id = $${paramCount}`;
       params.push(category_id);
+    }
+
+    // Revenue source filtering
+    if (revenue_source && revenue_source !== 'all') {
+      paramCount++;
+      query += ` AND revenue_source = $${paramCount}`;
+      params.push(revenue_source);
     }
 
     query += ` GROUP BY revenue_source, budget_category_id, category_name
@@ -729,7 +754,256 @@ module.exports = (pool, logger) => {
       total_amount: toNumeric(row.total_amount)
     }));
 
-    return success(res, breakdown, 'Revenue breakdown loaded');
+    // Add summary statistics
+    const summary = {
+      total_transactions: breakdown.reduce((sum, row) => sum + parseInt(row.transaction_count || 0), 0),
+      total_revenue: breakdown.reduce((sum, row) => sum + row.total_amount, 0),
+      sources_count: new Set(breakdown.map(row => row.revenue_source)).size,
+      categories_count: new Set(breakdown.map(row => row.budget_category_id)).size
+    };
+
+    return success(res, { breakdown, summary }, 'Revenue breakdown loaded');
+  }));
+
+  // ===== BUDGET PLANS =====
+
+  /**
+   * GET /v1/budget/plans
+   * Get budget plans with optional fiscal year filter
+   */
+  router.get('/v1/budget/plans', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { fiscal_year_start, fiscal_year_end } = req.query;
+
+    let query = `
+      SELECT
+        bp.*,
+        bi.name as item_name,
+        bc.name as category_name
+      FROM budget_plans bp
+      LEFT JOIN budget_items bi ON bp.budget_item_id = bi.id
+      LEFT JOIN budget_categories bc ON bi.budget_category_id = bc.id
+      WHERE bp.organization_id = $1
+    `;
+    const params = [organizationId];
+    let paramCount = 1;
+
+    if (fiscal_year_start && fiscal_year_end) {
+      paramCount++;
+      query += ` AND bp.fiscal_year_start = $${paramCount}`;
+      params.push(fiscal_year_start);
+      
+      paramCount++;
+      query += ` AND bp.fiscal_year_end = $${paramCount}`;
+      params.push(fiscal_year_end);
+    }
+
+    query += ` ORDER BY bp.fiscal_year_start DESC, bi.name`;
+
+    const result = await pool.query(query, params);
+
+    const plans = result.rows.map(row => ({
+      ...row,
+      budgeted_revenue: toNumeric(row.budgeted_revenue),
+      budgeted_expense: toNumeric(row.budgeted_expense)
+    }));
+
+    return success(res, plans, 'Budget plans loaded');
+  }));
+
+  /**
+   * POST /v1/budget/plans
+   * Create a new budget plan (admin/animation)
+   */
+  router.post('/v1/budget/plans', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const {
+      budget_item_id,
+      fiscal_year_start,
+      fiscal_year_end,
+      budgeted_revenue,
+      budgeted_expense,
+      notes
+    } = req.body;
+
+    // Validation
+    if (!fiscal_year_start || !fiscal_year_end) {
+      return error(res, 'Fiscal year start and end dates are required', 400);
+    }
+
+    const startValidation = validateDate(fiscal_year_start, 'fiscal_year_start');
+    const endValidation = validateDate(fiscal_year_end, 'fiscal_year_end');
+
+    if (!startValidation.valid || !endValidation.valid) {
+      return error(res, startValidation.message || endValidation.message, 400);
+    }
+
+    // Validate monetary values if provided
+    if (budgeted_revenue !== undefined && budgeted_revenue !== null) {
+      const validation = validateMoney(budgeted_revenue, 'budgeted_revenue');
+      if (!validation.valid) {
+        return error(res, validation.message, 400);
+      }
+    }
+
+    if (budgeted_expense !== undefined && budgeted_expense !== null) {
+      const validation = validateMoney(budgeted_expense, 'budgeted_expense');
+      if (!validation.valid) {
+        return error(res, validation.message, 400);
+      }
+    }
+
+    const result = await pool.query(
+      `INSERT INTO budget_plans
+        (organization_id, budget_item_id, fiscal_year_start, fiscal_year_end,
+         budgeted_revenue, budgeted_expense, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *`,
+      [
+        organizationId,
+        budget_item_id,
+        fiscal_year_start,
+        fiscal_year_end,
+        budgeted_revenue || 0,
+        budgeted_expense || 0,
+        notes
+      ]
+    );
+
+    logger.info(`Budget plan created for organization ${organizationId}`);
+
+    const plan = {
+      ...result.rows[0],
+      budgeted_revenue: toNumeric(result.rows[0].budgeted_revenue),
+      budgeted_expense: toNumeric(result.rows[0].budgeted_expense)
+    };
+
+    return success(res, plan, 'Budget plan created successfully', 201);
+  }));
+
+  /**
+   * PUT /v1/budget/plans/:id
+   * Update an existing budget plan (admin/animation)
+   */
+  router.put('/v1/budget/plans/:id', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const { id } = req.params;
+    const {
+      budget_item_id,
+      fiscal_year_start,
+      fiscal_year_end,
+      budgeted_revenue,
+      budgeted_expense,
+      notes
+    } = req.body;
+
+    // Validate dates if provided
+    if (fiscal_year_start) {
+      const validation = validateDate(fiscal_year_start, 'fiscal_year_start');
+      if (!validation.valid) {
+        return error(res, validation.message, 400);
+      }
+    }
+
+    if (fiscal_year_end) {
+      const validation = validateDate(fiscal_year_end, 'fiscal_year_end');
+      if (!validation.valid) {
+        return error(res, validation.message, 400);
+      }
+    }
+
+    // Validate monetary values if provided
+    if (budgeted_revenue !== undefined && budgeted_revenue !== null) {
+      const validation = validateMoney(budgeted_revenue, 'budgeted_revenue');
+      if (!validation.valid) {
+        return error(res, validation.message, 400);
+      }
+    }
+
+    if (budgeted_expense !== undefined && budgeted_expense !== null) {
+      const validation = validateMoney(budgeted_expense, 'budgeted_expense');
+      if (!validation.valid) {
+        return error(res, validation.message, 400);
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE budget_plans
+      SET budget_item_id = COALESCE($1, budget_item_id),
+          fiscal_year_start = COALESCE($2, fiscal_year_start),
+          fiscal_year_end = COALESCE($3, fiscal_year_end),
+          budgeted_revenue = COALESCE($4, budgeted_revenue),
+          budgeted_expense = COALESCE($5, budgeted_expense),
+          notes = COALESCE($6, notes),
+          updated_at = NOW()
+      WHERE id = $7 AND organization_id = $8
+      RETURNING *`,
+      [
+        budget_item_id,
+        fiscal_year_start,
+        fiscal_year_end,
+        budgeted_revenue,
+        budgeted_expense,
+        notes,
+        id,
+        organizationId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Budget plan not found', 404);
+    }
+
+    logger.info(`Budget plan updated: ${id} for organization ${organizationId}`);
+
+    const plan = {
+      ...result.rows[0],
+      budgeted_revenue: toNumeric(result.rows[0].budgeted_revenue),
+      budgeted_expense: toNumeric(result.rows[0].budgeted_expense)
+    };
+
+    return success(res, plan, 'Budget plan updated successfully');
+  }));
+
+  /**
+   * DELETE /v1/budget/plans/:id
+   * Delete a budget plan (admin only)
+   */
+  router.delete('/v1/budget/plans/:id', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM budget_plans
+      WHERE id = $1 AND organization_id = $2
+      RETURNING *`,
+      [id, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Budget plan not found', 404);
+    }
+
+    logger.info(`Budget plan deleted: ${id} for organization ${organizationId}`);
+    return success(res, result.rows[0], 'Budget plan deleted successfully');
   }));
 
   return router;

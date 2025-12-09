@@ -1515,20 +1515,80 @@ export async function getBudgetSummaryReport(fiscalYearStart, fiscalYearEnd) {
 }
 
 /**
- * Get detailed revenue breakdown by source
+ * Get revenue breakdown by source with optional filters
+ * @param {string} fiscalYearStart - Fiscal year start date
+ * @param {string} fiscalYearEnd - Fiscal year end date
+ * @param {number|null} categoryId - Optional category ID filter
+ * @param {string|null} revenueSource - Optional revenue source filter (participant_fee, fundraiser, calendar_sale)
+ * @param {string|null} startDate - Optional custom start date
+ * @param {string|null} endDate - Optional custom end date
  */
-export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, categoryId = null) {
-    const params = {
-        fiscal_year_start: fiscalYearStart,
-        fiscal_year_end: fiscalYearEnd
-    };
+export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, categoryId = null, revenueSource = null, startDate = null, endDate = null) {
+    const params = {};
+    
+    // Use custom date range if provided, otherwise use fiscal year
+    const dateStart = startDate || fiscalYearStart;
+    const dateEnd = endDate || fiscalYearEnd;
+    
+    if (startDate && endDate) {
+        params.start_date = startDate;
+        params.end_date = endDate;
+    } else if (fiscalYearStart && fiscalYearEnd) {
+        params.fiscal_year_start = fiscalYearStart;
+        params.fiscal_year_end = fiscalYearEnd;
+    }
+    
     if (categoryId) {
         params.category_id = categoryId;
     }
+    
+    if (revenueSource && revenueSource !== 'all') {
+        params.revenue_source = revenueSource;
+    }
+    
+    // Build cache key with actual date parameters used
+    const cacheKey = `budget_revenue_${dateStart}_${dateEnd}_${categoryId || 'all'}_${revenueSource || 'all'}`;
+    
     return API.get('v1/budget/reports/revenue-breakdown', params, {
-        cacheKey: `budget_revenue_${fiscalYearStart}_${fiscalYearEnd}_${categoryId || 'all'}`,
+        cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
+}
+
+/**
+ * Get budget plans with optional fiscal year filter
+ */
+export async function getBudgetPlans(fiscalYearStart = null, fiscalYearEnd = null) {
+    const params = {};
+    if (fiscalYearStart && fiscalYearEnd) {
+        params.fiscal_year_start = fiscalYearStart;
+        params.fiscal_year_end = fiscalYearEnd;
+    }
+    return API.get('v1/budget/plans', params, {
+        cacheKey: fiscalYearStart ? `budget_plans_${fiscalYearStart}_${fiscalYearEnd}` : 'budget_plans',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create a budget plan
+ */
+export async function createBudgetPlan(payload) {
+    return API.post('v1/budget/plans', payload);
+}
+
+/**
+ * Update a budget plan
+ */
+export async function updateBudgetPlan(id, payload) {
+    return API.put(`v1/budget/plans/${id}`, payload);
+}
+
+/**
+ * Delete a budget plan
+ */
+export async function deleteBudgetPlan(id) {
+    return API.delete(`v1/budget/plans/${id}`);
 }
 
 // ============================================================================

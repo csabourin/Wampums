@@ -5397,6 +5397,412 @@ details p {
   }
 }
 
+/* Budget Widget Styles */
+.budget-widget-card {
+  margin-bottom: var(--space-lg);
+}
+
+.budget-widget-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.budget-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  background-color: var(--color-background);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-border);
+}
+
+.budget-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: var(--font-weight-medium);
+}
+
+.budget-stat-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.budget-stat-value.revenue {
+  color: var(--color-success);
+}
+
+.budget-stat-value.expense {
+  color: var(--color-warning);
+}
+
+.budget-stat-value.positive {
+  color: var(--color-success);
+}
+
+.budget-stat-value.negative {
+  color: var(--color-error);
+}
+
+.budget-widget-fiscal-year {
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .budget-widget-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Budget Reports Styles */
+.reports-content {
+  padding: var(--space-md);
+}
+
+.report-section {
+  margin-bottom: var(--space-xl);
+  padding: var(--space-lg);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.report-section h2 {
+  margin-top: 0;
+  margin-bottom: var(--space-lg);
+  color: var(--color-text);
+}
+
+.report-section h3 {
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-md);
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+
+/* Profit & Loss Statement */
+.profit-loss-statement {
+  page-break-inside: avoid;
+}
+
+.statement-period {
+  margin-bottom: var(--space-lg);
+  font-size: var(--font-size-sm);
+}
+
+.statement-section {
+  margin-bottom: var(--space-xl);
+}
+
+.statement-section-title {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.statement-table {
+  width: 100%;
+  margin-bottom: var(--space-md);
+}
+
+.statement-total {
+  border-top: 2px solid var(--color-border);
+  font-weight: var(--font-weight-bold);
+}
+
+.statement-net {
+  font-size: var(--font-size-lg);
+  border-top: 3px double var(--color-border);
+}
+
+.statement-net.positive td {
+  color: var(--color-success);
+}
+
+.statement-net.negative td {
+  color: var(--color-error);
+}
+
+.net-section {
+  margin-top: var(--space-xl);
+}
+
+/* Category Trends */
+.category-trends {
+  /* Inherits report-section styles */
+}
+
+.trends-section {
+  margin-bottom: var(--space-xl);
+}
+
+.trend-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.trend-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.trend-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 200px;
+}
+
+.trend-amount {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.trend-bar-container {
+  flex: 1;
+  height: 24px;
+  background-color: var(--color-background);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-width: 100px;
+}
+
+.trend-bar {
+  height: 100%;
+  transition: width var(--transition-base);
+  border-radius: var(--radius-md);
+}
+
+.trend-bar.revenue {
+  background: linear-gradient(90deg, var(--color-success), var(--color-success-light));
+}
+
+.trend-bar.expense {
+  background: linear-gradient(90deg, var(--color-warning), var(--color-warning-light));
+}
+
+.trend-percentage {
+  min-width: 60px;
+  text-align: right;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+/* Revenue Breakdown */
+.revenue-breakdown {
+  /* Inherits report-section styles */
+}
+
+.breakdown-section {
+  margin-bottom: var(--space-xl);
+}
+
+.breakdown-section:last-child {
+  margin-bottom: 0;
+}
+
+.breakdown-table {
+  width: 100%;
+}
+
+.breakdown-total {
+  border-top: 2px solid var(--color-border);
+  font-weight: var(--font-weight-bold);
+}
+
+@media (max-width: 768px) {
+  .trend-item {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-label {
+    min-width: auto;
+  }
+
+  .trend-percentage {
+    text-align: left;
+  }
+}
+
+@media print {
+  .report-section {
+    page-break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .statement-section {
+    page-break-inside: avoid;
+  }
+}
+
+/* Revenue Filters */
+.revenue-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: flex-end;
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 200px;
+}
+
+.filter-group label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+}
+
+.filter-select {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-background);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  min-height: var(--touch-target-min);
+}
+
+.filter-select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.breakdown-summary {
+  display: flex;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-primary);
+}
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: var(--font-weight-medium);
+}
+
+.stat-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.stat-value.revenue {
+  color: var(--color-success);
+}
+
+@media (max-width: 768px) {
+  .revenue-filters {
+    flex-direction: column;
+  }
+
+  .filter-group {
+    width: 100%;
+    min-width: auto;
+  }
+
+  .breakdown-summary {
+    flex-direction: column;
+  }
+}
+
+/* Budget Planning Styles */
+.planning-content {
+  padding: var(--space-md);
+}
+
+.planning-info {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+
+.plans-table {
+  width: 100%;
+  margin-bottom: var(--space-xl);
+}
+
+.notes-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-vs-actual {
+  margin-top: var(--space-xl);
+  padding: var(--space-lg);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.budget-vs-actual h3 {
+  margin-top: 0;
+  margin-bottom: var(--space-lg);
+}
+
+.comparison-table {
+  width: 100%;
+}
+
+.comparison-table .positive {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+}
+
+.comparison-table .negative {
+  color: var(--color-error);
+  font-weight: var(--font-weight-medium);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .notes-cell {
+    max-width: 100px;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
   *,
