@@ -532,10 +532,10 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.allergies}</td>
-							<td>${item.epipen ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.allergies || '-'}</td>
+							<td>${item.epipen === 'on' || item.epipen === 'true' || item.epipen === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -561,9 +561,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.medication}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.medication || '-'}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -589,9 +589,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.vaccines_up_to_date ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.vaccines_up_to_date === 'on' || item.vaccines_up_to_date === 'true' || item.vaccines_up_to_date === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -646,9 +646,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.can_leave_alone ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.can_leave_alone === 'on' || item.can_leave_alone === 'true' || item.can_leave_alone === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -674,9 +674,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${data.map(item => `
 						<tr>
-							<td>${item.name}</td>
-							<td>${item.group_name}</td>
-							<td>${item.media_authorized ? translate("yes") : translate("no")}</td>
+							<td>${item.first_name} ${item.last_name}</td>
+							<td>${item.group_name || translate("no_group")}</td>
+							<td>${item.media_authorized === 'on' || item.media_authorized === 'true' || item.media_authorized === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`).join('')}
 				</tbody>
@@ -702,7 +702,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 				<tbody>
 					${reportData.map(item => `
 						<tr>
-							<td>${item.name}</td>
+							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${this.formatMissingDocuments(item.missing_documents)}</td>
 						</tr>
