@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "2.3.0";
+const APP_VERSION = "2.3.1";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
@@ -8,15 +8,23 @@ const IMAGE_CACHE_NAME = `wampums-images-v${APP_VERSION}`;
 // Debug helpers for service worker (production domains end with .app)
 const isProduction = () => {
   try {
-    return self.location?.hostname?.endsWith('.app') || false;
+    return self.location?.hostname?.endsWith(".app") || false;
   } catch (e) {
     return false;
   }
 };
-const debugLog = (...args) => { if (!isProduction()) console.log(...args); };
-const debugError = (...args) => { console.error(...args); }; // Always show errors, even in production
-const debugWarn = (...args) => { if (!isProduction()) console.warn(...args); };
-const debugInfo = (...args) => { if (!isProduction()) console.info(...args); };
+const debugLog = (...args) => {
+  if (!isProduction()) console.log(...args);
+};
+const debugError = (...args) => {
+  console.error(...args);
+}; // Always show errors, even in production
+const debugWarn = (...args) => {
+  if (!isProduction()) console.warn(...args);
+};
+const debugInfo = (...args) => {
+  if (!isProduction()) console.info(...args);
+};
 
 const staticAssets = [
   "/",
@@ -81,8 +89,12 @@ self.addEventListener("install", (event) => {
       try {
         self.skipWaiting(); // Forces the service worker to activate immediately after installation
         await Promise.all([
-          caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(staticAssets)),
-          caches.open(IMAGE_CACHE_NAME).then((cache) => cache.addAll(staticImages)),
+          caches
+            .open(STATIC_CACHE_NAME)
+            .then((cache) => cache.addAll(staticAssets)),
+          caches
+            .open(IMAGE_CACHE_NAME)
+            .then((cache) => cache.addAll(staticImages)),
         ]);
       } catch (error) {
         debugError("Service worker install failed", error);
