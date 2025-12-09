@@ -1527,6 +1527,9 @@ export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, 
     const params = {};
     
     // Use custom date range if provided, otherwise use fiscal year
+    const dateStart = startDate || fiscalYearStart;
+    const dateEnd = endDate || fiscalYearEnd;
+    
     if (startDate && endDate) {
         params.start_date = startDate;
         params.end_date = endDate;
@@ -1543,7 +1546,8 @@ export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, 
         params.revenue_source = revenueSource;
     }
     
-    const cacheKey = `budget_revenue_${fiscalYearStart}_${fiscalYearEnd}_${categoryId || 'all'}_${revenueSource || 'all'}`;
+    // Build cache key with actual date parameters used
+    const cacheKey = `budget_revenue_${dateStart}_${dateEnd}_${categoryId || 'all'}_${revenueSource || 'all'}`;
     
     return API.get('v1/budget/reports/revenue-breakdown', params, {
         cacheKey,

@@ -555,11 +555,18 @@ export class Dashboard {
   }
 
   /**
+   * Check if budget features should be visible for current user role
+   */
+  canAccessBudgetFeatures() {
+    return ['admin', 'animation'].includes(this.app.userRole);
+  }
+
+  /**
    * Load budget widget data (only for admin/animation roles)
    */
   async loadBudgetWidget() {
     // Only show budget widget for admin and animation roles
-    if (!['admin', 'animation'].includes(this.app.userRole)) {
+    if (!this.canAccessBudgetFeatures()) {
       return;
     }
 
@@ -595,7 +602,7 @@ export class Dashboard {
    */
   renderBudgetWidget() {
     // Only show for admin and animation roles
-    if (!['admin', 'animation'].includes(this.app.userRole)) {
+    if (!this.canAccessBudgetFeatures()) {
       return '';
     }
 

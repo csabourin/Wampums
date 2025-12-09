@@ -1266,6 +1266,5 @@
     "start_date": "Date de début",
     "end_date": "Date de fin",
     "other": "Autre",
-    "payment_method": "Méthode de paiement",
-    "detailed_reports_coming_soon": "Rapports détaillés à venir"
+    "payment_method": "Méthode de paiement"
 }

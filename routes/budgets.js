@@ -716,14 +716,18 @@ module.exports = (pool, logger) => {
     // Date filtering - prioritize specific date range over fiscal year
     if (start_date && end_date) {
       paramCount++;
-      query += ` AND revenue_date BETWEEN $${paramCount} AND $${paramCount + 1}`;
-      params.push(start_date, end_date);
+      const startParam = paramCount;
       paramCount++;
+      const endParam = paramCount;
+      query += ` AND revenue_date BETWEEN $${startParam} AND $${endParam}`;
+      params.push(start_date, end_date);
     } else if (fiscal_year_start && fiscal_year_end) {
       paramCount++;
-      query += ` AND revenue_date BETWEEN $${paramCount} AND $${paramCount + 1}`;
-      params.push(fiscal_year_start, fiscal_year_end);
+      const startParam = paramCount;
       paramCount++;
+      const endParam = paramCount;
+      query += ` AND revenue_date BETWEEN $${startParam} AND $${endParam}`;
+      params.push(fiscal_year_start, fiscal_year_end);
     }
 
     // Category filtering

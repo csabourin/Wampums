@@ -122,9 +122,11 @@ export class Budgets {
     }).format(value);
   }
 
-  render() {
+  async render() {
     const container = document.getElementById("app");
     if (!container) return;
+
+    const tabContent = await this.renderTabContent();
 
     container.innerHTML = `
       <div class="page-container budgets-page">
@@ -164,7 +166,7 @@ export class Budgets {
         </div>
 
         <div class="tab-content">
-          ${this.renderTabContent()}
+          ${tabContent}
         </div>
       </div>
     `;
@@ -209,7 +211,7 @@ export class Budgets {
     `;
   }
 
-  renderTabContent() {
+  async renderTabContent() {
     switch (this.activeTab) {
       case "overview":
         return this.renderOverview();
@@ -220,7 +222,7 @@ export class Budgets {
       case "planning":
         return this.renderPlanning();
       case "reports":
-        return this.renderReports();
+        return await this.renderReports();
       default:
         return "";
     }
@@ -466,7 +468,10 @@ export class Budgets {
     `;
   }
 
-  renderReports() {
+  async renderReports() {
+    // Load revenue breakdown data first since it's async
+    await this.loadRevenueBreakdown();
+    
     return `
       <div class="reports-content">
         <div class="report-section">
@@ -478,10 +483,39 @@ export class Budgets {
         </div>
         
         <div class="report-section">
-          ${this.renderRevenueBreakdown()}
+          ${this.renderRevenueBreakdownContent()}
         </div>
       </div>
     `;
+  }
+
+  async loadRevenueBreakdown() {
+    // Load revenue breakdown data with filters
+    try {
+      const categoryId = (this.revenueFilters.category && this.revenueFilters.category !== 'all') 
+        ? this.revenueFilters.category 
+        : null;
+      
+      const revenueSource = (this.revenueFilters.source && this.revenueFilters.source !== 'all') 
+        ? this.revenueFilters.source 
+        : null;
+
+      const response = await getBudgetRevenueBreakdown(
+        this.fiscalYear.start,
+        this.fiscalYear.end,
+        categoryId,
+        revenueSource
+      );
+      
+      // Handle new response format with breakdown and summary
+      const data = response?.data;
+      this.revenueBreakdown = data?.breakdown || data || [];
+      this.revenueBreakdownSummary = data?.summary || null;
+    } catch (error) {
+      debugError("Error loading revenue breakdown", error);
+      this.revenueBreakdown = [];
+      this.revenueBreakdownSummary = null;
+    }
   }
 
   renderProfitLossStatement() {
@@ -616,34 +650,7 @@ export class Budgets {
     `;
   }
 
-  async renderRevenueBreakdown() {
-    // Load revenue breakdown data with filters
-    try {
-      const categoryId = (this.revenueFilters.category && this.revenueFilters.category !== 'all') 
-        ? this.revenueFilters.category 
-        : null;
-      
-      const revenueSource = (this.revenueFilters.source && this.revenueFilters.source !== 'all') 
-        ? this.revenueFilters.source 
-        : null;
-
-      const response = await getBudgetRevenueBreakdown(
-        this.fiscalYear.start,
-        this.fiscalYear.end,
-        categoryId,
-        revenueSource
-      );
-      
-      // Handle new response format with breakdown and summary
-      const data = response?.data;
-      this.revenueBreakdown = data?.breakdown || data || [];
-      this.revenueBreakdownSummary = data?.summary || null;
-    } catch (error) {
-      debugError("Error loading revenue breakdown", error);
-      this.revenueBreakdown = [];
-      this.revenueBreakdownSummary = null;
-    }
-
+  renderRevenueBreakdownContent() {
     if (!this.revenueBreakdown || this.revenueBreakdown.length === 0) {
       return `
         <div class="revenue-breakdown">
@@ -894,9 +901,10 @@ export class Budgets {
     this.revenueBreakdown = null;
     this.revenueBreakdownSummary = null;
 
-    // Re-render the reports tab
-    this.render();
-    this.attachEventListeners();
+    // Only update the reports tab content if we're on the reports tab
+    if (this.activeTab === 'reports') {
+      await this.updateReportsTabContent();
+    }
   }
 
   async resetRevenueFilters() {
@@ -909,9 +917,31 @@ export class Budgets {
     this.revenueBreakdown = null;
     this.revenueBreakdownSummary = null;
 
-    // Re-render the reports tab
-    this.render();
-    this.attachEventListeners();
+    // Only update the reports tab content if we're on the reports tab
+    if (this.activeTab === 'reports') {
+      await this.updateReportsTabContent();
+    }
+  }
+
+  async updateReportsTabContent() {
+    const tabContent = document.querySelector('.tab-content');
+    if (!tabContent) return;
+
+    await this.loadRevenueBreakdown();
+    
+    const reportsHTML = await this.renderReports();
+    tabContent.innerHTML = reportsHTML;
+
+    // Re-attach event listeners for the reports tab
+    const applyFiltersBtn = document.getElementById("apply-revenue-filters-btn");
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener("click", () => this.applyRevenueFilters());
+    }
+
+    const resetFiltersBtn = document.getElementById("reset-revenue-filters-btn");
+    if (resetFiltersBtn) {
+      resetFiltersBtn.addEventListener("click", () => this.resetRevenueFilters());
+    }
   }
 
   updateURL() {
