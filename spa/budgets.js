@@ -41,6 +41,10 @@ export class Budgets {
     this.budgetPlans = [];
     this.activeTab = "overview";
     this.fiscalYear = this.getCurrentFiscalYear();
+    this.revenueFilters = {
+      source: 'all',
+      category: 'all'
+    };
   }
 
   /**
@@ -613,24 +617,38 @@ export class Budgets {
   }
 
   async renderRevenueBreakdown() {
-    // Load revenue breakdown data if not already loaded
-    if (!this.revenueBreakdown) {
-      try {
-        const response = await getBudgetRevenueBreakdown(
-          this.fiscalYear.start,
-          this.fiscalYear.end
-        );
-        this.revenueBreakdown = response?.data || [];
-      } catch (error) {
-        debugError("Error loading revenue breakdown", error);
-        this.revenueBreakdown = [];
-      }
+    // Load revenue breakdown data with filters
+    try {
+      const categoryId = (this.revenueFilters.category && this.revenueFilters.category !== 'all') 
+        ? this.revenueFilters.category 
+        : null;
+      
+      const revenueSource = (this.revenueFilters.source && this.revenueFilters.source !== 'all') 
+        ? this.revenueFilters.source 
+        : null;
+
+      const response = await getBudgetRevenueBreakdown(
+        this.fiscalYear.start,
+        this.fiscalYear.end,
+        categoryId,
+        revenueSource
+      );
+      
+      // Handle new response format with breakdown and summary
+      const data = response?.data;
+      this.revenueBreakdown = data?.breakdown || data || [];
+      this.revenueBreakdownSummary = data?.summary || null;
+    } catch (error) {
+      debugError("Error loading revenue breakdown", error);
+      this.revenueBreakdown = [];
+      this.revenueBreakdownSummary = null;
     }
 
     if (!this.revenueBreakdown || this.revenueBreakdown.length === 0) {
       return `
         <div class="revenue-breakdown">
           <h2>${translate("revenue_breakdown")}</h2>
+          ${this.renderRevenueFilters()}
           <p class="no-data">${translate("no_budget_data")}</p>
         </div>
       `;
@@ -653,8 +671,11 @@ export class Budgets {
     });
 
     const sourceLabels = {
+      'participant_fee': translate("fee_revenue"),
       'fees': translate("fees"),
+      'fundraiser': translate("fundraiser_revenue"),
       'fundraisers': translate("fundraisers"),
+      'calendar_sale': translate("calendar_revenue"),
       'calendar_sales': translate("calendar_sales"),
       'other': translate("other")
     };
@@ -662,6 +683,21 @@ export class Budgets {
     return `
       <div class="revenue-breakdown">
         <h2>${translate("revenue_breakdown")}</h2>
+        
+        ${this.renderRevenueFilters()}
+        
+        ${this.revenueBreakdownSummary ? `
+          <div class="breakdown-summary">
+            <div class="summary-stat">
+              <span class="stat-label">${translate("transaction_count")}</span>
+              <span class="stat-value">${this.revenueBreakdownSummary.total_transactions}</span>
+            </div>
+            <div class="summary-stat">
+              <span class="stat-label">${translate("total_revenue")}</span>
+              <span class="stat-value revenue">${this.formatCurrency(this.revenueBreakdownSummary.total_revenue)}</span>
+            </div>
+          </div>
+        ` : ''}
         
         ${Object.keys(bySource).map(source => `
           <div class="breakdown-section">
@@ -672,25 +708,68 @@ export class Budgets {
                   <th>${translate("category")}</th>
                   <th class="text-right">${translate("transaction_count")}</th>
                   <th class="text-right">${translate("amount")}</th>
+                  <th class="text-right">${translate("percentage_of_total")}</th>
                 </tr>
               </thead>
               <tbody>
-                ${bySource[source].items.map(item => `
-                  <tr>
-                    <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
-                    <td class="text-right">${item.transaction_count}</td>
-                    <td class="text-right amount revenue">${this.formatCurrency(item.total_amount)}</td>
-                  </tr>
-                `).join("")}
+                ${bySource[source].items.map(item => {
+                  const percentage = this.revenueBreakdownSummary && this.revenueBreakdownSummary.total_revenue > 0
+                    ? (item.total_amount / this.revenueBreakdownSummary.total_revenue * 100)
+                    : 0;
+                  return `
+                    <tr>
+                      <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
+                      <td class="text-right">${item.transaction_count}</td>
+                      <td class="text-right amount revenue">${this.formatCurrency(item.total_amount)}</td>
+                      <td class="text-right">${percentage.toFixed(1)}%</td>
+                    </tr>
+                  `;
+                }).join("")}
                 <tr class="breakdown-total">
                   <td><strong>${translate("total")}</strong></td>
                   <td class="text-right"><strong>${bySource[source].count}</strong></td>
                   <td class="text-right amount revenue"><strong>${this.formatCurrency(bySource[source].total)}</strong></td>
+                  <td class="text-right"><strong>${this.revenueBreakdownSummary && this.revenueBreakdownSummary.total_revenue > 0 ? (bySource[source].total / this.revenueBreakdownSummary.total_revenue * 100).toFixed(1) : 0}%</strong></td>
                 </tr>
               </tbody>
             </table>
           </div>
         `).join("")}
+      </div>
+    `;
+  }
+
+  renderRevenueFilters() {
+    return `
+      <div class="revenue-filters">
+        <div class="filter-group">
+          <label for="revenue-source-filter">${translate("filter_by_source")}</label>
+          <select id="revenue-source-filter" class="filter-select">
+            <option value="all" ${this.revenueFilters.source === 'all' ? 'selected' : ''}>${translate("all_sources")}</option>
+            <option value="participant_fee" ${this.revenueFilters.source === 'participant_fee' ? 'selected' : ''}>${translate("fee_revenue")}</option>
+            <option value="fundraiser" ${this.revenueFilters.source === 'fundraiser' ? 'selected' : ''}>${translate("fundraiser_revenue")}</option>
+            <option value="calendar_sale" ${this.revenueFilters.source === 'calendar_sale' ? 'selected' : ''}>${translate("calendar_revenue")}</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="revenue-category-filter">${translate("filter_by_category")}</label>
+          <select id="revenue-category-filter" class="filter-select">
+            <option value="all" ${this.revenueFilters.category === 'all' ? 'selected' : ''}>${translate("all_categories")}</option>
+            ${this.categories.map(cat => `
+              <option value="${cat.id}" ${this.revenueFilters.category == cat.id ? 'selected' : ''}>
+                ${escapeHTML(cat.name)}
+              </option>
+            `).join("")}
+          </select>
+        </div>
+        
+        <button class="btn btn-secondary" id="apply-revenue-filters-btn">
+          ${translate("apply_filters")}
+        </button>
+        <button class="btn btn-secondary" id="reset-revenue-filters-btn">
+          ${translate("reset_filters")}
+        </button>
       </div>
     `;
   }
@@ -786,6 +865,53 @@ export class Budgets {
         }
       });
     });
+
+    // Revenue filter buttons
+    const applyFiltersBtn = document.getElementById("apply-revenue-filters-btn");
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener("click", () => this.applyRevenueFilters());
+    }
+
+    const resetFiltersBtn = document.getElementById("reset-revenue-filters-btn");
+    if (resetFiltersBtn) {
+      resetFiltersBtn.addEventListener("click", () => this.resetRevenueFilters());
+    }
+  }
+
+  async applyRevenueFilters() {
+    const sourceFilter = document.getElementById("revenue-source-filter");
+    const categoryFilter = document.getElementById("revenue-category-filter");
+    
+    if (sourceFilter) {
+      this.revenueFilters.source = sourceFilter.value;
+    }
+    
+    if (categoryFilter) {
+      this.revenueFilters.category = categoryFilter.value;
+    }
+
+    // Clear cached data to force reload with new filters
+    this.revenueBreakdown = null;
+    this.revenueBreakdownSummary = null;
+
+    // Re-render the reports tab
+    this.render();
+    this.attachEventListeners();
+  }
+
+  async resetRevenueFilters() {
+    this.revenueFilters = {
+      source: 'all',
+      category: 'all'
+    };
+
+    // Clear cached data
+    this.revenueBreakdown = null;
+    this.revenueBreakdownSummary = null;
+
+    // Re-render the reports tab
+    this.render();
+    this.attachEventListeners();
   }
 
   updateURL() {

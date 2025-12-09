@@ -687,11 +687,18 @@ module.exports = (pool, logger) => {
 
   /**
    * GET /v1/budget/reports/revenue-breakdown
-   * Get detailed revenue breakdown by source
+   * Get detailed revenue breakdown by source with filtering options
    */
   router.get('/v1/budget/reports/revenue-breakdown', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const { fiscal_year_start, fiscal_year_end, category_id } = req.query;
+    const { 
+      fiscal_year_start, 
+      fiscal_year_end, 
+      category_id,
+      revenue_source,
+      start_date,
+      end_date
+    } = req.query;
 
     let query = `
       SELECT
@@ -706,17 +713,31 @@ module.exports = (pool, logger) => {
     const params = [organizationId];
     let paramCount = 1;
 
-    if (fiscal_year_start && fiscal_year_end) {
+    // Date filtering - prioritize specific date range over fiscal year
+    if (start_date && end_date) {
+      paramCount++;
+      query += ` AND revenue_date BETWEEN $${paramCount} AND $${paramCount + 1}`;
+      params.push(start_date, end_date);
+      paramCount++;
+    } else if (fiscal_year_start && fiscal_year_end) {
       paramCount++;
       query += ` AND revenue_date BETWEEN $${paramCount} AND $${paramCount + 1}`;
       params.push(fiscal_year_start, fiscal_year_end);
       paramCount++;
     }
 
+    // Category filtering
     if (category_id) {
       paramCount++;
       query += ` AND budget_category_id = $${paramCount}`;
       params.push(category_id);
+    }
+
+    // Revenue source filtering
+    if (revenue_source && revenue_source !== 'all') {
+      paramCount++;
+      query += ` AND revenue_source = $${paramCount}`;
+      params.push(revenue_source);
     }
 
     query += ` GROUP BY revenue_source, budget_category_id, category_name
@@ -729,7 +750,15 @@ module.exports = (pool, logger) => {
       total_amount: toNumeric(row.total_amount)
     }));
 
-    return success(res, breakdown, 'Revenue breakdown loaded');
+    // Add summary statistics
+    const summary = {
+      total_transactions: breakdown.reduce((sum, row) => sum + parseInt(row.transaction_count || 0), 0),
+      total_revenue: breakdown.reduce((sum, row) => sum + row.total_amount, 0),
+      sources_count: new Set(breakdown.map(row => row.revenue_source)).size,
+      categories_count: new Set(breakdown.map(row => row.budget_category_id)).size
+    };
+
+    return success(res, { breakdown, summary }, 'Revenue breakdown loaded');
   }));
 
   // ===== BUDGET PLANS =====

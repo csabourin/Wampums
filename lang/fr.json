@@ -1260,6 +1260,11 @@
     "notes": "Notes",
     "percentage_of_total": "% du total",
     "budget_overview_widget": "Budget",
+    "apply_filters": "Appliquer les filtres",
+    "reset_filters": "Réinitialiser les filtres",
+    "select": "Sélectionner",
+    "start_date": "Date de début",
+    "end_date": "Date de fin",
     "other": "Autre",
     "payment_method": "Méthode de paiement",
     "detailed_reports_coming_soon": "Rapports détaillés à venir"
