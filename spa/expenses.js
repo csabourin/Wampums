@@ -214,7 +214,7 @@ export class Expenses {
           </button>
         </div>
 
-        <div class="tab-content">
+        <div class="tabContent">
           ${this.renderTabContent()}
         </div>
       </div>
