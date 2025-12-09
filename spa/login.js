@@ -158,6 +158,7 @@ handleLoginSuccess(result) {
   const userId = result.user_id || (result.data && result.data.user_id);
   const userRole = result.user_role || (result.data && result.data.user_role);
   const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
+  const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
   // Validate required fields
   if (!token) {
@@ -185,6 +186,7 @@ handleLoginSuccess(result) {
   debugLog("User ID:", userId);
   debugLog("User Role:", userRole);
   debugLog("User Full Name:", userFullName);
+  debugLog("Organization ID:", organizationId);
 
   // Update app state
   this.app.isLoggedIn = true;
@@ -199,12 +201,11 @@ handleLoginSuccess(result) {
     userId: userId
   };
 
-  // Make sure organization ID is stored correctly
-  const orgId = getCurrentOrganizationId();
-  if (orgId) {
-    userData.currentOrganizationId = orgId;
+  // Store organization ID from login response
+  if (organizationId) {
+    userData.currentOrganizationId = organizationId;
     // Also store as organizationId for backward compatibility
-    userData.organizationId = orgId;
+    userData.organizationId = organizationId;
   }
 
   // Store guardian participants if available
