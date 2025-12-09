@@ -582,6 +582,7 @@
     "internal_server_error": "Erreur interne du serveur",
     "internet": "Internet",
     "invalid_account_creation_password": "Mot de passe de création de compte invalide.",
+    "invalid_amount": "Montant invalide",
     "invalid_credentials": "Identifiants invalides",
     "invalid_date": "Date invalide",
     "invalid_document_type": "Type de document invalide",
