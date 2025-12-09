@@ -892,7 +892,7 @@ export class Expenses {
       // Normalize category ID to integer or null
       const categoryId = categoryValue ? parseInt(categoryValue, 10) : null;
 
-      if (date && description && amount) {
+      if (date && description && amount && !Number.isNaN(amount)) {
         expenses.push({
           expense_date: date,
           budget_category_id: categoryId,
