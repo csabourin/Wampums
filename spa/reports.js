@@ -1,23 +1,28 @@
 // reports.js
 import { translate } from "./app.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import {
+	debugLog,
+	debugError,
+	debugWarn,
+	debugInfo,
+} from "./utils/DebugUtils.js";
 import {
 	getHealthReport,
 	getAllergiesReport,
 	getMedicationReport,
 	getVaccineReport,
 	getLeaveAloneReport,
-        getMediaAuthorizationReport,
-        getMissingDocumentsReport,
-        getAttendanceReport,
-        getHonorsReport,
-        getPointsReport,
-        getParticipantProgressReport,
-        getParticipantAgeReport,
-        getFormStructure,
-        getFormSubmissions,
-        getFormTypes,
-        getFinanceReport
+	getMediaAuthorizationReport,
+	getMissingDocumentsReport,
+	getAttendanceReport,
+	getHonorsReport,
+	getPointsReport,
+	getParticipantProgressReport,
+	getParticipantAgeReport,
+	getFormStructure,
+	getFormSubmissions,
+	getFormTypes,
+	getFinanceReport,
 } from "./ajax-functions.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort } from "./utils/DateUtils.js";
@@ -25,12 +30,12 @@ import { formatDateShort } from "./utils/DateUtils.js";
 const REPORT_CURRENCY = "CAD";
 
 export class Reports {
-        constructor(app) {
-                this.app = app;
-                this.participantList = [];
-                this.selectedParticipantId = null;
-                this.participantProgressCache = new Map();
-        }
+	constructor(app) {
+		this.app = app;
+		this.participantList = [];
+		this.selectedParticipantId = null;
+		this.participantProgressCache = new Map();
+	}
 
 	async init() {
 		if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
@@ -43,8 +48,8 @@ export class Reports {
 		this.attachEventListeners();
 	}
 
-        render() {
-                const content = `
+	render() {
+		const content = `
                         <section class="reports-header">
                                 <p class="reports-kicker">${translate("reports")}</p>
                                 <h1>${translate("reports_title")}</h1>
@@ -187,7 +192,7 @@ export class Reports {
                                                                 <span class="button-icon">🖨️</span>
                                                                 ${translate("print_report")}
                                                         </button>
-                                                        <button id="close-report-modal" class="button button--ghost" type="button" aria-label="${translate("close")}">
+                                                        <button id="close-report-modal" class="button button--ghost close" type="button" aria-label="${translate("close")}">
                                                                 <span class="button-icon">✕</span>
                                                         </button>
                                                 </div>
@@ -196,66 +201,68 @@ export class Reports {
                                 </div>
                         </div>
                 `;
-                document.getElementById("app").innerHTML = content;
-        }
+		document.getElementById("app").innerHTML = content;
+	}
 
-        attachEventListeners() {
-                document.querySelectorAll('.report-btn').forEach(button => {
-                        button.addEventListener('click', (e) => {
-                                const reportType = e.target.closest('.report-btn').dataset.report;
-                                this.loadReport(reportType);
-                        });
-                });
+	attachEventListeners() {
+		document.querySelectorAll(".report-btn").forEach((button) => {
+			button.addEventListener("click", (e) => {
+				const reportType = e.target.closest(".report-btn").dataset.report;
+				this.loadReport(reportType);
+			});
+		});
 
-                // Modal close handlers
-                const closeModalBtn = document.getElementById('close-report-modal');
-                const modalOverlay = document.getElementById('report-modal-overlay');
+		// Modal close handlers
+		const closeModalBtn = document.getElementById("close-report-modal");
+		const modalOverlay = document.getElementById("report-modal-overlay");
 
-                closeModalBtn?.addEventListener('click', () => this.closeReportModal());
-                modalOverlay?.addEventListener('click', () => this.closeReportModal());
+		closeModalBtn?.addEventListener("click", () => this.closeReportModal());
+		modalOverlay?.addEventListener("click", () => this.closeReportModal());
 
-                // ESC key to close modal
-                document.addEventListener('keydown', (e) => {
-                        if (e.key === 'Escape') {
-                                const modal = document.getElementById('report-modal');
-                                if (modal && modal.style.display !== 'none') {
-                                        this.closeReportModal();
-                                }
-                        }
-                });
+		// ESC key to close modal
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Escape") {
+				const modal = document.getElementById("report-modal");
+				if (modal && modal.style.display !== "none") {
+					this.closeReportModal();
+				}
+			}
+		});
 
-                document.getElementById('print-report')?.addEventListener('click', () => this.printReport());
-        }
+		document
+			.getElementById("print-report")
+			?.addEventListener("click", () => this.printReport());
+	}
 
-        openReportModal(title) {
-                const modal = document.getElementById('report-modal');
-                const modalTitle = document.getElementById('report-modal-title');
+	openReportModal(title) {
+		const modal = document.getElementById("report-modal");
+		const modalTitle = document.getElementById("report-modal-title");
 
-                modalTitle.textContent = title;
-                modal.style.display = 'block';
-                document.body.style.overflow = 'hidden'; // Prevent background scrolling
-        }
+		modalTitle.textContent = title;
+		modal.style.display = "block";
+		document.body.style.overflow = "hidden"; // Prevent background scrolling
+	}
 
-        closeReportModal() {
-                const modal = document.getElementById('report-modal');
-                modal.style.display = 'none';
-                document.body.style.overflow = ''; // Restore scrolling
-        }
+	closeReportModal() {
+		const modal = document.getElementById("report-modal");
+		modal.style.display = "none";
+		document.body.style.overflow = ""; // Restore scrolling
+	}
 
 	async loadFormTypes() {
 		try {
 			const response = await getFormTypes(); // Fetch form types
 
-			debugLog("Fetched form types:", response);  // Check if data is correctly fetched
+			debugLog("Fetched form types:", response); // Check if data is correctly fetched
 
 			const selectElement = document.getElementById("form-type-select");
 
 			if (!response || !response.data || response.data.length === 0) {
-				selectElement.innerHTML = `<option value="">${translate('no_form_types_available')}</option>`;
+				selectElement.innerHTML = `<option value="">${translate("no_form_types_available")}</option>`;
 				return;
 			}
 
-			response.data.forEach(formType => {
+			response.data.forEach((formType) => {
 				const option = document.createElement("option");
 				option.value = formType;
 				option.textContent = formType; // You may use a translated or user-friendly name here
@@ -263,119 +270,121 @@ export class Reports {
 			});
 
 			// Add event listener to handle report loading when form type is selected
-			selectElement.addEventListener('change', async () => {
+			selectElement.addEventListener("change", async () => {
 				const selectedFormType = selectElement.value;
 				if (selectedFormType) {
-					await this.loadReport('missing-fields', selectedFormType);
+					await this.loadReport("missing-fields", selectedFormType);
 				}
 			});
 		} catch (error) {
 			debugError("Error loading form types:", error);
-			document.getElementById("form-type-container").innerHTML = `<p>${translate("error_loading_form_types")}</p>`;
+			document.getElementById("form-type-container").innerHTML =
+				`<p>${translate("error_loading_form_types")}</p>`;
 		}
 	}
 
-
-
-	async loadReport(reportType,formType=null) {
+	async loadReport(reportType, formType = null) {
 		try {
 			// Get report title for modal
 			const reportTitles = {
-				'health': translate('health_report_title'),
-				'allergies': translate('allergies_report_title'),
-				'medication': translate('medication_report_title'),
-				'vaccines': translate('vaccine_report_title'),
-				'leave-alone': translate('leave_alone_report_title'),
-				'media-authorization': translate('media_authorization_report_title'),
-				'missing-documents': translate('missing_documents_report_title'),
-				'attendance': translate('attendance_report_title'),
-				'participant-age': translate('participant_age_report_title'),
-				'honors': translate('honors_report_title'),
-				'points': translate('points_report_title'),
-				'financial': translate('financial_report_title'),
-				'participant-progress': translate('participant_progress_report_title'),
-				'missing-fields': translate('missing_fields_report')
+				health: translate("health_report_title"),
+				allergies: translate("allergies_report_title"),
+				medication: translate("medication_report_title"),
+				vaccines: translate("vaccine_report_title"),
+				"leave-alone": translate("leave_alone_report_title"),
+				"media-authorization": translate("media_authorization_report_title"),
+				"missing-documents": translate("missing_documents_report_title"),
+				attendance: translate("attendance_report_title"),
+				"participant-age": translate("participant_age_report_title"),
+				honors: translate("honors_report_title"),
+				points: translate("points_report_title"),
+				financial: translate("financial_report_title"),
+				"participant-progress": translate("participant_progress_report_title"),
+				"missing-fields": translate("missing_fields_report"),
 			};
 
 			// Open modal with report title
-			this.openReportModal(reportTitles[reportType] || translate('report'));
+			this.openReportModal(reportTitles[reportType] || translate("report"));
 
 			let reportData;
 			let reportContent;
 
 			switch (reportType) {
-					case 'health':
+				case "health":
 					reportContent = await this.fetchAndRenderHealthReport(); // Now we get the report content
 					break;
-				case 'missing-fields':
-				reportContent = await this.fetchAndRenderMissingFieldsReport(formType); // Pass the form type
-				break;
-				case 'allergies':
+				case "missing-fields":
+					reportContent =
+						await this.fetchAndRenderMissingFieldsReport(formType); // Pass the form type
+					break;
+				case "allergies":
 					reportData = await getAllergiesReport();
 					reportContent = this.renderAllergiesReport(reportData.data);
 					break;
-				case 'medication':
+				case "medication":
 					reportData = await getMedicationReport();
 					reportContent = this.renderMedicationReport(reportData.data);
 					break;
-				case 'vaccines':
+				case "vaccines":
 					reportData = await getVaccineReport();
 					reportContent = this.renderVaccineReport(reportData.data);
 					break;
-				case 'leave-alone':
+				case "leave-alone":
 					reportData = await getLeaveAloneReport();
 					reportContent = this.renderLeaveAloneReport(reportData.data);
 					break;
-				case 'media-authorization':
+				case "media-authorization":
 					reportData = await getMediaAuthorizationReport();
 					reportContent = this.renderMediaAuthorizationReport(reportData.data);
 					break;
-				case 'missing-documents':
+				case "missing-documents":
 					reportData = await getMissingDocumentsReport();
 					reportContent = this.renderMissingDocumentsReport(reportData.data);
 					break;
-				case 'attendance':
-				reportData = await getAttendanceReport();
-				debugLog("Received attendance report data:", reportData); // Add this line for debugging
-				if (!reportData) {
-					throw new Error('No data received from getAttendanceReport');
-				}
-				reportContent = this.renderAttendanceReport(reportData);
-				break;
-				case 'honors':
+				case "attendance":
+					reportData = await getAttendanceReport();
+					debugLog("Received attendance report data:", reportData); // Add this line for debugging
+					if (!reportData) {
+						throw new Error("No data received from getAttendanceReport");
+					}
+					reportContent = this.renderAttendanceReport(reportData);
+					break;
+				case "honors":
 					reportData = await getHonorsReport();
 					reportContent = this.renderHonorsReport(reportData.data);
 					break;
-case 'participant-age':
+				case "participant-age":
 					reportData = await getParticipantAgeReport(); // Fetch the report data
-					reportContent = this.renderParticipantAgeReport(reportData.participants);
+					reportContent = this.renderParticipantAgeReport(
+						reportData.participants,
+					);
 					break;
-                                case 'points':
-                                        reportData = await getPointsReport();
-                                        reportContent = this.renderPointsReport(reportData.data);
-                                        break;
-                                case 'financial':
-                                        reportData = await getFinanceReport();
-                                        reportContent = this.renderFinancialReport(reportData.data);
-                                        break;
-                                case 'time-since-registration':
-                                        // Navigate to the dedicated time since registration page
-                                        this.app.router.navigate('/time-since-registration');
-                                        return; // Exit early since we're navigating away
-                                case 'participant-progress':
-                                        reportContent = await this.fetchAndRenderParticipantProgress();
-                                        break;
-                                default:
-                                        reportContent = '<p>Invalid report type</p>';
-                        }
+				case "points":
+					reportData = await getPointsReport();
+					reportContent = this.renderPointsReport(reportData.data);
+					break;
+				case "financial":
+					reportData = await getFinanceReport();
+					reportContent = this.renderFinancialReport(reportData.data);
+					break;
+				case "time-since-registration":
+					// Navigate to the dedicated time since registration page
+					this.app.router.navigate("/time-since-registration");
+					return; // Exit early since we're navigating away
+				case "participant-progress":
+					reportContent = await this.fetchAndRenderParticipantProgress();
+					break;
+				default:
+					reportContent = "<p>Invalid report type</p>";
+			}
 
-                        document.getElementById('report-content').innerHTML = reportContent;
-                        if (reportType === 'participant-progress') {
-                                this.attachParticipantProgressListeners();
-                        }
-                } catch (error) {
-                        debugError(`Error loading ${reportType} report:`, error);
-			document.getElementById('report-content').innerHTML = `
+			document.getElementById("report-content").innerHTML = reportContent;
+			if (reportType === "participant-progress") {
+				this.attachParticipantProgressListeners();
+			}
+		} catch (error) {
+			debugError(`Error loading ${reportType} report:`, error);
+			document.getElementById("report-content").innerHTML = `
 				<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>
 			`;
 		}
@@ -387,11 +396,11 @@ case 'participant-age':
 			const reportData = await getHealthReport(); // Assuming getHealthReport is defined in ajax-functions.js
 
 			if (!reportData.success) {
-				throw new Error(reportData.error || 'Failed to fetch health report');
+				throw new Error(reportData.error || "Failed to fetch health report");
 			}
 
 			// Filter out participants with all empty fields
-			const filteredParticipants = reportData.data.filter(participant => {
+			const filteredParticipants = reportData.data.filter((participant) => {
 				return !(
 					!participant.epipen &&
 					!participant.allergies &&
@@ -404,12 +413,13 @@ case 'participant-age':
 			});
 
 			// Sort participants by last name
-			const sortedParticipants = filteredParticipants.sort((a, b) => a.last_name.localeCompare(b.last_name));
+			const sortedParticipants = filteredParticipants.sort((a, b) =>
+				a.last_name.localeCompare(b.last_name),
+			);
 
 			// Render the report and return the content
 			const reportContent = this.renderHealthReport(sortedParticipants);
 			return reportContent; // Return the generated reportContent
-
 		} catch (error) {
 			debugError("Error fetching and rendering health report:", error);
 			return `<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>`;
@@ -417,7 +427,7 @@ case 'participant-age':
 	}
 
 	renderHealthReport(participants) {
-			let tableContent = `
+		let tableContent = `
 					<table class="health-report-table">
 							<thead>
 									<tr>
@@ -430,27 +440,45 @@ case 'participant-age':
 							<tbody>
 			`;
 
-			participants.forEach(participant => {
-					const epipen = participant.epipen === "1" || participant.epipen === "true" || participant.epipen === true ? "<strong> EPIPEN </strong>" : "";
-					const leaveAlone = participant.leave_alone === "1" || participant.leave_alone === "true" || participant.leave_alone === true ? "🗸" : "";
-					const mediaConsent = participant.media_consent === "1" || participant.media_consent === "true" || participant.media_consent === true ? "" : "🚫"; // Show 🚫 if no media consent
+		participants.forEach((participant) => {
+			const epipen =
+				participant.epipen === "1" ||
+				participant.epipen === "true" ||
+				participant.epipen === true
+					? "<strong> EPIPEN </strong>"
+					: "";
+			const leaveAlone =
+				participant.leave_alone === "1" ||
+				participant.leave_alone === "true" ||
+				participant.leave_alone === true
+					? "🗸"
+					: "";
+			const mediaConsent =
+				participant.media_consent === "1" ||
+				participant.media_consent === "true" ||
+				participant.media_consent === true
+					? ""
+					: "🚫"; // Show 🚫 if no media consent
 
-					// Health information fields, only showing the ones that are not empty
-					let healthInfo = '';
-					if (participant.health_issues) healthInfo += `<strong>${translate('health_issues')}:</strong> ${participant.health_issues}<br>`;
-					if (participant.allergies) healthInfo += `<strong>${translate('allergies')}:</strong> ${participant.allergies} ${epipen}<br>`;
-					if (participant.injuries) healthInfo += `<strong>${translate('injuries')}:</strong> ${participant.injuries}<br>`;
+			// Health information fields, only showing the ones that are not empty
+			let healthInfo = "";
+			if (participant.health_issues)
+				healthInfo += `<strong>${translate("health_issues")}:</strong> ${participant.health_issues}<br>`;
+			if (participant.allergies)
+				healthInfo += `<strong>${translate("allergies")}:</strong> ${participant.allergies} ${epipen}<br>`;
+			if (participant.injuries)
+				healthInfo += `<strong>${translate("injuries")}:</strong> ${participant.injuries}<br>`;
 
-					// Show swimming level, but life jacket note only for "ne_sait_pas_nager"
-					if (participant.swimming_level === "ne_sait_pas_nager") {
-							healthInfo += `<strong>${translate('swimming_level')}:</strong> ${translate("doit_porter_vfi")}<br>`;
-					} else if (participant.swimming_level === "eau_peu_profonde") {
-							healthInfo += `<strong>${translate('swimming_level')}:</strong> ${translate("eau_peu_profonde")}<br>`;
-					}
+			// Show swimming level, but life jacket note only for "ne_sait_pas_nager"
+			if (participant.swimming_level === "ne_sait_pas_nager") {
+				healthInfo += `<strong>${translate("swimming_level")}:</strong> ${translate("doit_porter_vfi")}<br>`;
+			} else if (participant.swimming_level === "eau_peu_profonde") {
+				healthInfo += `<strong>${translate("swimming_level")}:</strong> ${translate("eau_peu_profonde")}<br>`;
+			}
 
-					// Only display rows where there's at least one relevant piece of info
-					if (leaveAlone || mediaConsent || healthInfo) {
-							tableContent += `
+			// Only display rows where there's at least one relevant piece of info
+			if (leaveAlone || mediaConsent || healthInfo) {
+				tableContent += `
 									<tr>
 											<td><strong>${participant.first_name} ${participant.last_name}</strong></td>
 											<td>${leaveAlone}</td>
@@ -458,104 +486,112 @@ case 'participant-age':
 											<td>${healthInfo || ""}</td>
 									</tr>
 							`;
-					}
-			});
+			}
+		});
 
-			tableContent += `
+		tableContent += `
 							</tbody>
 					</table>
 			`;
 
-			return tableContent;
+		return tableContent;
 	}
 
 	async fetchAndRenderMissingFieldsReport(formType) {
-			try {
-					if (!formType) {
-							throw new Error('Form type is required');
-					}
-
-					const response = await getFormSubmissions(null, formType); // Fetch submissions for all participants for the selected form type
-
-					if (!response || !response.data) {
-							throw new Error('No form submissions found');
-					}
-
-					const formStructure = await getFormStructure(); // Get all form structures
-					if (!formStructure || !formStructure.data) {
-							throw new Error('No form structure found');
-					}
-
-					const missingFieldsReport = this.generateMissingFieldsReport(response.data, formStructure.data, formType);
-
-					return missingFieldsReport;
-			} catch (error) {
-					debugError('Error fetching or rendering missing fields report:', error);
-					return `<p>${translate('error_loading_report')}: ${error.message}</p>`;
+		try {
+			if (!formType) {
+				throw new Error("Form type is required");
 			}
+
+			const response = await getFormSubmissions(null, formType); // Fetch submissions for all participants for the selected form type
+
+			if (!response || !response.data) {
+				throw new Error("No form submissions found");
+			}
+
+			const formStructure = await getFormStructure(); // Get all form structures
+			if (!formStructure || !formStructure.data) {
+				throw new Error("No form structure found");
+			}
+
+			const missingFieldsReport = this.generateMissingFieldsReport(
+				response.data,
+				formStructure.data,
+				formType,
+			);
+
+			return missingFieldsReport;
+		} catch (error) {
+			debugError("Error fetching or rendering missing fields report:", error);
+			return `<p>${translate("error_loading_report")}: ${error.message}</p>`;
+		}
 	}
 
+	generateMissingFieldsReport(submissions, formStructures, formType) {
+		let reportContent = "<h2>" + translate("missing_fields_report") + "</h2>";
+		reportContent +=
+			"<table><thead><tr><th>" +
+			translate("name") +
+			"</th><th>" +
+			translate("missing_fields") +
+			"</th></tr></thead><tbody>";
 
-generateMissingFieldsReport(submissions, formStructures, formType) {
-    let reportContent = '<h2>' + translate('missing_fields_report') + '</h2>';
-    reportContent += '<table><thead><tr><th>' + translate('name') + '</th><th>' + translate('missing_fields') + '</th></tr></thead><tbody>';
+		submissions.forEach((submission) => {
+			const formTypeData = formStructures[formType]; // Get the form type data
 
-    submissions.forEach(submission => {
-        const formTypeData = formStructures[formType]; // Get the form type data
+			// Extract the actual form structure (which contains the fields array)
+			const formStructure = formTypeData?.form_structure;
 
-        // Extract the actual form structure (which contains the fields array)
-        const formStructure = formTypeData?.form_structure;
+			if (!formStructure || !formStructure.fields) {
+				debugError("Invalid form structure for form type:", formType);
+				return; // Skip this submission if form structure is invalid
+			}
 
-        if (!formStructure || !formStructure.fields) {
-            debugError('Invalid form structure for form type:', formType);
-            return; // Skip this submission if form structure is invalid
-        }
+			// Get the participant's first and last name (assuming they're available in the submission_data)
+			const firstName = submission.first_name || "-";
+			const lastName = submission.last_name || "-";
 
-        // Get the participant's first and last name (assuming they're available in the submission_data)
-        const firstName = submission.first_name || '-';
-        const lastName = submission.last_name || '-';
+			// Get missing fields
+			const missingFields = this.getMissingFields(
+				submission.submission_data,
+				formStructure,
+			).map((field) => translate(field));
 
-        // Get missing fields
-        const missingFields = this.getMissingFields(submission.submission_data, formStructure).map(field => translate(field));
+			if (missingFields.length > 0) {
+				reportContent += `<tr><td>${firstName} ${lastName}</td><td>${missingFields.join(", ")}</td></tr>`;
+			}
+		});
 
-        if (missingFields.length > 0) {
-            reportContent += `<tr><td>${firstName} ${lastName}</td><td>${missingFields.join(', ')}</td></tr>`;
-        }
-    });
-
-    reportContent += '</tbody></table>';
-    return reportContent;
-}
-
+		reportContent += "</tbody></table>";
+		return reportContent;
+	}
 
 	getMissingFields(submissionData, formStructure) {
-			const missingFields = [];
+		const missingFields = [];
 
-			formStructure.fields.forEach(field => {
-					// Check if the field is required and missing in the submission data
-					if (field.required && !submissionData[field.name]) {
-							// If the field has a dependency, only add it if the dependency condition is met
-							if (field.dependsOn) {
-									const dependencyField = submissionData[field.dependsOn.field];
-									if (dependencyField === field.dependsOn.value) {
-											missingFields.push(field.name);
-									}
-							} else {
-									// If no dependency, simply add it as missing
-									missingFields.push(field.name);
-							}
+		formStructure.fields.forEach((field) => {
+			// Check if the field is required and missing in the submission data
+			if (field.required && !submissionData[field.name]) {
+				// If the field has a dependency, only add it if the dependency condition is met
+				if (field.dependsOn) {
+					const dependencyField = submissionData[field.dependsOn.field];
+					if (dependencyField === field.dependsOn.value) {
+						missingFields.push(field.name);
 					}
-			});
+				} else {
+					// If no dependency, simply add it as missing
+					missingFields.push(field.name);
+				}
+			}
+		});
 
-			return missingFields;
+		return missingFields;
 	}
-
-
 
 	checkRequiredFields(formStructure, submissionData) {
 		const missingFields = [];
 
-		formStructure.fields.forEach(field => {
+		formStructure.fields.forEach((field) => {
 			const fieldName = field.name;
 			const required = field.required;
 
@@ -578,10 +614,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 		return missingFields;
 	}
 
-
 	renderAllergiesReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return `<p>${translate('no_data_available')} for allergies report.</p>`;
+			return `<p>${translate("no_data_available")} for allergies report.</p>`;
 		}
 
 		return `
@@ -596,14 +631,18 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${data.map(item => `
+					${data
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.allergies || '-'}</td>
-							<td>${item.epipen === 'on' || item.epipen === 'true' || item.epipen === true ? translate("yes") : translate("no")}</td>
+							<td>${item.allergies || "-"}</td>
+							<td>${item.epipen === "on" || item.epipen === "true" || item.epipen === true ? translate("yes") : translate("no")}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
@@ -611,7 +650,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 	renderMedicationReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return `<p>${translate('no_data_available')} for medication report.</p>`;
+			return `<p>${translate("no_data_available")} for medication report.</p>`;
 		}
 
 		return `
@@ -625,13 +664,17 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${data.map(item => `
+					${data
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.medication || '-'}</td>
+							<td>${item.medication || "-"}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
@@ -639,7 +682,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 	renderVaccineReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return `<p>${translate('no_data_available')} report.</p>`;
+			return `<p>${translate("no_data_available")} report.</p>`;
 		}
 
 		return `
@@ -653,13 +696,17 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${data.map(item => `
+					${data
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.vaccines_up_to_date === 'on' || item.vaccines_up_to_date === 'true' || item.vaccines_up_to_date === true ? translate("yes") : translate("no")}</td>
+							<td>${item.vaccines_up_to_date === "on" || item.vaccines_up_to_date === "true" || item.vaccines_up_to_date === true ? translate("yes") : translate("no")}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
@@ -667,7 +714,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 	renderParticipantAgeReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return '<p>No data available for participants age report.</p>';
+			return "<p>No data available for participants age report.</p>";
 		}
 
 		return `
@@ -681,22 +728,25 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${data.map(item => `
+					${data
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.date_naissance ? new Date(item.date_naissance).toLocaleDateString() : translate("unknown")}</td>
 							<td>${item.age !== null ? item.age : translate("unknown")}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
 	}
 
-
 	renderLeaveAloneReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return '<p>No data available for leave alone report.</p>';
+			return "<p>No data available for leave alone report.</p>";
 		}
 
 		return `
@@ -710,13 +760,17 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${data.map(item => `
+					${data
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.can_leave_alone === 'on' || item.can_leave_alone === 'true' || item.can_leave_alone === true ? translate("yes") : translate("no")}</td>
+							<td>${item.can_leave_alone === "on" || item.can_leave_alone === "true" || item.can_leave_alone === true ? translate("yes") : translate("no")}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
@@ -724,7 +778,7 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 	renderMediaAuthorizationReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return '<p>No data available for media authorization report.</p>';
+			return "<p>No data available for media authorization report.</p>";
 		}
 
 		return `
@@ -738,21 +792,25 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${data.map(item => `
+					${data
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
-							<td>${item.media_authorized === 'on' || item.media_authorized === 'true' || item.media_authorized === true ? translate("yes") : translate("no")}</td>
+							<td>${item.media_authorized === "on" || item.media_authorized === "true" || item.media_authorized === true ? translate("yes") : translate("no")}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
 	}
 
 	renderMissingDocumentsReport(reportData) {
-		if ( !Array.isArray(reportData) || reportData.length === 0) {
-			return '<p>No data available for missing documents report.</p>';
+		if (!Array.isArray(reportData) || reportData.length === 0) {
+			return "<p>No data available for missing documents report.</p>";
 		}
 
 		return `
@@ -766,13 +824,17 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${reportData.map(item => `
+					${reportData
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${this.formatMissingDocuments(item.missing_documents)}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
@@ -780,9 +842,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 	formatMissingDocuments(missingDocs) {
 		if (Array.isArray(missingDocs)) {
-			return missingDocs.join(', ');
-		} else if (typeof missingDocs === 'object' && missingDocs !== null) {
-			return Object.values(missingDocs).join(', ');
+			return missingDocs.join(", ");
+		} else if (typeof missingDocs === "object" && missingDocs !== null) {
+			return Object.values(missingDocs).join(", ");
 		} else {
 			return translate("no_missing_documents");
 		}
@@ -829,117 +891,129 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 	// 	`;
 	// }
 	renderAttendanceReport(data) {
-			if (!data || typeof data !== 'object') {
-					return '<p>Error: Invalid data received for attendance report.</p>';
+		if (!data || typeof data !== "object") {
+			return "<p>Error: Invalid data received for attendance report.</p>";
+		}
+
+		// Fix: Access data.data instead of data.attendance_data
+		const attendanceData = data.data || [];
+
+		if (
+			!data.success ||
+			!Array.isArray(attendanceData) ||
+			attendanceData.length === 0
+		) {
+			return "<p>No data available for attendance report.</p>";
+		}
+
+		// Define color codes for the attendance statuses
+		const statusColors = {
+			P: "#FFFFFF", // No color for Present
+			A: "#FF0000", // Red for Absent
+			M: "#00BFFF", // Blue for Motivated (excused)
+			R: "#FFFF00", // Yellow for Late
+		};
+
+		// Normalize status mappings
+		const normalizeStatus = (status) => {
+			switch (status) {
+				case "present":
+					return "P"; // Present
+				case "absent":
+					return "A"; // Absent
+				case "excused":
+				case "motivated":
+					return "M"; // Motivated
+				case "late":
+					return "R"; // Late
+				default:
+					return ""; // Unknown status
 			}
+		};
 
-			// Fix: Access data.data instead of data.attendance_data
-			const attendanceData = data.data || [];
+		// Get unique dates from attendance data
+		let uniqueDates = new Set();
+		attendanceData.forEach((item) => {
+			// Fix: attendance is already an array, not a JSON string
+			const attendanceArray = item.attendance || [];
 
-			if (!data.success || !Array.isArray(attendanceData) || attendanceData.length === 0) {
-					return '<p>No data available for attendance report.</p>';
+			if (Array.isArray(attendanceArray)) {
+				attendanceArray.forEach((attendance) => {
+					if (attendance.date) {
+						uniqueDates.add(attendance.date);
+					}
+				});
+			} else {
+				debugError(
+					`Invalid attendance data for ${item.first_name} ${item.last_name}:`,
+					item.attendance,
+				);
 			}
+		});
+		uniqueDates = Array.from(uniqueDates).sort(); // Convert Set to Array and sort the dates
 
-			// Define color codes for the attendance statuses
-			const statusColors = {
-					'P': '#FFFFFF',  // No color for Present
-					'A': '#FF0000',  // Red for Absent
-					'M': '#00BFFF',  // Blue for Motivated (excused)
-					'R': '#FFFF00'   // Yellow for Late
-			};
-
-			// Normalize status mappings
-			const normalizeStatus = (status) => {
-					switch (status) {
-							case 'present':
-									return 'P'; // Present
-							case 'absent':
-									return 'A'; // Absent
-							case 'excused':
-							case 'motivated':
-									return 'M'; // Motivated
-							case 'late':
-									return 'R'; // Late
-							default:
-									return '';  // Unknown status
-					}
-			};
-
-			// Get unique dates from attendance data
-			let uniqueDates = new Set();
-			attendanceData.forEach(item => {
-					// Fix: attendance is already an array, not a JSON string
-					const attendanceArray = item.attendance || [];
-
-					if (Array.isArray(attendanceArray)) {
-							attendanceArray.forEach(attendance => {
-									if (attendance.date) {
-											uniqueDates.add(attendance.date);
-									}
-							});
-					} else {
-							debugError(`Invalid attendance data for ${item.first_name} ${item.last_name}:`, item.attendance);
-					}
-			});
-			uniqueDates = Array.from(uniqueDates).sort(); // Convert Set to Array and sort the dates
-
-			// Create the header
-			let header = `
+		// Create the header
+		let header = `
 					<h2>${translate("attendance_report")}</h2>
 					<table class="attendance-table">
 							<thead>
 									<tr>
 											<th>${translate("name")}</th>
 											<th>${translate("group")}</th>
-											${uniqueDates.map(date => `<th>${date}</th>`).join('')} <!-- Display date as string -->
+											${uniqueDates.map((date) => `<th>${date}</th>`).join("")} <!-- Display date as string -->
 									</tr>
 							</thead>
 							<tbody>
 			`;
 
-			// Iterate through the attendance data
-			let rows = attendanceData.map(item => {
-					let attendanceMap = {};
-					// Fix: attendance is already an array, not a JSON string
-					const attendanceArray = item.attendance || [];
+		// Iterate through the attendance data
+		let rows = attendanceData
+			.map((item) => {
+				let attendanceMap = {};
+				// Fix: attendance is already an array, not a JSON string
+				const attendanceArray = item.attendance || [];
 
-					if (Array.isArray(attendanceArray)) {
-							attendanceArray.forEach(attendance => {
-									if (attendance.date) {
-											attendanceMap[attendance.date] = normalizeStatus(attendance.status);
-									}
-							});
-					}
+				if (Array.isArray(attendanceArray)) {
+					attendanceArray.forEach((attendance) => {
+						if (attendance.date) {
+							attendanceMap[attendance.date] = normalizeStatus(
+								attendance.status,
+							);
+						}
+					});
+				}
 
-					// Create a row for each participant
-					return `
+				// Create a row for each participant
+				return `
 							<tr>
 									<td>${item.first_name} ${item.last_name}</td>
 									<td>${item.group_name || translate("no_group")}</td>
-									${uniqueDates.map(date => `
-											<td style="background-color: ${statusColors[attendanceMap[date]] || '#FFFFFF'};">
-													${attendanceMap[date] || ''}
+									${uniqueDates
+										.map(
+											(date) => `
+											<td style="background-color: ${statusColors[attendanceMap[date]] || "#FFFFFF"};">
+													${attendanceMap[date] || ""}
 											</td>
-									`).join('')}
+									`,
+										)
+										.join("")}
 							</tr>
 					`;
-			}).join('');
+			})
+			.join("");
 
-			// Close the table and return the result
-			let footer = `
+		// Close the table and return the result
+		let footer = `
 							</tbody>
 					</table>
 			`;
 
-			return header + rows + footer;
+		return header + rows + footer;
 	}
-
-
-
 
 	renderHonorsReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return '<p>No data available for honors report.</p>';
+			return "<p>No data available for honors report.</p>";
 		}
 
 		return `
@@ -954,14 +1028,18 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 					</tr>
 				</thead>
 				<tbody>
-					${data.map(item => `
+					${data
+						.map(
+							(item) => `
 						<tr>
 							<td>${item.honor_name}</td>
-							<td>${item.category || '-'}</td>
+							<td>${item.category || "-"}</td>
 							<td>${item.count}</td>
-							<td>${Array.isArray(item.recipients) ? item.recipients.join(', ') : item.recipients}</td>
+							<td>${Array.isArray(item.recipients) ? item.recipients.join(", ") : item.recipients}</td>
 						</tr>
-					`).join('')}
+					`,
+						)
+						.join("")}
 				</tbody>
 			</table>
 		`;
@@ -969,13 +1047,13 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 	renderPointsReport(data) {
 		if (!Array.isArray(data) || data.length === 0) {
-			return `<p>${translate('no_data_available')} for points report.</p>`;
+			return `<p>${translate("no_data_available")} for points report.</p>`;
 		}
 
 		// Group participants by group name
 		const groupedData = {};
-		data.forEach(participant => {
-			const groupName = participant.group_name || translate('no_group');
+		data.forEach((participant) => {
+			const groupName = participant.group_name || translate("no_group");
 			if (!groupedData[groupName]) {
 				groupedData[groupName] = [];
 			}
@@ -984,7 +1062,9 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 
 		return `
 			<h2>${translate("points_report")}</h2>
-			${Object.entries(groupedData).map(([group, participants]) => `
+			${Object.entries(groupedData)
+				.map(
+					([group, participants]) => `
 				<h3>${group}</h3>
 				<table>
 					<thead>
@@ -995,71 +1075,82 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
 						</tr>
 					</thead>
 					<tbody>
-						${participants.map(participant => `
+						${participants
+							.map(
+								(participant) => `
 							<tr>
 								<td>${participant.first_name} ${participant.last_name}</td>
 								<td>${participant.total_points}</td>
 								<td>${participant.honors_count}</td>
 							</tr>
-						`).join('')}
+						`,
+							)
+							.join("")}
 					</tbody>
 				</table>
-			`).join('')}
+			`,
+				)
+				.join("")}
 		`;
 	}
 
-        cacheParticipantProgress(participantId, progress) {
-                try {
-                        const payload = { progress, timestamp: Date.now() };
-                        localStorage.setItem(`participant-progress-${participantId}`, JSON.stringify(payload));
-                        this.participantProgressCache.set(participantId, payload);
-                } catch (error) {
-                        debugWarn('Unable to cache participant progress', error);
-                }
-        }
+	cacheParticipantProgress(participantId, progress) {
+		try {
+			const payload = { progress, timestamp: Date.now() };
+			localStorage.setItem(
+				`participant-progress-${participantId}`,
+				JSON.stringify(payload),
+			);
+			this.participantProgressCache.set(participantId, payload);
+		} catch (error) {
+			debugWarn("Unable to cache participant progress", error);
+		}
+	}
 
-        getCachedParticipantProgress(participantId) {
-                if (this.participantProgressCache.has(participantId)) {
-                        return this.participantProgressCache.get(participantId);
-                }
-                try {
-                        const raw = localStorage.getItem(`participant-progress-${participantId}`);
-                        if (!raw) return null;
-                        const parsed = JSON.parse(raw);
-                        this.participantProgressCache.set(participantId, parsed);
-                        return parsed;
-                } catch (error) {
-                        debugWarn('Unable to read cached participant progress', error);
-                        return null;
-                }
-        }
+	getCachedParticipantProgress(participantId) {
+		if (this.participantProgressCache.has(participantId)) {
+			return this.participantProgressCache.get(participantId);
+		}
+		try {
+			const raw = localStorage.getItem(`participant-progress-${participantId}`);
+			if (!raw) return null;
+			const parsed = JSON.parse(raw);
+			this.participantProgressCache.set(participantId, parsed);
+			return parsed;
+		} catch (error) {
+			debugWarn("Unable to read cached participant progress", error);
+			return null;
+		}
+	}
 
-        buildPointsGraph(pointEvents = []) {
-                if (!pointEvents.length) {
-                        return {
-                                svg: `<div class="chart-placeholder">${translate('no_points_data')}</div>`,
-                                min: 0,
-                                max: 0
-                        };
-                }
+	buildPointsGraph(pointEvents = []) {
+		if (!pointEvents.length) {
+			return {
+				svg: `<div class="chart-placeholder">${translate("no_points_data")}</div>`,
+				min: 0,
+				max: 0,
+			};
+		}
 
-                const values = pointEvents.map(event => event.cumulative);
-                const min = Math.min(...values, 0);
-                const max = Math.max(...values, 0);
-                const range = Math.max(max - min, 1);
-                const height = 180;
-                const width = Math.max(pointEvents.length - 1, 1) * 80;
+		const values = pointEvents.map((event) => event.cumulative);
+		const min = Math.min(...values, 0);
+		const max = Math.max(...values, 0);
+		const range = Math.max(max - min, 1);
+		const height = 180;
+		const width = Math.max(pointEvents.length - 1, 1) * 80;
 
-                const path = pointEvents.map((event, index) => {
-                        const x = (index / Math.max(pointEvents.length - 1, 1)) * width;
-                        const y = height - ((event.cumulative - min) / range) * height;
-                        return `${index === 0 ? 'M' : 'L'}${x},${y}`;
-                }).join(' ');
+		const path = pointEvents
+			.map((event, index) => {
+				const x = (index / Math.max(pointEvents.length - 1, 1)) * width;
+				const y = height - ((event.cumulative - min) / range) * height;
+				return `${index === 0 ? "M" : "L"}${x},${y}`;
+			})
+			.join(" ");
 
-                const last = pointEvents[pointEvents.length - 1];
+		const last = pointEvents[pointEvents.length - 1];
 
-                const svg = `
-                        <svg class="points-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${translate('points_over_time')}">
+		const svg = `
+                        <svg class="points-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${translate("points_over_time")}">
                                 <defs>
                                         <linearGradient id="pointsGradient" x1="0" x2="0" y1="0" y2="1">
                                                 <stop offset="0%" stop-color="var(--color-primary-light)" stop-opacity="0.32" />
@@ -1072,55 +1163,79 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
                         </svg>
                 `;
 
-                return { svg, min, max };
-        }
+		return { svg, min, max };
+	}
 
-        renderParticipantProgressReport(progressData, isOffline = false) {
-                const selectOptions = this.participantList.map(participant => {
-                        const label = `${participant.first_name} ${participant.last_name}${participant.group_name ? ` · ${participant.group_name}` : ''}`;
-                        const selected = participant.id === Number(this.selectedParticipantId) ? 'selected' : '';
-                        return `<option value="${participant.id}" ${selected}>${label}</option>`;
-                }).join('');
+	renderParticipantProgressReport(progressData, isOffline = false) {
+		const selectOptions = this.participantList
+			.map((participant) => {
+				const label = `${participant.first_name} ${participant.last_name}${participant.group_name ? ` · ${participant.group_name}` : ""}`;
+				const selected =
+					participant.id === Number(this.selectedParticipantId)
+						? "selected"
+						: "";
+				return `<option value="${participant.id}" ${selected}>${label}</option>`;
+			})
+			.join("");
 
-                const summary = progressData ? `
+		const summary = progressData
+			? `
                         <div class="progress-summary">
                                 <div class="summary-tile">
-                                        <p class="summary-label">${translate('total_points')}</p>
+                                        <p class="summary-label">${translate("total_points")}</p>
                                         <p class="summary-value">${progressData.totals.points}</p>
                                 </div>
                                 <div class="summary-tile">
-                                        <p class="summary-label">${translate('honors_count')}</p>
+                                        <p class="summary-label">${translate("honors_count")}</p>
                                         <p class="summary-value">${progressData.totals.honors}</p>
                                 </div>
                                 <div class="summary-tile">
-                                        <p class="summary-label">${translate('badge_stars')}</p>
+                                        <p class="summary-label">${translate("badge_stars")}</p>
                                         <p class="summary-value">${progressData.totals.badges}</p>
                                 </div>
                         </div>
-                ` : '';
+                `
+			: "";
 
-                const timelineEvents = progressData ? [
-                        ...(progressData.attendance || []).map(item => ({ type: 'attendance', date: item.date, status: item.status })),
-                        ...(progressData.honors || []).map(item => ({ type: 'honor', date: item.date, reason: item.reason })),
-                        ...(progressData.badges || []).map(item => ({ type: 'badge', date: item.date, territory: item.territoire_chasse, stars: item.etoiles }))
-                ].sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
+		const timelineEvents = progressData
+			? [
+					...(progressData.attendance || []).map((item) => ({
+						type: "attendance",
+						date: item.date,
+						status: item.status,
+					})),
+					...(progressData.honors || []).map((item) => ({
+						type: "honor",
+						date: item.date,
+						reason: item.reason,
+					})),
+					...(progressData.badges || []).map((item) => ({
+						type: "badge",
+						date: item.date,
+						territory: item.territoire_chasse,
+						stars: item.etoiles,
+					})),
+				].sort((a, b) => new Date(a.date) - new Date(b.date))
+			: [];
 
-                const timeline = timelineEvents.length ? timelineEvents.map(event => {
-                        let title = '';
-                        let meta = '';
-                        if (event.type === 'attendance') {
-                                title = translate(event.status) || translate('attendance');
-                                meta = translate('attendance_status');
-                        } else if (event.type === 'honor') {
-                                title = translate('honor_awarded');
-                                meta = event.reason || translate('no_reason_provided');
-                        } else {
-                                title = translate('badge_star');
-                                const starsLabel = translate('stars_count');
-                                meta = `${event.territory || ''} · ${event.stars || 0} ${starsLabel}`;
-                        }
+		const timeline = timelineEvents.length
+			? timelineEvents
+					.map((event) => {
+						let title = "";
+						let meta = "";
+						if (event.type === "attendance") {
+							title = translate(event.status) || translate("attendance");
+							meta = translate("attendance_status");
+						} else if (event.type === "honor") {
+							title = translate("honor_awarded");
+							meta = event.reason || translate("no_reason_provided");
+						} else {
+							title = translate("badge_star");
+							const starsLabel = translate("stars_count");
+							meta = `${event.territory || ""} · ${event.stars || 0} ${starsLabel}`;
+						}
 
-                        return `
+						return `
                                 <article class="timeline-item timeline-item--${event.type}">
                                         <div class="timeline-dot" aria-hidden="true"></div>
                                         <div class="timeline-content">
@@ -1130,71 +1245,93 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
                                         </div>
                                 </article>
                         `;
-                }).join('') : `<p class="muted">${translate('participant_progress_empty')}</p>`;
+					})
+					.join("")
+			: `<p class="muted">${translate("participant_progress_empty")}</p>`;
 
-                const pointsGraph = progressData ? this.buildPointsGraph(progressData.pointEvents || []) : { svg: `<div class="chart-placeholder">${translate('no_points_data')}</div>`, min: 0, max: 0 };
+		const pointsGraph = progressData
+			? this.buildPointsGraph(progressData.pointEvents || [])
+			: {
+					svg: `<div class="chart-placeholder">${translate("no_points_data")}</div>`,
+					min: 0,
+					max: 0,
+				};
 
-                const attendanceChips = progressData ? Object.entries(progressData.totals.attendance || {}).map(([status, count]) => `
+		const attendanceChips = progressData
+			? Object.entries(progressData.totals.attendance || {})
+					.map(
+						([status, count]) => `
                         <span class="chip">${translate(status) || status}: ${count}</span>
-                `).join('') : '';
+                `,
+					)
+					.join("")
+			: "";
 
-                const offlineNotice = isOffline ? `<div class="offline-notice" role="status">${translate('using_cached_report')}</div>` : '';
+		const offlineNotice = isOffline
+			? `<div class="offline-notice" role="status">${translate("using_cached_report")}</div>`
+			: "";
 
-                return `
+		return `
                         <div class="participant-progress">
                                 ${offlineNotice}
                                 <div class="form-field">
-                                        <label for="participant-progress-select">${translate('select_participant')}</label>
+                                        <label for="participant-progress-select">${translate("select_participant")}</label>
                                         <select id="participant-progress-select">
-                                                <option value="">${translate('select_participant_placeholder')}</option>
+                                                <option value="">${translate("select_participant_placeholder")}</option>
                                                 ${selectOptions}
                                         </select>
                                 </div>
-                                ${progressData ? `
+                                ${
+																	progressData
+																		? `
                                         <div class="report-card">
                                                 <header class="report-card__header">
                                                         <div>
-                                                                <p class="eyebrow">${progressData.participant.group_name || translate('no_group')}</p>
+                                                                <p class="eyebrow">${progressData.participant.group_name || translate("no_group")}</p>
                                                                 <h2>${progressData.participant.first_name} ${progressData.participant.last_name}</h2>
                                                         </div>
-                                                        <div class="chip chip--primary">${translate('participant_progress')}</div>
+                                                        <div class="chip chip--primary">${translate("participant_progress")}</div>
                                                 </header>
                                                 ${summary}
                                                 <div class="report-card__grid">
                                                         <div>
-                                                                <h3>${translate('points_over_time')}</h3>
+                                                                <h3>${translate("points_over_time")}</h3>
                                                                 ${pointsGraph.svg}
-                                                                <p class="muted">${translate('points_range')}: ${pointsGraph.min} – ${pointsGraph.max}</p>
+                                                                <p class="muted">${translate("points_range")}: ${pointsGraph.min} – ${pointsGraph.max}</p>
                                                         </div>
                                                         <div>
-                                                                <h3>${translate('attendance_overview')}</h3>
-                                                                <div class="chip-row">${attendanceChips || translate('no_attendance_data')}</div>
+                                                                <h3>${translate("attendance_overview")}</h3>
+                                                                <div class="chip-row">${attendanceChips || translate("no_attendance_data")}</div>
                                                         </div>
                                                 </div>
                                                 <div>
-                                                        <h3>${translate('timeline_title')}</h3>
+                                                        <h3>${translate("timeline_title")}</h3>
                                                         <div class="timeline">${timeline}</div>
                                                 </div>
                                         </div>
-                                ` : `<p class="muted">${translate('select_participant_prompt')}</p>`}
+                                `
+																		: `<p class="muted">${translate("select_participant_prompt")}</p>`
+																}
                         </div>
                 `;
-        }
+	}
 
-        formatCurrency(amount) {
-                return new Intl.NumberFormat(this.app.lang || 'en', {
-                        style: 'currency',
-                        currency: REPORT_CURRENCY,
-                        maximumFractionDigits: 2
-                }).format(Number(amount) || 0);
-        }
+	formatCurrency(amount) {
+		return new Intl.NumberFormat(this.app.lang || "en", {
+			style: "currency",
+			currency: REPORT_CURRENCY,
+			maximumFractionDigits: 2,
+		}).format(Number(amount) || 0);
+	}
 
-        renderFinancialReport(data) {
-                const totals = data?.totals || {};
-                const definitions = data?.definitions || [];
-                const participants = data?.participants || [];
+	renderFinancialReport(data) {
+		const totals = data?.totals || {};
+		const definitions = data?.definitions || [];
+		const participants = data?.participants || [];
 
-                const definitionRows = definitions.map((row) => `
+		const definitionRows = definitions
+			.map(
+				(row) => `
                         <div class="finance-list__row">
                                 <div>
                                         <p class="finance-meta">${formatDateShort(row.year_start)} → ${formatDateShort(row.year_end)}</p>
@@ -1205,12 +1342,16 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
                                         <span class="finance-stat__value--alert">${this.formatCurrency(row.total_outstanding)}</span>
                                 </div>
                         </div>
-                `).join('');
+                `,
+			)
+			.join("");
 
-                const participantRows = participants.map((p) => `
+		const participantRows = participants
+			.map(
+				(p) => `
                         <div class="finance-list__row">
                                 <div>
-                                        <p class="finance-meta">${escapeHTML(p.first_name || '')} ${escapeHTML(p.last_name || '')}</p>
+                                        <p class="finance-meta">${escapeHTML(p.first_name || "")} ${escapeHTML(p.last_name || "")}</p>
                                 </div>
                                 <div class="finance-row-values">
                                         <span>${this.formatCurrency(p.total_billed)}</span>
@@ -1218,82 +1359,91 @@ generateMissingFieldsReport(submissions, formStructures, formType) {
                                         <span class="finance-stat__value--alert">${this.formatCurrency(p.total_outstanding)}</span>
                                 </div>
                         </div>
-                `).join('');
+                `,
+			)
+			.join("");
 
-                return `
+		return `
                         <div class="report-surface financial-report">
                                 <div class="finance-stats">
                                         <div>
-                                                <p class="finance-stat__label">${translate('total_billed')}</p>
+                                                <p class="finance-stat__label">${translate("total_billed")}</p>
                                                 <p class="finance-stat__value">${this.formatCurrency(totals.total_billed)}</p>
                                         </div>
                                         <div>
-                                                <p class="finance-stat__label">${translate('total_paid')}</p>
+                                                <p class="finance-stat__label">${translate("total_paid")}</p>
                                                 <p class="finance-stat__value">${this.formatCurrency(totals.total_paid)}</p>
                                         </div>
                                         <div>
-                                                <p class="finance-stat__label">${translate('outstanding_balance')}</p>
+                                                <p class="finance-stat__label">${translate("outstanding_balance")}</p>
                                                 <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(totals.total_outstanding)}</p>
                                         </div>
                                 </div>
                                 <div class="finance-grid">
                                         <section class="finance-card">
-                                                <h3>${translate('by_year')}</h3>
-                                                ${definitionRows || `<p class="finance-helper">${translate('no_definitions')}</p>`}
+                                                <h3>${translate("by_year")}</h3>
+                                                ${definitionRows || `<p class="finance-helper">${translate("no_definitions")}</p>`}
                                         </section>
                                         <section class="finance-card">
-                                                <h3>${translate('by_participant')}</h3>
-                                                ${participantRows || `<p class="finance-helper">${translate('no_participant_fees')}</p>`}
+                                                <h3>${translate("by_participant")}</h3>
+                                                ${participantRows || `<p class="finance-helper">${translate("no_participant_fees")}</p>`}
                                         </section>
                                 </div>
                         </div>
                 `;
-        }
+	}
 
-        attachParticipantProgressListeners() {
-                const select = document.getElementById('participant-progress-select');
-                if (select) {
-                        select.addEventListener('change', async (event) => {
-                                this.selectedParticipantId = event.target.value || null;
-                                const content = await this.fetchAndRenderParticipantProgress();
-                                document.getElementById('report-content').innerHTML = content;
-                                this.attachParticipantProgressListeners();
-                        });
-                }
-        }
+	attachParticipantProgressListeners() {
+		const select = document.getElementById("participant-progress-select");
+		if (select) {
+			select.addEventListener("change", async (event) => {
+				this.selectedParticipantId = event.target.value || null;
+				const content = await this.fetchAndRenderParticipantProgress();
+				document.getElementById("report-content").innerHTML = content;
+				this.attachParticipantProgressListeners();
+			});
+		}
+	}
 
-        async fetchAndRenderParticipantProgress() {
-                try {
-                        const response = await getParticipantProgressReport(this.selectedParticipantId);
-                        if (response?.data?.participants) {
-                                this.participantList = response.data.participants;
-                                if (!this.selectedParticipantId && this.participantList.length) {
-                                        this.selectedParticipantId = this.participantList[0].id;
-                                        return await this.fetchAndRenderParticipantProgress();
-                                }
-                        }
+	async fetchAndRenderParticipantProgress() {
+		try {
+			const response = await getParticipantProgressReport(
+				this.selectedParticipantId,
+			);
+			if (response?.data?.participants) {
+				this.participantList = response.data.participants;
+				if (!this.selectedParticipantId && this.participantList.length) {
+					this.selectedParticipantId = this.participantList[0].id;
+					return await this.fetchAndRenderParticipantProgress();
+				}
+			}
 
-                        if (response?.data?.progress && this.selectedParticipantId) {
-                                this.cacheParticipantProgress(this.selectedParticipantId, response.data.progress);
-                        }
+			if (response?.data?.progress && this.selectedParticipantId) {
+				this.cacheParticipantProgress(
+					this.selectedParticipantId,
+					response.data.progress,
+				);
+			}
 
-                        const progressData = response?.data?.progress || null;
-                        const markup = this.renderParticipantProgressReport(progressData);
-                        return markup;
-                } catch (error) {
-                        debugError('Error loading participant progress', error);
-                        if (this.selectedParticipantId) {
-                                const cached = this.getCachedParticipantProgress(this.selectedParticipantId);
-                                if (cached?.progress) {
-                                        return this.renderParticipantProgressReport(cached.progress, true);
-                                }
-                        }
-                        return `<p class="error-message">${translate('error_loading_report')}: ${error.message}</p>`;
-                }
-        }
+			const progressData = response?.data?.progress || null;
+			const markup = this.renderParticipantProgressReport(progressData);
+			return markup;
+		} catch (error) {
+			debugError("Error loading participant progress", error);
+			if (this.selectedParticipantId) {
+				const cached = this.getCachedParticipantProgress(
+					this.selectedParticipantId,
+				);
+				if (cached?.progress) {
+					return this.renderParticipantProgressReport(cached.progress, true);
+				}
+			}
+			return `<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>`;
+		}
+	}
 
-printReport() {
-		const printWindow = window.open('', '_blank');
+	printReport() {
+		const printWindow = window.open("", "_blank");
 		printWindow.document.write(`
 			<html>
 				<head>
@@ -1306,7 +1456,7 @@ printReport() {
 					</style>
 				</head>
 				<body>
-					${document.getElementById('report-content').innerHTML}
+					${document.getElementById("report-content").innerHTML}
 				</body>
 			</html>
 		`);

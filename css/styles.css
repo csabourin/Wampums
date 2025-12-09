@@ -1402,6 +1402,7 @@ tr:hover {
 }
 
 .close {
+  margin-top: calc(var(--space-lg) + var(--space-lg));
   color: var(--color-text-muted);
   float: inline-end;
   font-size: 28px;
