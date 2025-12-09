@@ -33,6 +33,7 @@ export class Budgets {
     this.items = [];
     this.expenses = [];
     this.summaryReport = null;
+    this.revenueBreakdown = null;
     this.activeTab = "overview";
     this.fiscalYear = this.getCurrentFiscalYear();
   }
@@ -329,8 +330,232 @@ export class Budgets {
   renderReports() {
     return `
       <div class="reports-content">
-        <h2>${translate("budget_reports")}</h2>
-        <p>${translate("detailed_reports_coming_soon")}</p>
+        <div class="report-section">
+          ${this.renderProfitLossStatement()}
+        </div>
+        
+        <div class="report-section">
+          ${this.renderCategoryTrends()}
+        </div>
+        
+        <div class="report-section">
+          ${this.renderRevenueBreakdown()}
+        </div>
+      </div>
+    `;
+  }
+
+  renderProfitLossStatement() {
+    if (!this.summaryReport || !this.summaryReport.categories) {
+      return `<p class="no-data">${translate("no_budget_data")}</p>`;
+    }
+
+    const categories = this.summaryReport.categories;
+    const totals = this.summaryReport.totals || {};
+
+    // Separate revenue and expense categories
+    const revenueCategories = categories.filter(cat => cat.total_revenue > 0);
+    const expenseCategories = categories.filter(cat => cat.total_expense > 0);
+
+    const totalRevenue = totals.total_revenue || 0;
+    const totalExpense = totals.total_expense || 0;
+    const netAmount = totalRevenue - totalExpense;
+
+    return `
+      <div class="profit-loss-statement">
+        <h2>${translate("profit_loss_statement")}</h2>
+        <div class="statement-period muted-text">
+          ${translate("fiscal_year")}: ${escapeHTML(this.fiscalYear.label)}
+        </div>
+
+        <div class="statement-section">
+          <h3 class="statement-section-title">${translate("revenue_by_source")}</h3>
+          <table class="data-table statement-table">
+            <tbody>
+              ${revenueCategories.map(cat => `
+                <tr>
+                  <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
+                  <td class="text-right amount revenue">${this.formatCurrency(cat.total_revenue)}</td>
+                </tr>
+              `).join("")}
+              <tr class="statement-total">
+                <td><strong>${translate("gross_revenue")}</strong></td>
+                <td class="text-right amount revenue"><strong>${this.formatCurrency(totalRevenue)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="statement-section">
+          <h3 class="statement-section-title">${translate("expense_by_category")}</h3>
+          <table class="data-table statement-table">
+            <tbody>
+              ${expenseCategories.map(cat => `
+                <tr>
+                  <td>${escapeHTML(cat.category_name || translate("uncategorized"))}</td>
+                  <td class="text-right amount expense">${this.formatCurrency(cat.total_expense)}</td>
+                </tr>
+              `).join("")}
+              <tr class="statement-total">
+                <td><strong>${translate("gross_expenses")}</strong></td>
+                <td class="text-right amount expense"><strong>${this.formatCurrency(totalExpense)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="statement-section net-section">
+          <table class="data-table statement-table">
+            <tbody>
+              <tr class="statement-net ${netAmount >= 0 ? 'positive' : 'negative'}">
+                <td><strong>${netAmount >= 0 ? translate("net_income") : translate("net_loss")}</strong></td>
+                <td class="text-right amount"><strong>${this.formatCurrency(Math.abs(netAmount))}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  renderCategoryTrends() {
+    if (!this.summaryReport || !this.summaryReport.categories) {
+      return `<p class="no-data">${translate("no_budget_data")}</p>`;
+    }
+
+    const categories = this.summaryReport.categories;
+    const totals = this.summaryReport.totals || {};
+    const totalRevenue = totals.total_revenue || 0;
+    const totalExpense = totals.total_expense || 0;
+
+    return `
+      <div class="category-trends">
+        <h2>${translate("category_trends")}</h2>
+        
+        <div class="trends-section">
+          <h3>${translate("revenue")} ${translate("category_breakdown")}</h3>
+          <div class="trend-bars">
+            ${categories.filter(cat => cat.total_revenue > 0).map(cat => {
+              const percentage = totalRevenue > 0 ? (cat.total_revenue / totalRevenue * 100) : 0;
+              return `
+                <div class="trend-item">
+                  <div class="trend-label">
+                    <span>${escapeHTML(cat.category_name || translate("uncategorized"))}</span>
+                    <span class="trend-amount">${this.formatCurrency(cat.total_revenue)}</span>
+                  </div>
+                  <div class="trend-bar-container">
+                    <div class="trend-bar revenue" style="width: ${percentage}%"></div>
+                  </div>
+                  <div class="trend-percentage">${percentage.toFixed(1)}%</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+
+        <div class="trends-section">
+          <h3>${translate("expenses")} ${translate("category_breakdown")}</h3>
+          <div class="trend-bars">
+            ${categories.filter(cat => cat.total_expense > 0).map(cat => {
+              const percentage = totalExpense > 0 ? (cat.total_expense / totalExpense * 100) : 0;
+              return `
+                <div class="trend-item">
+                  <div class="trend-label">
+                    <span>${escapeHTML(cat.category_name || translate("uncategorized"))}</span>
+                    <span class="trend-amount">${this.formatCurrency(cat.total_expense)}</span>
+                  </div>
+                  <div class="trend-bar-container">
+                    <div class="trend-bar expense" style="width: ${percentage}%"></div>
+                  </div>
+                  <div class="trend-percentage">${percentage.toFixed(1)}%</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async renderRevenueBreakdown() {
+    // Load revenue breakdown data if not already loaded
+    if (!this.revenueBreakdown) {
+      try {
+        const response = await getBudgetRevenueBreakdown(
+          this.fiscalYear.start,
+          this.fiscalYear.end
+        );
+        this.revenueBreakdown = response?.data || [];
+      } catch (error) {
+        debugError("Error loading revenue breakdown", error);
+        this.revenueBreakdown = [];
+      }
+    }
+
+    if (!this.revenueBreakdown || this.revenueBreakdown.length === 0) {
+      return `
+        <div class="revenue-breakdown">
+          <h2>${translate("revenue_breakdown")}</h2>
+          <p class="no-data">${translate("no_budget_data")}</p>
+        </div>
+      `;
+    }
+
+    // Group by revenue source
+    const bySource = {};
+    this.revenueBreakdown.forEach(item => {
+      const source = item.revenue_source || 'other';
+      if (!bySource[source]) {
+        bySource[source] = {
+          items: [],
+          total: 0,
+          count: 0
+        };
+      }
+      bySource[source].items.push(item);
+      bySource[source].total += parseFloat(item.total_amount || 0);
+      bySource[source].count += parseInt(item.transaction_count || 0);
+    });
+
+    const sourceLabels = {
+      'fees': translate("fees"),
+      'fundraisers': translate("fundraisers"),
+      'calendar_sales': translate("calendar_sales"),
+      'other': translate("other")
+    };
+
+    return `
+      <div class="revenue-breakdown">
+        <h2>${translate("revenue_breakdown")}</h2>
+        
+        ${Object.keys(bySource).map(source => `
+          <div class="breakdown-section">
+            <h3>${sourceLabels[source] || source}</h3>
+            <table class="data-table breakdown-table">
+              <thead>
+                <tr>
+                  <th>${translate("category")}</th>
+                  <th class="text-right">${translate("transaction_count")}</th>
+                  <th class="text-right">${translate("amount")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bySource[source].items.map(item => `
+                  <tr>
+                    <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
+                    <td class="text-right">${item.transaction_count}</td>
+                    <td class="text-right amount revenue">${this.formatCurrency(item.total_amount)}</td>
+                  </tr>
+                `).join("")}
+                <tr class="breakdown-total">
+                  <td><strong>${translate("total")}</strong></td>
+                  <td class="text-right"><strong>${bySource[source].count}</strong></td>
+                  <td class="text-right amount revenue"><strong>${this.formatCurrency(bySource[source].total)}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        `).join("")}
       </div>
     `;
   }
