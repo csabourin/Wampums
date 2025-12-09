@@ -545,17 +545,18 @@ export class Dashboard {
     const year = now.getFullYear();
     const month = now.getMonth(); // 0-indexed
 
-    if (month >= 8) { // September or later (month 8 = September)
+    if (month >= 8) {
+      // September or later (month 8 = September)
       return {
         start: `${year}-09-01`,
         end: `${year + 1}-08-31`,
-        label: `${year}-${year + 1}`
+        label: `${year}-${year + 1}`,
       };
     } else {
       return {
         start: `${year - 1}-09-01`,
         end: `${year}-08-31`,
-        label: `${year - 1}-${year}`
+        label: `${year - 1}-${year}`,
       };
     }
   }
@@ -569,7 +570,7 @@ export class Dashboard {
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "CAD",
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value);
   }
 
