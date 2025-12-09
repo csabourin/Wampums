@@ -1403,6 +1403,135 @@ export async function getParticipantStatement(participantId) {
 }
 
 // ============================================================================
+// BUDGET
+// ============================================================================
+
+/**
+ * Get budget categories for the current organization
+ */
+export async function getBudgetCategories() {
+    return API.get('v1/budget/categories', {}, {
+        cacheKey: 'budget_categories',
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+    });
+}
+
+/**
+ * Create a budget category
+ */
+export async function createBudgetCategory(payload) {
+    return API.post('v1/budget/categories', payload);
+}
+
+/**
+ * Update a budget category
+ */
+export async function updateBudgetCategory(id, payload) {
+    return API.put(`v1/budget/categories/${id}`, payload);
+}
+
+/**
+ * Delete a budget category (soft delete)
+ */
+export async function deleteBudgetCategory(id) {
+    return API.delete(`v1/budget/categories/${id}`);
+}
+
+/**
+ * Get budget items, optionally filtered by category
+ */
+export async function getBudgetItems(categoryId = null) {
+    const params = categoryId ? { category_id: categoryId } : {};
+    return API.get('v1/budget/items', params, {
+        cacheKey: categoryId ? `budget_items_cat_${categoryId}` : 'budget_items',
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+    });
+}
+
+/**
+ * Create a budget item
+ */
+export async function createBudgetItem(payload) {
+    return API.post('v1/budget/items', payload);
+}
+
+/**
+ * Update a budget item
+ */
+export async function updateBudgetItem(id, payload) {
+    return API.put(`v1/budget/items/${id}`, payload);
+}
+
+/**
+ * Delete a budget item (soft delete)
+ */
+export async function deleteBudgetItem(id) {
+    return API.delete(`v1/budget/items/${id}`);
+}
+
+/**
+ * Get budget expenses with optional filters
+ */
+export async function getBudgetExpenses(filters = {}) {
+    return API.get('v1/budget/expenses', filters, {
+        cacheKey: 'budget_expenses',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create a budget expense
+ */
+export async function createBudgetExpense(payload) {
+    return API.post('v1/budget/expenses', payload);
+}
+
+/**
+ * Update a budget expense
+ */
+export async function updateBudgetExpense(id, payload) {
+    return API.put(`v1/budget/expenses/${id}`, payload);
+}
+
+/**
+ * Delete a budget expense
+ */
+export async function deleteBudgetExpense(id) {
+    return API.delete(`v1/budget/expenses/${id}`);
+}
+
+/**
+ * Get comprehensive budget summary report
+ */
+export async function getBudgetSummaryReport(fiscalYearStart, fiscalYearEnd) {
+    const params = {
+        fiscal_year_start: fiscalYearStart,
+        fiscal_year_end: fiscalYearEnd
+    };
+    return API.get('v1/budget/reports/summary', params, {
+        cacheKey: `budget_summary_${fiscalYearStart}_${fiscalYearEnd}`,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Get detailed revenue breakdown by source
+ */
+export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, categoryId = null) {
+    const params = {
+        fiscal_year_start: fiscalYearStart,
+        fiscal_year_end: fiscalYearEnd
+    };
+    if (categoryId) {
+        params.category_id = categoryId;
+    }
+    return API.get('v1/budget/reports/revenue-breakdown', params, {
+        cacheKey: `budget_revenue_${fiscalYearStart}_${fiscalYearEnd}_${categoryId || 'all'}`,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+// ============================================================================
 // ORGANIZATION
 // ============================================================================
 
