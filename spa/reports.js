@@ -176,24 +176,71 @@ export class Reports {
                                 </details>
                         </section>
 
-                        <section class="report-view">
-                                <div id="report-content" class="report-surface" aria-live="polite"></div>
-                                <div class="report-actions">
-                                        <button id="print-report" class="button" style="display: none;" type="button">${translate("print_report")}</button>
-                                        <p class="report-back"><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+                        <!-- Report Modal -->
+                        <div id="report-modal" class="report-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+                                <div class="report-modal-overlay" id="report-modal-overlay"></div>
+                                <div class="report-modal-container">
+                                        <div class="report-modal-header">
+                                                <h2 id="report-modal-title" class="report-modal-title"></h2>
+                                                <div class="report-modal-actions">
+                                                        <button id="print-report" class="button button--secondary" type="button">
+                                                                <span class="button-icon">🖨️</span>
+                                                                ${translate("print_report")}
+                                                        </button>
+                                                        <button id="close-report-modal" class="button button--ghost" type="button" aria-label="${translate("close")}">
+                                                                <span class="button-icon">✕</span>
+                                                        </button>
+                                                </div>
+                                        </div>
+                                        <div class="report-modal-content" id="report-content" aria-live="polite"></div>
                                 </div>
-                        </section>
+                        </div>
                 `;
                 document.getElementById("app").innerHTML = content;
         }
 
         attachEventListeners() {
                 document.querySelectorAll('.report-btn').forEach(button => {
-                        button.addEventListener('click', (e) => this.loadReport(e.target.dataset.report));
+                        button.addEventListener('click', (e) => {
+                                const reportType = e.target.closest('.report-btn').dataset.report;
+                                this.loadReport(reportType);
+                        });
                 });
 
-		document.getElementById('print-report').addEventListener('click', () => this.printReport());
-	}
+                // Modal close handlers
+                const closeModalBtn = document.getElementById('close-report-modal');
+                const modalOverlay = document.getElementById('report-modal-overlay');
+
+                closeModalBtn?.addEventListener('click', () => this.closeReportModal());
+                modalOverlay?.addEventListener('click', () => this.closeReportModal());
+
+                // ESC key to close modal
+                document.addEventListener('keydown', (e) => {
+                        if (e.key === 'Escape') {
+                                const modal = document.getElementById('report-modal');
+                                if (modal && modal.style.display !== 'none') {
+                                        this.closeReportModal();
+                                }
+                        }
+                });
+
+                document.getElementById('print-report')?.addEventListener('click', () => this.printReport());
+        }
+
+        openReportModal(title) {
+                const modal = document.getElementById('report-modal');
+                const modalTitle = document.getElementById('report-modal-title');
+
+                modalTitle.textContent = title;
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        }
+
+        closeReportModal() {
+                const modal = document.getElementById('report-modal');
+                modal.style.display = 'none';
+                document.body.style.overflow = ''; // Restore scrolling
+        }
 
 	async loadFormTypes() {
 		try {
@@ -232,6 +279,27 @@ export class Reports {
 
 	async loadReport(reportType,formType=null) {
 		try {
+			// Get report title for modal
+			const reportTitles = {
+				'health': translate('health_report_title'),
+				'allergies': translate('allergies_report_title'),
+				'medication': translate('medication_report_title'),
+				'vaccines': translate('vaccine_report_title'),
+				'leave-alone': translate('leave_alone_report_title'),
+				'media-authorization': translate('media_authorization_report_title'),
+				'missing-documents': translate('missing_documents_report_title'),
+				'attendance': translate('attendance_report_title'),
+				'participant-age': translate('participant_age_report_title'),
+				'honors': translate('honors_report_title'),
+				'points': translate('points_report_title'),
+				'financial': translate('financial_report_title'),
+				'participant-progress': translate('participant_progress_report_title'),
+				'missing-fields': translate('missing_fields_report')
+			};
+
+			// Open modal with report title
+			this.openReportModal(reportTitles[reportType] || translate('report'));
+
 			let reportData;
 			let reportContent;
 
@@ -305,13 +373,11 @@ case 'participant-age':
                         if (reportType === 'participant-progress') {
                                 this.attachParticipantProgressListeners();
                         }
-                        document.getElementById('print-report').style.display = 'block';
                 } catch (error) {
                         debugError(`Error loading ${reportType} report:`, error);
 			document.getElementById('report-content').innerHTML = `
 				<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>
 			`;
-			document.getElementById('print-report').style.display = 'none';
 		}
 	}
 
