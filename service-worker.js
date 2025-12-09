@@ -498,7 +498,7 @@ async function invalidateRelatedCaches(request) {
 
 // Handle messages from clients
 self.addEventListener("message", (event) => {
-  if (event.data === "skipWaiting") {
+  if (event.data === "skipWaiting" || event.data.type === "SKIP_WAITING") {
     self.skipWaiting(); // Immediately activate new service worker
   } else if (event.data.type === "GET_VERSION") {
     // Send current version back to client
