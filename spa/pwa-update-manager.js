@@ -62,12 +62,18 @@ class PWAUpdateManager {
             const newWorker = this.registration.installing;
 
             if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
+                newWorker.addEventListener('statechange', async () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        // New service worker is waiting to activate
-                        this.newWorker = newWorker;
-                        this.updateAvailable = true;
-                        this.showUpdatePrompt();
+                        // Only prompt when the new worker is a different version
+                        const newVersion = await this.getServiceWorkerVersion(newWorker);
+
+                        if (newVersion && newVersion !== CONFIG.VERSION) {
+                            this.newWorker = newWorker;
+                            this.updateAvailable = true;
+                            this.showUpdatePrompt();
+                        } else {
+                            debugLog('Service worker updated without version change; skipping prompt');
+                        }
                     }
                 });
             }
@@ -119,8 +125,12 @@ class PWAUpdateManager {
     /**
      * Get the service worker version
      */
-    async getServiceWorkerVersion() {
-        if (!navigator.serviceWorker.controller) return null;
+    /**
+     * Request the version reported by the specified service worker.
+     * Defaults to the active controller when no worker is provided.
+     */
+    async getServiceWorkerVersion(targetWorker = navigator.serviceWorker.controller) {
+        if (!targetWorker) return null;
 
         return new Promise((resolve) => {
             const messageChannel = new MessageChannel();
@@ -133,7 +143,7 @@ class PWAUpdateManager {
                 }
             };
 
-            navigator.serviceWorker.controller.postMessage(
+            targetWorker.postMessage(
                 { type: 'GET_VERSION' },
                 [messageChannel.port2]
             );
