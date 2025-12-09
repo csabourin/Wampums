@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS public.budget_expenses (
   reference_number VARCHAR(100),
   receipt_url TEXT,
   notes TEXT,
-  created_by INTEGER REFERENCES users(id),
+  created_by UUID REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   CONSTRAINT positive_amount CHECK (amount >= 0)
@@ -108,6 +108,9 @@ CREATE INDEX IF NOT EXISTS idx_budget_plans_org_year
 ON public.budget_plans(organization_id, fiscal_year_start);
 
 -- 7. Create view for comprehensive revenue (combines all sources)
+-- IMPORTANT: Uses correct column names from actual schema
+--   - fundraisers.organization (not organization_id)
+--   - calendars.fundraiser (not fundraiser_id)
 CREATE OR REPLACE VIEW public.v_budget_revenue AS
 SELECT
   po.organization_id,
@@ -128,7 +131,7 @@ LEFT JOIN budget_categories bc ON fd.budget_category_id = bc.id
 UNION ALL
 
 SELECT
-  f.organization_id,
+  f.organization,
   f.budget_category_id,
   bc.name AS category_name,
   'fundraiser' AS revenue_source,
@@ -143,7 +146,7 @@ WHERE f.result IS NOT NULL AND f.result > 0
 UNION ALL
 
 SELECT
-  c.organization_id,
+  f.organization,
   f.budget_category_id,
   bc.name AS category_name,
   'calendar_sale' AS revenue_source,
@@ -153,7 +156,7 @@ SELECT
   c.id AS source_id
 FROM calendars c
 JOIN participants p ON c.participant_id = p.id
-LEFT JOIN fundraisers f ON c.fundraiser_id = f.id
+LEFT JOIN fundraisers f ON c.fundraiser = f.id
 LEFT JOIN budget_categories bc ON f.budget_category_id = bc.id
 WHERE c.amount_paid > 0;
 
@@ -161,22 +164,22 @@ WHERE c.amount_paid > 0;
 CREATE OR REPLACE VIEW public.v_budget_summary_by_category AS
 WITH revenue AS (
   SELECT
-    organization_id,
-    budget_category_id,
-    category_name,
-    SUM(amount) AS total_revenue
-  FROM v_budget_revenue
-  GROUP BY organization_id, budget_category_id, category_name
+    v.organization_id,
+    v.budget_category_id,
+    v.category_name,
+    SUM(v.amount) AS total_revenue
+  FROM v_budget_revenue v
+  GROUP BY v.organization_id, v.budget_category_id, v.category_name
 ),
 expenses AS (
   SELECT
-    organization_id,
-    budget_category_id,
+    be.organization_id,
+    be.budget_category_id,
     bc.name AS category_name,
-    SUM(amount) AS total_expense
+    SUM(be.amount) AS total_expense
   FROM budget_expenses be
   LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
-  GROUP BY organization_id, budget_category_id, bc.name
+  GROUP BY be.organization_id, be.budget_category_id, bc.name
 )
 SELECT
   COALESCE(r.organization_id, e.organization_id) AS organization_id,
@@ -249,6 +252,6 @@ CREATE TRIGGER update_budget_plans_updated_at
 -- ✓ Budget items (line items) created
 -- ✓ Budget expenses table for org costs (NEW)
 -- ✓ Budget plans for forecasting
--- ✓ Views combining all revenue sources + expenses
+-- ✓ Views combining all revenue sources + expenses (CORRECTED column names)
 -- ✓ Default categories inserted
 -- =====================================================
