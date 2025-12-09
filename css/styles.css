@@ -169,30 +169,6 @@ body {
   overflow-wrap: break-word;
 }
 
-/* Background Image with Overlay */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: url("/images/Loups_6eA.png");
-  background-repeat: no-repeat;
-  background-size: contain;
-  background-position: center;
-  background-attachment: fixed;
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: 0;
-}
-
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-color: rgb(255 255 255 / 0.85);
-  backdrop-filter: blur(2px);
-  pointer-events: none;
-  z-index: 0;
-}
 
 /* Main App Container */
 #app {
