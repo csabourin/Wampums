@@ -1,6 +1,6 @@
 {
   "name": "wampums",
-  "version": "2.2.5",
+  "version": "2.3.0",
   "description": "Wampums project",
   "main": "api.js",
   "scripts": {
