@@ -21,6 +21,17 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
     const { start_date, end_date, revenue_type, category_id } = req.query;
 
+    const hasCategoryFilter = category_id && category_id !== 'all';
+    let parsedCategoryId = null;
+
+    if (hasCategoryFilter) {
+      parsedCategoryId = Number.parseInt(category_id, 10);
+
+      if (!Number.isInteger(parsedCategoryId)) {
+        return error(res, 'category_id must be a valid integer or "all"', 400);
+      }
+    }
+
     let query = `
       SELECT
         be.id,
@@ -59,10 +70,10 @@ module.exports = (pool, logger) => {
       params.push(end_date);
     }
 
-    if (category_id) {
+    if (hasCategoryFilter) {
       paramCount++;
       query += ` AND be.budget_category_id = $${paramCount}`;
-      params.push(category_id);
+      params.push(parsedCategoryId);
     }
 
     if (revenue_type && revenue_type !== 'all') {
