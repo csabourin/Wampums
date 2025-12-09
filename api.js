@@ -413,6 +413,7 @@ const dashboardsRoutes = require('./routes/dashboards')(pool, logger);
 const publicRoutes = require('./routes/public')(pool, logger);
 const importRoutes = require('./routes/import')(pool, logger);
 const financeRoutes = require('./routes/finance')(pool, logger);
+const budgetsRoutes = require('./routes/budgets')(pool, logger);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -621,6 +622,14 @@ logger.info('✅ Finance routes loaded');
 logger.info('   - CRUD /api/v1/finance/fee-definitions');
 logger.info('   - CRUD /api/v1/finance/participant-fees');
 logger.info('   - GET /api/v1/finance/reports/summary');
+
+// Budget Routes (handles budget categories, items, expenses, and budget reports)
+app.use('/api', budgetsRoutes);
+logger.info('✅ Budget routes loaded');
+logger.info('   - CRUD /api/v1/budget/categories');
+logger.info('   - CRUD /api/v1/budget/items');
+logger.info('   - CRUD /api/v1/budget/expenses');
+logger.info('   - GET /api/v1/budget/reports/summary');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents

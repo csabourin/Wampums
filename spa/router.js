@@ -39,7 +39,8 @@ const lazyModules = {
   CreateOrganization: () => import('./create_organization.js').then(m => m.CreateOrganization),
   PrintableGroupParticipantReport: () => import('./group-participant-report.js').then(m => m.PrintableGroupParticipantReport),
   UpcomingMeeting: () => import('./upcoming_meeting.js').then(m => m.UpcomingMeeting),
-  Finance: () => import('./finance.js').then(m => m.Finance)
+  Finance: () => import('./finance.js').then(m => m.Finance),
+  Budgets: () => import('./budgets.js').then(m => m.Budgets)
 };
 
 // Cache for loaded modules
@@ -86,6 +87,7 @@ const routes = {
   "/group-participant-report": "PrintableGroupParticipantReport",
   "/upcoming-meeting": "UpcomingMeeting",
   "/finance": "finance",
+  "/budgets": "budgets",
 
 };
 
@@ -168,6 +170,15 @@ export class Router {
             const Finance = await this.loadModule('Finance');
             const finance = new Finance(this.app);
             await finance.init();
+          }
+          break;
+        case "budgets":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const Budgets = await this.loadModule('Budgets');
+            const budgets = new Budgets(this.app);
+            await budgets.init();
           }
           break;
         case "calendars":
