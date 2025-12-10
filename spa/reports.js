@@ -50,6 +50,7 @@ export class Reports {
 
 	render() {
 		const content = `
+                        <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
                         <section class="reports-header">
                                 <p class="reports-kicker">${translate("reports")}</p>
                                 <h1>${translate("reports_title")}</h1>

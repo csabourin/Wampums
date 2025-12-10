@@ -149,7 +149,7 @@ export class ManageUsersParticipants {
 
   render() {
     const content = `
-      <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
       <h1>${translate("manage_users_participants")}</h1>
       <div id="message"></div>
       <table>
