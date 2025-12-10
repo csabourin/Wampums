@@ -35,13 +35,16 @@ try {
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 
+// Enable strong ETags for better caching and bandwidth reduction
+app.set('etag', 'strong');
+
 // Security headers with Content Security Policy
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms", "https://cdn.jsdelivr.net"], // Note: Consider removing unsafe-inline and using nonces in production
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://*.clarity.ms", "https://www.clarity.ms", "https://cdn.jsdelivr.net"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"], // Note: Consider removing unsafe-inline and using nonces in production
+      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
       styleSrc: [
         "'self'",
         "'unsafe-inline'",
@@ -52,9 +55,6 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: [
         "'self'",
-        "https://*.clarity.ms",
-        "https://c.bing.com",
-        "https://www.clarity.ms",
         "https://cdn.jsdelivr.net",
         "https://cdnjs.cloudflare.com",
       ],
@@ -127,9 +127,9 @@ app.use(express.static(staticDir, {
     if (isProduction && (filepath.includes('-') && (filepath.endsWith('.js') || filepath.endsWith('.css')))) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
-    // Moderate caching for other assets
+    // Extended caching for static assets (30 days = 2592000 seconds)
     else if (filepath.endsWith('.js') || filepath.endsWith('.css') || filepath.endsWith('.png') || filepath.endsWith('.jpg') || filepath.endsWith('.webp')) {
-      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Cache-Control', 'public, max-age=2592000');
     }
   }
 }));

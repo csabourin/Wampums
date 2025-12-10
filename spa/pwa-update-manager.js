@@ -35,7 +35,7 @@ class PWAUpdateManager {
             // Set up update listeners
             this.setupUpdateListeners();
 
-            // Check for updates periodically (every 60 seconds)
+            // Check for updates periodically (every 10 minutes)
             this.startUpdateChecks();
 
             // Listen for messages from service worker
@@ -157,10 +157,10 @@ class PWAUpdateManager {
      * Start periodic update checks
      */
     startUpdateChecks() {
-        // Check for updates every 60 seconds
+        // Check for updates every 10 minutes (600000ms) to reduce bandwidth
         this.updateCheckInterval = setInterval(() => {
             this.checkForUpdate();
-        }, 60000);
+        }, 600000);
 
         // Also check when page becomes visible
         document.addEventListener('visibilitychange', () => {

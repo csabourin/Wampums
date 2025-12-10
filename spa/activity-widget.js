@@ -37,9 +37,10 @@ export class ActivityWidget {
 		this.renderWidget();
 		this.updateActivityWidget();
 
+		// Poll every 5 minutes (300000ms) instead of every minute to reduce bandwidth
 		this.updateInterval = setInterval(() => {
 			this.updateActivityWidget();
-		}, 60000);
+		}, 300000);
 	}
 
 
