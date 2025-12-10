@@ -406,6 +406,7 @@ const formsRoutes = require('./routes/forms')(pool, logger);
 const guardiansRoutes = require('./routes/guardians')(pool, logger);
 const meetingsRoutes = require('./routes/meetings')(pool, logger);
 const notificationsRoutes = require('./routes/notifications')(pool, logger);
+const announcementsRoutes = require('./routes/announcements')(pool, logger);
 const calendarsRoutes = require('./routes/calendars')(pool, logger);
 const fundraisersRoutes = require('./routes/fundraisers')(pool, logger);
 const reportsRoutes = require('./routes/reports')(pool, logger);
@@ -415,6 +416,7 @@ const importRoutes = require('./routes/import')(pool, logger);
 const financeRoutes = require('./routes/finance')(pool, logger);
 const budgetsRoutes = require('./routes/budgets')(pool, logger);
 const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger);
+const resourcesRoutes = require('./routes/resources')(pool);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -567,6 +569,12 @@ logger.info('✅ Notifications routes loaded');
 logger.info('   - POST /api/send-notification');
 logger.info('   - POST /api/push-subscription');
 
+// Announcement Routes (handles /api/v1/announcements)
+app.use('/api', announcementsRoutes);
+logger.info('✅ Announcements routes loaded');
+logger.info('   - POST /api/v1/announcements');
+logger.info('   - GET /api/v1/announcements');
+
 // Honors Routes (handles /api/honors, /api/award-honor, /api/honors-history, /api/recent-honors)
 // Endpoints: honors, award-honor, honors-history, honors-report, recent-honors
 app.use('/api', honorsRoutes);
@@ -644,6 +652,19 @@ app.use('/api', externalRevenueRoutes);
 logger.info('✅ External Revenue routes loaded');
 logger.info('   - CRUD /api/v1/revenue/external');
 logger.info('   - GET /api/v1/revenue/external/summary');
+
+// Resource and permission slip routes
+app.use('/api/v1/resources', resourcesRoutes);
+logger.info('✅ Resource routes loaded');
+logger.info('   - GET /api/v1/resources/equipment');
+logger.info('   - POST /api/v1/resources/equipment');
+logger.info('   - GET /api/v1/resources/equipment/reservations');
+logger.info('   - POST /api/v1/resources/equipment/reservations');
+logger.info('   - PATCH /api/v1/resources/equipment/reservations/:id');
+logger.info('   - GET /api/v1/resources/permission-slips');
+logger.info('   - POST /api/v1/resources/permission-slips');
+logger.info('   - PATCH /api/v1/resources/permission-slips/:id/sign');
+logger.info('   - GET /api/v1/resources/status/dashboard');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents

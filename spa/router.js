@@ -43,7 +43,8 @@ const lazyModules = {
   Budgets: () => import('./budgets.js').then(m => m.Budgets),
   ExternalRevenue: () => import('./external-revenue.js').then(m => m.ExternalRevenue),
   Expenses: () => import('./expenses.js').then(m => m.Expenses),
-  RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard)
+  RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard),
+  ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard)
 };
 
 // Cache for loaded modules
@@ -94,6 +95,8 @@ const routes = {
   "/external-revenue": "externalRevenue",
   "/expenses": "expenses",
   "/revenue-dashboard": "revenueDashboard",
+  "/resources": "resourceDashboard",
+  "/permission-slips": "resourceDashboard",
 
 };
 
@@ -212,6 +215,15 @@ export class Router {
             const RevenueDashboard = await this.loadModule('RevenueDashboard');
             const revenueDashboard = new RevenueDashboard(this.app);
             await revenueDashboard.init();
+          }
+          break;
+        case "resourceDashboard":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const ResourceDashboard = await this.loadModule('ResourceDashboard');
+            const resourceDashboard = new ResourceDashboard(this.app);
+            await resourceDashboard.init();
           }
           break;
         case "calendars":
