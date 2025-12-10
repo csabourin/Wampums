@@ -196,6 +196,8 @@ export {
     getMediaAuthorizationReport,
     getMissingDocumentsReport,
     getMailingList,
+    getAnnouncements,
+    createAnnouncement,
     getReports,
 
     // Organization

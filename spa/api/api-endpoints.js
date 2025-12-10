@@ -1262,6 +1262,20 @@ export async function getMailingList() {
 }
 
 /**
+ * Announcement endpoints
+ */
+export async function getAnnouncements() {
+    return API.get('v1/announcements', {}, {
+        cacheKey: 'announcements',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+export async function createAnnouncement(payload) {
+    return API.post('v1/announcements', payload);
+}
+
+/**
  * Generic reports function
  */
 export async function getReports(reportType) {
