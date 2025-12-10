@@ -178,6 +178,80 @@ export async function logout() {
     return result;
 }
 
+// ============================================================================
+// RESOURCES & PERMISSION SLIPS
+// ============================================================================
+
+/**
+ * Equipment inventory list
+ */
+export async function getEquipmentInventory(params = {}) {
+    return API.get('v1/resources/equipment', params);
+}
+
+/**
+ * Create or update equipment
+ */
+export async function saveEquipmentItem(payload) {
+    return API.post('v1/resources/equipment', payload);
+}
+
+/**
+ * Update existing equipment item
+ */
+export async function updateEquipmentItem(id, payload) {
+    return API.put(`v1/resources/equipment/${id}`, payload);
+}
+
+/**
+ * Get reservations for equipment by meeting date
+ */
+export async function getEquipmentReservations(params = {}) {
+    return API.get('v1/resources/equipment/reservations', params);
+}
+
+/**
+ * Save an equipment reservation
+ */
+export async function saveEquipmentReservation(payload) {
+    return API.post('v1/resources/equipment/reservations', payload);
+}
+
+/**
+ * Update an equipment reservation
+ */
+export async function updateEquipmentReservation(id, payload) {
+    return API.patch(`v1/resources/equipment/reservations/${id}`, payload);
+}
+
+/**
+ * Permission slip statuses
+ */
+export async function getPermissionSlips(params = {}) {
+    return API.get('v1/resources/permission-slips', params);
+}
+
+/**
+ * Create or update a permission slip
+ */
+export async function savePermissionSlip(payload) {
+    return API.post('v1/resources/permission-slips', payload);
+}
+
+/**
+ * Capture signature for a permission slip
+ */
+export async function signPermissionSlip(id, payload) {
+    return API.patch(`v1/resources/permission-slips/${id}/sign`, payload);
+}
+
+/**
+ * Dashboard snapshot for resources and approvals
+ */
+export async function getResourceDashboard(params = {}) {
+    return API.get('v1/resources/status/dashboard', params, { cacheDuration: CONFIG.CACHE_DURATION.SHORT });
+}
+
 /**
  * Get all users for organization
  */
