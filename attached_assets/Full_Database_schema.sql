@@ -12,6 +12,36 @@ CREATE TABLE public.activites_rencontre (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT activites_rencontre_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.announcement_logs (
+  id integer NOT NULL DEFAULT nextval('announcement_logs_id_seq'::regclass),
+  announcement_id integer,
+  channel character varying NOT NULL,
+  recipient_email text,
+  recipient_user_id uuid,
+  status character varying NOT NULL,
+  error_message text,
+  metadata jsonb,
+  sent_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT announcement_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT announcement_logs_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES public.announcements(id)
+);
+CREATE TABLE public.announcements (
+  id integer NOT NULL DEFAULT nextval('announcements_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  created_by uuid NOT NULL,
+  subject text NOT NULL,
+  message text NOT NULL,
+  recipient_roles ARRAY NOT NULL DEFAULT '{}'::text[],
+  recipient_groups ARRAY DEFAULT '{}'::integer[],
+  scheduled_at timestamp with time zone,
+  sent_at timestamp with time zone,
+  status character varying NOT NULL DEFAULT 'draft'::character varying,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT announcements_pkey PRIMARY KEY (id),
+  CONSTRAINT announcements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.attendance (
   id integer NOT NULL DEFAULT nextval('attendance_id_seq'::regclass),
   participant_id integer NOT NULL,
@@ -118,6 +148,49 @@ CREATE TABLE public.calendars (
   CONSTRAINT calendars_pkey PRIMARY KEY (id),
   CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
   CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
+);
+CREATE TABLE public.equipment_item_organizations (
+  equipment_id integer NOT NULL,
+  organization_id integer NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT equipment_item_organizations_pkey PRIMARY KEY (equipment_id, organization_id),
+  CONSTRAINT equipment_item_organizations_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment_items(id),
+  CONSTRAINT equipment_item_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.equipment_items (
+  id integer NOT NULL DEFAULT nextval('equipment_items_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  name character varying NOT NULL,
+  category character varying,
+  description text,
+  quantity_total integer NOT NULL DEFAULT 1 CHECK (quantity_total >= 0),
+  quantity_available integer NOT NULL DEFAULT 0 CHECK (quantity_available >= 0),
+  condition_note text,
+  is_active boolean DEFAULT true,
+  attributes jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT equipment_items_pkey PRIMARY KEY (id),
+  CONSTRAINT equipment_items_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.equipment_reservations (
+  id integer NOT NULL DEFAULT nextval('equipment_reservations_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  equipment_id integer NOT NULL,
+  meeting_id integer,
+  meeting_date date NOT NULL,
+  reserved_quantity integer NOT NULL DEFAULT 1 CHECK (reserved_quantity > 0),
+  reserved_for character varying NOT NULL DEFAULT ''::character varying,
+  status character varying DEFAULT 'reserved'::character varying CHECK (status::text = ANY (ARRAY['reserved'::character varying, 'confirmed'::character varying, 'returned'::character varying, 'cancelled'::character varying]::text[])),
+  notes text,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT equipment_reservations_pkey PRIMARY KEY (id),
+  CONSTRAINT equipment_reservations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT equipment_reservations_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment_items(id),
+  CONSTRAINT equipment_reservations_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.reunion_preparations(id),
+  CONSTRAINT equipment_reservations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.fee_definitions (
   id integer NOT NULL DEFAULT nextval('fee_definitions_id_seq'::regclass),
@@ -349,6 +422,27 @@ CREATE TABLE public.payments (
   CONSTRAINT payments_pkey PRIMARY KEY (id),
   CONSTRAINT payments_participant_fee_id_fkey FOREIGN KEY (participant_fee_id) REFERENCES public.participant_fees(id),
   CONSTRAINT payments_payment_plan_id_fkey FOREIGN KEY (payment_plan_id) REFERENCES public.payment_plans(id)
+);
+CREATE TABLE public.permission_slips (
+  id integer NOT NULL DEFAULT nextval('permission_slips_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  guardian_id integer,
+  meeting_id integer,
+  meeting_date date NOT NULL,
+  status character varying DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'signed'::character varying, 'revoked'::character varying, 'expired'::character varying]::text[])),
+  consent_payload jsonb DEFAULT '{}'::jsonb,
+  signed_at timestamp with time zone,
+  signed_by text,
+  signature_hash text,
+  contact_confirmation jsonb,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT permission_slips_pkey PRIMARY KEY (id),
+  CONSTRAINT permission_slips_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT permission_slips_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT permission_slips_guardian_id_fkey FOREIGN KEY (guardian_id) REFERENCES public.parents_guardians(id),
+  CONSTRAINT permission_slips_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.reunion_preparations(id)
 );
 CREATE TABLE public.points (
   id integer NOT NULL DEFAULT nextval('points_id_seq'::regclass),
