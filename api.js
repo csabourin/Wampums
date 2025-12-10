@@ -406,6 +406,7 @@ const formsRoutes = require('./routes/forms')(pool, logger);
 const guardiansRoutes = require('./routes/guardians')(pool, logger);
 const meetingsRoutes = require('./routes/meetings')(pool, logger);
 const notificationsRoutes = require('./routes/notifications')(pool, logger);
+const announcementsRoutes = require('./routes/announcements')(pool, logger);
 const calendarsRoutes = require('./routes/calendars')(pool, logger);
 const fundraisersRoutes = require('./routes/fundraisers')(pool, logger);
 const reportsRoutes = require('./routes/reports')(pool, logger);
@@ -567,6 +568,12 @@ app.use('/api', notificationsRoutes);
 logger.info('✅ Notifications routes loaded');
 logger.info('   - POST /api/send-notification');
 logger.info('   - POST /api/push-subscription');
+
+// Announcement Routes (handles /api/v1/announcements)
+app.use('/api', announcementsRoutes);
+logger.info('✅ Announcements routes loaded');
+logger.info('   - POST /api/v1/announcements');
+logger.info('   - GET /api/v1/announcements');
 
 // Honors Routes (handles /api/honors, /api/award-honor, /api/honors-history, /api/recent-honors)
 // Endpoints: honors, award-honor, honors-history, honors-report, recent-honors

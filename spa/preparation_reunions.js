@@ -215,7 +215,7 @@ export class PreparationReunions {
 
                 const content = `
                         <div class="preparation-reunions">
-                                <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+                                <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
                                 <h1>${translate("preparation_reunions")}</h1>
 
                                 <div class="date-navigation">
