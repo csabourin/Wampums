@@ -415,6 +415,7 @@ const importRoutes = require('./routes/import')(pool, logger);
 const financeRoutes = require('./routes/finance')(pool, logger);
 const budgetsRoutes = require('./routes/budgets')(pool, logger);
 const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger);
+const resourcesRoutes = require('./routes/resources')(pool);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -644,6 +645,19 @@ app.use('/api', externalRevenueRoutes);
 logger.info('✅ External Revenue routes loaded');
 logger.info('   - CRUD /api/v1/revenue/external');
 logger.info('   - GET /api/v1/revenue/external/summary');
+
+// Resource and permission slip routes
+app.use('/api/v1/resources', resourcesRoutes);
+logger.info('✅ Resource routes loaded');
+logger.info('   - GET /api/v1/resources/equipment');
+logger.info('   - POST /api/v1/resources/equipment');
+logger.info('   - GET /api/v1/resources/equipment/reservations');
+logger.info('   - POST /api/v1/resources/equipment/reservations');
+logger.info('   - PATCH /api/v1/resources/equipment/reservations/:id');
+logger.info('   - GET /api/v1/resources/permission-slips');
+logger.info('   - POST /api/v1/resources/permission-slips');
+logger.info('   - PATCH /api/v1/resources/permission-slips/:id/sign');
+logger.info('   - GET /api/v1/resources/status/dashboard');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
