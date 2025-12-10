@@ -46,6 +46,18 @@ module.exports = (pool) => {
     }
   }
 
+  async function getParentParticipantIds(userId, organizationId) {
+    const result = await pool.query(
+      `SELECT up.participant_id
+         FROM user_participants up
+         JOIN participant_organizations po ON po.participant_id = up.participant_id
+        WHERE up.user_id = $1 AND po.organization_id = $2`,
+      [userId, organizationId]
+    );
+
+    return result.rows.map((row) => row.participant_id);
+  }
+
   async function verifyEquipmentAccess(equipmentId, organizationId) {
     const accessResult = await pool.query(
       `SELECT 1
@@ -415,6 +427,21 @@ module.exports = (pool) => {
         const params = [organizationId];
         let filter = '';
 
+        if (req.userRole === 'parent') {
+          const allowedParticipantIds = await getParentParticipantIds(req.user.id, organizationId);
+          if (participantId && !allowedParticipantIds.includes(participantId)) {
+            return error(res, 'Permission denied for participant', 403);
+          }
+
+          if (!participantId) {
+            if (allowedParticipantIds.length === 0) {
+              return success(res, { permission_slips: [] });
+            }
+            params.push(allowedParticipantIds);
+            filter += ` AND ps.participant_id = ANY($${params.length})`;
+          }
+        }
+
         if (meetingDate) {
           params.push(meetingDate);
           filter += ` AND ps.meeting_date = $${params.length}`;
@@ -521,6 +548,22 @@ module.exports = (pool) => {
         const organizationId = await getOrganizationId(req, pool);
         const slipId = parseInt(req.params.id, 10);
         const { guardian_id, signed_by, signature_hash, contact_confirmation } = req.body;
+
+        const slipResult = await pool.query(
+          'SELECT participant_id FROM permission_slips WHERE id = $1 AND organization_id = $2',
+          [slipId, organizationId]
+        );
+
+        if (slipResult.rows.length === 0) {
+          return error(res, 'Permission slip not found', 404);
+        }
+
+        if (req.userRole === 'parent') {
+          const allowedParticipantIds = await getParentParticipantIds(req.user.id, organizationId);
+          if (!allowedParticipantIds.includes(slipResult.rows[0].participant_id)) {
+            return error(res, 'Permission denied for participant', 403);
+          }
+        }
 
         const updateResult = await pool.query(
           `UPDATE permission_slips
