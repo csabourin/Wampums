@@ -2385,7 +2385,7 @@ tr:hover {
     font-weight: var(--font-weight-semibold);
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: var(--z-sticky);
   }
 
   .calendars-table td::before {
@@ -3138,8 +3138,8 @@ details p {
   align-items: center;
 }
 
-/* Participant header - compact layout with name and edit button */
-.participant-header {
+/* Participant header - compact layout with name and edit button (badge dashboard specific) */
+.badge-table__row .participant-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3148,19 +3148,19 @@ details p {
   padding-right: var(--space-sm);
 }
 
-.participant-info {
+.badge-table__row .participant-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.participant-name {
+.badge-table__row .participant-name {
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-base);
   line-height: 1.3;
 }
 
-.participant-actions {
+.badge-table__row .participant-actions {
   display: flex;
   gap: var(--space-xs);
   align-items: center;
@@ -3441,7 +3441,10 @@ details p {
   background: rgba(0, 0, 0, 0.5);
 }
 
-.modal {
+/* Override for nested modal pattern (used in badge dashboard and modal-screen) */
+.badge-dashboard__modal .modal,
+.modal-screen .modal {
+  display: block;
   position: relative;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
@@ -3760,6 +3763,10 @@ details p {
 }
 
 .report-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
   width: 100%;
   padding: var(--space-md);
   border-radius: var(--radius-md);
@@ -3770,6 +3777,7 @@ details p {
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
   min-height: var(--touch-target-min);
   text-align: left;
+  cursor: pointer;
 }
 
 .report-btn:hover,
@@ -3963,15 +3971,7 @@ details p {
 }
 
 /* Enhanced Report Buttons */
-.report-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-xs);
-  padding: var(--space-md);
-  text-align: left;
-  cursor: pointer;
-}
+/* Consolidated with earlier .report-btn definition on line 3765 */
 
 .report-btn-icon {
   font-size: 1.5rem;
@@ -4112,7 +4112,7 @@ details p {
   border-bottom: 2px solid var(--color-border-light);
   flex-shrink: 0;
   box-shadow: var(--shadow-sm);
-  z-index: 1;
+  z-index: var(--z-base);
 }
 
 .report-modal-title {
@@ -4533,107 +4533,7 @@ details p {
   color: var(--color-text);
 }
 
-/* Modal Styles */
-.modal {
-  display: none;
-  position: fixed;
-  z-index: 1000;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  animation: fadeIn 0.2s ease;
-}
-
-.modal.show {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: var(--color-surface);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateY(-50px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.25rem;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--color-text);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 1.75rem;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-}
-
-.modal-close:hover {
-  background-color: var(--color-secondary);
-}
-
-.modal-close:focus {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.modal-body {
-  padding: 1.25rem;
-}
-
-.modal-footer {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
-  padding-top: 1rem;
-  margin-top: 1rem;
-  border-top: 1px solid var(--color-border-light);
-}
-
-.form-group {
-  margin-bottom: 1.25rem;
-}
+/* Duplicate modal styles removed - see line 1339 for main modal styles */
 
 .form-group label {
   display: block;

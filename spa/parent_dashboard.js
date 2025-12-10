@@ -241,7 +241,7 @@ export class ParentDashboard {
                                         </button>`
                         : ''; // Only render the button if needed
 
-                const installButton = `<button id="installPwaButton" style="display: none;" class="dashboard-button dashboard-button--secondary">
+                const installButton = `<button id="installPwaButton" class="hidden dashboard-button dashboard-button--secondary">
                                                 ${translate("install_app")}
                                         </button>`; // Initially hidden
 
