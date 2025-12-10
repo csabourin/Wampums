@@ -59,10 +59,18 @@ export class RevenueDashboard {
     try {
       await this.loadCategories();
       await this.loadAllData();
+    } catch (error) {
+      debugError("Error loading revenue data:", error);
+      // Continue rendering even if some data failed to load
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    }
+
+    // Always render the page, even with partial data
+    try {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Unable to initialize revenue dashboard", error);
+      debugError("Unable to render revenue dashboard:", error);
       this.app.showMessage(translate("error_loading_data"), "error");
     }
   }
@@ -79,17 +87,14 @@ export class RevenueDashboard {
   }
 
   async loadAllData() {
-    try {
-      await Promise.all([
-        this.loadDashboardData(),
-        this.loadBySourceData(),
-        this.loadByCategoryData(),
-        this.loadComparisonData()
-      ]);
-    } catch (error) {
-      debugError("Error loading revenue data", error);
-      throw error;
-    }
+    // Individual load methods have their own error handling
+    // Don't throw here - allow page to render with partial data
+    await Promise.all([
+      this.loadDashboardData(),
+      this.loadBySourceData(),
+      this.loadByCategoryData(),
+      this.loadComparisonData()
+    ]);
   }
 
   async loadDashboardData() {

@@ -21,15 +21,43 @@ export class ParentDashboard {
         }
 
         async init() {
+                let hasErrors = false;
+
                 try {
                         await this.fetchParticipants();
+                } catch (error) {
+                        debugError("Error fetching participants:", error);
+                        hasErrors = true;
+                        // Continue with empty participants
+                }
+
+                try {
                         await this.fetchFormFormats();
+                } catch (error) {
+                        debugError("Error fetching form formats:", error);
+                        hasErrors = true;
+                        // Continue with empty form formats
+                }
+
+                try {
                         await this.fetchParticipantStatements();
+                } catch (error) {
+                        debugError("Error fetching participant statements:", error);
+                        hasErrors = true;
+                        // Continue with empty statements
+                }
+
+                // Always render the page, even with partial data
+                try {
                         this.render();
                         this.attachEventListeners();
-                         this.checkAndShowLinkParticipantsDialog();
+                        this.checkAndShowLinkParticipantsDialog();
+
+                        if (hasErrors) {
+                                this.app.showMessage(translate("error_loading_data"), "warning");
+                        }
                 } catch (error) {
-                        debugError("Error initializing parent dashboard:", error);
+                        debugError("Error rendering parent dashboard:", error);
                         this.app.renderError(translate("error_loading_parent_dashboard"));
                 }
         }
@@ -96,12 +124,15 @@ export class ParentDashboard {
                                         // Use a Map to store unique participants
                                         const uniqueParticipants = new Map();
 
-                                        response.forEach(participant => {
-                                                        // If this participant isn't in our Map yet, add them
-                                                        if (!uniqueParticipants.has(participant.id)) {
-                                                                        uniqueParticipants.set(participant.id, participant);
-                                                        }
-                                        });
+                                        // Validate response is an array before processing
+                                        if (Array.isArray(response)) {
+                                                response.forEach(participant => {
+                                                                // If this participant isn't in our Map yet, add them
+                                                                if (!uniqueParticipants.has(participant.id)) {
+                                                                                uniqueParticipants.set(participant.id, participant);
+                                                                }
+                                                });
+                                        }
 
                                         // Convert the Map values back to an array
                                         this.participants = Array.from(uniqueParticipants.values());
@@ -110,6 +141,7 @@ export class ParentDashboard {
                         } catch (error) {
                                         debugError("Error fetching participants:", error);
                                         this.participants = [];
+                                        throw error;
                         }
         }
 
@@ -141,11 +173,17 @@ export class ParentDashboard {
         }
 
         async fetchFormFormats() {
-                const response = await getOrganizationFormFormats();
-                if (response && typeof response === 'object') {
-                        this.formFormats = response;
-                } else {
-                        debugError("Invalid form formats response:", response);
+                try {
+                        const response = await getOrganizationFormFormats();
+                        if (response && typeof response === 'object') {
+                                this.formFormats = response;
+                        } else {
+                                debugError("Invalid form formats response:", response);
+                        }
+                } catch (error) {
+                        debugError("Error fetching form formats:", error);
+                        this.formFormats = {};
+                        throw error;
                 }
         }
 

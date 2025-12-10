@@ -72,10 +72,20 @@ export class PreparationReunions {
                 // Use app's waitForOrganizationSettings to avoid race condition
                 const appSettings = await this.app.waitForOrganizationSettings();
 
+                // Load data with individual error handling to prevent total failure
                 const [activitiesResponse, animateursResponse, honorsResponse] = await Promise.all([
-                        getActivitesRencontre(),
-                        getAnimateurs(),
-                        getRecentHonors()
+                        getActivitesRencontre().catch(error => {
+                                debugError("Error loading activities:", error);
+                                return { data: [] };
+                        }),
+                        getAnimateurs().catch(error => {
+                                debugError("Error loading animateurs:", error);
+                                return { animateurs: [] };
+                        }),
+                        getRecentHonors().catch(error => {
+                                debugError("Error loading recent honors:", error);
+                                return { data: [] };
+                        })
                 ]);
 
                 // Handle both array response and object response with data property

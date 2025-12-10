@@ -21,42 +21,61 @@ export class ManageParticipants {
   async init() {
     try {
       await this.fetchData();
+    } catch (error) {
+      debugError("Error loading manage participants data:", error);
+      // Continue rendering even if some data failed to load
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    }
+
+    // Always render the page, even with partial data
+    try {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error initializing manage participants:", error);
+      debugError("Error rendering manage participants page:", error);
       this.renderError();
     }
   }
 
   async fetchData() {
+    // Load data with individual error handling to prevent total failure
+    const [participantsResponse, groupsResponse] = await Promise.all([
+      getParticipants().catch(error => {
+        debugError("Error loading participants:", error);
+        return { success: false, data: [] };
+      }),
+      getGroups().catch(error => {
+        debugError("Error loading groups:", error);
+        return { success: false, data: [] };
+      }),
+    ]);
+
+    if (participantsResponse.success) {
+      // Support both new format (data) and old format (participants)
+      this.participants = participantsResponse.data || participantsResponse.participants || [];
+    } else {
+      debugError("Failed to fetch participants data");
+      this.participants = [];
+    }
+
+    if (groupsResponse.success) {
+      // Support both new format (data) and old format (groups)
+      this.groups = groupsResponse.data || groupsResponse.groups || [];
+    } else {
+      debugError("Failed to fetch groups data");
+      this.groups = [];
+    }
+
+    debugLog("Fetched Participants:", this.participants);
+    debugLog("Fetched Groups:", this.groups);
+
+    // Save offline data with error handling
     try {
-      const [participantsResponse, groupsResponse] = await Promise.all([
-        getParticipants(),
-        getGroups(),
-      ]);
-
-      if (participantsResponse.success) {
-        // Support both new format (data) and old format (participants)
-        this.participants = participantsResponse.data || participantsResponse.participants;
-      } else {
-        throw new Error("Failed to fetch participants data");
-      }
-
-      if (groupsResponse.success) {
-        // Support both new format (data) and old format (groups)
-        this.groups = groupsResponse.data || groupsResponse.groups;
-      } else {
-        throw new Error("Failed to fetch groups data");
-      }
-
-      debugLog("Fetched Participants:", this.participants);
-      debugLog("Fetched Groups:", this.groups);
       await saveOfflineData('participants', this.participants);
       await saveOfflineData('groups', this.groups);
     } catch (error) {
-      debugError("Error fetching manage participants data:", error);
-      throw error;
+      debugError("Error saving offline data:", error);
+      // Don't throw - this is not critical
     }
   }
 

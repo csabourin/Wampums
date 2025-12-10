@@ -119,14 +119,14 @@ export class Expenses {
 
       const response = await getBudgetExpenses(filters);
       // Filter out external revenue entries (they have [EXTERNAL_REVENUE] in notes)
-      this.expenses = (response?.data || []).filter(expense => 
+      this.expenses = (response?.data || []).filter(expense =>
         !expense.notes || !expense.notes.includes('[EXTERNAL_REVENUE]')
       );
       debugLog(`Loaded ${this.expenses.length} expenses`);
     } catch (error) {
       debugError("Error loading expenses", error);
       this.expenses = [];
-      throw error;
+      // Don't throw - allow page to render with empty data
     }
   }
 
