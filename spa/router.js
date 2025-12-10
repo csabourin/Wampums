@@ -44,7 +44,8 @@ const lazyModules = {
   ExternalRevenue: () => import('./external-revenue.js').then(m => m.ExternalRevenue),
   Expenses: () => import('./expenses.js').then(m => m.Expenses),
   RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard),
-  ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard)
+  ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard),
+  PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard)
 };
 
 // Cache for loaded modules
@@ -96,7 +97,7 @@ const routes = {
   "/expenses": "expenses",
   "/revenue-dashboard": "revenueDashboard",
   "/resources": "resourceDashboard",
-  "/permission-slips": "resourceDashboard",
+  "/permission-slips": "permissionSlipDashboard",
 
 };
 
@@ -224,6 +225,15 @@ export class Router {
             const ResourceDashboard = await this.loadModule('ResourceDashboard');
             const resourceDashboard = new ResourceDashboard(this.app);
             await resourceDashboard.init();
+          }
+          break;
+        case "permissionSlipDashboard":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const PermissionSlipDashboard = await this.loadModule('PermissionSlipDashboard');
+            const permissionSlipDashboard = new PermissionSlipDashboard(this.app);
+            await permissionSlipDashboard.init();
           }
           break;
         case "calendars":
