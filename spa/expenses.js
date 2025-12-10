@@ -13,6 +13,8 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
+import { LoadingStateManager, debounce, retryWithBackoff } from "./utils/PerformanceUtils.js";
+import { validateMoney, validateDateField, validateRequired } from "./utils/ValidationUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -39,6 +41,13 @@ export class Expenses {
       category_id: 'all'
     };
     this.fiscalYear = this.getCurrentFiscalYear();
+
+    // Loading state management
+    this.loadingManager = new LoadingStateManager();
+    this.isInitializing = false;
+
+    // Debounced filter application (300ms delay)
+    this.debouncedApplyFilters = debounce(this.applyFilters.bind(this), 300);
   }
 
   /**
@@ -65,10 +74,21 @@ export class Expenses {
   }
 
   async init() {
+    // Prevent race conditions - only one init at a time
+    if (this.isInitializing) {
+      debugError("Expenses init already in progress, skipping duplicate call");
+      return;
+    }
+
+    this.isInitializing = true;
+
     try {
       // Set default date filters to current fiscal year
       this.filters.start_date = this.fiscalYear.start;
       this.filters.end_date = this.fiscalYear.end;
+
+      // Render loading state immediately
+      this.renderLoading();
 
       await Promise.all([
         this.loadCategories(),
@@ -77,34 +97,51 @@ export class Expenses {
         this.loadSummary(),
         this.loadMonthlyData()
       ]);
+
+      // Render with data
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError("Unable to initialize expenses page", error);
+      // Render error state but allow partial functionality
+      this.render();
+      this.attachEventListeners();
       this.app.showMessage(translate("error_loading_data"), "error");
+    } finally {
+      this.isInitializing = false;
     }
   }
 
   async loadCategories() {
-    try {
-      const response = await getBudgetCategories();
-      this.categories = response?.data || [];
-      debugLog(`Loaded ${this.categories.length} categories`);
-    } catch (error) {
-      debugError("Error loading categories", error);
-      this.categories = [];
-    }
+    return this.loadingManager.withLoading('categories', async () => {
+      try {
+        const response = await retryWithBackoff(
+          () => getBudgetCategories(),
+          { maxRetries: 2 }
+        );
+        this.categories = response?.data || [];
+        debugLog(`Loaded ${this.categories.length} categories`);
+      } catch (error) {
+        debugError("Error loading categories", error);
+        this.categories = [];
+      }
+    });
   }
 
   async loadItems() {
-    try {
-      const response = await getBudgetItems();
-      this.items = response?.data || [];
-      debugLog(`Loaded ${this.items.length} budget items`);
-    } catch (error) {
-      debugError("Error loading budget items", error);
-      this.items = [];
-    }
+    return this.loadingManager.withLoading('items', async () => {
+      try {
+        const response = await retryWithBackoff(
+          () => getBudgetItems(),
+          { maxRetries: 2 }
+        );
+        this.items = response?.data || [];
+        debugLog(`Loaded ${this.items.length} budget items`);
+      } catch (error) {
+        debugError("Error loading budget items", error);
+        this.items = [];
+      }
+    });
   }
 
   async loadExpenses() {
@@ -182,6 +219,29 @@ export class Expenses {
       qst,
       total
     };
+  }
+
+  renderLoading() {
+    const container = document.getElementById("app");
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="page-container expenses-page">
+        <div class="page-header">
+          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <div class="page-header-content">
+            <h1>${translate("expense_tracking")}</h1>
+            <div class="fiscal-year-display">
+              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>${translate("loading")}...</p>
+        </div>
+      </div>
+    `;
   }
 
   async render() {
