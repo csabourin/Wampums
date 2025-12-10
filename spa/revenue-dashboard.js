@@ -9,6 +9,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { getTodayISO } from "./utils/DateUtils.js";
+import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -30,6 +31,10 @@ export class RevenueDashboard {
       start: this.fiscalYear.start,
       end: this.fiscalYear.end
     };
+
+    // Loading state management
+    this.loadingManager = new LoadingStateManager();
+    this.isInitializing = false;
   }
 
   /**

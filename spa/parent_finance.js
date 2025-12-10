@@ -8,6 +8,7 @@ import { translate } from "./app.js";
 import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort } from "./utils/DateUtils.js";
+import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 
 export class ParentFinance {
   constructor(app) {
@@ -19,31 +20,45 @@ export class ParentFinance {
       total_paid: 0,
       total_outstanding: 0
     };
+
+    // Loading state management
+    this.loadingManager = new LoadingStateManager();
+    this.isInitializing = false;
   }
 
   async init() {
+    // Prevent race conditions - only one init at a time
+    if (this.isInitializing) {
+      debugError("ParentFinance init already in progress, skipping duplicate call");
+      return;
+    }
+
+    this.isInitializing = true;
     let hasErrors = false;
 
     try {
-      await this.fetchParticipants();
-    } catch (error) {
-      debugError("Error fetching participants:", error);
-      hasErrors = true;
-      // Continue with empty participants array
-    }
+      // Render loading state immediately
+      this.renderLoading();
 
-    try {
-      await this.fetchAllStatements();
-    } catch (error) {
-      debugError("Error fetching statements:", error);
-      hasErrors = true;
-      // Continue with empty statements
-    }
+      try {
+        await this.fetchParticipants();
+      } catch (error) {
+        debugError("Error fetching participants:", error);
+        hasErrors = true;
+        // Continue with empty participants array
+      }
 
-    this.calculateConsolidatedTotals();
+      try {
+        await this.fetchAllStatements();
+      } catch (error) {
+        debugError("Error fetching statements:", error);
+        hasErrors = true;
+        // Continue with empty statements
+      }
 
-    // Always render the page, even with partial data
-    try {
+      this.calculateConsolidatedTotals();
+
+      // Render with data
       this.render();
       this.attachEventListeners();
 
@@ -52,30 +67,45 @@ export class ParentFinance {
       }
     } catch (error) {
       debugError("Error rendering parent finance page:", error);
+      this.render();
+      this.attachEventListeners();
       this.app.showMessage(translate("error_loading_data"), "error");
+    } finally {
+      this.isInitializing = false;
     }
   }
 
   async fetchParticipants() {
-    try {
-      const response = await fetchParticipants(getCurrentOrganizationId());
-      const uniqueParticipants = new Map();
-
-      if (Array.isArray(response)) {
-        response.forEach(participant => {
-          if (!uniqueParticipants.has(participant.id)) {
-            uniqueParticipants.set(participant.id, participant);
+    return this.loadingManager.withLoading('participants', async () => {
+      try {
+        const response = await retryWithBackoff(
+          () => fetchParticipants(getCurrentOrganizationId()),
+          {
+            maxRetries: 2,
+            onRetry: (attempt, max, delay) => {
+              debugLog(`Retrying fetchParticipants (${attempt}/${max}) in ${delay}ms`);
+            }
           }
-        });
-      }
+        );
 
-      this.participants = Array.from(uniqueParticipants.values());
-      debugLog("Fetched participants for finance:", this.participants);
-    } catch (error) {
-      debugError("Error fetching participants:", error);
-      this.participants = [];
-      throw error;
-    }
+        const uniqueParticipants = new Map();
+
+        if (Array.isArray(response)) {
+          response.forEach(participant => {
+            if (!uniqueParticipants.has(participant.id)) {
+              uniqueParticipants.set(participant.id, participant);
+            }
+          });
+        }
+
+        this.participants = Array.from(uniqueParticipants.values());
+        debugLog("Fetched participants for finance:", this.participants);
+      } catch (error) {
+        debugError("Error fetching participants:", error);
+        this.participants = [];
+        throw error;
+      }
+    });
   }
 
   async fetchAllStatements() {
@@ -148,6 +178,25 @@ export class ParentFinance {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(numericValue);
+  }
+
+  renderLoading() {
+    const backLink = this.app.userRole === "admin" || this.app.userRole === "animation"
+      ? `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
+      : `<a href="/parent-dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
+
+    const content = `
+      <div class="parent-finance-page">
+        ${backLink}
+        <h1>${translate("participant_finance_statements")}</h1>
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>${translate("loading")}...</p>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("app").innerHTML = content;
   }
 
   render() {

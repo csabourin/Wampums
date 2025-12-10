@@ -21,6 +21,8 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { clearFinanceRelatedCaches } from "./indexedDB.js";
+import { LoadingStateManager, CacheWithTTL, retryWithBackoff } from "./utils/PerformanceUtils.js";
+import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -32,30 +34,47 @@ export class Finance {
     this.participants = [];
     this.financeSummary = null;
     this.activeTab = "memberships";
-    this.paymentsCache = new Map();
-    this.paymentPlanCache = new Map();
-    this.lastPaymentAmounts = new Map(); // Cache for last entered payment amounts
+
+    // Enhanced caching with TTL (5 minutes)
+    this.paymentsCache = new CacheWithTTL(300000);
+    this.paymentPlanCache = new CacheWithTTL(300000);
+    this.lastPaymentAmounts = new Map();
+
+    // Loading state management
+    this.loadingManager = new LoadingStateManager();
+    this.isInitializing = false;
+
     this.sortField = 'name'; // Default sort field: name, outstanding, total
     this.sortDirection = 'asc'; // asc or desc
   }
 
   async init() {
-    this.setActiveTabFromQuery();
-    try {
-      await this.loadCoreData();
-    } catch (error) {
-      debugError("Error loading finance data:", error);
-      // Continue rendering even if some data failed to load
-      this.app.showMessage(translate("error_loading_data"), "warning");
+    // Prevent race conditions - only one init at a time
+    if (this.isInitializing) {
+      debugError("Finance init already in progress, skipping duplicate call");
+      return;
     }
 
-    // Always render the page, even with partial data
+    this.isInitializing = true;
+    this.setActiveTabFromQuery();
+
     try {
+      // Render loading state immediately
+      this.renderLoading();
+
+      await this.loadCoreData();
+
+      // Render with data
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Unable to render finance page:", error);
-      this.app.showMessage(translate("error_loading_data"), "error");
+      debugError("Error loading finance data:", error);
+      // Render error state but allow partial functionality
+      this.render();
+      this.attachEventListeners();
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -69,30 +88,49 @@ export class Finance {
   }
 
   async loadCoreData() {
-    // Load data with individual error handling to prevent total failure
-    const [fees, feeDefs, participants, summary] = await Promise.all([
-      getParticipantFees().catch(error => {
-        debugError("Error loading participant fees:", error);
-        return { data: [] };
-      }),
-      getFeeDefinitions().catch(error => {
-        debugError("Error loading fee definitions:", error);
-        return { data: [] };
-      }),
-      getParticipants().catch(error => {
-        debugError("Error loading participants:", error);
-        return { data: [] };
-      }),
-      getFinanceReport().catch(error => {
-        debugError("Error loading finance report:", error);
-        return { data: null };
-      })
-    ]);
+    return this.loadingManager.withLoading('core-data', async () => {
+      // Load data with individual error handling and retry logic
+      const [fees, feeDefs, participants, summary] = await Promise.all([
+        retryWithBackoff(
+          () => getParticipantFees(),
+          {
+            maxRetries: 2,
+            onRetry: (attempt, max, delay) => {
+              debugError(`Retrying participant fees (${attempt}/${max}) in ${delay}ms`);
+            }
+          }
+        ).catch(error => {
+          debugError("Error loading participant fees:", error);
+          return { data: [] };
+        }),
+        retryWithBackoff(
+          () => getFeeDefinitions(),
+          { maxRetries: 2 }
+        ).catch(error => {
+          debugError("Error loading fee definitions:", error);
+          return { data: [] };
+        }),
+        retryWithBackoff(
+          () => getParticipants(),
+          { maxRetries: 2 }
+        ).catch(error => {
+          debugError("Error loading participants:", error);
+          return { data: [] };
+        }),
+        retryWithBackoff(
+          () => getFinanceReport(),
+          { maxRetries: 2 }
+        ).catch(error => {
+          debugError("Error loading finance report:", error);
+          return { data: null };
+        })
+      ]);
 
-    this.participantFees = fees?.data || fees?.participant_fees || [];
-    this.feeDefinitions = feeDefs?.data || feeDefs?.fee_definitions || [];
-    this.participants = participants?.data || participants?.participants || [];
-    this.financeSummary = summary?.data || null;
+      this.participantFees = fees?.data || fees?.participant_fees || [];
+      this.feeDefinitions = feeDefs?.data || feeDefs?.fee_definitions || [];
+      this.participants = participants?.data || participants?.participants || [];
+      this.financeSummary = summary?.data || null;
+    });
   }
 
   formatCurrency(amount) {
@@ -189,6 +227,27 @@ export class Finance {
     if (!definition) return;
     form.total_registration_fee.value = definition.registration_fee ?? "";
     form.total_membership_fee.value = definition.membership_fee ?? "";
+  }
+
+  renderLoading() {
+    const content = `
+      <section class="finance-page">
+        <header class="finance-header">
+          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <div>
+            <p class="finance-kicker">${translate("dashboard_day_to_day_section")}</p>
+            <h1>${translate("finance_center_title")}</h1>
+            <p class="finance-subtitle">${translate("finance_center_subtitle")}</p>
+          </div>
+        </header>
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>${translate("loading")}...</p>
+        </div>
+      </section>
+    `;
+
+    document.getElementById("app").innerHTML = content;
   }
 
   render() {
@@ -1003,12 +1062,22 @@ export class Finance {
   }
 
   async openPaymentModal(feeId) {
+    // Clean up any existing modal first (prevent accumulation)
+    const existingModal = document.getElementById('payment-modal');
+    if (existingModal && existingModal.classList.contains('show')) {
+      this.closeModal(existingModal);
+      // Small delay to allow close animation
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     const modal = document.getElementById('payment-modal');
     if (!modal) return;
+
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     document.getElementById('payment_fee_id').value = feeId;
     this.resetPaymentRows();
+
     const fee = this.participantFees.find((item) => String(item.id) === String(feeId));
     this.updatePaymentSummary(fee);
     this.prefillPaymentRowAmounts(fee);
@@ -1104,19 +1173,50 @@ export class Finance {
     const form = event.target;
     const feeId = form.participant_fee_id.value;
     const rows = Array.from(document.querySelectorAll('#payment-rows .payment-row'));
+
+    // Validate and collect payments with improved validation
+    const validationErrors = [];
     const payments = rows
-      .map((row) => {
+      .map((row, rowIndex) => {
         const index = row.dataset.index;
-        const amount = parseFloat(row.querySelector(`[name="amount_${index}"]`)?.value || 0);
-        const payment_date = row.querySelector(`[name="payment_date_${index}"]`)?.value;
+        const amountInput = row.querySelector(`[name="amount_${index}"]`)?.value;
+        const dateInput = row.querySelector(`[name="payment_date_${index}"]`)?.value;
         const method = row.querySelector(`[name="method_${index}"]`)?.value || 'cash';
         const reference_number = row.querySelector(`[name="reference_number_${index}"]`)?.value || '';
-        if (!amount || amount <= 0 || !payment_date) {
+
+        // Skip empty rows
+        if (!amountInput && !dateInput) {
           return null;
         }
-        return { amount, payment_date, method, reference_number };
+
+        // Validate amount
+        const amountValidation = validateMoney(amountInput, `Amount (Row ${rowIndex + 1})`, { min: 0.01 });
+        if (!amountValidation.valid) {
+          validationErrors.push(amountValidation.error);
+          return null;
+        }
+
+        // Validate date
+        const dateValidation = validateDateField(dateInput, `Date (Row ${rowIndex + 1})`);
+        if (!dateValidation.valid) {
+          validationErrors.push(dateValidation.error);
+          return null;
+        }
+
+        return {
+          amount: amountValidation.value,
+          payment_date: dateInput,
+          method,
+          reference_number
+        };
       })
       .filter(Boolean);
+
+    // Show validation errors
+    if (validationErrors.length > 0) {
+      this.app.showMessage(validationErrors[0], 'error');
+      return;
+    }
 
     if (!payments.length) {
       this.app.showMessage(translate('enter_payment_before_save'), 'error');
@@ -1151,8 +1251,17 @@ export class Finance {
   }
 
   async openPlanModal(feeId) {
+    // Clean up any existing modal first (prevent accumulation)
+    const existingModal = document.getElementById('plan-modal');
+    if (existingModal && existingModal.classList.contains('show')) {
+      this.closeModal(existingModal);
+      // Small delay to allow close animation
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     const modal = document.getElementById('plan-modal');
     if (!modal) return;
+
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
     document.getElementById('plan_fee_id').value = feeId;

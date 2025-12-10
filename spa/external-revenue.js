@@ -10,6 +10,8 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
+import { LoadingStateManager, debounce, retryWithBackoff } from "./utils/PerformanceUtils.js";
+import { validateMoney, validateDateField, validateRequired } from "./utils/ValidationUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -30,6 +32,13 @@ export class ExternalRevenue {
       category_id: 'all'
     };
     this.fiscalYear = this.getCurrentFiscalYear();
+
+    // Loading state management
+    this.loadingManager = new LoadingStateManager();
+    this.isInitializing = false;
+
+    // Debounced filter application
+    this.debouncedApplyFilters = debounce(this.applyFilters.bind(this), 300);
   }
 
   /**

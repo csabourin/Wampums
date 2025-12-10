@@ -460,3 +460,164 @@ export function validateForm(data, schema) {
         errors: errors
     };
 }
+
+/**
+ * Validate money amount (Financial validation)
+ * @param {any} value - Value to validate
+ * @param {string} fieldName - Field name for error message
+ * @param {Object} options - Validation options
+ * @returns {{valid: boolean, error: string|null, value: number|null}} Validation result
+ */
+export function validateMoney(value, fieldName = 'Amount', options = {}) {
+    const { min = 0, max = Infinity, required = true } = options;
+
+    if (required && (value === null || value === undefined || value === '')) {
+        return {
+            valid: false,
+            error: `${fieldName} is required`,
+            value: null
+        };
+    }
+
+    if (!required && (value === null || value === undefined || value === '')) {
+        return { valid: true, error: null, value: 0 };
+    }
+
+    const numeric = parseFloat(value);
+
+    if (Number.isNaN(numeric)) {
+        return {
+            valid: false,
+            error: `${fieldName} must be a valid number`,
+            value: null
+        };
+    }
+
+    if (numeric < min) {
+        return {
+            valid: false,
+            error: `${fieldName} must be at least ${min}`,
+            value: null
+        };
+    }
+
+    if (numeric > max) {
+        return {
+            valid: false,
+            error: `${fieldName} cannot exceed ${max}`,
+            value: null
+        };
+    }
+
+    return { valid: true, error: null, value: numeric };
+}
+
+/**
+ * Validate date field
+ * @param {any} value - Value to validate
+ * @param {string} fieldName - Field name for error message
+ * @param {Object} options - Validation options
+ * @returns {{valid: boolean, error: string|null, value: Date|null}} Validation result
+ */
+export function validateDateField(value, fieldName = 'Date', options = {}) {
+    const { required = true, minDate = null, maxDate = null } = options;
+
+    if (required && !value) {
+        return {
+            valid: false,
+            error: `${fieldName} is required`,
+            value: null
+        };
+    }
+
+    if (!required && !value) {
+        return { valid: true, error: null, value: null };
+    }
+
+    if (!isValidDate(value)) {
+        return {
+            valid: false,
+            error: `${fieldName} must be a valid date`,
+            value: null
+        };
+    }
+
+    const date = new Date(value);
+
+    if (minDate && date < new Date(minDate)) {
+        return {
+            valid: false,
+            error: `${fieldName} cannot be before ${minDate}`,
+            value: null
+        };
+    }
+
+    if (maxDate && date > new Date(maxDate)) {
+        return {
+            valid: false,
+            error: `${fieldName} cannot be after ${maxDate}`,
+            value: null
+        };
+    }
+
+    return { valid: true, error: null, value: date };
+}
+
+/**
+ * Validate positive integer
+ * @param {any} value - Value to validate
+ * @param {string} fieldName - Field name for error message
+ * @param {Object} options - Validation options
+ * @returns {{valid: boolean, error: string|null, value: number|null}} Validation result
+ */
+export function validatePositiveInteger(value, fieldName = 'Number', options = {}) {
+    const { required = true, min = 1 } = options;
+
+    if (required && (value === null || value === undefined || value === '')) {
+        return {
+            valid: false,
+            error: `${fieldName} is required`,
+            value: null
+        };
+    }
+
+    if (!required && (value === null || value === undefined || value === '')) {
+        return { valid: true, error: null, value: null };
+    }
+
+    const numeric = parseInt(value, 10);
+
+    if (!Number.isInteger(numeric) || numeric < min) {
+        return {
+            valid: false,
+            error: `${fieldName} must be a positive integer`,
+            value: null
+        };
+    }
+
+    return { valid: true, error: null, value: numeric };
+}
+
+/**
+ * Sanitize money input (remove non-numeric characters except decimal)
+ * @param {string} value - Input value
+ * @returns {string} Sanitized value
+ */
+export function sanitizeMoneyInput(value) {
+    if (!value) return '';
+    return String(value).replace(/[^0-9.]/g, '');
+}
+
+/**
+ * Sanitize text input (basic cleanup)
+ * @param {string} value - Input value
+ * @param {number} maxLength - Maximum length
+ * @returns {string} Sanitized value
+ */
+export function sanitizeTextInput(value, maxLength = 1000) {
+    if (!value) return '';
+    return String(value)
+        .trim()
+        .substring(0, maxLength)
+        .replace(/[<>]/g, ''); // Basic tag prevention
+}
