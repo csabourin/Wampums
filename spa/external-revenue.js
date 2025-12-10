@@ -4,14 +4,22 @@ import {
   updateExternalRevenue,
   deleteExternalRevenue,
   getExternalRevenueSummary,
-  getBudgetCategories
+  getBudgetCategories,
 } from "./api/api-endpoints.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
-import { LoadingStateManager, debounce, retryWithBackoff } from "./utils/PerformanceUtils.js";
-import { validateMoney, validateDateField, validateRequired } from "./utils/ValidationUtils.js";
+import {
+  LoadingStateManager,
+  debounce,
+  retryWithBackoff,
+} from "./utils/PerformanceUtils.js";
+import {
+  validateMoney,
+  validateDateField,
+  validateRequired,
+} from "./utils/ValidationUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -26,10 +34,10 @@ export class ExternalRevenue {
     this.categories = [];
     this.summary = null;
     this.filters = {
-      start_date: '',
-      end_date: '',
-      revenue_type: 'all',
-      category_id: 'all'
+      start_date: "",
+      end_date: "",
+      revenue_type: "all",
+      category_id: "all",
     };
     this.fiscalYear = this.getCurrentFiscalYear();
 
@@ -49,17 +57,18 @@ export class ExternalRevenue {
     const year = now.getFullYear();
     const month = now.getMonth(); // 0-indexed
 
-    if (month >= 8) { // September or later
+    if (month >= 8) {
+      // September or later
       return {
         start: `${year}-09-01`,
         end: `${year + 1}-08-31`,
-        label: `${year}-${year + 1}`
+        label: `${year}-${year + 1}`,
       };
     } else {
       return {
         start: `${year - 1}-09-01`,
         end: `${year}-08-31`,
-        label: `${year - 1}-${year}`
+        label: `${year - 1}-${year}`,
       };
     }
   }
@@ -67,7 +76,9 @@ export class ExternalRevenue {
   async init() {
     // Prevent race conditions - only one init at a time
     if (this.isInitializing) {
-      debugError("ExternalRevenue init already in progress, skipping duplicate call");
+      debugError(
+        "ExternalRevenue init already in progress, skipping duplicate call",
+      );
       return;
     }
 
@@ -101,12 +112,11 @@ export class ExternalRevenue {
   }
 
   async loadCategories() {
-    return this.loadingManager.withLoading('categories', async () => {
+    return this.loadingManager.withLoading("categories", async () => {
       try {
-        const response = await retryWithBackoff(
-          () => getBudgetCategories(),
-          { maxRetries: 2 }
-        );
+        const response = await retryWithBackoff(() => getBudgetCategories(), {
+          maxRetries: 2,
+        });
         this.categories = response?.data || [];
         debugLog(`Loaded ${this.categories.length} categories`);
       } catch (error) {
@@ -117,26 +127,27 @@ export class ExternalRevenue {
   }
 
   async loadRevenues() {
-    return this.loadingManager.withLoading('revenues', async () => {
+    return this.loadingManager.withLoading("revenues", async () => {
       try {
         const response = await retryWithBackoff(
           () => getExternalRevenue(this.filters),
-          { maxRetries: 2 }
+          { maxRetries: 2 },
         );
         this.revenues = response?.data || [];
         debugLog(`Loaded ${this.revenues.length} external revenue entries`);
-    } catch (error) {
-      debugError("Error loading external revenues", error);
-      this.revenues = [];
-      // Don't throw - allow page to render with empty data
-    }
+      } catch (error) {
+        debugError("Error loading external revenues", error);
+        this.revenues = [];
+        // Don't throw - allow page to render with empty data
+      }
+    });
   }
 
   async loadSummary() {
     try {
       const response = await getExternalRevenueSummary(
         this.filters.start_date,
-        this.filters.end_date
+        this.filters.end_date,
       );
       this.summary = response?.data || null;
       debugLog("Loaded external revenue summary", this.summary);
@@ -151,16 +162,16 @@ export class ExternalRevenue {
     return new Intl.NumberFormat(this.app.lang || "en", {
       style: "currency",
       currency: DEFAULT_CURRENCY,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value);
   }
 
   getRevenueTypeLabel(type) {
     const types = {
-      'donation': translate("donation"),
-      'sponsorship': translate("sponsorship"),
-      'grant': translate("grant"),
-      'other': translate("other")
+      donation: translate("donation"),
+      sponsorship: translate("sponsorship"),
+      grant: translate("grant"),
+      other: translate("other"),
     };
     return types[type] || type;
   }
@@ -250,23 +261,27 @@ export class ExternalRevenue {
           <div class="filter-group">
             <label for="filter-revenue-type">${translate("revenue_type")}</label>
             <select id="filter-revenue-type">
-              <option value="all" ${this.filters.revenue_type === 'all' ? 'selected' : ''}>${translate("all_types")}</option>
-              <option value="donation" ${this.filters.revenue_type === 'donation' ? 'selected' : ''}>${translate("donation")}</option>
-              <option value="sponsorship" ${this.filters.revenue_type === 'sponsorship' ? 'selected' : ''}>${translate("sponsorship")}</option>
-              <option value="grant" ${this.filters.revenue_type === 'grant' ? 'selected' : ''}>${translate("grant")}</option>
-              <option value="other" ${this.filters.revenue_type === 'other' ? 'selected' : ''}>${translate("other")}</option>
+              <option value="all" ${this.filters.revenue_type === "all" ? "selected" : ""}>${translate("all_types")}</option>
+              <option value="donation" ${this.filters.revenue_type === "donation" ? "selected" : ""}>${translate("donation")}</option>
+              <option value="sponsorship" ${this.filters.revenue_type === "sponsorship" ? "selected" : ""}>${translate("sponsorship")}</option>
+              <option value="grant" ${this.filters.revenue_type === "grant" ? "selected" : ""}>${translate("grant")}</option>
+              <option value="other" ${this.filters.revenue_type === "other" ? "selected" : ""}>${translate("other")}</option>
             </select>
           </div>
 
           <div class="filter-group">
             <label for="filter-category">${translate("category")}</label>
             <select id="filter-category">
-              <option value="all" ${this.filters.category_id === 'all' ? 'selected' : ''}>${translate("all_categories")}</option>
-              ${this.categories.map(cat => `
-                <option value="${cat.id}" ${this.filters.category_id == cat.id ? 'selected' : ''}>
+              <option value="all" ${this.filters.category_id === "all" ? "selected" : ""}>${translate("all_categories")}</option>
+              ${this.categories
+                .map(
+                  (cat) => `
+                <option value="${cat.id}" ${this.filters.category_id == cat.id ? "selected" : ""}>
                   ${escapeHTML(cat.name)}
                 </option>
-              `).join("")}
+              `,
+                )
+                .join("")}
             </select>
           </div>
 
@@ -284,10 +299,11 @@ export class ExternalRevenue {
   }
 
   renderActionButtons() {
-    const canEdit = this.app.userRole === 'admin' || this.app.userRole === 'animation';
-    
+    const canEdit =
+      this.app.userRole === "admin" || this.app.userRole === "animation";
+
     if (!canEdit) {
-      return '';
+      return "";
     }
 
     return `
@@ -322,7 +338,7 @@ export class ExternalRevenue {
             </tr>
           </thead>
           <tbody>
-            ${this.revenues.map(revenue => this.renderRevenueRow(revenue)).join("")}
+            ${this.revenues.map((revenue) => this.renderRevenueRow(revenue)).join("")}
           </tbody>
         </table>
       </div>
@@ -330,8 +346,9 @@ export class ExternalRevenue {
   }
 
   renderRevenueRow(revenue) {
-    const canEdit = this.app.userRole === 'admin' || this.app.userRole === 'animation';
-    const canDelete = this.app.userRole === 'admin';
+    const canEdit =
+      this.app.userRole === "admin" || this.app.userRole === "animation";
+    const canDelete = this.app.userRole === "admin";
 
     return `
       <tr data-revenue-id="${revenue.id}">
@@ -342,16 +359,24 @@ export class ExternalRevenue {
         <td class="text-right amount revenue">${this.formatCurrency(revenue.amount)}</td>
         <td class="text-small">${escapeHTML(revenue.reference_number || "-")}</td>
         <td class="actions-cell">
-          ${canEdit ? `
+          ${
+            canEdit
+              ? `
             <button class="btn btn-sm btn-secondary edit-revenue-btn" data-id="${revenue.id}">
               ${translate("edit")}
             </button>
-          ` : ''}
-          ${canDelete ? `
+          `
+              : ""
+          }
+          ${
+            canDelete
+              ? `
             <button class="btn btn-sm btn-danger delete-revenue-btn" data-id="${revenue.id}">
               ${translate("delete")}
             </button>
-          ` : ''}
+          `
+              : ""
+          }
         </td>
       </tr>
     `;
@@ -382,10 +407,10 @@ export class ExternalRevenue {
     }
 
     // Edit buttons
-    document.querySelectorAll(".edit-revenue-btn").forEach(btn => {
+    document.querySelectorAll(".edit-revenue-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         const id = parseInt(e.target.dataset.id);
-        const revenue = this.revenues.find(r => r.id === id);
+        const revenue = this.revenues.find((r) => r.id === id);
         if (revenue) {
           this.showRevenueModal(revenue);
         }
@@ -393,7 +418,7 @@ export class ExternalRevenue {
     });
 
     // Delete buttons
-    document.querySelectorAll(".delete-revenue-btn").forEach(btn => {
+    document.querySelectorAll(".delete-revenue-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
         const id = parseInt(e.target.dataset.id);
         if (confirm(translate("confirm_delete_external_revenue"))) {
@@ -404,15 +429,15 @@ export class ExternalRevenue {
   }
 
   async applyFilters() {
-    this.filters.start_date = document.getElementById("filter-start-date").value;
+    this.filters.start_date =
+      document.getElementById("filter-start-date").value;
     this.filters.end_date = document.getElementById("filter-end-date").value;
-    this.filters.revenue_type = document.getElementById("filter-revenue-type").value;
+    this.filters.revenue_type = document.getElementById(
+      "filter-revenue-type",
+    ).value;
     this.filters.category_id = document.getElementById("filter-category").value;
 
-    await Promise.all([
-      this.loadRevenues(),
-      this.loadSummary()
-    ]);
+    await Promise.all([this.loadRevenues(), this.loadSummary()]);
     this.render();
     this.attachEventListeners();
   }
@@ -421,14 +446,11 @@ export class ExternalRevenue {
     this.filters = {
       start_date: this.fiscalYear.start,
       end_date: this.fiscalYear.end,
-      revenue_type: 'all',
-      category_id: 'all'
+      revenue_type: "all",
+      category_id: "all",
     };
 
-    await Promise.all([
-      this.loadRevenues(),
-      this.loadSummary()
-    ]);
+    await Promise.all([this.loadRevenues(), this.loadSummary()]);
     this.render();
     this.attachEventListeners();
   }
@@ -477,11 +499,15 @@ export class ExternalRevenue {
                 <label for="revenue-category">${translate("category")}</label>
                 <select id="revenue-category">
                   <option value="">${translate("uncategorized")}</option>
-                  ${this.categories.map(cat => `
+                  ${this.categories
+                    .map(
+                      (cat) => `
                     <option value="${cat.id}" ${revenue?.budget_category_id === cat.id ? "selected" : ""}>
                       ${escapeHTML(cat.name)}
                     </option>
-                  `).join("")}
+                  `,
+                    )
+                    .join("")}
                 </select>
               </div>
 
@@ -527,18 +553,24 @@ export class ExternalRevenue {
 
     document.body.insertAdjacentHTML("beforeend", modalHTML);
 
-    document.getElementById("close-revenue-modal").addEventListener("click", () => {
-      document.getElementById("revenue-modal").remove();
-    });
+    document
+      .getElementById("close-revenue-modal")
+      .addEventListener("click", () => {
+        document.getElementById("revenue-modal").remove();
+      });
 
-    document.getElementById("cancel-revenue-btn").addEventListener("click", () => {
-      document.getElementById("revenue-modal").remove();
-    });
+    document
+      .getElementById("cancel-revenue-btn")
+      .addEventListener("click", () => {
+        document.getElementById("revenue-modal").remove();
+      });
 
-    document.getElementById("revenue-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      await this.saveRevenue(revenue?.id);
-    });
+    document
+      .getElementById("revenue-form")
+      .addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await this.saveRevenue(revenue?.id);
+      });
   }
 
   async saveRevenue(revenueId = null) {
@@ -546,9 +578,12 @@ export class ExternalRevenue {
     const revenueDate = document.getElementById("revenue-date").value;
     const description = document.getElementById("revenue-description").value;
     const amount = parseFloat(document.getElementById("revenue-amount").value);
-    const categoryId = document.getElementById("revenue-category").value || null;
+    const categoryId =
+      document.getElementById("revenue-category").value || null;
     const referenceNumber = document.getElementById("revenue-reference").value;
-    const paymentMethod = document.getElementById("revenue-payment-method").value;
+    const paymentMethod = document.getElementById(
+      "revenue-payment-method",
+    ).value;
     const receiptUrl = document.getElementById("revenue-receipt-url").value;
     const notes = document.getElementById("revenue-notes").value;
 
@@ -562,7 +597,7 @@ export class ExternalRevenue {
         reference_number: referenceNumber,
         payment_method: paymentMethod,
         receipt_url: receiptUrl,
-        notes
+        notes,
       };
 
       if (revenueId) {
@@ -574,10 +609,7 @@ export class ExternalRevenue {
       }
 
       document.getElementById("revenue-modal").remove();
-      await Promise.all([
-        this.loadRevenues(),
-        this.loadSummary()
-      ]);
+      await Promise.all([this.loadRevenues(), this.loadSummary()]);
       this.render();
       this.attachEventListeners();
     } catch (error) {
@@ -590,15 +622,15 @@ export class ExternalRevenue {
     try {
       await deleteExternalRevenue(revenueId);
       this.app.showMessage(translate("external_revenue_deleted"), "success");
-      await Promise.all([
-        this.loadRevenues(),
-        this.loadSummary()
-      ]);
+      await Promise.all([this.loadRevenues(), this.loadSummary()]);
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError("Error deleting external revenue", error);
-      this.app.showMessage(translate("error_deleting_external_revenue"), "error");
+      this.app.showMessage(
+        translate("error_deleting_external_revenue"),
+        "error",
+      );
     }
   }
 
@@ -617,10 +649,10 @@ export class ExternalRevenue {
       translate("amount"),
       translate("reference"),
       translate("payment_method"),
-      translate("notes")
+      translate("notes"),
     ];
 
-    const rows = this.revenues.map(revenue => [
+    const rows = this.revenues.map((revenue) => [
       revenue.revenue_date,
       this.getRevenueTypeLabel(revenue.revenue_type),
       revenue.description,
@@ -628,12 +660,12 @@ export class ExternalRevenue {
       revenue.amount,
       revenue.reference_number || "-",
       revenue.payment_method || "-",
-      revenue.notes || ""
+      revenue.notes || "",
     ]);
 
     const csvContent = [
       headers.join(","),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
     ].join("\n");
 
     // Download file
