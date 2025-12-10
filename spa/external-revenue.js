@@ -65,43 +65,66 @@ export class ExternalRevenue {
   }
 
   async init() {
+    // Prevent race conditions - only one init at a time
+    if (this.isInitializing) {
+      debugError("ExternalRevenue init already in progress, skipping duplicate call");
+      return;
+    }
+
+    this.isInitializing = true;
+
     try {
       // Set default date filters to current fiscal year
       this.filters.start_date = this.fiscalYear.start;
       this.filters.end_date = this.fiscalYear.end;
 
+      // Render loading state immediately
+      this.renderLoading();
+
       // Load data - each function handles its own errors
       await this.loadCategories();
       await this.loadRevenues();
       await this.loadSummary();
-      
-      // Always render, even if data loading failed
+
+      // Render with data
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError("Unable to initialize external revenue page", error);
-      this.app.showMessage(translate("error_loading_data"), "error");
-      // Still try to render a basic page
+      // Render error state but allow partial functionality
       this.render();
+      this.attachEventListeners();
+      this.app.showMessage(translate("error_loading_data"), "error");
+    } finally {
+      this.isInitializing = false;
     }
   }
 
   async loadCategories() {
-    try {
-      const response = await getBudgetCategories();
-      this.categories = response?.data || [];
-      debugLog(`Loaded ${this.categories.length} categories`);
-    } catch (error) {
-      debugError("Error loading categories", error);
-      this.categories = [];
-    }
+    return this.loadingManager.withLoading('categories', async () => {
+      try {
+        const response = await retryWithBackoff(
+          () => getBudgetCategories(),
+          { maxRetries: 2 }
+        );
+        this.categories = response?.data || [];
+        debugLog(`Loaded ${this.categories.length} categories`);
+      } catch (error) {
+        debugError("Error loading categories", error);
+        this.categories = [];
+      }
+    });
   }
 
   async loadRevenues() {
-    try {
-      const response = await getExternalRevenue(this.filters);
-      this.revenues = response?.data || [];
-      debugLog(`Loaded ${this.revenues.length} external revenue entries`);
+    return this.loadingManager.withLoading('revenues', async () => {
+      try {
+        const response = await retryWithBackoff(
+          () => getExternalRevenue(this.filters),
+          { maxRetries: 2 }
+        );
+        this.revenues = response?.data || [];
+        debugLog(`Loaded ${this.revenues.length} external revenue entries`);
     } catch (error) {
       debugError("Error loading external revenues", error);
       this.revenues = [];
@@ -140,6 +163,29 @@ export class ExternalRevenue {
       'other': translate("other")
     };
     return types[type] || type;
+  }
+
+  renderLoading() {
+    const container = document.getElementById("app");
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="page-container external-revenue-page">
+        <div class="page-header">
+          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <div class="page-header-content">
+            <h1>${translate("external_revenue")}</h1>
+            <div class="fiscal-year-display">
+              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>${translate("loading")}...</p>
+        </div>
+      </div>
+    `;
   }
 
   async render() {

@@ -61,52 +61,72 @@ export class RevenueDashboard {
   }
 
   async init() {
-    try {
-      await this.loadCategories();
-      await this.loadAllData();
-    } catch (error) {
-      debugError("Error loading revenue data:", error);
-      // Continue rendering even if some data failed to load
-      this.app.showMessage(translate("error_loading_data"), "warning");
+    // Prevent race conditions - only one init at a time
+    if (this.isInitializing) {
+      debugError("RevenueDashboard init already in progress, skipping duplicate call");
+      return;
     }
 
-    // Always render the page, even with partial data
+    this.isInitializing = true;
+
     try {
+      // Render loading state immediately
+      this.renderLoading();
+
+      await this.loadCategories();
+      await this.loadAllData();
+
+      // Render with data
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Unable to render revenue dashboard:", error);
-      this.app.showMessage(translate("error_loading_data"), "error");
+      debugError("Error loading revenue data:", error);
+      // Render error state but allow partial functionality
+      this.render();
+      this.attachEventListeners();
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    } finally {
+      this.isInitializing = false;
     }
   }
 
   async loadCategories() {
-    try {
-      const response = await getBudgetCategories();
-      this.categories = response?.data || [];
-      debugLog(`Loaded ${this.categories.length} categories`);
-    } catch (error) {
-      debugError("Error loading categories", error);
-      this.categories = [];
-    }
+    return this.loadingManager.withLoading('categories', async () => {
+      try {
+        const response = await retryWithBackoff(
+          () => getBudgetCategories(),
+          { maxRetries: 2 }
+        );
+        this.categories = response?.data || [];
+        debugLog(`Loaded ${this.categories.length} categories`);
+      } catch (error) {
+        debugError("Error loading categories", error);
+        this.categories = [];
+      }
+    });
   }
 
   async loadAllData() {
-    // Individual load methods have their own error handling
-    // Don't throw here - allow page to render with partial data
-    await Promise.all([
-      this.loadDashboardData(),
-      this.loadBySourceData(),
-      this.loadByCategoryData(),
-      this.loadComparisonData()
-    ]);
+    return this.loadingManager.withLoading('all-data', async () => {
+      // Individual load methods have their own error handling
+      // Don't throw here - allow page to render with partial data
+      await Promise.all([
+        this.loadDashboardData(),
+        this.loadBySourceData(),
+        this.loadByCategoryData(),
+        this.loadComparisonData()
+      ]);
+    });
   }
 
   async loadDashboardData() {
     try {
-      const response = await getRevenueDashboard(
-        this.customDateRange.start,
-        this.customDateRange.end
+      const response = await retryWithBackoff(
+        () => getRevenueDashboard(
+          this.customDateRange.start,
+          this.customDateRange.end
+        ),
+        { maxRetries: 2 }
       );
       this.dashboardData = response?.data || null;
       debugLog("Loaded dashboard data", this.dashboardData);
@@ -179,6 +199,29 @@ export class RevenueDashboard {
       'other': translate("other")
     };
     return labels[source] || source;
+  }
+
+  renderLoading() {
+    const container = document.getElementById("app");
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="page-container revenue-dashboard-page">
+        <div class="page-header">
+          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <div class="page-header-content">
+            <h1>${translate("revenue_dashboard")}</h1>
+            <div class="fiscal-year-display">
+              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>${translate("loading")}...</p>
+        </div>
+      </div>
+    `;
   }
 
   async render() {

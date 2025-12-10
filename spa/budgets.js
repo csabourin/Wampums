@@ -22,6 +22,8 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
+import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
+import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -45,6 +47,10 @@ export class Budgets {
       source: "all",
       category: "all",
     };
+
+    // Loading state management
+    this.loadingManager = new LoadingStateManager();
+    this.isInitializing = false;
   }
 
   /**
@@ -72,22 +78,32 @@ export class Budgets {
   }
 
   async init() {
-    this.setActiveTabFromQuery();
-    try {
-      await this.loadCoreData();
-    } catch (error) {
-      debugError("Error loading budgets data:", error);
-      // Continue rendering even if some data failed to load
-      this.app.showMessage(translate("error_loading_data"), "warning");
+    // Prevent race conditions - only one init at a time
+    if (this.isInitializing) {
+      debugError("Budgets init already in progress, skipping duplicate call");
+      return;
     }
 
-    // Always render the page, even with partial data
+    this.isInitializing = true;
+    this.setActiveTabFromQuery();
+
     try {
+      // Render loading state immediately
+      this.renderLoading();
+
+      await this.loadCoreData();
+
+      // Render with data
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Unable to render budgets page:", error);
-      this.app.showMessage(translate("error_loading_data"), "error");
+      debugError("Error loading budgets data:", error);
+      // Render error state but allow partial functionality
+      this.render();
+      this.attachEventListeners();
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -101,43 +117,65 @@ export class Budgets {
   }
 
   async loadCoreData() {
-    debugLog("Loading budget data...");
-    // Load data with individual error handling to prevent total failure
-    const [categories, items, expenses, summary, plans] = await Promise.all([
-      getBudgetCategories().catch(error => {
-        debugError("Error loading budget categories:", error);
-        return { data: [] };
-      }),
-      getBudgetItems().catch(error => {
-        debugError("Error loading budget items:", error);
-        return { data: [] };
-      }),
-      getBudgetExpenses({
-        start_date: this.fiscalYear.start,
-        end_date: this.fiscalYear.end,
-      }).catch(error => {
-        debugError("Error loading budget expenses:", error);
-        return { data: [] };
-      }),
-      getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end).catch(error => {
-        debugError("Error loading budget summary:", error);
-        return { data: null };
-      }),
-      getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end).catch(error => {
-        debugError("Error loading budget plans:", error);
-        return { data: [] };
-      }),
-    ]);
+    return this.loadingManager.withLoading('core-data', async () => {
+      debugLog("Loading budget data...");
+      // Load data with individual error handling and retry logic
+      const [categories, items, expenses, summary, plans] = await Promise.all([
+        retryWithBackoff(
+          () => getBudgetCategories(),
+          {
+            maxRetries: 2,
+            onRetry: (attempt, max, delay) => {
+              debugLog(`Retrying budget categories (${attempt}/${max}) in ${delay}ms`);
+            }
+          }
+        ).catch(error => {
+          debugError("Error loading budget categories:", error);
+          return { data: [] };
+        }),
+        retryWithBackoff(
+          () => getBudgetItems(),
+          { maxRetries: 2 }
+        ).catch(error => {
+          debugError("Error loading budget items:", error);
+          return { data: [] };
+        }),
+        retryWithBackoff(
+          () => getBudgetExpenses({
+            start_date: this.fiscalYear.start,
+            end_date: this.fiscalYear.end,
+          }),
+          { maxRetries: 2 }
+        ).catch(error => {
+          debugError("Error loading budget expenses:", error);
+          return { data: [] };
+        }),
+        retryWithBackoff(
+          () => getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end),
+          { maxRetries: 2 }
+        ).catch(error => {
+          debugError("Error loading budget summary:", error);
+          return { data: null };
+        }),
+        retryWithBackoff(
+          () => getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end),
+          { maxRetries: 2 }
+        ).catch(error => {
+          debugError("Error loading budget plans:", error);
+          return { data: [] };
+        }),
+      ]);
 
-    this.categories = categories?.data || [];
-    this.items = items?.data || [];
-    this.expenses = expenses?.data || [];
-    this.summaryReport = summary?.data || null;
-    this.budgetPlans = plans?.data || [];
+      this.categories = categories?.data || [];
+      this.items = items?.data || [];
+      this.expenses = expenses?.data || [];
+      this.summaryReport = summary?.data || null;
+      this.budgetPlans = plans?.data || [];
 
-    debugLog(
-      `Loaded ${this.categories.length} categories, ${this.expenses.length} expenses, ${this.budgetPlans.length} plans`,
-    );
+      debugLog(
+        `Loaded ${this.categories.length} categories, ${this.expenses.length} expenses, ${this.budgetPlans.length} plans`,
+      );
+    });
   }
 
   formatCurrency(amount) {
@@ -147,6 +185,29 @@ export class Budgets {
       currency: DEFAULT_CURRENCY,
       maximumFractionDigits: 2,
     }).format(value);
+  }
+
+  renderLoading() {
+    const container = document.getElementById("app");
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="page-container budget-page">
+        <div class="page-header">
+          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <div class="page-header-content">
+            <h1>${translate("budget_management")}</h1>
+            <div class="fiscal-year-display">
+              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>${translate("loading")}...</p>
+        </div>
+      </div>
+    `;
   }
 
   async render() {
