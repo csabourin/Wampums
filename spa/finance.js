@@ -43,10 +43,18 @@ export class Finance {
     this.setActiveTabFromQuery();
     try {
       await this.loadCoreData();
+    } catch (error) {
+      debugError("Error loading finance data:", error);
+      // Continue rendering even if some data failed to load
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    }
+
+    // Always render the page, even with partial data
+    try {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Unable to initialize finance page", error);
+      debugError("Unable to render finance page:", error);
       this.app.showMessage(translate("error_loading_data"), "error");
     }
   }
@@ -61,11 +69,24 @@ export class Finance {
   }
 
   async loadCoreData() {
+    // Load data with individual error handling to prevent total failure
     const [fees, feeDefs, participants, summary] = await Promise.all([
-      getParticipantFees(),
-      getFeeDefinitions(),
-      getParticipants(),
-      getFinanceReport()
+      getParticipantFees().catch(error => {
+        debugError("Error loading participant fees:", error);
+        return { data: [] };
+      }),
+      getFeeDefinitions().catch(error => {
+        debugError("Error loading fee definitions:", error);
+        return { data: [] };
+      }),
+      getParticipants().catch(error => {
+        debugError("Error loading participants:", error);
+        return { data: [] };
+      }),
+      getFinanceReport().catch(error => {
+        debugError("Error loading finance report:", error);
+        return { data: null };
+      })
     ]);
 
     this.participantFees = fees?.data || fees?.participant_fees || [];

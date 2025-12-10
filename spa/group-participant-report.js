@@ -12,30 +12,42 @@ export class PrintableGroupParticipantReport {
 		async init() {
 				try {
 						await this.fetchData();
+				} catch (error) {
+						debugError("Error loading report data:", error);
+						// Continue rendering even if some data failed to load
+						this.app.showMessage(translate("error_loading_data"), "warning");
+				}
+
+				// Always render the page, even with partial data
+				try {
 						this.render();
 						this.attachEventListeners();
 				} catch (error) {
-						debugError("Error initializing printable group participant report:", error);
+						debugError("Error rendering report:", error);
 						this.renderError();
 				}
 		}
 
 		async fetchData() {
-				try {
-						const [participantsResponse, groupsResponse] = await Promise.all([
-								getParticipants(),
-								getGroups()
-						]);
+				// Load data with individual error handling to prevent total failure
+				const [participantsResponse, groupsResponse] = await Promise.all([
+						getParticipants().catch(error => {
+								debugError("Error loading participants:", error);
+								return { data: [] };
+						}),
+						getGroups().catch(error => {
+								debugError("Error loading groups:", error);
+								return { data: [] };
+						})
+				]);
 
-						// Support both new format (data) and old format (participants/groups)
-						this.participants = participantsResponse.data || participantsResponse.participants || [];
-						this.groups = groupsResponse.data || groupsResponse.groups || [];
+				// Support both new format (data) and old format (participants/groups)
+				this.participants = participantsResponse.data || participantsResponse.participants || [];
+				this.groups = groupsResponse.data || groupsResponse.groups || [];
 
-						// Sort groups alphabetically
+				// Sort groups alphabetically
+				if (Array.isArray(this.groups)) {
 						this.groups.sort((a, b) => a.name.localeCompare(b.name));
-				} catch (error) {
-						debugError("Error fetching data:", error);
-						throw error;
 				}
 		}
 

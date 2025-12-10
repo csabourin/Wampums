@@ -75,10 +75,18 @@ export class Budgets {
     this.setActiveTabFromQuery();
     try {
       await this.loadCoreData();
+    } catch (error) {
+      debugError("Error loading budgets data:", error);
+      // Continue rendering even if some data failed to load
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    }
+
+    // Always render the page, even with partial data
+    try {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Unable to initialize budgets page", error);
+      debugError("Unable to render budgets page:", error);
       this.app.showMessage(translate("error_loading_data"), "error");
     }
   }
@@ -94,15 +102,31 @@ export class Budgets {
 
   async loadCoreData() {
     debugLog("Loading budget data...");
+    // Load data with individual error handling to prevent total failure
     const [categories, items, expenses, summary, plans] = await Promise.all([
-      getBudgetCategories(),
-      getBudgetItems(),
+      getBudgetCategories().catch(error => {
+        debugError("Error loading budget categories:", error);
+        return { data: [] };
+      }),
+      getBudgetItems().catch(error => {
+        debugError("Error loading budget items:", error);
+        return { data: [] };
+      }),
       getBudgetExpenses({
         start_date: this.fiscalYear.start,
         end_date: this.fiscalYear.end,
+      }).catch(error => {
+        debugError("Error loading budget expenses:", error);
+        return { data: [] };
       }),
-      getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end),
-      getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end),
+      getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end).catch(error => {
+        debugError("Error loading budget summary:", error);
+        return { data: null };
+      }),
+      getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end).catch(error => {
+        debugError("Error loading budget plans:", error);
+        return { data: [] };
+      }),
     ]);
 
     this.categories = categories?.data || [];

@@ -158,8 +158,22 @@ export class Dashboard {
 
   async fetchData(fetchParticipants = true, fetchGroups = true) {
     const promises = [];
-    if (fetchParticipants) promises.push(getParticipants());
-    if (fetchGroups) promises.push(getGroups());
+    if (fetchParticipants) {
+      promises.push(
+        getParticipants().catch(error => {
+          debugError("Error loading participants:", error);
+          return { success: false, participants: [] };
+        })
+      );
+    }
+    if (fetchGroups) {
+      promises.push(
+        getGroups().catch(error => {
+          debugError("Error loading groups:", error);
+          return { success: false, data: [] };
+        })
+      );
+    }
 
     const results = await Promise.all(promises);
     let i = 0;
@@ -168,6 +182,8 @@ export class Dashboard {
       const res = results[i++];
       if (res.success && Array.isArray(res.participants)) {
         this.participants = res.participants;
+      } else {
+        debugLog("Failed to fetch participants, using existing data");
       }
     }
 
@@ -176,6 +192,8 @@ export class Dashboard {
       const groups = res.data || res.groups || [];
       if (res.success) {
         this.groups = groups.sort((a, b) => a.name.localeCompare(b.name));
+      } else {
+        debugLog("Failed to fetch groups, using existing data");
       }
     }
   }

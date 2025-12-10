@@ -22,14 +22,36 @@ export class ParentFinance {
   }
 
   async init() {
+    let hasErrors = false;
+
     try {
       await this.fetchParticipants();
+    } catch (error) {
+      debugError("Error fetching participants:", error);
+      hasErrors = true;
+      // Continue with empty participants array
+    }
+
+    try {
       await this.fetchAllStatements();
-      this.calculateConsolidatedTotals();
+    } catch (error) {
+      debugError("Error fetching statements:", error);
+      hasErrors = true;
+      // Continue with empty statements
+    }
+
+    this.calculateConsolidatedTotals();
+
+    // Always render the page, even with partial data
+    try {
       this.render();
       this.attachEventListeners();
+
+      if (hasErrors) {
+        this.app.showMessage(translate("error_loading_data"), "warning");
+      }
     } catch (error) {
-      debugError("Error initializing parent finance page:", error);
+      debugError("Error rendering parent finance page:", error);
       this.app.showMessage(translate("error_loading_data"), "error");
     }
   }
@@ -39,22 +61,31 @@ export class ParentFinance {
       const response = await fetchParticipants(getCurrentOrganizationId());
       const uniqueParticipants = new Map();
 
-      response.forEach(participant => {
-        if (!uniqueParticipants.has(participant.id)) {
-          uniqueParticipants.set(participant.id, participant);
-        }
-      });
+      if (Array.isArray(response)) {
+        response.forEach(participant => {
+          if (!uniqueParticipants.has(participant.id)) {
+            uniqueParticipants.set(participant.id, participant);
+          }
+        });
+      }
 
       this.participants = Array.from(uniqueParticipants.values());
       debugLog("Fetched participants for finance:", this.participants);
     } catch (error) {
       debugError("Error fetching participants:", error);
+      this.participants = [];
       throw error;
     }
   }
 
   async fetchAllStatements() {
     try {
+      // If there are no participants, skip fetching statements
+      if (!this.participants || this.participants.length === 0) {
+        debugLog("No participants to fetch statements for");
+        return;
+      }
+
       const statementPromises = this.participants.map(participant =>
         getParticipantStatement(participant.id)
           .then(response => ({
@@ -80,6 +111,7 @@ export class ParentFinance {
       debugLog("Fetched all statements:", this.participantStatements);
     } catch (error) {
       debugError("Error fetching participant statements:", error);
+      // Don't throw - let init continue with empty statements
       throw error;
     }
   }

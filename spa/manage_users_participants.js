@@ -23,45 +23,57 @@ export class ManageUsersParticipants {
 
     try {
       await this.fetchData();
+    } catch (error) {
+      debugError("Error loading manage users participants data:", error);
+      // Continue rendering even if some data failed to load
+      this.app.showMessage(translate("error_loading_data"), "warning");
+    }
+
+    // Always render the page, even with partial data
+    try {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error initializing manage users participants:", error);
+      debugError("Error rendering manage users participants page:", error);
       this.renderError();
     }
   }
 
   async fetchData() {
-    try {
-      const [participantsResponse, parentUsersResponse] = await Promise.all([
-        getParticipantsWithUsers(),
-        getParentUsers()
-      ]);
+    // Load data with individual error handling to prevent total failure
+    const [participantsResponse, parentUsersResponse] = await Promise.all([
+      getParticipantsWithUsers().catch(error => {
+        debugError("Error loading participants with users:", error);
+        return { success: false, data: [] };
+      }),
+      getParentUsers().catch(error => {
+        debugError("Error loading parent users:", error);
+        return { success: false, data: [] };
+      })
+    ]);
 
-      if (participantsResponse?.success) {
-        const participantsData =
-          participantsResponse.data?.participants ||
-          participantsResponse.participants ||
-          participantsResponse.data ||
-          [];
-        this.participants = this.normalizeParticipants(participantsData);
-      } else {
-        throw new Error("Failed to fetch participants with users");
-      }
+    if (participantsResponse?.success) {
+      const participantsData =
+        participantsResponse.data?.participants ||
+        participantsResponse.participants ||
+        participantsResponse.data ||
+        [];
+      this.participants = this.normalizeParticipants(participantsData);
+    } else {
+      debugError("Failed to fetch participants with users");
+      this.participants = [];
+    }
 
-      if (parentUsersResponse?.success) {
-        const parentUsersData =
-          parentUsersResponse.data?.users ||
-          parentUsersResponse.users ||
-          parentUsersResponse.data ||
-          [];
-        this.parentUsers = this.normalizeParentUsers(parentUsersData);
-      } else {
-        throw new Error("Failed to fetch parent users");
-      }
-    } catch (error) {
-      debugError("Error fetching manage users participants data:", error);
-      throw error;
+    if (parentUsersResponse?.success) {
+      const parentUsersData =
+        parentUsersResponse.data?.users ||
+        parentUsersResponse.users ||
+        parentUsersResponse.data ||
+        [];
+      this.parentUsers = this.normalizeParentUsers(parentUsersData);
+    } else {
+      debugError("Failed to fetch parent users");
+      this.parentUsers = [];
     }
   }
 
