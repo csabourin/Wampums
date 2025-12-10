@@ -182,7 +182,7 @@ export class Reports {
                         </section>
 
                         <!-- Report Modal -->
-                        <div id="report-modal" class="report-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+                        <div id="report-modal" class="report-modal hidden" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
                                 <div class="report-modal-overlay" id="report-modal-overlay"></div>
                                 <div class="report-modal-container">
                                         <div class="report-modal-header">

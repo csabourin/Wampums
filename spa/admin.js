@@ -120,12 +120,12 @@ export class Admin {
 <div class="import-section">
         <p>${this.app.translate("import_sisc_description")}</p>
         <div class="file-upload-area">
-                <input type="file" id="sisc-file-input" accept=".csv" style="display: none;">
+                <input type="file" id="sisc-file-input" accept=".csv" class="hidden">
                 <button type="button" id="select-file-btn" class="secondary-button">${this.app.translate("select_csv_file")}</button>
                 <span id="selected-file-name"></span>
         </div>
         <button type="button" id="import-sisc-btn" class="primary-button" disabled>${this.app.translate("import_data")}</button>
-        <div id="import-progress" style="display: none;">
+        <div id="import-progress" class="hidden">
                 <div class="progress-bar"><div class="progress-fill"></div></div>
                 <p id="import-status">${this.app.translate("importing")}</p>
         </div>

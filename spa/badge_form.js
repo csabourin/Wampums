@@ -100,7 +100,7 @@ export class BadgeForm {
     const content = `
             <h1>${translate("badge_progress_form")}</h1>
             <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate("participant_name")}</h2>
-            <div id="success-message" style="display: none;"></div>
+            <div id="success-message" class="hidden"></div>
             <button id="print-view-btn">${translate("print_badge_form")}</button>
             <form id="badge-form">
                 <label for="territoire_chasse">${translate(

@@ -713,7 +713,7 @@ export class Expenses {
                     </button>
                   </div>
                 </div>
-                <div id="tax-breakdown" class="tax-breakdown" style="display: none;">
+                <div id="tax-breakdown" class="tax-breakdown hidden">
                   <p><strong>${translate("gst")} (5%):</strong> <span id="tax-gst">$0.00</span></p>
                   <p><strong>${translate("qst")} (9.975%):</strong> <span id="tax-qst">$0.00</span></p>
                   <p><strong>${translate("total_with_taxes")}:</strong> <span id="tax-total">$0.00</span></p>

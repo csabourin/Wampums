@@ -11,8 +11,8 @@ export class Register {
     const content = `
             <form id="register-form">
                 <h1>${translate("register")}</h1>
-                <div id="error-message" class="error" style="display: none;"></div>
-                <div id="success-message" class="success" style="display: none;"></div>
+                <div id="error-message" class="error hidden"></div>
+                <div id="success-message" class="success hidden"></div>
 
                 <label for="full_name">${translate("full_name")}:</label>
                 <input type="text" id="full_name" name="full_name" autocomplete="name" required>
