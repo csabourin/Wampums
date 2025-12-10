@@ -6,6 +6,7 @@ import {
   getParticipantStatement,
   linkUserParticipants
 } from "./ajax-functions.js";
+import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
@@ -13,11 +14,13 @@ import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ParentDashboard {
-        constructor(app) {
+  constructor(app) {
                 this.app = app;
                 this.participants = [];
                 this.formStructures = {};
                 this.participantStatements = new Map();
+                this.permissionSlips = new Map();
+                this.permissionSlipHandlerBound = false;
         }
 
         async init() {
@@ -45,6 +48,13 @@ export class ParentDashboard {
                         debugError("Error fetching participant statements:", error);
                         hasErrors = true;
                         // Continue with empty statements
+                }
+
+                try {
+                        await this.fetchPermissionSlips();
+                } catch (error) {
+                        debugError("Error fetching permission slips:", error);
+                        hasErrors = true;
                 }
 
                 // Always render the page, even with partial data
@@ -172,6 +182,29 @@ export class ParentDashboard {
                 return null;
         }
 
+        async fetchPermissionSlips() {
+                if (!Array.isArray(this.participants) || this.participants.length === 0) {
+                        return;
+                }
+
+                await Promise.all(
+                        this.participants.map(async (participant) => this.loadPermissionSlips(participant.id))
+                );
+        }
+
+        async loadPermissionSlips(participantId) {
+                try {
+                        const response = await getPermissionSlips({ participant_id: participantId });
+                        const slips = response?.data?.permission_slips || response?.permission_slips || [];
+                        this.permissionSlips.set(participantId, slips);
+                        return slips;
+                } catch (error) {
+                        debugError("Error loading permission slips", error);
+                        this.permissionSlips.set(participantId, []);
+                        return [];
+                }
+        }
+
         async fetchFormFormats() {
                 try {
                         const response = await getOrganizationFormFormats();
@@ -290,6 +323,7 @@ export class ParentDashboard {
                 `;
                 document.getElementById("app").innerHTML = content;
                 this.bindStatementHandlers();
+                this.bindPermissionSlipHandlers();
         }
 
         formatCurrency(amount = 0) {
@@ -355,6 +389,8 @@ export class ParentDashboard {
                                 <div class="participant-card__forms">
                                         ${this.renderFormButtons(participant)}
                                 </div>
+                                ${statementLink ? `<div class="participant-card__section">${statementLink}</div>` : ''}
+                                ${this.renderPermissionSlipSection(participant)}
                         </article>
                 `;
                 }).join("");
@@ -391,6 +427,91 @@ renderFormButtons(participant) {
                                 </a>
                         `;
 }
+
+        renderPermissionSlipSection(participant) {
+                return `
+                        <div class="participant-card__section">
+                                <div class="participant-card__section-header">
+                                        <h4>${translate("permission_slip_section_title")}</h4>
+                                        <p class="muted-text">${translate("permission_slip_parent_hint")}</p>
+                                </div>
+                                <div class="permission-slip-section" data-permission-slips-for="${participant.id}">
+                                        ${this.renderPermissionSlipItems(participant.id)}
+                                </div>
+                        </div>
+                `;
+        }
+
+        renderPermissionSlipItems(participantId) {
+                const slips = this.permissionSlips.get(participantId) || [];
+
+                if (!Array.isArray(slips) || slips.length === 0) {
+                        return `<p class="muted-text">${translate("no_permission_slips")}</p>`;
+                }
+
+                return `
+                        <ul class="permission-slip-list">
+                                ${slips.map((slip) => {
+                                        const statusLabel = escapeHTML(this.getPermissionSlipStatusLabel(slip.status));
+                                        const meetingLabel = escapeHTML(this.formatDateSafe(slip.meeting_date));
+                                        const signedDate = slip.signed_at ? escapeHTML(this.formatDateSafe(slip.signed_at)) : '';
+                                        const signer = slip.signed_by ? escapeHTML(slip.signed_by) : '';
+                                        const canSign = slip.status === 'pending';
+
+                                        const signedMeta = signedDate || signer
+                                                ? `<p class="muted-text">${[signedDate ? `${translate("permission_slip_signed_at")}: ${signedDate}` : '', signer ? `${translate("permission_slip_signer")}: ${signer}` : ''].filter(Boolean).join(' · ')}</p>`
+                                                : '';
+
+                                        const actionArea = canSign
+                                                ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>`
+                                                : `<span class="badge badge-success">${statusLabel}</span>`;
+
+                                        return `
+                                                <li class="permission-slip-item">
+                                                        <div>
+                                                                <p class="permission-slip-meeting">${translate("meeting_date_label")}: ${meetingLabel}</p>
+                                                                <p class="permission-slip-status">${translate("status")}: ${statusLabel}</p>
+                                                                ${signedMeta}
+                                                        </div>
+                                                        <div class="permission-slip-actions">${actionArea}</div>
+                                                </li>
+                                        `;
+                                }).join("")}
+                        </ul>
+                `;
+        }
+
+        refreshPermissionSlipSection(participantId) {
+                const container = document.querySelector(`[data-permission-slips-for="${participantId}"]`);
+                if (!container) {
+                        return;
+                }
+
+                container.innerHTML = this.renderPermissionSlipItems(participantId);
+        }
+
+        getPermissionSlipStatusLabel(status) {
+                if (!status) {
+                        return translate("unknown") || "-";
+                }
+
+                const localized = translate(`permission_slip_status_${status}`);
+                return localized === `permission_slip_status_${status}` ? status : localized;
+        }
+
+        formatDateSafe(dateString) {
+                if (!dateString) {
+                        return translate("meeting_date_label");
+                }
+
+                const parsed = new Date(dateString);
+                if (Number.isNaN(parsed.getTime())) {
+                        return translate("meeting_date_label");
+                }
+
+                const locale = this.app?.currentLanguage || this.app?.language || CONFIG.DEFAULT_LANG || 'en';
+                return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(parsed);
+        }
 
 
 
@@ -453,6 +574,48 @@ renderFormButtons(participant) {
                                 await this.showStatementModal(participantId);
                         });
                 });
+        }
+
+        bindPermissionSlipHandlers() {
+                if (this.permissionSlipHandlerBound) {
+                        return;
+                }
+
+                const appContainer = document.getElementById('app');
+                if (!appContainer) {
+                        return;
+                }
+
+                appContainer.addEventListener('click', async (event) => {
+                        const button = event.target.closest('.permission-slip-sign-btn');
+                        if (!button) {
+                                return;
+                        }
+
+                        const slipId = Number.parseInt(button.dataset?.slipId, 10);
+                        const participantId = Number.parseInt(button.dataset?.participantId, 10);
+
+                        if (!slipId || !participantId) {
+                                return;
+                        }
+
+                        const signerName = window.prompt(translate("permission_slip_signer"))?.trim();
+                        if (!signerName) {
+                                return;
+                        }
+
+                        try {
+                                await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
+                                this.app.showMessage(translate("permission_slip_signed"), "success");
+                                await this.loadPermissionSlips(participantId);
+                                this.refreshPermissionSlipSection(participantId);
+                        } catch (error) {
+                                debugError("Error signing permission slip", error);
+                                this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+                        }
+                });
+
+                this.permissionSlipHandlerBound = true;
         }
 
         async showStatementModal(participantId) {
