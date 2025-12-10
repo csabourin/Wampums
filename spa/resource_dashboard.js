@@ -7,9 +7,6 @@ import {
   saveEquipmentItem,
   getEquipmentReservations,
   saveEquipmentReservation,
-  getPermissionSlips,
-  savePermissionSlip,
-  signPermissionSlip,
   getResourceDashboard
 } from "./api/api-endpoints.js";
 
@@ -19,8 +16,7 @@ export class ResourceDashboard {
     this.meetingDate = getTodayISO();
     this.equipment = [];
     this.reservations = [];
-    this.permissionSlips = [];
-    this.dashboardSummary = { permission_summary: [], reservations: [] };
+    this.dashboardSummary = { reservations: [] };
   }
 
   async init() {
@@ -35,17 +31,15 @@ export class ResourceDashboard {
   }
 
   async refreshData() {
-    const [equipmentResponse, reservationResponse, slipResponse, summaryResponse] = await Promise.all([
+    const [equipmentResponse, reservationResponse, summaryResponse] = await Promise.all([
       getEquipmentInventory(),
       getEquipmentReservations({ meeting_date: this.meetingDate }),
-      getPermissionSlips({ meeting_date: this.meetingDate }),
       getResourceDashboard({ meeting_date: this.meetingDate })
     ]);
 
     this.equipment = equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
     this.reservations = reservationResponse?.data?.reservations || reservationResponse?.reservations || [];
-    this.permissionSlips = slipResponse?.data?.permission_slips || slipResponse?.permission_slips || [];
-    this.dashboardSummary = summaryResponse?.data || summaryResponse || { permission_summary: [], reservations: [] };
+    this.dashboardSummary = summaryResponse?.data || summaryResponse || { reservations: [] };
   }
 
   render() {
@@ -54,10 +48,10 @@ export class ResourceDashboard {
       return;
     }
 
-    const permissionSummary = this.dashboardSummary?.permission_summary || [];
     const reservationSummary = this.dashboardSummary?.reservations || [];
 
     container.innerHTML = `
+      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
       <section class="page resource-dashboard">
         <div class="card">
           <h1>${escapeHTML(translate("resource_dashboard_title"))}</h1>
@@ -71,16 +65,6 @@ export class ResourceDashboard {
         <div class="card">
           <h2>${escapeHTML(translate("dashboard_summary_title"))}</h2>
           <div class="summary-grid">
-            <div class="summary-tile">
-              <div class="summary-label">${escapeHTML(translate("permission_slip_status"))}</div>
-              <ul class="summary-list">
-                ${permissionSummary.length === 0
-                  ? `<li>${escapeHTML(translate("no_data_available"))}</li>`
-                  : permissionSummary
-                      .map((row) => `<li>${escapeHTML(row.status)}: <strong>${row.count}</strong></li>`)
-                      .join('')}
-              </ul>
-            </div>
             <div class="summary-tile">
               <div class="summary-label">${escapeHTML(translate("equipment_reservations"))}</div>
               <ul class="summary-list">
@@ -216,57 +200,6 @@ export class ResourceDashboard {
             </table>
           </div>
         </div>
-
-        <div class="card">
-          <h2>${escapeHTML(translate("permission_slip_section_title"))}</h2>
-          <form id="permissionSlipForm" class="stacked">
-            <div class="grid grid-2">
-              <label class="stacked">
-                <span>${escapeHTML(translate("permission_slip_participant_id"))}</span>
-                <input type="number" name="participant_id" min="1" required />
-              </label>
-              <label class="stacked">
-                <span>${escapeHTML(translate("permission_slip_guardian_id"))}</span>
-                <input type="number" name="guardian_id" min="1" />
-              </label>
-            </div>
-            <label class="stacked">
-              <span>${escapeHTML(translate("consent_details"))}</span>
-              <textarea name="consent_payload" rows="2" placeholder="{}" maxlength="2000"></textarea>
-            </label>
-            <button type="submit" class="btn primary">${escapeHTML(translate("permission_slip_create"))}</button>
-          </form>
-          <div class="table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>${escapeHTML(translate("permission_slip_participant_id"))}</th>
-                  <th>${escapeHTML(translate("permission_slip_guardian_id"))}</th>
-                  <th>${escapeHTML(translate("permission_slip_status"))}</th>
-                  <th>${escapeHTML(translate("permission_slip_signed_at"))}</th>
-                  <th>${escapeHTML(translate("actions"))}</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.permissionSlips.length === 0
-                  ? `<tr><td colspan="5">${escapeHTML(translate("no_data_available"))}</td></tr>`
-                  : this.permissionSlips
-                      .map((slip) => `
-                        <tr data-slip-id="${slip.id}">
-                          <td>${escapeHTML(String(slip.participant_id))}</td>
-                          <td>${escapeHTML(slip.guardian_id ? String(slip.guardian_id) : '-')}</td>
-                          <td>${escapeHTML(slip.status)}</td>
-                          <td>${slip.signed_at ? escapeHTML(formatDate(slip.signed_at, this.app.lang || 'en')) : '-'}</td>
-                          <td>
-                            <button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_sign"))}</button>
-                          </td>
-                        </tr>
-                      `)
-                      .join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </section>
     `;
   }
@@ -327,59 +260,5 @@ export class ResourceDashboard {
       });
     }
 
-    const permissionSlipForm = document.getElementById("permissionSlipForm");
-    if (permissionSlipForm) {
-      permissionSlipForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const formData = new FormData(permissionSlipForm);
-        const payload = Object.fromEntries(formData.entries());
-        payload.participant_id = parseInt(payload.participant_id, 10);
-        payload.guardian_id = payload.guardian_id ? parseInt(payload.guardian_id, 10) : undefined;
-        payload.meeting_date = this.meetingDate;
-
-        if (payload.consent_payload) {
-          try {
-            payload.consent_payload = JSON.parse(payload.consent_payload);
-          } catch (parseError) {
-            debugError("Invalid consent payload", parseError);
-            this.app.showMessage(translate("invalid_consent_payload"), "error");
-            return;
-          }
-        }
-
-        try {
-          await savePermissionSlip(payload);
-          this.app.showMessage(translate("permission_slip_saved"), "success");
-          await this.refreshData();
-          this.render();
-          this.attachEventHandlers();
-        } catch (error) {
-          debugError("Error saving permission slip", error);
-          this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
-        }
-      });
-    }
-
-    document.querySelectorAll(".sign-slip").forEach((button) => {
-      button.addEventListener("click", async (event) => {
-        event.preventDefault();
-        const slipId = event.currentTarget.getAttribute("data-id");
-        const signerName = prompt(translate("permission_slip_signer"));
-        if (!signerName) {
-          return;
-        }
-
-        try {
-          await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
-          this.app.showMessage(translate("permission_slip_signed"), "success");
-          await this.refreshData();
-          this.render();
-          this.attachEventHandlers();
-        } catch (error) {
-          debugError("Error signing permission slip", error);
-          this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
-        }
-      });
-    });
   }
 }
