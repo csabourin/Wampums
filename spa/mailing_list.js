@@ -41,6 +41,7 @@ export class MailingList {
 
 	render() {
 		const content = `
+						<a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
 						<h1>${translate("mailing_list")}</h1>
 						<div id="mailing-list">
 								${this.renderMailingList()}

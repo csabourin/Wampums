@@ -93,6 +93,7 @@ export class Admin {
 
         render() {
                 const content = `
+                        <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
                         <h1>${this.app.translate("admin_panel")}</h1>
                         <div id="message"></div>
 
