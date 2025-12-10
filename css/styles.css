@@ -4310,22 +4310,6 @@ details p {
   animation: slideUp var(--transition-base);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .report-modal-header {
   display: flex;
   justify-content: space-between;
