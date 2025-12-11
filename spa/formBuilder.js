@@ -243,9 +243,9 @@ export class FormBuilder {
      */
     checkTranslation(key) {
         if (!key) return false;
-        // Simple heuristic: if it looks like a key (lowercase, underscores), consider it valid
-        // In a real implementation, we'd query the translations table
-        return /^[a-z_]+$/.test(key);
+        // Translation key pattern: lowercase letters and underscores only
+        const TRANSLATION_KEY_PATTERN = /^[a-z_]+$/;
+        return TRANSLATION_KEY_PATTERN.test(key);
     }
 
     /**
@@ -863,6 +863,10 @@ export class FormBuilder {
      * Move field up or down
      */
     moveField(index, direction) {
+        // Direction constants
+        const DIRECTION_UP = -1;
+        const DIRECTION_DOWN = 1;
+        
         const newIndex = index + direction;
         if (newIndex < 0 || newIndex >= this.currentFields.length) return;
 
@@ -886,8 +890,49 @@ export class FormBuilder {
      * Create new format
      */
     async createNewFormat() {
-        const formType = prompt(translate("enter_form_type_name"));
-        if (!formType) return;
+        // Show a modal for form type input instead of browser prompt
+        const modal = document.getElementById("translation-modal");
+        const content = document.getElementById("translation-content");
+        
+        document.querySelector("#translation-modal h2").textContent = translate("create_new_form_format");
+
+        content.innerHTML = `
+            <form id="create-format-form">
+                <div class="form-group">
+                    <label for="new-form-type">${translate("form_type_name")} *</label>
+                    <input type="text" id="new-form-type" name="formType" required 
+                           pattern="[a-z_]+" 
+                           placeholder="participant_registration"
+                           title="${translate("field_name_hint")}">
+                    <small>${translate("field_name_hint")}</small>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">${translate("create")}</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-create">${translate("cancel")}</button>
+                </div>
+            </form>
+        `;
+
+        modal.style.display = "block";
+
+        // Attach listeners
+        const form = document.getElementById("create-format-form");
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const formType = document.getElementById("new-form-type").value;
+            modal.style.display = "none";
+            await this.doCreateFormat(formType);
+        });
+
+        document.getElementById("cancel-create").addEventListener("click", () => {
+            modal.style.display = "none";
+        });
+    }
+
+    /**
+     * Actually create the format
+     */
+    async doCreateFormat(formType) {
 
         try {
             const response = await ajax({
@@ -1019,17 +1064,44 @@ export class FormBuilder {
             return;
         }
 
-        const orgList = this.userOrganizations
-            .map(org => `${org.id}: ${org.name}`)
-            .join('\n');
+        // Show a modal for organization selection
+        const modal = document.getElementById("translation-modal");
+        const content = document.getElementById("translation-content");
         
-        const targetOrgId = prompt(
-            `${translate("enter_target_org_id")}\n\n${orgList}`
-        );
+        document.querySelector("#translation-modal h2").textContent = translate("copy_to_org");
 
-        if (targetOrgId) {
-            this.copyFormat(parseInt(targetOrgId));
-        }
+        content.innerHTML = `
+            <form id="copy-format-form">
+                <div class="form-group">
+                    <label for="target-org">${translate("select_target_organization")} *</label>
+                    <select id="target-org" name="targetOrg" required>
+                        <option value="">${translate("select_organization")}</option>
+                        ${this.userOrganizations.map(org => `
+                            <option value="${org.id}">${escapeHTML(org.name)} (ID: ${org.id})</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">${translate("copy")}</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-copy">${translate("cancel")}</button>
+                </div>
+            </form>
+        `;
+
+        modal.style.display = "block";
+
+        // Attach listeners
+        const form = document.getElementById("copy-format-form");
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const targetOrgId = parseInt(document.getElementById("target-org").value);
+            modal.style.display = "none";
+            await this.copyFormat(targetOrgId);
+        });
+
+        document.getElementById("cancel-copy").addEventListener("click", () => {
+            modal.style.display = "none";
+        });
     }
 
     /**
@@ -1042,9 +1114,16 @@ export class FormBuilder {
             // First save current changes
             await this.saveFormat();
 
-            // Then copy
+            // Get current organization ID from user context
+            const currentOrgId = this.app.organizationId;
+            if (!currentOrgId) {
+                this.app.showMessage(translate("error_organization_not_found"), "error");
+                return;
+            }
+
+            // Then copy - use simple POST body instead of path params
             const response = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/form-formats/${this.currentFormat.organization_id || 'current'}/${this.currentFormat.form_type}/copy`,
+                url: `${CONFIG.API_BASE_URL}/api/form-formats/${currentOrgId}/${this.currentFormat.form_type}/copy`,
                 method: 'POST',
                 body: JSON.stringify({ targetOrgId })
             });

@@ -107,6 +107,8 @@ const routes = {
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slip/:id": "permissionSlipSign",
   "/account-info": "accountInfo",
+  "/form-builder": "formBuilder",
+  "/admin/form-builder": "formBuilder"
 
 };
 

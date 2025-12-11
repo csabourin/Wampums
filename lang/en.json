@@ -1533,5 +1533,10 @@
   "no_other_organizations": "You don't have access to other organizations",
   "enter_target_org_id": "Enter the target organization ID:",
   "format_copied": "Form format copied successfully",
-  "error_copying_format": "Error copying form format"
+  "error_copying_format": "Error copying form format",
+  "form_type_name": "Form Type Name",
+  "select_target_organization": "Select Target Organization",
+  "select_organization": "Select an organization...",
+  "copy": "Copy",
+  "error_organization_not_found": "Organization not found"
 }
