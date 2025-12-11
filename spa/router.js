@@ -48,7 +48,8 @@ const lazyModules = {
   Inventory: () => import('./inventory.js').then(m => m.Inventory),
   MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
   PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
-  PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign)
+  PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
+  AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule)
 };
 
 // Cache for loaded modules
@@ -104,6 +105,7 @@ const routes = {
   "/material-management": "materialManagement",
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slip/:id": "permissionSlipSign",
+  "/account-info": "accountInfo",
 
 };
 
@@ -373,6 +375,9 @@ export class Router {
           case 'preparation_reunions':
           await this.loadPreparationReunions();
           break;
+        case "accountInfo":
+          await this.loadAccountInfo();
+          break;
         case "register":
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
@@ -527,6 +532,12 @@ export class Router {
     const PreparationReunions = await this.loadModule('PreparationReunions');
     const preparationReunions = new PreparationReunions(this.app);
     await preparationReunions.init();
+  }
+
+  async loadAccountInfo() {
+    const AccountInfoModule = await this.loadModule('AccountInfoModule');
+    const accountInfo = new AccountInfoModule(this.app);
+    await accountInfo.init();
   }
 
   async loadManageHonors() {
