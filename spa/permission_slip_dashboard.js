@@ -23,7 +23,7 @@ export class PermissionSlipDashboard {
     this.dashboardSummary = { permission_summary: [] };
     this.groups = [];
     this.participants = [];
-    this.selectedGroupId = null;
+    this.selectedAudience = null;
     this.selectedParticipantIds = [];
     this.showCreateForm = false;
   }
@@ -116,8 +116,20 @@ export class PermissionSlipDashboard {
   }
 
   renderCreateForm() {
+    const selectedValue = this.selectedAudience || '';
+    const audienceOptions = [
+      { value: 'all', label: translate('all_active_participants') },
+      { value: 'first-year', label: translate('first_year_participants') },
+      { value: 'second-year', label: translate('second_year_participants') },
+      { value: 'age-11-plus', label: translate('participants_age_11_plus') }
+    ];
+
+    const audienceOptionHtml = audienceOptions
+      .map(option => `<option value="${option.value}" ${selectedValue === option.value ? 'selected' : ''}>${escapeHTML(option.label)}</option>`)
+      .join('');
+
     const groupOptions = this.groups.map(g =>
-      `<option value="${g.id}">${escapeHTML(g.name)}</option>`
+      `<option value="group-${g.id}" ${selectedValue === `group-${g.id}` ? 'selected' : ''}>${escapeHTML(g.name)}</option>`
     ).join('');
 
     return `
@@ -138,11 +150,16 @@ export class PermissionSlipDashboard {
           <textarea id="activityDescriptionInput" rows="4" placeholder="${escapeHTML(translate("activity_description_label"))}"></textarea>
         </label>
 
-        <label class="stacked">
-          <span>${escapeHTML(translate("select_group_label"))} *</span>
+          <label class="stacked">
+            <span>${escapeHTML(translate("select_group_label"))} *</span>
           <select id="groupSelect" required>
-            <option value="">-- ${escapeHTML(translate("select_group_label"))} --</option>
-            ${groupOptions}
+            <option value="" ${selectedValue === '' ? 'selected' : ''}>-- ${escapeHTML(translate("select_group_label"))} --</option>
+            <optgroup label="${escapeHTML(translate('participant_audience_categories'))}">
+              ${audienceOptionHtml}
+            </optgroup>
+            <optgroup label="${escapeHTML(translate('group_categories'))}">
+              ${groupOptions}
+            </optgroup>
           </select>
         </label>
 
@@ -284,7 +301,7 @@ export class PermissionSlipDashboard {
     const groupSelect = document.getElementById("groupSelect");
     if (groupSelect) {
       groupSelect.addEventListener("change", (e) => {
-        this.selectedGroupId = e.target.value ? parseInt(e.target.value) : null;
+        this.selectedAudience = e.target.value || null;
         this.updateParticipantsList();
       });
     }
@@ -381,27 +398,30 @@ export class PermissionSlipDashboard {
         }
       });
     });
+
+    if (this.showCreateForm && this.selectedAudience) {
+      this.updateParticipantsList();
+    }
   }
 
   updateParticipantsList() {
     const participantsSection = document.getElementById("participantsSection");
     const participantsList = document.getElementById("participantsList");
 
-    if (!participantsSection || !participantsList || !this.selectedGroupId) {
+    if (!participantsSection || !participantsList || !this.selectedAudience) {
       if (participantsSection) participantsSection.style.display = 'none';
       return;
     }
 
-    // Filter participants by group
-    const groupParticipants = this.participants.filter(p => p.group_id === this.selectedGroupId);
+    const filteredParticipants = this.filterParticipantsByAudience(this.selectedAudience);
 
-    if (groupParticipants.length === 0) {
-      participantsList.innerHTML = `<p>${escapeHTML(translate("no_participants_in_group"))}</p>`;
+    if (filteredParticipants.length === 0) {
+      participantsList.innerHTML = `<p>${escapeHTML(translate("no_participants_in_selection"))}</p>`;
       participantsSection.style.display = 'block';
       return;
     }
 
-    participantsList.innerHTML = groupParticipants.map(p => `
+    participantsList.innerHTML = filteredParticipants.map(p => `
       <label style="display: block; padding: 8px; cursor: pointer; border-bottom: 1px solid #eee;">
         <input type="checkbox" class="participant-checkbox" value="${p.id}" checked />
         ${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}
@@ -416,6 +436,75 @@ export class PermissionSlipDashboard {
     });
 
     this.updateSelectedCount();
+  }
+
+  filterParticipantsByAudience(audience) {
+    if (!audience) {
+      return [];
+    }
+
+    if (audience === 'all') {
+      return this.participants;
+    }
+
+    if (audience === 'first-year' || audience === 'second-year') {
+      const targetYear = audience === 'first-year' ? 0 : 1;
+      return this.participants.filter((participant) => {
+        const yearsWithOrg = this.getYearsWithOrganization(participant.inscription_date);
+        return yearsWithOrg !== null && yearsWithOrg === targetYear;
+      });
+    }
+
+    if (audience === 'age-11-plus') {
+      return this.participants.filter((participant) => {
+        const age = this.getParticipantAge(participant.date_naissance || participant.date_of_birth);
+        return age !== null && age >= 11;
+      });
+    }
+
+    if (audience.startsWith('group-')) {
+      const groupId = parseInt(audience.replace('group-', ''), 10);
+      if (Number.isNaN(groupId)) {
+        return [];
+      }
+      return this.participants.filter((p) => p.group_id === groupId);
+    }
+
+    return [];
+  }
+
+  getParticipantAge(dateString) {
+    if (!dateString) return null;
+    const birthDate = new Date(dateString);
+    if (Number.isNaN(birthDate.getTime())) return null;
+
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    const dayDiff = today.getDate() - birthDate.getDate();
+
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age -= 1;
+    }
+
+    return age;
+  }
+
+  getYearsWithOrganization(inscriptionDate) {
+    if (!inscriptionDate) return null;
+    const startDate = new Date(inscriptionDate);
+    if (Number.isNaN(startDate.getTime())) return null;
+
+    const now = new Date();
+    let years = now.getFullYear() - startDate.getFullYear();
+    const monthDiff = now.getMonth() - startDate.getMonth();
+    const dayDiff = now.getDate() - startDate.getDate();
+
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      years -= 1;
+    }
+
+    return years >= 0 ? years : null;
   }
 
   updateSelectedCount() {
