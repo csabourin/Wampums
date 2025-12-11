@@ -545,7 +545,11 @@ module.exports = (pool) => {
             ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString('fr-CA')}`
             : '';
 
-          const signLink = `${process.env.APP_BASE_URL || 'https://wampums.app'}/permission-slip/${slip.id}`;
+          // Generate link using request domain
+          const protocol = req.protocol;
+          const host = req.get('host');
+          const baseUrl = `${protocol}://${host}`;
+          const signLink = `${baseUrl}/permission-slip/${slip.id}`;
 
           const subject = `Autorisation parentale requise - ${activityTitle}`;
           const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
@@ -664,7 +668,11 @@ module.exports = (pool) => {
             ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString('fr-CA')}`
             : '';
 
-          const signLink = `${process.env.APP_BASE_URL || 'https://wampums.app'}/permission-slip/${slip.id}`;
+          // Generate link using request domain
+          const protocol = req.protocol;
+          const host = req.get('host');
+          const baseUrl = `${protocol}://${host}`;
+          const signLink = `${baseUrl}/permission-slip/${slip.id}`;
 
           const subject = `Rappel : Autorisation parentale requise - ${activityTitle}`;
           const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
