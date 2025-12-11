@@ -116,6 +116,22 @@ exports.getOrganizationId = async (req, pool) => {
     return parseInt(req.headers['x-organization-id'], 10);
   }
 
+  // Fallback to explicit query parameter (used by some API consumers)
+  if (req.query?.organization_id) {
+    const parsed = parseInt(req.query.organization_id, 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  // Fallback to request body when passed directly
+  if (req.body?.organization_id) {
+    const parsed = parseInt(req.body.organization_id, 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
   // Try from authenticated user
   if (req.user && req.user.organizationId) {
     return req.user.organizationId;
