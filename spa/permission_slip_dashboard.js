@@ -1,5 +1,5 @@
 import { translate } from "./app.js";
-import { debugError } from "./utils/DebugUtils.js";
+import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import { SimpleWYSIWYG, injectWYSIWYGStyles } from "./utils/SimpleWYSIWYG.js";
@@ -431,24 +431,43 @@ export class PermissionSlipDashboard {
       return;
     }
 
+    // Build payload, only including non-empty values
     const payload = {
       participant_ids: participantIds,
       meeting_date: this.activityDate,
-      activity_title: activityTitle,
-      activity_description: activityDescription,
-      deadline_date: deadlineDate || null,
       status: 'pending'
     };
 
+    // Only add optional fields if they have values
+    if (activityTitle && activityTitle.trim()) {
+      payload.activity_title = activityTitle.trim();
+    }
+
+    if (activityDescription && activityDescription.trim()) {
+      payload.activity_description = activityDescription.trim();
+    }
+
+    if (deadlineDate && deadlineDate.trim()) {
+      payload.deadline_date = deadlineDate;
+    }
+
     try {
-      await savePermissionSlip(payload);
+      debugLog("Sending permission slip payload:", payload);
+      const result = await savePermissionSlip(payload);
       this.app.showMessage(translate("permission_slip_saved"), "success");
       this.showCreateForm = false;
       this.wysiwygEditor = null;
       await this.refreshData();
     } catch (error) {
       debugError("Error saving permission slip", error);
-      this.app.showMessage(translate("permission_slip_error_loading"), "error");
+
+      // Show detailed validation errors if available
+      if (error.message.includes('Validation') && error.response?.errors) {
+        const errorMessages = error.response.errors.map(e => e.msg).join(', ');
+        this.app.showMessage(`${translate("permission_slip_error_loading")}: ${errorMessages}`, "error");
+      } else {
+        this.app.showMessage(translate("permission_slip_error_loading"), "error");
+      }
     }
   }
 
