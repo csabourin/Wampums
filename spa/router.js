@@ -49,7 +49,8 @@ const lazyModules = {
   MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
   PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
   PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
-  AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule)
+  AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
+  FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder)
 };
 
 // Cache for loaded modules
@@ -106,6 +107,8 @@ const routes = {
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slip/:id": "permissionSlipSign",
   "/account-info": "accountInfo",
+  "/form-builder": "formBuilder",
+  "/admin/form-builder": "formBuilder"
 
 };
 
@@ -377,6 +380,15 @@ export class Router {
           break;
         case "accountInfo":
           await this.loadAccountInfo();
+          break;
+        case "formBuilder":
+          if (this.app.userRole !== "admin") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const FormBuilder = await this.loadModule('FormBuilder');
+            const formBuilder = new FormBuilder(this.app);
+            await formBuilder.init();
+          }
           break;
         case "register":
           if (this.app.isLoggedIn) {

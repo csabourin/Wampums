@@ -403,6 +403,7 @@ const honorsRoutes = require('./routes/honors')(pool, logger);
 const pointsRoutes = require('./routes/points')(pool, logger);
 const badgesRoutes = require('./routes/badges')(pool, logger);
 const formsRoutes = require('./routes/forms')(pool, logger);
+const formBuilderRoutes = require('./routes/formBuilder')(pool, logger);
 const guardiansRoutes = require('./routes/guardians')(pool, logger);
 const meetingsRoutes = require('./routes/meetings')(pool, logger);
 const notificationsRoutes = require('./routes/notifications')(pool, logger);
@@ -519,6 +520,20 @@ logger.info('   - GET /api/form-submissions');
 logger.info('   - GET /api/risk-acceptance');
 logger.info('   - POST /api/risk-acceptance');
 logger.info('   - POST /api/health-forms');
+
+// Form Builder Routes (handles admin form format management)
+// Endpoints: form-formats (CRUD), user-organizations, translations
+app.use('/api', formBuilderRoutes);
+logger.info('✅ Form Builder routes loaded');
+logger.info('   - GET /api/form-formats');
+logger.info('   - GET /api/form-formats/:id');
+logger.info('   - POST /api/form-formats');
+logger.info('   - PUT /api/form-formats/:id');
+logger.info('   - DELETE /api/form-formats/:id');
+logger.info('   - GET /api/user-organizations');
+logger.info('   - GET /api/translations/keys');
+logger.info('   - POST /api/translations');
+logger.info('   - POST /api/form-formats/:sourceOrgId/:formType/copy');
 
 // Report Routes (handles various report endpoints)
 // Endpoints: mailing-list, health-report, attendance-report, missing-documents-report, health-contact-report, allergies-report, medication-report, vaccine-report, leave-alone-report, media-authorization-report, honors-report, points-report, parent-contact-list
