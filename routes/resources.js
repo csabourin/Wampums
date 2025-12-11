@@ -496,7 +496,7 @@ module.exports = (pool) => {
         // Build query to find permission slips
         let query = `
           SELECT ps.*, p.first_name, p.last_name,
-                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.email AS guardian_email,
+                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.courriel AS guardian_email,
                  u.email AS parent_email
           FROM permission_slips ps
           JOIN participants p ON p.id = ps.participant_id
@@ -616,7 +616,7 @@ module.exports = (pool) => {
         // Build query to find unsigned permission slips
         let query = `
           SELECT ps.*, p.first_name, p.last_name,
-                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.email AS guardian_email,
+                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.courriel AS guardian_email,
                  u.email AS parent_email
           FROM permission_slips ps
           JOIN participants p ON p.id = ps.participant_id
