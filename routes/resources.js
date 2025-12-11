@@ -733,7 +733,7 @@ module.exports = (pool) => {
       check('activity_description').optional({ nullable: true }).isString().trim(),
       check('deadline_date').optional({ nullable: true }).isISO8601(),
       check('consent_payload').optional({ nullable: true }).isObject(),
-      check('status').optional({ nullable: true }).isIn(['pending', 'signed', 'revoked', 'expired'])
+      check('status').optional({ nullable: true }).isIn(['pending', 'signed', 'revoked', 'expired', 'archived'])
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -890,6 +890,49 @@ module.exports = (pool) => {
         return success(res, { permission_slip: updateResult.rows[0] }, 'Permission slip signed');
       } catch (err) {
         return error(res, err.message || 'Error signing permission slip', 500);
+      }
+    })
+  );
+
+  router.patch(
+    '/permission-slips/:id/archive',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [param('id').isInt({ min: 1 })],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const slipId = parseInt(req.params.id, 10);
+        const organizationId = await getOrganizationId(req, pool);
+
+        const slipResult = await pool.query(
+          'SELECT organization_id FROM permission_slips WHERE id = $1',
+          [slipId]
+        );
+
+        if (slipResult.rows.length === 0) {
+          return error(res, 'Permission slip not found', 404);
+        }
+
+        if (slipResult.rows[0].organization_id !== organizationId) {
+          return error(res, 'Permission denied', 403);
+        }
+
+        const updateResult = await pool.query(
+          `UPDATE permission_slips
+           SET status = 'archived',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1
+           RETURNING *`,
+          [slipId]
+        );
+
+        return success(res, { permission_slip: updateResult.rows[0] }, 'Permission slip archived');
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error archiving permission slip', 500);
       }
     })
   );

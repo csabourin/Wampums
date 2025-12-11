@@ -2,17 +2,18 @@ import { translate } from "./app.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
-import { SimpleWYSIWYG, injectWYSIWYGStyles } from "./utils/SimpleWYSIWYG.js";
 import {
   getPermissionSlips,
   savePermissionSlip,
   signPermissionSlip,
   sendPermissionSlipEmails,
   sendPermissionSlipReminders,
-  getResourceDashboard
+  getResourceDashboard,
+  archivePermissionSlip
 } from "./api/api-endpoints.js";
 import { getGroups } from "./api/api-endpoints.js";
 import { getParticipants } from "./api/api-endpoints.js";
+import { deleteCachedData } from "./indexedDB.js";
 
 export class PermissionSlipDashboard {
   constructor(app) {
@@ -24,13 +25,11 @@ export class PermissionSlipDashboard {
     this.participants = [];
     this.selectedGroupId = null;
     this.selectedParticipantIds = [];
-    this.wysiwygEditor = null;
     this.showCreateForm = false;
   }
 
   async init() {
     try {
-      injectWYSIWYGStyles();
       await this.loadData();
       this.render();
       this.attachEventHandlers();
@@ -40,10 +39,11 @@ export class PermissionSlipDashboard {
     }
   }
 
-  async loadData() {
+  async loadData(forceRefresh = false) {
+    const params = { meeting_date: this.activityDate };
     const [slipResponse, summaryResponse, groupsResponse, participantsResponse] = await Promise.all([
-      getPermissionSlips({ meeting_date: this.activityDate }),
-      getResourceDashboard({ meeting_date: this.activityDate }),
+      getPermissionSlips(params, { forceRefresh }),
+      getResourceDashboard(params, { forceRefresh }),
       getGroups(),
       getParticipants()
     ]);
@@ -54,8 +54,8 @@ export class PermissionSlipDashboard {
     this.participants = participantsResponse?.data || participantsResponse?.participants || [];
   }
 
-  async refreshData() {
-    await this.loadData();
+  async refreshData(forceRefresh = false) {
+    await this.loadData(forceRefresh);
     this.render();
     this.attachEventHandlers();
   }
@@ -74,10 +74,6 @@ export class PermissionSlipDashboard {
         <div class="card">
           <h1>${escapeHTML(translate("permission_slip_dashboard_title"))}</h1>
           <p class="subtitle">${escapeHTML(translate("permission_slip_dashboard_description"))}</p>
-          <label class="stacked">
-            <span>${escapeHTML(translate("activity_date_label"))}</span>
-            <input type="date" id="activityDateInput" value="${escapeHTML(this.activityDate)}" />
-          </label>
         </div>
 
         <div class="card">
@@ -97,11 +93,17 @@ export class PermissionSlipDashboard {
         </div>
 
         <div class="card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h2>${escapeHTML(translate("permission_slip_section_title"))}</h2>
-            <button id="toggleCreateFormBtn" class="btn primary">
-              ${this.showCreateForm ? translate("cancel") : translate("permission_slip_create")}
-            </button>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
+            <div class="stacked" style="min-width: 240px; margin: 0;">
+              <span>${escapeHTML(translate("activity_date_label"))}</span>
+              <input type="date" id="activityDateInput" value="${escapeHTML(this.activityDate)}" />
+            </div>
+            <div style="margin-left: auto; text-align: right;">
+              <h2 style="margin: 0 0 8px 0;">${escapeHTML(translate("permission_slip_section_title"))}</h2>
+              <button id="toggleCreateFormBtn" class="btn primary">
+                ${this.showCreateForm ? translate("cancel") : translate("permission_slip_create")}
+              </button>
+            </div>
           </div>
 
           ${this.showCreateForm ? this.renderCreateForm() : ''}
@@ -111,10 +113,6 @@ export class PermissionSlipDashboard {
       </section>
     `;
 
-    // Re-initialize WYSIWYG editor if create form is shown
-    if (this.showCreateForm) {
-      this.initWYSIWYGEditor();
-    }
   }
 
   renderCreateForm() {
@@ -137,7 +135,7 @@ export class PermissionSlipDashboard {
 
         <label class="stacked">
           <span>${escapeHTML(translate("activity_description_label"))}</span>
-          <div id="activityDescriptionEditor"></div>
+          <textarea id="activityDescriptionInput" rows="4" placeholder="${escapeHTML(translate("activity_description_label"))}"></textarea>
         </label>
 
         <label class="stacked">
@@ -241,9 +239,12 @@ export class PermissionSlipDashboard {
                     <td>${slip.email_sent ? '✓ ' + translate("email_sent") : translate("email_not_sent")}</td>
                     <td>${slip.signed_at ? escapeHTML(formatDate(slip.signed_at, this.app.lang || 'fr')) : '-'}</td>
                     <td>
-                      ${slip.status === 'pending'
-                        ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_sign"))}</button>`
-                        : '-'}
+                      ${[
+                        slip.status === 'pending'
+                          ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_sign"))}</button>`
+                          : '',
+                        `<button class="btn link archive-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_archive"))}</button>`
+                      ].filter(Boolean).join(' ')}
                     </td>
                   </tr>
                 `).join('')}
@@ -257,23 +258,14 @@ export class PermissionSlipDashboard {
     return html;
   }
 
-  initWYSIWYGEditor() {
-    const editorContainer = document.getElementById("activityDescriptionEditor");
-    if (editorContainer && !this.wysiwygEditor) {
-      this.wysiwygEditor = new SimpleWYSIWYG(editorContainer, {
-        placeholder: translate("activity_description_label"),
-        initialContent: ""
-      });
-    }
-  }
-
   attachEventHandlers() {
     // Activity date change
     const activityDateInput = document.getElementById("activityDateInput");
     if (activityDateInput) {
       activityDateInput.addEventListener("change", async (event) => {
         this.activityDate = event.target.value || getTodayISO();
-        await this.refreshData();
+        await this.clearPermissionSlipCaches();
+        await this.refreshData(true);
       });
     }
 
@@ -283,7 +275,6 @@ export class PermissionSlipDashboard {
       toggleBtn.addEventListener("click", (e) => {
         e.preventDefault();
         this.showCreateForm = !this.showCreateForm;
-        this.wysiwygEditor = null; // Reset editor
         this.render();
         this.attachEventHandlers();
       });
@@ -362,9 +353,30 @@ export class PermissionSlipDashboard {
         try {
           await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
           this.app.showMessage(translate("permission_slip_signed"), "success");
-          await this.refreshData();
+          await this.clearPermissionSlipCaches();
+          await this.refreshData(true);
         } catch (error) {
           debugError("Error signing permission slip", error);
+          this.app.showMessage(translate("permission_slip_error_loading"), "error");
+        }
+      });
+    });
+
+    document.querySelectorAll('.archive-slip').forEach((button) => {
+      button.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const slipId = event.currentTarget.getAttribute('data-id');
+        if (!confirm(translate("permission_slip_archive_confirm"))) {
+          return;
+        }
+
+        try {
+          await archivePermissionSlip(slipId);
+          this.app.showMessage(translate("permission_slip_archived"), "success");
+          await this.clearPermissionSlipCaches();
+          await this.refreshData(true);
+        } catch (error) {
+          debugError("Error archiving permission slip", error);
           this.app.showMessage(translate("permission_slip_error_loading"), "error");
         }
       });
@@ -414,13 +426,37 @@ export class PermissionSlipDashboard {
     }
   }
 
+  buildCacheKey(base, params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.keys(params || {}).sort().forEach((key) => {
+      if (params[key] !== undefined && params[key] !== null) {
+        searchParams.append(key, params[key]);
+      }
+    });
+    const query = searchParams.toString();
+    return query ? `${base}?${query}` : base;
+  }
+
+  async clearPermissionSlipCaches() {
+    try {
+      const params = { meeting_date: this.activityDate };
+      const permissionCacheKey = this.buildCacheKey('v1/resources/permission-slips', params);
+      const dashboardCacheKey = this.buildCacheKey('v1/resources/status/dashboard', params);
+      await deleteCachedData(permissionCacheKey);
+      await deleteCachedData(dashboardCacheKey);
+    } catch (error) {
+      debugError('Error clearing permission slip caches', error);
+    }
+  }
+
   async handleFormSubmit(event) {
     event.preventDefault();
 
     const formData = new FormData(event.target);
     const activityTitle = formData.get('activity_title');
     const deadlineDate = formData.get('deadline_date');
-    const activityDescription = this.wysiwygEditor ? this.wysiwygEditor.getHTML() : '';
+    const descriptionInput = document.getElementById('activityDescriptionInput');
+    const activityDescription = descriptionInput?.value || '';
 
     // Get selected participant IDs
     const participantIds = Array.from(document.querySelectorAll('.participant-checkbox:checked'))
@@ -489,12 +525,13 @@ export class PermissionSlipDashboard {
         await window.storageUtils.clearCacheByPattern('v1/resources/status/dashboard');
       }
 
+      await this.clearPermissionSlipCaches();
+
       this.app.showMessage(translate("permission_slip_saved"), "success");
       this.showCreateForm = false;
-      this.wysiwygEditor = null;
 
       // Refresh with real data from server
-      await this.refreshData();
+      await this.refreshData(true);
     } catch (error) {
       debugError("Error saving permission slip", error);
 
@@ -527,7 +564,8 @@ export class PermissionSlipDashboard {
       const result = await sendPermissionSlipEmails(payload);
       const data = result?.data || result;
       this.app.showMessage(`${translate("emails_sent_successfully")}: ${data.sent}/${data.total}`, "success");
-      await this.refreshData();
+      await this.clearPermissionSlipCaches();
+      await this.refreshData(true);
     } catch (error) {
       debugError("Error sending emails", error);
       this.app.showMessage(translate("email_send_error"), "error");
@@ -548,7 +586,8 @@ export class PermissionSlipDashboard {
       const result = await sendPermissionSlipReminders(payload);
       const data = result?.data || result;
       this.app.showMessage(`${translate("reminder_sent_successfully")}: ${data.sent}/${data.total}`, "success");
-      await this.refreshData();
+      await this.clearPermissionSlipCaches();
+      await this.refreshData(true);
     } catch (error) {
       debugError("Error sending reminders", error);
       this.app.showMessage(translate("email_send_error"), "error");

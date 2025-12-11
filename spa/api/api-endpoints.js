@@ -6,6 +6,17 @@ import { CONFIG } from "../config.js";
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { handleResponse } from "./api-core.js";
 
+function buildCacheKey(base, params = {}) {
+    const searchParams = new URLSearchParams();
+    Object.keys(params || {}).sort().forEach(key => {
+        if (params[key] !== undefined && params[key] !== null) {
+            searchParams.append(key, params[key]);
+        }
+    });
+    const query = searchParams.toString();
+    return query ? `${base}?${query}` : base;
+}
+
 // ============================================================================
 // PUBLIC ENDPOINTS (No Authentication Required)
 // ============================================================================
@@ -227,8 +238,13 @@ export async function updateEquipmentReservation(id, payload) {
 /**
  * Permission slip statuses
  */
-export async function getPermissionSlips(params = {}) {
-    return API.get('v1/resources/permission-slips', params);
+export async function getPermissionSlips(params = {}, cacheOptions = {}) {
+    const cacheKey = buildCacheKey('v1/resources/permission-slips', params);
+    return API.get('v1/resources/permission-slips', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: cacheOptions.forceRefresh
+    });
 }
 
 /**
@@ -236,6 +252,13 @@ export async function getPermissionSlips(params = {}) {
  */
 export async function savePermissionSlip(payload) {
     return API.post('v1/resources/permission-slips', payload);
+}
+
+/**
+ * Archive a permission slip
+ */
+export async function archivePermissionSlip(id) {
+    return API.patch(`v1/resources/permission-slips/${id}/archive`, {});
 }
 
 /**
@@ -262,8 +285,13 @@ export async function sendPermissionSlipReminders(payload) {
 /**
  * Dashboard snapshot for resources and approvals
  */
-export async function getResourceDashboard(params = {}) {
-    return API.get('v1/resources/status/dashboard', params, { cacheDuration: CONFIG.CACHE_DURATION.SHORT });
+export async function getResourceDashboard(params = {}, cacheOptions = {}) {
+    const cacheKey = buildCacheKey('v1/resources/status/dashboard', params);
+    return API.get('v1/resources/status/dashboard', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: cacheOptions.forceRefresh
+    });
 }
 
 /**
