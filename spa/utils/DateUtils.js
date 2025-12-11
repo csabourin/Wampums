@@ -27,8 +27,17 @@ export function formatDate(dateString, lang = 'en', options = null) {
     if (!dateString) return '';
 
     try {
-        const [year, month, day] = dateString.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
+        const parsed = new Date(dateString);
+        const date = isNaN(parsed.getTime())
+            ? (() => {
+                const [year, month, day] = dateString.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            })()
+            : parsed;
+
+        if (isNaN(date.getTime())) {
+            return '';
+        }
 
         const defaultOptions = {
             weekday: 'long',
