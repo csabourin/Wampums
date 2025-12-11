@@ -157,7 +157,7 @@ module.exports = (pool, logger) => {
       // Update full name
       const result = await pool.query(
         `UPDATE users
-         SET full_name = $1, updated_at = NOW()
+         SET full_name = $1
          WHERE id = $2
          RETURNING id, full_name, email`,
         [fullName.trim(), userId]
@@ -238,7 +238,7 @@ module.exports = (pool, logger) => {
       // Update email
       await pool.query(
         `UPDATE users
-         SET email = $1, updated_at = NOW()
+         SET email = $1
          WHERE id = $2`,
         [email.toLowerCase(), userId]
       );
@@ -299,7 +299,7 @@ module.exports = (pool, logger) => {
 
       // Verify user belongs to organization and get current password hash
       const userResult = await pool.query(
-        `SELECT u.id, u.password_hash FROM users u
+        `SELECT u.id, u.password FROM users u
          JOIN user_organizations uo ON u.id = uo.user_id
          WHERE u.id = $1 AND uo.organization_id = $2`,
         [userId, organizationId]
@@ -312,7 +312,7 @@ module.exports = (pool, logger) => {
       const user = userResult.rows[0];
 
       // Verify current password
-      const passwordMatch = await bcrypt.compare(currentPassword, user.password_hash);
+      const passwordMatch = await bcrypt.compare(currentPassword, user.password);
       if (!passwordMatch) {
         logger.warn(`Failed password change attempt for user ${userId} - incorrect current password`);
         return errorResponse(res, 'Current password is incorrect', 400);
@@ -325,7 +325,7 @@ module.exports = (pool, logger) => {
       // Update password
       await pool.query(
         `UPDATE users
-         SET password_hash = $1, updated_at = NOW()
+         SET password = $1
          WHERE id = $2`,
         [newPasswordHash, userId]
       );
