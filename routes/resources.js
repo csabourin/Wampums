@@ -816,52 +816,71 @@ module.exports = (pool) => {
     })
   );
 
-  router.patch(
-    '/permission-slips/:id/sign',
-    authenticate,
-    requireOrganizationRole(leaderAndParents),
-    [
-      param('id').isInt({ min: 1 }),
-      check('guardian_id').optional().isInt({ min: 1 }),
-      check('signed_by').optional().isString().trim().isLength({ min: 2, max: 200 }),
-      check('signature_hash').optional().isString().trim().isLength({ max: 500 }),
-      check('contact_confirmation').optional().isObject()
-    ],
+  // Public route to view a permission slip (no authentication required)
+  router.get(
+    '/permission-slips/:id/view',
+    [param('id').isInt({ min: 1 })],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
-        const organizationId = await getOrganizationId(req, pool);
         const slipId = parseInt(req.params.id, 10);
-        const { guardian_id, signed_by, signature_hash, contact_confirmation } = req.body;
 
         const slipResult = await pool.query(
-          'SELECT participant_id FROM permission_slips WHERE id = $1 AND organization_id = $2',
-          [slipId, organizationId]
+          `SELECT ps.*, p.first_name, p.last_name,
+                  (p.first_name || ' ' || p.last_name) AS participant_name
+           FROM permission_slips ps
+           JOIN participants p ON p.id = ps.participant_id
+           WHERE ps.id = $1`,
+          [slipId]
         );
 
         if (slipResult.rows.length === 0) {
           return error(res, 'Permission slip not found', 404);
         }
 
-        if (req.userRole === 'parent') {
-          const allowedParticipantIds = await getParentParticipantIds(req.user.id, organizationId);
-          if (!allowedParticipantIds.includes(slipResult.rows[0].participant_id)) {
-            return error(res, 'Permission denied for participant', 403);
-          }
+        return success(res, slipResult.rows[0]);
+      } catch (err) {
+        return error(res, err.message || 'Error fetching permission slip', 500);
+      }
+    })
+  );
+
+  // Public route to sign a permission slip (no authentication required)
+  router.patch(
+    '/permission-slips/:id/sign',
+    [
+      param('id').isInt({ min: 1 }),
+      check('signed_by').isString().trim().isLength({ min: 2, max: 200 }),
+      check('signed_at').optional().isISO8601()
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const slipId = parseInt(req.params.id, 10);
+        const { signed_by, signed_at } = req.body;
+
+        const slipResult = await pool.query(
+          'SELECT organization_id, participant_id, status FROM permission_slips WHERE id = $1',
+          [slipId]
+        );
+
+        if (slipResult.rows.length === 0) {
+          return error(res, 'Permission slip not found', 404);
+        }
+
+        if (slipResult.rows[0].status === 'signed') {
+          return error(res, 'Permission slip already signed', 400);
         }
 
         const updateResult = await pool.query(
           `UPDATE permission_slips
-           SET guardian_id = COALESCE($2, guardian_id),
-               signed_by = COALESCE($3, signed_by),
-               signature_hash = COALESCE($4, signature_hash),
-               contact_confirmation = COALESCE($5, contact_confirmation),
-               signed_at = CURRENT_TIMESTAMP,
+           SET signed_by = $2,
+               signed_at = COALESCE($3, CURRENT_TIMESTAMP),
                status = 'signed',
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND organization_id = $6
+           WHERE id = $1
            RETURNING *`,
-          [slipId, guardian_id || null, signed_by || null, signature_hash || null, contact_confirmation || null, organizationId]
+          [slipId, signed_by, signed_at || null]
         );
 
         if (updateResult.rows.length === 0) {
@@ -870,9 +889,6 @@ module.exports = (pool) => {
 
         return success(res, { permission_slip: updateResult.rows[0] }, 'Permission slip signed');
       } catch (err) {
-        if (handleOrganizationResolutionError(res, err)) {
-          return;
-        }
         return error(res, err.message || 'Error signing permission slip', 500);
       }
     })
