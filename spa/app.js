@@ -11,6 +11,7 @@ import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { urlBase64ToUint8Array } from "./functions.js";
 import updateManager from "./pwa-update-manager.js";
+import { initOfflineSupport } from "./offline-init.js";
 
 const debugMode = isDebugMode();
 
@@ -256,6 +257,10 @@ export const app = {
                         debugLog(`Routing to current path: ${currentPath}`);
                         this.router.route(currentPath);
 
+                        // Initialize offline support
+                        debugLog("Initializing offline support...");
+                        initOfflineSupport();
+
                         this.syncOfflineData();
                         this.initCompleted = true;
                         debugLog("App init completed");
@@ -352,6 +357,16 @@ export const app = {
 
 
         async handlePostLoginActions() {
+                // Dispatch userLoggedIn event for offline support
+                const userLoggedInEvent = new CustomEvent('userLoggedIn', {
+                        detail: {
+                                userRole: this.userRole,
+                                userId: this.userId,
+                                timestamp: Date.now()
+                        }
+                });
+                window.dispatchEvent(userLoggedInEvent);
+
                 if ('Notification' in window) {
                         if (Notification.permission === 'granted') {
                                 registerPushSubscription();

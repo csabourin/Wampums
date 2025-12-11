@@ -1502,5 +1502,14 @@
     "sending": "Envoi en cours",
     "sent": "Envoyé",
     "partial": "Livraison partielle",
-    "announcement": "Annonce"
+    "announcement": "Annonce",
+    "connection.restored": "Connexion rétablie - synchronisation en cours",
+    "connection.lost": "Vous êtes hors ligne - les modifications seront synchronisées une fois connecté",
+    "status.offline": "Hors ligne",
+    "status.syncing": "Synchronisation...",
+    "sync.pending": "{{count}} modification(s) en attente",
+    "sync.complete": "Toutes les modifications synchronisées",
+    "sync.failed": "Certaines modifications n'ont pas pu être synchronisées",
+    "offline.dataUnavailable": "Ces données ne sont pas disponibles hors ligne",
+    "offline.savedLocally": "Enregistré localement - sera synchronisé une fois en ligne"
 }
