@@ -240,6 +240,7 @@ export class Router {
           break;
         case "permissionSlipSign":
           // Public route - allow anyone to sign permission slips via email link
+          console.log('[ROUTER DEBUG] Loading PermissionSlipSign with ID:', param);
           const PermissionSlipSign = await this.loadModule('PermissionSlipSign');
           const permissionSlipSign = new PermissionSlipSign(this.app, param);
           await permissionSlipSign.init();
@@ -403,10 +404,14 @@ export class Router {
   getRouteNameAndParam(path) {
       const cleanPath = path.split("?")[0];
       const parts = cleanPath.split("/");
+      console.log('[ROUTER DEBUG] Path:', cleanPath, 'Parts:', parts);
+      console.log('[ROUTER DEBUG] Checking:', `/${parts[1]}/:id`, 'Exists:', !!routes[`/${parts[1]}/:id`]);
       if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
+        console.log('[ROUTER DEBUG] Matched parameterized route:', routes[`/${parts[1]}/:id`], 'Param:', parts[2]);
         return [routes[`/${parts[1]}/:id`], parts[2]];
       }
       debugLog(`Path: ${cleanPath}, RouteName: ${routes[cleanPath]}`);
+      console.log('[ROUTER DEBUG] Route name:', routes[cleanPath] || "notFound");
       return [routes[cleanPath] || "notFound", null];
   }
 
