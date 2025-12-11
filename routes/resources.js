@@ -7,7 +7,7 @@ const router = express.Router();
 const { authenticate, requireOrganizationRole, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { checkValidation } = require('../middleware/validation');
-const { respondWithOrganizationFallback } = require('../utils/api-helpers');
+const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail } = require('../utils/index');
 
 function parseDate(dateString) {
@@ -107,7 +107,7 @@ module.exports = (pool) => {
 
         return success(res, { equipment: result.rows });
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error fetching equipment', 500);
@@ -183,7 +183,7 @@ module.exports = (pool) => {
 
         return success(res, { equipment: insertResult.rows[0] }, 'Equipment saved', 201);
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error saving equipment', 500);
@@ -237,7 +237,7 @@ module.exports = (pool) => {
 
         return success(res, { equipment: result.rows[0] }, 'Equipment updated');
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error updating equipment', 500);
@@ -278,7 +278,7 @@ module.exports = (pool) => {
 
         return success(res, { reservations: result.rows });
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error fetching reservations', 500);
@@ -350,7 +350,7 @@ module.exports = (pool) => {
 
         return success(res, { reservation: insertResult.rows[0] }, 'Reservation saved', 201);
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error saving reservation', 500);
@@ -400,7 +400,7 @@ module.exports = (pool) => {
 
         return success(res, { reservation: result.rows[0] }, 'Reservation updated');
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error updating reservation', 500);
@@ -465,7 +465,7 @@ module.exports = (pool) => {
 
         return success(res, { permission_slips: result.rows });
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error fetching permission slips', 500);
@@ -583,7 +583,7 @@ module.exports = (pool) => {
           failed: failedEmails
         }, `${sentCount} email(s) sent successfully`);
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error sending emails', 500);
@@ -702,7 +702,7 @@ module.exports = (pool) => {
           failed: failedEmails
         }, `${sentCount} reminder(s) sent successfully`);
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error sending reminders', 500);
@@ -800,7 +800,7 @@ module.exports = (pool) => {
           count: createdSlips.length
         }, 'Permission slip(s) saved', 201);
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error saving permission slip', 500);
@@ -862,7 +862,7 @@ module.exports = (pool) => {
 
         return success(res, { permission_slip: updateResult.rows[0] }, 'Permission slip signed');
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error signing permission slip', 500);
@@ -907,7 +907,7 @@ module.exports = (pool) => {
           reservations: reservationSummary.rows
         });
       } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
+        if (handleOrganizationResolutionError(res, err)) {
           return;
         }
         return error(res, err.message || 'Error loading resource dashboard', 500);
