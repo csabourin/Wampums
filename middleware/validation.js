@@ -70,11 +70,17 @@ const validateEmailOptional = check('email')
   .withMessage('Email too long');
 
 /**
- * Canonicalize email without removing dots or subaddresses
- * @param {string} email - Raw email input
- * @returns {string} Trimmed, lowercase email preserving user formatting
+ * Middleware to normalize email input to lowercase
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
  */
-const normalizeEmailInput = (email = '') => email.toString().trim().toLowerCase();
+const normalizeEmailInput = (req, res, next) => {
+  if (req.body.email) {
+    req.body.email = req.body.email.toString().trim().toLowerCase();
+  }
+  next();
+};
 
 // ============================================
 // PASSWORD VALIDATIONS
@@ -118,6 +124,22 @@ const validateNewPassword = check('new_password')
   .withMessage('Password must contain at least one lowercase letter')
   .matches(/[0-9]/)
   .withMessage('Password must contain at least one number');
+
+/**
+ * Validate current password for password change
+ */
+const validateCurrentPassword = check('currentPassword')
+  .trim()
+  .notEmpty()
+  .withMessage('Current password is required');
+
+/**
+ * Validate new password for password change (minimum 8 characters)
+ */
+const validateNewPasswordForChange = check('newPassword')
+  .trim()
+  .isLength({ min: 8, max: 255 })
+  .withMessage('New password must be between 8 and 255 characters');
 
 // ============================================
 // ID VALIDATIONS
@@ -306,6 +328,8 @@ module.exports = {
   validatePassword,
   validateStrongPassword,
   validateNewPassword,
+  validateCurrentPassword,
+  validateNewPasswordForChange,
 
   // IDs
   validateIdParam,
