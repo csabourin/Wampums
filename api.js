@@ -1878,7 +1878,9 @@ app.use((err, req, res, next) => {
 // This must be the last route handler
 app.get('*', (req, res) => {
   // Don't catch API routes or static files
-  if (req.path.startsWith('/api') || req.path.startsWith('/api-docs')) {
+  if (req.path.startsWith('/api') ||
+      req.path.startsWith('/api-docs') ||
+      req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|webp|json)$/i)) {
     return res.status(404).json({ success: false, message: 'Endpoint not found' });
   }
 
