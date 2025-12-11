@@ -4,9 +4,9 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import {
   getEquipmentInventory,
-  getEquipmentReservations
+  getEquipmentReservations,
+  saveBulkReservations
 } from "./api/api-endpoints.js";
-import { ajax } from "./ajax-functions.js";
 import { CONFIG } from "./config.js";
 
 /**
@@ -221,11 +221,7 @@ export class MaterialManagement {
         };
 
         try {
-          const response = await ajax({
-            url: `${CONFIG.API_BASE_URL}/api/v1/resources/equipment/reservations/bulk`,
-            method: 'POST',
-            body: JSON.stringify(payload)
-          });
+          const response = await saveBulkReservations(payload);
 
           if (response.success) {
             this.app.showMessage(translate("bulk_reservation_saved"), "success");
