@@ -453,13 +453,55 @@ export class PermissionSlipDashboard {
 
     try {
       debugLog("Sending permission slip payload:", payload);
+
+      // Optimistic update - immediately add new slips to UI
+      const optimisticSlips = participantIds.map((pid, index) => {
+        const participant = this.participants.find(p => p.id === pid);
+        return {
+          id: `temp-${Date.now()}-${index}`,
+          participant_id: pid,
+          first_name: participant?.first_name || 'Loading...',
+          last_name: participant?.last_name || '',
+          meeting_date: this.activityDate,
+          activity_title: payload.activity_title || '',
+          activity_description: payload.activity_description || '',
+          deadline_date: payload.deadline_date || null,
+          status: 'pending',
+          email_sent: false,
+          signed_at: null,
+          _optimistic: true // Mark as optimistic
+        };
+      });
+
+      // Add optimistic slips to state
+      this.permissionSlips = [...optimisticSlips, ...this.permissionSlips];
+
+      // Re-render immediately with optimistic data
+      this.render();
+      this.attachEventHandlers();
+
+      // Save to server
       const result = await savePermissionSlip(payload);
+
+      // Clear cache to ensure fresh data on next load
+      if (window.storageUtils) {
+        await window.storageUtils.clearCacheByPattern('v1/resources/permission-slips');
+        await window.storageUtils.clearCacheByPattern('v1/resources/status/dashboard');
+      }
+
       this.app.showMessage(translate("permission_slip_saved"), "success");
       this.showCreateForm = false;
       this.wysiwygEditor = null;
+
+      // Refresh with real data from server
       await this.refreshData();
     } catch (error) {
       debugError("Error saving permission slip", error);
+
+      // Rollback optimistic updates on error
+      this.permissionSlips = this.permissionSlips.filter(slip => !slip._optimistic);
+      this.render();
+      this.attachEventHandlers();
 
       // Show detailed validation errors if available
       if (error.message.includes('Validation') && error.response?.errors) {
