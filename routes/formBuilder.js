@@ -4,6 +4,9 @@
  * Handles CRUD operations for form formats and translation management
  * All endpoints in this module are prefixed with /api
  *
+ * Security Note: Rate limiting is applied globally via generalLimiter in api.js
+ * All routes also require admin authentication via authenticate and authorize middleware
+ *
  * @module routes/formBuilder
  */
 
