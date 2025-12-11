@@ -472,168 +472,6 @@ module.exports = (pool) => {
       }
     })
   );
-
-  router.post(
-    '/permission-slips',
-    authenticate,
-    requireOrganizationRole(leaderRoles),
-    [
-      check('participant_ids').optional({ nullable: true }).isArray({ max: 200 }),
-      check('participant_ids.*').optional({ nullable: true }).isInt({ min: 1 }),
-      check('participant_id').optional({ nullable: true }).isInt({ min: 1 }),
-      check('guardian_id').optional({ nullable: true }).isInt({ min: 1 }),
-      check('meeting_date').notEmpty().isISO8601(),
-      check('meeting_id').optional({ nullable: true }).isInt({ min: 1 }),
-      check('activity_title').optional({ nullable: true }).isString().trim().isLength({ max: 200 }),
-      check('activity_description').optional({ nullable: true }).isString().trim(),
-      check('deadline_date').optional({ nullable: true }).isISO8601(),
-      check('consent_payload').optional({ nullable: true }).isObject(),
-      check('status').optional({ nullable: true }).isIn(['pending', 'signed', 'revoked', 'expired'])
-    ],
-    checkValidation,
-    asyncHandler(async (req, res) => {
-      try {
-        const organizationId = await getOrganizationId(req, pool);
-
-        // Debug logging
-        console.log('[Permission Slip Creation] Request body:', JSON.stringify(req.body, null, 2));
-
-        const {
-          participant_ids,
-          participant_id,
-          guardian_id,
-          meeting_date,
-          meeting_id,
-          activity_title,
-          activity_description,
-          deadline_date,
-          consent_payload = {},
-          status = 'pending'
-        } = req.body;
-
-        // Support both single participant and bulk creation
-        const participantIdsList = participant_ids || (participant_id ? [participant_id] : []);
-
-        if (participantIdsList.length === 0) {
-          return error(res, 'At least one participant_id or participant_ids array is required', 400);
-        }
-
-        if (meeting_id) {
-          await verifyMeeting(meeting_id, organizationId);
-        }
-
-        const normalizedDate = parseDate(meeting_date);
-        if (!normalizedDate) {
-          return error(res, 'Invalid meeting date', 400);
-        }
-
-        const normalizedDeadline = deadline_date ? parseDate(deadline_date) : null;
-
-        const createdSlips = [];
-
-        // Create permission slips for each participant
-        for (const pid of participantIdsList) {
-          await verifyParticipant(pid, organizationId);
-
-          const insertResult = await pool.query(
-            `INSERT INTO permission_slips
-             (organization_id, participant_id, guardian_id, meeting_id, meeting_date,
-              activity_title, activity_description, deadline_date, consent_payload, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-             ON CONFLICT (organization_id, participant_id, meeting_date)
-             DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
-                           guardian_id = EXCLUDED.guardian_id,
-                           meeting_id = EXCLUDED.meeting_id,
-                           activity_title = EXCLUDED.activity_title,
-                           activity_description = EXCLUDED.activity_description,
-                           deadline_date = EXCLUDED.deadline_date,
-                           status = EXCLUDED.status,
-                           updated_at = CURRENT_TIMESTAMP
-             RETURNING *`,
-            [organizationId, pid, guardian_id || null, meeting_id || null, normalizedDate,
-             activity_title || null, activity_description || null, normalizedDeadline,
-             consent_payload, status]
-          );
-
-          createdSlips.push(insertResult.rows[0]);
-        }
-
-        return success(res, {
-          permission_slips: createdSlips,
-          count: createdSlips.length
-        }, 'Permission slip(s) saved', 201);
-      } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
-          return;
-        }
-        return error(res, err.message || 'Error saving permission slip', 500);
-      }
-    })
-  );
-
-  router.patch(
-    '/permission-slips/:id/sign',
-    authenticate,
-    requireOrganizationRole(leaderAndParents),
-    [
-      param('id').isInt({ min: 1 }),
-      check('guardian_id').optional().isInt({ min: 1 }),
-      check('signed_by').optional().isString().trim().isLength({ min: 2, max: 200 }),
-      check('signature_hash').optional().isString().trim().isLength({ max: 500 }),
-      check('contact_confirmation').optional().isObject()
-    ],
-    checkValidation,
-    asyncHandler(async (req, res) => {
-      try {
-        const organizationId = await getOrganizationId(req, pool);
-        const slipId = parseInt(req.params.id, 10);
-        const { guardian_id, signed_by, signature_hash, contact_confirmation } = req.body;
-
-        const slipResult = await pool.query(
-          'SELECT participant_id FROM permission_slips WHERE id = $1 AND organization_id = $2',
-          [slipId, organizationId]
-        );
-
-        if (slipResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
-        }
-
-        if (req.userRole === 'parent') {
-          const allowedParticipantIds = await getParentParticipantIds(req.user.id, organizationId);
-          if (!allowedParticipantIds.includes(slipResult.rows[0].participant_id)) {
-            return error(res, 'Permission denied for participant', 403);
-          }
-        }
-
-        const updateResult = await pool.query(
-          `UPDATE permission_slips
-           SET guardian_id = COALESCE($2, guardian_id),
-               signed_by = COALESCE($3, signed_by),
-               signature_hash = COALESCE($4, signature_hash),
-               contact_confirmation = COALESCE($5, contact_confirmation),
-               signed_at = CURRENT_TIMESTAMP,
-               status = 'signed',
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND organization_id = $6
-           RETURNING *`,
-          [slipId, guardian_id || null, signed_by || null, signature_hash || null, contact_confirmation || null, organizationId]
-        );
-
-        if (updateResult.rows.length === 0) {
-          return error(res, 'Permission slip not found', 404);
-        }
-
-        return success(res, { permission_slip: updateResult.rows[0] }, 'Permission slip signed');
-      } catch (err) {
-        if (respondWithOrganizationFallback(res, err)) {
-          return;
-        }
-        return error(res, err.message || 'Error signing permission slip', 500);
-      }
-    })
-  );
-
-  // Send email notifications for permission slips
   router.post(
     '/permission-slips/send-emails',
     authenticate,
@@ -871,6 +709,167 @@ module.exports = (pool) => {
       }
     })
   );
+
+  router.post(
+    '/permission-slips',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [
+      check('participant_ids').optional({ nullable: true }).isArray({ max: 200 }),
+      check('participant_ids.*').optional({ nullable: true }).isInt({ min: 1 }),
+      check('participant_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('guardian_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('meeting_date').notEmpty().isISO8601(),
+      check('meeting_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('activity_title').optional({ nullable: true }).isString().trim().isLength({ max: 200 }),
+      check('activity_description').optional({ nullable: true }).isString().trim(),
+      check('deadline_date').optional({ nullable: true }).isISO8601(),
+      check('consent_payload').optional({ nullable: true }).isObject(),
+      check('status').optional({ nullable: true }).isIn(['pending', 'signed', 'revoked', 'expired'])
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+
+        // Debug logging
+        console.log('[Permission Slip Creation] Request body:', JSON.stringify(req.body, null, 2));
+
+        const {
+          participant_ids,
+          participant_id,
+          guardian_id,
+          meeting_date,
+          meeting_id,
+          activity_title,
+          activity_description,
+          deadline_date,
+          consent_payload = {},
+          status = 'pending'
+        } = req.body;
+
+        // Support both single participant and bulk creation
+        const participantIdsList = participant_ids || (participant_id ? [participant_id] : []);
+
+        if (participantIdsList.length === 0) {
+          return error(res, 'At least one participant_id or participant_ids array is required', 400);
+        }
+
+        if (meeting_id) {
+          await verifyMeeting(meeting_id, organizationId);
+        }
+
+        const normalizedDate = parseDate(meeting_date);
+        if (!normalizedDate) {
+          return error(res, 'Invalid meeting date', 400);
+        }
+
+        const normalizedDeadline = deadline_date ? parseDate(deadline_date) : null;
+
+        const createdSlips = [];
+
+        // Create permission slips for each participant
+        for (const pid of participantIdsList) {
+          await verifyParticipant(pid, organizationId);
+
+          const insertResult = await pool.query(
+            `INSERT INTO permission_slips
+             (organization_id, participant_id, guardian_id, meeting_id, meeting_date,
+              activity_title, activity_description, deadline_date, consent_payload, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (organization_id, participant_id, meeting_date)
+             DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
+                           guardian_id = EXCLUDED.guardian_id,
+                           meeting_id = EXCLUDED.meeting_id,
+                           activity_title = EXCLUDED.activity_title,
+                           activity_description = EXCLUDED.activity_description,
+                           deadline_date = EXCLUDED.deadline_date,
+                           status = EXCLUDED.status,
+                           updated_at = CURRENT_TIMESTAMP
+             RETURNING *`,
+            [organizationId, pid, guardian_id || null, meeting_id || null, normalizedDate,
+             activity_title || null, activity_description || null, normalizedDeadline,
+             consent_payload, status]
+          );
+
+          createdSlips.push(insertResult.rows[0]);
+        }
+
+        return success(res, {
+          permission_slips: createdSlips,
+          count: createdSlips.length
+        }, 'Permission slip(s) saved', 201);
+      } catch (err) {
+        if (respondWithOrganizationFallback(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error saving permission slip', 500);
+      }
+    })
+  );
+
+  router.patch(
+    '/permission-slips/:id/sign',
+    authenticate,
+    requireOrganizationRole(leaderAndParents),
+    [
+      param('id').isInt({ min: 1 }),
+      check('guardian_id').optional().isInt({ min: 1 }),
+      check('signed_by').optional().isString().trim().isLength({ min: 2, max: 200 }),
+      check('signature_hash').optional().isString().trim().isLength({ max: 500 }),
+      check('contact_confirmation').optional().isObject()
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const slipId = parseInt(req.params.id, 10);
+        const { guardian_id, signed_by, signature_hash, contact_confirmation } = req.body;
+
+        const slipResult = await pool.query(
+          'SELECT participant_id FROM permission_slips WHERE id = $1 AND organization_id = $2',
+          [slipId, organizationId]
+        );
+
+        if (slipResult.rows.length === 0) {
+          return error(res, 'Permission slip not found', 404);
+        }
+
+        if (req.userRole === 'parent') {
+          const allowedParticipantIds = await getParentParticipantIds(req.user.id, organizationId);
+          if (!allowedParticipantIds.includes(slipResult.rows[0].participant_id)) {
+            return error(res, 'Permission denied for participant', 403);
+          }
+        }
+
+        const updateResult = await pool.query(
+          `UPDATE permission_slips
+           SET guardian_id = COALESCE($2, guardian_id),
+               signed_by = COALESCE($3, signed_by),
+               signature_hash = COALESCE($4, signature_hash),
+               contact_confirmation = COALESCE($5, contact_confirmation),
+               signed_at = CURRENT_TIMESTAMP,
+               status = 'signed',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND organization_id = $6
+           RETURNING *`,
+          [slipId, guardian_id || null, signed_by || null, signature_hash || null, contact_confirmation || null, organizationId]
+        );
+
+        if (updateResult.rows.length === 0) {
+          return error(res, 'Permission slip not found', 404);
+        }
+
+        return success(res, { permission_slip: updateResult.rows[0] }, 'Permission slip signed');
+      } catch (err) {
+        if (respondWithOrganizationFallback(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error signing permission slip', 500);
+      }
+    })
+  );
+
 
   router.get(
     '/status/dashboard',
