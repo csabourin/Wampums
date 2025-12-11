@@ -238,7 +238,8 @@ export class Dashboard {
   <div class="manage-items">
     <a href="/preparation-reunions"><i class="fa-solid fa-clipboard-list"></i><span>${translate("preparation_reunions")}</span></a>
     <a href="/view-participant-documents"><i class="fa-solid fa-file-lines"></i><span>${translate("view_participant_documents")}</span></a>
-    <a href="/resources"><i class="fa-solid fa-boxes-stacked"></i><span>${translate("resource_dashboard_link")}</span></a>
+    <a href="/inventory"><i class="fa-solid fa-warehouse"></i><span>${translate("inventory_link")}</span></a>
+    <a href="/material-management"><i class="fa-solid fa-calendar-check"></i><span>${translate("material_management_link")}</span></a>
     <a href="/permission-slips"><i class="fa-solid fa-file-signature"></i><span>${translate("manage_permission_slips")}</span></a>
   </div>
 </section>

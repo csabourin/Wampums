@@ -236,6 +236,13 @@ export async function updateEquipmentReservation(id, payload) {
 }
 
 /**
+ * Save bulk equipment reservations for an activity
+ */
+export async function saveBulkReservations(payload) {
+    return API.post('v1/resources/equipment/reservations/bulk', payload);
+}
+
+/**
  * Permission slip statuses
  */
 export async function getPermissionSlips(params = {}, cacheOptions = {}) {

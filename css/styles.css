@@ -6372,3 +6372,100 @@ details p {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================================
+   MATERIAL MANAGEMENT & INVENTORY PAGES
+   ============================================================================ */
+
+/* Equipment Selection */
+.equipment-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.equipment-item {
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  transition: background-color 0.2s ease;
+}
+
+.equipment-item:hover {
+  background: var(--color-surface-secondary);
+}
+
+.equipment-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.equipment-checkbox input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.equipment-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.equipment-category {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-left: var(--space-xs);
+}
+
+.equipment-available {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin-left: auto;
+}
+
+.quantity-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  margin-left: var(--space-lg);
+}
+
+.quantity-input input[type="number"] {
+  width: 80px;
+}
+
+.selected-items-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-sm) 0;
+}
+
+.selected-items-list li {
+  padding: var(--space-xs);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.selected-items-list li:last-child {
+  border-bottom: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .equipment-checkbox {
+    flex-wrap: wrap;
+  }
+  
+  .equipment-available {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .quantity-input {
+    margin-left: var(--space-md);
+  }
+}
