@@ -70,16 +70,37 @@ const validateEmailOptional = check('email')
   .withMessage('Email too long');
 
 /**
- * Middleware to normalize email input to lowercase
+ * Normalize an email string by trimming whitespace and lowercasing.
+ * Safely handles non-string values by returning an empty string.
+ *
+ * @param {string} email - Raw email input
+ * @returns {string} Normalized email value
+ */
+const normalizeEmailValue = (email) => {
+  if (typeof email !== 'string') {
+    return '';
+  }
+
+  return email.trim().toLowerCase();
+};
+
+/**
+ * Middleware to normalize email input to lowercase. Can be reused as a pure
+ * function via {@link normalizeEmailValue} to avoid mutation in non-Express
+ * contexts.
+ *
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
  */
 const normalizeEmailInput = (req, res, next) => {
-  if (req.body.email) {
-    req.body.email = req.body.email.toString().trim().toLowerCase();
+  if (req && req.body && typeof req.body.email !== 'undefined') {
+    req.body.email = normalizeEmailValue(req.body.email);
   }
-  next();
+
+  if (typeof next === 'function') {
+    next();
+  }
 };
 
 // ============================================
@@ -361,5 +382,6 @@ module.exports = {
   validateAttendanceStatus,
 
   // Helpers
-  normalizeEmailInput
+  normalizeEmailInput,
+  normalizeEmailValue
 };

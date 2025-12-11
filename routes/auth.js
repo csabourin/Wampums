@@ -17,16 +17,17 @@ const { validationResult } = require('express-validator');
 
 // Import middleware
 const { authenticate } = require('../middleware/auth');
-const {
-  validateEmail,
-  validatePassword,
-  validateStrongPassword,
-  validateNewPassword,
-  validateToken,
-  validateFullName,
-  checkValidation,
-  normalizeEmailInput
-} = require('../middleware/validation');
+  const {
+    validateEmail,
+    validatePassword,
+    validateStrongPassword,
+    validateNewPassword,
+    validateToken,
+    validateFullName,
+    checkValidation,
+    normalizeEmailInput,
+    normalizeEmailValue
+  } = require('../middleware/validation');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -139,7 +140,7 @@ module.exports = (pool, logger) => {
       try {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
         const { email, password } = req.body;
-        const normalizedEmail = normalizeEmailInput(email);
+        const normalizedEmail = normalizeEmailValue(email);
         const trimmedPassword = password.trim();
 
         const userResult = await pool.query(
@@ -270,16 +271,16 @@ module.exports = (pool, logger) => {
     validateStrongPassword,
     validateFullName,
     checkValidation,
-    async (req, res) => {
-      const client = await pool.connect();
-      try {
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
-        const { email, password, full_name, user_type } = req.body;
-        const normalizedEmail = normalizeEmailInput(email);
-        const trimmedPassword = password.trim();
-        const role = mapRequestedRole(user_type);
+      async (req, res) => {
+        const client = await pool.connect();
+        try {
+          const organizationId = await getCurrentOrganizationId(req, pool, logger);
+          const { email, password, full_name, user_type } = req.body;
+          const normalizedEmail = normalizeEmailValue(email);
+          const trimmedPassword = password.trim();
+          const role = mapRequestedRole(user_type);
 
-        await client.query('BEGIN');
+          await client.query('BEGIN');
 
         // Hash password
         const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
@@ -359,13 +360,13 @@ module.exports = (pool, logger) => {
     validateFullName,
     checkValidation,
     async (req, res) => {
-      const client = await pool.connect();
-      try {
-        const organizationId = await getCurrentOrganizationId(req, pool, logger);
-        const { email, password, full_name, user_type } = req.body;
-        const normalizedEmail = normalizeEmailInput(email);
-        const trimmedPassword = password.trim();
-        const role = mapRequestedRole(user_type);
+        const client = await pool.connect();
+        try {
+          const organizationId = await getCurrentOrganizationId(req, pool, logger);
+          const { email, password, full_name, user_type } = req.body;
+          const normalizedEmail = normalizeEmailValue(email);
+          const trimmedPassword = password.trim();
+          const role = mapRequestedRole(user_type);
 
         await client.query('BEGIN');
 
@@ -444,11 +445,11 @@ module.exports = (pool, logger) => {
   router.post('/api/auth/request-reset',
     passwordResetLimiter,
     validateEmail,
-    checkValidation,
-    async (req, res) => {
-      try {
-        const { email } = req.body;
-        const normalizedEmail = normalizeEmailInput(email);
+      checkValidation,
+      async (req, res) => {
+        try {
+          const { email } = req.body;
+          const normalizedEmail = normalizeEmailValue(email);
 
         logger.info('Password reset request received', {
           email: normalizedEmail,
