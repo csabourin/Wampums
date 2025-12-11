@@ -9,7 +9,6 @@
 
 import { makeApiRequest } from "../api/api-core.js";
 import { debugLog, debugError } from "../utils/DebugUtils.js";
-import { CONFIG } from "../config.js";
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 

@@ -33,6 +33,15 @@ const passwordChangeLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for email change - moderate protection
+const emailChangeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isProduction ? 10 : 100, // 10 attempts per 15 minutes in production
+  message: { success: false, message: 'Too many email change attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 /**
  * Export route factory function
  * Allows dependency injection of pool and logger
@@ -191,6 +200,7 @@ module.exports = (pool, logger) => {
    */
   router.patch('/v1/users/me/email',
     authenticate,
+    emailChangeLimiter,
     normalizeEmailInput,
     validateEmail,
     checkValidation,
