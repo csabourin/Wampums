@@ -45,6 +45,8 @@ const lazyModules = {
   Expenses: () => import('./expenses.js').then(m => m.Expenses),
   RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard),
   ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard),
+  Inventory: () => import('./inventory.js').then(m => m.Inventory),
+  MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
   PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
   PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign)
 };
@@ -98,6 +100,8 @@ const routes = {
   "/expenses": "expenses",
   "/revenue-dashboard": "revenueDashboard",
   "/resources": "resourceDashboard",
+  "/inventory": "inventory",
+  "/material-management": "materialManagement",
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slip/:id": "permissionSlipSign",
 
@@ -227,6 +231,24 @@ export class Router {
             const ResourceDashboard = await this.loadModule('ResourceDashboard');
             const resourceDashboard = new ResourceDashboard(this.app);
             await resourceDashboard.init();
+          }
+          break;
+        case "inventory":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const Inventory = await this.loadModule('Inventory');
+            const inventory = new Inventory(this.app);
+            await inventory.init();
+          }
+          break;
+        case "materialManagement":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const MaterialManagement = await this.loadModule('MaterialManagement');
+            const materialManagement = new MaterialManagement(this.app);
+            await materialManagement.init();
           }
           break;
         case "permissionSlipDashboard":

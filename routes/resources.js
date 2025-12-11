@@ -93,8 +93,9 @@ module.exports = (pool) => {
                     WHERE er.equipment_id = e.id
                   ), 0) AS reserved_quantity,
                   COALESCE((
-                    SELECT ARRAY_AGG(eio.organization_id ORDER BY eio.organization_id)
+                    SELECT ARRAY_AGG(o.name ORDER BY o.name)
                     FROM equipment_item_organizations eio
+                    JOIN organizations o ON o.id = eio.organization_id
                     WHERE eio.equipment_id = e.id
                   ), '{}') AS shared_organizations
            FROM equipment_items e
@@ -252,18 +253,31 @@ module.exports = (pool) => {
     '/equipment/reservations',
     authenticate,
     requireOrganizationRole(leaderRoles),
-    [query('meeting_date').optional().isISO8601()],
+    [
+      query('meeting_date').optional().isISO8601(),
+      query('date_from').optional().isISO8601(),
+      query('date_to').optional().isISO8601()
+    ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
         const meetingDate = req.query.meeting_date ? parseDate(req.query.meeting_date) : null;
+        const dateFrom = req.query.date_from ? parseDate(req.query.date_from) : null;
+        const dateTo = req.query.date_to ? parseDate(req.query.date_to) : null;
         const params = [organizationId];
         let filter = '';
 
         if (meetingDate) {
           filter = 'AND er.meeting_date = $2';
           params.push(meetingDate);
+        } else if (dateFrom && dateTo) {
+          // Filter reservations that overlap with the requested date range
+          filter = 'AND er.date_from <= $3 AND er.date_to >= $2';
+          params.push(dateFrom, dateTo);
+        } else if (dateFrom) {
+          filter = 'AND er.date_from >= $2';
+          params.push(dateFrom);
         }
 
         const result = await pool.query(
@@ -272,7 +286,7 @@ module.exports = (pool) => {
            JOIN equipment_items e ON e.id = er.equipment_id
            JOIN equipment_item_organizations access ON access.equipment_id = er.equipment_id AND access.organization_id = $1
            WHERE 1=1 ${filter}
-           ORDER BY er.meeting_date DESC, e.name`,
+           ORDER BY COALESCE(er.date_from, er.meeting_date) DESC, e.name`,
           params
         );
 
@@ -292,7 +306,9 @@ module.exports = (pool) => {
     requireOrganizationRole(leaderRoles),
     [
       check('equipment_id').isInt({ min: 1 }),
-      check('meeting_date').isISO8601(),
+      check('meeting_date').optional().isISO8601(),
+      check('date_from').optional().isISO8601(),
+      check('date_to').optional().isISO8601(),
       check('meeting_id').optional().isInt({ min: 1 }),
       check('reserved_quantity').optional().isInt({ min: 1 }),
       check('reserved_for').optional().isString().trim().isLength({ max: 200 }),
@@ -306,6 +322,8 @@ module.exports = (pool) => {
         const {
           equipment_id,
           meeting_date,
+          date_from,
+          date_to,
           meeting_id,
           reserved_quantity = 1,
           reserved_for,
@@ -317,22 +335,42 @@ module.exports = (pool) => {
           await verifyMeeting(meeting_id, organizationId);
         }
 
-        const normalizedDate = parseDate(meeting_date);
-        if (!normalizedDate) {
-          return error(res, 'Invalid meeting date', 400);
+        // Support both old (meeting_date) and new (date_from/date_to) formats
+        let normalizedDate, normalizedDateFrom, normalizedDateTo;
+        
+        if (date_from && date_to) {
+          normalizedDateFrom = parseDate(date_from);
+          normalizedDateTo = parseDate(date_to);
+          normalizedDate = normalizedDateFrom; // Use date_from as meeting_date for backward compatibility
+          
+          if (!normalizedDateFrom || !normalizedDateTo) {
+            return error(res, 'Invalid date range', 400);
+          }
+        } else if (meeting_date) {
+          normalizedDate = parseDate(meeting_date);
+          normalizedDateFrom = normalizedDate;
+          normalizedDateTo = normalizedDate;
+          
+          if (!normalizedDate) {
+            return error(res, 'Invalid meeting date', 400);
+          }
+        } else {
+          return error(res, 'Either meeting_date or date_from/date_to is required', 400);
         }
 
         await verifyEquipmentAccess(equipment_id, organizationId);
 
         const insertResult = await pool.query(
           `INSERT INTO equipment_reservations
-           (organization_id, equipment_id, meeting_id, meeting_date, reserved_quantity, reserved_for, status, notes, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           (organization_id, equipment_id, meeting_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT ON CONSTRAINT equipment_reservations_unique_reservation
            DO UPDATE SET reserved_quantity = EXCLUDED.reserved_quantity,
                          status = EXCLUDED.status,
                          notes = EXCLUDED.notes,
                          meeting_id = EXCLUDED.meeting_id,
+                         date_from = EXCLUDED.date_from,
+                         date_to = EXCLUDED.date_to,
                          updated_at = CURRENT_TIMESTAMP
            RETURNING *`,
           [
@@ -340,6 +378,8 @@ module.exports = (pool) => {
             equipment_id,
             meeting_id || null,
             normalizedDate,
+            normalizedDateFrom,
+            normalizedDateTo,
             reserved_quantity,
             reserved_for ?? '',
             status,
@@ -404,6 +444,87 @@ module.exports = (pool) => {
           return;
         }
         return error(res, err.message || 'Error updating reservation', 500);
+      }
+    })
+  );
+
+  // Bulk equipment reservations
+  router.post(
+    '/equipment/reservations/bulk',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [
+      check('date_from').isISO8601(),
+      check('date_to').isISO8601(),
+      check('reserved_for').isString().trim().isLength({ min: 1, max: 200 }),
+      check('notes').optional().isString().trim().isLength({ max: 2000 }),
+      check('items').isArray({ min: 1, max: 50 }),
+      check('items.*.equipment_id').isInt({ min: 1 }),
+      check('items.*.quantity').isInt({ min: 1 })
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const {
+          date_from,
+          date_to,
+          reserved_for,
+          notes,
+          items
+        } = req.body;
+
+        const normalizedDateFrom = parseDate(date_from);
+        const normalizedDateTo = parseDate(date_to);
+
+        if (!normalizedDateFrom || !normalizedDateTo) {
+          return error(res, 'Invalid date range', 400);
+        }
+
+        if (normalizedDateFrom > normalizedDateTo) {
+          return error(res, 'date_from must be before or equal to date_to', 400);
+        }
+
+        // Verify all equipment items are accessible
+        for (const item of items) {
+          await verifyEquipmentAccess(item.equipment_id, organizationId);
+        }
+
+        const createdReservations = [];
+
+        // Create a reservation for each equipment item
+        for (const item of items) {
+          const insertResult = await pool.query(
+            `INSERT INTO equipment_reservations
+             (organization_id, equipment_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             RETURNING *`,
+            [
+              organizationId,
+              item.equipment_id,
+              normalizedDateFrom, // Use date_from as meeting_date for backward compatibility
+              normalizedDateFrom,
+              normalizedDateTo,
+              item.quantity,
+              reserved_for,
+              'reserved',
+              notes || null,
+              req.user?.id || null
+            ]
+          );
+
+          createdReservations.push(insertResult.rows[0]);
+        }
+
+        return success(res, {
+          reservations: createdReservations,
+          count: createdReservations.length
+        }, 'Bulk reservations saved', 201);
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error saving bulk reservations', 500);
       }
     })
   );
