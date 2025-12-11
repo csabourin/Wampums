@@ -246,6 +246,20 @@ export async function signPermissionSlip(id, payload) {
 }
 
 /**
+ * Send emails to parents for permission slips
+ */
+export async function sendPermissionSlipEmails(payload) {
+    return API.post('v1/resources/permission-slips/send-emails', payload);
+}
+
+/**
+ * Send reminder emails to parents for unsigned permission slips
+ */
+export async function sendPermissionSlipReminders(payload) {
+    return API.post('v1/resources/permission-slips/send-reminders', payload);
+}
+
+/**
  * Dashboard snapshot for resources and approvals
  */
 export async function getResourceDashboard(params = {}) {
