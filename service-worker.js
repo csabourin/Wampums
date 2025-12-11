@@ -812,12 +812,3 @@ async function clearOfflineData(key) {
     debugError("Error clearing offline data:", error);
   }
 }
-t.onsuccess = () => resolve();
-        deleteRequest.onerror = () => resolve();
-      };
-      request.onerror = () => resolve();
-    });
-  } catch (error) {
-    debugError("Error clearing offline data:", error);
-  }
-}
