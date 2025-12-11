@@ -5,7 +5,7 @@
  * Sets up OfflineIndicator, OfflineManager, and handles event listeners.
  */
 
-import { debugLog, debugError } from './utils/DebugUtils.js';
+import { debugLog, debugError, debugWarn } from './utils/DebugUtils.js';
 import { OfflineIndicator } from './components/OfflineIndicator.js';
 import { offlineManager } from './modules/OfflineManager.js';
 

@@ -239,7 +239,7 @@ export class OfflineManager {
         debugLog('OfflineManager: Service worker not available, using IndexedDB directly');
         try {
             // Use the existing offline data storage from indexedDB.js
-            const { saveOfflineData } = await import('./indexedDB.js');
+            const { saveOfflineData } = await import('../indexedDB.js');
             await saveOfflineData(mutation.method, {
                 url: mutation.url,
                 headers: mutation.headers,
