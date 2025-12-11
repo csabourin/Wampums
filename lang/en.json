@@ -1465,5 +1465,14 @@
     "sending": "Sending",
     "sent": "Sent",
     "partial": "Partially delivered",
-    "announcement": "Announcement"
+    "announcement": "Announcement",
+    "connection.restored": "Connection restored - syncing changes",
+    "connection.lost": "You are offline - changes will sync when connected",
+    "status.offline": "Offline",
+    "status.syncing": "Syncing...",
+    "sync.pending": "{{count}} change(s) pending",
+    "sync.complete": "All changes synced",
+    "sync.failed": "Some changes failed to sync",
+    "offline.dataUnavailable": "This data is not available offline",
+    "offline.savedLocally": "Saved locally - will sync when online"
 }
