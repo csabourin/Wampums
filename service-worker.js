@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "2.3.1";
+const APP_VERSION = "2.3.4";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
@@ -347,52 +347,45 @@ async function networkFirst(request) {
 async function fetchAndCacheInIndexedDB(request) {
   const cacheKey = request.url; // Use the request URL as the cache key
 
-  // Cache-first strategy with stale-while-revalidate to reduce bandwidth
-  // This serves cached content immediately while updating in the background
-  const cachedData = await getCachedData(cacheKey);
-
-  if (cachedData) {
-    // Serve from cache immediately
-    debugLog("Serving from cache (stale-while-revalidate):", cacheKey);
-
-    // Update cache in background (fire and forget)
-    fetch(request).then(async (networkResponse) => {
-      if (networkResponse.ok) {
-        try {
-          const data = await networkResponse.json();
-          await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
-          debugLog("Background cache update completed for:", cacheKey);
-        } catch (error) {
-          debugWarn("Background cache update failed:", error);
-        }
-      }
-    }).catch(() => {
-      // Silently fail background updates
-    });
-
-    return new Response(JSON.stringify(cachedData), {
-      headers: { "Content-Type": "application/json", "X-From-Cache": "true" },
-    });
-  }
-
-  // If no cache available, fetch from network
   try {
+    // Try network first for API requests to get fresh data
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
+      const responseClone = networkResponse.clone();
       const data = await networkResponse.json();
 
       // Save the response data in IndexedDB for offline access
       await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000); // Cache for 24 hours
       return new Response(JSON.stringify(data), {
         headers: { "Content-Type": "application/json" },
+      }); // Return the response
+    }
+
+    // If the network responded with an error status, try a cached copy before failing
+    debugWarn("API responded with", networkResponse.status, "for", cacheKey);
+    const cachedData = await getCachedData(cacheKey);
+    if (cachedData) {
+      debugLog("Serving cached data after network error:", cacheKey);
+      return new Response(JSON.stringify(cachedData), {
+        headers: { "Content-Type": "application/json", "X-From-Cache": "true" },
       });
     }
 
-    // If the network responded with an error status, return it
-    debugWarn("API responded with", networkResponse.status, "for", cacheKey);
     return networkResponse;
   } catch (error) {
-    debugError("Network request failed:", error);
+    debugError(
+      "Network request failed, attempting to serve from cache:",
+      error,
+    );
+
+    // If network fails, check if the data exists in IndexedDB
+    const cachedData = await getCachedData(cacheKey);
+    if (cachedData) {
+      debugLog("Serving from cache:", cacheKey);
+      return new Response(JSON.stringify(cachedData), {
+        headers: { "Content-Type": "application/json", "X-From-Cache": "true" },
+      });
+    }
 
     // If no cache exists, return error response
     return new Response(
@@ -811,6 +804,15 @@ async function clearOfflineData(key) {
         const deleteRequest = store.delete(key);
 
         deleteRequest.onsuccess = () => resolve();
+        deleteRequest.onerror = () => resolve();
+      };
+      request.onerror = () => resolve();
+    });
+  } catch (error) {
+    debugError("Error clearing offline data:", error);
+  }
+}
+t.onsuccess = () => resolve();
         deleteRequest.onerror = () => resolve();
       };
       request.onerror = () => resolve();
