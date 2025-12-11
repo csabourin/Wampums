@@ -1,0 +1,299 @@
+/**
+ * Account Information Page Styles
+ *
+ * Mobile-first responsive design for user profile management
+ * Base styles for 320px+, enhancements for 768px+
+ */
+
+/* ============================================
+   BASE STYLES (Mobile-first: 320px+)
+   ============================================ */
+
+.account-section {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.account-section h2 {
+  font-size: 1.25rem;
+  margin: 0 0 16px 0;
+  color: #333;
+  font-weight: 600;
+}
+
+.account-form {
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="password"] {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+  /* Minimum 44px touch target */
+  min-height: 44px;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="email"]:focus,
+.form-group input[type="password"]:focus {
+  outline: none;
+  border-color: #4c65ae;
+  box-shadow: 0 0 0 3px rgba(76, 101, 174, 0.1);
+}
+
+.form-group input[type="text"]:invalid,
+.form-group input[type="email"]:invalid,
+.form-group input[type="password"]:invalid {
+  border-color: #dc3545;
+}
+
+/* Button styles */
+.account-form .btn {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  /* Minimum 44px touch target */
+  min-height: 44px;
+  text-align: center;
+}
+
+.account-form .btn-primary {
+  background-color: #4c65ae;
+  color: #fff;
+}
+
+.account-form .btn-primary:hover {
+  background-color: #3d5290;
+}
+
+.account-form .btn-primary:active {
+  transform: scale(0.98);
+}
+
+.account-form .btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Warning box for email change */
+.warning-box {
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #856404;
+}
+
+.warning-box p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Error container */
+.error-container {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.error-container h1 {
+  color: #dc3545;
+  margin-bottom: 16px;
+}
+
+.error-container p {
+  margin: 12px 0;
+  color: #666;
+}
+
+.error-container a {
+  color: #4c65ae;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.error-container a:hover {
+  text-decoration: underline;
+}
+
+/* Home icon (from other pages) */
+.home-icon {
+  display: inline-block;
+  font-size: 2rem;
+  text-decoration: none;
+  margin-bottom: 16px;
+  transition: transform 0.2s ease;
+}
+
+.home-icon:hover {
+  transform: scale(1.1);
+}
+
+/* Page title */
+h1 {
+  font-size: 1.75rem;
+  margin: 0 0 24px 0;
+  color: #333;
+  font-weight: 700;
+}
+
+/* ============================================
+   TABLET/DESKTOP ENHANCEMENTS (768px+)
+   ============================================ */
+
+@media (min-width: 768px) {
+  /* Container for sections */
+  .account-section {
+    padding: 32px;
+    margin-bottom: 32px;
+  }
+
+  .account-section h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+  }
+
+  /* Form layout */
+  .account-form {
+    max-width: 500px;
+  }
+
+  .form-group {
+    margin-bottom: 24px;
+  }
+
+  .form-group label {
+    font-size: 1rem;
+    margin-bottom: 10px;
+  }
+
+  .form-group input[type="text"],
+  .form-group input[type="email"],
+  .form-group input[type="password"] {
+    padding: 14px;
+    font-size: 1rem;
+  }
+
+  /* Button on desktop can be smaller width */
+  .account-form .btn {
+    width: auto;
+    min-width: 200px;
+    padding: 12px 32px;
+  }
+
+  /* Warning box */
+  .warning-box {
+    padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+
+  .warning-box p {
+    font-size: 1rem;
+  }
+
+  /* Page title */
+  h1 {
+    font-size: 2.25rem;
+    margin-bottom: 32px;
+  }
+
+  /* Error container */
+  .error-container {
+    padding: 60px 40px;
+  }
+}
+
+/* ============================================
+   LARGE DESKTOP (1024px+)
+   ============================================ */
+
+@media (min-width: 1024px) {
+  /* Center content with max width */
+  .account-section {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 40px;
+  }
+
+  h1 {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 40px;
+  }
+
+  .home-icon {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================ */
+
+/* Focus visible for keyboard navigation */
+.account-form .btn:focus-visible {
+  outline: 3px solid #4c65ae;
+  outline-offset: 2px;
+}
+
+.form-group input[type="text"]:focus-visible,
+.form-group input[type="email"]:focus-visible,
+.form-group input[type="password"]:focus-visible {
+  outline: 3px solid #4c65ae;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .account-section {
+    border: 2px solid #000;
+  }
+
+  .warning-box {
+    border: 2px solid #ffc107;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .home-icon,
+  .account-form .btn,
+  .form-group input[type="text"],
+  .form-group input[type="email"],
+  .form-group input[type="password"] {
+    transition: none;
+  }
+}

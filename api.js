@@ -417,6 +417,7 @@ const financeRoutes = require('./routes/finance')(pool, logger);
 const budgetsRoutes = require('./routes/budgets')(pool, logger);
 const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger);
 const resourcesRoutes = require('./routes/resources')(pool);
+const userProfileRoutes = require('./routes/userProfile')(pool, logger);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -459,6 +460,15 @@ logger.info('   - POST /api/update-user-role');
 logger.info('   - POST /api/link-user-participants');
 logger.info('   - POST /api/associate-user-participant');
 logger.info('   - POST /api/permissions/check');
+
+// User Profile Routes (handles /api/v1/users/me/*)
+// Endpoints: users/me (GET), users/me/name (PATCH), users/me/email (PATCH), users/me/password (PATCH)
+app.use('/api', userProfileRoutes);
+logger.info('✅ User profile routes loaded');
+logger.info('   - GET /api/v1/users/me');
+logger.info('   - PATCH /api/v1/users/me/name');
+logger.info('   - PATCH /api/v1/users/me/email');
+logger.info('   - PATCH /api/v1/users/me/password');
 
 // Meeting Routes (handles /api/reunion-preparation, /api/reunion-dates, /api/next-meeting-info, etc.)
 // Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, reminder, save_reminder, activites-rencontre
