@@ -111,9 +111,15 @@ exports.optionalAuth = (req, res, next) => {
  * Get organization ID from request (header or user context)
  */
 exports.getOrganizationId = async (req, pool) => {
+  logger.info('[getOrganizationId] Starting - Path:', req.path, 'Method:', req.method);
+  logger.info('[getOrganizationId] Headers x-organization-id:', req.headers['x-organization-id']);
+  logger.info('[getOrganizationId] req.user:', req.user ? { id: req.user.id, organizationId: req.user.organizationId } : null);
+
   // Try header first
   if (req.headers['x-organization-id']) {
-    return parseInt(req.headers['x-organization-id'], 10);
+    const orgId = parseInt(req.headers['x-organization-id'], 10);
+    logger.info('[getOrganizationId] Found in header:', orgId);
+    return orgId;
   }
 
   // Fallback to explicit query parameter (used by some API consumers)
@@ -134,11 +140,13 @@ exports.getOrganizationId = async (req, pool) => {
 
   // Try from authenticated user
   if (req.user && req.user.organizationId) {
+    logger.info('[getOrganizationId] Found in req.user:', req.user.organizationId);
     return req.user.organizationId;
   }
 
   // Try from hostname mapping
   const hostname = req.hostname;
+  logger.info('[getOrganizationId] Trying hostname mapping for:', hostname);
   try {
     const result = await pool.query(
       'SELECT organization_id FROM organization_domains WHERE domain = $1',
@@ -146,12 +154,14 @@ exports.getOrganizationId = async (req, pool) => {
     );
 
     if (result.rows.length > 0) {
+      logger.info('[getOrganizationId] Found via hostname:', result.rows[0].organization_id);
       return result.rows[0].organization_id;
     }
   } catch (error) {
     logger.error('Error getting organization ID:', error);
   }
 
+  logger.error('[getOrganizationId] No organization found - throwing error');
   throw new OrganizationNotFoundError('Organization mapping not found for request');
 };
 
