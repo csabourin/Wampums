@@ -90,7 +90,12 @@ export function withOfflineSupport(apiFunction, options = {}) {
             // If offline and this is a mutation, it may have been queued
             if (offlineManager.offline && queueable) {
                 // Check if error indicates queued operation
-                if (error.queued || (error.response && error.response.status === 202)) {
+                // Handle different error structures
+                const isQueued = error.queued || 
+                                (error.response && error.response.status === 202) ||
+                                (error.status === 202);
+                
+                if (isQueued) {
                     return {
                         success: true,
                         queued: true,

@@ -60,8 +60,27 @@ async function handleUserLogin(event) {
     debugLog('offline-init: User logged in, pre-caching critical data', event.detail);
 
     try {
-        // Wait a bit for token to be set
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Check for token with exponential backoff
+        const maxAttempts = 5;
+        const baseDelay = 100; // Start with 100ms
+        let token = null;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            token = localStorage.getItem('jwtToken');
+            if (token) {
+                break;
+            }
+            
+            // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+            const delay = baseDelay * Math.pow(2, attempt);
+            debugLog(`offline-init: Waiting for token, attempt ${attempt + 1}/${maxAttempts}, delay: ${delay}ms`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        if (!token) {
+            debugWarn('offline-init: No token found after waiting, skipping pre-cache');
+            return;
+        }
 
         // Pre-cache critical data
         await offlineManager.preCacheCriticalData();

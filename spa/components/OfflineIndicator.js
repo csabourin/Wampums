@@ -132,6 +132,8 @@ export class OfflineIndicator {
             }
 
             /* Mobile adjustments - above mobile navigation */
+            /* Note: 70px assumes standard mobile nav height of 50-60px.
+               Adjust if navigation height changes. */
             @media (max-width: 768px) {
                 .offline-indicator {
                     bottom: 70px;

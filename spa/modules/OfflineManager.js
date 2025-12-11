@@ -218,15 +218,38 @@ export class OfflineManager {
 
     /**
      * Store pending mutation
+     * Falls back to local storage if service worker is not available
      */
     async storePendingMutation(mutation) {
-        // This will be handled by the service worker's IndexedDB
-        // We notify the service worker
+        // Try to use service worker first
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-                type: 'QUEUE_MUTATION',
-                mutation
+            try {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'QUEUE_MUTATION',
+                    mutation
+                });
+                debugLog('OfflineManager: Mutation sent to service worker');
+                return;
+            } catch (error) {
+                debugWarn('OfflineManager: Failed to send to service worker', error);
+            }
+        }
+
+        // Fallback: Store directly in IndexedDB using existing functions
+        debugLog('OfflineManager: Service worker not available, using IndexedDB directly');
+        try {
+            // Use the existing offline data storage from indexedDB.js
+            const { saveOfflineData } = await import('./indexedDB.js');
+            await saveOfflineData(mutation.method, {
+                url: mutation.url,
+                headers: mutation.headers,
+                body: mutation.body,
+                timestamp: mutation.timestamp
             });
+            debugLog('OfflineManager: Mutation stored in IndexedDB');
+        } catch (error) {
+            debugError('OfflineManager: Failed to store mutation', error);
+            throw error;
         }
     }
 
@@ -252,10 +275,14 @@ export class OfflineManager {
                 const registration = await navigator.serviceWorker.ready;
                 await registration.sync.register('sync-mutations');
                 debugLog('OfflineManager: Background sync registered');
+            } else {
+                debugLog('OfflineManager: Background Sync API not available, sync will happen on visibility change');
             }
 
-            // Wait a bit for sync to complete
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait for sync to start and give service worker time to process
+            // Use configurable timeout from CONFIG if available
+            const syncTimeout = CONFIG.UI?.SYNC_TIMEOUT || 2000;
+            await new Promise(resolve => setTimeout(resolve, syncTimeout));
 
             // Check pending count
             await this.updatePendingCount();
@@ -377,9 +404,12 @@ export class OfflineManager {
         try {
             // Get offline data from IndexedDB
             const offlineData = await getOfflineData();
-            const count = offlineData ? offlineData.length : 0;
             
-            this.pendingMutations = offlineData || [];
+            // Ensure offlineData is an array
+            const dataArray = Array.isArray(offlineData) ? offlineData : [];
+            const count = dataArray.length;
+            
+            this.pendingMutations = dataArray;
             
             debugLog('OfflineManager: Pending mutations count', count);
             
@@ -388,6 +418,9 @@ export class OfflineManager {
             
         } catch (error) {
             debugError('OfflineManager: Failed to get pending count', error);
+            // Set empty array as fallback
+            this.pendingMutations = [];
+            this.dispatchEvent('pendingCountChanged', { count: 0 });
         }
     }
 
