@@ -273,6 +273,7 @@ module.exports = (pool) => {
           params.push(meetingDate);
         } else if (dateFrom && dateTo) {
           // Filter reservations that overlap with the requested date range
+          // A reservation overlaps if: reservation.date_from <= requested.date_to AND reservation.date_to >= requested.date_from
           filter = 'AND er.date_from <= $3 AND er.date_to >= $2';
           params.push(dateFrom, dateTo);
         } else if (dateFrom) {
@@ -345,6 +346,10 @@ module.exports = (pool) => {
           
           if (!normalizedDateFrom || !normalizedDateTo) {
             return error(res, 'Invalid date range', 400);
+          }
+          
+          if (normalizedDateFrom > normalizedDateTo) {
+            return error(res, 'date_from must be before or equal to date_to', 400);
           }
         } else if (meeting_date) {
           normalizedDate = parseDate(meeting_date);

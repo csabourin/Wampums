@@ -125,6 +125,7 @@ export class Inventory {
           await saveEquipmentItem(payload);
           this.app.showMessage(translate("inventory_saved"), "success");
           equipmentForm.reset();
+          // Refresh and re-render to show the new equipment in the table
           await this.refreshData();
           this.render();
           this.attachEventHandlers();

@@ -176,6 +176,7 @@ export class MaterialManagement {
 
   attachEventHandlers() {
     // Handle equipment selection checkboxes
+    // Note: We re-render to update the quantity inputs visibility and selected items list
     const checkboxes = document.querySelectorAll('.equipment-selector');
     checkboxes.forEach(checkbox => {
       checkbox.addEventListener('change', (event) => {
@@ -197,6 +198,8 @@ export class MaterialManagement {
         const equipmentId = parseInt(event.target.dataset.equipmentId);
         const quantity = parseInt(event.target.value) || 1;
         this.selectedItems.set(equipmentId, quantity);
+        // Update the selected items list to reflect the new quantity
+        this.updateSelectedItemsList();
       });
     });
 
@@ -238,6 +241,28 @@ export class MaterialManagement {
           this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
         }
       });
+    }
+  }
+
+  /**
+   * Update only the selected items list without full re-render
+   */
+  updateSelectedItemsList() {
+    const selectedItemsList = Array.from(this.selectedItems.entries())
+      .map(([equipmentId, quantity]) => {
+        const equipment = this.equipment.find(e => e.id === parseInt(equipmentId));
+        return equipment ? { ...equipment, selectedQuantity: quantity } : null;
+      })
+      .filter(item => item !== null);
+
+    const listContainer = document.querySelector('.selected-items-list');
+    if (listContainer && selectedItemsList.length > 0) {
+      listContainer.innerHTML = selectedItemsList.map(item => `
+        <li>
+          <strong>${escapeHTML(item.name)}</strong> - 
+          ${escapeHTML(translate("reserved_quantity"))}: ${item.selectedQuantity}
+        </li>
+      `).join('');
     }
   }
 }
