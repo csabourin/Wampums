@@ -45,7 +45,8 @@ const lazyModules = {
   Expenses: () => import('./expenses.js').then(m => m.Expenses),
   RevenueDashboard: () => import('./revenue-dashboard.js').then(m => m.RevenueDashboard),
   ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard),
-  PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard)
+  PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
+  PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign)
 };
 
 // Cache for loaded modules
@@ -98,6 +99,7 @@ const routes = {
   "/revenue-dashboard": "revenueDashboard",
   "/resources": "resourceDashboard",
   "/permission-slips": "permissionSlipDashboard",
+  "/permission-slip/:id": "permissionSlipSign",
 
 };
 
@@ -134,9 +136,9 @@ export class Router {
     this.app.userFullName = session.userFullName;
 
     try {
-      // Allow access to login, register, and index pages without being logged in
-      if (!this.app.isLoggedIn && !["login", "register", "resetPassword"].includes(routeName)) {
-          if (path !== "/login") { 
+      // Allow access to login, register, permission slip signing, and index pages without being logged in
+      if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign"].includes(routeName)) {
+          if (path !== "/login") {
               console.trace(`Redirecting to login from route: ${routeName}`);
               history.pushState(null, "", "/login");
           }
@@ -235,6 +237,12 @@ export class Router {
             const permissionSlipDashboard = new PermissionSlipDashboard(this.app);
             await permissionSlipDashboard.init();
           }
+          break;
+        case "permissionSlipSign":
+          // Public route - allow anyone to sign permission slips via email link
+          const PermissionSlipSign = await this.loadModule('PermissionSlipSign');
+          const permissionSlipSign = new PermissionSlipSign(this.app, param);
+          await permissionSlipSign.init();
           break;
         case "calendars":
           if (this.app.userRole !== "admin" && this.app.userRole !== "animation"){
