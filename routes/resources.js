@@ -8,6 +8,7 @@ const { authenticate, requireOrganizationRole, getOrganizationId } = require('..
 const { success, error, asyncHandler } = require('../middleware/response');
 const { checkValidation } = require('../middleware/validation');
 const { respondWithOrganizationFallback } = require('../utils/api-helpers');
+const { sendEmail } = require('../utils/index');
 
 function parseDate(dateString) {
   const parsed = new Date(dateString);
@@ -477,10 +478,15 @@ module.exports = (pool) => {
     authenticate,
     requireOrganizationRole(leaderRoles),
     [
-      check('participant_id').isInt({ min: 1 }),
+      check('participant_ids').optional().isArray({ min: 1, max: 200 }),
+      check('participant_ids.*').optional().isInt({ min: 1 }),
+      check('participant_id').optional().isInt({ min: 1 }),
       check('guardian_id').optional().isInt({ min: 1 }),
       check('meeting_date').isISO8601(),
       check('meeting_id').optional().isInt({ min: 1 }),
+      check('activity_title').optional().isString().trim().isLength({ min: 1, max: 200 }),
+      check('activity_description').optional().isString().trim().isLength({ max: 5000 }),
+      check('deadline_date').optional().isISO8601(),
       check('consent_payload').optional().isObject(),
       check('status').optional().isIn(['pending', 'signed', 'revoked', 'expired'])
     ],
@@ -489,15 +495,25 @@ module.exports = (pool) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
         const {
+          participant_ids,
           participant_id,
           guardian_id,
           meeting_date,
           meeting_id,
+          activity_title,
+          activity_description,
+          deadline_date,
           consent_payload = {},
           status = 'pending'
         } = req.body;
 
-        await verifyParticipant(participant_id, organizationId);
+        // Support both single participant and bulk creation
+        const participantIdsList = participant_ids || (participant_id ? [participant_id] : []);
+
+        if (participantIdsList.length === 0) {
+          return error(res, 'At least one participant_id or participant_ids array is required', 400);
+        }
+
         if (meeting_id) {
           await verifyMeeting(meeting_id, organizationId);
         }
@@ -507,21 +523,41 @@ module.exports = (pool) => {
           return error(res, 'Invalid meeting date', 400);
         }
 
-        const insertResult = await pool.query(
-          `INSERT INTO permission_slips
-           (organization_id, participant_id, guardian_id, meeting_id, meeting_date, consent_payload, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (organization_id, participant_id, meeting_date)
-           DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
-                         guardian_id = EXCLUDED.guardian_id,
-                         meeting_id = EXCLUDED.meeting_id,
-                         status = EXCLUDED.status,
-                         updated_at = CURRENT_TIMESTAMP
-           RETURNING *`,
-          [organizationId, participant_id, guardian_id || null, meeting_id || null, normalizedDate, consent_payload, status]
-        );
+        const normalizedDeadline = deadline_date ? parseDate(deadline_date) : null;
 
-        return success(res, { permission_slip: insertResult.rows[0] }, 'Permission slip saved', 201);
+        const createdSlips = [];
+
+        // Create permission slips for each participant
+        for (const pid of participantIdsList) {
+          await verifyParticipant(pid, organizationId);
+
+          const insertResult = await pool.query(
+            `INSERT INTO permission_slips
+             (organization_id, participant_id, guardian_id, meeting_id, meeting_date,
+              activity_title, activity_description, deadline_date, consent_payload, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (organization_id, participant_id, meeting_date)
+             DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
+                           guardian_id = EXCLUDED.guardian_id,
+                           meeting_id = EXCLUDED.meeting_id,
+                           activity_title = EXCLUDED.activity_title,
+                           activity_description = EXCLUDED.activity_description,
+                           deadline_date = EXCLUDED.deadline_date,
+                           status = EXCLUDED.status,
+                           updated_at = CURRENT_TIMESTAMP
+             RETURNING *`,
+            [organizationId, pid, guardian_id || null, meeting_id || null, normalizedDate,
+             activity_title || null, activity_description || null, normalizedDeadline,
+             consent_payload, status]
+          );
+
+          createdSlips.push(insertResult.rows[0]);
+        }
+
+        return success(res, {
+          permission_slips: createdSlips,
+          count: createdSlips.length
+        }, 'Permission slip(s) saved', 201);
       } catch (err) {
         if (respondWithOrganizationFallback(res, err)) {
           return;
@@ -589,6 +625,245 @@ module.exports = (pool) => {
           return;
         }
         return error(res, err.message || 'Error signing permission slip', 500);
+      }
+    })
+  );
+
+  // Send email notifications for permission slips
+  router.post(
+    '/permission-slips/send-emails',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [
+      check('meeting_date').isISO8601(),
+      check('activity_title').optional().isString().trim().isLength({ max: 200 }),
+      check('participant_ids').optional().isArray({ max: 200 }),
+      check('participant_ids.*').optional().isInt({ min: 1 })
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const { meeting_date, activity_title, participant_ids } = req.body;
+
+        const normalizedDate = parseDate(meeting_date);
+        if (!normalizedDate) {
+          return error(res, 'Invalid meeting date', 400);
+        }
+
+        // Build query to find permission slips
+        let query = `
+          SELECT ps.*, p.first_name, p.last_name,
+                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.email AS guardian_email,
+                 u.email AS parent_email
+          FROM permission_slips ps
+          JOIN participants p ON p.id = ps.participant_id
+          LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
+          LEFT JOIN user_participants up ON up.participant_id = p.id
+          LEFT JOIN users u ON u.id = up.user_id
+          WHERE ps.organization_id = $1
+            AND ps.meeting_date = $2
+            AND ps.status = 'pending'
+            AND ps.email_sent = false`;
+
+        const params = [organizationId, normalizedDate];
+
+        if (activity_title) {
+          params.push(activity_title);
+          query += ` AND ps.activity_title = $${params.length}`;
+        }
+
+        if (participant_ids && participant_ids.length > 0) {
+          params.push(participant_ids);
+          query += ` AND ps.participant_id = ANY($${params.length})`;
+        }
+
+        const slipsResult = await pool.query(query, params);
+
+        if (slipsResult.rows.length === 0) {
+          return success(res, { sent: 0 }, 'No permission slips to send');
+        }
+
+        let sentCount = 0;
+        const failedEmails = [];
+
+        for (const slip of slipsResult.rows) {
+          const recipientEmail = slip.guardian_email || slip.parent_email;
+
+          if (!recipientEmail) {
+            failedEmails.push({ participant_id: slip.participant_id, reason: 'No email address' });
+            continue;
+          }
+
+          // Prepare email content
+          const activityTitle = slip.activity_title || 'Activité';
+          const activityDate = new Date(slip.meeting_date).toLocaleDateString('fr-CA');
+          const activityDescription = slip.activity_description || '';
+          const deadlineText = slip.deadline_date
+            ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString('fr-CA')}`
+            : '';
+
+          const signLink = `${process.env.APP_BASE_URL || 'https://wampums.app'}/permission-slip/${slip.id}`;
+
+          const subject = `Autorisation parentale requise - ${activityTitle}`;
+          const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
+
+          const htmlBody = `
+            <h2>Autorisation parentale requise</h2>
+            <p>Bonjour,</p>
+            <p>Nous organisons l'activité suivante : <strong>${activityTitle}</strong></p>
+            <p><strong>Date de l'activité :</strong> ${activityDate}</p>
+            ${activityDescription ? `<div>${activityDescription}</div>` : ''}
+            <p><a href="${signLink}" style="display: inline-block; padding: 12px 24px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 4px;">Signer l'autorisation</a></p>
+            ${deadlineText ? `<p><em>${deadlineText}</em></p>` : ''}
+            <p>Merci !</p>
+          `;
+
+          const emailSent = await sendEmail(recipientEmail, subject, textBody, htmlBody);
+
+          if (emailSent) {
+            // Mark email as sent
+            await pool.query(
+              `UPDATE permission_slips
+               SET email_sent = true, email_sent_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [slip.id]
+            );
+            sentCount++;
+          } else {
+            failedEmails.push({ participant_id: slip.participant_id, email: recipientEmail, reason: 'Email send failed' });
+          }
+        }
+
+        return success(res, {
+          sent: sentCount,
+          total: slipsResult.rows.length,
+          failed: failedEmails
+        }, `${sentCount} email(s) sent successfully`);
+      } catch (err) {
+        if (respondWithOrganizationFallback(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error sending emails', 500);
+      }
+    })
+  );
+
+  // Send reminder emails for unsigned permission slips
+  router.post(
+    '/permission-slips/send-reminders',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [
+      check('meeting_date').isISO8601(),
+      check('activity_title').optional().isString().trim().isLength({ max: 200 }),
+      check('participant_ids').optional().isArray({ max: 200 }),
+      check('participant_ids.*').optional().isInt({ min: 1 })
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const { meeting_date, activity_title, participant_ids } = req.body;
+
+        const normalizedDate = parseDate(meeting_date);
+        if (!normalizedDate) {
+          return error(res, 'Invalid meeting date', 400);
+        }
+
+        // Build query to find unsigned permission slips
+        let query = `
+          SELECT ps.*, p.first_name, p.last_name,
+                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.email AS guardian_email,
+                 u.email AS parent_email
+          FROM permission_slips ps
+          JOIN participants p ON p.id = ps.participant_id
+          LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
+          LEFT JOIN user_participants up ON up.participant_id = p.id
+          LEFT JOIN users u ON u.id = up.user_id
+          WHERE ps.organization_id = $1
+            AND ps.meeting_date = $2
+            AND ps.status = 'pending'
+            AND ps.email_sent = true`;
+
+        const params = [organizationId, normalizedDate];
+
+        if (activity_title) {
+          params.push(activity_title);
+          query += ` AND ps.activity_title = $${params.length}`;
+        }
+
+        if (participant_ids && participant_ids.length > 0) {
+          params.push(participant_ids);
+          query += ` AND ps.participant_id = ANY($${params.length})`;
+        }
+
+        const slipsResult = await pool.query(query, params);
+
+        if (slipsResult.rows.length === 0) {
+          return success(res, { sent: 0 }, 'No reminders to send');
+        }
+
+        let sentCount = 0;
+        const failedEmails = [];
+
+        for (const slip of slipsResult.rows) {
+          const recipientEmail = slip.guardian_email || slip.parent_email;
+
+          if (!recipientEmail) {
+            failedEmails.push({ participant_id: slip.participant_id, reason: 'No email address' });
+            continue;
+          }
+
+          // Prepare reminder email content
+          const activityTitle = slip.activity_title || 'Activité';
+          const activityDate = new Date(slip.meeting_date).toLocaleDateString('fr-CA');
+          const deadlineText = slip.deadline_date
+            ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString('fr-CA')}`
+            : '';
+
+          const signLink = `${process.env.APP_BASE_URL || 'https://wampums.app'}/permission-slip/${slip.id}`;
+
+          const subject = `Rappel : Autorisation parentale requise - ${activityTitle}`;
+          const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
+
+          const htmlBody = `
+            <h2>Rappel : Autorisation parentale requise</h2>
+            <p>Bonjour,</p>
+            <p>Ceci est un rappel concernant l'autorisation parentale pour l'activité : <strong>${activityTitle}</strong></p>
+            <p><strong>Date de l'activité :</strong> ${activityDate}</p>
+            <p>Nous n'avons pas encore reçu votre signature.</p>
+            <p><a href="${signLink}" style="display: inline-block; padding: 12px 24px; background-color: #cc6600; color: white; text-decoration: none; border-radius: 4px;">Signer l'autorisation maintenant</a></p>
+            ${deadlineText ? `<p><em>${deadlineText}</em></p>` : ''}
+            <p>Merci !</p>
+          `;
+
+          const emailSent = await sendEmail(recipientEmail, subject, textBody, htmlBody);
+
+          if (emailSent) {
+            // Mark reminder as sent
+            await pool.query(
+              `UPDATE permission_slips
+               SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [slip.id]
+            );
+            sentCount++;
+          } else {
+            failedEmails.push({ participant_id: slip.participant_id, email: recipientEmail, reason: 'Email send failed' });
+          }
+        }
+
+        return success(res, {
+          sent: sentCount,
+          total: slipsResult.rows.length,
+          failed: failedEmails
+        }, `${sentCount} reminder(s) sent successfully`);
+      } catch (err) {
+        if (respondWithOrganizationFallback(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error sending reminders', 500);
       }
     })
   );
