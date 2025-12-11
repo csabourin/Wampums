@@ -1,7 +1,7 @@
 // Permission Slip Signing Page
 // Allows parents/guardians to view and sign permission slips via email link
 
-import { translate } from './utils/Translator.js';
+import { translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { API } from './api/api-core.js';
 
