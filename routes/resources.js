@@ -478,22 +478,26 @@ module.exports = (pool) => {
     authenticate,
     requireOrganizationRole(leaderRoles),
     [
-      check('participant_ids').optional().isArray({ min: 1, max: 200 }),
-      check('participant_ids.*').optional().isInt({ min: 1 }),
-      check('participant_id').optional().isInt({ min: 1 }),
-      check('guardian_id').optional().isInt({ min: 1 }),
-      check('meeting_date').isISO8601(),
-      check('meeting_id').optional().isInt({ min: 1 }),
-      check('activity_title').optional().isString().trim().isLength({ min: 1, max: 200 }),
-      check('activity_description').optional().isString().trim().isLength({ max: 5000 }),
-      check('deadline_date').optional().isISO8601(),
-      check('consent_payload').optional().isObject(),
-      check('status').optional().isIn(['pending', 'signed', 'revoked', 'expired'])
+      check('participant_ids').optional({ nullable: true }).isArray({ max: 200 }),
+      check('participant_ids.*').optional({ nullable: true }).isInt({ min: 1 }),
+      check('participant_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('guardian_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('meeting_date').notEmpty().isISO8601(),
+      check('meeting_id').optional({ nullable: true }).isInt({ min: 1 }),
+      check('activity_title').optional({ nullable: true }).isString().trim().isLength({ max: 200 }),
+      check('activity_description').optional({ nullable: true }).isString().trim(),
+      check('deadline_date').optional({ nullable: true }).isISO8601(),
+      check('consent_payload').optional({ nullable: true }).isObject(),
+      check('status').optional({ nullable: true }).isIn(['pending', 'signed', 'revoked', 'expired'])
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
+
+        // Debug logging
+        console.log('[Permission Slip Creation] Request body:', JSON.stringify(req.body, null, 2));
+
         const {
           participant_ids,
           participant_id,
