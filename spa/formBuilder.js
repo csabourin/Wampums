@@ -360,6 +360,7 @@ export class FormBuilder {
         `;
 
         modal.style.display = "block";
+        this.updateFieldEditorVisibility(field.type);
         this.attachFieldEditorListeners();
     }
 
@@ -668,6 +669,9 @@ export class FormBuilder {
         const infoTextGroup = document.getElementById("field-info-text-group");
         const optionsGroup = document.getElementById("field-options-group");
         const dependsOnGroup = document.getElementById("depends-on-group");
+        const nameInput = document.getElementById("field-name");
+        const labelInput = document.getElementById("field-label");
+        const infoTextInput = document.getElementById("field-info-text");
 
         if (fieldType === 'infoText') {
             nameGroup.style.display = "none";
@@ -675,12 +679,20 @@ export class FormBuilder {
             infoTextGroup.style.display = "block";
             optionsGroup.style.display = "none";
             dependsOnGroup.style.display = "none";
+
+            if (nameInput) nameInput.required = false;
+            if (labelInput) labelInput.required = false;
+            if (infoTextInput) infoTextInput.required = true;
         } else {
             nameGroup.style.display = "block";
             labelGroup.style.display = "block";
             infoTextGroup.style.display = "none";
             dependsOnGroup.style.display = "block";
             optionsGroup.style.display = ['select', 'radio'].includes(fieldType) ? "block" : "none";
+
+            if (nameInput) nameInput.required = true;
+            if (labelInput) labelInput.required = true;
+            if (infoTextInput) infoTextInput.required = false;
         }
     }
 

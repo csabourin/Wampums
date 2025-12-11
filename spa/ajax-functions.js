@@ -9,7 +9,7 @@
 
 import { CONFIG } from "./config.js";
 import { debugError } from "./utils/DebugUtils.js";
-import { getAuthHeader } from "./api/api-helpers.js";
+import { getAuthHeader, getCurrentOrganizationId } from "./api/api-helpers.js";
 import { handleResponse, makeApiRequest } from "./api/api-core.js";
 
 // Re-export core API functionality
@@ -298,8 +298,7 @@ export { CONFIG } from "./config.js";
 export { debugLog, debugError } from "./utils/DebugUtils.js";
 
 // Backwards compatibility aliases
-import * as ApiCore from "./api/api-core.js";
-import * as ApiHelpers from "./api/api-helpers.js";
+import { API, buildApiUrl, batchApiRequests, withErrorHandling } from "./api/api-core.js";
 import { getParticipants, saveParticipant } from "./api/api-endpoints.js";
 
 export const fetchFromApi = ApiCore.API.get;
