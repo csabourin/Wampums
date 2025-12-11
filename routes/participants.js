@@ -59,7 +59,8 @@ module.exports = (pool) => {
                COALESCE(
                  (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
                  0
-               ) as total_points
+               ) as total_points,
+               po.inscription_date
         FROM participants p
         JOIN participant_organizations po ON p.id = po.participant_id
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -98,7 +99,8 @@ module.exports = (pool) => {
                COALESCE(
                  (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
                  0
-               ) as total_points
+               ) as total_points,
+               po.inscription_date
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
         JOIN participant_organizations po ON p.id = po.participant_id
