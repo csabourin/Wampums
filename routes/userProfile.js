@@ -20,7 +20,9 @@ const {
   validateFullName,
   validatePassword,
   checkValidation,
-  normalizeEmailInput
+  normalizeEmailInput,
+  validateCurrentPassword,
+  validateNewPasswordForChange
 } = require('../middleware/validation');
 
 // Rate limiter for password change - prevent brute force
@@ -135,7 +137,7 @@ module.exports = (pool, logger) => {
    */
   router.patch('/v1/users/me/name',
     authenticate,
-    validateFullName,
+    [validateFullName],
     checkValidation,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
@@ -201,8 +203,7 @@ module.exports = (pool, logger) => {
   router.patch('/v1/users/me/email',
     authenticate,
     emailChangeLimiter,
-    normalizeEmailInput,
-    validateEmail,
+    [normalizeEmailInput, validateEmail],
     checkValidation,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
@@ -285,7 +286,7 @@ module.exports = (pool, logger) => {
   router.patch('/v1/users/me/password',
     authenticate,
     passwordChangeLimiter,
-    validatePassword('newPassword'),
+    [validateCurrentPassword, validateNewPasswordForChange],
     checkValidation,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
