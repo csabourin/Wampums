@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wampums - Gestion des scouts</title>
+  <meta name="description" content="Application web bilingue pour la gestion des groupes scouts. Planification, présences, badges et communication avec les parents." />
+  <meta property="og:title" content="Wampums - Gestion des scouts" />
+  <meta property="og:description" content="Orchestrez vos réunions hebdomadaires, vos parents et vos équipes en toute sérénité." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/icon-192x192.png">
+  <style>
+    :root {
+      --color-primary: #4c65ae;
+      --color-primary-dark: #3a4f8a;
+      --color-secondary: #f4f4f4;
+      --color-text: #111827;
+      --color-text-muted: #4b5563;
+      --color-surface: #ffffff;
+      --color-border: #e5e7eb;
+      --color-highlight: #f2f6ff;
+      --color-success: #10b981;
+      --color-accent: #f59e0b;
+      --shadow-card: 0 10px 25px rgb(17 24 39 / 0.08);
+      --shadow-card-hover: 0 20px 40px rgb(17 24 39 / 0.12);
+      --radius-lg: 1rem;
+      --radius-md: 0.75rem;
+      --space-2xs: 0.35rem;
+      --space-xs: 0.5rem;
+      --space-sm: 0.75rem;
+      --space-md: 1rem;
+      --space-lg: 1.5rem;
+      --space-xl: 2rem;
+      --space-2xl: 3rem;
+      --max-width: 1100px;
+      --touch-target: 44px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      color: var(--color-text);
+      line-height: 1.6;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -100px;
+      left: 0;
+      background: var(--color-primary);
+      color: #fff;
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-md);
+      z-index: 100;
+      transition: top 0.2s ease;
+    }
+
+    .skip-link:focus {
+      top: var(--space-xs);
+      outline: 3px solid #fff;
+    }
+
+    header {
+      background: radial-gradient(circle at 10% 20%, #e9edfb, #f8fafc 40%), linear-gradient(135deg, #fff 0%, #f0f4ff 100%);
+      padding: var(--space-lg) var(--space-md) var(--space-xl);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .shell {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--space-md);
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-lg);
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      font-weight: 700;
+      color: var(--color-primary-dark);
+      letter-spacing: 0.01em;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      width: 2.5rem;
+      height: 2.5rem;
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+      color: #fff;
+      border-radius: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      box-shadow: var(--shadow-card);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .lang-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full, 999px);
+      padding: var(--space-2xs) var(--space-xs);
+      box-shadow: 0 1px 4px rgb(0 0 0 / 0.05);
+    }
+
+    .lang-toggle button {
+      min-height: var(--touch-target);
+      padding: 0 var(--space-md);
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-full, 999px);
+      color: var(--color-text);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .lang-toggle button[aria-pressed="true"] {
+      background: var(--color-primary);
+      color: #fff;
+      box-shadow: inset 0 0 0 1px #fff;
+    }
+
+    .btn-login {
+      min-height: var(--touch-target);
+      padding: var(--space-xs) var(--space-md);
+      font-weight: 600;
+      border-radius: var(--radius-md);
+      border: 2px solid var(--color-primary);
+      background: transparent;
+      color: var(--color-primary);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-login:hover {
+      background: var(--color-primary);
+      color: #fff;
+    }
+
+    .hero {
+      display: grid;
+      gap: var(--space-lg);
+    }
+
+    .hero h1 {
+      font-size: clamp(1.8rem, 1.5rem + 2vw, 2.6rem);
+      margin: 0 0 var(--space-sm);
+      letter-spacing: -0.01em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--color-text-muted);
+      font-size: 1.05rem;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      margin: var(--space-md) 0 var(--space-lg);
+    }
+
+    .pill {
+      background: var(--color-highlight);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full, 999px);
+      padding: var(--space-2xs) var(--space-sm);
+      font-weight: 600;
+      color: var(--color-primary-dark);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2xs);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+
+    .btn-primary, .btn-secondary {
+      min-height: var(--touch-target);
+      padding: var(--space-sm) var(--space-lg);
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      border: 2px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: #fff;
+      border-color: var(--color-primary);
+      box-shadow: 0 8px 20px rgb(76 101 174 / 0.25);
+    }
+
+    .btn-primary:hover {
+      background: var(--color-primary-dark);
+      border-color: var(--color-primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgb(76 101 174 / 0.3);
+    }
+
+    .btn-primary:focus-visible,
+    .btn-secondary:focus-visible,
+    .lang-toggle button:focus-visible,
+    .card:focus-visible {
+      outline: 3px solid #111;
+      outline-offset: 4px;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--color-primary-dark);
+      border-color: var(--color-border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--color-primary);
+      background: var(--color-highlight);
+    }
+
+    main {
+      padding: var(--space-xl) var(--space-md) var(--space-2xl);
+    }
+
+    .section {
+      max-width: var(--max-width);
+      margin: 0 auto var(--space-xl);
+    }
+
+    .section h2 {
+      margin: 0 0 var(--space-sm);
+      font-size: 1.5rem;
+      letter-spacing: -0.01em;
+    }
+
+    .section p {
+      margin: 0 0 var(--space-md);
+      color: var(--color-text-muted);
+    }
+
+    .section-center {
+      text-align: center;
+    }
+
+    .section-center h2 {
+      font-size: clamp(1.5rem, 1.2rem + 1.5vw, 2rem);
+    }
+
+    .section-center > p {
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .grid {
+      display: grid;
+      gap: var(--space-md);
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      box-shadow: var(--shadow-card);
+      display: grid;
+      gap: var(--space-sm);
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .meta {
+      font-size: 0.95rem;
+      color: var(--color-text-muted);
+    }
+
+    .list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: var(--space-xs);
+    }
+
+    .list li {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: var(--space-xs);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      margin-top: 0.35rem;
+      border-radius: 50%;
+      background: var(--color-primary);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--space-md);
+      margin-top: var(--space-md);
+    }
+
+    .stat {
+      background: var(--color-highlight);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      display: grid;
+      gap: var(--space-2xs);
+      font-weight: 700;
+      color: var(--color-primary-dark);
+    }
+
+    /* Pricing Section */
+    .pricing-grid {
+      display: grid;
+      gap: var(--space-lg);
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      margin-top: var(--space-xl);
+    }
+
+    .pricing-card {
+      background: var(--color-surface);
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+      box-shadow: var(--shadow-card);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .pricing-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    .pricing-card.featured {
+      border-color: var(--color-primary);
+      transform: scale(1.02);
+    }
+
+    .pricing-card.featured:hover {
+      transform: scale(1.02) translateY(-4px);
+    }
+
+    .pricing-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--color-primary);
+      color: #fff;
+      padding: var(--space-2xs) var(--space-md);
+      border-radius: var(--radius-full, 999px);
+      font-size: 0.85rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pricing-header {
+      text-align: center;
+      padding-bottom: var(--space-md);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .pricing-header h3 {
+      margin: 0 0 var(--space-xs);
+      font-size: 1.3rem;
+      color: var(--color-primary-dark);
+    }
+
+    .pricing-header .price {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+
+    .pricing-header .price-period {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--color-text-muted);
+    }
+
+    .pricing-header .price-note {
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+      margin-top: var(--space-xs);
+    }
+
+    .pricing-features {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex: 1;
+    }
+
+    .pricing-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: var(--space-xs) 0;
+      font-size: 0.95rem;
+    }
+
+    .pricing-features li::before {
+      content: "✓";
+      color: var(--color-success);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .pricing-features li.disabled {
+      color: var(--color-text-muted);
+      text-decoration: line-through;
+    }
+
+    .pricing-features li.disabled::before {
+      content: "—";
+      color: var(--color-text-muted);
+    }
+
+    .pricing-cta {
+      margin-top: auto;
+    }
+
+    .pricing-cta .btn-primary,
+    .pricing-cta .btn-secondary {
+      width: 100%;
+      display: block;
+    }
+
+    /* FAQ Section */
+    .faq-grid {
+      display: grid;
+      gap: var(--space-md);
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      margin-top: var(--space-lg);
+    }
+
+    .faq-item {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+    }
+
+    .faq-item h4 {
+      margin: 0 0 var(--space-sm);
+      color: var(--color-primary-dark);
+      font-size: 1rem;
+    }
+
+    .faq-item p {
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+      border-radius: var(--radius-lg);
+      padding: var(--space-2xl);
+      text-align: center;
+      color: #fff;
+      margin-top: var(--space-2xl);
+    }
+
+    .cta-section h2 {
+      color: #fff;
+      margin-bottom: var(--space-sm);
+    }
+
+    .cta-section p {
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: var(--space-lg);
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .cta-section .btn-primary {
+      background: #fff;
+      color: var(--color-primary-dark);
+      border-color: #fff;
+    }
+
+    .cta-section .btn-primary:hover {
+      background: var(--color-highlight);
+      transform: translateY(-2px);
+    }
+
+    footer {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: var(--space-lg) var(--space-md);
+      text-align: center;
+    }
+
+    footer p {
+      margin: 0;
+      color: #cbd5e1;
+    }
+
+    footer a {
+      color: #93c5fd;
+    }
+
+    @media (min-width: 768px) {
+      .hero {
+        grid-template-columns: 1.2fr 1fr;
+        align-items: center;
+      }
+    }
+
+    @media (min-width: 900px) {
+      .pricing-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="skip_link">Passer au contenu principal</a>
+  <header>
+    <div class="shell">
+      <div class="top-bar">
+        <a class="brand" href="/" aria-label="Wampums">
+          <span class="brand-mark" aria-hidden="true">W</span>
+          <span>Wampums</span>
+        </a>
+        <div class="nav-actions">
+          <div class="lang-toggle" role="group" aria-label="Changer de langue">
+            <button type="button" data-lang="fr" aria-pressed="true">Français</button>
+            <button type="button" data-lang="en" aria-pressed="false">English</button>
+          </div>
+          <a class="btn-login" href="/index.html" data-i18n="nav_login">Se connecter</a>
+        </div>
+      </div>
+      <div class="hero" role="banner">
+        <div>
+          <p class="pill" data-i18n="tagline">Application web bilingue pour les scouts</p>
+          <h1 data-i18n="hero_title">Orchestrez vos reunions hebdomadaires, vos parents et vos equipes en toute serenite.</h1>
+          <p data-i18n="hero_body">Wampums centralise l'organisation des groupes scouts : agenda des rencontres, presence, progression, communications et documents, pour que chaque reunion soit prete et securitaire.</p>
+          <div class="badge-row">
+            <span class="pill" data-i18n="badge1">Planification mobile-first</span>
+            <span class="pill" data-i18n="badge2">Suivi badges et presences</span>
+            <span class="pill" data-i18n="badge3">Parents connectes</span>
+          </div>
+          <div class="actions">
+            <a class="btn-primary" href="#pricing" data-i18n="cta_primary">Voir les plans</a>
+            <a class="btn-secondary" href="#features" data-i18n="cta_secondary">Decouvrir les fonctions</a>
+          </div>
+        </div>
+        <div class="card" aria-label="Apercu des fonctionnalites" tabindex="0">
+          <h3 data-i18n="card_title">Tout-en-un pour votre groupe</h3>
+          <p class="meta" data-i18n="card_subtitle">Suivi des membres, activites, badges, documents et paiements.</p>
+          <div class="stats" aria-label="Indicateurs cles">
+            <div class="stat">
+              <span data-i18n="stat1_label">Reunions pretes</span>
+              <span aria-hidden="true">✅</span>
+            </div>
+            <div class="stat">
+              <span data-i18n="stat2_label">Presences tracees</span>
+              <span aria-hidden="true">📊</span>
+            </div>
+            <div class="stat">
+              <span data-i18n="stat3_label">Parents informes</span>
+              <span aria-hidden="true">📢</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Pricing Section -->
+    <section class="section section-center" id="pricing">
+      <h2 data-i18n="pricing_title">Des plans adaptes a votre groupe</h2>
+      <p data-i18n="pricing_body">Commencez gratuitement et evoluez selon vos besoins. Pas de carte de credit requise.</p>
+
+      <div class="pricing-grid">
+        <!-- Free Plan -->
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3 data-i18n="plan_free_name">Decouverte</h3>
+            <div class="price">0$</div>
+            <div class="price-period" data-i18n="plan_free_period">pour toujours</div>
+            <div class="price-note" data-i18n="plan_free_note">Ideal pour les petits groupes</div>
+          </div>
+          <ul class="pricing-features">
+            <li data-i18n="plan_free_feature1">Jusqu'a 20 scouts</li>
+            <li data-i18n="plan_free_feature2">Gestion des presences</li>
+            <li data-i18n="plan_free_feature3">Suivi des badges</li>
+            <li data-i18n="plan_free_feature4">Calendrier des reunions</li>
+            <li data-i18n="plan_free_feature5">Application mobile (PWA)</li>
+            <li class="disabled" data-i18n="plan_free_feature6">Rapports avances</li>
+            <li class="disabled" data-i18n="plan_free_feature7">Paiements en ligne</li>
+          </ul>
+          <div class="pricing-cta">
+            <a class="btn-secondary" href="/index.html" data-i18n="plan_free_cta">Commencer gratuitement</a>
+          </div>
+        </div>
+
+        <!-- Pro Plan -->
+        <div class="pricing-card featured">
+          <span class="pricing-badge" data-i18n="plan_pro_badge">Populaire</span>
+          <div class="pricing-header">
+            <h3 data-i18n="plan_pro_name">Professionnel</h3>
+            <div class="price">29$<span class="price-period" data-i18n="plan_pro_period">/mois</span></div>
+            <div class="price-note" data-i18n="plan_pro_note">Pour les unites actives</div>
+          </div>
+          <ul class="pricing-features">
+            <li data-i18n="plan_pro_feature1">Scouts illimites</li>
+            <li data-i18n="plan_pro_feature2">Toutes les fonctions de base</li>
+            <li data-i18n="plan_pro_feature3">Rapports et statistiques</li>
+            <li data-i18n="plan_pro_feature4">Paiements en ligne (Stripe)</li>
+            <li data-i18n="plan_pro_feature5">Notifications par courriel</li>
+            <li data-i18n="plan_pro_feature6">Gestion des documents</li>
+            <li data-i18n="plan_pro_feature7">Support prioritaire</li>
+          </ul>
+          <div class="pricing-cta">
+            <a class="btn-primary" href="/index.html?plan=pro" data-i18n="plan_pro_cta">Essai gratuit 14 jours</a>
+          </div>
+        </div>
+
+        <!-- Council Plan -->
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <h3 data-i18n="plan_council_name">District</h3>
+            <div class="price">99$<span class="price-period" data-i18n="plan_council_period">/mois</span></div>
+            <div class="price-note" data-i18n="plan_council_note">Pour les conseils et districts</div>
+          </div>
+          <ul class="pricing-features">
+            <li data-i18n="plan_council_feature1">Multi-organisations</li>
+            <li data-i18n="plan_council_feature2">Toutes les fonctions Pro</li>
+            <li data-i18n="plan_council_feature3">Tableau de bord district</li>
+            <li data-i18n="plan_council_feature4">Rapports consolides</li>
+            <li data-i18n="plan_council_feature5">Acces API</li>
+            <li data-i18n="plan_council_feature6">Domaine personnalise</li>
+            <li data-i18n="plan_council_feature7">Gestionnaire de compte dedie</li>
+          </ul>
+          <div class="pricing-cta">
+            <a class="btn-secondary" href="mailto:rama@meute6a.app?subject=Plan District" data-i18n="plan_council_cta">Contacter les ventes</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="section" id="features">
+      <h2 data-i18n="features_title">Fonctions concues pour les unites scoutes</h2>
+      <p data-i18n="features_body">Chaque module est pense pour les realites des equipes d'animation : preparation rapide, suivi clair et collaboration avec les parents.</p>
+      <div class="grid" role="list">
+        <article class="card" role="listitem">
+          <h3 data-i18n="feature1_title">Planification des rencontres</h3>
+          <p class="meta" data-i18n="feature1_body">Planifiez les activites hebdomadaires, materiaux et responsabilites, avec un calendrier partage.</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3 data-i18n="feature2_title">Presences et progression</h3>
+          <p class="meta" data-i18n="feature2_body">Consignez les presences, les points et l'avancement des badges ou honneurs.</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3 data-i18n="feature3_title">Communication aux parents</h3>
+          <p class="meta" data-i18n="feature3_body">Envoyez des nouvelles, rappels et documents pour que les familles restent alignees.</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3 data-i18n="feature4_title">Gestion des roles</h3>
+          <p class="meta" data-i18n="feature4_body">Attribuez les roles (admin, animation, parents) et securisez l'acces aux donnees.</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3 data-i18n="feature5_title">Documents et consentements</h3>
+          <p class="meta" data-i18n="feature5_body">Stockez fiches sante, autorisations et rapports pour des activites conformes.</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3 data-i18n="feature6_title">Rapports et export</h3>
+          <p class="meta" data-i18n="feature6_body">Generez des rapports sur la participation, la progression et les ventes de calendriers.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Weekly Flow Section -->
+    <section class="section" id="weekly">
+      <h2 data-i18n="weekly_title">Pret pour chaque reunion hebdomadaire</h2>
+      <p data-i18n="weekly_body">Un fil conducteur clair pour preparer, tenir et archiver vos rencontres avec fiabilite.</p>
+      <div class="grid">
+        <article class="card">
+          <h3 data-i18n="weekly_step1_title">Avant la reunion</h3>
+          <ul class="list">
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step1_item1">Ajoutez l'activite, l'objectif d'apprentissage et les ressources necessaires.</span></li>
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step1_item2">Assignez les responsables et partagez la liste avec l'equipe.</span></li>
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step1_item3">Envoyez un rappel aux parents avec les details logistiques.</span></li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3 data-i18n="weekly_step2_title">Pendant la reunion</h3>
+          <ul class="list">
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step2_item1">Enregistrez les presences et les points en direct sur mobile.</span></li>
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step2_item2">Notez les progres de badges ou tout besoin de suivi.</span></li>
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step2_item3">Consignez les observations pour le rapport de fin de rencontre.</span></li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3 data-i18n="weekly_step3_title">Apres la reunion</h3>
+          <ul class="list">
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step3_item1">Envoyez un compte rendu aux parents et a l'equipe.</span></li>
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step3_item2">Mettez a jour les inventaires, les paiements et les documents.</span></li>
+            <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_step3_item3">Planifiez la prochaine rencontre a partir du modele existant.</span></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="section" id="benefits">
+      <h2 data-i18n="benefits_title">Pourquoi Wampums aide votre communaute</h2>
+      <div class="grid">
+        <article class="card">
+          <h3 data-i18n="benefit1_title">Animation efficace</h3>
+          <p class="meta" data-i18n="benefit1_body">Moins d'administration, plus de temps sur le terrain grace a des modeles et rappels prets a l'emploi.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="benefit2_title">Parents rassures</h3>
+          <p class="meta" data-i18n="benefit2_body">Informations claires, notifications rapides et documents centralises pour suivre l'avancement.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="benefit3_title">Securite et conformite</h3>
+          <p class="meta" data-i18n="benefit3_body">Gestion des autorisations, des roles et des dossiers pour des activites securitaires.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="section" id="faq">
+      <h2 data-i18n="faq_title">Questions frequentes</h2>
+      <div class="faq-grid">
+        <div class="faq-item">
+          <h4 data-i18n="faq1_question">Puis-je changer de plan a tout moment?</h4>
+          <p data-i18n="faq1_answer">Oui! Vous pouvez passer a un plan superieur ou inferieur a tout moment. Les changements prennent effet immediatement.</p>
+        </div>
+        <div class="faq-item">
+          <h4 data-i18n="faq2_question">Y a-t-il un engagement minimum?</h4>
+          <p data-i18n="faq2_answer">Non, tous nos plans sont sans engagement. Vous pouvez annuler a tout moment sans frais.</p>
+        </div>
+        <div class="faq-item">
+          <h4 data-i18n="faq3_question">Comment fonctionnent les paiements en ligne?</h4>
+          <p data-i18n="faq3_answer">Nous utilisons Stripe pour traiter les paiements de facon securisee. Les parents peuvent payer les frais directement en ligne.</p>
+        </div>
+        <div class="faq-item">
+          <h4 data-i18n="faq4_question">Mes donnees sont-elles securisees?</h4>
+          <p data-i18n="faq4_answer">Absolument. Nous utilisons le chiffrement SSL, des sauvegardes automatiques et respectons les normes de confidentialite canadiennes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section">
+      <div class="cta-section">
+        <h2 data-i18n="cta_title">Pret a simplifier la gestion de votre groupe?</h2>
+        <p data-i18n="cta_body">Rejoignez des centaines de groupes scouts qui font confiance a Wampums pour leurs reunions hebdomadaires.</p>
+        <a class="btn-primary" href="/index.html" data-i18n="cta_button">Commencer maintenant</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p data-i18n="footer_note">Concu pour les groupes scouts qui se rencontrent chaque semaine — simple, bilingue et pret a l'emploi.</p>
+    <p>Contact: <a href="mailto:rama@meute6a.app">rama@meute6a.app</a></p>
+  </footer>
+
+  <script>
+    const translations = {
+      fr: {
+        skip_link: "Passer au contenu principal",
+        nav_login: "Se connecter",
+        tagline: "Application web bilingue pour les scouts",
+        hero_title: "Orchestrez vos reunions hebdomadaires, vos parents et vos equipes en toute serenite.",
+        hero_body: "Wampums centralise l'organisation des groupes scouts : agenda des rencontres, presence, progression, communications et documents, pour que chaque reunion soit prete et securitaire.",
+        badge1: "Planification mobile-first",
+        badge2: "Suivi badges et presences",
+        badge3: "Parents connectes",
+        cta_primary: "Voir les plans",
+        cta_secondary: "Decouvrir les fonctions",
+        card_title: "Tout-en-un pour votre groupe",
+        card_subtitle: "Suivi des membres, activites, badges, documents et paiements.",
+        stat1_label: "Reunions pretes",
+        stat2_label: "Presences tracees",
+        stat3_label: "Parents informes",
+
+        // Pricing
+        pricing_title: "Des plans adaptes a votre groupe",
+        pricing_body: "Commencez gratuitement et evoluez selon vos besoins. Pas de carte de credit requise.",
+
+        plan_free_name: "Decouverte",
+        plan_free_period: "pour toujours",
+        plan_free_note: "Ideal pour les petits groupes",
+        plan_free_feature1: "Jusqu'a 20 scouts",
+        plan_free_feature2: "Gestion des presences",
+        plan_free_feature3: "Suivi des badges",
+        plan_free_feature4: "Calendrier des reunions",
+        plan_free_feature5: "Application mobile (PWA)",
+        plan_free_feature6: "Rapports avances",
+        plan_free_feature7: "Paiements en ligne",
+        plan_free_cta: "Commencer gratuitement",
+
+        plan_pro_badge: "Populaire",
+        plan_pro_name: "Professionnel",
+        plan_pro_period: "/mois",
+        plan_pro_note: "Pour les unites actives",
+        plan_pro_feature1: "Scouts illimites",
+        plan_pro_feature2: "Toutes les fonctions de base",
+        plan_pro_feature3: "Rapports et statistiques",
+        plan_pro_feature4: "Paiements en ligne (Stripe)",
+        plan_pro_feature5: "Notifications par courriel",
+        plan_pro_feature6: "Gestion des documents",
+        plan_pro_feature7: "Support prioritaire",
+        plan_pro_cta: "Essai gratuit 14 jours",
+
+        plan_council_name: "District",
+        plan_council_period: "/mois",
+        plan_council_note: "Pour les conseils et districts",
+        plan_council_feature1: "Multi-organisations",
+        plan_council_feature2: "Toutes les fonctions Pro",
+        plan_council_feature3: "Tableau de bord district",
+        plan_council_feature4: "Rapports consolides",
+        plan_council_feature5: "Acces API",
+        plan_council_feature6: "Domaine personnalise",
+        plan_council_feature7: "Gestionnaire de compte dedie",
+        plan_council_cta: "Contacter les ventes",
+
+        // Features
+        features_title: "Fonctions concues pour les unites scoutes",
+        features_body: "Chaque module est pense pour les realites des equipes d'animation : preparation rapide, suivi clair et collaboration avec les parents.",
+        feature1_title: "Planification des rencontres",
+        feature1_body: "Planifiez les activites hebdomadaires, materiaux et responsabilites, avec un calendrier partage.",
+        feature2_title: "Presences et progression",
+        feature2_body: "Consignez les presences, les points et l'avancement des badges ou honneurs.",
+        feature3_title: "Communication aux parents",
+        feature3_body: "Envoyez des nouvelles, rappels et documents pour que les familles restent alignees.",
+        feature4_title: "Gestion des roles",
+        feature4_body: "Attribuez les roles (admin, animation, parents) et securisez l'acces aux donnees.",
+        feature5_title: "Documents et consentements",
+        feature5_body: "Stockez fiches sante, autorisations et rapports pour des activites conformes.",
+        feature6_title: "Rapports et export",
+        feature6_body: "Generez des rapports sur la participation, la progression et les ventes de calendriers.",
+
+        // Weekly
+        weekly_title: "Pret pour chaque reunion hebdomadaire",
+        weekly_body: "Un fil conducteur clair pour preparer, tenir et archiver vos rencontres avec fiabilite.",
+        weekly_step1_title: "Avant la reunion",
+        weekly_step1_item1: "Ajoutez l'activite, l'objectif d'apprentissage et les ressources necessaires.",
+        weekly_step1_item2: "Assignez les responsables et partagez la liste avec l'equipe.",
+        weekly_step1_item3: "Envoyez un rappel aux parents avec les details logistiques.",
+        weekly_step2_title: "Pendant la reunion",
+        weekly_step2_item1: "Enregistrez les presences et les points en direct sur mobile.",
+        weekly_step2_item2: "Notez les progres de badges ou tout besoin de suivi.",
+        weekly_step2_item3: "Consignez les observations pour le rapport de fin de rencontre.",
+        weekly_step3_title: "Apres la reunion",
+        weekly_step3_item1: "Envoyez un compte rendu aux parents et a l'equipe.",
+        weekly_step3_item2: "Mettez a jour les inventaires, les paiements et les documents.",
+        weekly_step3_item3: "Planifiez la prochaine rencontre a partir du modele existant.",
+
+        // Benefits
+        benefits_title: "Pourquoi Wampums aide votre communaute",
+        benefit1_title: "Animation efficace",
+        benefit1_body: "Moins d'administration, plus de temps sur le terrain grace a des modeles et rappels prets a l'emploi.",
+        benefit2_title: "Parents rassures",
+        benefit2_body: "Informations claires, notifications rapides et documents centralises pour suivre l'avancement.",
+        benefit3_title: "Securite et conformite",
+        benefit3_body: "Gestion des autorisations, des roles et des dossiers pour des activites securitaires.",
+
+        // FAQ
+        faq_title: "Questions frequentes",
+        faq1_question: "Puis-je changer de plan a tout moment?",
+        faq1_answer: "Oui! Vous pouvez passer a un plan superieur ou inferieur a tout moment. Les changements prennent effet immediatement.",
+        faq2_question: "Y a-t-il un engagement minimum?",
+        faq2_answer: "Non, tous nos plans sont sans engagement. Vous pouvez annuler a tout moment sans frais.",
+        faq3_question: "Comment fonctionnent les paiements en ligne?",
+        faq3_answer: "Nous utilisons Stripe pour traiter les paiements de facon securisee. Les parents peuvent payer les frais directement en ligne.",
+        faq4_question: "Mes donnees sont-elles securisees?",
+        faq4_answer: "Absolument. Nous utilisons le chiffrement SSL, des sauvegardes automatiques et respectons les normes de confidentialite canadiennes.",
+
+        // CTA
+        cta_title: "Pret a simplifier la gestion de votre groupe?",
+        cta_body: "Rejoignez des centaines de groupes scouts qui font confiance a Wampums pour leurs reunions hebdomadaires.",
+        cta_button: "Commencer maintenant",
+
+        footer_note: "Concu pour les groupes scouts qui se rencontrent chaque semaine — simple, bilingue et pret a l'emploi."
+      },
+      en: {
+        skip_link: "Skip to main content",
+        nav_login: "Sign in",
+        tagline: "Bilingual web app for scouting groups",
+        hero_title: "Coordinate weekly meetings, parents, and crews with confidence.",
+        hero_body: "Wampums centralizes scout group operations: meeting schedules, attendance, advancement, communications, and documents so every gathering is ready and safe.",
+        badge1: "Mobile-first planning",
+        badge2: "Badge and attendance tracking",
+        badge3: "Parents stay informed",
+        cta_primary: "View plans",
+        cta_secondary: "Explore features",
+        card_title: "All-in-one for your troop",
+        card_subtitle: "Track members, activities, badges, documents, and payments.",
+        stat1_label: "Meetings prepared",
+        stat2_label: "Attendance captured",
+        stat3_label: "Parents updated",
+
+        // Pricing
+        pricing_title: "Plans that fit your group",
+        pricing_body: "Start free and scale as you grow. No credit card required.",
+
+        plan_free_name: "Starter",
+        plan_free_period: "forever",
+        plan_free_note: "Perfect for small groups",
+        plan_free_feature1: "Up to 20 scouts",
+        plan_free_feature2: "Attendance management",
+        plan_free_feature3: "Badge tracking",
+        plan_free_feature4: "Meeting calendar",
+        plan_free_feature5: "Mobile app (PWA)",
+        plan_free_feature6: "Advanced reports",
+        plan_free_feature7: "Online payments",
+        plan_free_cta: "Start for free",
+
+        plan_pro_badge: "Popular",
+        plan_pro_name: "Professional",
+        plan_pro_period: "/month",
+        plan_pro_note: "For active units",
+        plan_pro_feature1: "Unlimited scouts",
+        plan_pro_feature2: "All basic features",
+        plan_pro_feature3: "Reports & analytics",
+        plan_pro_feature4: "Online payments (Stripe)",
+        plan_pro_feature5: "Email notifications",
+        plan_pro_feature6: "Document management",
+        plan_pro_feature7: "Priority support",
+        plan_pro_cta: "14-day free trial",
+
+        plan_council_name: "District",
+        plan_council_period: "/month",
+        plan_council_note: "For councils & districts",
+        plan_council_feature1: "Multi-organization",
+        plan_council_feature2: "All Pro features",
+        plan_council_feature3: "District dashboard",
+        plan_council_feature4: "Consolidated reports",
+        plan_council_feature5: "API access",
+        plan_council_feature6: "Custom domain",
+        plan_council_feature7: "Dedicated account manager",
+        plan_council_cta: "Contact sales",
+
+        // Features
+        features_title: "Built for weekly scout units",
+        features_body: "Every module fits real-world leadership needs: quick prep, clear follow-up, and tight parent collaboration.",
+        feature1_title: "Meeting planning",
+        feature1_body: "Schedule weekly activities, materials, and responsibilities with a shared calendar.",
+        feature2_title: "Attendance & advancement",
+        feature2_body: "Record attendance, points, and badge or honor progress.",
+        feature3_title: "Parent communications",
+        feature3_body: "Send updates, reminders, and documents so families stay aligned.",
+        feature4_title: "Role management",
+        feature4_body: "Assign roles (admin, leaders, parents) and secure access to data.",
+        feature5_title: "Documents & consents",
+        feature5_body: "Store health forms, permissions, and reports to keep activities compliant.",
+        feature6_title: "Reports & export",
+        feature6_body: "Generate reports on participation, advancement, and calendar sales.",
+
+        // Weekly
+        weekly_title: "Ready for every weekly meeting",
+        weekly_body: "A clear guide to prepare, deliver, and archive each gathering reliably.",
+        weekly_step1_title: "Before the meeting",
+        weekly_step1_item1: "Add the activity, learning goal, and required resources.",
+        weekly_step1_item2: "Assign leaders and share the checklist with the crew.",
+        weekly_step1_item3: "Send a reminder to parents with logistics.",
+        weekly_step2_title: "During the meeting",
+        weekly_step2_item1: "Capture attendance and points live on mobile.",
+        weekly_step2_item2: "Log badge progress or any follow-up needs.",
+        weekly_step2_item3: "Record observations for the end-of-meeting report.",
+        weekly_step3_title: "After the meeting",
+        weekly_step3_item1: "Share a recap with parents and the team.",
+        weekly_step3_item2: "Update inventories, payments, and documents.",
+        weekly_step3_item3: "Plan the next gathering using the existing template.",
+
+        // Benefits
+        benefits_title: "How Wampums supports your community",
+        benefit1_title: "Effective leadership",
+        benefit1_body: "Less admin, more time outdoors thanks to ready-to-use templates and reminders.",
+        benefit2_title: "Confident parents",
+        benefit2_body: "Clear information, fast notifications, and centralized documents to follow progress.",
+        benefit3_title: "Safety and compliance",
+        benefit3_body: "Manage permissions, roles, and records to keep activities safe.",
+
+        // FAQ
+        faq_title: "Frequently asked questions",
+        faq1_question: "Can I switch plans anytime?",
+        faq1_answer: "Yes! You can upgrade or downgrade at any time. Changes take effect immediately.",
+        faq2_question: "Is there a minimum commitment?",
+        faq2_answer: "No, all our plans are commitment-free. You can cancel anytime at no cost.",
+        faq3_question: "How do online payments work?",
+        faq3_answer: "We use Stripe to process payments securely. Parents can pay fees directly online.",
+        faq4_question: "Is my data secure?",
+        faq4_answer: "Absolutely. We use SSL encryption, automatic backups, and comply with Canadian privacy standards.",
+
+        // CTA
+        cta_title: "Ready to simplify your group management?",
+        cta_body: "Join hundreds of scout groups who trust Wampums for their weekly meetings.",
+        cta_button: "Get started now",
+
+        footer_note: "Built for scout groups that meet every week — simple, bilingual, and ready to deploy."
+      }
+    };
+
+    const html = document.documentElement;
+    const buttons = document.querySelectorAll('.lang-toggle button');
+
+    function applyTranslations(lang) {
+      const copy = translations[lang];
+      if (!copy) return;
+      html.lang = lang;
+      document.title = lang === 'fr' ? 'Wampums - Gestion des scouts' : 'Wampums - Scout Management';
+      document.querySelectorAll('[data-i18n]').forEach((node) => {
+        const key = node.getAttribute('data-i18n');
+        if (copy[key]) {
+          node.textContent = copy[key];
+        }
+      });
+      buttons.forEach((btn) => btn.setAttribute('aria-pressed', btn.dataset.lang === lang ? 'true' : 'false'));
+      localStorage.setItem('wampums-lang', lang);
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => applyTranslations(button.dataset.lang));
+    });
+
+    // Load saved language preference or default to French
+    const savedLang = localStorage.getItem('wampums-lang') || 'fr';
+    applyTranslations(savedLang);
+  </script>
+</body>
+</html>
