@@ -3,12 +3,38 @@
 const express = require('express');
 const { check, param, query } = require('express-validator');
 const router = express.Router();
+const multer = require('multer');
 
 const { authenticate, requireOrganizationRole, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { checkValidation } = require('../middleware/validation');
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail } = require('../utils/index');
+const {
+  MAX_FILE_SIZE,
+  ALLOWED_MIME_TYPES,
+  validateFile,
+  generateFilePath,
+  uploadFile,
+  deleteFile,
+  extractPathFromUrl,
+  isStorageConfigured
+} = require('../utils/supabase-storage');
+
+// Configure multer for memory storage (3MB limit)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: MAX_FILE_SIZE
+  },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.'), false);
+    }
+  }
+});
 
 function parseDate(dateString) {
   const parsed = new Date(dateString);
@@ -129,13 +155,16 @@ module.exports = (pool) => {
       check('condition_note').optional().isString().trim().isLength({ max: 500 }),
       check('attributes').optional().isObject(),
       check('shared_organization_ids').optional().isArray({ max: 50 }),
-      check('shared_organization_ids.*').optional().isInt({ min: 0 })
+      check('shared_organization_ids.*').optional().isInt({ min: 0 }),
+      check('item_value').optional().isNumeric(),
+      check('photo_url').optional().isString().trim().isLength({ max: 500 }),
+      check('acquisition_date').optional().isISO8601()
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { 
+        const {
           name,
           category,
           description,
@@ -143,15 +172,19 @@ module.exports = (pool) => {
           quantity_available,
           condition_note,
           attributes = {},
-          shared_organization_ids = []
+          shared_organization_ids = [],
+          item_value,
+          photo_url,
+          acquisition_date
         } = req.body;
 
         const available = quantity_available ?? quantity_total;
+        const normalizedAcquisitionDate = acquisition_date ? parseDate(acquisition_date) : null;
 
         const insertResult = await pool.query(
           `INSERT INTO equipment_items
-           (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes, item_value, photo_url, acquisition_date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (organization_id, name)
            DO UPDATE SET
              category = EXCLUDED.category,
@@ -160,9 +193,12 @@ module.exports = (pool) => {
              quantity_available = EXCLUDED.quantity_available,
              condition_note = EXCLUDED.condition_note,
              attributes = EXCLUDED.attributes,
+             item_value = EXCLUDED.item_value,
+             photo_url = EXCLUDED.photo_url,
+             acquisition_date = EXCLUDED.acquisition_date,
              updated_at = CURRENT_TIMESTAMP
            RETURNING *`,
-          [organizationId, name, category, description, quantity_total, available, condition_note, attributes]
+          [organizationId, name, category, description, quantity_total, available, condition_note, attributes, item_value || null, photo_url || null, normalizedAcquisitionDate]
         );
 
         const uniqueOrgIds = new Set(
@@ -205,14 +241,23 @@ module.exports = (pool) => {
       check('quantity_available').optional().isInt({ min: 0 }),
       check('condition_note').optional().isString().trim().isLength({ max: 500 }),
       check('is_active').optional().isBoolean(),
-      check('attributes').optional().isObject()
+      check('attributes').optional().isObject(),
+      check('item_value').optional().isNumeric(),
+      check('photo_url').optional().isString().trim().isLength({ max: 500 }),
+      check('acquisition_date').optional().isISO8601()
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
         const equipmentId = parseInt(req.params.id, 10);
-        const fields = ['name', 'category', 'description', 'quantity_total', 'quantity_available', 'condition_note', 'is_active', 'attributes'];
+
+        // Handle acquisition_date normalization
+        if (req.body.acquisition_date) {
+          req.body.acquisition_date = parseDate(req.body.acquisition_date);
+        }
+
+        const fields = ['name', 'category', 'description', 'quantity_total', 'quantity_available', 'condition_note', 'is_active', 'attributes', 'item_value', 'photo_url', 'acquisition_date'];
         const updates = [];
         const values = [];
         fields.forEach((field) => {
@@ -242,6 +287,136 @@ module.exports = (pool) => {
           return;
         }
         return error(res, err.message || 'Error updating equipment', 500);
+      }
+    })
+  );
+
+  // ============================
+  // Equipment photo upload
+  // ============================
+  router.post(
+    '/equipment/:id/photo',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [param('id').isInt({ min: 1 })],
+    checkValidation,
+    upload.single('photo'),
+    asyncHandler(async (req, res) => {
+      try {
+        // Check if storage is configured
+        if (!isStorageConfigured()) {
+          return error(res, 'Photo storage is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.', 503);
+        }
+
+        const organizationId = await getOrganizationId(req, pool);
+        const equipmentId = parseInt(req.params.id, 10);
+
+        // Verify equipment belongs to organization
+        const equipmentCheck = await pool.query(
+          'SELECT id, photo_url FROM equipment_items WHERE id = $1 AND organization_id = $2',
+          [equipmentId, organizationId]
+        );
+
+        if (equipmentCheck.rows.length === 0) {
+          return error(res, 'Equipment not found', 404);
+        }
+
+        // Validate file
+        const validation = validateFile(req.file);
+        if (!validation.isValid) {
+          return error(res, validation.error, 400);
+        }
+
+        // Delete old photo if exists
+        const oldPhotoUrl = equipmentCheck.rows[0].photo_url;
+        if (oldPhotoUrl) {
+          const oldPath = extractPathFromUrl(oldPhotoUrl);
+          if (oldPath) {
+            await deleteFile(oldPath);
+          }
+        }
+
+        // Generate file path and upload
+        const filePath = generateFilePath(organizationId, equipmentId, req.file.originalname);
+        const uploadResult = await uploadFile(req.file.buffer, filePath, req.file.mimetype);
+
+        if (!uploadResult.success) {
+          return error(res, uploadResult.error || 'Failed to upload photo', 500);
+        }
+
+        // Update equipment with new photo URL
+        const updateResult = await pool.query(
+          `UPDATE equipment_items
+           SET photo_url = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2 AND organization_id = $3
+           RETURNING *`,
+          [uploadResult.url, equipmentId, organizationId]
+        );
+
+        return success(res, { equipment: updateResult.rows[0], photo_url: uploadResult.url }, 'Photo uploaded successfully');
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        // Handle multer errors
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return error(res, `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`, 400);
+        }
+        return error(res, err.message || 'Error uploading photo', 500);
+      }
+    })
+  );
+
+  // Delete equipment photo
+  router.delete(
+    '/equipment/:id/photo',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [param('id').isInt({ min: 1 })],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const equipmentId = parseInt(req.params.id, 10);
+
+        // Get current photo URL
+        const equipmentCheck = await pool.query(
+          'SELECT id, photo_url FROM equipment_items WHERE id = $1 AND organization_id = $2',
+          [equipmentId, organizationId]
+        );
+
+        if (equipmentCheck.rows.length === 0) {
+          return error(res, 'Equipment not found', 404);
+        }
+
+        const photoUrl = equipmentCheck.rows[0].photo_url;
+        if (!photoUrl) {
+          return success(res, { equipment: equipmentCheck.rows[0] }, 'No photo to delete');
+        }
+
+        // Delete from storage if configured
+        if (isStorageConfigured()) {
+          const filePath = extractPathFromUrl(photoUrl);
+          if (filePath) {
+            await deleteFile(filePath);
+          }
+        }
+
+        // Update equipment to remove photo URL
+        const updateResult = await pool.query(
+          `UPDATE equipment_items
+           SET photo_url = NULL, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND organization_id = $2
+           RETURNING *`,
+          [equipmentId, organizationId]
+        );
+
+        return success(res, { equipment: updateResult.rows[0] }, 'Photo deleted successfully');
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error deleting photo', 500);
       }
     })
   );

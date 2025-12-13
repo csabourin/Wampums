@@ -1,0 +1,187 @@
+/**
+ * Supabase Storage utility for equipment inventory photos
+ * Handles file uploads to Supabase Storage with size validation
+ */
+const { createClient } = require('@supabase/supabase-js');
+
+// Maximum file size: 3MB
+const MAX_FILE_SIZE = 3 * 1024 * 1024;
+
+// Allowed MIME types for images
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp'
+];
+
+// Initialize Supabase client (lazy initialization)
+let supabaseClient = null;
+
+function getSupabaseClient() {
+  if (!supabaseClient) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase configuration missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.');
+    }
+
+    supabaseClient = createClient(supabaseUrl, supabaseKey);
+  }
+  return supabaseClient;
+}
+
+/**
+ * Get the storage bucket name from environment or default
+ */
+function getBucketName() {
+  return process.env.SUPABASE_STORAGE_BUCKET || 'inventory';
+}
+
+/**
+ * Validate file before upload
+ * @param {Object} file - Multer file object
+ * @returns {Object} Validation result with isValid and error message
+ */
+function validateFile(file) {
+  if (!file) {
+    return { isValid: false, error: 'No file provided' };
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return {
+      isValid: false,
+      error: `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`
+    };
+  }
+
+  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    return {
+      isValid: false,
+      error: `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`
+    };
+  }
+
+  return { isValid: true };
+}
+
+/**
+ * Generate unique file path for equipment photo
+ * @param {number} organizationId - Organization ID
+ * @param {number} equipmentId - Equipment ID (optional for new items)
+ * @param {string} originalFilename - Original filename
+ * @returns {string} File path in storage
+ */
+function generateFilePath(organizationId, equipmentId, originalFilename) {
+  const timestamp = Date.now();
+  const extension = originalFilename.split('.').pop().toLowerCase();
+  const sanitizedFilename = `equipment_${equipmentId || 'new'}_${timestamp}.${extension}`;
+  return `org_${organizationId}/${sanitizedFilename}`;
+}
+
+/**
+ * Upload file to Supabase Storage
+ * @param {Buffer} fileBuffer - File buffer
+ * @param {string} filePath - Path in storage bucket
+ * @param {string} contentType - MIME type
+ * @returns {Object} Upload result with url or error
+ */
+async function uploadFile(fileBuffer, filePath, contentType) {
+  try {
+    const supabase = getSupabaseClient();
+    const bucket = getBucketName();
+
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, fileBuffer, {
+        contentType,
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Get public URL for the uploaded file
+    const { data: urlData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath);
+
+    return {
+      success: true,
+      path: data.path,
+      url: urlData.publicUrl
+    };
+  } catch (err) {
+    console.error('Upload error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Delete file from Supabase Storage
+ * @param {string} filePath - Path in storage bucket
+ * @returns {Object} Delete result
+ */
+async function deleteFile(filePath) {
+  try {
+    const supabase = getSupabaseClient();
+    const bucket = getBucketName();
+
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([filePath]);
+
+    if (error) {
+      console.error('Supabase delete error:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error('Delete error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Extract file path from public URL
+ * @param {string} publicUrl - Public URL of the file
+ * @returns {string|null} File path or null if not parseable
+ */
+function extractPathFromUrl(publicUrl) {
+  if (!publicUrl) return null;
+
+  try {
+    const bucket = getBucketName();
+    // URL format: https://xxx.supabase.co/storage/v1/object/public/bucket/path
+    const regex = new RegExp(`/storage/v1/object/public/${bucket}/(.+)$`);
+    const match = publicUrl.match(regex);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if Supabase Storage is configured
+ * @returns {boolean}
+ */
+function isStorageConfigured() {
+  return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY);
+}
+
+module.exports = {
+  MAX_FILE_SIZE,
+  ALLOWED_MIME_TYPES,
+  validateFile,
+  generateFilePath,
+  uploadFile,
+  deleteFile,
+  extractPathFromUrl,
+  isStorageConfigured
+};
