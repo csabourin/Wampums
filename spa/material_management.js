@@ -7,6 +7,7 @@ import {
   getEquipmentReservations,
   saveBulkReservations
 } from "./api/api-endpoints.js";
+import { deleteCachedData } from "./indexedDB.js";
 import { CONFIG } from "./config.js";
 
 /**
@@ -221,11 +222,49 @@ export class MaterialManagement {
         };
 
         try {
+          // Optimistic update: Add reservations to local state immediately
+          const optimisticReservations = payload.items.map(item => {
+            const equipment = this.equipment.find(e => e.id === item.equipment_id);
+            return {
+              id: `temp-${Date.now()}-${item.equipment_id}`,
+              equipment_id: item.equipment_id,
+              equipment_name: equipment?.name || 'Unknown',
+              reserved_quantity: item.quantity,
+              reserved_for: payload.reserved_for,
+              date_from: payload.date_from,
+              date_to: payload.date_to,
+              status: 'reserved',
+              notes: payload.notes
+            };
+          });
+
+          // Add to local reservations array
+          this.reservations = [...optimisticReservations, ...this.reservations];
+
+          // Update equipment reserved quantities optimistically
+          payload.items.forEach(item => {
+            const equipment = this.equipment.find(e => e.id === item.equipment_id);
+            if (equipment) {
+              equipment.reserved_quantity = (equipment.reserved_quantity || 0) + item.quantity;
+            }
+          });
+
+          // Re-render with optimistic data
+          this.render();
+          this.attachEventHandlers();
+
+          // Save to backend
           const response = await saveBulkReservations(payload);
 
           if (response.success) {
             this.app.showMessage(translate("bulk_reservation_saved"), "success");
             this.selectedItems.clear();
+
+            // Invalidate cache to ensure fresh data on next load
+            await deleteCachedData('v1/resources/equipment');
+            await deleteCachedData('v1/resources/equipment/reservations');
+
+            // Refresh from server to get actual IDs and updated quantities
             await this.refreshData();
             this.render();
             this.attachEventHandlers();
@@ -234,7 +273,12 @@ export class MaterialManagement {
           }
         } catch (error) {
           debugError("Error saving bulk reservations", error);
-          this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+          this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
+
+          // Revert optimistic update on error
+          await this.refreshData();
+          this.render();
+          this.attachEventHandlers();
         }
       });
     }
