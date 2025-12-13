@@ -65,6 +65,16 @@ export class MaterialManagement {
 
         <div class="card">
           <h2>${escapeHTML(translate("select_equipment"))}</h2>
+          <div class="grid grid-2" style="margin-bottom: 1.5rem;">
+            <label class="stacked">
+              <span>${escapeHTML(translate("date_from"))}</span>
+              <input type="date" id="reservationDateFrom" value="${getTodayISO()}" />
+            </label>
+            <label class="stacked">
+              <span>${escapeHTML(translate("date_to"))}</span>
+              <input type="date" id="reservationDateTo" value="${getTodayISO()}" />
+            </label>
+          </div>
           <div class="equipment-selection">
             ${this.equipment.length === 0
               ? `<p>${escapeHTML(translate("no_data_available"))}</p>`
@@ -114,16 +124,6 @@ export class MaterialManagement {
               </ul>
               
               <form id="bulkReservationForm" class="stacked">
-                <div class="grid grid-2">
-                  <label class="stacked">
-                    <span>${escapeHTML(translate("date_from"))}</span>
-                    <input type="date" name="date_from" value="${getTodayISO()}" required />
-                  </label>
-                  <label class="stacked">
-                    <span>${escapeHTML(translate("date_to"))}</span>
-                    <input type="date" name="date_to" value="${getTodayISO()}" required />
-                  </label>
-                </div>
                 <label class="stacked">
                   <span>${escapeHTML(translate("activity_name"))}</span>
                   <input type="text" name="reserved_for" maxlength="200" required />
@@ -210,9 +210,19 @@ export class MaterialManagement {
       bulkForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const formData = new FormData(bulkForm);
+
+        // Get dates from the top inputs
+        const dateFrom = document.getElementById('reservationDateFrom')?.value;
+        const dateTo = document.getElementById('reservationDateTo')?.value;
+
+        if (!dateFrom || !dateTo) {
+          this.app.showMessage(translate("date_required") || "Please select reservation dates", "error");
+          return;
+        }
+
         const payload = {
-          date_from: formData.get('date_from'),
-          date_to: formData.get('date_to'),
+          date_from: dateFrom,
+          date_to: dateTo,
           reserved_for: formData.get('reserved_for'),
           notes: formData.get('notes') || '',
           items: Array.from(this.selectedItems.entries()).map(([equipment_id, quantity]) => ({
