@@ -529,10 +529,11 @@ module.exports = (pool) => {
         }
 
         const result = await pool.query(
-          `SELECT er.*, e.name AS equipment_name, e.category, er.organization_id AS reservation_organization_id
+          `SELECT er.*, e.name AS equipment_name, e.category, er.organization_id AS reservation_organization_id, o.name AS organization_name
            FROM equipment_reservations er
            JOIN equipment_items e ON e.id = er.equipment_id
            JOIN equipment_item_organizations access ON access.equipment_id = er.equipment_id AND access.organization_id = $1
+           LEFT JOIN organizations o ON o.id = er.organization_id
            WHERE 1=1 ${filter}
            ORDER BY COALESCE(er.date_from, er.meeting_date) DESC, e.name`,
           params
@@ -1458,10 +1459,11 @@ module.exports = (pool) => {
         );
 
         const reservationSummary = await pool.query(
-          `SELECT e.name, er.meeting_date, er.status, er.reserved_quantity, er.organization_id AS reservation_organization_id
+          `SELECT e.name, er.meeting_date, er.status, er.reserved_quantity, er.organization_id AS reservation_organization_id, o.name AS organization_name
            FROM equipment_reservations er
            JOIN equipment_items e ON e.id = er.equipment_id
            JOIN equipment_item_organizations access ON access.equipment_id = er.equipment_id AND access.organization_id = $1
+           LEFT JOIN organizations o ON o.id = er.organization_id
            WHERE er.meeting_date = $2
            ORDER BY e.name`,
           [organizationId, dateFilter]
