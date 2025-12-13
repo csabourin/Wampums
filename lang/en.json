@@ -1557,5 +1557,9 @@
   "select_target_organization": "Select Target Organization",
   "select_organization": "Select an organization...",
   "copy": "Copy",
-  "error_organization_not_found": "Organization not found"
+  "error_organization_not_found": "Organization not found",
+  "reservation_form": "Reservation Form",
+  "existing_reservations": "Existing Reservations",
+  "organization": "Organization",
+  "date_required": "Please select reservation dates"
 }
