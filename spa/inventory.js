@@ -1,5 +1,5 @@
 import { translate } from "./app.js";
-import { debugError } from "./utils/DebugUtils.js";
+import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import {
   getEquipmentInventory,
@@ -1035,15 +1035,26 @@ export class Inventory {
     const formData = new FormData(form);
 
     const payload = {
-      name: formData.get('name'),
-      category: formData.get('category') || null,
-      description: formData.get('description') || null,
+      name: formData.get('name')?.trim() || '',
+      category: formData.get('category')?.trim() || null,
+      description: formData.get('description')?.trim() || null,
       quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
-      quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : undefined,
-      condition_note: formData.get('condition_note') || null,
+      quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,
+      condition_note: formData.get('condition_note')?.trim() || null,
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
-      acquisition_date: formData.get('acquisition_date') || null
+      acquisition_date: formData.get('acquisition_date')?.trim() || null
     };
+
+    // Remove null/undefined values to avoid validation issues
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === null || payload[key] === undefined || payload[key] === '') {
+        if (key !== 'name') { // name is required, keep empty string
+          delete payload[key];
+        }
+      }
+    });
+
+    debugLog('Equipment save payload:', payload);
 
     try {
       const response = await saveEquipmentItem(payload);
@@ -1077,15 +1088,26 @@ export class Inventory {
     const equipmentId = formData.get('equipment_id');
 
     const payload = {
-      name: formData.get('name'),
-      category: formData.get('category') || null,
-      description: formData.get('description') || null,
+      name: formData.get('name')?.trim() || '',
+      category: formData.get('category')?.trim() || null,
+      description: formData.get('description')?.trim() || null,
       quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
-      quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : undefined,
-      condition_note: formData.get('condition_note') || null,
+      quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,
+      condition_note: formData.get('condition_note')?.trim() || null,
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
-      acquisition_date: formData.get('acquisition_date') || null
+      acquisition_date: formData.get('acquisition_date')?.trim() || null
     };
+
+    // Remove null/undefined values to avoid validation issues
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === null || payload[key] === undefined || payload[key] === '') {
+        if (key !== 'name') { // name is required, keep empty string
+          delete payload[key];
+        }
+      }
+    });
+
+    debugLog('Equipment update payload:', payload);
 
     try {
       await updateEquipmentItem(equipmentId, payload);
