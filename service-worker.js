@@ -141,6 +141,11 @@ self.addEventListener("fetch", (event) => {
     event.request.destination === "image" ||
     staticImages.includes(url.pathname)
   ) {
+    // Don't intercept Supabase storage images - let them pass through
+    // This prevents CORS issues when different subdomains access shared images
+    if (url.hostname.includes('supabase.co')) {
+      return; // Let the browser handle Supabase images directly
+    }
     event.respondWith(handleImageRequest(event.request));
     return;
   }
