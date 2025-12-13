@@ -56,8 +56,30 @@ function getSupabaseClient() {
       );
     }
 
-    console.log(`[Supabase Storage] Initializing client with URL: ${supabaseUrl}`);
-    console.log(`[Supabase Storage] Service key preview: ${supabaseSecretKey.substring(0, 50)}... (${keyParts.length} parts)`);
+    // Decode the JWT payload to check the role
+    try {
+      const payload = JSON.parse(Buffer.from(keyParts[1], 'base64').toString());
+      const role = payload.role;
+
+      console.log(`[Supabase Storage] Initializing client with URL: ${supabaseUrl}`);
+      console.log(`[Supabase Storage] Service key preview: ${supabaseSecretKey.substring(0, 50)}... (${keyParts.length} parts)`);
+      console.log(`[Supabase Storage] Detected JWT role: ${role}`);
+
+      if (role === 'anon') {
+        console.error(`[Supabase Storage] ERROR: Using 'anon' key instead of 'service_role' key!`);
+        throw new Error(
+          "SUPABASE_SERVICE_KEY must be the 'service_role' key, not the 'anon' key. " +
+          "The anon key is public and cannot upload files. " +
+          "Find the service_role key in Supabase: Project Settings > API > service_role key (secret)"
+        );
+      }
+
+      if (role !== 'service_role') {
+        console.warn(`[Supabase Storage] WARNING: Expected role 'service_role' but got '${role}'. This may cause permission issues.`);
+      }
+    } catch (decodeError) {
+      console.warn(`[Supabase Storage] Could not decode JWT to verify role:`, decodeError.message);
+    }
 
     // Use the storage-specific secret key to authenticate S3-compatible storage operations
     supabaseClient = createClient(supabaseUrl, supabaseSecretKey);
