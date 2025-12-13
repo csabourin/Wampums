@@ -193,11 +193,17 @@ async function handleImageRequest(request) {
       cache.put(request, networkResponse.clone());
       return networkResponse;
     }
+    // If response is not OK (4xx, 5xx), return fallback
+    debugError("Image fetch returned non-OK status:", networkResponse.status);
+    return (
+      (await caches.match("/images/fallback.png")) ||
+      new Response("Image not available", { status: 404 })
+    );
   } catch (error) {
     debugError("Error fetching image:", error);
     // Return a fallback image if available
     return (
-      caches.match("/images/fallback.png") ||
+      (await caches.match("/images/fallback.png")) ||
       new Response("Image not available", { status: 404 })
     );
   }
