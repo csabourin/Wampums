@@ -271,11 +271,15 @@ module.exports = (pool) => {
           return success(res, null, 'No changes detected');
         }
 
+        // Verify organization has access to this equipment (owner or shared)
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
+        // Update equipment (any organization with access can update)
         const queryText = `UPDATE equipment_items
           SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-          WHERE id = $1 AND organization_id = $${updates.length + 2}
+          WHERE id = $1
           RETURNING *`;
-        const result = await pool.query(queryText, [equipmentId, ...values, organizationId]);
+        const result = await pool.query(queryText, [equipmentId, ...values]);
 
         if (result.rows.length === 0) {
           return error(res, 'Equipment not found', 404);
@@ -303,6 +307,9 @@ module.exports = (pool) => {
         const organizationId = await getOrganizationId(req, pool);
         const equipmentId = parseInt(req.params.id, 10);
 
+        // Verify organization has access to this equipment (owner or shared)
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
         // Check if equipment has active reservations
         const reservationCheck = await pool.query(
           `SELECT COUNT(*) as count FROM equipment_reservations
@@ -314,13 +321,13 @@ module.exports = (pool) => {
           return error(res, 'Cannot delete equipment with active reservations', 400);
         }
 
-        // Soft delete: set is_active = false
+        // Soft delete: set is_active = false (any organization with access can delete)
         const result = await pool.query(
           `UPDATE equipment_items
            SET is_active = false, updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND organization_id = $2
+           WHERE id = $1
            RETURNING *`,
-          [equipmentId, organizationId]
+          [equipmentId]
         );
 
         if (result.rows.length === 0) {
@@ -599,6 +606,45 @@ module.exports = (pool) => {
 
         await verifyEquipmentAccess(equipment_id, organizationId);
 
+        // Get equipment total quantity
+        const equipmentResult = await pool.query(
+          `SELECT quantity_total FROM equipment_items WHERE id = $1`,
+          [equipment_id]
+        );
+
+        if (equipmentResult.rows.length === 0) {
+          return error(res, 'Equipment not found', 404);
+        }
+
+        const quantityTotal = equipmentResult.rows[0].quantity_total;
+
+        // Check for overlapping reservations to prevent double-booking
+        // Exclude the current reservation if this is an update (same organization, equipment, meeting_date, reserved_for)
+        const overlapResult = await pool.query(
+          `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
+           FROM equipment_reservations
+           WHERE equipment_id = $1
+             AND status IN ('reserved', 'confirmed')
+             AND (
+               (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
+               (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
+             )
+             AND NOT (
+               organization_id = $4
+               AND meeting_date = $5
+               AND reserved_for = $6
+             )`,
+          [equipment_id, normalizedDateFrom, normalizedDateTo, organizationId, normalizedDate, reserved_for ?? '']
+        );
+
+        const totalReserved = parseInt(overlapResult.rows[0].total_reserved, 10);
+
+        // Check if adding this reservation would exceed available quantity
+        if (totalReserved + reserved_quantity > quantityTotal) {
+          const available = quantityTotal - totalReserved;
+          return error(res, `Insufficient quantity available. Total: ${quantityTotal}, Already reserved: ${totalReserved}, Available: ${available}, Requested: ${reserved_quantity}`, 400);
+        }
+
         const insertResult = await pool.query(
           `INSERT INTO equipment_reservations
            (organization_id, equipment_id, meeting_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
@@ -667,6 +713,60 @@ module.exports = (pool) => {
           return success(res, null, 'No changes detected');
         }
 
+        // If updating reserved_quantity, check for double-booking
+        if (req.body.reserved_quantity !== undefined) {
+          // Get current reservation details
+          const currentReservation = await pool.query(
+            `SELECT equipment_id, date_from, date_to, reserved_quantity, status
+             FROM equipment_reservations
+             WHERE id = $1 AND organization_id = $2`,
+            [reservationId, organizationId]
+          );
+
+          if (currentReservation.rows.length === 0) {
+            return error(res, 'Reservation not found', 404);
+          }
+
+          const reservation = currentReservation.rows[0];
+
+          // Only check if reservation is active (not returned or cancelled)
+          if (reservation.status === 'reserved' || reservation.status === 'confirmed') {
+            // Get equipment total quantity
+            const equipmentResult = await pool.query(
+              `SELECT quantity_total FROM equipment_items WHERE id = $1`,
+              [reservation.equipment_id]
+            );
+
+            if (equipmentResult.rows.length === 0) {
+              return error(res, 'Equipment not found', 404);
+            }
+
+            const quantityTotal = equipmentResult.rows[0].quantity_total;
+
+            // Check for overlapping reservations (excluding this reservation)
+            const overlapResult = await pool.query(
+              `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
+               FROM equipment_reservations
+               WHERE equipment_id = $1
+                 AND id != $2
+                 AND status IN ('reserved', 'confirmed')
+                 AND (
+                   (date_from <= $4 AND date_to >= $3) OR  -- overlaps with our date range
+                   (date_from >= $3 AND date_to <= $4)     -- completely contained within our date range
+                 )`,
+              [reservation.equipment_id, reservationId, reservation.date_from, reservation.date_to]
+            );
+
+            const totalReserved = parseInt(overlapResult.rows[0].total_reserved, 10);
+
+            // Check if the new quantity would exceed available
+            if (totalReserved + req.body.reserved_quantity > quantityTotal) {
+              const available = quantityTotal - totalReserved;
+              return error(res, `Insufficient quantity available. Total: ${quantityTotal}, Already reserved: ${totalReserved}, Available: ${available}, Requested: ${req.body.reserved_quantity}`, 400);
+            }
+          }
+        }
+
         const queryText = `UPDATE equipment_reservations
           SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
           WHERE id = $1 AND organization_id = $${updates.length + 2}
@@ -733,6 +833,39 @@ module.exports = (pool) => {
 
         // Create a reservation for each equipment item
         for (const item of items) {
+          // Get equipment total quantity
+          const equipmentResult = await pool.query(
+            `SELECT quantity_total FROM equipment_items WHERE id = $1`,
+            [item.equipment_id]
+          );
+
+          if (equipmentResult.rows.length === 0) {
+            return error(res, `Equipment with ID ${item.equipment_id} not found`, 404);
+          }
+
+          const quantityTotal = equipmentResult.rows[0].quantity_total;
+
+          // Check for overlapping reservations to prevent double-booking
+          const overlapResult = await pool.query(
+            `SELECT COALESCE(SUM(reserved_quantity), 0) as total_reserved
+             FROM equipment_reservations
+             WHERE equipment_id = $1
+               AND status IN ('reserved', 'confirmed')
+               AND (
+                 (date_from <= $3 AND date_to >= $2) OR  -- overlaps with our date range
+                 (date_from >= $2 AND date_to <= $3)     -- completely contained within our date range
+               )`,
+            [item.equipment_id, normalizedDateFrom, normalizedDateTo]
+          );
+
+          const totalReserved = parseInt(overlapResult.rows[0].total_reserved, 10);
+
+          // Check if adding this reservation would exceed available quantity
+          if (totalReserved + item.quantity > quantityTotal) {
+            const available = quantityTotal - totalReserved;
+            return error(res, `Insufficient quantity available for equipment ID ${item.equipment_id}. Total: ${quantityTotal}, Already reserved: ${totalReserved}, Available: ${available}, Requested: ${item.quantity}`, 400);
+          }
+
           const insertResult = await pool.query(
             `INSERT INTO equipment_reservations
              (organization_id, equipment_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
