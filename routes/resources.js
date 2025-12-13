@@ -362,7 +362,7 @@ module.exports = (pool) => {
         if (!isStorageConfigured()) {
           return error(
             res,
-            'Photo storage is not configured. Please set SUPABASE_URL, SUPABASE_STORAGE_SECRET_KEY (or SUPABASE_SERVICE_KEY), and SUPABASE_STORAGE_BUCKET.',
+            'Photo storage is not configured. Please set SUPABASE_URL, SUPABASE_SERVICE_KEY, and SUPABASE_STORAGE_BUCKET.',
             503
           );
         }
