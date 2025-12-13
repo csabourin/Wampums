@@ -573,6 +573,173 @@
         transition-duration: 0.01ms !important;
       }
     }
+
+    /* Modal Styles */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: var(--color-primary-dark);
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 2rem;
+      color: var(--color-text-muted);
+      cursor: pointer;
+      padding: 0;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: background 0.2s ease;
+    }
+
+    .modal-close:hover {
+      background: var(--color-secondary);
+    }
+
+    .form-group {
+      margin-bottom: var(--space-md);
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: var(--space-xs);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: var(--space-sm);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 1rem;
+      transition: border-color 0.2s ease;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--color-primary);
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .form-group small {
+      color: var(--color-text-muted);
+      font-size: 0.85rem;
+    }
+
+    .form-error {
+      color: #dc2626;
+      font-size: 0.85rem;
+      margin-top: var(--space-2xs);
+      display: none;
+    }
+
+    .form-group.error input,
+    .form-group.error textarea {
+      border-color: #dc2626;
+    }
+
+    .form-group.error .form-error {
+      display: block;
+    }
+
+    .form-success {
+      background: #d1fae5;
+      color: #065f46;
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-md);
+      display: none;
+    }
+
+    .form-success.active {
+      display: block;
+    }
+
+    .honeypot {
+      position: absolute;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+
+    .btn-submit {
+      width: 100%;
+      min-height: var(--touch-target);
+      padding: var(--space-sm) var(--space-lg);
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      border: none;
+      background: var(--color-primary);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(76, 101, 174, 0.25);
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: var(--color-primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(76, 101, 174, 0.3);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    #demoRedirectForm {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -654,7 +821,7 @@
             <li class="disabled" data-i18n="plan_free_feature7">Paiements en ligne</li>
           </ul>
           <div class="pricing-cta">
-            <a class="btn-secondary" href="/index.html" data-i18n="plan_free_cta">Commencer gratuitement</a>
+            <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="plan_free_cta">Demander une demo</button>
           </div>
         </div>
 
@@ -676,7 +843,7 @@
             <li data-i18n="plan_pro_feature7">Support prioritaire</li>
           </ul>
           <div class="pricing-cta">
-            <a class="btn-primary" href="/index.html?plan=pro" data-i18n="plan_pro_cta">Essai gratuit 14 jours</a>
+            <button type="button" class="btn-primary" data-open-demo-modal data-i18n="plan_pro_cta">Demander une demo</button>
           </div>
         </div>
 
@@ -814,7 +981,7 @@
       <div class="cta-section">
         <h2 data-i18n="cta_title">Pret a simplifier la gestion de votre groupe?</h2>
         <p data-i18n="cta_body">Rejoignez des centaines de groupes scouts qui font confiance a Wampums pour leurs reunions hebdomadaires.</p>
-        <a class="btn-primary" href="/index.html" data-i18n="cta_button">Commencer maintenant</a>
+        <button type="button" class="btn-primary" data-open-demo-modal data-i18n="cta_button">Demander une demo</button>
       </div>
     </section>
   </main>
@@ -823,6 +990,65 @@
     <p data-i18n="footer_note">Concu pour les groupes scouts qui se rencontrent chaque semaine — simple, bilingue et pret a l'emploi.</p>
     <p>Contact: <a href="mailto:rama@meute6a.app">rama@meute6a.app</a></p>
   </footer>
+
+  <!-- Demo Request Modal -->
+  <div id="demoModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle" data-i18n="demo_modal_title">Demander une demo</h2>
+        <button type="button" class="modal-close" aria-label="Fermer" data-close-modal>&times;</button>
+      </div>
+
+      <div class="form-success" id="formSuccess">
+        <p data-i18n="demo_form_success">Merci! Votre demande a ete soumise avec succes. Vous serez redirige vers la demo...</p>
+      </div>
+
+      <form id="demoForm">
+        <div class="form-group">
+          <label for="name" data-i18n="demo_form_name">Nom <span aria-label="requis">*</span></label>
+          <input type="text" id="name" name="name" required aria-required="true">
+          <span class="form-error" data-i18n="demo_form_name_error">Le nom est requis</span>
+        </div>
+
+        <div class="form-group">
+          <label for="email" data-i18n="demo_form_email">Courriel <span aria-label="requis">*</span></label>
+          <input type="email" id="email" name="email" required aria-required="true">
+          <span class="form-error" data-i18n="demo_form_email_error">Courriel invalide</span>
+        </div>
+
+        <div class="form-group">
+          <label for="organization" data-i18n="demo_form_organization">Organisation</label>
+          <input type="text" id="organization" name="organization">
+        </div>
+
+        <div class="form-group">
+          <label for="phone" data-i18n="demo_form_phone">Telephone</label>
+          <input type="tel" id="phone" name="phone">
+        </div>
+
+        <div class="form-group">
+          <label for="message" data-i18n="demo_form_message">Message <span aria-label="requis">*</span></label>
+          <textarea id="message" name="message" required aria-required="true"></textarea>
+          <small data-i18n="demo_form_message_help">Parlez-nous de vos besoins</small>
+          <span class="form-error" data-i18n="demo_form_message_error">Le message est requis</span>
+        </div>
+
+        <!-- Honeypot field for spam prevention -->
+        <div class="honeypot" aria-hidden="true">
+          <label for="honeypot">Leave this field empty</label>
+          <input type="text" id="honeypot" name="honeypot" tabindex="-1" autocomplete="off">
+        </div>
+
+        <button type="submit" class="btn-submit" data-i18n="demo_form_submit">Envoyer la demande</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Hidden form for demo redirect -->
+  <form id="demoRedirectForm" method="POST" action="https://demo.wampums.app/login">
+    <input type="hidden" name="email" value="akela.demo@demo.com">
+    <input type="hidden" name="password" value="Aylmer2025">
+  </form>
 
   <script>
     const translations = {
@@ -857,7 +1083,7 @@
         plan_free_feature5: "Application mobile (PWA)",
         plan_free_feature6: "Rapports avances",
         plan_free_feature7: "Paiements en ligne",
-        plan_free_cta: "Commencer gratuitement",
+        plan_free_cta: "Demander une demo",
 
         plan_pro_badge: "Populaire",
         plan_pro_name: "Professionnel",
@@ -870,7 +1096,7 @@
         plan_pro_feature5: "Notifications par courriel",
         plan_pro_feature6: "Gestion des documents",
         plan_pro_feature7: "Support prioritaire",
-        plan_pro_cta: "Essai gratuit 14 jours",
+        plan_pro_cta: "Demander une demo",
 
         plan_council_name: "District",
         plan_council_period: "/mois",
@@ -939,7 +1165,21 @@
         // CTA
         cta_title: "Pret a simplifier la gestion de votre groupe?",
         cta_body: "Rejoignez des centaines de groupes scouts qui font confiance a Wampums pour leurs reunions hebdomadaires.",
-        cta_button: "Commencer maintenant",
+        cta_button: "Demander une demo",
+
+        // Demo Modal
+        demo_modal_title: "Demander une demo",
+        demo_form_name: "Nom",
+        demo_form_email: "Courriel",
+        demo_form_organization: "Organisation",
+        demo_form_phone: "Telephone",
+        demo_form_message: "Message",
+        demo_form_message_help: "Parlez-nous de vos besoins",
+        demo_form_submit: "Envoyer la demande",
+        demo_form_success: "Merci! Votre demande a ete soumise avec succes. Vous serez redirige vers la demo...",
+        demo_form_name_error: "Le nom est requis",
+        demo_form_email_error: "Courriel invalide",
+        demo_form_message_error: "Le message est requis (minimum 10 caracteres)",
 
         footer_note: "Concu pour les groupes scouts qui se rencontrent chaque semaine — simple, bilingue et pret a l'emploi."
       },
@@ -974,7 +1214,7 @@
         plan_free_feature5: "Mobile app (PWA)",
         plan_free_feature6: "Advanced reports",
         plan_free_feature7: "Online payments",
-        plan_free_cta: "Start for free",
+        plan_free_cta: "Request a demo",
 
         plan_pro_badge: "Popular",
         plan_pro_name: "Professional",
@@ -987,7 +1227,7 @@
         plan_pro_feature5: "Email notifications",
         plan_pro_feature6: "Document management",
         plan_pro_feature7: "Priority support",
-        plan_pro_cta: "14-day free trial",
+        plan_pro_cta: "Request a demo",
 
         plan_council_name: "District",
         plan_council_period: "/month",
@@ -1056,7 +1296,21 @@
         // CTA
         cta_title: "Ready to simplify your group management?",
         cta_body: "Join hundreds of scout groups who trust Wampums for their weekly meetings.",
-        cta_button: "Get started now",
+        cta_button: "Request a demo",
+
+        // Demo Modal
+        demo_modal_title: "Request a demo",
+        demo_form_name: "Name",
+        demo_form_email: "Email",
+        demo_form_organization: "Organization",
+        demo_form_phone: "Phone",
+        demo_form_message: "Message",
+        demo_form_message_help: "Tell us about your needs",
+        demo_form_submit: "Submit request",
+        demo_form_success: "Thank you! Your request has been submitted successfully. You will be redirected to the demo...",
+        demo_form_name_error: "Name is required",
+        demo_form_email_error: "Invalid email",
+        demo_form_message_error: "Message is required (minimum 10 characters)",
 
         footer_note: "Built for scout groups that meet every week — simple, bilingual, and ready to deploy."
       }
@@ -1087,6 +1341,155 @@
     // Load saved language preference or default to French
     const savedLang = localStorage.getItem('wampums-lang') || 'fr';
     applyTranslations(savedLang);
+
+    // Demo Modal Functionality
+    const demoModal = document.getElementById('demoModal');
+    const demoForm = document.getElementById('demoForm');
+    const formSuccess = document.getElementById('formSuccess');
+    const demoRedirectForm = document.getElementById('demoRedirectForm');
+
+    // Get backend API URL - try to detect from current location
+    const getApiUrl = () => {
+      // If on wampums.app, use the demo API instance
+      if (window.location.hostname === 'wampums.app' || window.location.hostname === 'www.wampums.app') {
+        return 'https://demo.wampums.app/api/contact-demo';
+      }
+      // For local development or other domains
+      return window.location.origin + '/api/contact-demo';
+    };
+
+    // Open modal
+    document.querySelectorAll('[data-open-demo-modal]').forEach(button => {
+      button.addEventListener('click', () => {
+        demoModal.classList.add('active');
+        demoModal.setAttribute('aria-hidden', 'false');
+        // Focus first input
+        document.getElementById('name').focus();
+      });
+    });
+
+    // Close modal
+    const closeModal = () => {
+      demoModal.classList.remove('active');
+      demoModal.setAttribute('aria-hidden', 'true');
+      // Reset form
+      demoForm.reset();
+      formSuccess.classList.remove('active');
+      // Clear errors
+      document.querySelectorAll('.form-group.error').forEach(group => {
+        group.classList.remove('error');
+      });
+    };
+
+    document.querySelectorAll('[data-close-modal]').forEach(button => {
+      button.addEventListener('click', closeModal);
+    });
+
+    // Close on background click
+    demoModal.addEventListener('click', (e) => {
+      if (e.target === demoModal) {
+        closeModal();
+      }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && demoModal.classList.contains('active')) {
+        closeModal();
+      }
+    });
+
+    // Form validation
+    const validateEmail = (email) => {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    };
+
+    const validateForm = () => {
+      let isValid = true;
+      const name = document.getElementById('name');
+      const email = document.getElementById('email');
+      const message = document.getElementById('message');
+
+      // Clear previous errors
+      document.querySelectorAll('.form-group.error').forEach(group => {
+        group.classList.remove('error');
+      });
+
+      // Validate name
+      if (!name.value.trim() || name.value.trim().length < 2) {
+        name.closest('.form-group').classList.add('error');
+        isValid = false;
+      }
+
+      // Validate email
+      if (!email.value.trim() || !validateEmail(email.value.trim())) {
+        email.closest('.form-group').classList.add('error');
+        isValid = false;
+      }
+
+      // Validate message
+      if (!message.value.trim() || message.value.trim().length < 10) {
+        message.closest('.form-group').classList.add('error');
+        isValid = false;
+      }
+
+      return isValid;
+    };
+
+    // Handle form submission
+    demoForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (!validateForm()) {
+        return;
+      }
+
+      const submitButton = demoForm.querySelector('.btn-submit');
+      submitButton.disabled = true;
+      submitButton.textContent = savedLang === 'fr' ? 'Envoi en cours...' : 'Sending...';
+
+      try {
+        const formData = {
+          name: document.getElementById('name').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          organization: document.getElementById('organization').value.trim(),
+          phone: document.getElementById('phone').value.trim(),
+          message: document.getElementById('message').value.trim(),
+          honeypot: document.getElementById('honeypot').value
+        };
+
+        const response = await fetch(getApiUrl(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Show success message
+          formSuccess.classList.add('active');
+          demoForm.style.display = 'none';
+
+          // Wait 2 seconds then redirect to demo
+          setTimeout(() => {
+            demoRedirectForm.submit();
+          }, 2000);
+        } else {
+          // Show error
+          alert(data.message || (savedLang === 'fr' ? 'Une erreur est survenue. Veuillez reessayer.' : 'An error occurred. Please try again.'));
+          submitButton.disabled = false;
+          submitButton.textContent = savedLang === 'fr' ? 'Envoyer la demande' : 'Submit request';
+        }
+      } catch (error) {
+        console.error('Error submitting form:', error);
+        alert(savedLang === 'fr' ? 'Une erreur est survenue. Veuillez reessayer.' : 'An error occurred. Please try again.');
+        submitButton.disabled = false;
+        submitButton.textContent = savedLang === 'fr' ? 'Envoyer la demande' : 'Submit request';
+      }
+    });
   </script>
 </body>
 </html>
