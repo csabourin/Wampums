@@ -1594,5 +1594,9 @@
   "select_target_organization": "Sélectionner l'organisation cible",
   "select_organization": "Sélectionner une organisation...",
   "copy": "Copier",
-  "error_organization_not_found": "Organisation introuvable"
+  "error_organization_not_found": "Organisation introuvable",
+  "reservation_form": "Formulaire de réservation",
+  "existing_reservations": "Réservations existantes",
+  "organization": "Organisation",
+  "date_required": "Veuillez sélectionner les dates de réservation"
 }
