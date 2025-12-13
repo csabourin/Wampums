@@ -21,13 +21,24 @@ let supabaseClient = null;
 
 function getSupabaseClient() {
   if (!supabaseClient) {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseSecretKey = process.env.SUPABASE_STORAGE_SECRET_KEY;
+    let supabaseUrl = process.env.SUPABASE_URL;
+    // Support both SUPABASE_STORAGE_SECRET_KEY and SUPABASE_SERVICE_KEY
+    const supabaseSecretKey = process.env.SUPABASE_STORAGE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseSecretKey) {
       throw new Error(
-        "Supabase configuration missing. Set SUPABASE_URL and SUPABASE_STORAGE_SECRET_KEY environment variables.",
+        "Supabase configuration missing. Set SUPABASE_URL and SUPABASE_STORAGE_SECRET_KEY (or SUPABASE_SERVICE_KEY) environment variables.",
       );
+    }
+
+    // Convert S3 endpoint URL to base Supabase URL if needed
+    // e.g., https://xxx.storage.supabase.co/storage/v1/s3 -> https://xxx.supabase.co
+    if (supabaseUrl.includes('.storage.supabase.co')) {
+      const match = supabaseUrl.match(/https:\/\/([^.]+)\.storage\.supabase\.co/);
+      if (match) {
+        supabaseUrl = `https://${match[1]}.supabase.co`;
+        console.log(`[Supabase Storage] Converted S3 endpoint to base URL: ${supabaseUrl}`);
+      }
     }
 
     // Use the storage-specific secret key to authenticate S3-compatible storage operations
@@ -174,7 +185,9 @@ function extractPathFromUrl(publicUrl) {
  */
 function isStorageConfigured() {
   return !!(
-    process.env.SUPABASE_URL && process.env.SUPABASE_STORAGE_SECRET_KEY && process.env.SUPABASE_STORAGE_BUCKET
+    process.env.SUPABASE_URL &&
+    (process.env.SUPABASE_STORAGE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY) &&
+    process.env.SUPABASE_STORAGE_BUCKET
   );
 }
 
