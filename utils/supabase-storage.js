@@ -22,16 +22,16 @@ let supabaseClient = null;
 function getSupabaseClient() {
   if (!supabaseClient) {
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
     const supabaseSecretKey = process.env.SUPABASE_STORAGE_SECRET_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !supabaseSecretKey) {
       throw new Error(
-        "Supabase configuration missing. Set SUPABASE_URL, SUPABASE_SERVICE_KEY and SUPABASE_STORAGE_SECRET_KEY environment variables.",
+        "Supabase configuration missing. Set SUPABASE_URL and SUPABASE_STORAGE_SECRET_KEY environment variables.",
       );
     }
 
-    supabaseClient = createClient(supabaseUrl, supabaseKey);
+    // Use the storage-specific secret key to authenticate S3-compatible storage operations
+    supabaseClient = createClient(supabaseUrl, supabaseSecretKey);
   }
   return supabaseClient;
 }
@@ -173,7 +173,9 @@ function extractPathFromUrl(publicUrl) {
  * @returns {boolean}
  */
 function isStorageConfigured() {
-  return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY);
+  return !!(
+    process.env.SUPABASE_URL && process.env.SUPABASE_STORAGE_SECRET_KEY && process.env.SUPABASE_STORAGE_BUCKET
+  );
 }
 
 module.exports = {

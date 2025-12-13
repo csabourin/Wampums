@@ -360,7 +360,11 @@ module.exports = (pool) => {
       try {
         // Check if storage is configured
         if (!isStorageConfigured()) {
-          return error(res, 'Photo storage is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.', 503);
+          return error(
+            res,
+            'Photo storage is not configured. Please set SUPABASE_URL, SUPABASE_STORAGE_SECRET_KEY, and SUPABASE_STORAGE_BUCKET.',
+            503
+          );
         }
 
         const organizationId = await getOrganizationId(req, pool);
