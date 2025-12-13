@@ -1350,9 +1350,9 @@
 
     // Get backend API URL - try to detect from current location
     const getApiUrl = () => {
-      // If on wampums.app, use the main API instance
+      // If on wampums.app, use the demo API instance
       if (window.location.hostname === 'wampums.app' || window.location.hostname === 'www.wampums.app') {
-        return 'https://app.wampums.app/api/contact-demo';
+        return 'https://demo.wampums.app/api/contact-demo';
       }
       // For local development or other domains
       return window.location.origin + '/api/contact-demo';
