@@ -42,7 +42,8 @@ export class Inventory {
   }
 
   async refreshData() {
-    const equipmentResponse = await getEquipmentInventory();
+    // Force refresh to bypass cache - ensures we get the latest data including updated photos
+    const equipmentResponse = await getEquipmentInventory({}, { forceRefresh: true });
     this.equipment = equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
   }
 

@@ -195,9 +195,11 @@ export async function logout() {
 
 /**
  * Equipment inventory list
+ * @param {Object} params - Query parameters
+ * @param {Object} cacheOptions - Cache options (e.g., { forceRefresh: true })
  */
-export async function getEquipmentInventory(params = {}) {
-    return API.get('v1/resources/equipment', params);
+export async function getEquipmentInventory(params = {}, cacheOptions = {}) {
+    return API.get('v1/resources/equipment', params, cacheOptions);
 }
 
 /**
