@@ -171,6 +171,8 @@ CREATE TABLE public.equipment_items (
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   acquisition_date date DEFAULT now(),
+  item_value numeric,
+  photo_url text,
   CONSTRAINT equipment_items_pkey PRIMARY KEY (id),
   CONSTRAINT equipment_items_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
