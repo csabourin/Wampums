@@ -298,7 +298,8 @@ export { CONFIG } from "./config.js";
 export { debugLog, debugError } from "./utils/DebugUtils.js";
 
 // Backwards compatibility aliases
-import { API, buildApiUrl, batchApiRequests, withErrorHandling } from "./api/api-core.js";
+import * as ApiCore from "./api/api-core.js";
+import * as ApiHelpers from "./api/api-helpers.js";
 import { getParticipants, saveParticipant } from "./api/api-endpoints.js";
 
 export const fetchFromApi = ApiCore.API.get;
