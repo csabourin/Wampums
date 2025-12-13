@@ -9,6 +9,7 @@ import {
   deleteEquipmentPhoto,
   deleteEquipmentItem
 } from "./api/api-endpoints.js";
+import { deleteCachedData } from "./indexedDB.js";
 
 // Maximum photo file size: 3MB
 const MAX_PHOTO_SIZE = 3 * 1024 * 1024;
@@ -1074,12 +1075,16 @@ export class Inventory {
       this.app.showMessage(translate("inventory_saved"), "success");
       form.reset();
       this.clearPhotoPreview();
+
+      // Invalidate cache to ensure fresh data
+      await deleteCachedData('v1/resources/equipment');
+
       await this.refreshData();
       this.render();
       this.attachEventHandlers();
     } catch (error) {
       debugError("Error saving equipment", error);
-      this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+      this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
     }
   }
 
@@ -1130,12 +1135,16 @@ export class Inventory {
 
       this.app.showMessage(translate("equipment_updated"), "success");
       this.closeEditModal();
+
+      // Invalidate cache to ensure fresh data
+      await deleteCachedData('v1/resources/equipment');
+
       await this.refreshData();
       this.render();
       this.attachEventHandlers();
     } catch (error) {
       debugError("Error updating equipment", error);
-      this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+      this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
     }
   }
 
@@ -1146,6 +1155,10 @@ export class Inventory {
       await deleteEquipmentItem(this.deletingEquipmentId);
       this.app.showMessage(translate("equipment_deleted"), "success");
       this.closeDeleteModal();
+
+      // Invalidate cache to ensure fresh data
+      await deleteCachedData('v1/resources/equipment');
+
       await this.refreshData();
       this.render();
       this.attachEventHandlers();

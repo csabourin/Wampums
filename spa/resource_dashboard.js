@@ -9,6 +9,7 @@ import {
   saveEquipmentReservation,
   getResourceDashboard
 } from "./api/api-endpoints.js";
+import { deleteCachedData } from "./indexedDB.js";
 
 export class ResourceDashboard {
   constructor(app) {
@@ -227,12 +228,16 @@ export class ResourceDashboard {
         try {
           await saveEquipmentItem(payload);
           this.app.showMessage(translate("inventory_saved"), "success");
+
+          // Invalidate cache to ensure fresh data
+          await deleteCachedData('v1/resources/equipment');
+
           await this.refreshData();
           this.render();
           this.attachEventHandlers();
         } catch (error) {
           debugError("Error saving equipment", error);
-          this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+          this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
         }
       });
     }
@@ -248,14 +253,53 @@ export class ResourceDashboard {
         payload.reserved_quantity = payload.reserved_quantity ? parseInt(payload.reserved_quantity, 10) : 1;
 
         try {
+          // Optimistic update: Add reservation to local state immediately
+          const equipment = this.equipment.find(e => e.id === payload.equipment_id);
+          if (equipment) {
+            const optimisticReservation = {
+              id: `temp-${Date.now()}`,
+              equipment_id: payload.equipment_id,
+              equipment_name: equipment.name,
+              reserved_quantity: payload.reserved_quantity,
+              reserved_for: payload.reserved_for,
+              meeting_date: payload.meeting_date,
+              status: payload.status || 'reserved',
+              notes: payload.notes,
+              reservation_organization_id: localStorage.getItem('currentOrganizationId')
+            };
+
+            // Add to local reservations array
+            this.reservations = [optimisticReservation, ...this.reservations];
+
+            // Update equipment reserved quantity optimistically
+            equipment.reserved_quantity = (equipment.reserved_quantity || 0) + payload.reserved_quantity;
+
+            // Re-render with optimistic data
+            this.render();
+            this.attachEventHandlers();
+          }
+
+          // Save to backend
           await saveEquipmentReservation(payload);
           this.app.showMessage(translate("reservation_saved"), "success");
+
+          // Invalidate cache to ensure fresh data
+          await deleteCachedData('v1/resources/equipment');
+          await deleteCachedData('v1/resources/equipment/reservations');
+          await deleteCachedData('v1/resources/status/dashboard');
+
+          // Refresh from server to get actual IDs and updated quantities
           await this.refreshData();
           this.render();
           this.attachEventHandlers();
         } catch (error) {
           debugError("Error saving reservation", error);
-          this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+          this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
+
+          // Revert optimistic update on error
+          await this.refreshData();
+          this.render();
+          this.attachEventHandlers();
         }
       });
     }
