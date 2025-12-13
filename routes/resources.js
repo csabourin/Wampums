@@ -377,10 +377,13 @@ module.exports = (pool) => {
         const organizationId = await getOrganizationId(req, pool);
         const equipmentId = parseInt(req.params.id, 10);
 
-        // Verify equipment belongs to organization
+        // Verify organization has access to this equipment (owner or shared)
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
+        // Get current photo URL
         const equipmentCheck = await pool.query(
-          'SELECT id, photo_url FROM equipment_items WHERE id = $1 AND organization_id = $2',
-          [equipmentId, organizationId]
+          'SELECT id, photo_url FROM equipment_items WHERE id = $1',
+          [equipmentId]
         );
 
         if (equipmentCheck.rows.length === 0) {
@@ -410,13 +413,13 @@ module.exports = (pool) => {
           return error(res, uploadResult.error || 'Failed to upload photo', 500);
         }
 
-        // Update equipment with new photo URL
+        // Update equipment with new photo URL (any organization with access can update)
         const updateResult = await pool.query(
           `UPDATE equipment_items
            SET photo_url = $1, updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2 AND organization_id = $3
+           WHERE id = $2
            RETURNING *`,
-          [uploadResult.url, equipmentId, organizationId]
+          [uploadResult.url, equipmentId]
         );
 
         return success(res, { equipment: updateResult.rows[0], photo_url: uploadResult.url }, 'Photo uploaded successfully');
@@ -445,10 +448,13 @@ module.exports = (pool) => {
         const organizationId = await getOrganizationId(req, pool);
         const equipmentId = parseInt(req.params.id, 10);
 
+        // Verify organization has access to this equipment (owner or shared)
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
         // Get current photo URL
         const equipmentCheck = await pool.query(
-          'SELECT id, photo_url FROM equipment_items WHERE id = $1 AND organization_id = $2',
-          [equipmentId, organizationId]
+          'SELECT id, photo_url FROM equipment_items WHERE id = $1',
+          [equipmentId]
         );
 
         if (equipmentCheck.rows.length === 0) {
@@ -468,13 +474,13 @@ module.exports = (pool) => {
           }
         }
 
-        // Update equipment to remove photo URL
+        // Update equipment to remove photo URL (any organization with access can delete)
         const updateResult = await pool.query(
           `UPDATE equipment_items
            SET photo_url = NULL, updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND organization_id = $2
+           WHERE id = $1
            RETURNING *`,
-          [equipmentId, organizationId]
+          [equipmentId]
         );
 
         return success(res, { equipment: updateResult.rows[0] }, 'Photo deleted successfully');
@@ -606,9 +612,9 @@ module.exports = (pool) => {
 
         await verifyEquipmentAccess(equipment_id, organizationId);
 
-        // Get equipment total quantity
+        // Get equipment details
         const equipmentResult = await pool.query(
-          `SELECT quantity_total FROM equipment_items WHERE id = $1`,
+          `SELECT name, quantity_total FROM equipment_items WHERE id = $1`,
           [equipment_id]
         );
 
@@ -616,7 +622,7 @@ module.exports = (pool) => {
           return error(res, 'Equipment not found', 404);
         }
 
-        const quantityTotal = equipmentResult.rows[0].quantity_total;
+        const { name: equipmentName, quantity_total: quantityTotal } = equipmentResult.rows[0];
 
         // Check for overlapping reservations to prevent double-booking
         // Exclude the current reservation if this is an update (same organization, equipment, meeting_date, reserved_for)
@@ -638,11 +644,11 @@ module.exports = (pool) => {
         );
 
         const totalReserved = parseInt(overlapResult.rows[0].total_reserved, 10);
+        const available = Math.max(0, quantityTotal - totalReserved);
 
         // Check if adding this reservation would exceed available quantity
         if (totalReserved + reserved_quantity > quantityTotal) {
-          const available = quantityTotal - totalReserved;
-          return error(res, `Insufficient quantity available. Total: ${quantityTotal}, Already reserved: ${totalReserved}, Available: ${available}, Requested: ${reserved_quantity}`, 400);
+          return error(res, `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${reserved_quantity}).`, 400);
         }
 
         const insertResult = await pool.query(
@@ -731,9 +737,9 @@ module.exports = (pool) => {
 
           // Only check if reservation is active (not returned or cancelled)
           if (reservation.status === 'reserved' || reservation.status === 'confirmed') {
-            // Get equipment total quantity
+            // Get equipment details
             const equipmentResult = await pool.query(
-              `SELECT quantity_total FROM equipment_items WHERE id = $1`,
+              `SELECT name, quantity_total FROM equipment_items WHERE id = $1`,
               [reservation.equipment_id]
             );
 
@@ -741,7 +747,7 @@ module.exports = (pool) => {
               return error(res, 'Equipment not found', 404);
             }
 
-            const quantityTotal = equipmentResult.rows[0].quantity_total;
+            const { name: equipmentName, quantity_total: quantityTotal } = equipmentResult.rows[0];
 
             // Check for overlapping reservations (excluding this reservation)
             const overlapResult = await pool.query(
@@ -758,11 +764,11 @@ module.exports = (pool) => {
             );
 
             const totalReserved = parseInt(overlapResult.rows[0].total_reserved, 10);
+            const available = Math.max(0, quantityTotal - totalReserved);
 
             // Check if the new quantity would exceed available
             if (totalReserved + req.body.reserved_quantity > quantityTotal) {
-              const available = quantityTotal - totalReserved;
-              return error(res, `Insufficient quantity available. Total: ${quantityTotal}, Already reserved: ${totalReserved}, Available: ${available}, Requested: ${req.body.reserved_quantity}`, 400);
+              return error(res, `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${req.body.reserved_quantity}).`, 400);
             }
           }
         }
@@ -833,17 +839,17 @@ module.exports = (pool) => {
 
         // Create a reservation for each equipment item
         for (const item of items) {
-          // Get equipment total quantity
+          // Get equipment details
           const equipmentResult = await pool.query(
-            `SELECT quantity_total FROM equipment_items WHERE id = $1`,
+            `SELECT name, quantity_total FROM equipment_items WHERE id = $1`,
             [item.equipment_id]
           );
 
           if (equipmentResult.rows.length === 0) {
-            return error(res, `Equipment with ID ${item.equipment_id} not found`, 404);
+            return error(res, `Equipment not found`, 404);
           }
 
-          const quantityTotal = equipmentResult.rows[0].quantity_total;
+          const { name: equipmentName, quantity_total: quantityTotal } = equipmentResult.rows[0];
 
           // Check for overlapping reservations to prevent double-booking
           const overlapResult = await pool.query(
@@ -859,11 +865,11 @@ module.exports = (pool) => {
           );
 
           const totalReserved = parseInt(overlapResult.rows[0].total_reserved, 10);
+          const available = Math.max(0, quantityTotal - totalReserved);
 
           // Check if adding this reservation would exceed available quantity
           if (totalReserved + item.quantity > quantityTotal) {
-            const available = quantityTotal - totalReserved;
-            return error(res, `Insufficient quantity available for equipment ID ${item.equipment_id}. Total: ${quantityTotal}, Already reserved: ${totalReserved}, Available: ${available}, Requested: ${item.quantity}`, 400);
+            return error(res, `Not enough "${equipmentName}" available for these dates. ${available} of ${quantityTotal} remaining (you requested ${item.quantity}).`, 400);
           }
 
           const insertResult = await pool.query(
