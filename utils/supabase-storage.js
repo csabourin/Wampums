@@ -2,18 +2,18 @@
  * Supabase Storage utility for equipment inventory photos
  * Handles file uploads to Supabase Storage with size validation
  */
-const { createClient } = require('@supabase/supabase-js');
+const { createClient } = require("@supabase/supabase-js");
 
 // Maximum file size: 3MB
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
 // Allowed MIME types for images
 const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/gif',
-  'image/webp'
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
 ];
 
 // Initialize Supabase client (lazy initialization)
@@ -23,9 +23,12 @@ function getSupabaseClient() {
   if (!supabaseClient) {
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+    const supabaseSecretKey = process.env.SUPABASE_STORAGE_SECRET_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase configuration missing. Set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.');
+      throw new Error(
+        "Supabase configuration missing. Set SUPABASE_URL, SUPABASE_SERVICE_KEY and SUPABASE_STORAGE_SECRET_KEY environment variables.",
+      );
     }
 
     supabaseClient = createClient(supabaseUrl, supabaseKey);
@@ -37,7 +40,7 @@ function getSupabaseClient() {
  * Get the storage bucket name from environment or default
  */
 function getBucketName() {
-  return process.env.SUPABASE_STORAGE_BUCKET || 'inventory';
+  return process.env.SUPABASE_STORAGE_BUCKET || null;
 }
 
 /**
@@ -47,20 +50,20 @@ function getBucketName() {
  */
 function validateFile(file) {
   if (!file) {
-    return { isValid: false, error: 'No file provided' };
+    return { isValid: false, error: "No file provided" };
   }
 
   if (file.size > MAX_FILE_SIZE) {
     return {
       isValid: false,
-      error: `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`
+      error: `File size exceeds maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB)`,
     };
   }
 
   if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     return {
       isValid: false,
-      error: `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`
+      error: `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(", ")}`,
     };
   }
 
@@ -76,8 +79,8 @@ function validateFile(file) {
  */
 function generateFilePath(organizationId, equipmentId, originalFilename) {
   const timestamp = Date.now();
-  const extension = originalFilename.split('.').pop().toLowerCase();
-  const sanitizedFilename = `equipment_${equipmentId || 'new'}_${timestamp}.${extension}`;
+  const extension = originalFilename.split(".").pop().toLowerCase();
+  const sanitizedFilename = `equipment_${equipmentId || "new"}_${timestamp}.${extension}`;
   return `org_${organizationId}/${sanitizedFilename}`;
 }
 
@@ -97,12 +100,12 @@ async function uploadFile(fileBuffer, filePath, contentType) {
       .from(bucket)
       .upload(filePath, fileBuffer, {
         contentType,
-        cacheControl: '3600',
-        upsert: true
+        cacheControl: "3600",
+        upsert: true,
       });
 
     if (error) {
-      console.error('Supabase upload error:', error);
+      console.error("Supabase upload error:", error);
       return { success: false, error: error.message };
     }
 
@@ -114,10 +117,10 @@ async function uploadFile(fileBuffer, filePath, contentType) {
     return {
       success: true,
       path: data.path,
-      url: urlData.publicUrl
+      url: urlData.publicUrl,
     };
   } catch (err) {
-    console.error('Upload error:', err);
+    console.error("Upload error:", err);
     return { success: false, error: err.message };
   }
 }
@@ -132,18 +135,16 @@ async function deleteFile(filePath) {
     const supabase = getSupabaseClient();
     const bucket = getBucketName();
 
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove([filePath]);
+    const { error } = await supabase.storage.from(bucket).remove([filePath]);
 
     if (error) {
-      console.error('Supabase delete error:', error);
+      console.error("Supabase delete error:", error);
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (err) {
-    console.error('Delete error:', err);
+    console.error("Delete error:", err);
     return { success: false, error: err.message };
   }
 }
@@ -183,5 +184,5 @@ module.exports = {
   uploadFile,
   deleteFile,
   extractPathFromUrl,
-  isStorageConfigured
+  isStorageConfigured,
 };
