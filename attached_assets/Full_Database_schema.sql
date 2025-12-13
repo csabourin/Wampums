@@ -170,6 +170,7 @@ CREATE TABLE public.equipment_items (
   attributes jsonb DEFAULT '{}'::jsonb,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  acquisition_date date DEFAULT now(),
   CONSTRAINT equipment_items_pkey PRIMARY KEY (id),
   CONSTRAINT equipment_items_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
