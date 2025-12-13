@@ -215,6 +215,44 @@ export async function updateEquipmentItem(id, payload) {
 }
 
 /**
+ * Upload photo for equipment item
+ * @param {number} equipmentId - Equipment ID
+ * @param {File} file - Image file to upload
+ * @returns {Promise<Object>} Upload result with photo_url
+ */
+export async function uploadEquipmentPhoto(equipmentId, file) {
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    const url = new URL(`/api/v1/resources/equipment/${equipmentId}/photo`, CONFIG.API_BASE_URL);
+    const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: formData
+    });
+
+    return handleResponse(response);
+}
+
+/**
+ * Delete photo for equipment item
+ * @param {number} equipmentId - Equipment ID
+ * @returns {Promise<Object>} Delete result
+ */
+export async function deleteEquipmentPhoto(equipmentId) {
+    return API.delete(`v1/resources/equipment/${equipmentId}/photo`);
+}
+
+/**
+ * Delete equipment item (soft delete)
+ * @param {number} equipmentId - Equipment ID
+ * @returns {Promise<Object>} Delete result
+ */
+export async function deleteEquipmentItem(equipmentId) {
+    return API.delete(`v1/resources/equipment/${equipmentId}`);
+}
+
+/**
  * Get reservations for equipment by meeting date
  */
 export async function getEquipmentReservations(params = {}) {
