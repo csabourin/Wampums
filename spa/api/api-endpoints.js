@@ -244,6 +244,15 @@ export async function deleteEquipmentPhoto(equipmentId) {
 }
 
 /**
+ * Delete equipment item (soft delete)
+ * @param {number} equipmentId - Equipment ID
+ * @returns {Promise<Object>} Delete result
+ */
+export async function deleteEquipmentItem(equipmentId) {
+    return API.delete(`v1/resources/equipment/${equipmentId}`);
+}
+
+/**
  * Get reservations for equipment by meeting date
  */
 export async function getEquipmentReservations(params = {}) {

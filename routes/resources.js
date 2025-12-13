@@ -291,6 +291,61 @@ module.exports = (pool) => {
     })
   );
 
+  // Delete equipment (soft delete by setting is_active = false)
+  router.delete(
+    '/equipment/:id',
+    authenticate,
+    requireOrganizationRole(leaderRoles),
+    [param('id').isInt({ min: 1 })],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const organizationId = await getOrganizationId(req, pool);
+        const equipmentId = parseInt(req.params.id, 10);
+
+        // Check if equipment has active reservations
+        const reservationCheck = await pool.query(
+          `SELECT COUNT(*) as count FROM equipment_reservations
+           WHERE equipment_id = $1 AND status IN ('reserved', 'confirmed')`,
+          [equipmentId]
+        );
+
+        if (parseInt(reservationCheck.rows[0].count, 10) > 0) {
+          return error(res, 'Cannot delete equipment with active reservations', 400);
+        }
+
+        // Soft delete: set is_active = false
+        const result = await pool.query(
+          `UPDATE equipment_items
+           SET is_active = false, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND organization_id = $2
+           RETURNING *`,
+          [equipmentId, organizationId]
+        );
+
+        if (result.rows.length === 0) {
+          return error(res, 'Equipment not found', 404);
+        }
+
+        // Delete photo from storage if exists
+        const photoUrl = result.rows[0].photo_url;
+        if (photoUrl && isStorageConfigured()) {
+          const filePath = extractPathFromUrl(photoUrl);
+          if (filePath) {
+            await deleteFile(filePath);
+          }
+        }
+
+        return success(res, { equipment: result.rows[0] }, 'Equipment deleted successfully');
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        return error(res, err.message || 'Error deleting equipment', 500);
+      }
+    })
+  );
+
   // ============================
   // Equipment photo upload
   // ============================

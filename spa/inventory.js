@@ -1,15 +1,14 @@
 import { translate } from "./app.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { formatMoney } from "./utils/ValidationUtils.js";
 import {
   getEquipmentInventory,
   saveEquipmentItem,
   updateEquipmentItem,
   uploadEquipmentPhoto,
-  deleteEquipmentPhoto
+  deleteEquipmentPhoto,
+  deleteEquipmentItem
 } from "./api/api-endpoints.js";
-import { CONFIG } from "./config.js";
 
 // Maximum photo file size: 3MB
 const MAX_PHOTO_SIZE = 3 * 1024 * 1024;
@@ -27,6 +26,8 @@ export class Inventory {
     this.editingEquipment = null;
     this.photoPreview = null;
     this.selectedPhotoFile = null;
+    this.modalPhotoPreview = null;
+    this.modalSelectedPhotoFile = null;
   }
 
   async init() {
@@ -79,12 +80,10 @@ export class Inventory {
           <p class="subtitle">${escapeHTML(translate("inventory_description"))}</p>
         </div>
 
-        <!-- Equipment Form -->
+        <!-- Equipment Form for Adding New -->
         <div class="card">
-          <h2 id="form-title">${escapeHTML(translate("equipment_add_new"))}</h2>
+          <h2>${escapeHTML(translate("equipment_add_new"))}</h2>
           <form id="equipmentForm" class="stacked">
-            <input type="hidden" name="equipment_id" id="equipment_id" />
-
             <div class="grid grid-2">
               <label class="stacked">
                 <span>${escapeHTML(translate("equipment_name"))} *</span>
@@ -148,8 +147,7 @@ export class Inventory {
             </div>
 
             <div class="form-actions">
-              <button type="submit" class="btn primary" id="save-btn">${escapeHTML(translate("save_equipment"))}</button>
-              <button type="button" class="btn secondary hidden" id="cancel-edit-btn">${escapeHTML(translate("cancel"))}</button>
+              <button type="submit" class="btn primary">${escapeHTML(translate("save_equipment"))}</button>
             </div>
           </form>
         </div>
@@ -171,6 +169,105 @@ export class Inventory {
           ${this.viewMode === 'gallery' ? this.renderGalleryView() : this.renderTableView()}
         </div>
       </section>
+
+      <!-- Edit Equipment Modal -->
+      <div class="modal-overlay hidden" id="edit-equipment-modal">
+        <div class="modal-container">
+          <div class="modal-header">
+            <h2>${escapeHTML(translate("equipment_edit"))}</h2>
+            <button type="button" class="modal-close-btn" id="modal-close-btn" aria-label="${escapeHTML(translate("close"))}">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="editEquipmentForm" class="stacked">
+              <input type="hidden" name="equipment_id" id="modal_equipment_id" />
+
+              <div class="grid grid-2">
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_name"))} *</span>
+                  <input type="text" name="name" id="modal_equipment_name" maxlength="150" required />
+                </label>
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_category"))}</span>
+                  <input type="text" name="category" id="modal_equipment_category" maxlength="100" />
+                </label>
+              </div>
+
+              <div class="grid grid-2">
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_quantity_total"))}</span>
+                  <input type="number" name="quantity_total" id="modal_equipment_quantity_total" min="0" value="1" />
+                </label>
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_available"))}</span>
+                  <input type="number" name="quantity_available" id="modal_equipment_quantity_available" min="0" />
+                </label>
+              </div>
+
+              <div class="grid grid-2">
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_item_value"))}</span>
+                  <input type="number" name="item_value" id="modal_equipment_item_value" min="0" step="0.01" placeholder="0.00" />
+                </label>
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_acquisition_date"))}</span>
+                  <input type="date" name="acquisition_date" id="modal_equipment_acquisition_date" />
+                </label>
+              </div>
+
+              <label class="stacked">
+                <span>${escapeHTML(translate("equipment_condition"))}</span>
+                <input type="text" name="condition_note" id="modal_equipment_condition_note" maxlength="500" />
+              </label>
+
+              <label class="stacked">
+                <span>${escapeHTML(translate("equipment_description"))}</span>
+                <textarea name="description" id="modal_equipment_description" rows="2" maxlength="2000"></textarea>
+              </label>
+
+              <!-- Photo Upload Section in Modal -->
+              <div class="photo-upload-section">
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_photo"))}</span>
+                  <div class="photo-upload-container" id="modal-photo-upload-container">
+                    <div class="photo-preview" id="modal-photo-preview">
+                      <div class="photo-placeholder" id="modal-photo-placeholder">
+                        <span class="photo-icon">📷</span>
+                        <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
+                        <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
+                      </div>
+                      <img id="modal-photo-preview-img" class="hidden" alt="" />
+                      <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
+                    </div>
+                    <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" />
+                  </div>
+                </label>
+              </div>
+
+              <div class="form-actions modal-actions">
+                <button type="submit" class="btn primary">${escapeHTML(translate("save_changes"))}</button>
+                <button type="button" class="btn secondary" id="modal-cancel-btn">${escapeHTML(translate("cancel"))}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Confirmation Modal -->
+      <div class="modal-overlay hidden" id="delete-confirm-modal">
+        <div class="modal-container modal-small">
+          <div class="modal-header">
+            <h2>${escapeHTML(translate("equipment_delete_confirm_title"))}</h2>
+            <button type="button" class="modal-close-btn" id="delete-modal-close-btn" aria-label="${escapeHTML(translate("close"))}">×</button>
+          </div>
+          <div class="modal-body">
+            <p id="delete-confirm-message"></p>
+            <div class="form-actions modal-actions">
+              <button type="button" class="btn danger" id="confirm-delete-btn">${escapeHTML(translate("delete"))}</button>
+              <button type="button" class="btn secondary" id="cancel-delete-btn">${escapeHTML(translate("cancel"))}</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <style>
         /* Mobile-first inventory styles */
@@ -225,7 +322,8 @@ export class Inventory {
           opacity: 0.7;
         }
 
-        .inventory-page #photo-preview-img {
+        .inventory-page #photo-preview-img,
+        .inventory-page #modal-photo-preview-img {
           width: 100%;
           height: 100%;
           object-fit: cover;
@@ -433,6 +531,93 @@ export class Inventory {
           opacity: 0.5;
         }
 
+        .inventory-page .table-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 1rem;
+        }
+
+        .modal-overlay.hidden {
+          display: none;
+        }
+
+        .modal-container {
+          background: var(--bg-card, white);
+          border-radius: 12px;
+          width: 100%;
+          max-width: 600px;
+          max-height: 90vh;
+          overflow-y: auto;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-container.modal-small {
+          max-width: 400px;
+        }
+
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1rem 1.5rem;
+          border-bottom: 1px solid var(--border-color, #eee);
+        }
+
+        .modal-header h2 {
+          margin: 0;
+          font-size: 1.25rem;
+        }
+
+        .modal-close-btn {
+          width: 32px;
+          height: 32px;
+          border: none;
+          background: transparent;
+          font-size: 1.5rem;
+          cursor: pointer;
+          color: var(--text-muted, #666);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 4px;
+        }
+
+        .modal-close-btn:hover {
+          background: var(--bg-secondary, #f0f0f0);
+        }
+
+        .modal-body {
+          padding: 1.5rem;
+        }
+
+        .modal-actions {
+          justify-content: flex-end;
+        }
+
+        .btn.danger {
+          background: #dc3545;
+          color: white;
+          border: none;
+        }
+
+        .btn.danger:hover {
+          background: #c82333;
+        }
+
         /* Mobile adjustments */
         @media (max-width: 640px) {
           .inventory-page .equipment-gallery {
@@ -443,9 +628,13 @@ export class Inventory {
             grid-template-columns: 1fr;
           }
 
-          .inventory-page .data-table th:nth-child(n+4),
-          .inventory-page .data-table td:nth-child(n+4) {
+          .inventory-page .data-table th:nth-child(n+5),
+          .inventory-page .data-table td:nth-child(n+5) {
             display: none;
+          }
+
+          .modal-container {
+            max-height: 95vh;
           }
         }
       </style>
@@ -495,6 +684,7 @@ export class Inventory {
             </div>
             <div class="equipment-card-actions">
               <button type="button" class="btn secondary edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate("edit"))}</button>
+              <button type="button" class="btn danger delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate("delete"))}</button>
             </div>
           </div>
         `).join('')}
@@ -513,14 +703,12 @@ export class Inventory {
                 <th>${escapeHTML(translate("equipment_name"))}</th>
                 <th>${escapeHTML(translate("equipment_category"))}</th>
                 <th>${escapeHTML(translate("equipment_quantity_total"))}</th>
-                <th>${escapeHTML(translate("equipment_reserved"))}</th>
                 <th>${escapeHTML(translate("equipment_item_value"))}</th>
-                <th>${escapeHTML(translate("equipment_acquisition_date"))}</th>
                 <th>${escapeHTML(translate("actions"))}</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="8">${escapeHTML(translate("no_data_available"))}</td></tr>
+              <tr><td colspan="6">${escapeHTML(translate("no_data_available"))}</td></tr>
             </tbody>
           </table>
         </div>
@@ -536,9 +724,7 @@ export class Inventory {
               <th>${escapeHTML(translate("equipment_name"))}</th>
               <th>${escapeHTML(translate("equipment_category"))}</th>
               <th>${escapeHTML(translate("equipment_quantity_total"))}</th>
-              <th>${escapeHTML(translate("equipment_reserved"))}</th>
               <th>${escapeHTML(translate("equipment_item_value"))}</th>
-              <th>${escapeHTML(translate("equipment_acquisition_date"))}</th>
               <th>${escapeHTML(translate("actions"))}</th>
             </tr>
           </thead>
@@ -554,11 +740,12 @@ export class Inventory {
                 <td>${escapeHTML(item.name)}</td>
                 <td>${escapeHTML(item.category || '-')}</td>
                 <td>${escapeHTML(String(item.quantity_total ?? 0))}</td>
-                <td>${escapeHTML(String(item.reserved_quantity ?? 0))}</td>
                 <td>${escapeHTML(this.formatCurrency(item.item_value))}</td>
-                <td>${escapeHTML(this.formatDate(item.acquisition_date))}</td>
                 <td>
-                  <button type="button" class="btn secondary small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate("edit"))}</button>
+                  <div class="table-actions">
+                    <button type="button" class="btn secondary small edit-equipment-btn" data-id="${item.id}">${escapeHTML(translate("edit"))}</button>
+                    <button type="button" class="btn danger small delete-equipment-btn" data-id="${item.id}" data-name="${escapeHTML(item.name)}">${escapeHTML(translate("delete"))}</button>
+                  </div>
                 </td>
               </tr>
             `).join('')}
@@ -589,16 +776,51 @@ export class Inventory {
       });
     }
 
-    // Photo upload handlers
-    const photoUploadContainer = document.getElementById("photo-upload-container");
-    const photoInput = document.getElementById("photo-input");
-    const photoPreviewImg = document.getElementById("photo-preview-img");
-    const photoPlaceholder = document.getElementById("photo-placeholder");
-    const removePhotoBtn = document.getElementById("remove-photo-btn");
+    // Photo upload handlers for main form
+    this.setupPhotoUpload('photo-upload-container', 'photo-input', 'photo-preview-img', 'photo-placeholder', 'remove-photo-btn', false);
+
+    // Equipment form handler for creating new
+    const equipmentForm = document.getElementById("equipmentForm");
+    if (equipmentForm) {
+      equipmentForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await this.handleCreateSubmit();
+      });
+    }
+
+    // Edit equipment handlers
+    document.querySelectorAll(".edit-equipment-btn").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        const equipmentId = parseInt(event.target.dataset.id, 10);
+        this.openEditModal(equipmentId);
+      });
+    });
+
+    // Delete equipment handlers
+    document.querySelectorAll(".delete-equipment-btn").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        const equipmentId = parseInt(event.target.dataset.id, 10);
+        const equipmentName = event.target.dataset.name;
+        this.openDeleteConfirmation(equipmentId, equipmentName);
+      });
+    });
+
+    // Modal handlers
+    this.setupModalHandlers();
+  }
+
+  setupPhotoUpload(containerId, inputId, previewImgId, placeholderId, removeBtnId, isModal) {
+    const photoUploadContainer = document.getElementById(containerId);
+    const photoInput = document.getElementById(inputId);
+    const photoPreviewImg = document.getElementById(previewImgId);
+    const photoPlaceholder = document.getElementById(placeholderId);
+    const removePhotoBtn = document.getElementById(removeBtnId);
 
     if (photoUploadContainer && photoInput) {
-      photoUploadContainer.addEventListener("click", () => {
-        photoInput.click();
+      photoUploadContainer.addEventListener("click", (e) => {
+        if (e.target !== removePhotoBtn && !removePhotoBtn.contains(e.target)) {
+          photoInput.click();
+        }
       });
 
       photoInput.addEventListener("change", (event) => {
@@ -617,7 +839,11 @@ export class Inventory {
             return;
           }
 
-          this.selectedPhotoFile = file;
+          if (isModal) {
+            this.modalSelectedPhotoFile = file;
+          } else {
+            this.selectedPhotoFile = file;
+          }
 
           // Show preview
           const reader = new FileReader();
@@ -635,34 +861,75 @@ export class Inventory {
     if (removePhotoBtn) {
       removePhotoBtn.addEventListener("click", (event) => {
         event.stopPropagation();
-        this.clearPhotoPreview();
+        if (isModal) {
+          this.clearModalPhotoPreview();
+        } else {
+          this.clearPhotoPreview();
+        }
+      });
+    }
+  }
+
+  setupModalHandlers() {
+    // Edit modal handlers
+    const editModal = document.getElementById("edit-equipment-modal");
+    const modalCloseBtn = document.getElementById("modal-close-btn");
+    const modalCancelBtn = document.getElementById("modal-cancel-btn");
+    const editForm = document.getElementById("editEquipmentForm");
+
+    if (modalCloseBtn) {
+      modalCloseBtn.addEventListener("click", () => this.closeEditModal());
+    }
+
+    if (modalCancelBtn) {
+      modalCancelBtn.addEventListener("click", () => this.closeEditModal());
+    }
+
+    if (editModal) {
+      editModal.addEventListener("click", (e) => {
+        if (e.target === editModal) {
+          this.closeEditModal();
+        }
       });
     }
 
-    // Equipment form handler
-    const equipmentForm = document.getElementById("equipmentForm");
-    if (equipmentForm) {
-      equipmentForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        await this.handleFormSubmit();
+    if (editForm) {
+      editForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await this.handleEditSubmit();
       });
     }
 
-    // Cancel edit handler
-    const cancelBtn = document.getElementById("cancel-edit-btn");
-    if (cancelBtn) {
-      cancelBtn.addEventListener("click", () => {
-        this.resetForm();
+    // Photo upload for modal
+    this.setupPhotoUpload('modal-photo-upload-container', 'modal-photo-input', 'modal-photo-preview-img', 'modal-photo-placeholder', 'modal-remove-photo-btn', true);
+
+    // Delete confirmation modal handlers
+    const deleteModal = document.getElementById("delete-confirm-modal");
+    const deleteModalCloseBtn = document.getElementById("delete-modal-close-btn");
+    const cancelDeleteBtn = document.getElementById("cancel-delete-btn");
+    const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
+
+    if (deleteModalCloseBtn) {
+      deleteModalCloseBtn.addEventListener("click", () => this.closeDeleteModal());
+    }
+
+    if (cancelDeleteBtn) {
+      cancelDeleteBtn.addEventListener("click", () => this.closeDeleteModal());
+    }
+
+    if (deleteModal) {
+      deleteModal.addEventListener("click", (e) => {
+        if (e.target === deleteModal) {
+          this.closeDeleteModal();
+        }
       });
     }
 
-    // Edit equipment handlers
-    document.querySelectorAll(".edit-equipment-btn").forEach((btn) => {
-      btn.addEventListener("click", (event) => {
-        const equipmentId = parseInt(event.target.dataset.id, 10);
-        this.editEquipment(equipmentId);
+    if (confirmDeleteBtn) {
+      confirmDeleteBtn.addEventListener("click", async () => {
+        await this.handleDelete();
       });
-    });
+    }
   }
 
   clearPhotoPreview() {
@@ -683,33 +950,46 @@ export class Inventory {
     this.photoPreview = null;
   }
 
-  editEquipment(equipmentId) {
+  clearModalPhotoPreview() {
+    const photoInput = document.getElementById("modal-photo-input");
+    const photoPreviewImg = document.getElementById("modal-photo-preview-img");
+    const photoPlaceholder = document.getElementById("modal-photo-placeholder");
+    const removePhotoBtn = document.getElementById("modal-remove-photo-btn");
+
+    if (photoInput) photoInput.value = '';
+    if (photoPreviewImg) {
+      photoPreviewImg.src = '';
+      photoPreviewImg.classList.add('hidden');
+    }
+    if (photoPlaceholder) photoPlaceholder.classList.remove('hidden');
+    if (removePhotoBtn) removePhotoBtn.classList.add('hidden');
+
+    this.modalSelectedPhotoFile = null;
+    this.modalPhotoPreview = null;
+  }
+
+  openEditModal(equipmentId) {
     const equipment = this.equipment.find(e => e.id === equipmentId);
     if (!equipment) return;
 
     this.editingEquipment = equipment;
 
-    // Populate form
-    document.getElementById("equipment_id").value = equipment.id;
-    document.getElementById("equipment_name").value = equipment.name || '';
-    document.getElementById("equipment_category").value = equipment.category || '';
-    document.getElementById("equipment_quantity_total").value = equipment.quantity_total || 1;
-    document.getElementById("equipment_quantity_available").value = equipment.quantity_available || '';
-    document.getElementById("equipment_item_value").value = equipment.item_value || '';
-    document.getElementById("equipment_acquisition_date").value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, 10) : '';
-    document.getElementById("equipment_condition_note").value = equipment.condition_note || '';
-    document.getElementById("equipment_description").value = equipment.description || '';
-
-    // Update form title and buttons
-    document.getElementById("form-title").textContent = translate("equipment_edit");
-    document.getElementById("save-btn").textContent = translate("save_changes");
-    document.getElementById("cancel-edit-btn").classList.remove("hidden");
+    // Populate modal form
+    document.getElementById("modal_equipment_id").value = equipment.id;
+    document.getElementById("modal_equipment_name").value = equipment.name || '';
+    document.getElementById("modal_equipment_category").value = equipment.category || '';
+    document.getElementById("modal_equipment_quantity_total").value = equipment.quantity_total || 1;
+    document.getElementById("modal_equipment_quantity_available").value = equipment.quantity_available || '';
+    document.getElementById("modal_equipment_item_value").value = equipment.item_value || '';
+    document.getElementById("modal_equipment_acquisition_date").value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, 10) : '';
+    document.getElementById("modal_equipment_condition_note").value = equipment.condition_note || '';
+    document.getElementById("modal_equipment_description").value = equipment.description || '';
 
     // Show existing photo if available
     if (equipment.photo_url) {
-      const photoPreviewImg = document.getElementById("photo-preview-img");
-      const photoPlaceholder = document.getElementById("photo-placeholder");
-      const removePhotoBtn = document.getElementById("remove-photo-btn");
+      const photoPreviewImg = document.getElementById("modal-photo-preview-img");
+      const photoPlaceholder = document.getElementById("modal-photo-placeholder");
+      const removePhotoBtn = document.getElementById("modal-remove-photo-btn");
 
       if (photoPreviewImg) {
         photoPreviewImg.src = equipment.photo_url;
@@ -718,30 +998,81 @@ export class Inventory {
       if (photoPlaceholder) photoPlaceholder.classList.add('hidden');
       if (removePhotoBtn) removePhotoBtn.classList.remove('hidden');
 
-      this.photoPreview = equipment.photo_url;
+      this.modalPhotoPreview = equipment.photo_url;
     } else {
-      this.clearPhotoPreview();
+      this.clearModalPhotoPreview();
     }
 
-    // Scroll to form
-    document.getElementById("equipmentForm").scrollIntoView({ behavior: 'smooth' });
+    // Show modal
+    document.getElementById("edit-equipment-modal").classList.remove("hidden");
+    document.body.style.overflow = 'hidden';
   }
 
-  resetForm() {
-    const form = document.getElementById("equipmentForm");
-    if (form) form.reset();
-
+  closeEditModal() {
+    document.getElementById("edit-equipment-modal").classList.add("hidden");
+    document.body.style.overflow = '';
     this.editingEquipment = null;
-    this.clearPhotoPreview();
-
-    document.getElementById("equipment_id").value = '';
-    document.getElementById("form-title").textContent = translate("equipment_add_new");
-    document.getElementById("save-btn").textContent = translate("save_equipment");
-    document.getElementById("cancel-edit-btn").classList.add("hidden");
+    this.clearModalPhotoPreview();
+    document.getElementById("editEquipmentForm").reset();
   }
 
-  async handleFormSubmit() {
+  openDeleteConfirmation(equipmentId, equipmentName) {
+    this.deletingEquipmentId = equipmentId;
+    const message = translate("equipment_delete_confirm_message").replace("{name}", equipmentName);
+    document.getElementById("delete-confirm-message").textContent = message;
+    document.getElementById("delete-confirm-modal").classList.remove("hidden");
+    document.body.style.overflow = 'hidden';
+  }
+
+  closeDeleteModal() {
+    document.getElementById("delete-confirm-modal").classList.add("hidden");
+    document.body.style.overflow = '';
+    this.deletingEquipmentId = null;
+  }
+
+  async handleCreateSubmit() {
     const form = document.getElementById("equipmentForm");
+    const formData = new FormData(form);
+
+    const payload = {
+      name: formData.get('name'),
+      category: formData.get('category') || null,
+      description: formData.get('description') || null,
+      quantity_total: parseInt(formData.get('quantity_total'), 10) || 1,
+      quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : undefined,
+      condition_note: formData.get('condition_note') || null,
+      item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
+      acquisition_date: formData.get('acquisition_date') || null
+    };
+
+    try {
+      const response = await saveEquipmentItem(payload);
+      const savedEquipment = response?.data?.equipment || response?.equipment;
+
+      // Upload photo if selected
+      if (this.selectedPhotoFile && savedEquipment?.id) {
+        try {
+          await uploadEquipmentPhoto(savedEquipment.id, this.selectedPhotoFile);
+        } catch (photoError) {
+          debugError("Error uploading photo:", photoError);
+          this.app.showMessage(translate("equipment_photo_upload_error"), "warning");
+        }
+      }
+
+      this.app.showMessage(translate("inventory_saved"), "success");
+      form.reset();
+      this.clearPhotoPreview();
+      await this.refreshData();
+      this.render();
+      this.attachEventHandlers();
+    } catch (error) {
+      debugError("Error saving equipment", error);
+      this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+    }
+  }
+
+  async handleEditSubmit() {
+    const form = document.getElementById("editEquipmentForm");
     const formData = new FormData(form);
     const equipmentId = formData.get('equipment_id');
 
@@ -757,41 +1088,49 @@ export class Inventory {
     };
 
     try {
-      let savedEquipment;
+      await updateEquipmentItem(equipmentId, payload);
 
-      if (equipmentId) {
-        // Update existing equipment
-        const response = await updateEquipmentItem(equipmentId, payload);
-        savedEquipment = response?.data?.equipment || response?.equipment;
-
-        // Handle photo deletion if user removed the photo
-        if (this.editingEquipment?.photo_url && !this.photoPreview && !this.selectedPhotoFile) {
-          await deleteEquipmentPhoto(equipmentId);
-        }
-      } else {
-        // Create new equipment
-        const response = await saveEquipmentItem(payload);
-        savedEquipment = response?.data?.equipment || response?.equipment;
+      // Handle photo deletion if user removed the photo
+      if (this.editingEquipment?.photo_url && !this.modalPhotoPreview && !this.modalSelectedPhotoFile) {
+        await deleteEquipmentPhoto(equipmentId);
       }
 
-      // Upload photo if selected
-      if (this.selectedPhotoFile && savedEquipment?.id) {
+      // Upload new photo if selected
+      if (this.modalSelectedPhotoFile) {
         try {
-          await uploadEquipmentPhoto(savedEquipment.id, this.selectedPhotoFile);
+          await uploadEquipmentPhoto(equipmentId, this.modalSelectedPhotoFile);
         } catch (photoError) {
           debugError("Error uploading photo:", photoError);
           this.app.showMessage(translate("equipment_photo_upload_error"), "warning");
         }
       }
 
-      this.app.showMessage(translate("inventory_saved"), "success");
-      this.resetForm();
+      this.app.showMessage(translate("equipment_updated"), "success");
+      this.closeEditModal();
       await this.refreshData();
       this.render();
       this.attachEventHandlers();
     } catch (error) {
-      debugError("Error saving equipment", error);
+      debugError("Error updating equipment", error);
       this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+    }
+  }
+
+  async handleDelete() {
+    if (!this.deletingEquipmentId) return;
+
+    try {
+      await deleteEquipmentItem(this.deletingEquipmentId);
+      this.app.showMessage(translate("equipment_deleted"), "success");
+      this.closeDeleteModal();
+      await this.refreshData();
+      this.render();
+      this.attachEventHandlers();
+    } catch (error) {
+      debugError("Error deleting equipment", error);
+      const errorMessage = error.message || translate("resource_dashboard_error_loading");
+      this.app.showMessage(errorMessage, "error");
+      this.closeDeleteModal();
     }
   }
 }
