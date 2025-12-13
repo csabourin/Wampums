@@ -1045,9 +1045,8 @@
   </div>
 
   <!-- Hidden form for demo redirect -->
-  <form id="demoRedirectForm" method="POST" action="https://demo.wampums.app/login">
-    <input type="hidden" name="email" value="akela.demo@demo.com">
-    <input type="hidden" name="password" value="Aylmer2025">
+  <form id="demoRedirectForm" style="display: none;">
+    <!-- This form is now handled by JavaScript -->
   </form>
 
   <script>
@@ -1473,9 +1472,41 @@
           formSuccess.classList.add('active');
           demoForm.style.display = 'none';
 
-          // Wait 2 seconds then redirect to demo
-          setTimeout(() => {
-            demoRedirectForm.submit();
+          // Wait 2 seconds then authenticate and redirect to demo
+          setTimeout(async () => {
+            try {
+              // Authenticate with demo credentials
+              const loginResponse = await fetch('https://demo.wampums.app/public/login', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  email: 'akela.demo@demo.com',
+                  password: 'Aylmer2025'
+                })
+              });
+
+              const loginData = await loginResponse.json();
+
+              if (loginResponse.ok && loginData.success && loginData.token) {
+                // Store the token and redirect to the app
+                localStorage.setItem('token', loginData.token);
+                localStorage.setItem('user_role', loginData.user_role);
+                localStorage.setItem('user_full_name', loginData.user_full_name);
+                localStorage.setItem('user_id', loginData.user_id);
+
+                // Redirect to the main app
+                window.location.href = 'https://demo.wampums.app/index.html';
+              } else {
+                // If login fails, just redirect to login page
+                window.location.href = 'https://demo.wampums.app/index.html';
+              }
+            } catch (error) {
+              console.error('Error authenticating:', error);
+              // On error, just redirect to login page
+              window.location.href = 'https://demo.wampums.app/index.html';
+            }
           }, 2000);
         } else {
           // Show error
