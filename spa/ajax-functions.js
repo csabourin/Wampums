@@ -301,19 +301,19 @@ export { debugLog, debugError } from "./utils/DebugUtils.js";
 import { API, buildApiUrl, batchApiRequests, withErrorHandling } from "./api/api-core.js";
 import { getParticipants, saveParticipant } from "./api/api-endpoints.js";
 
-export const fetchFromApi = ApiCore.API.get;
-export const getApiUrl = ApiCore.buildApiUrl;
+export const fetchFromApi = API.get;
+export const getApiUrl = buildApiUrl;
 
 // Error handling wrappers for backward compatibility
-export const getParticipantsWithErrorHandling = ApiCore.withErrorHandling(getParticipants);
-export const saveParticipantWithErrorHandling = ApiCore.withErrorHandling(saveParticipant);
+export const getParticipantsWithErrorHandling = withErrorHandling(getParticipants);
+export const saveParticipantWithErrorHandling = withErrorHandling(saveParticipant);
 
 // Default export for backward compatibility
 export default {
-    API: ApiCore.API,
-    getCurrentOrganizationId: ApiHelpers.getCurrentOrganizationId,
-    getAuthHeader: ApiHelpers.getAuthHeader,
-    buildApiUrl: ApiCore.buildApiUrl,
-    batchApiRequests: ApiCore.batchApiRequests,
-    withErrorHandling: ApiCore.withErrorHandling
+    API,
+    getCurrentOrganizationId,
+    getAuthHeader,
+    buildApiUrl,
+    batchApiRequests,
+    withErrorHandling
 };
