@@ -68,6 +68,13 @@ export async function handleResponse(response) {
             if (contentType && contentType.includes("application/json")) {
                 const errorData = await response.json();
                 errorMessage = errorData.message || errorMessage;
+                // Log detailed validation errors if present
+                if (errorData.errors && Array.isArray(errorData.errors)) {
+                    debugError('Validation errors:', errorData.errors);
+                    // Create a detailed error message
+                    const errorDetails = errorData.errors.map(e => `${e.param || e.field}: ${e.msg}`).join(', ');
+                    errorMessage = `${errorMessage}: ${errorDetails}`;
+                }
             } else {
                 const textError = await response.text();
                 errorMessage = textError || errorMessage;
