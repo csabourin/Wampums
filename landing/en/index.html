@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en-CA">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Wampums — Scout management (bilingual)</title>
+    <meta
+      name="description"
+      content="Bilingual, mobile-first scout unit management: plan weekly meetings, track attendance and badge progress, manage documents and payments, and keep parents informed."
+    />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://wampums.app/en/" />
+
+    <!-- Hreflang -->
+    <link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/" />
+    <link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/" />
+    <link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+
+    <!-- Robots -->
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://wampums.app/en/" />
+    <meta property="og:site_name" content="Wampums" />
+    <meta property="og:locale" content="en_CA" />
+    <meta property="og:locale:alternate" content="fr_CA" />
+    <meta property="og:title" content="Wampums — Scout management (bilingual)" />
+    <meta
+      property="og:description"
+      content="Plan meetings, track attendance and badges, manage documents and payments, and keep parents informed."
+    />
+    <meta
+      property="og:image"
+      content="https://wampums.app/images/og-wampums-1200x630.jpg"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Wampums — Scout management (bilingual)" />
+    <meta
+      name="twitter:description"
+      content="Plan meetings, track attendance & badge progress, manage documents, and keep parents informed."
+    />
+    <meta
+      name="twitter:image"
+      content="https://wampums.app/images/og-wampums-1200x630.jpg"
+    />
+
+    <!-- PWA -->
+    <meta name="theme-color" content="#4c65ae" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <link rel="stylesheet" href="/landing.css" />
+
+    <!-- Structured data (EN) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "Wampums",
+            "url": "https://wampums.app/",
+            "email": "mailto:rama@meute6a.app"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Wampums",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "url": "https://wampums.app/en/",
+            "inLanguage": ["en-CA", "fr-CA"],
+            "description": "Bilingual, mobile-first scout unit management: plan weekly meetings, track attendance and badge progress, manage documents and payments, and keep parents informed.",
+            "offers": [
+              {
+                "@type": "Offer",
+                "name": "Starter",
+                "price": "0",
+                "priceCurrency": "CAD",
+                "url": "https://wampums.app/en/#pricing"
+              },
+              {
+                "@type": "Offer",
+                "name": "Professional",
+                "price": "29",
+                "priceCurrency": "CAD",
+                "url": "https://wampums.app/en/#pricing"
+              },
+              {
+                "@type": "Offer",
+                "name": "District",
+                "price": "99",
+                "priceCurrency": "CAD",
+                "url": "https://wampums.app/en/#pricing"
+              }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Can I switch plans anytime?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. You can upgrade or downgrade at any time and changes take effect immediately."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is there a minimum commitment?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. All plans are commitment-free and you can cancel anytime."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do online payments work?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "We use Stripe to process payments securely so families can pay fees online."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is my data secure?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "We use HTTPS (TLS), backups, and role-based access controls."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <header>
+      <div class="shell">
+        <div class="top-bar">
+          <a class="brand" href="/en/" aria-label="Wampums home">
+            <span class="brand-mark" aria-hidden="true">W</span>
+            <span>Wampums</span>
+          </a>
+
+          <div class="nav-actions">
+            <!-- Language switch: real URLs (SEO + no-JS fallback) -->
+            <nav class="lang-toggle" aria-label="Change language">
+              <a class="lang-link" href="/fr/" lang="fr-CA">Français</a>
+              <a class="lang-link" href="/en/" lang="en-CA" aria-current="page"
+                >English</a
+              >
+            </nav>
+          </div>
+        </div>
+
+        <div class="hero" role="banner">
+          <div>
+            <p class="pill">Bilingual web app for scout units</p>
+
+            <h1>Coordinate weekly meetings, parents, and leaders with confidence.</h1>
+
+            <p>
+              Wampums centralizes scout unit operations: schedules, attendance,
+              advancement tracking, communications, and documents — so every meeting
+              is prepared and safe.
+            </p>
+
+            <div class="badge-row">
+              <span class="pill">Mobile-first planning</span>
+              <span class="pill">Attendance & badges</span>
+              <span class="pill">Parents stay informed</span>
+            </div>
+
+            <div class="actions">
+              <a class="btn-primary" href="#pricing">View plans</a>
+              <a class="btn-secondary" href="#features">Explore features</a>
+            </div>
+          </div>
+
+          <div class="card" aria-label="Feature snapshot" tabindex="0">
+            <h3>All-in-one for your unit</h3>
+            <p class="meta">Track members, meetings, badges, documents and payments.</p>
+
+            <div class="stats" aria-label="Key indicators">
+              <div class="stat">
+                <span>Meetings prepared</span>
+                <span aria-hidden="true">✅</span>
+              </div>
+              <div class="stat">
+                <span>Attendance captured</span>
+                <span aria-hidden="true">📊</span>
+              </div>
+              <div class="stat">
+                <span>Parents updated</span>
+                <span aria-hidden="true">📢</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Pricing -->
+      <section class="section section-center" id="pricing">
+        <h2>Plans that fit your group</h2>
+        <p>Start free and scale as you grow. No credit card required.</p>
+
+        <div class="pricing-grid">
+          <!-- Starter -->
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3>Starter</h3>
+              <div class="price">$0</div>
+              <div class="price-period">forever</div>
+              <div class="price-note">Perfect for small groups</div>
+            </div>
+
+            <ul class="pricing-features">
+              <li>Up to 20 scouts</li>
+              <li>Attendance management</li>
+              <li>Badge tracking</li>
+              <li>Meeting calendar</li>
+              <li>Mobile app (PWA)</li>
+              <li class="disabled">Advanced reports</li>
+              <li class="disabled">Online payments</li>
+            </ul>
+
+            <div class="pricing-cta">
+              <button type="button" class="btn-secondary" data-open-demo-modal>
+                Request a demo
+              </button>
+            </div>
+          </div>
+
+          <!-- Professional -->
+          <div class="pricing-card featured">
+            <span class="pricing-badge">Popular</span>
+            <div class="pricing-header">
+              <h3>Professional</h3>
+              <div class="price">$29<span class="price-period">/month</span></div>
+              <div class="price-note">For active units</div>
+            </div>
+
+            <ul class="pricing-features">
+              <li>Unlimited scouts</li>
+              <li>All core features</li>
+              <li>Reports & analytics</li>
+              <li>Online payments (Stripe)</li>
+              <li>Email notifications</li>
+              <li>Document management</li>
+              <li>Priority support</li>
+            </ul>
+
+            <div class="pricing-cta">
+              <button type="button" class="btn-primary" data-open-demo-modal>
+                Request a demo
+              </button>
+            </div>
+          </div>
+
+          <!-- District -->
+          <div class="pricing-card">
+            <div class="pricing-header">
+              <h3>District</h3>
+              <div class="price">$99<span class="price-period">/month</span></div>
+              <div class="price-note">For councils & districts</div>
+            </div>
+
+            <ul class="pricing-features">
+              <li>Multi-organization</li>
+              <li>All Professional features</li>
+              <li>District dashboard</li>
+              <li>Consolidated reports</li>
+              <li>API access</li>
+              <li>Custom domain</li>
+              <li>Dedicated account manager</li>
+            </ul>
+
+            <div class="pricing-cta">
+              <a
+                class="btn-secondary"
+                href="mailto:rama@meute6a.app?subject=District%20Plan"
+                >Contact sales</a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features -->
+      <section class="section" id="features">
+        <h2>Built for weekly scout units</h2>
+        <p>
+          Every module supports real-world leadership workflows: fast preparation,
+          clear follow-up, and strong parent collaboration.
+        </p>
+
+        <div class="grid" role="list">
+          <article class="card" role="listitem">
+            <h3>Meeting planning</h3>
+            <p class="meta">
+              Plan weekly activities, materials, and responsibilities with a shared calendar.
+            </p>
+          </article>
+
+          <article class="card" role="listitem">
+            <h3>Attendance & advancement</h3>
+            <p class="meta">
+              Capture attendance, points, and badge or honor progress.
+            </p>
+          </article>
+
+          <article class="card" role="listitem">
+            <h3>Parent communications</h3>
+            <p class="meta">
+              Send updates, reminders, and documents so families stay aligned.
+            </p>
+          </article>
+
+          <article class="card" role="listitem">
+            <h3>Role management</h3>
+            <p class="meta">
+              Assign roles (admins, leaders, parents) and secure access to data.
+            </p>
+          </article>
+
+          <article class="card" role="listitem">
+            <h3>Documents & consents</h3>
+            <p class="meta">
+              Store health forms, permissions, and reports to help keep activities compliant.
+            </p>
+          </article>
+
+          <article class="card" role="listitem">
+            <h3>Reports & export</h3>
+            <p class="meta">
+              Generate reports on participation, advancement, and fundraising (e.g., calendar sales).
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Weekly flow -->
+      <section class="section" id="weekly">
+        <h2>Ready for every weekly meeting</h2>
+        <p>A clear workflow to prepare, run, and archive meetings reliably.</p>
+
+        <div class="grid">
+          <article class="card">
+            <h3>Before the meeting</h3>
+            <ul class="list">
+              <li><span class="dot" aria-hidden="true"></span><span>Add the activity, learning goal, and required resources.</span></li>
+              <li><span class="dot" aria-hidden="true"></span><span>Assign leaders and share the checklist with the team.</span></li>
+              <li><span class="dot" aria-hidden="true"></span><span>Send a reminder to parents with logistics.</span></li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <h3>During the meeting</h3>
+            <ul class="list">
+              <li><span class="dot" aria-hidden="true"></span><span>Capture attendance and points live on mobile.</span></li>
+              <li><span class="dot" aria-hidden="true"></span><span>Log badge progress and any follow-up needs.</span></li>
+              <li><span class="dot" aria-hidden="true"></span><span>Record observations for the end-of-meeting report.</span></li>
+            </ul>
+          </article>
+
+          <article class="card">
+            <h3>After the meeting</h3>
+            <ul class="list">
+              <li><span class="dot" aria-hidden="true"></span><span>Share a recap with parents and the leadership team.</span></li>
+              <li><span class="dot" aria-hidden="true"></span><span>Update inventory, payments, and documents.</span></li>
+              <li><span class="dot" aria-hidden="true"></span><span>Plan the next meeting using the existing template.</span></li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- Benefits -->
+      <section class="section" id="benefits">
+        <h2>How Wampums supports your community</h2>
+
+        <div class="grid">
+          <article class="card">
+            <h3>Effective leadership</h3>
+            <p class="meta">
+              Less admin, more time outdoors thanks to reusable templates and reminders.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Confident parents</h3>
+            <p class="meta">
+              Clear information, fast notifications, and centralized documents so families can follow progress.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Safety & compliance</h3>
+            <p class="meta">
+              Permissions, roles, and record-keeping to support safe, well-run activities.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section class="section" id="faq">
+        <h2>Frequently asked questions</h2>
+
+        <div class="faq-grid">
+          <div class="faq-item">
+            <h4>Can I switch plans anytime?</h4>
+            <p>Yes. You can upgrade or downgrade at any time and changes take effect immediately.</p>
+          </div>
+
+          <div class="faq-item">
+            <h4>Is there a minimum commitment?</h4>
+            <p>No. All plans are commitment-free and you can cancel anytime.</p>
+          </div>
+
+          <div class="faq-item">
+            <h4>How do online payments work?</h4>
+            <p>We use Stripe to process payments securely. Families can pay fees online.</p>
+          </div>
+
+          <div class="faq-item">
+            <h4>Is my data secure?</h4>
+            <p>We use HTTPS (TLS), backups, and role-based access controls.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="section">
+        <div class="cta-section">
+          <h2>Ready to simplify your unit management?</h2>
+          <p>Join scout groups that use Wampums to prepare weekly meetings with confidence.</p>
+          <button type="button" class="btn-primary" data-open-demo-modal>Request a demo</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Built for scout units that meet every week — simple, bilingual, and ready to deploy.</p>
+      <p>Contact: <a href="mailto:rama@meute6a.app">rama@meute6a.app</a></p>
+    </footer>
+
+    <!-- Demo Request Modal -->
+    <div id="demoModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle">Request a demo</h2>
+          <button type="button" class="modal-close" aria-label="Close" data-close-modal>&times;</button>
+        </div>
+
+        <div class="form-success" id="formSuccess">
+          <p>Thank you! Your request was sent successfully. You’ll be redirected to the demo...</p>
+        </div>
+
+        <form id="demoForm">
+          <div class="form-group">
+            <label for="name">Name <span aria-label="required">*</span></label>
+            <input type="text" id="name" name="name" required aria-required="true" />
+            <span class="form-error">Name is required</span>
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email <span aria-label="required">*</span></label>
+            <input type="email" id="email" name="email" required aria-required="true" />
+            <span class="form-error">Invalid email</span>
+          </div>
+
+          <div class="form-group">
+            <label for="organization">Organization</label>
+            <input type="text" id="organization" name="organization" />
+          </div>
+
+          <div class="form-group">
+            <label for="phone">Phone</label>
+            <input type="tel" id="phone" name="phone" />
+          </div>
+
+          <div class="form-group">
+            <label for="message">Message <span aria-label="required">*</span></label>
+            <textarea id="message" name="message" required aria-required="true"></textarea>
+            <small>Tell us about your needs</small>
+            <span class="form-error">Message is required</span>
+          </div>
+
+          <!-- Honeypot -->
+          <div class="honeypot" aria-hidden="true">
+            <label for="honeypot">Leave this field empty</label>
+            <input type="text" id="honeypot" name="honeypot" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <button type="submit" class="btn-submit">Submit request</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="/landing.js" defer></script>
+  </body>
+</html>
