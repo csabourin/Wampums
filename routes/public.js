@@ -41,7 +41,7 @@ function escapeHtml(text) {
  */
 const contactFormLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 requests per hour per IP
+  max: 10, // 3 requests per hour per IP
   message: 'Too many contact form submissions from this IP, please try again after an hour.',
   standardHeaders: true,
   legacyHeaders: false,
