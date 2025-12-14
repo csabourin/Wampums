@@ -137,6 +137,28 @@ CREATE TABLE public.budget_plans (
   CONSTRAINT budget_plans_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT budget_plans_budget_item_id_fkey FOREIGN KEY (budget_item_id) REFERENCES public.budget_items(id)
 );
+CREATE TABLE public.budget_revenues (
+  id integer NOT NULL DEFAULT nextval('budget_revenues_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  budget_category_id integer,
+  budget_item_id integer,
+  revenue_type character varying DEFAULT 'other'::character varying,
+  amount numeric NOT NULL CHECK (amount >= 0::numeric),
+  revenue_date date NOT NULL,
+  description text NOT NULL,
+  payment_method character varying,
+  reference_number character varying,
+  receipt_url text,
+  notes text,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT budget_revenues_pkey PRIMARY KEY (id),
+  CONSTRAINT budget_revenues_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT budget_revenues_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
+  CONSTRAINT budget_revenues_budget_item_id_fkey FOREIGN KEY (budget_item_id) REFERENCES public.budget_items(id),
+  CONSTRAINT budget_revenues_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.calendars (
   participant_id integer,
   amount integer NOT NULL DEFAULT 0,
