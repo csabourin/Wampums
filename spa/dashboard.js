@@ -8,9 +8,6 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
-import { ManagePoints } from "./manage_points.js";
-import { ParentDashboard } from "./parent_dashboard.js";
-import { Login } from "./login.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import {
   escapeHTML,
@@ -23,7 +20,6 @@ export class Dashboard {
     this.app = app;
     this.groups = [];
     this.participants = [];
-    this.managePoints = new ManagePoints(this);
     this.newsItems = [];
     this.newsLoading = true;
     this.newsError = null;
@@ -92,8 +88,8 @@ export class Dashboard {
         getCachedData("dashboard_participant_info"),
       ]);
 
-      let needsFreshParticipants = !cachedParticipants;
-      let needsFreshGroups = !cachedGroups;
+      const shouldCacheParticipants = !cachedParticipants;
+      const needsFreshGroups = !cachedGroups;
 
       if (cachedParticipants) {
         this.participants = cachedParticipants.map((p) => ({
@@ -115,20 +111,32 @@ export class Dashboard {
       const freshParticipants =
         participantsResponse.data || participantsResponse.participants || [];
 
-      freshParticipants.forEach((fp) => {
-        const existing = this.participants.find((p) => p.id === fp.id);
-        if (existing) {
-          existing.total_points = fp.total_points;
-        } else {
-          this.participants.push(fp);
-        }
-      });
+      if (freshParticipants.length) {
+        const freshById = new Map(
+          freshParticipants.map((participant) => [participant.id, participant]),
+        );
 
-      if (needsFreshParticipants || needsFreshGroups) {
-        await this.fetchData(needsFreshParticipants, needsFreshGroups);
+        const mergedParticipants = this.participants.length
+          ? this.participants.map((participant) =>
+              freshById.get(participant.id) || participant,
+            )
+          : freshParticipants;
+
+        const mergedIds = new Set(mergedParticipants.map((p) => p.id));
+        freshParticipants.forEach((participant) => {
+          if (!mergedIds.has(participant.id)) {
+            mergedParticipants.push(participant);
+          }
+        });
+
+        this.participants = mergedParticipants;
       }
 
-      if (needsFreshParticipants) {
+      if (needsFreshGroups) {
+        await this.fetchData(false, true);
+      }
+
+      if (shouldCacheParticipants) {
         const minimalCache = this.participants.map((p) => ({
           id: p.id,
           first_name: p.first_name,
@@ -526,7 +534,7 @@ export class Dashboard {
     if (logout) {
       logout.addEventListener("click", (e) => {
         e.preventDefault();
-        Login.logout();
+        this.lazyLogout();
       });
     }
 
@@ -538,6 +546,16 @@ export class Dashboard {
     const refreshBtn = document.getElementById("refresh-news-btn");
     if (refreshBtn) {
       refreshBtn.addEventListener("click", () => this.loadNews(true));
+    }
+  }
+
+  async lazyLogout() {
+    const { Login } = await import("./login.js");
+
+    try {
+      Login.logout();
+    } catch (error) {
+      debugError("Error during logout:", error);
     }
   }
 
