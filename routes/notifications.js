@@ -55,8 +55,8 @@ module.exports = (pool, logger) => {
    *                   auth:
    *                     type: string
    *     responses:
-   *       200:
-   *         description: Subscription saved successfully
+   *       202:
+   *         description: Subscription accepted for saving
    *       400:
    *         description: Missing subscription data
    *       401:
@@ -86,7 +86,9 @@ module.exports = (pool, logger) => {
       const { endpoint, expirationTime, keys } = req.body;
       const { p256dh, auth } = keys;
 
-      await pool.query(
+      // Perform the subscription write asynchronously so the response is non-blocking
+      // and the service worker registration flow remains responsive.
+      const upsertPromise = pool.query(
         `INSERT INTO subscribers (user_id, organization_id, endpoint, expiration_time, p256dh, auth)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (endpoint) DO UPDATE
@@ -97,12 +99,17 @@ module.exports = (pool, logger) => {
         [payload.user_id, organizationId, endpoint, expirationTime, p256dh, auth]
       );
 
-      res.json({ success: true });
+      // Respond immediately to keep the client flow fast while still persisting in the background.
+      res.status(202).json({ success: true, message: 'Subscription accepted' });
+
+      upsertPromise.catch((error) => {
+        logger.error('Error saving subscription asynchronously:', error);
+      });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {
         return;
       }
-      logger.error('Error saving subscription:', error);
+      logger.error('Error initiating subscription save:', error);
       res.status(500).json({ error: 'Failed to save subscription' });
     }
   });
