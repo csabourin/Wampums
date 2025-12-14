@@ -120,6 +120,33 @@ const logger = winston.createLogger({
 const staticDir = isProduction ? path.join(__dirname, 'dist') : __dirname;
 const landingDir = path.join(__dirname, 'landing');
 const landingHosts = new Set(['wampums.app', 'www.wampums.app']);
+const ROBOTS_CACHE_SECONDS = 86400;
+const ROBOTS_STALE_SECONDS = 604800;
+const ROBOTS_DISALLOW_PATHS = [
+  '/api/',
+  '/api-docs',
+  '/public/login',
+  '/public/register',
+  '/login',
+  '/dashboard',
+  '/parent-dashboard',
+  '/attendance',
+  '/manage_groups',
+  '/manage_participants',
+  '/manage_points',
+  '/manage_honors',
+  '/manage_badges',
+  '/forms',
+  '/form-builder',
+  '/import',
+  '/notifications',
+  '/reports',
+  '/budgets',
+  '/finance',
+  '/resources',
+  '/calendars',
+  '/fundraisers'
+];
 
 const setStaticCacheHeaders = (res, filepath) => {
   // Aggressive caching for production builds (1 year for hashed files)
@@ -130,6 +157,36 @@ const setStaticCacheHeaders = (res, filepath) => {
   else if (filepath.endsWith('.js') || filepath.endsWith('.css') || filepath.endsWith('.png') || filepath.endsWith('.jpg') || filepath.endsWith('.webp')) {
     res.setHeader('Cache-Control', 'public, max-age=2592000');
   }
+};
+
+/**
+ * Build a robots.txt document tailored to the inbound host.
+ *
+ * @param {string} hostname - Hostname from the request.
+ * @param {string | undefined} forwardedProto - Optional x-forwarded-proto header value.
+ * @returns {string} Plaintext robots.txt content.
+ */
+const buildRobotsTxt = (hostname, forwardedProto) => {
+  const normalizedHost = (hostname || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]/g, '')
+    .replace(/\.+$/, '');
+  const activeHost = normalizedHost || 'wampums.app';
+  const forwardedScheme = (forwardedProto || '').split(',')[0].trim().toLowerCase();
+  const protocol = ['https', 'http'].includes(forwardedScheme)
+    ? forwardedScheme
+    : (isProduction ? 'https' : 'http');
+  const sitemapUrl = `${protocol}://${activeHost}/sitemap.xml`;
+  const disallowBlock = ROBOTS_DISALLOW_PATHS
+    .map((pathRule) => `Disallow: ${pathRule}`)
+    .join('\n');
+
+  return [
+    'User-agent: *',
+    'Allow: /',
+    disallowBlock,
+    `Sitemap: ${sitemapUrl}`
+  ].join('\n');
 };
 
 logger.info(`Serving static files from: ${staticDir}`);
@@ -399,6 +456,12 @@ app.get('/api-docs.json', (req, res) => {
 
 logger.info('📚 API Documentation available at: /api-docs');
 
+// Register legacy action-based API early to avoid conflicts with modular /api routers
+const legacyApiValidation = [
+  check('action').isString().notEmpty(),
+];
+app.get('/api', legacyApiValidation, legacyApiHandler);
+
 // ============================================
 // MODULAR ROUTE IMPORTS
 // ============================================
@@ -631,7 +694,7 @@ logger.info('   - GET /api/points-leaderboard');
 // Attendance Routes (handles /api/attendance, /api/attendance-dates, /api/update-attendance)
 // Endpoints: attendance, attendance-dates, update-attendance
 app.use('/api/v1/attendance', attendanceRoutes);
-app.use('/api', attendanceRoutes);
+app.use('/api/attendance', attendanceRoutes);
 logger.info('✅ Attendance routes loaded');
 logger.info('   - GET /api/attendance');
 logger.info('   - GET /api/attendance-dates');
@@ -726,6 +789,18 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Robots.txt optimized for multi-tenant subdomains
+app.get('/robots.txt', (req, res) => {
+  const robotsContent = buildRobotsTxt(req.hostname, req.headers['x-forwarded-proto']);
+  res
+    .type('text/plain')
+    .set({
+      'Cache-Control': `public, max-age=${ROBOTS_CACHE_SECONDS}, stale-while-revalidate=${ROBOTS_STALE_SECONDS}`,
+      'X-Robots-Tag': 'index, follow'
+    })
+    .send(robotsContent);
+});
+
 // Serve index.html for root route
 app.get('/', (req, res) => {
   const isLandingHost = landingHosts.has(req.hostname);
@@ -748,10 +823,7 @@ app.get('/', (req, res) => {
 // This large endpoint maintains backward compatibility with older frontend code
 // that uses action-based routing (e.g., /api?action=get_participants)
 // New code should use the RESTful endpoints above instead
-
-app.get('/api', [
-  check('action').isString().notEmpty(),
-], async (req, res, next) => {
+async function legacyApiHandler(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, errors: errors.array() });
@@ -1897,7 +1969,7 @@ app.get('/api', [
   } finally {
     client.release();
   }
-});
+}
 
 // ============================================
 // GLOBAL ERROR HANDLER
