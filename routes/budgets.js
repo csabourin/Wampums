@@ -1011,7 +1011,6 @@ module.exports = (pool, logger) => {
       FROM budget_expenses be
       LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
       WHERE be.organization_id = $1
-        AND (be.notes NOT LIKE '%[EXTERNAL_REVENUE]%' OR be.notes IS NULL)
     `;
     const params = [organizationId];
     let paramCount = 1;
@@ -1075,7 +1074,6 @@ module.exports = (pool, logger) => {
       FROM budget_expenses be
       LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
       WHERE be.organization_id = $1
-        AND (be.notes NOT LIKE '%[EXTERNAL_REVENUE]%' OR be.notes IS NULL)
     `;
     const params = [organizationId];
     let paramCount = 1;
@@ -1237,48 +1235,11 @@ module.exports = (pool, logger) => {
 
     const revenueResult = await pool.query(revenueQuery, params);
 
-    // Get external revenue (from budget_expenses with negative amounts)
-    let externalQuery = `
-      SELECT
-        'external' as revenue_source,
-        budget_category_id,
-        bc.name as category_name,
-        COUNT(*) as transaction_count,
-        ABS(SUM(amount)) as total_amount
-      FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
-      WHERE be.organization_id = $1
-        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
-    `;
-    const externalParams = [organizationId];
-    let externalParamCount = 1;
-
-    if (fiscal_year_start && fiscal_year_end) {
-      externalParamCount++;
-      const startParam = externalParamCount;
-      externalParamCount++;
-      const endParam = externalParamCount;
-      externalQuery += ` AND be.expense_date BETWEEN $${startParam} AND $${endParam}`;
-      externalParams.push(fiscal_year_start, fiscal_year_end);
-    }
-
-    externalQuery += ` GROUP BY budget_category_id, bc.name`;
-
-    const externalResult = await pool.query(externalQuery, externalParams);
-
-    // Combine all revenue sources
-    const allRevenue = [
-      ...revenueResult.rows.map(row => ({
-        ...row,
-        total_amount: toNumeric(row.total_amount),
-        transaction_count: parseInt(row.transaction_count || 0)
-      })),
-      ...externalResult.rows.map(row => ({
-        ...row,
-        total_amount: toNumeric(row.total_amount),
-        transaction_count: parseInt(row.transaction_count || 0)
-      }))
-    ];
+    const allRevenue = revenueResult.rows.map(row => ({
+      ...row,
+      total_amount: toNumeric(row.total_amount),
+      transaction_count: parseInt(row.transaction_count || 0)
+    }));
 
     // Aggregate by source
     const bySource = {};
@@ -1341,42 +1302,11 @@ module.exports = (pool, logger) => {
 
     const result = await pool.query(query, params);
 
-    // Also get external revenue
-    let externalQuery = `
-      SELECT
-        'external' as revenue_source,
-        COUNT(*) as transaction_count,
-        ABS(SUM(amount)) as total_amount
-      FROM budget_expenses
-      WHERE organization_id = $1
-        AND notes LIKE '%[EXTERNAL_REVENUE]%'
-    `;
-    const externalParams = [organizationId];
-    let externalParamCount = 1;
-
-    if (start_date && end_date) {
-      externalParamCount++;
-      const startParam = externalParamCount;
-      externalParamCount++;
-      const endParam = externalParamCount;
-      externalQuery += ` AND expense_date BETWEEN $${startParam} AND $${endParam}`;
-      externalParams.push(start_date, end_date);
-    }
-
-    const externalResult = await pool.query(externalQuery, externalParams);
-
-    const breakdown = [
-      ...result.rows.map(row => ({
-        ...row,
-        total_amount: toNumeric(row.total_amount),
-        transaction_count: parseInt(row.transaction_count || 0)
-      })),
-      ...externalResult.rows.map(row => ({
-        ...row,
-        total_amount: toNumeric(row.total_amount),
-        transaction_count: parseInt(row.transaction_count || 0)
-      }))
-    ];
+    const breakdown = result.rows.map(row => ({
+      ...row,
+      total_amount: toNumeric(row.total_amount),
+      transaction_count: parseInt(row.transaction_count || 0)
+    }));
 
     return success(res, breakdown, 'Revenue by source loaded');
   }));
@@ -1414,34 +1344,6 @@ module.exports = (pool, logger) => {
 
     const result = await pool.query(query, params);
 
-    // Also get external revenue by category
-    let externalQuery = `
-      SELECT
-        be.budget_category_id,
-        bc.name as category_name,
-        COUNT(*) as transaction_count,
-        ABS(SUM(be.amount)) as total_amount
-      FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
-      WHERE be.organization_id = $1
-        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
-    `;
-    const externalParams = [organizationId];
-    let externalParamCount = 1;
-
-    if (start_date && end_date) {
-      externalParamCount++;
-      const startParam = externalParamCount;
-      externalParamCount++;
-      const endParam = externalParamCount;
-      externalQuery += ` AND be.expense_date BETWEEN $${startParam} AND $${endParam}`;
-      externalParams.push(start_date, end_date);
-    }
-
-    externalQuery += ` GROUP BY be.budget_category_id, bc.name`;
-
-    const externalResult = await pool.query(externalQuery, externalParams);
-
     // Merge results by category
     const categoryMap = new Map();
 
@@ -1453,22 +1355,6 @@ module.exports = (pool, logger) => {
         total_amount: toNumeric(row.total_amount),
         transaction_count: parseInt(row.transaction_count || 0)
       });
-    });
-
-    externalResult.rows.forEach(row => {
-      const key = `${row.budget_category_id || 0}-${row.category_name || 'Uncategorized'}`;
-      if (categoryMap.has(key)) {
-        const existing = categoryMap.get(key);
-        existing.total_amount += toNumeric(row.total_amount);
-        existing.transaction_count += parseInt(row.transaction_count || 0);
-      } else {
-        categoryMap.set(key, {
-          budget_category_id: row.budget_category_id,
-          category_name: row.category_name || 'Uncategorized',
-          total_amount: toNumeric(row.total_amount),
-          transaction_count: parseInt(row.transaction_count || 0)
-        });
-      }
     });
 
     const breakdown = Array.from(categoryMap.values()).sort((a, b) => b.total_amount - a.total_amount);
@@ -1506,7 +1392,7 @@ module.exports = (pool, logger) => {
       [organizationId, fiscal_year_start, fiscal_year_end]
     );
 
-    // Get actual revenue
+    // Get actual revenue including external entries
     const actualResult = await pool.query(
       `SELECT
         budget_category_id,
@@ -1516,21 +1402,6 @@ module.exports = (pool, logger) => {
       WHERE organization_id = $1
         AND revenue_date BETWEEN $2 AND $3
       GROUP BY budget_category_id, category_name`,
-      [organizationId, fiscal_year_start, fiscal_year_end]
-    );
-
-    // Get external revenue
-    const externalResult = await pool.query(
-      `SELECT
-        budget_category_id,
-        bc.name as category_name,
-        ABS(SUM(be.amount)) as actual_revenue
-      FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
-      WHERE be.organization_id = $1
-        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
-        AND be.expense_date BETWEEN $2 AND $3
-      GROUP BY budget_category_id, bc.name`,
       [organizationId, fiscal_year_start, fiscal_year_end]
     );
 
@@ -1544,20 +1415,6 @@ module.exports = (pool, logger) => {
         category_name: row.category_name || 'Uncategorized',
         actual_revenue: toNumeric(row.actual_revenue)
       });
-    });
-
-    externalResult.rows.forEach(row => {
-      const key = `${row.budget_category_id || 0}`;
-      if (actualMap.has(key)) {
-        const existing = actualMap.get(key);
-        existing.actual_revenue += toNumeric(row.actual_revenue);
-      } else {
-        actualMap.set(key, {
-          budget_category_id: row.budget_category_id,
-          category_name: row.category_name || 'Uncategorized',
-          actual_revenue: toNumeric(row.actual_revenue)
-        });
-      }
     });
 
     // Build comparison

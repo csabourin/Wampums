@@ -6,10 +6,7 @@ const { verifyOrganizationMembership } = require('../utils/api-helpers');
 const {
   toNumeric,
   validateMoney,
-  validateDate,
-  cleanExternalRevenueNotes,
-  extractRevenueType,
-  formatExternalRevenueNotes
+  validateDate
 } = require('../utils/validation-helpers');
 
 module.exports = (pool, logger) => {
@@ -34,63 +31,60 @@ module.exports = (pool, logger) => {
 
     let query = `
       SELECT
-        be.id,
-        be.organization_id,
-        be.budget_category_id,
+        br.id,
+        br.organization_id,
+        br.budget_category_id,
         bc.name as category_name,
-        be.amount,
-        be.expense_date as revenue_date,
-        be.description,
-        be.payment_method,
-        be.reference_number,
-        be.receipt_url,
-        be.notes,
-        be.created_by,
+        br.amount,
+        br.revenue_date,
+        br.description,
+        br.payment_method,
+        br.reference_number,
+        br.receipt_url,
+        br.notes,
+        br.revenue_type,
+        br.created_by,
         u.full_name as created_by_name,
-        be.created_at,
-        be.updated_at
-      FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
-      LEFT JOIN users u ON be.created_by = u.id
-      WHERE be.organization_id = $1
-        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
+        br.created_at,
+        br.updated_at
+      FROM budget_revenues br
+      LEFT JOIN budget_categories bc ON br.budget_category_id = bc.id
+      LEFT JOIN users u ON br.created_by = u.id
+      WHERE br.organization_id = $1
     `;
     const params = [organizationId];
     let paramCount = 1;
 
     if (start_date) {
       paramCount++;
-      query += ` AND be.expense_date >= $${paramCount}`;
+      query += ` AND br.revenue_date >= $${paramCount}`;
       params.push(start_date);
     }
 
     if (end_date) {
       paramCount++;
-      query += ` AND be.expense_date <= $${paramCount}`;
+      query += ` AND br.revenue_date <= $${paramCount}`;
       params.push(end_date);
     }
 
     if (hasCategoryFilter) {
       paramCount++;
-      query += ` AND be.budget_category_id = $${paramCount}`;
+      query += ` AND br.budget_category_id = $${paramCount}`;
       params.push(parsedCategoryId);
     }
 
     if (revenue_type && revenue_type !== 'all') {
       paramCount++;
-      query += ` AND be.notes LIKE $${paramCount}`;
-      params.push(`%[TYPE:${revenue_type}]%`);
+      query += ` AND br.revenue_type = $${paramCount}`;
+      params.push(revenue_type);
     }
 
-    query += ` ORDER BY be.expense_date DESC, be.created_at DESC`;
+    query += ` ORDER BY br.revenue_date DESC, br.created_at DESC`;
 
     const result = await pool.query(query, params);
 
-    // Parse revenue type from notes
     const revenues = result.rows.map(row => ({
       ...row,
-      revenue_type: extractRevenueType(row.notes),
-      notes: cleanExternalRevenueNotes(row.notes),
       amount: toNumeric(row.amount)
     }));
 
@@ -148,15 +142,11 @@ module.exports = (pool, logger) => {
         normalizedCategoryId = categoryId;
       }
 
-      // Store as positive amount in budget_expenses
-      // Mark as external revenue with special notes tag to distinguish from expenses
-      const markedNotes = formatExternalRevenueNotes(revenue_type, notes);
-
       const result = await pool.query(
-        `INSERT INTO budget_expenses
-          (organization_id, budget_category_id, budget_item_id, amount, expense_date,
-           description, payment_method, reference_number, receipt_url, notes, created_by)
-        VALUES ($1, $2, NULL, $3::numeric, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO budget_revenues
+          (organization_id, budget_category_id, budget_item_id, amount, revenue_date,
+           description, payment_method, reference_number, receipt_url, notes, created_by, revenue_type)
+        VALUES ($1, $2, NULL, $3::numeric, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *`,
         [
           organizationId,
@@ -167,8 +157,9 @@ module.exports = (pool, logger) => {
           payment_method,
           reference_number,
           receipt_url,
-          markedNotes,
-          req.user.id
+          notes,
+          req.user.id,
+          revenue_type
         ]
       );
 
@@ -177,8 +168,7 @@ module.exports = (pool, logger) => {
       const revenue = {
         ...result.rows[0],
         amount: toNumeric(result.rows[0].amount),
-        revenue_type: revenue_type,
-        notes: notes || ''
+        revenue_type
       };
 
       return success(res, revenue, 'External revenue recorded successfully', 201);
@@ -219,21 +209,6 @@ module.exports = (pool, logger) => {
       notes
     } = req.body;
 
-    // Verify this is an external revenue entry
-    const checkResult = await pool.query(
-      `SELECT id, notes FROM budget_expenses 
-       WHERE id = $1 AND organization_id = $2`,
-      [id, organizationId]
-    );
-
-    if (checkResult.rows.length === 0) {
-      return error(res, 'External revenue entry not found', 404);
-    }
-
-    if (!checkResult.rows[0].notes?.includes('[EXTERNAL_REVENUE]')) {
-      return error(res, 'Not an external revenue entry', 400);
-    }
-
     // Validate amount if provided
     if (amount !== undefined && amount !== null) {
       const validation = validateMoney(amount, 'amount');
@@ -263,26 +238,19 @@ module.exports = (pool, logger) => {
       normalizedCategoryId = null;
     }
 
-    // Build update notes
-    let updateNotes = checkResult.rows[0].notes;
-    if (notes !== undefined || revenue_type !== undefined) {
-      const currentType = extractRevenueType(updateNotes);
-      const newType = revenue_type || currentType;
-      updateNotes = formatExternalRevenueNotes(newType, notes || '');
-    }
-
     const result = await pool.query(
-      `UPDATE budget_expenses
+      `UPDATE budget_revenues
       SET budget_category_id = COALESCE($1, budget_category_id),
           amount = COALESCE($2::numeric, amount),
-          expense_date = COALESCE($3, expense_date),
+          revenue_date = COALESCE($3, revenue_date),
           description = COALESCE($4, description),
           payment_method = COALESCE($5, payment_method),
           reference_number = COALESCE($6, reference_number),
           receipt_url = COALESCE($7, receipt_url),
           notes = COALESCE($8, notes),
+          revenue_type = COALESCE($9, revenue_type),
           updated_at = NOW()
-      WHERE id = $9 AND organization_id = $10
+      WHERE id = $10 AND organization_id = $11
       RETURNING *`,
       [
         normalizedCategoryId,
@@ -292,7 +260,8 @@ module.exports = (pool, logger) => {
         payment_method,
         reference_number,
         receipt_url,
-        updateNotes,
+        notes,
+        revenue_type,
         id,
         organizationId
       ]
@@ -302,9 +271,7 @@ module.exports = (pool, logger) => {
 
     const revenue = {
       ...result.rows[0],
-      amount: toNumeric(result.rows[0].amount),
-      revenue_type: extractRevenueType(result.rows[0].notes),
-      notes: cleanExternalRevenueNotes(result.rows[0].notes)
+      amount: toNumeric(result.rows[0].amount)
     };
 
     return success(res, revenue, 'External revenue updated successfully');
@@ -324,27 +291,16 @@ module.exports = (pool, logger) => {
 
     const { id } = req.params;
 
-    // Verify this is an external revenue entry
-    const checkResult = await pool.query(
-      `SELECT id, notes FROM budget_expenses 
-       WHERE id = $1 AND organization_id = $2`,
-      [id, organizationId]
-    );
-
-    if (checkResult.rows.length === 0) {
-      return error(res, 'External revenue entry not found', 404);
-    }
-
-    if (!checkResult.rows[0].notes?.includes('[EXTERNAL_REVENUE]')) {
-      return error(res, 'Not an external revenue entry', 400);
-    }
-
     const result = await pool.query(
-      `DELETE FROM budget_expenses
+      `DELETE FROM budget_revenues
       WHERE id = $1 AND organization_id = $2
       RETURNING *`,
       [id, organizationId]
     );
+
+    if (result.rows.length === 0) {
+      return error(res, 'External revenue entry not found', 404);
+    }
 
     logger.info(`External revenue deleted: ${id} for organization ${organizationId}`);
     return success(res, result.rows[0], 'External revenue deleted successfully');
@@ -360,32 +316,31 @@ module.exports = (pool, logger) => {
 
     let query = `
       SELECT
-        be.budget_category_id,
+        br.budget_category_id,
         bc.name as category_name,
-        be.notes,
+        br.revenue_type,
         COUNT(*) as entry_count,
-        ABS(SUM(be.amount)) as total_amount
-      FROM budget_expenses be
-      LEFT JOIN budget_categories bc ON be.budget_category_id = bc.id
-      WHERE be.organization_id = $1
-        AND be.notes LIKE '%[EXTERNAL_REVENUE]%'
+        SUM(br.amount) as total_amount
+      FROM budget_revenues br
+      LEFT JOIN budget_categories bc ON br.budget_category_id = bc.id
+      WHERE br.organization_id = $1
     `;
     const params = [organizationId];
     let paramCount = 1;
 
     if (start_date) {
       paramCount++;
-      query += ` AND be.expense_date >= $${paramCount}`;
+      query += ` AND br.revenue_date >= $${paramCount}`;
       params.push(start_date);
     }
 
     if (end_date) {
       paramCount++;
-      query += ` AND be.expense_date <= $${paramCount}`;
+      query += ` AND br.revenue_date <= $${paramCount}`;
       params.push(end_date);
     }
 
-    query += ` GROUP BY be.budget_category_id, bc.name, be.notes
+    query += ` GROUP BY br.budget_category_id, bc.name, br.revenue_type
                ORDER BY total_amount DESC`;
 
     const result = await pool.query(query, params);
@@ -397,7 +352,7 @@ module.exports = (pool, logger) => {
     let totalCount = 0;
 
     result.rows.forEach(row => {
-      const revenueType = extractRevenueType(row.notes);
+      const revenueType = row.revenue_type || 'other';
       const amount = toNumeric(row.total_amount);
       const count = parseInt(row.entry_count || 0);
 

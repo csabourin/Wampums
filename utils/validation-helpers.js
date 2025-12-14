@@ -54,46 +54,9 @@ function validatePositiveInteger(value, fieldName) {
   return { valid: true, value: numeric };
 }
 
-/**
- * Clean external revenue notes by removing internal tags
- * @param {string} notes - Notes string with tags
- * @returns {string} - Cleaned notes without tags
- */
-function cleanExternalRevenueNotes(notes) {
-  if (!notes) return '';
-  return notes
-    .replace(/\[EXTERNAL_REVENUE\]/g, '')
-    .replace(/\[TYPE:[^\]]+\]/g, '')
-    .trim();
-}
-
-/**
- * Extract revenue type from notes
- * @param {string} notes - Notes string with type tag
- * @returns {string} - Revenue type or 'other'
- */
-function extractRevenueType(notes) {
-  if (!notes) return 'other';
-  const typeMatch = notes.match(/\[TYPE:([^\]]+)\]/);
-  return typeMatch ? typeMatch[1] : 'other';
-}
-
-/**
- * Format notes with external revenue markers
- * @param {string} revenueType - Type of revenue (donation, sponsorship, etc.)
- * @param {string} notes - User-provided notes
- * @returns {string} - Formatted notes with tags
- */
-function formatExternalRevenueNotes(revenueType, notes = '') {
-  return `[EXTERNAL_REVENUE][TYPE:${revenueType}] ${notes}`.trim();
-}
-
 module.exports = {
   toNumeric,
   validateMoney,
   validateDate,
-  validatePositiveInteger,
-  cleanExternalRevenueNotes,
-  extractRevenueType,
-  formatExternalRevenueNotes
+  validatePositiveInteger
 };
