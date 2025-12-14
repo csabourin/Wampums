@@ -156,7 +156,7 @@ module.exports = (pool, logger) => {
         `INSERT INTO budget_expenses
           (organization_id, budget_category_id, budget_item_id, amount, expense_date,
            description, payment_method, reference_number, receipt_url, notes, created_by)
-        VALUES ($1, $2, NULL, -$3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, NULL, -$3::numeric, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *`,
         [
           organizationId,
@@ -274,7 +274,7 @@ module.exports = (pool, logger) => {
     const result = await pool.query(
       `UPDATE budget_expenses
       SET budget_category_id = COALESCE($1, budget_category_id),
-          amount = COALESCE(-$2, amount),
+          amount = COALESCE(-$2::numeric, amount),
           expense_date = COALESCE($3, expense_date),
           description = COALESCE($4, description),
           payment_method = COALESCE($5, payment_method),
