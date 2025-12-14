@@ -102,83 +102,96 @@ module.exports = (pool, logger) => {
    * Create a new external revenue entry
    */
   router.post('/v1/revenue/external', authenticate, asyncHandler(async (req, res) => {
-    const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
+    try {
+      logger.info('[external-revenue] POST request received:', { body: req.body, user: req.user?.id });
 
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
+      const organizationId = await getOrganizationId(req, pool);
+      const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
 
-    const {
-      budget_category_id,
-      amount,
-      revenue_date,
-      description,
-      revenue_type = 'other',
-      payment_method,
-      reference_number,
-      receipt_url,
-      notes
-    } = req.body;
-
-    // Validation
-    const amountValidation = validateMoney(amount, 'amount');
-    const dateValidation = validateDate(revenue_date, 'revenue_date');
-
-    if (!amountValidation.valid || !dateValidation.valid) {
-      return error(res, amountValidation.message || dateValidation.message, 400);
-    }
-
-    if (!description || description.trim().length === 0) {
-      return error(res, 'Description is required', 400);
-    }
-
-    // Validate and normalize budget_category_id
-    // Accept null, undefined, or empty string as "no category"
-    // If a value is provided, it must be a valid integer
-    let normalizedCategoryId = null;
-    if (budget_category_id !== null && budget_category_id !== undefined && budget_category_id !== '') {
-      const categoryId = Number.parseInt(budget_category_id, 10);
-      if (!Number.isInteger(categoryId) || categoryId <= 0) {
-        return error(res, 'budget_category_id must be a valid positive integer or null', 400);
+      if (!authCheck.authorized) {
+        return error(res, authCheck.message, 403);
       }
-      normalizedCategoryId = categoryId;
-    }
 
-    // Store as negative amount in budget_expenses to represent revenue
-    // Mark as external revenue with special notes tag
-    const markedNotes = formatExternalRevenueNotes(revenue_type, notes);
-
-    const result = await pool.query(
-      `INSERT INTO budget_expenses
-        (organization_id, budget_category_id, budget_item_id, amount, expense_date,
-         description, payment_method, reference_number, receipt_url, notes, created_by)
-      VALUES ($1, $2, NULL, -$3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *`,
-      [
-        organizationId,
-        normalizedCategoryId,
-        amountValidation.value,
+      const {
+        budget_category_id,
+        amount,
         revenue_date,
-        description.trim(),
+        description,
+        revenue_type = 'other',
         payment_method,
         reference_number,
         receipt_url,
-        markedNotes,
-        req.user.id
-      ]
-    );
+        notes
+      } = req.body;
 
-    logger.info(`External revenue recorded: ${amountValidation.value} (${revenue_type}) for organization ${organizationId}`);
+      // Validation
+      const amountValidation = validateMoney(amount, 'amount');
+      const dateValidation = validateDate(revenue_date, 'revenue_date');
 
-    const revenue = {
-      ...result.rows[0],
-      amount: Math.abs(toNumeric(result.rows[0].amount)),
-      revenue_type: revenue_type,
-      notes: notes || ''
-    };
+      if (!amountValidation.valid || !dateValidation.valid) {
+        return error(res, amountValidation.message || dateValidation.message, 400);
+      }
 
-    return success(res, revenue, 'External revenue recorded successfully', 201);
+      if (!description || description.trim().length === 0) {
+        return error(res, 'Description is required', 400);
+      }
+
+      // Validate and normalize budget_category_id
+      // Accept null, undefined, or empty string as "no category"
+      // If a value is provided, it must be a valid integer
+      let normalizedCategoryId = null;
+      if (budget_category_id !== null && budget_category_id !== undefined && budget_category_id !== '') {
+        const categoryId = Number.parseInt(budget_category_id, 10);
+        if (!Number.isInteger(categoryId) || categoryId <= 0) {
+          return error(res, 'budget_category_id must be a valid positive integer or null', 400);
+        }
+        normalizedCategoryId = categoryId;
+      }
+
+      // Store as negative amount in budget_expenses to represent revenue
+      // Mark as external revenue with special notes tag
+      const markedNotes = formatExternalRevenueNotes(revenue_type, notes);
+
+      const result = await pool.query(
+        `INSERT INTO budget_expenses
+          (organization_id, budget_category_id, budget_item_id, amount, expense_date,
+           description, payment_method, reference_number, receipt_url, notes, created_by)
+        VALUES ($1, $2, NULL, -$3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *`,
+        [
+          organizationId,
+          normalizedCategoryId,
+          amountValidation.value,
+          revenue_date,
+          description.trim(),
+          payment_method,
+          reference_number,
+          receipt_url,
+          markedNotes,
+          req.user.id
+        ]
+      );
+
+      logger.info(`External revenue recorded: ${amountValidation.value} (${revenue_type}) for organization ${organizationId}`);
+
+      const revenue = {
+        ...result.rows[0],
+        amount: Math.abs(toNumeric(result.rows[0].amount)),
+        revenue_type: revenue_type,
+        notes: notes || ''
+      };
+
+      return success(res, revenue, 'External revenue recorded successfully', 201);
+    } catch (err) {
+      logger.error('[external-revenue] POST error:', {
+        error: err.message,
+        stack: err.stack,
+        code: err.code,
+        detail: err.detail,
+        body: req.body
+      });
+      return error(res, `Database error: ${err.message}`, 500);
+    }
   }));
 
   /**
