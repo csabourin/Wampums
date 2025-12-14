@@ -133,6 +133,18 @@ module.exports = (pool, logger) => {
       return error(res, 'Description is required', 400);
     }
 
+    // Validate and normalize budget_category_id
+    // Accept null, undefined, or empty string as "no category"
+    // If a value is provided, it must be a valid integer
+    let normalizedCategoryId = null;
+    if (budget_category_id !== null && budget_category_id !== undefined && budget_category_id !== '') {
+      const categoryId = Number.parseInt(budget_category_id, 10);
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        return error(res, 'budget_category_id must be a valid positive integer or null', 400);
+      }
+      normalizedCategoryId = categoryId;
+    }
+
     // Store as negative amount in budget_expenses to represent revenue
     // Mark as external revenue with special notes tag
     const markedNotes = formatExternalRevenueNotes(revenue_type, notes);
@@ -145,7 +157,7 @@ module.exports = (pool, logger) => {
       RETURNING *`,
       [
         organizationId,
-        budget_category_id,
+        normalizedCategoryId,
         amountValidation.value,
         revenue_date,
         description.trim(),
@@ -225,6 +237,19 @@ module.exports = (pool, logger) => {
       }
     }
 
+    // Validate and normalize budget_category_id if provided
+    let normalizedCategoryId = budget_category_id;
+    if (budget_category_id !== undefined && budget_category_id !== null && budget_category_id !== '') {
+      const categoryId = Number.parseInt(budget_category_id, 10);
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        return error(res, 'budget_category_id must be a valid positive integer or null', 400);
+      }
+      normalizedCategoryId = categoryId;
+    } else if (budget_category_id === '') {
+      // Normalize empty string to null
+      normalizedCategoryId = null;
+    }
+
     // Build update notes
     let updateNotes = checkResult.rows[0].notes;
     if (notes !== undefined || revenue_type !== undefined) {
@@ -247,7 +272,7 @@ module.exports = (pool, logger) => {
       WHERE id = $9 AND organization_id = $10
       RETURNING *`,
       [
-        budget_category_id,
+        normalizedCategoryId,
         amount,
         revenue_date,
         description,
