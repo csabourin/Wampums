@@ -17,6 +17,7 @@ class PWAUpdateManager {
         this.initialized = false;
         this.lastPromptedVersion = localStorage.getItem('lastSwVersionPrompt') || null;
         this.pendingVersion = null;
+        this.updateAccepted = false;
     }
 
     /**
@@ -85,7 +86,7 @@ class PWAUpdateManager {
         // Listen for controller change (when new SW takes over)
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             // Only reload if we expected an update
-            if (this.updateAvailable) {
+            if (this.updateAccepted) {
                 window.location.reload();
             }
         });
@@ -439,6 +440,8 @@ class PWAUpdateManager {
      * Apply the update
      */
     applyUpdate() {
+        this.updateAccepted = true;
+
         if (this.newWorker) {
             // Tell the new service worker to skip waiting
             this.newWorker.postMessage({ type: 'SKIP_WAITING' });
@@ -491,6 +494,10 @@ class PWAUpdateManager {
      * Dismiss the update prompt
      */
     dismissPrompt() {
+        this.updateAvailable = false;
+        this.updateAccepted = false;
+        this.pendingVersion = null;
+
         const prompt = document.getElementById('pwa-update-prompt');
         if (prompt) {
             prompt.classList.remove('show');
