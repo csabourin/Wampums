@@ -7,12 +7,16 @@ jest.mock('pg', () => {
     query: jest.fn(),
     release: jest.fn()
   };
+  const mPool = {
+    connect: jest.fn(() => Promise.resolve(mClient)),
+    query: jest.fn(),
+    on: jest.fn()
+  };
   return {
-    Pool: jest.fn(() => ({
-      connect: jest.fn(() => Promise.resolve(mClient))
-    })),
+    Pool: jest.fn(() => mPool),
     __esModule: true,
-    __mClient: mClient
+    __mClient: mClient,
+    __mPool: mPool
   };
 });
 
@@ -29,6 +33,15 @@ beforeAll(() => {
   process.env.DB_PORT = '5432';
 
   app = require('../api');
+});
+
+beforeEach(() => {
+  const { __mClient, __mPool } = require('pg');
+  __mClient.query.mockReset();
+  __mClient.release.mockReset();
+  __mPool.connect.mockClear();
+  __mPool.query.mockReset();
+  __mPool.query.mockResolvedValue({ rows: [] });
 });
 
 afterEach(() => {
