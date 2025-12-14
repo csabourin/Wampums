@@ -118,22 +118,32 @@ const logger = winston.createLogger({
 // In production, serve from dist folder (Vite build output)
 // In development, serve from root (Vite dev server handles the rest)
 const staticDir = isProduction ? path.join(__dirname, 'dist') : __dirname;
+const landingDir = path.join(__dirname, 'landing');
+const landingHosts = new Set(['wampums.app', 'www.wampums.app']);
+
+const setStaticCacheHeaders = (res, filepath) => {
+  // Aggressive caching for production builds (1 year for hashed files)
+  if (isProduction && (filepath.includes('-') && (filepath.endsWith('.js') || filepath.endsWith('.css')))) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+  // Extended caching for static assets (30 days = 2592000 seconds)
+  else if (filepath.endsWith('.js') || filepath.endsWith('.css') || filepath.endsWith('.png') || filepath.endsWith('.jpg') || filepath.endsWith('.webp')) {
+    res.setHeader('Cache-Control', 'public, max-age=2592000');
+  }
+};
 
 logger.info(`Serving static files from: ${staticDir}`);
 logger.info(`Environment: ${isProduction ? 'production' : 'development'}`);
 
-app.use(express.static(staticDir, {
-  setHeaders: (res, filepath) => {
-    // Aggressive caching for production builds (1 year for hashed files)
-    if (isProduction && (filepath.includes('-') && (filepath.endsWith('.js') || filepath.endsWith('.css')))) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    }
-    // Extended caching for static assets (30 days = 2592000 seconds)
-    else if (filepath.endsWith('.js') || filepath.endsWith('.css') || filepath.endsWith('.png') || filepath.endsWith('.jpg') || filepath.endsWith('.webp')) {
-      res.setHeader('Cache-Control', 'public, max-age=2592000');
-    }
+// Host-specific static serving for the landing page to keep assets available at the root
+app.use((req, res, next) => {
+  if (landingHosts.has(req.hostname)) {
+    return express.static(landingDir, { setHeaders: setStaticCacheHeaders })(req, res, next);
   }
-}));
+  return next();
+});
+
+app.use(express.static(staticDir, { setHeaders: setStaticCacheHeaders }));
 
 // Database connection configuration
 // SSL is enabled by default. Only disable certificate validation in development if explicitly set.
@@ -718,9 +728,13 @@ app.get('/health', (req, res) => {
 
 // Serve index.html for root route
 app.get('/', (req, res) => {
-  const indexPath = isProduction
-    ? path.join(__dirname, 'dist', 'index.html')
-    : path.join(__dirname, 'index.html');
+  const isLandingHost = landingHosts.has(req.hostname);
+  const indexPath = isLandingHost
+    ? path.join(landingDir, 'index.html')
+    : isProduction
+      ? path.join(__dirname, 'dist', 'index.html')
+      : path.join(__dirname, 'index.html');
+
   // Prevent caching of index.html to ensure PWA updates work properly
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
