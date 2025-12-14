@@ -15,6 +15,8 @@ class PWAUpdateManager {
         this.newWorker = null;
         this.updateCheckInterval = null;
         this.initialized = false;
+        this.lastPromptedVersion = localStorage.getItem('lastSwVersionPrompt') || null;
+        this.pendingVersion = null;
     }
 
     /**
@@ -67,8 +69,9 @@ class PWAUpdateManager {
                         // Only prompt when the new worker is a different version
                         const newVersion = await this.getServiceWorkerVersion(newWorker);
 
-                        if (newVersion && newVersion !== CONFIG.VERSION) {
+                        if (this.shouldNotifyVersion(newVersion)) {
                             this.newWorker = newWorker;
+                            this.pendingVersion = newVersion;
                             this.updateAvailable = true;
                             this.showUpdatePrompt();
                         } else {
@@ -95,8 +98,11 @@ class PWAUpdateManager {
         navigator.serviceWorker.addEventListener('message', (event) => {
             if (event.data.type === 'UPDATE_AVAILABLE') {
                 debugLog('Update available:', event.data.version);
-                this.updateAvailable = true;
-                this.showUpdatePrompt();
+                if (this.shouldNotifyVersion(event.data.version)) {
+                    this.pendingVersion = event.data.version;
+                    this.updateAvailable = true;
+                    this.showUpdatePrompt();
+                }
             }
         });
     }
@@ -112,8 +118,9 @@ class PWAUpdateManager {
 
             // Also check the version from service worker
             const version = await this.getServiceWorkerVersion();
-            if (version && version !== CONFIG.VERSION) {
+            if (version && version !== CONFIG.VERSION && this.shouldNotifyVersion(version)) {
                 debugLog(`Version mismatch: SW=${version}, APP=${CONFIG.VERSION}`);
+                this.pendingVersion = version;
                 this.updateAvailable = true;
                 this.showUpdatePrompt();
             }
@@ -191,6 +198,10 @@ class PWAUpdateManager {
     showUpdatePrompt() {
         // Don't show multiple prompts
         if (document.getElementById('pwa-update-prompt')) return;
+
+        if (this.pendingVersion) {
+            this.markVersionPrompted(this.pendingVersion);
+        }
 
         const prompt = this.createUpdatePromptElement();
         document.body.appendChild(prompt);
@@ -401,6 +412,27 @@ class PWAUpdateManager {
             }
         `;
         document.head.appendChild(style);
+    }
+
+    /**
+     * Determine whether we should notify the user about a service worker version.
+     * Prevents showing the same version repeatedly when a stale app build is cached.
+     * @param {string|null} version
+     * @returns {boolean}
+     */
+    shouldNotifyVersion(version) {
+        if (!version) return false;
+        if (version === CONFIG.VERSION) return false;
+        return version !== this.lastPromptedVersion;
+    }
+
+    /**
+     * Remember the last version we prompted for to avoid infinite update loops.
+     * @param {string} version
+     */
+    markVersionPrompted(version) {
+        this.lastPromptedVersion = version;
+        localStorage.setItem('lastSwVersionPrompt', version);
     }
 
     /**
