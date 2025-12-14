@@ -17,7 +17,7 @@ const debugMode = isDebugMode();
 
 if ("serviceWorker" in navigator) {
         navigator.serviceWorker
-                .register("/service-worker.js")
+                .register("/service-worker.js", { updateViaCache: "none" })
                 .then(function (registration) { })
                 .catch(function (error) {
                         debugError("Service Worker registration failed:", error);

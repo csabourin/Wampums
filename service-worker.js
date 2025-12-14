@@ -51,6 +51,14 @@ const staticImages = [
   "/images/6eASt-Paul.png",
 ];
 
+// Requests that should never be cached to avoid stale metadata breaking updates
+const nonCacheablePaths = new Set([
+  "/service-worker.js",
+  "/config.js",
+  "/package.json",
+  "/package-lock.json",
+]);
+
 // Updated API routes using the new endpoint structure
 const apiRoutes = [
   "/api/attendance-dates",
@@ -106,25 +114,26 @@ self.addEventListener("install", (event) => {
 // Activate event with improved cache cleanup
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (
-              ![
-                CACHE_NAME,
-                STATIC_CACHE_NAME,
-                API_CACHE_NAME,
-                IMAGE_CACHE_NAME,
-              ].includes(cacheName)
-            ) {
-              return caches.delete(cacheName);
-            }
-          }),
-        );
-      })
-      .then(() => self.clients.claim()),
+    (async () => {
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames.map((cacheName) => {
+          if (
+            ![
+              CACHE_NAME,
+              STATIC_CACHE_NAME,
+              API_CACHE_NAME,
+              IMAGE_CACHE_NAME,
+            ].includes(cacheName)
+          ) {
+            return caches.delete(cacheName);
+          }
+        }),
+      );
+
+      await purgeNonCacheableCacheEntries();
+      await self.clients.claim();
+    })(),
   );
 });
 
@@ -133,6 +142,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return;
+  }
+
+  if (nonCacheablePaths.has(url.pathname)) {
+    event.respondWith(fetchNonCacheable(event.request));
     return;
   }
 
@@ -177,6 +191,18 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(event.request));
   }
 });
+
+/**
+ * Always fetch a fresh copy for non-cacheable assets to avoid stale service worker
+ * or configuration metadata interfering with updates.
+ *
+ * @param {Request} request
+ * @returns {Promise<Response>}
+ */
+async function fetchNonCacheable(request) {
+  await purgeNonCacheableEntries(request);
+  return fetch(request, { cache: "no-store" });
+}
 
 // Specialized image handling function
 async function handleImageRequest(request) {
@@ -411,6 +437,62 @@ async function fetchAndCacheInIndexedDB(request) {
       },
     );
   }
+}
+
+/**
+ * Remove any cached entry that matches the provided request URL when it should
+ * always be fetched from the network.
+ *
+ * @param {Request} request
+ */
+async function purgeNonCacheableEntries(request) {
+  const pathname = new URL(request.url).pathname;
+  const cacheNames = await caches.keys();
+
+  await Promise.all(
+    cacheNames.map(async (cacheName) => {
+      const cache = await caches.open(cacheName);
+      const cachedRequests = await cache.keys();
+
+      await Promise.all(
+        cachedRequests
+          .filter((cachedRequest) => {
+            try {
+              return new URL(cachedRequest.url).pathname === pathname;
+            } catch (error) {
+              debugWarn("Skipping malformed cache key", error);
+              return false;
+            }
+          })
+          .map((cachedRequest) => cache.delete(cachedRequest)),
+      );
+    }),
+  );
+}
+
+/**
+ * Remove stale copies of assets that must always be fetched fresh.
+ */
+async function purgeNonCacheableCacheEntries() {
+  const cacheNames = await caches.keys();
+  await Promise.all(
+    cacheNames.map(async (cacheName) => {
+      const cache = await caches.open(cacheName);
+      const requests = await cache.keys();
+      await Promise.all(
+        requests
+          .filter((cachedRequest) => {
+            try {
+              return nonCacheablePaths.has(new URL(cachedRequest.url).pathname);
+            } catch (error) {
+              debugWarn("Skipping malformed cache key", error);
+              return false;
+            }
+          })
+          .map((cachedRequest) => cache.delete(cachedRequest)),
+      );
+    }),
+  );
 }
 
 // Handle mutation requests (POST, PUT, DELETE)
