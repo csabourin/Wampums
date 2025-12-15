@@ -163,6 +163,8 @@ module.exports = function(pool, logger) {
         participantsUpdated: 0,
         guardiansCreated: 0,
         guardiansUpdated: 0,
+        animationUsersCreated: 0,
+        animationUsersUpdated: 0,
         usersCreated: 0,
         userParticipantLinksCreated: 0,
         formSubmissionsCreated: 0,
@@ -181,9 +183,54 @@ module.exports = function(pool, logger) {
           const firstName = get('prenom');
           const birthDate = parseDate(get('naissance'));
           const sex = get('sexe')?.toUpperCase() === 'H' ? 'M' : get('sexe')?.toUpperCase() === 'F' ? 'F' : null;
+          const situation = get('situation')?.toLowerCase();
 
           if (!lastName || !firstName) {
             stats.errors.push(`Row ${i + 1}: Missing name`);
+            continue;
+          }
+
+          if (situation === 'a') {
+            const email = get('courriel')?.toLowerCase();
+            const fullName = `${firstName} ${lastName}`.trim();
+
+            if (!email) {
+              stats.errors.push(`Row ${i + 1}: Missing email for animation user`);
+              logger.warn(`Row ${i + 1}: Animation user missing email`, { row: i + 1 });
+              continue;
+            }
+
+            const userResult = await client.query(
+              `INSERT INTO users (email, password, full_name, is_verified)
+               VALUES (LOWER($1), '', $2, TRUE)
+               ON CONFLICT (email) DO UPDATE SET full_name = EXCLUDED.full_name, is_verified = TRUE
+               RETURNING id, (xmax = 0) AS inserted`,
+              [email, fullName]
+            );
+
+            const userId = userResult.rows[0].id;
+            const wasInserted = userResult.rows[0].inserted;
+
+            if (wasInserted) {
+              stats.animationUsersCreated++;
+            } else {
+              stats.animationUsersUpdated++;
+            }
+
+            await client.query(
+              `INSERT INTO user_organizations (user_id, organization_id, role)
+               VALUES ($1, $2, 'animation')
+               ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'animation'`,
+              [userId, organizationId]
+            );
+
+            continue;
+          }
+
+          if (situation && situation !== 'j') {
+            const errorMessage = `Row ${i + 1}: Invalid situation '${situation}'`;
+            stats.errors.push(errorMessage);
+            logger.error(errorMessage);
             continue;
           }
 
@@ -435,7 +482,7 @@ module.exports = function(pool, logger) {
 
       res.json({
         success: true,
-        message: 'Import completed',
+        message: 'Import completed (participants, guardians, and animation users processed)',
         stats,
         verification
       });
