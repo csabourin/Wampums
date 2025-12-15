@@ -763,6 +763,7 @@
   "medication_optional_notes": "Notes (optional)",
   "medication_confirm_given": "Confirm given",
   "medication_no_participants_assigned": "No participants have medications assigned yet. Go to Planning to create medication requirements.",
+  "medication_administration_times": "Administration times",
   "medications": "Medications",
   "unit": "Unit",
   "membership_fee_label": "Membership fee",

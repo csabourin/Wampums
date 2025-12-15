@@ -785,6 +785,8 @@
   "medication_optional_notes": "Notes (facultatif)",
   "medication_confirm_given": "Confirmer la distribution",
   "medication_no_participants_assigned": "Aucun participant n'a de médicaments assignés. Allez à la Planification pour créer des besoins médicamenteux.",
+  "medication_administration_times": "Heures d'administration",
+  "medications": "Médicaments",
   "unit": "Unité",
   "membership_fee_label": "Frais d'adhésion",
   "membership_period": "Période d'adhésion",
