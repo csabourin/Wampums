@@ -783,6 +783,7 @@ logger.info('✅ Medication routes loaded');
 logger.info('   - GET /api/v1/medication/requirements');
 logger.info('   - POST /api/v1/medication/requirements');
 logger.info('   - PUT /api/v1/medication/requirements/:id');
+logger.info('   - GET /api/v1/medication/fiche-medications');
 logger.info('   - GET /api/v1/medication/participant-medications');
 logger.info('   - GET /api/v1/medication/distributions');
 logger.info('   - POST /api/v1/medication/distributions');
