@@ -17,6 +17,30 @@ function buildCacheKey(base, params = {}) {
     return query ? `${base}?${query}` : base;
 }
 
+async function invalidateMedicationCaches(extraKeys = []) {
+    try {
+        const { deleteCachedData } = await import('../indexedDB.js');
+        const keys = [
+            'medication_requirements',
+            'participant_medications',
+            'medication_distributions',
+            'medication_distributions?upcoming_only=true',
+            'fiche_medications',
+            ...extraKeys
+        ];
+
+        await Promise.all(keys.map(async (key) => {
+            try {
+                await deleteCachedData(key);
+            } catch (cacheError) {
+                debugWarn('Failed to invalidate medication cache key', key, cacheError);
+            }
+        }));
+    } catch (error) {
+        debugError('Unable to invalidate medication caches', error);
+    }
+}
+
 // ============================================================================
 // PUBLIC ENDPOINTS (No Authentication Required)
 // ============================================================================
@@ -1384,9 +1408,31 @@ export async function getMedicationReport() {
 /**
  * Get medication requirements for the organization
  */
-export async function getMedicationRequirements() {
+export async function getMedicationRequirements(cacheOptions = {}) {
     return API.get('v1/medication/requirements', {}, {
         cacheKey: 'medication_requirements',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        ...cacheOptions
+    });
+}
+
+/**
+ * Get distinct medications from fiche_sante submissions
+ */
+export async function getFicheMedications(cacheOptions = {}) {
+    return API.get('v1/medication/fiche-medications', {}, {
+        cacheKey: 'fiche_medications',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        ...cacheOptions
+    });
+}
+
+/**
+ * Get distinct medications from fiche_sante submissions
+ */
+export async function getFicheMedications() {
+    return API.get('v1/medication/fiche-medications', {}, {
+        cacheKey: 'fiche_medications',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
 }
@@ -1407,28 +1453,36 @@ export async function getFicheMedications() {
 export async function saveMedicationRequirement(payload) {
     const hasId = Boolean(payload?.id);
     const endpoint = hasId ? `v1/medication/requirements/${payload.id}` : 'v1/medication/requirements';
-    return hasId ? API.put(endpoint, payload) : API.post(endpoint, payload);
+    const result = hasId ? await API.put(endpoint, payload) : await API.post(endpoint, payload);
+
+    if (result?.success) {
+        await invalidateMedicationCaches();
+    }
+
+    return result;
 }
 
 /**
  * Get participant-medication assignments
  */
-export async function getParticipantMedications(params = {}) {
+export async function getParticipantMedications(params = {}, cacheOptions = {}) {
     const cacheKey = buildCacheKey('participant_medications', params);
     return API.get('v1/medication/participant-medications', params, {
         cacheKey,
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        ...cacheOptions
     });
 }
 
 /**
  * Get medication distributions (scheduled and historical)
  */
-export async function getMedicationDistributions(params = {}) {
+export async function getMedicationDistributions(params = {}, cacheOptions = {}) {
     const cacheKey = buildCacheKey('medication_distributions', params);
     return API.get('v1/medication/distributions', params, {
         cacheKey,
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        ...cacheOptions
     });
 }
 
@@ -1436,14 +1490,26 @@ export async function getMedicationDistributions(params = {}) {
  * Create medication distribution rows (single participant per call)
  */
 export async function recordMedicationDistribution(payload) {
-    return API.post('v1/medication/distributions', payload);
+    const result = await API.post('v1/medication/distributions', payload);
+
+    if (result?.success) {
+        await invalidateMedicationCaches();
+    }
+
+    return result;
 }
 
 /**
  * Mark a medication distribution entry as given
  */
 export async function markMedicationDistributionAsGiven(distributionId, payload) {
-    return API.patch(`v1/medication/distributions/${distributionId}`, payload);
+    const result = await API.patch(`v1/medication/distributions/${distributionId}`, payload);
+
+    if (result?.success) {
+        await invalidateMedicationCaches();
+    }
+
+    return result;
 }
 
 /**
