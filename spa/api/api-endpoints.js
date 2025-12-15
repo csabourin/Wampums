@@ -1428,26 +1428,6 @@ export async function getFicheMedications(cacheOptions = {}) {
 }
 
 /**
- * Get distinct medications from fiche_sante submissions
- */
-export async function getFicheMedications() {
-    return API.get('v1/medication/fiche-medications', {}, {
-        cacheKey: 'fiche_medications',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
-    });
-}
-
-/**
- * Get distinct medications from fiche_sante submissions
- */
-export async function getFicheMedications() {
-    return API.get('v1/medication/fiche-medications', {}, {
-        cacheKey: 'fiche_medications',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
-    });
-}
-
-/**
  * Create or update a medication requirement
  */
 export async function saveMedicationRequirement(payload) {
