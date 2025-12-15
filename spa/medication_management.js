@@ -356,6 +356,37 @@ export class MedicationManagement {
         margin-top: 0.25rem;
       }
 
+      .medication-time-slots {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .medication-time-slots strong {
+        display: block;
+        font-size: 0.9rem;
+        color: #0b3c5d;
+        margin-bottom: 0.5rem;
+      }
+
+      .time-slots-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .time-badge {
+        display: inline-flex;
+        align-items: center;
+        background: #0b3c5d;
+        color: #fff;
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
       .btn-give-med {
         white-space: nowrap;
         padding: 0.65rem 1rem;
@@ -930,6 +961,17 @@ export class MedicationManagement {
               const route = req.route ? ` · ${req.route}` : '';
               const frequency = req.frequency_text || translate("medication_frequency_prn_text");
 
+              // Get time slots for display
+              const timeSlots = this.getTimeSlotsForDisplay(req);
+              const timeSlotsHtml = timeSlots.length > 0
+                ? `<div class="medication-time-slots">
+                     <strong>⏰ ${escapeHTML(translate("medication_administration_times"))}:</strong>
+                     <div class="time-slots-list">
+                       ${timeSlots.map(slot => `<span class="time-badge">${escapeHTML(slot)}</span>`).join('')}
+                     </div>
+                   </div>`
+                : '';
+
               return `
                 <div class="medication-item">
                   <div class="medication-info">
@@ -940,6 +982,7 @@ export class MedicationManagement {
                     <div class="medication-schedule">
                       ${escapeHTML(frequency)}
                     </div>
+                    ${timeSlotsHtml}
                     ${req.general_notes ? `<div class="medication-notes">${escapeHTML(req.general_notes)}</div>` : ''}
                   </div>
                   <button
@@ -1447,6 +1490,45 @@ export class MedicationManagement {
 
   getDefaultWitness() {
     return this.app?.userFullName || localStorage.getItem("userFullName") || "";
+  }
+
+  getTimeSlotsForDisplay(requirement) {
+    if (!requirement) return [];
+
+    const config = this.getRequirementFrequencyConfig(requirement);
+
+    // PRN medications have no scheduled times
+    if (config.type === 'prn') {
+      return [];
+    }
+
+    // For interval, compute times
+    if (config.type === 'interval' && config.intervalHours && config.intervalStart) {
+      const times = this.computeIntervalTimes(config.intervalStart, config.intervalHours);
+      return times;
+    }
+
+    // For meal-based, extract times from slots
+    if (config.type === 'meal' && config.slots && Object.keys(config.slots).length > 0) {
+      return Object.entries(config.slots)
+        .sort((a, b) => a[1].localeCompare(b[1])) // Sort by time
+        .map(([slotName, time]) => {
+          const label = translate(`medication_frequency_${slotName}`) || slotName;
+          return `${time} (${label})`;
+        });
+    }
+
+    // For time_of_day, use the times array
+    if (config.type === 'time_of_day' && config.times?.length > 0) {
+      return config.times.sort();
+    }
+
+    // Fallback: try to parse from times array if available
+    if (config.times?.length > 0) {
+      return config.times.sort();
+    }
+
+    return [];
   }
 
   showQuickGiveModal(participantId, requirementId, medicationName, dose, route) {
