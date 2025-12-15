@@ -301,6 +301,50 @@ CREATE TABLE public.languages (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT languages_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.medication_distributions (
+  id integer NOT NULL DEFAULT nextval('medication_distributions_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  medication_requirement_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  participant_medication_id integer,
+  scheduled_for timestamp with time zone NOT NULL,
+  activity_name character varying,
+  dose_amount numeric,
+  dose_unit character varying,
+  dose_notes text,
+  general_notice text,
+  status character varying NOT NULL DEFAULT 'scheduled'::character varying CHECK (status::text = ANY (ARRAY['scheduled'::character varying, 'given'::character varying, 'missed'::character varying, 'cancelled'::character varying]::text[])),
+  administered_at timestamp with time zone,
+  administered_by uuid,
+  witness_name character varying,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT medication_distributions_pkey PRIMARY KEY (id),
+  CONSTRAINT medication_distributions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT medication_distributions_medication_requirement_id_fkey FOREIGN KEY (medication_requirement_id) REFERENCES public.medication_requirements(id),
+  CONSTRAINT medication_distributions_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT medication_distributions_participant_medication_id_fkey FOREIGN KEY (participant_medication_id) REFERENCES public.participant_medications(id),
+  CONSTRAINT medication_distributions_administered_by_fkey FOREIGN KEY (administered_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.medication_requirements (
+  id integer NOT NULL DEFAULT nextval('medication_requirements_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  medication_name character varying NOT NULL,
+  dosage_instructions text,
+  frequency_text character varying,
+  route character varying,
+  default_dose_amount numeric,
+  default_dose_unit character varying,
+  general_notes text,
+  start_date date,
+  end_date date,
+  created_by uuid,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT medication_requirements_pkey PRIMARY KEY (id),
+  CONSTRAINT medication_requirements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT medication_requirements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.names (
   id integer NOT NULL DEFAULT nextval('names_id_seq'::regclass),
   first_name character varying NOT NULL,
@@ -408,6 +452,21 @@ CREATE TABLE public.participant_guardians (
   CONSTRAINT participant_guardians_pkey PRIMARY KEY (guardian_id, participant_id),
   CONSTRAINT participant_guardians_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
   CONSTRAINT participant_guardians_guardian_id_fkey FOREIGN KEY (guardian_id) REFERENCES public.parents_guardians(id)
+);
+CREATE TABLE public.participant_medications (
+  id integer NOT NULL DEFAULT nextval('participant_medications_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  medication_requirement_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  participant_notes text,
+  custom_dosage text,
+  custom_frequency text,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT participant_medications_pkey PRIMARY KEY (id),
+  CONSTRAINT participant_medications_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT participant_medications_medication_requirement_id_fkey FOREIGN KEY (medication_requirement_id) REFERENCES public.medication_requirements(id),
+  CONSTRAINT participant_medications_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
 CREATE TABLE public.participant_organizations (
   participant_id integer NOT NULL,
