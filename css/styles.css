@@ -15,7 +15,7 @@
    Methodology: Mobile-first, BEM-inspired naming, CSS Grid & Flexbox layouts
    ============================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Use a system-first stack to avoid remote font fetches under strict CSP */
 /* ============================================================================
    1. DESIGN TOKENS - CSS Custom Properties
    ============================================================================ */
@@ -161,7 +161,7 @@ html {
 
 body {
   min-block-size: 100%;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   color: var(--color-text);
