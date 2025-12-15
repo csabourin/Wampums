@@ -39,6 +39,23 @@ app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
 app.set('etag', 'strong');
 
 // Security headers with Content Security Policy
+const connectSrc = [
+  "'self'",
+  "https://cdn.jsdelivr.net",
+  "https://cdnjs.cloudflare.com",
+  "https://*.supabase.co", // Supabase storage for equipment photos
+];
+
+// Allow the configured API base URL when defined so the SPA can call remote APIs under strict CSP
+const apiBaseUrl = process.env.API_BASE_URL || process.env.VITE_API_BASE_URL;
+if (apiBaseUrl) {
+  try {
+    connectSrc.push(new URL(apiBaseUrl).origin);
+  } catch (e) {
+    console.warn('Invalid API_BASE_URL for CSP connectSrc', e);
+  }
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -48,17 +65,11 @@ app.use(helmet({
       styleSrc: [
         "'self'",
         "'unsafe-inline'",
-        "https://fonts.googleapis.com",
         "https://cdnjs.cloudflare.com"
       ],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+      fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: [
-        "'self'",
-        "https://cdn.jsdelivr.net",
-        "https://cdnjs.cloudflare.com",
-        "https://*.supabase.co", // Supabase storage for equipment photos
-      ],
+      connectSrc,
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: isProduction ? [] : null,
