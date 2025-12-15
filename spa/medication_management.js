@@ -138,6 +138,35 @@ export class MedicationManagement {
         gap: 1rem;
       }
 
+      .tab-nav {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+      }
+
+      .tab-button {
+        border: 1px solid #d1d5db;
+        background: #fff;
+        padding: 0.5rem 0.75rem;
+        border-radius: 999px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-weight: 600;
+      }
+
+      .tab-button.active {
+        background: #0b3c5d;
+        color: #fff;
+        border-color: #0b3c5d;
+      }
+
+      .tab-panel.hidden {
+        display: none;
+      }
+
       .medication-grid {
         display: grid;
         grid-template-columns: 1fr;
@@ -904,6 +933,17 @@ export class MedicationManagement {
     const frequencyPresetSelect = document.getElementById("frequencyPreset");
     const scheduleDateField = document.querySelector("input[name='scheduled_date']");
     const scheduleTimeField = document.querySelector("input[name='scheduled_time']");
+
+    document.querySelectorAll("[data-medication-tab]").forEach((tabButton) => {
+      tabButton.addEventListener("click", () => {
+        const nextTab = tabButton.dataset.medicationTab;
+        if (nextTab && nextTab !== this.activeTab) {
+          this.activeTab = nextTab;
+          this.render();
+          this.attachEventListeners();
+        }
+      });
+    });
 
     requirementForm?.addEventListener("submit", (event) => this.handleRequirementSubmit(event));
     scheduleForm?.addEventListener("submit", (event) => this.handleScheduleSubmit(event));
