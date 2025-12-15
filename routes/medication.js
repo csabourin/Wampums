@@ -58,6 +58,32 @@ module.exports = (pool, logger) => {
   }));
 
   /**
+   * GET /v1/medication/fiche-medications
+   * List distinct medications captured in fiche_sante submissions
+   */
+  router.get('/v1/medication/fiche-medications', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const result = await pool.query(
+      `SELECT DISTINCT TRIM(BOTH FROM submission_data->>'medicament') AS medication
+         FROM form_submissions
+        WHERE organization_id = $1
+          AND form_type = 'fiche_sante'
+          AND submission_data->>'medicament' IS NOT NULL
+          AND TRIM(BOTH FROM submission_data->>'medicament') <> ''
+        ORDER BY medication ASC`,
+      [organizationId]
+    );
+
+    return success(res, { medications: result.rows.map((row) => row.medication) }, 'Fiche_sante medications loaded');
+  }));
+
+  /**
    * POST /v1/medication/requirements
    * Create a medication requirement and participant assignments
    */
@@ -77,15 +103,18 @@ module.exports = (pool, logger) => {
       default_dose_amount,
       default_dose_unit,
       general_notes,
-      participant_ids,
-      participant_notes = {}
+      participant_ids
     } = req.body || {};
 
     const normalizedName = normalizeText(medication_name, 200);
     const participants = parseParticipantIds(participant_ids);
 
-    if (!normalizedName || participants.length === 0) {
-      return error(res, 'Medication name and at least one participant are required', 400);
+    if (!normalizedName) {
+      return error(res, 'Medication name and a participant are required', 400);
+    }
+
+    if (participants.length !== 1) {
+      return error(res, 'Medication requirements must target exactly one participant', 400);
     }
 
     const numericDoseAmount = default_dose_amount !== undefined && default_dose_amount !== null
@@ -122,14 +151,13 @@ module.exports = (pool, logger) => {
       const requirement = insertRequirement.rows[0];
 
       for (const participantId of participants) {
-        const note = normalizeText(participant_notes?.[participantId], 1000);
         await client.query(
           `INSERT INTO participant_medications (
             organization_id, medication_requirement_id, participant_id, participant_notes
-          ) VALUES ($1, $2, $3, $4)
+          ) VALUES ($1, $2, $3, NULL)
           ON CONFLICT (organization_id, medication_requirement_id, participant_id)
-          DO UPDATE SET participant_notes = EXCLUDED.participant_notes, updated_at = NOW()`,
-          [organizationId, requirement.id, participantId, note]
+          DO UPDATE SET updated_at = NOW()`,
+          [organizationId, requirement.id, participantId]
         );
       }
 
@@ -169,15 +197,18 @@ module.exports = (pool, logger) => {
       default_dose_amount,
       default_dose_unit,
       general_notes,
-      participant_ids,
-      participant_notes = {}
+      participant_ids
     } = req.body || {};
 
     const normalizedName = normalizeText(medication_name, 200);
     const participants = parseParticipantIds(participant_ids);
 
-    if (!normalizedName || participants.length === 0) {
-      return error(res, 'Medication name and at least one participant are required', 400);
+    if (!normalizedName) {
+      return error(res, 'Medication name and a participant are required', 400);
+    }
+
+    if (participants.length !== 1) {
+      return error(res, 'Medication requirements must target exactly one participant', 400);
     }
 
     const numericDoseAmount = default_dose_amount !== undefined && default_dose_amount !== null
@@ -228,14 +259,13 @@ module.exports = (pool, logger) => {
       );
 
       for (const participantId of participants) {
-        const note = normalizeText(participant_notes?.[participantId], 1000);
         await client.query(
           `INSERT INTO participant_medications (
             organization_id, medication_requirement_id, participant_id, participant_notes
-          ) VALUES ($1, $2, $3, $4)
+          ) VALUES ($1, $2, $3, NULL)
           ON CONFLICT (organization_id, medication_requirement_id, participant_id)
-          DO UPDATE SET participant_notes = EXCLUDED.participant_notes, updated_at = NOW()`,
-          [organizationId, requirementId, participantId, note]
+          DO UPDATE SET updated_at = NOW()`,
+          [organizationId, requirementId, participantId]
         );
       }
 
@@ -317,7 +347,7 @@ module.exports = (pool, logger) => {
 
   /**
    * POST /v1/medication/distributions
-   * Schedule or update medication distributions for multiple participants
+   * Schedule or update medication distributions for a single participant per entry
    */
   router.post('/v1/medication/distributions', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
@@ -347,8 +377,8 @@ module.exports = (pool, logger) => {
       return error(res, 'A valid medication requirement is required', 400);
     }
 
-    if (participants.length === 0) {
-      return error(res, 'At least one participant is required', 400);
+    if (participants.length !== 1) {
+      return error(res, 'Exactly one participant must be scheduled per distribution', 400);
     }
 
     if (Number.isNaN(scheduledDate.getTime())) {
