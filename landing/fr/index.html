@@ -7,7 +7,7 @@
 		<title>Wampums — Gestion scoute (bilingue)</title>
 		<meta
 			name="description"
-			content="Application web bilingue pour la gestion des unités scoutes : planification des réunions, présences, badges, documents et communications aux parents."
+			content="Application web bilingue pour la gestion des unités scoutes : planification des réunions, présences, badges, documents, matériel et communications aux parents."
 		/>
 
 		<!-- Canonical -->
@@ -30,7 +30,7 @@
 		<meta property="og:title" content="Wampums — Gestion scoute (bilingue)" />
 		<meta
 			property="og:description"
-			content="Planifiez les réunions, suivez présences et badges, gérez documents et paiements, et informez les parents."
+			content="Planifiez les réunions, suivez présences et badges, gérez documents et matériel, et informez les parents."
 		/>
 		<meta
 			property="og:image"
@@ -44,7 +44,7 @@
 		<meta name="twitter:title" content="Wampums — Gestion scoute (bilingue)" />
 		<meta
 			name="twitter:description"
-			content="Planification, présences, badges, documents, communications et paiements."
+			content="Planification, présences, badges, documents, communications, documents et matériel."
 		/>
 		<meta
 			name="twitter:image"
@@ -52,7 +52,7 @@
 		/>
 
                 <!-- PWA -->
-                <meta name="theme-color" content="#4c65ae" />
+                <meta name="theme-color" content="#0f7a5a" />
                 <link rel="manifest" href="/manifest.json" />
 
 		<!-- Favicons (recommended) -->
@@ -63,57 +63,56 @@
 
 		<!-- Structured data (FR) -->
 		<script type="application/ld+json">
-			{
-				"@context": "https://schema.org",
-				"@graph": [
-					{
-						"@type": "Organization",
-						"name": "Wampums",
-						"url": "https://wampums.app/",
-						"email": "mailto:rama@meute6a.app"
-					},
-					{
-						"@type": "SoftwareApplication",
-						"name": "Wampums",
-						"applicationCategory": "BusinessApplication",
-						"operatingSystem": "Web",
-						"url": "https://wampums.app/fr/",
-						"inLanguage": ["fr-CA", "en-CA"],
-						"description": "Application web bilingue pour la gestion des unités scoutes : planification, présences, badges, documents, communications et paiements.",
-						"offers": [
-							{ "@type": "Offer", "name": "Découverte", "price": "0", "priceCurrency": "CAD", "url": "https://wampums.app/fr/#pricing" },
-							{ "@type": "Offer", "name": "Professionnel", "price": "29", "priceCurrency": "CAD", "url": "https://wampums.app/fr/#pricing" },
-							{ "@type": "Offer", "name": "District", "price": "99", "priceCurrency": "CAD", "url": "https://wampums.app/fr/#pricing" }
-						]
-					},
-					{
-						"@type": "FAQPage",
-						"mainEntity": [
-							{
-								"@type": "Question",
-								"name": "Puis-je changer de plan à tout moment?",
-								"acceptedAnswer": { "@type": "Answer", "text": "Oui! Vous pouvez passer à un plan supérieur ou inférieur à tout moment. Les changements prennent effet immédiatement." }
-							},
-							{
-								"@type": "Question",
-								"name": "Y a-t-il un engagement minimum?",
-								"acceptedAnswer": { "@type": "Answer", "text": "Non, tous nos plans sont sans engagement. Vous pouvez annuler à tout moment sans frais." }
-							},
-							{
-								"@type": "Question",
-								"name": "Comment fonctionnent les paiements en ligne?",
-								"acceptedAnswer": { "@type": "Answer", "text": "Nous utilisons Stripe pour traiter les paiements de façon sécurisée. Les parents peuvent payer les frais directement en ligne." }
-							},
-							{
-								"@type": "Question",
-								"name": "Mes données sont-elles sécurisées?",
-								"acceptedAnswer": { "@type": "Answer", "text": "Nous utilisons le chiffrement TLS (HTTPS), des sauvegardes et des contrôles d’accès par rôles." }
-							}
-						]
-					}
-				]
-			}
-		</script>
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "Wampums",
+            "url": "https://wampums.app/",
+            "email": "mailto:rama@meute6a.app"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Wampums",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "url": "https://wampums.app/fr/",
+            "inLanguage": ["fr-CA", "en-CA"],
+            "description": "Application web bilingue pour la gestion des unités scoutes : planification des réunions, présences, badges, communications, documents et matériel."
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Mes données sont-elles sécurisées?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Nous utilisons le chiffrement TLS (HTTPS), des sauvegardes et des contrôles d’accès par rôles."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Peut-on travailler en français et en anglais?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptés aux réalités locales."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Comment l’équipe reste-t-elle alignée chaque semaine?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
 	</head>
 
 		<body>
@@ -156,17 +155,17 @@
 								>
 								<span class="pill" data-i18n="badge3">Parents connectés</span>
 							</div>
-							<div class="actions">
-								<a class="btn-primary" href="#pricing" data-i18n="cta_primary"
-									>Voir les plans</a
-								>
-								<a
-									class="btn-secondary"
-									href="#features"
-									data-i18n="cta_secondary"
-									>Découvrir les fonctions</a
-								>
-							</div>
+                                                        <div class="actions">
+                                                                <button class="btn-primary" type="button" data-open-demo-modal data-i18n="cta_primary">
+                                                                        Voir une démo
+                                                                </button>
+                                                                <a
+                                                                        class="btn-secondary"
+                                                                        href="#features"
+                                                                        data-i18n="cta_secondary"
+                                                                        >Découvrir les fonctions</a
+                                                                >
+                                                        </div>
 						</div>
 						<div
 							class="card"
@@ -175,7 +174,7 @@
 						>
 							<h3 data-i18n="card_title">Tout-en-un pour votre groupe</h3>
 							<p class="meta" data-i18n="card_subtitle">
-								Suivi des membres, activités, badges, documents et paiements.
+								Suivi des membres, activités, badges, documents et sécurité.
 							</p>
 							<div class="stats" aria-label="Indicateurs clés">
 								<div class="stat">
@@ -197,132 +196,73 @@
 			</header>
 
 			<main id="main">
-				<!-- Pricing Section -->
-				<section class="section section-center" id="pricing">
-					<h2 data-i18n="pricing_title">Des plans adaptés à votre groupe</h2>
-					<p data-i18n="pricing_body">
-						Commencez gratuitement et évoluez selon vos besoins. Pas de carte de
-						crédit requise.
-					</p>
+				<!-- Solutions Section -->
+                                <section class="section section-center" id="solutions">
+                                        <h2 data-i18n="solutions_title">Une trousse complète pour vos opérations</h2>
+                                        <p data-i18n="solutions_body">
+                                                Préparez, animez et suivez vos rencontres avec des tableaux de bord clairs pour l’équipe et les parents.
+                                        </p>
 
-					<div class="pricing-grid">
-						<!-- Free Plan -->
-						<div class="pricing-card">
-							<div class="pricing-header">
-								<h3 data-i18n="plan_free_name">Découverte</h3>
-								<div class="price">0$</div>
-								<div class="price-period" data-i18n="plan_free_period">
-									pour toujours
-								</div>
-								<div class="price-note" data-i18n="plan_free_note">
-									Idéal pour les petits groupes
-								</div>
-							</div>
-							<ul class="pricing-features">
-								<li data-i18n="plan_free_feature1">Jusqu'à 20 scouts</li>
-								<li data-i18n="plan_free_feature2">Gestion des présences</li>
-								<li data-i18n="plan_free_feature3">Suivi des badges</li>
-								<li data-i18n="plan_free_feature4">Calendrier des réunions</li>
-								<li data-i18n="plan_free_feature5">Application mobile (PWA)</li>
-								<li class="disabled" data-i18n="plan_free_feature6">
-									Rapports avancés
-								</li>
-								<li class="disabled" data-i18n="plan_free_feature7">
-									Paiements en ligne
-								</li>
-							</ul>
-							<div class="pricing-cta">
-								<button
-									type="button"
-									class="btn-secondary"
-									data-open-demo-modal
-									data-i18n="plan_free_cta"
-								>
-									Demander une démo
-								</button>
-							</div>
-						</div>
+                                        <div class="solutions-grid">
+                                                <article class="solution-card">
+                                                        <div class="solution-header">
+                                                                <h3 data-i18n="solution1_title">Préparation hebdomadaire</h3>
+                                                                <p class="solution-note" data-i18n="solution1_note">Planification, équipes et rappels en quelques minutes.</p>
+                                                        </div>
+                                                        <ul class="solution-features">
+                                                                <li data-i18n="solution1_feature1">Agenda partagé des réunions</li>
+                                                                <li data-i18n="solution1_feature2">Activités, objectifs et matériel</li>
+                                                                <li data-i18n="solution1_feature3">Assignations par groupe ou rôle</li>
+                                                                <li data-i18n="solution1_feature4">Rappels automatiques aux parents</li>
+                                                                <li data-i18n="solution1_feature5">Récupération des autorisations</li>
+                                                        </ul>
+                                                        <div class="solution-cta">
+                                                                <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
+                                                                        Voir la démo
+                                                                </button>
+                                                        </div>
+                                                </article>
 
-						<!-- Pro Plan -->
-						<div class="pricing-card featured">
-							<span class="pricing-badge" data-i18n="plan_pro_badge"
-								>Populaire</span
-							>
-							<div class="pricing-header">
-								<h3 data-i18n="plan_pro_name">Professionnel</h3>
-								<div class="price">
-									29$<span class="price-period" data-i18n="plan_pro_period"
-										>/mois</span
-									>
-								</div>
-								<div class="price-note" data-i18n="plan_pro_note">
-									Pour les unités actives
-								</div>
-							</div>
-							<ul class="pricing-features">
-								<li data-i18n="plan_pro_feature1">Scouts illimités</li>
-								<li data-i18n="plan_pro_feature2">
-									Toutes les fonctions de base
-								</li>
-								<li data-i18n="plan_pro_feature3">Rapports et statistiques</li>
-								<li data-i18n="plan_pro_feature4">Paiements en ligne (Stripe)</li>
-								<li data-i18n="plan_pro_feature5">Notifications par courriel</li>
-								<li data-i18n="plan_pro_feature6">Gestion des documents</li>
-								<li data-i18n="plan_pro_feature7">Support prioritaire</li>
-							</ul>
-							<div class="pricing-cta">
-								<button
-									type="button"
-									class="btn-primary"
-									data-open-demo-modal
-									data-i18n="plan_pro_cta"
-								>
-									Demander une démo
-								</button>
-							</div>
-						</div>
+                                                <article class="solution-card featured">
+                                                        <div class="solution-header">
+                                                                <h3 data-i18n="solution2_title">Suivi terrain</h3>
+                                                                <p class="solution-note" data-i18n="solution2_note">Présences, progrès et ressources synchronisés sur mobile.</p>
+                                                        </div>
+                                                        <ul class="solution-features">
+                                                                <li data-i18n="solution2_feature1">Badges, honneurs et points</li>
+                                                                <li data-i18n="solution2_feature2">Présences et observations en direct</li>
+                                                                <li data-i18n="solution2_feature3">Tableaux de bord ressources et réservations</li>
+                                                                <li data-i18n="solution2_feature4">Notifications et annonces ciblées</li>
+                                                                <li data-i18n="solution2_feature5">Documents et fiches santé centralisés</li>
+                                                        </ul>
+                                                        <div class="solution-cta">
+                                                                <button type="button" class="btn-primary" data-open-demo-modal data-i18n="solution_cta">
+                                                                        Voir la démo
+                                                                </button>
+                                                        </div>
+                                                </article>
 
-						<!-- Council Plan -->
-						<div class="pricing-card">
-							<div class="pricing-header">
-								<h3 data-i18n="plan_council_name">District</h3>
-								<div class="price">
-									99$<span class="price-period" data-i18n="plan_council_period"
-										>/mois</span
-									>
-								</div>
-								<div class="price-note" data-i18n="plan_council_note">
-									Pour les conseils et districts
-								</div>
-							</div>
-							<ul class="pricing-features">
-								<li data-i18n="plan_council_feature1">Multi-organisations</li>
-								<li data-i18n="plan_council_feature2">
-									Toutes les fonctions Pro
-								</li>
-								<li data-i18n="plan_council_feature3">
-									Tableau de bord district
-								</li>
-								<li data-i18n="plan_council_feature4">Rapports consolidés</li>
-								<li data-i18n="plan_council_feature5">Accès API</li>
-								<li data-i18n="plan_council_feature6">Domaine personnalisé</li>
-								<li data-i18n="plan_council_feature7">
-									Gestionnaire de compte dédié
-								</li>
-							</ul>
-							<div class="pricing-cta">
-								<a
-									class="btn-secondary"
-									href="mailto:rama@meute6a.app?subject=Plan District"
-									data-i18n="plan_council_cta"
-									>Contacter les ventes</a
-								>
-							</div>
-						</div>
-					</div>
-				</section>
-
-				<!-- Features Section -->
+                                                <article class="solution-card">
+                                                        <div class="solution-header">
+                                                                <h3 data-i18n="solution3_title">Vue direction</h3>
+                                                                <p class="solution-note" data-i18n="solution3_note">Indicateurs, budgets et conformité pour chaque organisation.</p>
+                                                        </div>
+                                                        <ul class="solution-features">
+                                                                <li data-i18n="solution3_feature1">Rapports consolidés par groupe</li>
+                                                                <li data-i18n="solution3_feature2">Gestion des budgets et dépenses</li>
+                                                                <li data-i18n="solution3_feature3">Journal des communications et alertes</li>
+                                                                <li data-i18n="solution3_feature4">Exports sécurisés pour les conseils</li>
+                                                                <li data-i18n="solution3_feature5">Accès API et domaine personnalisé</li>
+                                                        </ul>
+                                                        <div class="solution-cta">
+                                                                <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
+                                                                        Voir la démo
+                                                                </button>
+                                                        </div>
+                                                </article>
+                                        </div>
+                                </section>
+<!-- Features Section -->
 				<section class="section" id="features">
 					<h2 data-i18n="features_title">
 						Fonctions concues pour les unites scoutes
@@ -448,7 +388,7 @@
 								<li>
 									<span class="dot" aria-hidden="true"></span
 									><span data-i18n="weekly_step3_item2"
-										>Mettez a jour les inventaires, les paiements et les
+										>Mettez a jour les inventaires, les budgets et les
 										documents.</span
 									>
 								</li>
@@ -498,42 +438,30 @@
 				<section class="section" id="faq">
 					<h2 data-i18n="faq_title">Questions frequentes</h2>
 					<div class="faq-grid">
-						<div class="faq-item">
-							<h4 data-i18n="faq1_question">
-								Puis-je changer de plan a tout moment?
-							</h4>
-							<p data-i18n="faq1_answer">
-								Oui! Vous pouvez passer a un plan superieur ou inferieur a tout
-								moment. Les changements prennent effet immediatement.
-							</p>
-						</div>
-						<div class="faq-item">
-							<h4 data-i18n="faq2_question">Y a-t-il un engagement minimum?</h4>
-							<p data-i18n="faq2_answer">
-								Non, tous nos plans sont sans engagement. Vous pouvez annuler a
-								tout moment sans frais.
-							</p>
-						</div>
-						<div class="faq-item">
-							<h4 data-i18n="faq3_question">
-								Comment fonctionnent les paiements en ligne?
-							</h4>
-							<p data-i18n="faq3_answer">
-								Nous utilisons Stripe pour traiter les paiements de facon
-								securisee. Les parents peuvent payer les frais directement en
-								ligne.
-							</p>
-						</div>
-						<div class="faq-item">
-							<h4 data-i18n="faq4_question">
-								Mes donnees sont-elles securisees?
-							</h4>
-							<p data-i18n="faq4_answer">
-								Absolument. Nous utilisons le chiffrement SSL, des sauvegardes
-								automatiques et respectons les normes de confidentialite
-								canadiennes.
-							</p>
-						</div>
+                                                <div class="faq-item">
+                                                        <h4 data-i18n="faq4_question">
+                                                                Mes donnees sont-elles securisees?
+                                                        </h4>
+                                                        <p data-i18n="faq4_answer">
+                                                                Absolument. Nous utilisons le chiffrement SSL, des sauvegardes
+                                                                automatiques et respectons les normes de confidentialite
+                                                                canadiennes.
+                                                        </p>
+                                                </div>
+                                                <div class="faq-item">
+                                                        <h4 data-i18n="faq2_question">Peut-on travailler en francais et en anglais?</h4>
+                                                        <p data-i18n="faq2_answer">
+                                                                Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptes aux realites locales.
+                                                        </p>
+                                                </div>
+                                                <div class="faq-item">
+                                                        <h4 data-i18n="faq3_question">
+                                                                Comment l’equipe reste-t-elle alignee chaque semaine?
+                                                        </h4>
+                                                        <p data-i18n="faq3_answer">
+                                                                Les preparations de reunions, rappels et tableaux de bord ressources gardent activites, materiel et autorisations synchronises.
+                                                        </p>
+                                                </div>
 					</div>
 				</section>
 

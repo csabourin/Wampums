@@ -7,7 +7,7 @@
     <title>Wampums — Scout management (bilingual)</title>
     <meta
       name="description"
-      content="Bilingual, mobile-first scout unit management: plan weekly meetings, track attendance and badge progress, manage documents and payments, and keep parents informed."
+      content="Bilingual, mobile-first scout unit management: plan weekly meetings, track attendance and badge progress, manage documents, equipment, and keep parents informed."
     />
 
     <!-- Canonical -->
@@ -30,7 +30,7 @@
     <meta property="og:title" content="Wampums — Scout management (bilingual)" />
     <meta
       property="og:description"
-      content="Plan meetings, track attendance and badges, manage documents and payments, and keep parents informed."
+      content="Plan meetings, track attendance and badges, manage documents, equipment, and keep parents informed."
     />
     <meta
       property="og:image"
@@ -52,7 +52,7 @@
     />
 
     <!-- PWA -->
-    <meta name="theme-color" content="#4c65ae" />
+    <meta name="theme-color" content="#0f7a5a" />
     <link rel="manifest" href="/manifest.json" />
 
     <link rel="stylesheet" href="/landing.css" />
@@ -75,64 +75,33 @@
             "operatingSystem": "Web",
             "url": "https://wampums.app/en/",
             "inLanguage": ["en-CA", "fr-CA"],
-            "description": "Bilingual, mobile-first scout unit management: plan weekly meetings, track attendance and badge progress, manage documents and payments, and keep parents informed.",
-            "offers": [
-              {
-                "@type": "Offer",
-                "name": "Starter",
-                "price": "0",
-                "priceCurrency": "CAD",
-                "url": "https://wampums.app/en/#pricing"
-              },
-              {
-                "@type": "Offer",
-                "name": "Professional",
-                "price": "29",
-                "priceCurrency": "CAD",
-                "url": "https://wampums.app/en/#pricing"
-              },
-              {
-                "@type": "Offer",
-                "name": "District",
-                "price": "99",
-                "priceCurrency": "CAD",
-                "url": "https://wampums.app/en/#pricing"
-              }
-            ]
+            "description": "Bilingual, mobile-first scout unit management: plan meetings, track attendance and badge progress, manage documents, equipment, and keep parents informed."
           },
           {
             "@type": "FAQPage",
             "mainEntity": [
               {
                 "@type": "Question",
-                "name": "Can I switch plans anytime?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "Yes. You can upgrade or downgrade at any time and changes take effect immediately."
-                }
-              },
-              {
-                "@type": "Question",
-                "name": "Is there a minimum commitment?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "No. All plans are commitment-free and you can cancel anytime."
-                }
-              },
-              {
-                "@type": "Question",
-                "name": "How do online payments work?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "We use Stripe to process payments securely so families can pay fees online."
-                }
-              },
-              {
-                "@type": "Question",
                 "name": "Is my data secure?",
                 "acceptedAnswer": {
                   "@type": "Answer",
                   "text": "We use HTTPS (TLS), backups, and role-based access controls."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can we work in English and French?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Communications, forms, and dashboards are bilingual and tuned for local needs."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How does the team stay aligned each week?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync."
                 }
               }
             ]
@@ -183,14 +152,14 @@
             </div>
 
             <div class="actions">
-              <a class="btn-primary" href="#pricing">View plans</a>
+              <button type="button" class="btn-primary" data-open-demo-modal>See a demo</button>
               <a class="btn-secondary" href="#features">Explore features</a>
             </div>
           </div>
 
           <div class="card" aria-label="Feature snapshot" tabindex="0">
             <h3>All-in-one for your unit</h3>
-            <p class="meta">Track members, meetings, badges, documents and payments.</p>
+            <p class="meta">Track members, meetings, badges, documents, and safety.</p>
 
             <div class="stats" aria-label="Key indicators">
               <div class="stat">
@@ -212,93 +181,71 @@
     </header>
 
     <main id="main">
-      <!-- Pricing -->
-      <section class="section section-center" id="pricing">
-        <h2>Plans that fit your group</h2>
-        <p>Start free and scale as you grow. No credit card required.</p>
+      <section class="section section-center" id="solutions">
+        <h2 data-i18n="solutions_title">Built for modern scout leadership</h2>
+        <p data-i18n="solutions_body">
+          Prepare, deliver, and follow up on meetings with clear dashboards for leaders and families.
+        </p>
 
-        <div class="pricing-grid">
-          <!-- Starter -->
-          <div class="pricing-card">
-            <div class="pricing-header">
-              <h3>Starter</h3>
-              <div class="price">$0</div>
-              <div class="price-period">forever</div>
-              <div class="price-note">Perfect for small groups</div>
+        <div class="solutions-grid">
+          <article class="solution-card">
+            <div class="solution-header">
+              <h3 data-i18n="solution1_title">Weekly prep</h3>
+              <p class="solution-note" data-i18n="solution1_note">Plan activities, teams, and reminders in minutes.</p>
             </div>
-
-            <ul class="pricing-features">
-              <li>Up to 20 scouts</li>
-              <li>Attendance management</li>
-              <li>Badge tracking</li>
-              <li>Meeting calendar</li>
-              <li>Mobile app (PWA)</li>
-              <li class="disabled">Advanced reports</li>
-              <li class="disabled">Online payments</li>
+            <ul class="solution-features">
+              <li data-i18n="solution1_feature1">Shared meeting calendar</li>
+              <li data-i18n="solution1_feature2">Activities, goals, and materials</li>
+              <li data-i18n="solution1_feature3">Assignments by group or role</li>
+              <li data-i18n="solution1_feature4">Automatic parent reminders</li>
+              <li data-i18n="solution1_feature5">Permission collection</li>
             </ul>
-
-            <div class="pricing-cta">
-              <button type="button" class="btn-secondary" data-open-demo-modal>
-                Request a demo
+            <div class="solution-cta">
+              <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
+                View demo
               </button>
             </div>
-          </div>
+          </article>
 
-          <!-- Professional -->
-          <div class="pricing-card featured">
-            <span class="pricing-badge">Popular</span>
-            <div class="pricing-header">
-              <h3>Professional</h3>
-              <div class="price">$29<span class="price-period">/month</span></div>
-              <div class="price-note">For active units</div>
+          <article class="solution-card featured">
+            <div class="solution-header">
+              <h3 data-i18n="solution2_title">On-the-ground tracking</h3>
+              <p class="solution-note" data-i18n="solution2_note">Attendance, progress, and resources synced on mobile.</p>
             </div>
-
-            <ul class="pricing-features">
-              <li>Unlimited scouts</li>
-              <li>All core features</li>
-              <li>Reports & analytics</li>
-              <li>Online payments (Stripe)</li>
-              <li>Email notifications</li>
-              <li>Document management</li>
-              <li>Priority support</li>
+            <ul class="solution-features">
+              <li data-i18n="solution2_feature1">Badges, honors, and points</li>
+              <li data-i18n="solution2_feature2">Live attendance and observations</li>
+              <li data-i18n="solution2_feature3">Resource and reservation dashboards</li>
+              <li data-i18n="solution2_feature4">Targeted notifications and announcements</li>
+              <li data-i18n="solution2_feature5">Centralized documents and health forms</li>
             </ul>
-
-            <div class="pricing-cta">
-              <button type="button" class="btn-primary" data-open-demo-modal>
-                Request a demo
+            <div class="solution-cta">
+              <button type="button" class="btn-primary" data-open-demo-modal data-i18n="solution_cta">
+                View demo
               </button>
             </div>
-          </div>
+          </article>
 
-          <!-- District -->
-          <div class="pricing-card">
-            <div class="pricing-header">
-              <h3>District</h3>
-              <div class="price">$99<span class="price-period">/month</span></div>
-              <div class="price-note">For councils & districts</div>
+          <article class="solution-card">
+            <div class="solution-header">
+              <h3 data-i18n="solution3_title">Leadership view</h3>
+              <p class="solution-note" data-i18n="solution3_note">Insights, budgets, and compliance for every organization.</p>
             </div>
-
-            <ul class="pricing-features">
-              <li>Multi-organization</li>
-              <li>All Professional features</li>
-              <li>District dashboard</li>
-              <li>Consolidated reports</li>
-              <li>API access</li>
-              <li>Custom domain</li>
-              <li>Dedicated account manager</li>
+            <ul class="solution-features">
+              <li data-i18n="solution3_feature1">Consolidated group reporting</li>
+              <li data-i18n="solution3_feature2">Budgeting and expense tracking</li>
+              <li data-i18n="solution3_feature3">Communication journal and alerts</li>
+              <li data-i18n="solution3_feature4">Secure exports for councils</li>
+              <li data-i18n="solution3_feature5">API access and custom domains</li>
             </ul>
-
-            <div class="pricing-cta">
-              <a
-                class="btn-secondary"
-                href="mailto:rama@meute6a.app?subject=District%20Plan"
-                >Contact sales</a
-              >
+            <div class="solution-cta">
+              <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
+                View demo
+              </button>
             </div>
-          </div>
+          </article>
         </div>
       </section>
-
       <!-- Features -->
       <section class="section" id="features">
         <h2>Built for weekly scout units</h2>
@@ -380,7 +327,7 @@
             <h3>After the meeting</h3>
             <ul class="list">
               <li><span class="dot" aria-hidden="true"></span><span>Share a recap with parents and the leadership team.</span></li>
-              <li><span class="dot" aria-hidden="true"></span><span>Update inventory, payments, and documents.</span></li>
+              <li><span class="dot" aria-hidden="true"></span><span>Update inventory, budgets, and documents.</span></li>
               <li><span class="dot" aria-hidden="true"></span><span>Plan the next meeting using the existing template.</span></li>
             </ul>
           </article>
@@ -421,23 +368,18 @@
 
         <div class="faq-grid">
           <div class="faq-item">
-            <h4>Can I switch plans anytime?</h4>
-            <p>Yes. You can upgrade or downgrade at any time and changes take effect immediately.</p>
-          </div>
-
-          <div class="faq-item">
-            <h4>Is there a minimum commitment?</h4>
-            <p>No. All plans are commitment-free and you can cancel anytime.</p>
-          </div>
-
-          <div class="faq-item">
-            <h4>How do online payments work?</h4>
-            <p>We use Stripe to process payments securely. Families can pay fees online.</p>
-          </div>
-
-          <div class="faq-item">
             <h4>Is my data secure?</h4>
             <p>We use HTTPS (TLS), backups, and role-based access controls.</p>
+          </div>
+
+          <div class="faq-item">
+            <h4>Can we work in English and French?</h4>
+            <p>Yes. Communications, forms, and dashboards are bilingual and tuned for local needs.</p>
+          </div>
+
+          <div class="faq-item">
+            <h4>How does the team stay aligned each week?</h4>
+            <p>Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync.</p>
           </div>
         </div>
       </section>

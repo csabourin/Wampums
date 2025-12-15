@@ -1,19 +1,19 @@
 :root {
-	--color-primary: #4c65ae;
-	--color-primary-dark: #3a4f8a;
-	--color-secondary: #f4f4f4;
-	--color-text: #111827;
-	--color-text-muted: #4b5563;
-	--color-surface: #ffffff;
-	--color-border: #e5e7eb;
-	--color-highlight: #f2f6ff;
-	--color-success: #10b981;
-	--color-accent: #f59e0b;
-	--shadow-card: 0 10px 25px rgb(17 24 39 / 0.08);
-	--shadow-card-hover: 0 20px 40px rgb(17 24 39 / 0.12);
-	--radius-lg: 1rem;
-	--radius-md: 0.75rem;
-	--space-2xs: 0.35rem;
+        --color-primary: #0f7a5a;
+        --color-primary-dark: #0b5b43;
+        --color-secondary: #e7f2ee;
+        --color-text: #1d2f2a;
+        --color-text-muted: #47665d;
+        --color-surface: #ffffff;
+        --color-border: #d3e3dc;
+        --color-highlight: #f7fbf9;
+        --color-success: #1a8f6b;
+        --color-accent: #f1b746;
+        --shadow-card: 0 10px 25px rgb(15 122 90 / 0.08);
+        --shadow-card-hover: 0 20px 40px rgb(15 122 90 / 0.12);
+        --radius-lg: 1rem;
+        --radius-md: 0.75rem;
+        --space-2xs: 0.35rem;
 	--space-xs: 0.5rem;
 	--space-sm: 0.75rem;
 	--space-md: 1rem;
@@ -36,8 +36,8 @@ body {
 		system-ui,
 		-apple-system,
 		sans-serif;
-	background: #f8fafc;
-	color: var(--color-text);
+        background: radial-gradient(circle at 18% 20%, #f1f7f3 0%, #f7fbf9 35%, #f3f7f4 100%);
+        color: var(--color-text);
 	line-height: 1.6;
 }
 
@@ -80,11 +80,11 @@ a {
 
 
 header {
-	background:
-		radial-gradient(circle at 10% 20%, #e9edfb, #f8fafc 40%),
-		linear-gradient(135deg, #fff 0%, #f0f4ff 100%);
-	padding: var(--space-lg) var(--space-md) var(--space-xl);
-	border-bottom: 1px solid var(--color-border);
+        background:
+                radial-gradient(circle at 10% 20%, #e7f2ee, #f7fbf9 40%),
+                linear-gradient(135deg, #fff 0%, #e9f4ef 100%);
+        padding: var(--space-lg) var(--space-md) var(--space-xl);
+        border-bottom: 1px solid var(--color-border);
 }
 
 .shell {
@@ -371,45 +371,45 @@ main {
 	color: var(--color-primary-dark);
 }
 
-/* Pricing Section */
-.pricing-grid {
-	display: grid;
-	gap: var(--space-lg);
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-	margin-top: var(--space-xl);
+/* Solutions Section */
+.solutions-grid {
+        display: grid;
+        gap: var(--space-lg);
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        margin-top: var(--space-xl);
 }
 
-.pricing-card {
-	background: var(--color-surface);
-	border: 2px solid var(--color-border);
-	border-radius: var(--radius-lg);
+.solution-card {
+        background: var(--color-surface);
+        border: 2px solid var(--color-border);
+        border-radius: var(--radius-lg);
 	padding: var(--space-xl);
 	display: flex;
 	flex-direction: column;
 	gap: var(--space-md);
 	box-shadow: var(--shadow-card);
 	transition: all 0.3s ease;
-	position: relative;
+        position: relative;
 }
 
-.pricing-card:hover {
-	transform: translateY(-4px);
-	box-shadow: var(--shadow-card-hover);
+.solution-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-card-hover);
 }
 
-.pricing-card.featured {
-	border-color: var(--color-primary);
-	transform: scale(1.02);
+.solution-card.featured {
+        border-color: var(--color-primary);
+        transform: scale(1.02);
 }
 
-.pricing-card.featured:hover {
-	transform: scale(1.02) translateY(-4px);
+.solution-card.featured:hover {
+        transform: scale(1.02) translateY(-4px);
 }
 
-.pricing-badge {
-	position: absolute;
-	top: -12px;
-	left: 50%;
+.solution-badge {
+        position: absolute;
+        top: -12px;
+        left: 50%;
 	transform: translateX(-50%);
 	background: var(--color-primary);
 	color: #fff;
@@ -417,80 +417,67 @@ main {
 	border-radius: var(--radius-full, 999px);
 	font-size: 0.85rem;
 	font-weight: 700;
-	white-space: nowrap;
+        white-space: nowrap;
 }
 
-.pricing-header {
-	text-align: center;
-	padding-bottom: var(--space-md);
-	border-bottom: 1px solid var(--color-border);
+.solution-header {
+        text-align: center;
+        padding-bottom: var(--space-md);
+        border-bottom: 1px solid var(--color-border);
 }
 
-.pricing-header h3 {
-	margin: 0 0 var(--space-xs);
-	font-size: 1.3rem;
-	color: var(--color-primary-dark);
+.solution-header h3 {
+        margin: 0 0 var(--space-xs);
+        font-size: 1.3rem;
+        color: var(--color-primary-dark);
 }
 
-.pricing-header .price {
-	font-size: 2.5rem;
-	font-weight: 800;
-	color: var(--color-text);
-	line-height: 1.2;
+.solution-note {
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+        margin-top: var(--space-xs);
 }
 
-.pricing-header .price-period {
-	font-size: 1rem;
-	font-weight: 500;
-	color: var(--color-text-muted);
+.solution-features {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        flex: 1;
 }
 
-.pricing-header .price-note {
-	font-size: 0.85rem;
-	color: var(--color-text-muted);
-	margin-top: var(--space-xs);
+.solution-features li {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-sm);
+        padding: var(--space-xs) 0;
+        font-size: 0.95rem;
 }
 
-.pricing-features {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-	flex: 1;
+.solution-features li::before {
+        content: "✓";
+        color: var(--color-success);
+        font-weight: 700;
+        flex-shrink: 0;
 }
 
-.pricing-features li {
-	display: flex;
-	align-items: flex-start;
-	gap: var(--space-sm);
-	padding: var(--space-xs) 0;
-	font-size: 0.95rem;
+.solution-features li.disabled {
+        color: var(--color-text-muted);
+        text-decoration: line-through;
 }
 
-.pricing-features li::before {
-	content: "✓";
-	color: var(--color-success);
-	font-weight: 700;
-	flex-shrink: 0;
+.solution-features li.disabled::before {
+        content: "—";
+        color: var(--color-text-muted);
 }
 
-.pricing-features li.disabled {
-	color: var(--color-text-muted);
-	text-decoration: line-through;
+.solution-cta {
+        margin-top: auto;
 }
 
-.pricing-features li.disabled::before {
-	content: "—";
-	color: var(--color-text-muted);
-}
-
-.pricing-cta {
-	margin-top: auto;
-}
-
-.pricing-cta .btn-primary,
-.pricing-cta .btn-secondary {
-	width: 100%;
-	display: block;
+.solution-cta .btn-primary,
+.solution-cta .btn-secondary {
+        width: 100%;
+        display: block;
 }
 
 /* FAQ Section */
@@ -581,9 +568,9 @@ footer a {
 }
 
 @media (min-width: 900px) {
-	.pricing-grid {
-		grid-template-columns: repeat(3, 1fr);
-	}
+        .solutions-grid {
+                grid-template-columns: repeat(3, 1fr);
+        }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -290,6 +290,15 @@ export class Dashboard {
   </div>
 </section>
 
+<!-- OPERATIONS -->
+<section class="dashboard-section">
+  <h3>${translate("dashboard_operations_section")}</h3>
+  <div class="manage-items">
+    <a href="/resources"><i class="fa-solid fa-boxes-stacked"></i><span>${translate("resource_dashboard_link")}</span></a>
+    <a href="/permission-slips"><i class="fa-solid fa-file-shield"></i><span>${translate("permission_slip_dashboard_link")}</span></a>
+  </div>
+</section>
+
 <!-- FINANCE & BUDGET -->
 <section class="dashboard-section">
   <h3>${translate("dashboard_finance_section")}</h3>
