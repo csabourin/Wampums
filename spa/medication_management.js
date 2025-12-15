@@ -110,6 +110,18 @@ export class MedicationManagement {
         border-radius: 10px;
       }
 
+      .frequency-time-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.5rem;
+      }
+
+      .slot-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
       .participant-pill textarea {
         width: 100%;
         min-height: 48px;
@@ -188,6 +200,286 @@ export class MedicationManagement {
     document.head.appendChild(style);
   }
 
+  /**
+   * Generate the HTML block for frequency preset inputs.
+   * @param {string} presetType
+   * @returns {string}
+   */
+  getFrequencyPresetFieldsMarkup(presetType = "time_of_day") {
+    const mealSlots = this.getMealSlots();
+    if (presetType === "interval") {
+      return `
+        <span>${escapeHTML(translate("medication_frequency_interval_label"))}</span>
+        <div class="frequency-time-grid">
+          <label class="slot-label">
+            <input type="number" name="frequency_interval_hours" min="1" step="1" value="6" aria-label="${escapeHTML(translate("medication_frequency_interval_hours"))}" />
+            <span>${escapeHTML(translate("medication_frequency_interval_hours"))}</span>
+          </label>
+          <label class="slot-label">
+            <input type="time" name="frequency_interval_start" value="08:00" aria-label="${escapeHTML(translate("medication_frequency_anchor_time"))}" />
+            <span>${escapeHTML(translate("medication_frequency_anchor_time"))}</span>
+          </label>
+        </div>
+        <p class="help-text">${escapeHTML(translate("medication_frequency_interval_hint"))}</p>
+      `;
+    }
+
+    if (presetType === "meal") {
+      return `
+        <span>${escapeHTML(translate("medication_frequency_meal_label"))}</span>
+        <div class="participant-grid">
+          ${mealSlots
+            .map(
+              (slot) => `
+                <label class="participant-pill" style="align-items:center;">
+                  <input type="checkbox" name="frequency_meal_${slot.key}" value="${slot.key}" checked />
+                  <span>${escapeHTML(translate(slot.labelKey))}</span>
+                  <input type="time" name="frequency_meal_${slot.key}_time" value="${slot.defaultTime}" aria-label="${escapeHTML(translate(slot.labelKey))}" />
+                </label>
+              `
+            )
+            .join("")}
+        </div>
+        <p class="help-text">${escapeHTML(translate("medication_frequency_meal_hint"))}</p>
+      `;
+    }
+
+    if (presetType === "prn") {
+      return `<p class="help-text">${escapeHTML(translate("medication_frequency_prn_hint"))}</p>`;
+    }
+
+    return `
+      <span>${escapeHTML(translate("medication_frequency_time_of_day_label"))}</span>
+      <div class="frequency-time-grid">
+        <input type="time" name="frequency_times" value="08:00" aria-label="${escapeHTML(translate("medication_frequency_time_one"))}" />
+        <input type="time" name="frequency_times" value="12:00" aria-label="${escapeHTML(translate("medication_frequency_time_two"))}" />
+        <input type="time" name="frequency_times" value="20:00" aria-label="${escapeHTML(translate("medication_frequency_time_three"))}" />
+      </div>
+      <p class="help-text">${escapeHTML(translate("medication_frequency_time_of_day_hint"))}</p>
+    `;
+  }
+
+  /**
+   * Normalize time values to HH:MM.
+   * @param {string|null} value
+   * @returns {string|null}
+   */
+  normalizeTimeValue(value) {
+    if (!value || typeof value !== "string") {
+      return null;
+    }
+    const [hour, minute] = value.split(":").map((part) => Number(part));
+    if (Number.isNaN(hour) || Number.isNaN(minute)) {
+      return null;
+    }
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  getMealSlots() {
+    return [
+      { key: "breakfast", labelKey: "medication_frequency_breakfast", defaultTime: "08:00" },
+      { key: "lunch", labelKey: "medication_frequency_lunch", defaultTime: "12:00" },
+      { key: "dinner", labelKey: "medication_frequency_dinner", defaultTime: "18:00" },
+      { key: "bedtime", labelKey: "medication_frequency_bedtime", defaultTime: "21:00" }
+    ];
+  }
+
+  /**
+   * Build a structured frequency configuration from the requirement form.
+   * @param {FormData} formData
+   */
+  buildFrequencyConfigFromForm(formData) {
+    const presetType = formData.get("frequency_preset_type") || "time_of_day";
+    const config = { type: presetType, times: [], slots: {}, intervalHours: null, intervalStart: null };
+
+    if (presetType === "interval") {
+      config.intervalHours = formData.get("frequency_interval_hours") ? Number(formData.get("frequency_interval_hours")) : null;
+      config.intervalStart = this.normalizeTimeValue(formData.get("frequency_interval_start")) || null;
+      config.times = this.computeIntervalTimes(config.intervalStart || "08:00", config.intervalHours || 1);
+    } else if (presetType === "meal") {
+      this.getMealSlots().forEach((slot) => {
+        if (formData.get(`frequency_meal_${slot.key}`)) {
+          const slotTime = this.normalizeTimeValue(formData.get(`frequency_meal_${slot.key}_time`)) || slot.defaultTime;
+          config.slots[slot.key] = slotTime;
+          config.times.push(slotTime);
+        }
+      });
+    } else if (presetType === "time_of_day") {
+      config.times = formData
+        .getAll("frequency_times")
+        .map((value) => this.normalizeTimeValue(value))
+        .filter(Boolean);
+    }
+
+    config.text = this.buildFrequencyText(config);
+    return config;
+  }
+
+  buildFrequencyText(config) {
+    if (config.type === "interval" && config.intervalHours) {
+      return translate("medication_frequency_interval_text").replace("{hours}", config.intervalHours);
+    }
+    if (config.type === "meal" && config.times.length) {
+      return translate("medication_frequency_meal_text");
+    }
+    if (config.type === "time_of_day" && config.times.length) {
+      return translate("medication_frequency_time_of_day_text");
+    }
+    return translate("medication_frequency_prn_text");
+  }
+
+  /**
+   * Compute interval times within a 24-hour window.
+   * @param {string} startTime
+   * @param {number} intervalHours
+   * @returns {string[]}
+   */
+  computeIntervalTimes(startTime, intervalHours) {
+    const normalizedStart = this.normalizeTimeValue(startTime) || "08:00";
+    const hours = intervalHours && intervalHours > 0 ? intervalHours : 1;
+    const [startHour, startMinute] = normalizedStart.split(":").map((value) => Number(value));
+    const anchor = new Date();
+    anchor.setHours(startHour, startMinute, 0, 0);
+    const times = [];
+    const cutoff = new Date(anchor.getTime() + 24 * 60 * 60 * 1000);
+    let cursor = new Date(anchor);
+    while (cursor < cutoff && times.length < 12) {
+      times.push(`${String(cursor.getHours()).padStart(2, "0")}:${String(cursor.getMinutes()).padStart(2, "0")}`);
+      cursor = new Date(cursor.getTime() + hours * 60 * 60 * 1000);
+    }
+    return Array.from(new Set(times));
+  }
+
+  buildDateTimeISO(date, time) {
+    const normalizedTime = this.normalizeTimeValue(time) || "00:00";
+    return `${date}T${normalizedTime}:00`;
+  }
+
+  getRequirementFrequencyConfig(requirement) {
+    if (!requirement) {
+      return {};
+    }
+    let times = [];
+    if (Array.isArray(requirement.frequency_times)) {
+      times = requirement.frequency_times;
+    } else if (typeof requirement.frequency_times === "string") {
+      const trimmed = requirement.frequency_times.trim();
+      if (trimmed.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            times = parsed;
+          }
+        } catch (error) {
+          debugError("Unable to parse frequency_times", error);
+        }
+      } else {
+        times = trimmed
+          .split(",")
+          .map((value) => this.normalizeTimeValue(value))
+          .filter(Boolean);
+      }
+    }
+
+    const slots = typeof requirement.frequency_slots === "object" && requirement.frequency_slots !== null
+      ? requirement.frequency_slots
+      : {};
+
+    return {
+      type: requirement.frequency_preset_type || requirement.frequency_type || null,
+      times: times.filter(Boolean),
+      slots,
+      intervalHours: requirement.frequency_interval_hours || null,
+      intervalStart: requirement.frequency_interval_start || null,
+      text: requirement.frequency_text || null
+    };
+  }
+
+  buildSlotsForRequirement(requirement, date, anchorTime) {
+    if (!requirement) {
+      return [];
+    }
+    const config = this.getRequirementFrequencyConfig(requirement);
+    const selectedDate = date || getTodayISO();
+    const slots = [];
+
+    if (config.type === "interval" && config.intervalHours) {
+      const intervalTimes = this.computeIntervalTimes(config.intervalStart || anchorTime, config.intervalHours);
+      intervalTimes.forEach((time) => {
+        slots.push({
+          key: `interval-${time}`,
+          iso: this.buildDateTimeISO(selectedDate, time),
+          label: translate("medication_frequency_interval_slot").replace("{time}", time)
+        });
+      });
+    } else if (config.type === "meal") {
+      const slotMap = Object.keys(config.slots).length ? config.slots : this.getMealSlots().reduce((map, slot) => {
+        map[slot.key] = slot.defaultTime;
+        return map;
+      }, {});
+      Object.entries(slotMap).forEach(([slotKey, time]) => {
+        slots.push({
+          key: `meal-${slotKey}`,
+          iso: this.buildDateTimeISO(selectedDate, time),
+          label: translate(`medication_frequency_${slotKey}`)
+        });
+      });
+    } else if (config.type === "time_of_day" && config.times?.length) {
+      config.times.forEach((time, index) => {
+        slots.push({
+          key: `time-${index}-${time}`,
+          iso: this.buildDateTimeISO(selectedDate, time),
+          label: translate("medication_frequency_specific_time").replace("{time}", time)
+        });
+      });
+    }
+
+    return slots;
+  }
+
+  renderScheduleFrequencyHelper() {
+    const requirementSelect = document.getElementById("medicationRequirementSelect");
+    const requirementId = requirementSelect ? Number(requirementSelect.value) : null;
+    const requirement = requirementId ? this.getRequirementById(requirementId) : null;
+    const dateField = document.querySelector("input[name='scheduled_date']");
+    const timeField = document.querySelector("input[name='scheduled_time']");
+    const scheduledDate = dateField?.value || getTodayISO();
+    const anchorTime = timeField?.value || "08:00";
+
+    if (!requirement) {
+      return `<p class="help-text">${escapeHTML(translate("medication_schedule_frequency_helper"))}</p>`;
+    }
+
+    const slots = this.buildSlotsForRequirement(requirement, scheduledDate, anchorTime);
+    if (!slots.length) {
+      return `<p class="help-text">${escapeHTML(translate("medication_schedule_frequency_missing"))}</p>`;
+    }
+
+    return `
+      <span>${escapeHTML(translate("medication_schedule_frequency_label"))}</span>
+      <div class="participant-grid">
+        ${slots
+          .map(
+            (slot) => `
+              <label class="participant-pill" style="align-items:center;">
+                <input type="checkbox" name="schedule_slots" value="${slot.iso}" checked />
+                <span>${escapeHTML(slot.label)}</span>
+              </label>
+            `
+          )
+          .join("")}
+      </div>
+      <p class="help-text">${escapeHTML(translate("medication_schedule_frequency_hint"))}</p>
+    `;
+  }
+
+  updateScheduleFrequencyHelper() {
+    const helper = document.getElementById("scheduleFrequencyHelper");
+    if (helper) {
+      helper.innerHTML = this.renderScheduleFrequencyHelper();
+    }
+  }
+
   render() {
     const container = document.getElementById("app");
     if (!container) {
@@ -231,8 +523,16 @@ export class MedicationManagement {
             </label>
             <label class="field-group">
               <span>${escapeHTML(translate("medication_frequency_label"))}</span>
-              <input type="text" name="frequency_text" maxlength="120" placeholder="${escapeHTML(translate("frequency"))}" />
+              <select name="frequency_preset_type" id="frequencyPreset" required>
+                <option value="interval">${escapeHTML(translate("medication_frequency_interval"))}</option>
+                <option value="time_of_day" selected>${escapeHTML(translate("medication_frequency_time_of_day"))}</option>
+                <option value="meal">${escapeHTML(translate("medication_frequency_meal"))}</option>
+                <option value="prn">${escapeHTML(translate("medication_frequency_prn"))}</option>
+              </select>
             </label>
+            <div class="field-group" id="frequencyPresetFields" style="grid-column: 1 / -1;">
+              ${this.getFrequencyPresetFieldsMarkup("time_of_day")}
+            </div>
             <label class="field-group">
               <span>${escapeHTML(translate("medication_route_label"))}</span>
               <input type="text" name="route" maxlength="120" />
@@ -280,6 +580,7 @@ export class MedicationManagement {
             <label class="field-group">
               <span>${escapeHTML(translate("medication_schedule_time"))}</span>
               <input type="time" name="scheduled_time" value="${timeValue}" required />
+              <p class="help-text">${escapeHTML(translate("medication_schedule_time_hint"))}</p>
             </label>
             <label class="field-group">
               <span>${escapeHTML(translate("medication_requirement_form_title"))}</span>
@@ -288,6 +589,9 @@ export class MedicationManagement {
                 ${requirementOptions}
               </select>
             </label>
+            <div class="field-group" id="scheduleFrequencyHelper" style="grid-column: 1 / -1;">
+              ${this.renderScheduleFrequencyHelper()}
+            </div>
             <label class="field-group">
               <span>${escapeHTML(translate("participants"))}</span>
               <select name="distribution_participants" id="distributionParticipants" multiple required>
@@ -362,6 +666,7 @@ export class MedicationManagement {
     `;
 
     this.renderAlertArea();
+    this.updateScheduleFrequencyHelper();
   }
 
   /**
@@ -460,14 +765,28 @@ export class MedicationManagement {
     const scheduleForm = document.getElementById("medicationScheduleForm");
     const requirementSelect = document.getElementById("medicationRequirementSelect");
     const alertContainer = document.getElementById("medication-alerts");
+    const frequencyPresetSelect = document.getElementById("frequencyPreset");
+    const scheduleDateField = document.querySelector("input[name='scheduled_date']");
+    const scheduleTimeField = document.querySelector("input[name='scheduled_time']");
 
     requirementForm?.addEventListener("submit", (event) => this.handleRequirementSubmit(event));
     scheduleForm?.addEventListener("submit", (event) => this.handleScheduleSubmit(event));
 
+    frequencyPresetSelect?.addEventListener("change", (event) => {
+      const container = document.getElementById("frequencyPresetFields");
+      if (container) {
+        container.innerHTML = this.getFrequencyPresetFieldsMarkup(event.target.value);
+      }
+    });
+
     requirementSelect?.addEventListener("change", (event) => {
       const requirementId = Number(event.target.value);
       this.prefillFromRequirement(requirementId);
+      this.updateScheduleFrequencyHelper();
     });
+
+    scheduleDateField?.addEventListener("change", () => this.updateScheduleFrequencyHelper());
+    scheduleTimeField?.addEventListener("change", () => this.updateScheduleFrequencyHelper());
 
     alertContainer?.addEventListener("click", (event) => {
       const prefillSlot = event.target.closest("[data-prefill-slot]");
@@ -532,6 +851,8 @@ export class MedicationManagement {
         option.selected = participantIds.includes(Number(option.value));
       });
     }
+
+    this.updateScheduleFrequencyHelper();
   }
 
   async handleRequirementSubmit(event) {
@@ -539,6 +860,7 @@ export class MedicationManagement {
     const form = event.target;
     const formData = new FormData(form);
     const participantIds = Array.from(formData.getAll("participant_ids"), (id) => Number(id)).filter(Boolean);
+    const frequencyConfig = this.buildFrequencyConfigFromForm(formData);
 
     if (!formData.get("medication_name") || participantIds.length === 0) {
       this.app.showMessage(translate("medication_requirement_fields_missing"), "warning");
@@ -548,7 +870,12 @@ export class MedicationManagement {
     const payload = {
       medication_name: formData.get("medication_name")?.trim(),
       dosage_instructions: formData.get("dosage_instructions")?.trim() || null,
-      frequency_text: formData.get("frequency_text")?.trim() || null,
+      frequency_text: frequencyConfig.text,
+      frequency_preset_type: frequencyConfig.type,
+      frequency_times: frequencyConfig.times,
+      frequency_slots: frequencyConfig.slots,
+      frequency_interval_hours: frequencyConfig.intervalHours,
+      frequency_interval_start: frequencyConfig.intervalStart,
       route: formData.get("route")?.trim() || null,
       default_dose_amount: formData.get("default_dose_amount") ? Number(formData.get("default_dose_amount")) : null,
       default_dose_unit: formData.get("default_dose_unit")?.trim() || null,
@@ -580,26 +907,36 @@ export class MedicationManagement {
     const form = event.target;
     const formData = new FormData(form);
     const participantIds = Array.from(formData.getAll("distribution_participants"), (id) => Number(id)).filter(Boolean);
+    const requirementId = Number(formData.get("medication_requirement_id"));
+    const requirement = this.getRequirementById(requirementId);
+    const frequencyConfig = this.getRequirementFrequencyConfig(requirement);
 
     if (!formData.get("medication_requirement_id") || !formData.get("scheduled_date") || !formData.get("scheduled_time") || participantIds.length === 0) {
       this.app.showMessage(translate("medication_distribution_fields_missing"), "warning");
       return;
     }
 
-    const scheduledFor = `${formData.get("scheduled_date")}T${formData.get("scheduled_time")}:00`;
+    const scheduledDate = formData.get("scheduled_date");
+    const anchorTime = formData.get("scheduled_time");
+    const slotSelections = Array.from(formData.getAll("schedule_slots"));
+    const timesToSchedule = (slotSelections.length ? slotSelections : [this.buildDateTimeISO(scheduledDate, anchorTime)])
+      .filter(Boolean);
 
-    const payload = {
-      medication_requirement_id: Number(formData.get("medication_requirement_id")),
+    const payloads = Array.from(new Set(timesToSchedule)).map((scheduledFor) => ({
+      medication_requirement_id: requirementId,
       participant_ids: participantIds,
       scheduled_for: scheduledFor,
       activity_name: formData.get("activity_name")?.trim() || null,
       dose_notes: formData.get("dose_notes")?.trim() || null,
       witness_name: formData.get("witness_name")?.trim() || null,
-      general_notice: formData.get("dose_notes")?.trim() || null
-    };
+      general_notice: formData.get("dose_notes")?.trim() || null,
+      frequency_text: frequencyConfig.text || requirement?.frequency_text || null,
+      frequency_preset_type: frequencyConfig.type || null,
+      frequency_times: frequencyConfig.times?.length ? frequencyConfig.times : null
+    }));
 
     try {
-      await recordMedicationDistribution(payload);
+      await Promise.all(payloads.map((payload) => recordMedicationDistribution(payload)));
       this.app.showMessage(translate("medication_distribution_saved"), "success");
       await this.refreshData();
       this.render();
