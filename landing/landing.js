@@ -474,53 +474,18 @@ demoForm.addEventListener("submit", async (e) => {
 			body: JSON.stringify(formData),
 		});
 
-		const data = await response.json();
+                const data = await response.json();
 
-		if (response.ok && data.success) {
-			// Show success message
-			formSuccess.classList.add("active");
-			demoForm.style.display = "none";
+                if (response.ok && data.success) {
+                        // Show success message
+                        formSuccess.classList.add("active");
+                        demoForm.style.display = "none";
 
-			// Wait 2 seconds then authenticate and redirect to demo
-			setTimeout(async () => {
-				try {
-					// Authenticate with demo credentials
-					const loginResponse = await fetch(
-						"https://demo.wampums.app/public/login",
-						{
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-							},
-							body: JSON.stringify({
-								email: "akela.demo@demo.com",
-								password: "Aylmer2025",
-							}),
-						},
-					);
-
-					const loginData = await loginResponse.json();
-
-					if (loginResponse.ok && loginData.success && loginData.token) {
-						// Store the token and redirect to the app
-						localStorage.setItem("token", loginData.token);
-						localStorage.setItem("user_role", loginData.user_role);
-						localStorage.setItem("user_full_name", loginData.user_full_name);
-						localStorage.setItem("user_id", loginData.user_id);
-
-						// Redirect to the main app
-						window.location.href = "https://demo.wampums.app/dashboard";
-					} else {
-						// If login fails, just redirect to login page
-						window.location.href = "https://wampums.app/";
-					}
-				} catch (error) {
-					console.error("Error authenticating:", error);
-					// On error, just redirect to login page
-					window.location.href = "https://wampums.app/";
-				}
-			}, 2000);
-		} else {
+                        // Redirect to demo experience after a brief confirmation pause
+                        setTimeout(() => {
+                                window.location.href = "https://demo.wampums.app";
+                        }, 2000);
+                } else {
 			// Show error
 			alert(
 				data.message ||
