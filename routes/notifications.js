@@ -62,7 +62,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/push-subscription',
+  // Accept both legacy and versioned paths to avoid 404s during rollout
+  router.post(['/push-subscription', '/v1/push-subscription'],
     check('endpoint').notEmpty().withMessage('endpoint is required').isURL().withMessage('endpoint must be a valid URL'),
     check('keys.p256dh').notEmpty().withMessage('keys.p256dh is required'),
     check('keys.auth').notEmpty().withMessage('keys.auth is required'),
@@ -112,6 +113,11 @@ module.exports = (pool, logger) => {
       logger.error('Error initiating subscription save:', error);
       res.status(500).json({ error: 'Failed to save subscription' });
     }
+  });
+
+  // Lightweight health check to prevent expensive 404 handling on accidental GET requests
+  router.get(['/push-subscription', '/v1/push-subscription'], (req, res) => {
+    res.status(405).json({ success: false, message: 'Method not allowed. Use POST to register push subscriptions.' });
   });
 
   /**

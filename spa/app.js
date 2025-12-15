@@ -80,7 +80,7 @@ async function sendSubscriptionToServer(subscription) {
                         throw new Error('No token available');
                 }
 
-                const response = await fetch('/api/push-subscription', {
+                const response = await fetch('/api/v1/push-subscription', {
                         method: 'POST',
                         headers: {
                                 'Content-Type': 'application/json',

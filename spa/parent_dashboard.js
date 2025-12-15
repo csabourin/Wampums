@@ -9,7 +9,7 @@ import {
 import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
-import { urlBase64ToUint8Array, hexStringToUint8Array, base64UrlEncode } from './functions.js';
+import { hexStringToUint8Array, base64UrlEncode } from './functions.js';
 import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
 
@@ -717,32 +717,6 @@ renderFormButtons(participant) {
                 }
 
   }
-
-         async registerPushSubscription() {
-                        if ('serviceWorker' in navigator && 'PushManager' in window) {
-                                try {
-                                        const registration = await navigator.serviceWorker.ready;
-                                        const applicationServerKey = urlBase64ToUint8Array(CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY);
-                                        const subscription = await registration.pushManager.subscribe({
-                                                userVisibleOnly: true,
-                                                applicationServerKey: applicationServerKey,
-                                        });
-
-                                        debugLog('Push subscription:', subscription);
-
-                                        // Send subscription to your server to save it
-                                        await fetch('/save-subscription', {
-                                                method: 'POST',
-                                                headers: {
-                                                        'Content-Type': 'application/json',
-                                                },
-                                                body: JSON.stringify(subscription),
-                                        });
-                                } catch (error) {
-                                        debugError('Error registering for push notifications:', error);
-                                }
-                        }
-                }
 
                 renderError() {
                         const errorMessage = `
