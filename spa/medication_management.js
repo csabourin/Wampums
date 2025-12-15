@@ -283,6 +283,145 @@ export class MedicationManagement {
           grid-template-columns: repeat(3, minmax(0, 1fr));
         }
       }
+
+      /* Participant medication cards */
+      .participant-med-card {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .participant-med-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e5e7eb;
+      }
+
+      .participant-med-header h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #0b3c5d;
+      }
+
+      .medication-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .medication-item {
+        background: #fff;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .medication-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .medication-info strong {
+        display: block;
+        font-size: 1.1rem;
+        color: #111827;
+        margin-bottom: 0.25rem;
+      }
+
+      .medication-details {
+        font-size: 0.9rem;
+        color: #6b7280;
+        margin-bottom: 0.25rem;
+      }
+
+      .medication-schedule {
+        font-size: 0.85rem;
+        color: #0b3c5d;
+        font-weight: 600;
+      }
+
+      .medication-notes {
+        font-size: 0.85rem;
+        color: #9ca3af;
+        font-style: italic;
+        margin-top: 0.25rem;
+      }
+
+      .btn-give-med {
+        white-space: nowrap;
+        padding: 0.65rem 1rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+        min-width: 100px;
+      }
+
+      /* Modal styles */
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+      }
+
+      .modal-content {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        max-width: 500px;
+        width: 100%;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      }
+
+      .modal-content h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        color: #0b3c5d;
+      }
+
+      #quickGiveDetails {
+        background: #f3f4f6;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+      }
+
+      #quickGiveDetails strong {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #0b3c5d;
+      }
+
+      #quickGiveDetails div {
+        margin-bottom: 0.25rem;
+        color: #4b5563;
+      }
+
+      @media (max-width: 640px) {
+        .medication-item {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .btn-give-med {
+          width: 100%;
+        }
+      }
     `;
 
     document.head.appendChild(style);
@@ -696,54 +835,16 @@ export class MedicationManagement {
   renderDispensingSection({ today, timeValue, requirementOptions, participantOptions }) {
     return `
       <div class="card">
-        <h2>${escapeHTML(translate("medication_schedule_section_title"))}</h2>
-        <form id="medicationScheduleForm" class="medication-grid">
-          <label class="field-group">
-            <span>${escapeHTML(translate("medication_schedule_date"))}</span>
-            <input type="date" name="scheduled_date" value="${today}" required />
-          </label>
-          <label class="field-group">
-            <span>${escapeHTML(translate("medication_schedule_time"))}</span>
-            <input type="time" name="scheduled_time" value="${timeValue}" required />
-            <p class="help-text">${escapeHTML(translate("medication_schedule_time_hint"))}</p>
-          </label>
-          <label class="field-group">
-            <span>${escapeHTML(translate("medication_requirement_form_title"))}</span>
-            <select name="medication_requirement_id" id="medicationRequirementSelect" required>
-              <option value="">${escapeHTML(translate("select_option"))}</option>
-              ${requirementOptions}
-            </select>
-          </label>
-          <div class="field-group" id="scheduleFrequencyHelper" style="grid-column: 1 / -1;">
-            ${this.renderScheduleFrequencyHelper()}
-          </div>
-          <label class="field-group">
-            <span>${escapeHTML(translate("participants"))}</span>
-            <select name="distribution_participant_id" id="distributionParticipant" required>
-              <option value="">${escapeHTML(translate("select_option"))}</option>
-              ${participantOptions}
-            </select>
-            <p class="help-text">${escapeHTML(translate("medication_one_alert_hint"))}</p>
-          </label>
-          <label class="field-group" style="grid-column: 1 / -1;">
-            <span>${escapeHTML(translate("medication_schedule_activity"))}</span>
-            <input type="text" name="activity_name" maxlength="200" />
-          </label>
-          <label class="field-group" style="grid-column: 1 / -1;">
-            <span>${escapeHTML(translate("medication_schedule_notes"))}</span>
-            <textarea name="dose_notes" rows="2" maxlength="500"></textarea>
-          </label>
-          <label class="field-group">
-            <span>${escapeHTML(translate("medication_witness_label"))}</span>
-            <input type="text" name="witness_name" maxlength="150" placeholder="${escapeHTML(this.getDefaultWitness())}" />
-          </label>
-          <button class="btn primary" type="submit">${escapeHTML(translate("medication_schedule_button"))}</button>
-        </form>
+        <h2>${escapeHTML(translate("medication_alerts_heading"))}</h2>
+        <div id="medication-alerts"></div>
       </div>
 
       <div class="card">
-        <h2>${escapeHTML(translate("medication_alerts_heading"))}</h2>
-        <div id="medication-alerts"></div>
+        <h2>${escapeHTML(translate("medication_participants_ready"))}</h2>
+        <p class="subtitle">${escapeHTML(translate("medication_tap_to_dispense"))}</p>
+        <div id="participant-medication-cards">
+          ${this.renderParticipantMedicationCards()}
+        </div>
       </div>
 
       <div class="card">
@@ -765,7 +866,99 @@ export class MedicationManagement {
           </table>
         </div>
       </div>
+
+      <!-- Quick Give Modal -->
+      <div id="quickGiveModal" class="modal" style="display:none;">
+        <div class="modal-content">
+          <h3 id="quickGiveTitle">${escapeHTML(translate("medication_give_confirmation"))}</h3>
+          <div id="quickGiveDetails"></div>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_witness_label"))}</span>
+            <input type="text" id="quickGiveWitness" maxlength="150" value="${escapeHTML(this.getDefaultWitness())}" />
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_optional_notes"))}</span>
+            <textarea id="quickGiveNotes" rows="2" maxlength="500"></textarea>
+          </label>
+          <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+            <button class="btn secondary" id="quickGiveCancel">${escapeHTML(translate("cancel"))}</button>
+            <button class="btn primary" id="quickGiveConfirm">${escapeHTML(translate("medication_confirm_given"))}</button>
+          </div>
+        </div>
+      </div>
     `;
+  }
+
+  renderParticipantMedicationCards() {
+    // Group medications by participant
+    const participantMeds = new Map();
+
+    this.participantMedications.forEach((assignment) => {
+      const requirement = this.getRequirementById(assignment.medication_requirement_id);
+      if (!requirement) return;
+
+      const participantId = assignment.participant_id;
+      if (!participantMeds.has(participantId)) {
+        participantMeds.set(participantId, []);
+      }
+
+      participantMeds.get(participantId).push({
+        requirement,
+        assignment
+      });
+    });
+
+    if (participantMeds.size === 0) {
+      return `<p>${escapeHTML(translate("medication_no_participants_assigned"))}</p>`;
+    }
+
+    return Array.from(participantMeds.entries()).map(([participantId, medications]) => {
+      const participantName = this.getParticipantName(participantId);
+
+      return `
+        <div class="participant-med-card">
+          <div class="participant-med-header">
+            <h3>${escapeHTML(participantName)}</h3>
+            <span class="pill">${medications.length} ${escapeHTML(translate("medications"))}</span>
+          </div>
+          <div class="medication-list">
+            ${medications.map((med) => {
+              const req = med.requirement;
+              const doseInfo = req.default_dose_amount
+                ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
+                : req.dosage_instructions || '';
+              const route = req.route ? ` · ${req.route}` : '';
+              const frequency = req.frequency_text || translate("medication_frequency_prn_text");
+
+              return `
+                <div class="medication-item">
+                  <div class="medication-info">
+                    <strong>${escapeHTML(req.medication_name)}</strong>
+                    <div class="medication-details">
+                      ${escapeHTML(doseInfo)}${escapeHTML(route)}
+                    </div>
+                    <div class="medication-schedule">
+                      ${escapeHTML(frequency)}
+                    </div>
+                    ${req.general_notes ? `<div class="medication-notes">${escapeHTML(req.general_notes)}</div>` : ''}
+                  </div>
+                  <button
+                    class="btn primary btn-give-med"
+                    data-participant-id="${participantId}"
+                    data-requirement-id="${req.id}"
+                    data-medication-name="${escapeHTML(req.medication_name)}"
+                    data-dose="${escapeHTML(doseInfo)}"
+                    data-route="${escapeHTML(req.route || '')}"
+                  >
+                    ${escapeHTML(translate("medication_give_now"))}
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   renderUpcomingRows() {
@@ -927,12 +1120,12 @@ export class MedicationManagement {
 
   attachEventListeners() {
     const requirementForm = document.getElementById("medicationRequirementForm");
-    const scheduleForm = document.getElementById("medicationScheduleForm");
-    const requirementSelect = document.getElementById("medicationRequirementSelect");
     const alertContainer = document.getElementById("medication-alerts");
     const frequencyPresetSelect = document.getElementById("frequencyPreset");
-    const scheduleDateField = document.querySelector("input[name='scheduled_date']");
-    const scheduleTimeField = document.querySelector("input[name='scheduled_time']");
+    const giveMedButtons = document.querySelectorAll(".btn-give-med");
+    const quickGiveModal = document.getElementById("quickGiveModal");
+    const quickGiveCancel = document.getElementById("quickGiveCancel");
+    const quickGiveConfirm = document.getElementById("quickGiveConfirm");
 
     document.querySelectorAll("[data-medication-tab]").forEach((tabButton) => {
       tabButton.addEventListener("click", () => {
@@ -946,7 +1139,6 @@ export class MedicationManagement {
     });
 
     requirementForm?.addEventListener("submit", (event) => this.handleRequirementSubmit(event));
-    scheduleForm?.addEventListener("submit", (event) => this.handleScheduleSubmit(event));
 
     frequencyPresetSelect?.addEventListener("change", (event) => {
       const container = document.getElementById("frequencyPresetFields");
@@ -955,14 +1147,37 @@ export class MedicationManagement {
       }
     });
 
-    requirementSelect?.addEventListener("change", (event) => {
-      const requirementId = Number(event.target.value);
-      this.prefillFromRequirement(requirementId);
-      this.updateScheduleFrequencyHelper();
+    // Handle quick give medication buttons
+    giveMedButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const btn = event.currentTarget;
+        const participantId = Number(btn.dataset.participantId);
+        const requirementId = Number(btn.dataset.requirementId);
+        const medicationName = btn.dataset.medicationName;
+        const dose = btn.dataset.dose;
+        const route = btn.dataset.route;
+
+        this.showQuickGiveModal(participantId, requirementId, medicationName, dose, route);
+      });
     });
 
-    scheduleDateField?.addEventListener("change", () => this.updateScheduleFrequencyHelper());
-    scheduleTimeField?.addEventListener("change", () => this.updateScheduleFrequencyHelper());
+    // Handle modal actions
+    quickGiveCancel?.addEventListener("click", () => {
+      if (quickGiveModal) {
+        quickGiveModal.style.display = "none";
+      }
+    });
+
+    quickGiveConfirm?.addEventListener("click", () => {
+      this.confirmQuickGive();
+    });
+
+    // Close modal on background click
+    quickGiveModal?.addEventListener("click", (event) => {
+      if (event.target === quickGiveModal) {
+        quickGiveModal.style.display = "none";
+      }
+    });
 
     alertContainer?.addEventListener("click", (event) => {
       const prefillSlot = event.target.closest("[data-prefill-slot]");
@@ -1232,5 +1447,124 @@ export class MedicationManagement {
 
   getDefaultWitness() {
     return this.app?.userFullName || localStorage.getItem("userFullName") || "";
+  }
+
+  showQuickGiveModal(participantId, requirementId, medicationName, dose, route) {
+    const modal = document.getElementById("quickGiveModal");
+    const detailsDiv = document.getElementById("quickGiveDetails");
+    const participantName = this.getParticipantName(participantId);
+
+    if (!modal || !detailsDiv) return;
+
+    // Store data for confirmation
+    this.pendingGive = {
+      participantId,
+      requirementId,
+      medicationName,
+      dose,
+      route
+    };
+
+    // Build details HTML
+    let details = `<strong>${escapeHTML(participantName)}</strong>`;
+    details += `<div><strong>${escapeHTML(translate("medication"))}:</strong> ${escapeHTML(medicationName)}</div>`;
+    if (dose) {
+      details += `<div><strong>${escapeHTML(translate("medication_dosage_label"))}:</strong> ${escapeHTML(dose)}</div>`;
+    }
+    if (route) {
+      details += `<div><strong>${escapeHTML(translate("medication_route_label"))}:</strong> ${escapeHTML(route)}</div>`;
+    }
+    details += `<div><strong>${escapeHTML(translate("time"))}:</strong> ${new Date().toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" })}</div>`;
+
+    detailsDiv.innerHTML = details;
+    modal.style.display = "flex";
+
+    // Focus witness field
+    const witnessField = document.getElementById("quickGiveWitness");
+    if (witnessField) {
+      setTimeout(() => witnessField.focus(), 100);
+    }
+  }
+
+  async confirmQuickGive() {
+    if (!this.pendingGive) return;
+
+    const witnessField = document.getElementById("quickGiveWitness");
+    const notesField = document.getElementById("quickGiveNotes");
+    const modal = document.getElementById("quickGiveModal");
+
+    const witness = witnessField?.value?.trim() || this.getDefaultWitness();
+    const notes = notesField?.value?.trim() || null;
+
+    const { participantId, requirementId } = this.pendingGive;
+
+    // Create distribution record
+    const now = new Date();
+    const scheduled_for = now.toISOString();
+
+    const payload = {
+      medication_requirement_id: requirementId,
+      participant_ids: [participantId],
+      scheduled_for,
+      dose_notes: notes,
+      witness_name: witness,
+      status: "given",
+      administered_at: scheduled_for
+    };
+
+    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
+
+    try {
+      // Close modal
+      if (modal) modal.style.display = "none";
+
+      // Show loading message
+      this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+
+      // Record the distribution
+      const response = await recordMedicationDistribution(payload);
+
+      if (!response?.success) {
+        throw new Error(response?.message || translate("error_saving"));
+      }
+
+      // Then immediately mark it as given
+      if (response.data?.id) {
+        await markMedicationDistributionAsGiven(response.data.id, {
+          status: "given",
+          administered_at: scheduled_for,
+          witness_name: witness
+        });
+      }
+
+      // Refresh data
+      await this.invalidateCaches();
+      await this.refreshData(true);
+
+      // Re-render cards
+      const cardsContainer = document.getElementById("participant-medication-cards");
+      if (cardsContainer) {
+        cardsContainer.innerHTML = this.renderParticipantMedicationCards();
+      }
+
+      this.renderAlertArea();
+      this.updateUpcomingTable();
+      this.attachEventListeners();
+
+      this.app.showMessage(translate("medication_mark_given_success"), "success");
+
+      // Clear pending give
+      this.pendingGive = null;
+
+      // Clear notes field
+      if (notesField) notesField.value = "";
+    } catch (error) {
+      debugError("Error giving medication", error);
+      this.distributions = previousDistributions;
+      this.app.showMessage(error.message || translate("error_saving"), "error");
+
+      // Reopen modal on error
+      if (modal) modal.style.display = "flex";
+    }
   }
 }
