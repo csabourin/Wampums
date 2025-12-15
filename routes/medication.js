@@ -45,9 +45,11 @@ module.exports = (pool, logger) => {
     }
 
     const result = await pool.query(
-      `SELECT id, organization_id, medication_name, dosage_instructions, frequency_text, route,
-              default_dose_amount, default_dose_unit, general_notes, start_date, end_date,
-              created_by, created_at, updated_at
+      `SELECT id, organization_id, medication_name, dosage_instructions,
+              frequency_text, frequency_preset_type, frequency_times, frequency_slots,
+              frequency_interval_hours, frequency_interval_start,
+              route, default_dose_amount, default_dose_unit, general_notes,
+              start_date, end_date, created_by, created_at, updated_at
        FROM medication_requirements
        WHERE organization_id = $1
        ORDER BY medication_name ASC, created_at DESC`,
@@ -99,6 +101,11 @@ module.exports = (pool, logger) => {
       medication_name,
       dosage_instructions,
       frequency_text,
+      frequency_preset_type,
+      frequency_times,
+      frequency_slots,
+      frequency_interval_hours,
+      frequency_interval_start,
       route,
       default_dose_amount,
       default_dose_unit,
@@ -131,15 +138,22 @@ module.exports = (pool, logger) => {
 
       const insertRequirement = await client.query(
         `INSERT INTO medication_requirements (
-          organization_id, medication_name, dosage_instructions, frequency_text, route,
-          default_dose_amount, default_dose_unit, general_notes, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          organization_id, medication_name, dosage_instructions, frequency_text,
+          frequency_preset_type, frequency_times, frequency_slots,
+          frequency_interval_hours, frequency_interval_start,
+          route, default_dose_amount, default_dose_unit, general_notes, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING *`,
         [
           organizationId,
           normalizedName,
           normalizeText(dosage_instructions),
           normalizeText(frequency_text, 120),
+          normalizeText(frequency_preset_type, 30),
+          frequency_times ? JSON.stringify(frequency_times) : null,
+          frequency_slots ? JSON.stringify(frequency_slots) : null,
+          frequency_interval_hours ? Number(frequency_interval_hours) : null,
+          frequency_interval_start || null,
           normalizeText(route, 120),
           numericDoseAmount,
           normalizeText(default_dose_unit, 50),
@@ -193,6 +207,11 @@ module.exports = (pool, logger) => {
       medication_name,
       dosage_instructions,
       frequency_text,
+      frequency_preset_type,
+      frequency_times,
+      frequency_slots,
+      frequency_interval_hours,
+      frequency_interval_start,
       route,
       default_dose_amount,
       default_dose_unit,
@@ -238,17 +257,27 @@ module.exports = (pool, logger) => {
          SET medication_name = $1,
              dosage_instructions = $2,
              frequency_text = $3,
-             route = $4,
-             default_dose_amount = $5,
-             default_dose_unit = $6,
-             general_notes = $7,
+             frequency_preset_type = $4,
+             frequency_times = $5,
+             frequency_slots = $6,
+             frequency_interval_hours = $7,
+             frequency_interval_start = $8,
+             route = $9,
+             default_dose_amount = $10,
+             default_dose_unit = $11,
+             general_notes = $12,
              updated_at = NOW()
-         WHERE id = $8 AND organization_id = $9
+         WHERE id = $13 AND organization_id = $14
          RETURNING *`,
         [
           normalizedName,
           normalizeText(dosage_instructions),
           normalizeText(frequency_text, 120),
+          normalizeText(frequency_preset_type, 30),
+          frequency_times ? JSON.stringify(frequency_times) : null,
+          frequency_slots ? JSON.stringify(frequency_slots) : null,
+          frequency_interval_hours ? Number(frequency_interval_hours) : null,
+          frequency_interval_start || null,
           normalizeText(route, 120),
           numericDoseAmount,
           normalizeText(default_dose_unit, 50),
