@@ -1392,6 +1392,16 @@ export async function getMedicationRequirements() {
 }
 
 /**
+ * Get distinct medications from fiche_sante submissions
+ */
+export async function getFicheMedications() {
+    return API.get('v1/medication/fiche-medications', {}, {
+        cacheKey: 'fiche_medications',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
  * Create or update a medication requirement
  */
 export async function saveMedicationRequirement(payload) {
@@ -1423,7 +1433,7 @@ export async function getMedicationDistributions(params = {}) {
 }
 
 /**
- * Create medication distribution rows (supports multiple participants per call)
+ * Create medication distribution rows (single participant per call)
  */
 export async function recordMedicationDistribution(payload) {
     return API.post('v1/medication/distributions', payload);
