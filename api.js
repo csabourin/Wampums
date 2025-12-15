@@ -504,6 +504,7 @@ const budgetsRoutes = require('./routes/budgets')(pool, logger);
 const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger);
 const resourcesRoutes = require('./routes/resources')(pool);
 const userProfileRoutes = require('./routes/userProfile')(pool, logger);
+const medicationRoutes = require('./routes/medication')(pool, logger);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -775,6 +776,17 @@ logger.info('   - GET /api/v1/resources/permission-slips');
 logger.info('   - POST /api/v1/resources/permission-slips');
 logger.info('   - PATCH /api/v1/resources/permission-slips/:id/sign');
 logger.info('   - GET /api/v1/resources/status/dashboard');
+
+// Medication management routes
+app.use('/api', medicationRoutes);
+logger.info('✅ Medication routes loaded');
+logger.info('   - GET /api/v1/medication/requirements');
+logger.info('   - POST /api/v1/medication/requirements');
+logger.info('   - PUT /api/v1/medication/requirements/:id');
+logger.info('   - GET /api/v1/medication/participant-medications');
+logger.info('   - GET /api/v1/medication/distributions');
+logger.info('   - POST /api/v1/medication/distributions');
+logger.info('   - PATCH /api/v1/medication/distributions/:id');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
