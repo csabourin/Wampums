@@ -24,23 +24,33 @@ async function runMigration() {
   try {
     console.log('🔄 Running frequency preset columns migration...');
 
-    // Read the migration SQL file
+    // Read the first migration SQL file
     const migrationPath = path.join(__dirname, 'migrations', 'add_frequency_preset_columns.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
 
     // Execute the migration
     await client.query(sql);
 
-    console.log('✅ Migration completed successfully!');
+    console.log('✅ Frequency columns migration completed!');
     console.log('');
-    console.log('Added columns to medication_requirements table:');
-    console.log('  - frequency_preset_type (VARCHAR(30))');
-    console.log('  - frequency_times (JSONB)');
-    console.log('  - frequency_slots (JSONB)');
-    console.log('  - frequency_interval_hours (INTEGER)');
-    console.log('  - frequency_interval_start (TIME)');
+
+    // Now run the timezone fix migration
+    console.log('🔄 Running timezone fix migration...');
+    const timezonePath = path.join(__dirname, 'migrations', 'fix_medication_time_timezone.sql');
+    const timezoneSql = fs.readFileSync(timezonePath, 'utf8');
+    await client.query(timezoneSql);
+
+    console.log('✅ Timezone fix migration completed!');
+    console.log('');
+    console.log('Migrations completed:');
+    console.log('  ✓ frequency_preset_type (VARCHAR(30))');
+    console.log('  ✓ frequency_times (JSONB)');
+    console.log('  ✓ frequency_slots (JSONB)');
+    console.log('  ✓ frequency_interval_hours (INTEGER)');
+    console.log('  ✓ frequency_interval_start (VARCHAR(5)) - fixed timezone issue');
     console.log('');
     console.log('✨ The medication frequency preset UI should now work correctly!');
+    console.log('🕐 Times will stay in your local timezone (no UTC conversion)');
 
     process.exit(0);
   } catch (error) {

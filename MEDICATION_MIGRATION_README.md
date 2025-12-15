@@ -4,6 +4,16 @@
 
 This migration adds structured frequency data storage to the medication management system, enabling the frequency preset UI (interval/time-of-day/meal/PRN) to persist and function correctly.
 
+## IMPORTANT: Timezone Fix
+
+**If you see times being converted (e.g., entering 8:00 AM but seeing 3:00)**, you need to run the timezone fix migration:
+
+```bash
+psql $DATABASE_URL -f migrations/fix_medication_time_timezone.sql
+```
+
+This changes the `frequency_interval_start` column from `TIME` (which PostgreSQL converts based on timezone) to `VARCHAR(5)` (simple string, no conversion).
+
 ## Problem Fixed
 
 **Before:** The frontend built a rich frequency configuration (preset type, times, slots, etc.) but the backend only saved `frequency_text` as a plain string. This meant:
