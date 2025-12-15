@@ -47,6 +47,7 @@ const lazyModules = {
   ResourceDashboard: () => import('./resource_dashboard.js').then(m => m.ResourceDashboard),
   Inventory: () => import('./inventory.js').then(m => m.Inventory),
   MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
+  MedicationManagement: () => import('./medication_management.js').then(m => m.MedicationManagement),
   PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
   PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
@@ -104,6 +105,7 @@ const routes = {
   "/resources": "resourceDashboard",
   "/inventory": "inventory",
   "/material-management": "materialManagement",
+  "/medication-management": "medicationManagement",
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slip/:id": "permissionSlipSign",
   "/account-info": "accountInfo",
@@ -245,6 +247,15 @@ export class Router {
             const Inventory = await this.loadModule('Inventory');
             const inventory = new Inventory(this.app);
             await inventory.init();
+          }
+          break;
+        case "medicationManagement":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const MedicationManagement = await this.loadModule('MedicationManagement');
+            const medicationManagement = new MedicationManagement(this.app);
+            await medicationManagement.init();
           }
           break;
         case "materialManagement":

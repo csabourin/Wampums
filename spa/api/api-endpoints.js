@@ -1377,6 +1377,65 @@ export async function getMedicationReport() {
     });
 }
 
+// ============================================================================
+// MEDICATION MANAGEMENT
+// ============================================================================
+
+/**
+ * Get medication requirements for the organization
+ */
+export async function getMedicationRequirements() {
+    return API.get('v1/medication/requirements', {}, {
+        cacheKey: 'medication_requirements',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create or update a medication requirement
+ */
+export async function saveMedicationRequirement(payload) {
+    const hasId = Boolean(payload?.id);
+    const endpoint = hasId ? `v1/medication/requirements/${payload.id}` : 'v1/medication/requirements';
+    return hasId ? API.put(endpoint, payload) : API.post(endpoint, payload);
+}
+
+/**
+ * Get participant-medication assignments
+ */
+export async function getParticipantMedications(params = {}) {
+    const cacheKey = buildCacheKey('participant_medications', params);
+    return API.get('v1/medication/participant-medications', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Get medication distributions (scheduled and historical)
+ */
+export async function getMedicationDistributions(params = {}) {
+    const cacheKey = buildCacheKey('medication_distributions', params);
+    return API.get('v1/medication/distributions', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+    });
+}
+
+/**
+ * Create medication distribution rows (supports multiple participants per call)
+ */
+export async function recordMedicationDistribution(payload) {
+    return API.post('v1/medication/distributions', payload);
+}
+
+/**
+ * Mark a medication distribution entry as given
+ */
+export async function markMedicationDistributionAsGiven(distributionId, payload) {
+    return API.patch(`v1/medication/distributions/${distributionId}`, payload);
+}
+
 /**
  * Get vaccine report
  */
