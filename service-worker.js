@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "2.4.1";
+const APP_VERSION = "2.4.2";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
@@ -157,7 +157,7 @@ self.addEventListener("fetch", (event) => {
   ) {
     // Don't intercept Supabase storage images - let them pass through
     // This prevents CORS issues when different subdomains access shared images
-    if (url.hostname.includes('supabase.co')) {
+    if (url.hostname.includes("supabase.co")) {
       return; // Let the browser handle Supabase images directly
     }
     event.respondWith(handleImageRequest(event.request));
