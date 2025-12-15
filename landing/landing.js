@@ -10,56 +10,41 @@ const translations = {
 		badge1: "Planification mobile-first",
 		badge2: "Suivi badges et présences",
 		badge3: "Parents connectés",
-		cta_primary: "Voir les plans",
-		cta_secondary: "Découvrir les fonctions",
-		card_title: "Tout-en-un pour votre groupe",
-		card_subtitle:
-			"Suivi des membres, activités, badges, documents et paiements.",
-		stat1_label: "Réunions prêtes",
-		stat2_label: "Présences tracées",
-		stat3_label: "Parents informés",
+                cta_primary: "Voir une démo",
+                cta_secondary: "Découvrir les fonctions",
+                card_title: "Tout-en-un pour votre groupe",
+                card_subtitle:
+                        "Suivi des membres, activités, badges, documents et sécurité.",
+                stat1_label: "Réunions prêtes",
+                stat2_label: "Présences tracées",
+                stat3_label: "Parents informés",
 
-		// Pricing
-		pricing_title: "Des plans adaptés à votre groupe",
-		pricing_body:
-			"Commencez gratuitement et évoluez selon vos besoins. Pas de carte de crédit requise.",
-
-		plan_free_name: "Découverte",
-		plan_free_period: "pour toujours",
-		plan_free_note: "Idéal pour les petits groupes",
-		plan_free_feature1: "Jusqu'à 20 scouts",
-		plan_free_feature2: "Gestion des présences",
-		plan_free_feature3: "Suivi des badges",
-		plan_free_feature4: "Calendrier des réunions",
-		plan_free_feature5: "Application mobile (PWA)",
-		plan_free_feature6: "Rapports avancés",
-		plan_free_feature7: "Paiements en ligne",
-		plan_free_cta: "Demander une démo",
-
-		plan_pro_badge: "Populaire",
-		plan_pro_name: "Professionnel",
-		plan_pro_period: "/mois",
-		plan_pro_note: "Pour les unités actives",
-		plan_pro_feature1: "Scouts illimités",
-		plan_pro_feature2: "Toutes les fonctions de base",
-		plan_pro_feature3: "Rapports et statistiques",
-		plan_pro_feature4: "Paiements en ligne (Stripe)",
-		plan_pro_feature5: "Notifications par courriel",
-		plan_pro_feature6: "Gestion des documents",
-		plan_pro_feature7: "Support prioritaire",
-		plan_pro_cta: "Demander une démo",
-
-		plan_council_name: "District",
-		plan_council_period: "/mois",
-		plan_council_note: "Pour les conseils et districts",
-		plan_council_feature1: "Multi-organisations",
-		plan_council_feature2: "Toutes les fonctions Pro",
-		plan_council_feature3: "Tableau de bord district",
-		plan_council_feature4: "Rapports consolidés",
-		plan_council_feature5: "Accès API",
-		plan_council_feature6: "Domaine personnalisé",
-		plan_council_feature7: "Gestionnaire de compte dédié",
-		plan_council_cta: "Contacter les ventes",
+                // Solutions
+                solutions_title: "Une trousse complète pour vos opérations",
+                solutions_body:
+                        "Préparez, animez et suivez vos rencontres avec des tableaux de bord clairs pour l’équipe et les parents.",
+                solution1_title: "Préparation hebdomadaire",
+                solution1_note: "Planification, équipes et rappels en quelques minutes.",
+                solution1_feature1: "Agenda partagé des réunions",
+                solution1_feature2: "Activités, objectifs et matériel",
+                solution1_feature3: "Assignations par groupe ou rôle",
+                solution1_feature4: "Rappels automatiques aux parents",
+                solution1_feature5: "Récupération des autorisations",
+                solution2_title: "Suivi terrain",
+                solution2_note: "Présences, progrès et ressources synchronisés sur mobile.",
+                solution2_feature1: "Badges, honneurs et points",
+                solution2_feature2: "Présences et observations en direct",
+                solution2_feature3: "Tableaux de bord ressources et réservations",
+                solution2_feature4: "Notifications et annonces ciblées",
+                solution2_feature5: "Documents et fiches santé centralisés",
+                solution3_title: "Vue direction",
+                solution3_note: "Indicateurs, budgets et conformité pour chaque organisation.",
+                solution3_feature1: "Rapports consolidés par groupe",
+                solution3_feature2: "Gestion des budgets et dépenses",
+                solution3_feature3: "Journal des communications et alertes",
+                solution3_feature4: "Exports sécurisés pour les conseils",
+                solution3_feature5: "Accès API et domaine personnalisé",
+                solution_cta: "Voir la démo",
 
 		// Features
 		features_title: "Fonctions conçues pour les unités scoutes",
@@ -103,8 +88,8 @@ const translations = {
 			"Consignez les observations pour le rapport de fin de rencontre.",
 		weekly_step3_title: "Après la réunion",
 		weekly_step3_item1: "Envoyez un compte rendu aux parents et à l'équipe.",
-		weekly_step3_item2:
-			"Mettez à jour les inventaires, les paiements et les documents.",
+                weekly_step3_item2:
+                        "Mettez à jour les inventaires, les budgets et les documents.",
 		weekly_step3_item3:
 			"Planifiez la prochaine rencontre à partir du modèle existant.",
 
@@ -121,19 +106,19 @@ const translations = {
 			"Gestion des autorisations, des rôles et des dossiers pour des activités sécuritaires.",
 
 		// FAQ
-		faq_title: "Questions fréquentes",
-		faq1_question: "Puis-je changer de plan à tout moment?",
-		faq1_answer:
-			"Oui! Vous pouvez passer à un plan supérieur ou inférieur à tout moment. Les changements prennent effet immédiatement.",
-		faq2_question: "Y a-t-il un engagement minimum?",
-		faq2_answer:
-			"Non, tous nos plans sont sans engagement. Vous pouvez annuler à tout moment sans frais.",
-		faq3_question: "Comment fonctionnent les paiements en ligne?",
-		faq3_answer:
-			"Nous utilisons Stripe pour traiter les paiements de façon sécurisée. Les parents peuvent payer les frais directement en ligne.",
-		faq4_question: "Mes données sont-elles sécurisées?",
-		faq4_answer:
-			"Absolument. Nous utilisons le chiffrement SSL, des sauvegardes automatiques et respectons les normes de confidentialité canadiennes.",
+                faq_title: "Questions fréquentes",
+                faq1_question: "Comment l’équipe reste-t-elle alignée chaque semaine?",
+                faq1_answer:
+                        "Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés.",
+                faq2_question: "Peut-on travailler en français et en anglais?",
+                faq2_answer:
+                        "Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptés aux réalités locales.",
+                faq3_question: "Comment l'équipe reste-t-elle alignée chaque semaine?",
+                faq3_answer:
+                        "Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés.",
+                faq4_question: "Mes données sont-elles sécurisées?",
+                faq4_answer:
+                        "Absolument. Nous utilisons le chiffrement SSL, des sauvegardes automatiques et respectons les normes de confidentialité canadiennes.",
 
 		// CTA
 		cta_title: "Prêt à simplifier la gestion de votre groupe?",
@@ -170,55 +155,41 @@ const translations = {
 		badge1: "Mobile-first planning",
 		badge2: "Badge and attendance tracking",
 		badge3: "Parents stay informed",
-		cta_primary: "View plans",
-		cta_secondary: "Explore features",
-		card_title: "All-in-one for your troop",
-		card_subtitle:
-			"Track members, activities, badges, documents, and payments.",
-		stat1_label: "Meetings prepared",
-		stat2_label: "Attendance captured",
-		stat3_label: "Parents updated",
+                cta_primary: "See a demo",
+                cta_secondary: "Explore features",
+                card_title: "All-in-one for your troop",
+                card_subtitle:
+                        "Track members, activities, badges, documents, and safety.",
+                stat1_label: "Meetings prepared",
+                stat2_label: "Attendance captured",
+                stat3_label: "Parents updated",
 
-		// Pricing
-		pricing_title: "Plans that fit your group",
-		pricing_body: "Start free and scale as you grow. No credit card required.",
-
-		plan_free_name: "Starter",
-		plan_free_period: "forever",
-		plan_free_note: "Perfect for small groups",
-		plan_free_feature1: "Up to 20 scouts",
-		plan_free_feature2: "Attendance management",
-		plan_free_feature3: "Badge tracking",
-		plan_free_feature4: "Meeting calendar",
-		plan_free_feature5: "Mobile app (PWA)",
-		plan_free_feature6: "Advanced reports",
-		plan_free_feature7: "Online payments",
-		plan_free_cta: "Request a demo",
-
-		plan_pro_badge: "Popular",
-		plan_pro_name: "Professional",
-		plan_pro_period: "/month",
-		plan_pro_note: "For active units",
-		plan_pro_feature1: "Unlimited scouts",
-		plan_pro_feature2: "All basic features",
-		plan_pro_feature3: "Reports & analytics",
-		plan_pro_feature4: "Online payments (Stripe)",
-		plan_pro_feature5: "Email notifications",
-		plan_pro_feature6: "Document management",
-		plan_pro_feature7: "Priority support",
-		plan_pro_cta: "Request a demo",
-
-		plan_council_name: "District",
-		plan_council_period: "/month",
-		plan_council_note: "For councils & districts",
-		plan_council_feature1: "Multi-organization",
-		plan_council_feature2: "All Pro features",
-		plan_council_feature3: "District dashboard",
-		plan_council_feature4: "Consolidated reports",
-		plan_council_feature5: "API access",
-		plan_council_feature6: "Custom domain",
-		plan_council_feature7: "Dedicated account manager",
-		plan_council_cta: "Contact sales",
+                // Solutions
+                solutions_title: "Built for modern scout leadership",
+                solutions_body:
+                        "Prepare, deliver, and follow up on meetings with clear dashboards for leaders and families.",
+                solution1_title: "Weekly prep",
+                solution1_note: "Plan activities, teams, and reminders in minutes.",
+                solution1_feature1: "Shared meeting calendar",
+                solution1_feature2: "Activities, goals, and materials",
+                solution1_feature3: "Assignments by group or role",
+                solution1_feature4: "Automatic parent reminders",
+                solution1_feature5: "Permission collection",
+                solution2_title: "On-the-ground tracking",
+                solution2_note: "Attendance, progress, and resources synced on mobile.",
+                solution2_feature1: "Badges, honors, and points",
+                solution2_feature2: "Live attendance and observations",
+                solution2_feature3: "Resource and reservation dashboards",
+                solution2_feature4: "Targeted notifications and announcements",
+                solution2_feature5: "Centralized documents and health forms",
+                solution3_title: "Leadership view",
+                solution3_note: "Insights, budgets, and compliance for every organization.",
+                solution3_feature1: "Consolidated group reporting",
+                solution3_feature2: "Budgeting and expense tracking",
+                solution3_feature3: "Communication journal and alerts",
+                solution3_feature4: "Secure exports for councils",
+                solution3_feature5: "API access and custom domains",
+                solution_cta: "View demo",
 
 		// Features
 		features_title: "Built for weekly scout units",
@@ -257,7 +228,7 @@ const translations = {
 		weekly_step2_item3: "Record observations for the end-of-meeting report.",
 		weekly_step3_title: "After the meeting",
 		weekly_step3_item1: "Share a recap with parents and the team.",
-		weekly_step3_item2: "Update inventories, payments, and documents.",
+                weekly_step3_item2: "Update inventories, budgets, and documents.",
 		weekly_step3_item3: "Plan the next gathering using the existing template.",
 
 		// Benefits
@@ -273,19 +244,19 @@ const translations = {
 			"Manage permissions, roles, and records to keep activities safe.",
 
 		// FAQ
-		faq_title: "Frequently asked questions",
-		faq1_question: "Can I switch plans anytime?",
-		faq1_answer:
-			"Yes! You can upgrade or downgrade at any time. Changes take effect immediately.",
-		faq2_question: "Is there a minimum commitment?",
-		faq2_answer:
-			"No, all our plans are commitment-free. You can cancel anytime at no cost.",
-		faq3_question: "How do online payments work?",
-		faq3_answer:
-			"We use Stripe to process payments securely. Parents can pay fees directly online.",
-		faq4_question: "Is my data secure?",
-		faq4_answer:
-			"Absolutely. We use SSL encryption, automatic backups, and comply with Canadian privacy standards.",
+                faq_title: "Frequently asked questions",
+                faq1_question: "How does the team stay aligned each week?",
+                faq1_answer:
+                        "Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync.",
+                faq2_question: "Can we work in English and French?",
+                faq2_answer:
+                        "Yes. Communications, forms, and dashboards are bilingual and tuned for local needs.",
+                faq3_question: "How does the team stay aligned each week?",
+                faq3_answer:
+                        "Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync.",
+                faq4_question: "Is my data secure?",
+                faq4_answer:
+                        "Absolutely. We use SSL encryption, automatic backups, and comply with Canadian privacy standards.",
 
 		// CTA
 		cta_title: "Ready to simplify your group management?",
