@@ -105,7 +105,9 @@ const routes = {
   "/resources": "resourceDashboard",
   "/inventory": "inventory",
   "/material-management": "materialManagement",
-  "/medication-management": "medicationManagement",
+  "/medication-management": "medicationPlanning",
+  "/medication-planning": "medicationPlanning",
+  "/medication-dispensing": "medicationDispensing",
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slip/:id": "permissionSlipSign",
   "/account-info": "accountInfo",
@@ -250,11 +252,16 @@ export class Router {
           }
           break;
         case "medicationManagement":
+        case "medicationPlanning":
+        case "medicationDispensing":
           if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
             this.loadNotAuthorizedPage();
           } else {
             const MedicationManagement = await this.loadModule('MedicationManagement');
-            const medicationManagement = new MedicationManagement(this.app);
+            const medicationManagement = new MedicationManagement(this.app, {
+              view: routeName === "medicationDispensing" ? "dispensing" : "planning",
+              enableAlerts: routeName === "medicationDispensing"
+            });
             await medicationManagement.init();
           }
           break;

@@ -274,7 +274,7 @@ export class Dashboard {
     <a href="/approve-badges"><i class="fa-solid fa-certificate"></i><span>${translate("approve_badges")}</span></a>
     <a href="/badge-dashboard"><i class="fa-solid fa-chart-bar"></i><span>${translate("badge_dashboard_link")}</span></a>
     <a href="/parent-contact-list"><i class="fa-solid fa-address-book"></i><span>${translate("parent_contact_list")}</span></a>
-    <a href="/medication-management"><i class="fa-solid fa-pills"></i><span>${translate("medication_management_link")}</span></a>
+    <a href="/medication-dispensing"><i class="fa-solid fa-pills"></i><span>${translate("medication_dispensing_link")}</span></a>
     <a href="/parent-dashboard"><i class="fa-solid fa-users"></i><span>${translate("vue_parents")}</span></a>
   </div>
 </section>
@@ -287,6 +287,7 @@ export class Dashboard {
     <a href="/view-participant-documents"><i class="fa-solid fa-file-lines"></i><span>${translate("view_participant_documents")}</span></a>
     <a href="/inventory"><i class="fa-solid fa-warehouse"></i><span>${translate("inventory_link")}</span></a>
     <a href="/material-management"><i class="fa-solid fa-calendar-check"></i><span>${translate("material_management_link")}</span></a>
+    <a href="/medication-planning"><i class="fa-solid fa-pills"></i><span>${translate("medication_planning_link")}</span></a>
     <a href="/permission-slips"><i class="fa-solid fa-file-signature"></i><span>${translate("manage_permission_slips")}</span></a>
   </div>
 </section>

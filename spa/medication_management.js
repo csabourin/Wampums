@@ -2,6 +2,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
+import { deleteCachedData } from "./indexedDB.js";
 import {
   getParticipants,
   getMedicationRequirements,
@@ -9,7 +10,8 @@ import {
   getMedicationDistributions,
   saveMedicationRequirement,
   recordMedicationDistribution,
-  markMedicationDistributionAsGiven
+  markMedicationDistributionAsGiven,
+  getFicheMedications
 } from "./api/api-endpoints.js";
 
 /**
@@ -18,16 +20,20 @@ import {
  * efficiently record distribution events with aggregated alerts for time slots.
  */
 export class MedicationManagement {
-  constructor(app) {
+  constructor(app, options = {}) {
     this.app = app;
     this.participants = [];
     this.requirements = [];
     this.participantMedications = [];
     this.distributions = [];
+    this.ficheMedications = [];
+    this.view = options.view || "planning";
+    this.enableAlerts = options.enableAlerts ?? this.view === "dispensing";
     this.alertInterval = null;
     this.alertWindowMinutes = 90;
     this.alertLookbackMinutes = 30;
     this.alertRefreshMs = 60000;
+    this.offlineStatusHandler = null;
   }
 
   async init() {
@@ -36,7 +42,10 @@ export class MedicationManagement {
       await this.refreshData();
       this.render();
       this.attachEventListeners();
-      this.startAlertTicker();
+      this.registerOfflineListener();
+      if (this.enableAlerts) {
+        this.startAlertTicker();
+      }
     } catch (error) {
       debugError("Error initializing medication management", error);
       this.app.showMessage(translate("error_loading_data"), "error");
@@ -46,12 +55,14 @@ export class MedicationManagement {
   /**
    * Load baseline data required for the page.
    */
-  async refreshData() {
-    const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse] = await Promise.all([
+  async refreshData(forceRefresh = false) {
+    const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
+    const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse, ficheMedicationsResponse] = await Promise.all([
       getParticipants(),
-      getMedicationRequirements(),
-      getParticipantMedications(),
-      getMedicationDistributions({ upcoming_only: true })
+      getMedicationRequirements(cacheOptions),
+      getParticipantMedications({}, cacheOptions),
+      getMedicationDistributions({ upcoming_only: true }, cacheOptions),
+      getFicheMedications(cacheOptions)
     ]);
 
     this.participants = participantsResponse?.data || participantsResponse?.participants || [];
@@ -60,6 +71,54 @@ export class MedicationManagement {
       || assignmentsResponse?.participant_medications
       || [];
     this.distributions = distributionsResponse?.data?.distributions || distributionsResponse?.distributions || [];
+    this.ficheMedications = ficheMedicationsResponse?.data?.medications || ficheMedicationsResponse?.medications || [];
+  }
+
+  registerOfflineListener() {
+    if (this.offlineStatusHandler) {
+      return;
+    }
+
+    this.offlineStatusHandler = (event) => this.handleOfflineStatusChange(event);
+    window.addEventListener("offlineStatusChanged", this.offlineStatusHandler);
+  }
+
+  async handleOfflineStatusChange(event) {
+    if (!event?.detail || event.detail.isOffline) {
+      return;
+    }
+
+    try {
+      await this.invalidateCaches();
+      await this.refreshData(true);
+      this.render();
+      this.attachEventListeners();
+      if (this.enableAlerts) {
+        this.renderAlertArea();
+      }
+      this.app.showMessage(translate("medication_reloaded_after_reconnect"), "success");
+    } catch (error) {
+      debugError("Error refreshing medication data after reconnect", error);
+      this.app.showMessage(error.message || translate("error_loading_data"), "error");
+    }
+  }
+
+  async invalidateCaches() {
+    const keys = [
+      "medication_requirements",
+      "participant_medications",
+      "medication_distributions",
+      "medication_distributions?upcoming_only=true",
+      "fiche_medications"
+    ];
+
+    await Promise.all(keys.map(async (key) => {
+      try {
+        await deleteCachedData(key);
+      } catch (error) {
+        debugError("Failed to clear medication cache", key, error);
+      }
+    }));
   }
 
   /**
@@ -491,7 +550,11 @@ export class MedicationManagement {
     const timeValue = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
     const requirementOptions = this.requirements
-      .map((req) => `<option value="${req.id}">${escapeHTML(req.medication_name)}</option>`)
+      .map((req) => {
+        const syncingLabel = req.isOptimistic ? ` (${escapeHTML(translate("medication_pending_sync"))})` : "";
+        const disabled = req.isOptimistic ? " disabled" : "";
+        return `<option value="${req.id}"${disabled}>${escapeHTML(req.medication_name)}${syncingLabel}</option>`;
+      })
       .join("");
 
     const participantOptions = this.participants
@@ -501,174 +564,247 @@ export class MedicationManagement {
       })
       .join("");
 
+    const medicationSuggestions = this.ficheMedications
+      .map((medication) => `<option value="${escapeHTML(medication)}"></option>`)
+      .join("");
+
+    const pageTitle = this.view === "dispensing"
+      ? translate("medication_dispensing_title")
+      : translate("medication_planning_title");
+    const pageDescription = this.view === "dispensing"
+      ? translate("medication_dispensing_description")
+      : translate("medication_planning_description");
+    const switchLink = this.view === "dispensing"
+      ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
+      : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
+
     container.innerHTML = `
       <a href="/dashboard" class="home-icon" aria-label="${escapeHTML(translate("back_to_dashboard"))}">🏠</a>
       <section class="page medication-page">
         <div class="card">
-          <h1>${escapeHTML(translate("medication_management_title"))}</h1>
-          <p class="subtitle">${escapeHTML(translate("medication_management_description"))}</p>
-          <div class="pill">${escapeHTML(translate("medication_management_alert_window_hint"))}</div>
+          <h1>${escapeHTML(pageTitle)}</h1>
+          <p class="subtitle">${escapeHTML(pageDescription)}</p>
+          ${this.view === "dispensing" ? `<div class="pill">${escapeHTML(translate("medication_management_alert_window_hint"))}</div>` : ""}
+          ${switchLink}
         </div>
 
-        <div class="card">
-          <h2>${escapeHTML(translate("medication_requirement_form_title"))}</h2>
-          <form id="medicationRequirementForm" class="medication-grid">
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_name_label"))}</span>
-              <input type="text" name="medication_name" required maxlength="200" />
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_dosage_label"))}</span>
-              <input type="text" name="dosage_instructions" maxlength="200" placeholder="${escapeHTML(translate("dose"))}" />
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_frequency_label"))}</span>
-              <select name="frequency_preset_type" id="frequencyPreset" required>
-                <option value="interval">${escapeHTML(translate("medication_frequency_interval"))}</option>
-                <option value="time_of_day" selected>${escapeHTML(translate("medication_frequency_time_of_day"))}</option>
-                <option value="meal">${escapeHTML(translate("medication_frequency_meal"))}</option>
-                <option value="prn">${escapeHTML(translate("medication_frequency_prn"))}</option>
-              </select>
-            </label>
-            <div class="field-group" id="frequencyPresetFields" style="grid-column: 1 / -1;">
-              ${this.getFrequencyPresetFieldsMarkup("time_of_day")}
-            </div>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_route_label"))}</span>
-              <input type="text" name="route" maxlength="120" />
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_default_dose"))}</span>
-              <div style="display:flex; gap:0.5rem;">
-                <input type="number" step="0.01" name="default_dose_amount" aria-label="${escapeHTML(translate("dose"))}" />
-                <input type="text" name="default_dose_unit" maxlength="50" placeholder="mg, ml" aria-label="${escapeHTML(translate("unit"))}" />
-              </div>
-            </label>
-            <label class="field-group" style="grid-column: 1 / -1;">
-              <span>${escapeHTML(translate("medication_general_notes_label"))}</span>
-              <textarea name="general_notes" rows="3" maxlength="1000"></textarea>
-            </label>
-            <div class="field-group" style="grid-column: 1 / -1;">
-              <span>${escapeHTML(translate("medication_assign_participants"))}</span>
-              <div class="participant-grid">
-                ${this.participants.map((participant) => {
-                  const label = `${participant.first_name || ""} ${participant.last_name || ""}`.trim();
-                  return `
-                    <div class="participant-pill">
-                      <label style="display:flex; align-items:center; gap:0.5rem; width:100%;">
-                        <input type="checkbox" name="participant_ids" value="${participant.id}">
-                        <span>${escapeHTML(label || translate("unknown"))}</span>
-                      </label>
-                    </div>
-                    <textarea name="participant_note_${participant.id}" placeholder="${escapeHTML(translate("medication_participant_notes_label"))}"></textarea>
-                  `;
-                }).join("")}
-              </div>
-              <p class="help-text">${escapeHTML(translate("medication_auto_fill_hint"))}</p>
-            </div>
-            <button class="btn primary" type="submit">${escapeHTML(translate("medication_save_requirement"))}</button>
-          </form>
-        </div>
-
-        <div class="card">
-          <h2>${escapeHTML(translate("medication_schedule_section_title"))}</h2>
-          <form id="medicationScheduleForm" class="medication-grid">
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_schedule_date"))}</span>
-              <input type="date" name="scheduled_date" value="${today}" required />
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_schedule_time"))}</span>
-              <input type="time" name="scheduled_time" value="${timeValue}" required />
-              <p class="help-text">${escapeHTML(translate("medication_schedule_time_hint"))}</p>
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_requirement_form_title"))}</span>
-              <select name="medication_requirement_id" id="medicationRequirementSelect" required>
-                <option value="">${escapeHTML(translate("select_option"))}</option>
-                ${requirementOptions}
-              </select>
-            </label>
-            <div class="field-group" id="scheduleFrequencyHelper" style="grid-column: 1 / -1;">
-              ${this.renderScheduleFrequencyHelper()}
-            </div>
-            <label class="field-group">
-              <span>${escapeHTML(translate("participants"))}</span>
-              <select name="distribution_participants" id="distributionParticipants" multiple required>
-                ${participantOptions}
-              </select>
-              <p class="help-text">${escapeHTML(translate("medication_one_alert_hint"))}</p>
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_schedule_activity"))}</span>
-              <input type="text" name="activity_name" maxlength="200" />
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_schedule_notes"))}</span>
-              <textarea name="dose_notes" rows="2" maxlength="1000"></textarea>
-            </label>
-            <label class="field-group">
-              <span>${escapeHTML(translate("medication_witness_label"))}</span>
-              <input type="text" name="witness_name" value="${escapeHTML(this.getDefaultWitness())}" maxlength="150" />
-            </label>
-            <button class="btn primary" type="submit">${escapeHTML(translate("medication_schedule_button"))}</button>
-          </form>
-        </div>
-
-        <div class="card">
-          <div class="alert-meta">
-            <h2>${escapeHTML(translate("medication_alerts_heading"))}</h2>
-            <span class="pill">${escapeHTML(translate("medication_management_alert_window_hint"))}</span>
-          </div>
-          <div id="medication-alerts"></div>
-        </div>
-
-        <div class="card">
-          <h2>${escapeHTML(translate("medication_table_heading"))}</h2>
-          <div class="table-container">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>${escapeHTML(translate("date"))}</th>
-                  <th>${escapeHTML(translate("time"))}</th>
-                  <th>${escapeHTML(translate("participant"))}</th>
-                  <th>${escapeHTML(translate("medication"))}</th>
-                  <th>${escapeHTML(translate("dose"))}</th>
-                  <th>${escapeHTML(translate("medication_frequency"))}</th>
-                  <th>${escapeHTML(translate("medication_general_note"))}</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${this.distributions.length === 0
-                  ? `<tr><td colspan="7">${escapeHTML(translate("medication_alerts_empty"))}</td></tr>`
-                  : this.distributions.map((dist) => {
-                      const requirement = this.getRequirementById(dist.medication_requirement_id) || {};
-                      const participantName = escapeHTML(this.getParticipantName(dist.participant_id));
-                      const dateLabel = formatDate(dist.scheduled_for, this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
-                      const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
-                      return `
-                        <tr>
-                          <td>${escapeHTML(dateLabel)}</td>
-                          <td>${escapeHTML(timeLabel)}</td>
-                          <td>${participantName}</td>
-                          <td>${escapeHTML(requirement.medication_name || translate("medication"))}</td>
-                          <td>${escapeHTML(dist.dose_notes || requirement.dosage_instructions || "-")}</td>
-                          <td>${escapeHTML(dist.frequency_text || requirement.frequency_text || "-")}</td>
-                          <td>${escapeHTML(dist.general_notice || requirement.general_notes || "-")}</td>
-                        </tr>
-                      `;
-                    }).join("")}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        ${this.view === "planning"
+          ? this.renderPlanningSection({ medicationSuggestions, participantOptions })
+          : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
       </section>
     `;
 
-    this.renderAlertArea();
-    this.updateScheduleFrequencyHelper();
+    if (this.view === "dispensing") {
+      this.renderAlertArea();
+      this.updateScheduleFrequencyHelper();
+    }
   }
 
+  renderPlanningSection({ medicationSuggestions, participantOptions }) {
+    const suggestionList = medicationSuggestions
+      ? `<datalist id="ficheMedicationsList">${medicationSuggestions}</datalist>`
+      : "";
+
+    return `
+      <div class="card">
+        <h2>${escapeHTML(translate("medication_requirement_form_title"))}</h2>
+        <form id="medicationRequirementForm" class="medication-grid">
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_name_label"))}</span>
+            <input type="text" name="medication_name" list="ficheMedicationsList" required maxlength="200" />
+            ${medicationSuggestions ? `<p class="help-text">${escapeHTML(translate("medication_fiche_suggestions_hint"))}</p>` : ""}
+            ${suggestionList}
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_dosage_label"))}</span>
+            <input type="text" name="dosage_instructions" maxlength="200" placeholder="${escapeHTML(translate("dose"))}" />
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_frequency_label"))}</span>
+            <select name="frequency_preset_type" id="frequencyPreset" required>
+              <option value="interval">${escapeHTML(translate("medication_frequency_interval"))}</option>
+              <option value="time_of_day" selected>${escapeHTML(translate("medication_frequency_time_of_day"))}</option>
+              <option value="meal">${escapeHTML(translate("medication_frequency_meal"))}</option>
+              <option value="prn">${escapeHTML(translate("medication_frequency_prn"))}</option>
+            </select>
+          </label>
+          <div class="field-group" id="frequencyPresetFields" style="grid-column: 1 / -1;">
+            ${this.getFrequencyPresetFieldsMarkup("time_of_day")}
+          </div>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_route_label"))}</span>
+            <input type="text" name="route" maxlength="120" />
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_default_dose"))}</span>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="number" step="0.01" name="default_dose_amount" aria-label="${escapeHTML(translate("dose"))}" />
+              <input type="text" name="default_dose_unit" maxlength="50" placeholder="mg, ml" aria-label="${escapeHTML(translate("unit"))}" />
+            </div>
+          </label>
+          <label class="field-group" style="grid-column: 1 / -1;">
+            <span>${escapeHTML(translate("medication_general_notes_label"))}</span>
+            <textarea name="general_notes" rows="3" maxlength="1000"></textarea>
+          </label>
+          <label class="field-group" style="grid-column: 1 / -1;">
+            <span>${escapeHTML(translate("medication_assign_participants"))}</span>
+            <select name="participant_id" id="requirementParticipantSelect" required>
+              <option value="">${escapeHTML(translate("select_option"))}</option>
+              ${participantOptions}
+            </select>
+            <p class="help-text">${escapeHTML(translate("medication_requirement_single_participant_hint"))}</p>
+          </label>
+          <button class="btn primary" type="submit">${escapeHTML(translate("medication_save_requirement"))}</button>
+        </form>
+      </div>
+      <div class="card">
+        <h2>${escapeHTML(translate("medication_existing_requirements_title"))}</h2>
+        ${this.renderRequirementTable()}
+      </div>
+    `;
+  }
+
+  renderDispensingSection({ today, timeValue, requirementOptions, participantOptions }) {
+    return `
+      <div class="card">
+        <h2>${escapeHTML(translate("medication_schedule_section_title"))}</h2>
+        <form id="medicationScheduleForm" class="medication-grid">
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_schedule_date"))}</span>
+            <input type="date" name="scheduled_date" value="${today}" required />
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_schedule_time"))}</span>
+            <input type="time" name="scheduled_time" value="${timeValue}" required />
+            <p class="help-text">${escapeHTML(translate("medication_schedule_time_hint"))}</p>
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_requirement_form_title"))}</span>
+            <select name="medication_requirement_id" id="medicationRequirementSelect" required>
+              <option value="">${escapeHTML(translate("select_option"))}</option>
+              ${requirementOptions}
+            </select>
+          </label>
+          <div class="field-group" id="scheduleFrequencyHelper" style="grid-column: 1 / -1;">
+            ${this.renderScheduleFrequencyHelper()}
+          </div>
+          <label class="field-group">
+            <span>${escapeHTML(translate("participants"))}</span>
+            <select name="distribution_participant_id" id="distributionParticipant" required>
+              <option value="">${escapeHTML(translate("select_option"))}</option>
+              ${participantOptions}
+            </select>
+            <p class="help-text">${escapeHTML(translate("medication_one_alert_hint"))}</p>
+          </label>
+          <label class="field-group" style="grid-column: 1 / -1;">
+            <span>${escapeHTML(translate("medication_schedule_activity"))}</span>
+            <input type="text" name="activity_name" maxlength="200" />
+          </label>
+          <label class="field-group" style="grid-column: 1 / -1;">
+            <span>${escapeHTML(translate("medication_schedule_notes"))}</span>
+            <textarea name="dose_notes" rows="2" maxlength="500"></textarea>
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_witness_label"))}</span>
+            <input type="text" name="witness_name" maxlength="150" placeholder="${escapeHTML(this.getDefaultWitness())}" />
+          </label>
+          <button class="btn primary" type="submit">${escapeHTML(translate("medication_schedule_button"))}</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>${escapeHTML(translate("medication_alerts_heading"))}</h2>
+        <div id="medication-alerts"></div>
+      </div>
+
+      <div class="card">
+        <h2>${escapeHTML(translate("medication_upcoming_schedule"))}</h2>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>${escapeHTML(translate("date"))}</th>
+                <th>${escapeHTML(translate("time"))}</th>
+                <th>${escapeHTML(translate("participants"))}</th>
+                <th>${escapeHTML(translate("medication"))}</th>
+                <th>${escapeHTML(translate("medication_default_dose"))}</th>
+                <th>${escapeHTML(translate("medication_frequency"))}</th>
+                <th>${escapeHTML(translate("notes"))}</th>
+              </tr>
+            </thead>
+            <tbody id="medication-upcoming-table-body">${this.renderUpcomingRows()}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  renderUpcomingRows() {
+    if (!this.distributions.length) {
+      return `<tr><td colspan="7">${escapeHTML(translate("medication_alerts_empty"))}</td></tr>`;
+    }
+
+    return this.distributions.map((dist) => {
+      const requirement = this.getRequirementById(dist.medication_requirement_id) || {};
+      const participantName = escapeHTML(this.getParticipantName(dist.participant_id));
+      const dateLabel = formatDate(dist.scheduled_for, this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
+      const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
+      return `
+        <tr>
+          <td>${escapeHTML(dateLabel)}</td>
+          <td>${escapeHTML(timeLabel)}</td>
+          <td>${participantName}</td>
+          <td>${escapeHTML(requirement.medication_name || translate("medication"))}</td>
+          <td>${escapeHTML(dist.dose_notes || requirement.dosage_instructions || "-")}</td>
+          <td>${escapeHTML(dist.frequency_text || requirement.frequency_text || "-")}</td>
+          <td>${escapeHTML(dist.general_notice || requirement.general_notes || "-")}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  updateUpcomingTable() {
+    const tableBody = document.getElementById("medication-upcoming-table-body");
+    if (tableBody) {
+      tableBody.innerHTML = this.renderUpcomingRows();
+    }
+  }
+
+  renderRequirementTable() {
+    if (!this.requirements.length) {
+      return `<p>${escapeHTML(translate("medication_requirements_empty"))}</p>`;
+    }
+
+    const rows = this.requirements.map((req) => {
+      const assigned = this.participantMedications.find((assignment) => assignment.medication_requirement_id === req.id);
+      const participantName = assigned ? this.getParticipantName(assigned.participant_id) : translate("unknown");
+      const nameLabel = `${req.medication_name}${req.isOptimistic ? ` (${translate("medication_pending_sync")})` : ""}`;
+      return `
+        <tr>
+          <td>${escapeHTML(nameLabel)}</td>
+          <td>${escapeHTML(participantName)}</td>
+          <td>${escapeHTML(req.frequency_text || translate("medication_frequency"))}</td>
+          <td>${escapeHTML(req.general_notes || req.dosage_instructions || "-")}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return `
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>${escapeHTML(translate("medication"))}</th>
+              <th>${escapeHTML(translate("participants"))}</th>
+              <th>${escapeHTML(translate("medication_frequency"))}</th>
+              <th>${escapeHTML(translate("notes"))}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
   /**
    * Render aggregated alerts so only one alert is shown per time slot.
    */
@@ -808,20 +944,17 @@ export class MedicationManagement {
 
   prefillFromRequirement(requirementId) {
     const requirement = this.getRequirementById(requirementId);
-    const participantSelect = document.getElementById("distributionParticipants");
+    const participantSelect = document.getElementById("distributionParticipant");
     const noteField = document.querySelector("textarea[name='dose_notes']");
 
     if (!requirement || !participantSelect) {
       return;
     }
 
-    const participantIds = this.participantMedications
-      .filter((assignment) => assignment.medication_requirement_id === requirementId)
-      .map((assignment) => assignment.participant_id);
+    const participantId = this.participantMedications
+      .find((assignment) => assignment.medication_requirement_id === requirementId)?.participant_id;
 
-    Array.from(participantSelect.options).forEach((option) => {
-      option.selected = participantIds.includes(Number(option.value));
-    });
+    participantSelect.value = participantId ? String(participantId) : "";
 
     if (noteField && !noteField.value) {
       noteField.value = requirement.dosage_instructions || requirement.general_notes || "";
@@ -836,7 +969,7 @@ export class MedicationManagement {
 
     const scheduledDate = matchingAlert.time.toISOString().slice(0, 10);
     const scheduledTime = matchingAlert.time.toISOString().slice(11, 16);
-    const participantSelect = document.getElementById("distributionParticipants");
+    const participantSelect = document.getElementById("distributionParticipant");
     const dateField = document.querySelector("input[name='scheduled_date']");
     const timeField = document.querySelector("input[name='scheduled_time']");
     const requirementSelect = document.getElementById("medicationRequirementSelect");
@@ -845,11 +978,9 @@ export class MedicationManagement {
     if (timeField) timeField.value = scheduledTime;
     if (requirementSelect && requirementId) requirementSelect.value = requirementId;
 
-    const participantIds = matchingAlert.items.map((item) => item.participant_id);
+    const participantId = matchingAlert.items[0]?.participant_id || null;
     if (participantSelect) {
-      Array.from(participantSelect.options).forEach((option) => {
-        option.selected = participantIds.includes(Number(option.value));
-      });
+      participantSelect.value = participantId ? String(participantId) : "";
     }
 
     this.updateScheduleFrequencyHelper();
@@ -859,10 +990,10 @@ export class MedicationManagement {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
-    const participantIds = Array.from(formData.getAll("participant_ids"), (id) => Number(id)).filter(Boolean);
+    const participantId = Number(formData.get("participant_id"));
     const frequencyConfig = this.buildFrequencyConfigFromForm(formData);
 
-    if (!formData.get("medication_name") || participantIds.length === 0) {
+    if (!formData.get("medication_name") || !participantId) {
       this.app.showMessage(translate("medication_requirement_fields_missing"), "warning");
       return;
     }
@@ -880,24 +1011,45 @@ export class MedicationManagement {
       default_dose_amount: formData.get("default_dose_amount") ? Number(formData.get("default_dose_amount")) : null,
       default_dose_unit: formData.get("default_dose_unit")?.trim() || null,
       general_notes: formData.get("general_notes")?.trim() || null,
-      participant_ids: participantIds,
-      participant_notes: participantIds.reduce((notes, id) => {
-        const note = formData.get(`participant_note_${id}`)?.trim();
-        if (note) {
-          notes[id] = note;
-        }
-        return notes;
-      }, {})
+      participant_ids: [participantId]
     };
 
+    const previousRequirements = JSON.parse(JSON.stringify(this.requirements));
+    const previousAssignments = JSON.parse(JSON.stringify(this.participantMedications));
+    const optimisticRequirement = {
+      ...payload,
+      id: `temp-${Date.now()}`,
+      isOptimistic: true,
+      created_at: new Date().toISOString()
+    };
+    const optimisticAssignment = {
+      id: `assignment-${Date.now()}`,
+      medication_requirement_id: optimisticRequirement.id,
+      participant_id: participantId
+    };
+
+    this.requirements = [optimisticRequirement, ...this.requirements];
+    this.participantMedications = [optimisticAssignment, ...this.participantMedications];
+    this.render();
+    this.attachEventListeners();
+    this.app.showMessage(translate("medication_requirement_syncing"), "info");
+
     try {
-      await saveMedicationRequirement(payload);
-      this.app.showMessage(translate("medication_requirement_saved"), "success");
-      await this.refreshData();
+      const response = await saveMedicationRequirement(payload);
+      if (!response?.success) {
+        throw new Error(response?.message || translate("error_saving"));
+      }
+      await this.invalidateCaches();
+      await this.refreshData(true);
       this.render();
       this.attachEventListeners();
+      this.app.showMessage(translate("medication_requirement_saved"), "success");
     } catch (error) {
       debugError("Error saving medication requirement", error);
+      this.requirements = previousRequirements;
+      this.participantMedications = previousAssignments;
+      this.render();
+      this.attachEventListeners();
       this.app.showMessage(error.message || translate("error_saving"), "error");
     }
   }
@@ -906,7 +1058,8 @@ export class MedicationManagement {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
-    const participantIds = Array.from(formData.getAll("distribution_participants"), (id) => Number(id)).filter(Boolean);
+    const participantId = Number(formData.get("distribution_participant_id"));
+    const participantIds = Number.isFinite(participantId) && participantId > 0 ? [participantId] : [];
     const requirementId = Number(formData.get("medication_requirement_id"));
     const requirement = this.getRequirementById(requirementId);
     const frequencyConfig = this.getRequirementFrequencyConfig(requirement);
@@ -935,14 +1088,40 @@ export class MedicationManagement {
       frequency_times: frequencyConfig.times?.length ? frequencyConfig.times : null
     }));
 
+    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
+    const optimisticDistributions = payloads.map((payload, index) => ({
+      id: `temp-dist-${Date.now()}-${index}`,
+      medication_requirement_id: payload.medication_requirement_id,
+      participant_id: participantId,
+      scheduled_for: payload.scheduled_for,
+      status: "scheduled",
+      dose_notes: payload.dose_notes,
+      general_notice: payload.general_notice,
+      frequency_text: payload.frequency_text,
+      frequency_times: payload.frequency_times
+    }));
+
+    this.distributions = [...optimisticDistributions, ...this.distributions];
+    this.renderAlertArea();
+    this.updateUpcomingTable();
+    this.app.showMessage(translate("medication_distribution_syncing"), "info");
+
     try {
-      await Promise.all(payloads.map((payload) => recordMedicationDistribution(payload)));
-      this.app.showMessage(translate("medication_distribution_saved"), "success");
-      await this.refreshData();
+      const responses = await Promise.all(payloads.map((payload) => recordMedicationDistribution(payload)));
+      const allSuccessful = responses.every((response) => response?.success !== false);
+      if (!allSuccessful) {
+        throw new Error(translate("error_saving"));
+      }
+      await this.invalidateCaches();
+      await this.refreshData(true);
       this.render();
       this.attachEventListeners();
+      this.app.showMessage(translate("medication_distribution_saved"), "success");
     } catch (error) {
       debugError("Error saving medication distribution", error);
+      this.distributions = previousDistributions;
+      this.renderAlertArea();
+      this.updateUpcomingTable();
       this.app.showMessage(error.message || translate("error_saving"), "error");
     }
   }
@@ -955,6 +1134,17 @@ export class MedicationManagement {
     const witnessInput = document.querySelector("input[name='witness_name']");
     const witness = witnessInput?.value?.trim() || this.getDefaultWitness();
 
+    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
+    const administeredAt = new Date().toISOString();
+    this.distributions = this.distributions.map((dist) => (
+      distributionIds.includes(dist.id)
+        ? { ...dist, status: "given", administered_at: administeredAt, witness_name: witness }
+        : dist
+    ));
+    this.renderAlertArea();
+    this.updateUpcomingTable();
+    this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+
     try {
       await Promise.all(
         distributionIds.map((id) => markMedicationDistributionAsGiven(id, {
@@ -964,11 +1154,16 @@ export class MedicationManagement {
         }))
       );
       this.app.showMessage(translate("medication_mark_given_success"), "success");
-      await this.refreshData();
+      await this.invalidateCaches();
+      await this.refreshData(true);
       this.renderAlertArea();
+      this.updateUpcomingTable();
       this.prefillFromSlot(slotKey, this.getAggregatedAlerts().find((a) => a.slotKey === slotKey)?.primaryRequirementId || null);
     } catch (error) {
       debugError("Error marking medication as given", error);
+      this.distributions = previousDistributions;
+      this.renderAlertArea();
+      this.updateUpcomingTable();
       this.app.showMessage(error.message || translate("error_saving"), "error");
     }
   }
@@ -976,6 +1171,9 @@ export class MedicationManagement {
   startAlertTicker() {
     if (this.alertInterval) {
       clearInterval(this.alertInterval);
+    }
+    if (!this.enableAlerts) {
+      return;
     }
     this.alertInterval = setInterval(() => this.renderAlertArea(), this.alertRefreshMs);
   }
