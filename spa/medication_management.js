@@ -2,6 +2,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
+import { deleteCachedData } from "./indexedDB.js";
 import {
   getParticipants,
   getMedicationRequirements,
@@ -32,6 +33,7 @@ export class MedicationManagement {
     this.alertWindowMinutes = 90;
     this.alertLookbackMinutes = 30;
     this.alertRefreshMs = 60000;
+    this.offlineStatusHandler = null;
   }
 
   async init() {
@@ -40,6 +42,7 @@ export class MedicationManagement {
       await this.refreshData();
       this.render();
       this.attachEventListeners();
+      this.registerOfflineListener();
       if (this.enableAlerts) {
         this.startAlertTicker();
       }
@@ -52,13 +55,14 @@ export class MedicationManagement {
   /**
    * Load baseline data required for the page.
    */
-  async refreshData() {
+  async refreshData(forceRefresh = false) {
+    const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
     const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse, ficheMedicationsResponse] = await Promise.all([
       getParticipants(),
-      getMedicationRequirements(),
-      getParticipantMedications(),
-      getMedicationDistributions({ upcoming_only: true }),
-      getFicheMedications()
+      getMedicationRequirements(cacheOptions),
+      getParticipantMedications({}, cacheOptions),
+      getMedicationDistributions({ upcoming_only: true }, cacheOptions),
+      getFicheMedications(cacheOptions)
     ]);
 
     this.participants = participantsResponse?.data || participantsResponse?.participants || [];
@@ -68,6 +72,53 @@ export class MedicationManagement {
       || [];
     this.distributions = distributionsResponse?.data?.distributions || distributionsResponse?.distributions || [];
     this.ficheMedications = ficheMedicationsResponse?.data?.medications || ficheMedicationsResponse?.medications || [];
+  }
+
+  registerOfflineListener() {
+    if (this.offlineStatusHandler) {
+      return;
+    }
+
+    this.offlineStatusHandler = (event) => this.handleOfflineStatusChange(event);
+    window.addEventListener("offlineStatusChanged", this.offlineStatusHandler);
+  }
+
+  async handleOfflineStatusChange(event) {
+    if (!event?.detail || event.detail.isOffline) {
+      return;
+    }
+
+    try {
+      await this.invalidateCaches();
+      await this.refreshData(true);
+      this.render();
+      this.attachEventListeners();
+      if (this.enableAlerts) {
+        this.renderAlertArea();
+      }
+      this.app.showMessage(translate("medication_reloaded_after_reconnect"), "success");
+    } catch (error) {
+      debugError("Error refreshing medication data after reconnect", error);
+      this.app.showMessage(error.message || translate("error_loading_data"), "error");
+    }
+  }
+
+  async invalidateCaches() {
+    const keys = [
+      "medication_requirements",
+      "participant_medications",
+      "medication_distributions",
+      "medication_distributions?upcoming_only=true",
+      "fiche_medications"
+    ];
+
+    await Promise.all(keys.map(async (key) => {
+      try {
+        await deleteCachedData(key);
+      } catch (error) {
+        debugError("Failed to clear medication cache", key, error);
+      }
+    }));
   }
 
   /**
@@ -499,7 +550,11 @@ export class MedicationManagement {
     const timeValue = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
     const requirementOptions = this.requirements
-      .map((req) => `<option value="${req.id}">${escapeHTML(req.medication_name)}</option>`)
+      .map((req) => {
+        const syncingLabel = req.isOptimistic ? ` (${escapeHTML(translate("medication_pending_sync"))})` : "";
+        const disabled = req.isOptimistic ? " disabled" : "";
+        return `<option value="${req.id}"${disabled}>${escapeHTML(req.medication_name)}${syncingLabel}</option>`;
+      })
       .join("");
 
     const participantOptions = this.participants
@@ -677,31 +732,42 @@ export class MedicationManagement {
                 <th>${escapeHTML(translate("notes"))}</th>
               </tr>
             </thead>
-            <tbody>
-              ${this.distributions.length === 0
-                ? `<tr><td colspan="7">${escapeHTML(translate("medication_alerts_empty"))}</td></tr>`
-                : this.distributions.map((dist) => {
-                    const requirement = this.getRequirementById(dist.medication_requirement_id) || {};
-                    const participantName = escapeHTML(this.getParticipantName(dist.participant_id));
-                    const dateLabel = formatDate(dist.scheduled_for, this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
-                    const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
-                    return `
-                      <tr>
-                        <td>${escapeHTML(dateLabel)}</td>
-                        <td>${escapeHTML(timeLabel)}</td>
-                        <td>${participantName}</td>
-                        <td>${escapeHTML(requirement.medication_name || translate("medication"))}</td>
-                        <td>${escapeHTML(dist.dose_notes || requirement.dosage_instructions || "-")}</td>
-                        <td>${escapeHTML(dist.frequency_text || requirement.frequency_text || "-")}</td>
-                        <td>${escapeHTML(dist.general_notice || requirement.general_notes || "-")}</td>
-                      </tr>
-                    `;
-                  }).join("")}
-            </tbody>
+            <tbody id="medication-upcoming-table-body">${this.renderUpcomingRows()}</tbody>
           </table>
         </div>
       </div>
     `;
+  }
+
+  renderUpcomingRows() {
+    if (!this.distributions.length) {
+      return `<tr><td colspan="7">${escapeHTML(translate("medication_alerts_empty"))}</td></tr>`;
+    }
+
+    return this.distributions.map((dist) => {
+      const requirement = this.getRequirementById(dist.medication_requirement_id) || {};
+      const participantName = escapeHTML(this.getParticipantName(dist.participant_id));
+      const dateLabel = formatDate(dist.scheduled_for, this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
+      const timeLabel = new Date(dist.scheduled_for).toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
+      return `
+        <tr>
+          <td>${escapeHTML(dateLabel)}</td>
+          <td>${escapeHTML(timeLabel)}</td>
+          <td>${participantName}</td>
+          <td>${escapeHTML(requirement.medication_name || translate("medication"))}</td>
+          <td>${escapeHTML(dist.dose_notes || requirement.dosage_instructions || "-")}</td>
+          <td>${escapeHTML(dist.frequency_text || requirement.frequency_text || "-")}</td>
+          <td>${escapeHTML(dist.general_notice || requirement.general_notes || "-")}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  updateUpcomingTable() {
+    const tableBody = document.getElementById("medication-upcoming-table-body");
+    if (tableBody) {
+      tableBody.innerHTML = this.renderUpcomingRows();
+    }
   }
 
   renderRequirementTable() {
@@ -712,9 +778,10 @@ export class MedicationManagement {
     const rows = this.requirements.map((req) => {
       const assigned = this.participantMedications.find((assignment) => assignment.medication_requirement_id === req.id);
       const participantName = assigned ? this.getParticipantName(assigned.participant_id) : translate("unknown");
+      const nameLabel = `${req.medication_name}${req.isOptimistic ? ` (${translate("medication_pending_sync")})` : ""}`;
       return `
         <tr>
-          <td>${escapeHTML(req.medication_name)}</td>
+          <td>${escapeHTML(nameLabel)}</td>
           <td>${escapeHTML(participantName)}</td>
           <td>${escapeHTML(req.frequency_text || translate("medication_frequency"))}</td>
           <td>${escapeHTML(req.general_notes || req.dosage_instructions || "-")}</td>
@@ -947,14 +1014,42 @@ export class MedicationManagement {
       participant_ids: [participantId]
     };
 
+    const previousRequirements = JSON.parse(JSON.stringify(this.requirements));
+    const previousAssignments = JSON.parse(JSON.stringify(this.participantMedications));
+    const optimisticRequirement = {
+      ...payload,
+      id: `temp-${Date.now()}`,
+      isOptimistic: true,
+      created_at: new Date().toISOString()
+    };
+    const optimisticAssignment = {
+      id: `assignment-${Date.now()}`,
+      medication_requirement_id: optimisticRequirement.id,
+      participant_id: participantId
+    };
+
+    this.requirements = [optimisticRequirement, ...this.requirements];
+    this.participantMedications = [optimisticAssignment, ...this.participantMedications];
+    this.render();
+    this.attachEventListeners();
+    this.app.showMessage(translate("medication_requirement_syncing"), "info");
+
     try {
-      await saveMedicationRequirement(payload);
-      this.app.showMessage(translate("medication_requirement_saved"), "success");
-      await this.refreshData();
+      const response = await saveMedicationRequirement(payload);
+      if (!response?.success) {
+        throw new Error(response?.message || translate("error_saving"));
+      }
+      await this.invalidateCaches();
+      await this.refreshData(true);
       this.render();
       this.attachEventListeners();
+      this.app.showMessage(translate("medication_requirement_saved"), "success");
     } catch (error) {
       debugError("Error saving medication requirement", error);
+      this.requirements = previousRequirements;
+      this.participantMedications = previousAssignments;
+      this.render();
+      this.attachEventListeners();
       this.app.showMessage(error.message || translate("error_saving"), "error");
     }
   }
@@ -993,14 +1088,40 @@ export class MedicationManagement {
       frequency_times: frequencyConfig.times?.length ? frequencyConfig.times : null
     }));
 
+    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
+    const optimisticDistributions = payloads.map((payload, index) => ({
+      id: `temp-dist-${Date.now()}-${index}`,
+      medication_requirement_id: payload.medication_requirement_id,
+      participant_id: participantId,
+      scheduled_for: payload.scheduled_for,
+      status: "scheduled",
+      dose_notes: payload.dose_notes,
+      general_notice: payload.general_notice,
+      frequency_text: payload.frequency_text,
+      frequency_times: payload.frequency_times
+    }));
+
+    this.distributions = [...optimisticDistributions, ...this.distributions];
+    this.renderAlertArea();
+    this.updateUpcomingTable();
+    this.app.showMessage(translate("medication_distribution_syncing"), "info");
+
     try {
-      await Promise.all(payloads.map((payload) => recordMedicationDistribution(payload)));
-      this.app.showMessage(translate("medication_distribution_saved"), "success");
-      await this.refreshData();
+      const responses = await Promise.all(payloads.map((payload) => recordMedicationDistribution(payload)));
+      const allSuccessful = responses.every((response) => response?.success !== false);
+      if (!allSuccessful) {
+        throw new Error(translate("error_saving"));
+      }
+      await this.invalidateCaches();
+      await this.refreshData(true);
       this.render();
       this.attachEventListeners();
+      this.app.showMessage(translate("medication_distribution_saved"), "success");
     } catch (error) {
       debugError("Error saving medication distribution", error);
+      this.distributions = previousDistributions;
+      this.renderAlertArea();
+      this.updateUpcomingTable();
       this.app.showMessage(error.message || translate("error_saving"), "error");
     }
   }
@@ -1013,6 +1134,17 @@ export class MedicationManagement {
     const witnessInput = document.querySelector("input[name='witness_name']");
     const witness = witnessInput?.value?.trim() || this.getDefaultWitness();
 
+    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
+    const administeredAt = new Date().toISOString();
+    this.distributions = this.distributions.map((dist) => (
+      distributionIds.includes(dist.id)
+        ? { ...dist, status: "given", administered_at: administeredAt, witness_name: witness }
+        : dist
+    ));
+    this.renderAlertArea();
+    this.updateUpcomingTable();
+    this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+
     try {
       await Promise.all(
         distributionIds.map((id) => markMedicationDistributionAsGiven(id, {
@@ -1022,11 +1154,16 @@ export class MedicationManagement {
         }))
       );
       this.app.showMessage(translate("medication_mark_given_success"), "success");
-      await this.refreshData();
+      await this.invalidateCaches();
+      await this.refreshData(true);
       this.renderAlertArea();
+      this.updateUpcomingTable();
       this.prefillFromSlot(slotKey, this.getAggregatedAlerts().find((a) => a.slotKey === slotKey)?.primaryRequirementId || null);
     } catch (error) {
       debugError("Error marking medication as given", error);
+      this.distributions = previousDistributions;
+      this.renderAlertArea();
+      this.updateUpcomingTable();
       this.app.showMessage(error.message || translate("error_saving"), "error");
     }
   }
