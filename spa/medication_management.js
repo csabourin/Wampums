@@ -845,6 +845,16 @@ export class MedicationManagement {
             <span>${escapeHTML(translate("medication_general_notes_label"))}</span>
             <textarea name="general_notes" rows="3" maxlength="1000"></textarea>
           </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_start_date_label"))}</span>
+            <input type="date" name="start_date" />
+            <p class="help-text">${escapeHTML(translate("medication_start_date_hint"))}</p>
+          </label>
+          <label class="field-group">
+            <span>${escapeHTML(translate("medication_end_date_label"))}</span>
+            <input type="date" name="end_date" />
+            <p class="help-text">${escapeHTML(translate("medication_end_date_hint"))}</p>
+          </label>
           <label class="field-group" style="grid-column: 1 / -1;">
             <span>${escapeHTML(translate("medication_assign_participants"))}</span>
             <select name="participant_id" id="requirementParticipantSelect" required>
@@ -1044,11 +1054,15 @@ export class MedicationManagement {
       const assigned = this.participantMedications.find((assignment) => assignment.medication_requirement_id === req.id);
       const participantName = assigned ? this.getParticipantName(assigned.participant_id) : translate("unknown");
       const nameLabel = `${req.medication_name}${req.isOptimistic ? ` (${translate("medication_pending_sync")})` : ""}`;
+      const dateRange = req.start_date || req.end_date
+        ? `${req.start_date || "—"} → ${req.end_date || "—"}`
+        : "-";
       return `
         <tr>
           <td>${escapeHTML(nameLabel)}</td>
           <td>${escapeHTML(participantName)}</td>
           <td>${escapeHTML(req.frequency_text || translate("medication_frequency"))}</td>
+          <td>${escapeHTML(dateRange)}</td>
           <td>${escapeHTML(req.general_notes || req.dosage_instructions || "-")}</td>
         </tr>
       `;
@@ -1062,6 +1076,7 @@ export class MedicationManagement {
               <th>${escapeHTML(translate("medication"))}</th>
               <th>${escapeHTML(translate("participants"))}</th>
               <th>${escapeHTML(translate("medication_frequency"))}</th>
+              <th>${escapeHTML(translate("dates"))}</th>
               <th>${escapeHTML(translate("notes"))}</th>
             </tr>
           </thead>

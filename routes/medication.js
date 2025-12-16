@@ -72,12 +72,13 @@ module.exports = (pool, logger) => {
     }
 
     const result = await pool.query(
-      `SELECT DISTINCT TRIM(BOTH FROM submission_data->>'medicament') AS medication
-         FROM form_submissions
+      `SELECT DISTINCT TRIM(medication) AS medication
+         FROM form_submissions,
+              unnest(string_to_array(submission_data->>'medicament', E'\\n')) AS medication
         WHERE organization_id = $1
           AND form_type = 'fiche_sante'
           AND submission_data->>'medicament' IS NOT NULL
-          AND TRIM(BOTH FROM submission_data->>'medicament') <> ''
+          AND TRIM(medication) <> ''
         ORDER BY medication ASC`,
       [organizationId]
     );
@@ -110,6 +111,8 @@ module.exports = (pool, logger) => {
       default_dose_amount,
       default_dose_unit,
       general_notes,
+      start_date,
+      end_date,
       participant_ids
     } = req.body || {};
 
@@ -141,8 +144,9 @@ module.exports = (pool, logger) => {
           organization_id, medication_name, dosage_instructions, frequency_text,
           frequency_preset_type, frequency_times, frequency_slots,
           frequency_interval_hours, frequency_interval_start,
-          route, default_dose_amount, default_dose_unit, general_notes, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          route, default_dose_amount, default_dose_unit, general_notes,
+          start_date, end_date, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING *`,
         [
           organizationId,
@@ -158,6 +162,8 @@ module.exports = (pool, logger) => {
           numericDoseAmount,
           normalizeText(default_dose_unit, 50),
           normalizeText(general_notes),
+          start_date || null,
+          end_date || null,
           req.user.id
         ]
       );
@@ -216,6 +222,8 @@ module.exports = (pool, logger) => {
       default_dose_amount,
       default_dose_unit,
       general_notes,
+      start_date,
+      end_date,
       participant_ids
     } = req.body || {};
 
@@ -266,8 +274,10 @@ module.exports = (pool, logger) => {
              default_dose_amount = $10,
              default_dose_unit = $11,
              general_notes = $12,
+             start_date = $13,
+             end_date = $14,
              updated_at = NOW()
-         WHERE id = $13 AND organization_id = $14
+         WHERE id = $15 AND organization_id = $16
          RETURNING *`,
         [
           normalizedName,
@@ -282,6 +292,8 @@ module.exports = (pool, logger) => {
           numericDoseAmount,
           normalizeText(default_dose_unit, 50),
           normalizeText(general_notes),
+          start_date || null,
+          end_date || null,
           requirementId,
           organizationId
         ]
