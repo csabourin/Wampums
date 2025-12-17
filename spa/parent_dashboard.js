@@ -7,6 +7,7 @@ import {
   linkUserParticipants
 } from "./ajax-functions.js";
 import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
+import { getActivities } from "./api/api-activities.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { hexStringToUint8Array, base64UrlEncode } from './functions.js';
@@ -303,6 +304,7 @@ export class ParentDashboard {
                                                         ${translate("my_finances")}
                                                 </a>
                                         </div>
+                                        ${this.renderCarpoolButton()}
                                 </section>
 
                                 <section class="parent-dashboard__participants">
@@ -324,6 +326,23 @@ export class ParentDashboard {
                 document.getElementById("app").innerHTML = content;
                 this.bindStatementHandlers();
                 this.bindPermissionSlipHandlers();
+        }
+
+        renderCarpoolButton() {
+                // Show a carpooling link for parents to coordinate rides
+                return `
+                        <div class="parent-dashboard__carpool-section" style="margin-top: 1.5rem;">
+                                <a href="#" id="view-carpool-activities" class="dashboard-button dashboard-button--secondary" style="display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <rect x="1" y="3" width="15" height="13"></rect>
+                                                <path d="M16 8h2"></path>
+                                                <circle cx="18.5" cy="15.5" r="2.5"></circle>
+                                                <circle cx="5.5" cy="15.5" r="2.5"></circle>
+                                        </svg>
+                                        ${translate("carpool_coordination")}
+                                </a>
+                        </div>
+                `;
         }
 
         formatCurrency(amount = 0) {
@@ -524,6 +543,15 @@ renderFormButtons(participant) {
                         });
                 }
 
+                // Carpool activities button
+                const carpoolButton = document.getElementById('view-carpool-activities');
+                if (carpoolButton) {
+                        carpoolButton.addEventListener('click', async (e) => {
+                                e.preventDefault();
+                                await this.showCarpoolActivitiesModal();
+                        });
+                }
+
                 // Install PWA button logic
                 const installButton = document.getElementById('installPwaButton');
                 let deferredPrompt;
@@ -696,6 +724,88 @@ renderFormButtons(participant) {
                                 modal.remove();
                         }
                 });
+        }
+
+        async showCarpoolActivitiesModal() {
+                try {
+                        const activities = await getActivities();
+                        const now = new Date();
+                        const upcomingActivities = activities.filter(a => new Date(a.activity_date) >= now);
+
+                        if (upcomingActivities.length === 0) {
+                                this.app.showMessage(translate('no_upcoming_activities'), 'info');
+                                return;
+                        }
+
+                        const modal = document.createElement('div');
+                        modal.className = 'modal-screen';
+                        modal.innerHTML = `
+                                <div class="modal">
+                                        <div class="modal__header">
+                                                <h3>${translate('carpool_coordination')}</h3>
+                                                <button type="button" class="ghost-button" id="close-carpool-modal">${translate('close')}</button>
+                                        </div>
+                                        <div style="padding: 1.5rem;">
+                                                <p style="margin-bottom: 1rem; color: #666;">${translate('select_activity_for_carpool')}</p>
+                                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                                        ${upcomingActivities.map(activity => `
+                                                                <a href="/carpool/${activity.id}" class="activity-link" style="padding: 1rem; border: 2px solid #e0e0e0; border-radius: 8px; text-decoration: none; color: inherit; display: block; transition: all 0.2s;">
+                                                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                                                                                <div style="flex: 1;">
+                                                                                        <h4 style="margin: 0 0 0.5rem 0; color: #333;">${escapeHTML(activity.name)}</h4>
+                                                                                        <p style="margin: 0; font-size: 0.9rem; color: #666;">
+                                                                                                ${new Date(activity.activity_date).toLocaleDateString()} - ${activity.departure_time_going}
+                                                                                        </p>
+                                                                                        <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #999;">
+                                                                                                ${escapeHTML(activity.meeting_location_going)}
+                                                                                        </p>
+                                                                                </div>
+                                                                                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; font-size: 0.85rem;">
+                                                                                        <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px;">
+                                                                                                ${activity.carpool_offer_count || 0} ${translate('vehicles')}
+                                                                                        </span>
+                                                                                        <span style="color: #666;">
+                                                                                                ${activity.assigned_participant_count || 0} ${translate('assigned')}
+                                                                                        </span>
+                                                                                </div>
+                                                                        </div>
+                                                                </a>
+                                                        `).join('')}
+                                                </div>
+                                        </div>
+                                </div>
+                        `;
+
+                        document.body.appendChild(modal);
+
+                        const closeButton = modal.querySelector('#close-carpool-modal');
+                        if (closeButton) {
+                                closeButton.addEventListener('click', () => modal.remove());
+                        }
+
+                        modal.addEventListener('click', (event) => {
+                                if (event.target === modal) {
+                                        modal.remove();
+                                }
+                        });
+
+                        // Add hover effect to activity links
+                        const activityLinks = modal.querySelectorAll('.activity-link');
+                        activityLinks.forEach(link => {
+                                link.addEventListener('mouseenter', (e) => {
+                                        e.target.style.borderColor = '#667eea';
+                                        e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                                });
+                                link.addEventListener('mouseleave', (e) => {
+                                        e.target.style.borderColor = '#e0e0e0';
+                                        e.target.style.boxShadow = 'none';
+                                });
+                        });
+
+                } catch (error) {
+                        debugError('Error loading carpool activities:', error);
+                        this.app.showMessage(translate('error_loading_activities'), 'error');
+                }
         }
 
 

@@ -51,7 +51,9 @@ const lazyModules = {
   PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
   PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
-  FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder)
+  FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder),
+  Activities: () => import('./activities.js').then(m => m.Activities),
+  CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard)
 };
 
 // Cache for loaded modules
@@ -112,7 +114,9 @@ const routes = {
   "/permission-slip/:id": "permissionSlipSign",
   "/account-info": "accountInfo",
   "/form-builder": "formBuilder",
-  "/admin/form-builder": "formBuilder"
+  "/admin/form-builder": "formBuilder",
+  "/activities": "activities",
+  "/carpool/:id": "carpool"
 
 };
 
@@ -407,6 +411,21 @@ export class Router {
             const formBuilder = new FormBuilder(this.app);
             await formBuilder.init();
           }
+          break;
+        case "activities":
+          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+            this.loadNotAuthorizedPage();
+          } else {
+            const Activities = await this.loadModule('Activities');
+            const activities = new Activities(this.app);
+            await activities.init();
+          }
+          break;
+        case "carpool":
+          // Accessible by all logged-in users (animation and parents)
+          const CarpoolDashboard = await this.loadModule('CarpoolDashboard');
+          const carpoolDashboard = new CarpoolDashboard(this.app, param);
+          await carpoolDashboard.init();
           break;
         case "register":
           if (this.app.isLoggedIn) {

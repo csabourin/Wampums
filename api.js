@@ -505,6 +505,8 @@ const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger)
 const resourcesRoutes = require('./routes/resources')(pool);
 const userProfileRoutes = require('./routes/userProfile')(pool, logger);
 const medicationRoutes = require('./routes/medication')(pool, logger);
+const activitiesRoutes = require('./routes/activities')(pool);
+const carpoolsRoutes = require('./routes/carpools')(pool);
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -788,6 +790,28 @@ logger.info('   - GET /api/v1/medication/participant-medications');
 logger.info('   - GET /api/v1/medication/distributions');
 logger.info('   - POST /api/v1/medication/distributions');
 logger.info('   - PATCH /api/v1/medication/distributions/:id');
+
+// Activity and carpool management routes
+app.use('/api/v1/activities', activitiesRoutes);
+logger.info('✅ Activity routes loaded');
+logger.info('   - GET /api/v1/activities');
+logger.info('   - GET /api/v1/activities/:id');
+logger.info('   - POST /api/v1/activities');
+logger.info('   - PUT /api/v1/activities/:id');
+logger.info('   - DELETE /api/v1/activities/:id');
+logger.info('   - GET /api/v1/activities/:id/participants');
+
+app.use('/api/v1/carpools', carpoolsRoutes);
+logger.info('✅ Carpool routes loaded');
+logger.info('   - GET /api/v1/carpools/activity/:activityId');
+logger.info('   - GET /api/v1/carpools/my-offers');
+logger.info('   - POST /api/v1/carpools/offers');
+logger.info('   - PUT /api/v1/carpools/offers/:id');
+logger.info('   - DELETE /api/v1/carpools/offers/:id');
+logger.info('   - POST /api/v1/carpools/assignments');
+logger.info('   - DELETE /api/v1/carpools/assignments/:id');
+logger.info('   - GET /api/v1/carpools/my-children-assignments');
+logger.info('   - GET /api/v1/carpools/activity/:activityId/unassigned');
 
 // Participant Routes (handles /api/participants, /api/participant-details, /api/save-participant, etc.)
 // Endpoints: participants, participant-details, save-participant, update-participant-group, link-participant-to-organization, participants-with-users, link-user-participants, participants-with-documents
