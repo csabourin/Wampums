@@ -175,6 +175,17 @@ export const CONFIG = {
         },
     },
 
+    PROGRAM_SECTIONS: {
+        DEFAULT: [
+            { key: "general", labelKey: "program_section_general" },
+            { key: "beavers", labelKey: "program_section_beavers" },
+            { key: "cubs", labelKey: "program_section_cubs" },
+            { key: "scouts", labelKey: "program_section_scouts" },
+            { key: "pioneers", labelKey: "program_section_pioneers" },
+            { key: "rovers", labelKey: "program_section_rovers" },
+        ],
+    },
+
     /**
      * UI Settings
      */

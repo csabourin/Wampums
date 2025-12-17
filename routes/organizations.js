@@ -14,6 +14,7 @@ const meetingSectionDefaults = require('../config/meeting_sections.json');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -166,6 +167,9 @@ module.exports = (pool, logger) => {
         }
       });
 
+      await ensureProgramSectionsSeeded(pool, organizationId);
+      settings.program_sections = await getProgramSections(pool, organizationId);
+
       res.json({
         success: true,
         data: settings
@@ -260,6 +264,8 @@ module.exports = (pool, logger) => {
          ON CONFLICT (organization_id, setting_key) DO NOTHING`,
         [newOrganizationId, JSON.stringify(meetingSectionDefaults)]
       );
+
+      await ensureProgramSectionsSeeded(client, newOrganizationId);
 
       // Link current user to the new organization as admin
       await client.query(
