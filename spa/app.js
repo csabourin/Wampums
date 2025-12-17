@@ -301,19 +301,25 @@ export const app = {
                                 debugLog("Got organization settings: ", JSON.stringify(response));
                                 // The fix is here - use response.data directly as the settings
                                 this.organizationSettings = response.data || response;  // This is correct
+                                if (!Array.isArray(this.organizationSettings?.program_sections) || this.organizationSettings.program_sections.length === 0) {
+                                        this.organizationSettings = {
+                                                ...this.organizationSettings,
+                                                program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT
+                                        };
+                                }
                                 this.isOrganizationSettingsFetched = true;
                                 debugLog("Organization settings fetched successfully:", this.organizationSettings);
                         } else {
                                 debugLog("Failed to fetch organization settings:", response?.message || "Unknown error");
                                 // Set default organization settings
-                                this.organizationSettings = { organization_info: { name: "Scouts" } };
+                                this.organizationSettings = { organization_info: { name: "Scouts" }, program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT };
                                 this.isOrganizationSettingsFetched = true;
                                 debugLog("Using default organization settings");
                         }
                 } catch (error) {
                         debugError("Error fetching organization settings:", error);
                         // Set default organization settings
-                        this.organizationSettings = { organization_info: { name: "Scouts" } };
+                        this.organizationSettings = { organization_info: { name: "Scouts" }, program_sections: CONFIG.PROGRAM_SECTIONS.DEFAULT };
                         this.isOrganizationSettingsFetched = true;
                         debugLog("Using default organization settings due to error");
                 }

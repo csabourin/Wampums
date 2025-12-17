@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -165,6 +166,9 @@ module.exports = (pool, logger) => {
         }
       });
 
+      await ensureProgramSectionsSeeded(pool, organizationId);
+      settings.program_sections = await getProgramSections(pool, organizationId);
+
       res.json({
         success: true,
         data: settings
@@ -253,6 +257,8 @@ module.exports = (pool, logger) => {
          VALUES ($1, 'organization_info', $2)`,
         [newOrganizationId, JSON.stringify(orgInfo)]
       );
+
+      await ensureProgramSectionsSeeded(client, newOrganizationId);
 
       // Link current user to the new organization as admin
       await client.query(

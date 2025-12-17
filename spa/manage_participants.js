@@ -8,6 +8,7 @@ import {
   clearGroupRelatedCaches
 } from "./indexedDB.js";
 import { translate } from "./app.js";
+import { CONFIG } from "./config.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 
@@ -16,10 +17,30 @@ export class ManageParticipants {
     this.app = app;
     this.participants = [];
     this.groups = [];
+    this.programSections = [];
+  }
+
+  async loadProgramSections() {
+    try {
+      if (this.app.fetchOrganizationSettings) {
+        await this.app.fetchOrganizationSettings();
+      }
+
+      const settingsSections = this.app.organizationSettings?.program_sections;
+
+      this.programSections =
+        Array.isArray(settingsSections) && settingsSections.length > 0
+          ? settingsSections
+          : CONFIG.PROGRAM_SECTIONS.DEFAULT;
+    } catch (error) {
+      debugError("Error loading program sections:", error);
+      this.programSections = CONFIG.PROGRAM_SECTIONS.DEFAULT;
+    }
   }
 
   async init() {
     try {
+      await this.loadProgramSections();
       await this.fetchData();
     } catch (error) {
       debugError("Error loading manage participants data:", error);
@@ -209,14 +230,49 @@ export class ManageParticipants {
 
   renderGroupOptions(selectedGroupId) {
     return this.groups
-      .map(
-        (group) => `
+      .map((group) => {
+        const sectionLabel = this.getSectionLabel(group.program_section);
+        const safeGroupName = escapeHTML(group.name || "");
+        const displayLabel = sectionLabel
+          ? `${escapeHTML(sectionLabel)} — ${safeGroupName}`
+          : safeGroupName;
+
+        return `
         <option value="${group.id}" ${group.id == selectedGroupId ? "selected" : ""}>
-          ${group.name}
+          ${displayLabel}
         </option>
-      `
-      )
+      `;
+      })
       .join("");
+  }
+
+  getSectionLabel(sectionKey) {
+    if (!sectionKey) {
+      return "";
+    }
+
+    const match = (this.programSections || []).find(
+      (section) => section.key === sectionKey,
+    );
+    const translationKey = `program_section_${sectionKey}`;
+    const translated = translate(translationKey);
+
+    if (translated !== translationKey) {
+      return translated;
+    }
+
+    if (match?.labelKey) {
+      const labelFromKey = translate(match.labelKey);
+      if (labelFromKey !== match.labelKey) {
+        return labelFromKey;
+      }
+    }
+
+    if (match?.label) {
+      return match.label;
+    }
+
+    return sectionKey;
   }
 
   attachEventListeners() {
