@@ -11,7 +11,7 @@ const { verifyOrganizationMembership } = require('../utils/api-helpers');
  * @param {Object} db - Database pool or client.
  * @param {number} groupId - Target group identifier.
  * @param {number} organizationId - Organization identifier used for scoping.
- * @returns {Promise<{id: number, program_section: string} | null>} Group context or null when not found.
+ * @returns {Promise<{id: number} | null>} Group context or null when not found.
  */
 async function getGroupForOrganization(db, groupId, organizationId) {
   if (!groupId) {
@@ -19,7 +19,7 @@ async function getGroupForOrganization(db, groupId, organizationId) {
   }
 
   const groupResult = await db.query(
-    `SELECT id, program_section
+    `SELECT id
      FROM groups
      WHERE id = $1 AND organization_id = $2`,
     [groupId, organizationId]
@@ -252,9 +252,9 @@ module.exports = (pool) => {
       // Link to group if provided
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, program_section)
-           VALUES ($1, $2, $3, $4)`,
-          [participantId, groupContext.id, organizationId, groupContext.program_section]
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id)
+           VALUES ($1, $2, $3)`,
+          [participantId, groupContext.id, organizationId]
         );
       }
 
@@ -355,9 +355,9 @@ module.exports = (pool) => {
       // Add new group assignment if group_id is provided
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles, program_section)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null, groupContext.program_section]
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null]
         );
       }
 
@@ -387,7 +387,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
-              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles, pg.program_section,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
               COALESCE((SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1), 0) as total_points
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -414,7 +414,7 @@ module.exports = (pool) => {
     if (participantId) {
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                pg.group_id, g.name as group_name, pg.program_section
+                pg.group_id, g.name as group_name
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -431,7 +431,7 @@ module.exports = (pool) => {
     } else {
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles, pg.program_section,
+                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
                 (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'fiche_sante') > 0 as has_fiche_sante,
                 (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'acceptation_risque') > 0 as has_acceptation_risque
          FROM participants p
@@ -543,9 +543,9 @@ module.exports = (pool) => {
         // Add new group assignment if group_id is not null
         if (groupContext) {
           await client.query(
-            `INSERT INTO participant_groups (participant_id, group_id, organization_id, program_section)
-             VALUES ($1, $2, $3, $4)`,
-            [participantId, groupContext.id, organizationId, groupContext.program_section]
+            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
+             VALUES ($1, $2, $3)`,
+            [participantId, groupContext.id, organizationId]
           );
         }
       }
@@ -606,9 +606,9 @@ module.exports = (pool) => {
       // Add new group assignment if group_id is not null/empty
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles, program_section)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [participant_id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null, groupContext.program_section]
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [participant_id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null]
         );
       }
 
@@ -657,7 +657,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
-              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles, pg.program_section,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
               u.id as user_id, u.email as user_email, u.full_name as user_full_name
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -769,7 +769,7 @@ module.exports = (pool) => {
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
               DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance)) as age,
-              g.name as group_name, pg.program_section
+              g.name as group_name
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -1060,9 +1060,9 @@ module.exports = (pool) => {
 
         if (groupContext) {
           await client.query(
-            `INSERT INTO participant_groups (participant_id, group_id, organization_id, program_section)
-             VALUES ($1, $2, $3, $4)`,
-            [id, groupContext.id, organizationId, groupContext.program_section]
+            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
+             VALUES ($1, $2, $3)`,
+            [id, groupContext.id, organizationId]
           );
         }
       }

@@ -14,30 +14,10 @@ export class ManageGroups {
   constructor(app) {
     this.app = app;
     this.groups = [];
-    this.programSections = [];
-  }
-
-  async loadProgramSections() {
-    try {
-      if (this.app.fetchOrganizationSettings) {
-        await this.app.fetchOrganizationSettings();
-      }
-
-      const settingsSections = this.app.organizationSettings?.program_sections;
-
-      this.programSections =
-        Array.isArray(settingsSections) && settingsSections.length > 0
-          ? settingsSections
-          : CONFIG.PROGRAM_SECTIONS.DEFAULT;
-    } catch (error) {
-      debugError("Error loading program sections:", error);
-      this.programSections = CONFIG.PROGRAM_SECTIONS.DEFAULT;
-    }
   }
 
   async init() {
     try {
-      await this.loadProgramSections();
       await this.fetchGroups();
       this.render();
       this.attachEventListeners();
@@ -64,10 +44,6 @@ export class ManageGroups {
                 <h2>${translate("add_group")}</h2>
                 <label for="group_name">${translate("group_name")}:</label>
                 <input type="text" id="group_name" name="group_name" required>
-                <label for="program_section">${translate("program_section")}:</label>
-                <select id="program_section" name="program_section" required>
-                  ${this.renderSectionOptions()}
-                </select>
                 <button type="submit">${translate("add_group")}</button>
             </form>
             <h2>${translate("existing_groups")}</h2>
@@ -75,7 +51,6 @@ export class ManageGroups {
                 <thead>
                   <tr>
                       <th>${translate("group_name")}</th>
-                      <th>${translate("program_section")}</th>
                       <th>${translate("action")}</th>
                   </tr>
                 </thead>
@@ -96,11 +71,6 @@ export class ManageGroups {
                     <span class="editable-group" contenteditable="true" data-group-id="${group.id}">${escapeHTML(group.name || "")}</span>
                 </td>
                 <td>
-                  <select class="section-select" data-group-id="${group.id}" aria-label="${translate("program_section")}">
-                    ${this.renderSectionOptions(group.program_section)}
-                  </select>
-                </td>
-                <td>
                     <button class="remove-group" data-group-id="${
                       group.id
                     }" style="background-color: #f44336;">
@@ -111,52 +81,6 @@ export class ManageGroups {
         `
       )
       .join("");
-  }
-
-  renderSectionOptions(selectedSection = "") {
-    const sections =
-      Array.isArray(this.programSections) && this.programSections.length > 0
-        ? this.programSections
-        : CONFIG.PROGRAM_SECTIONS.DEFAULT;
-
-    return sections
-      .map((section) => {
-        const value = escapeHTML(section.key);
-        const label = escapeHTML(this.getSectionLabel(section.key));
-        const selected = section.key === selectedSection ? "selected" : "";
-
-        return `<option value="${value}" ${selected}>${label}</option>`;
-      })
-      .join("");
-  }
-
-  getSectionLabel(sectionKey) {
-    if (!sectionKey) {
-      return translate("program_section");
-    }
-
-    const match = (this.programSections || []).find(
-      (section) => section.key === sectionKey,
-    );
-    const translationKey = `program_section_${sectionKey}`;
-    const translated = translate(translationKey);
-
-    if (translated !== translationKey) {
-      return translated;
-    }
-
-    if (match?.labelKey) {
-      const labelFromKey = translate(match.labelKey);
-      if (labelFromKey !== match.labelKey) {
-        return labelFromKey;
-      }
-    }
-
-    if (match?.label) {
-      return match.label;
-    }
-
-    return sectionKey;
   }
 
   attachEventListeners() {
@@ -173,13 +97,6 @@ export class ManageGroups {
       });
     });
 
-    document.querySelectorAll(".section-select").forEach((select) => {
-      select.addEventListener("change", (event) => {
-        const groupId = event.target.getAttribute("data-group-id");
-        this.handleUpdateGroup(groupId);
-      });
-    });
-
     document.querySelectorAll(".remove-group").forEach((button) => {
       button.addEventListener("click", (e) => this.handleRemoveGroup(e));
     });
@@ -188,20 +105,14 @@ export class ManageGroups {
   async handleAddGroup(e) {
     e.preventDefault();
     const groupName = document.getElementById("group_name").value.trim();
-    const programSection = document.getElementById("program_section")?.value || "";
 
     if (!groupName) {
       this.showMessage(translate("group_name_required"));
       return;
     }
 
-    if (!programSection) {
-      this.showMessage(translate("program_section_required"));
-      return;
-    }
-
     try {
-      const result = await addGroup(groupName, programSection);
+      const result = await addGroup(groupName);
       if (result.success) {
         // Clear all group-related caches
         await clearGroupRelatedCaches();
@@ -212,10 +123,6 @@ export class ManageGroups {
         this.showMessage(translate("group_added_successfully"));
         // Clear the input field
         document.getElementById("group_name").value = "";
-        if (document.getElementById("program_section")) {
-          document.getElementById("program_section").value =
-            this.programSections[0]?.key || "";
-        }
       } else {
         this.showMessage(result.message || translate("error_adding_group"));
       }
@@ -233,23 +140,15 @@ export class ManageGroups {
     }
 
     const nameElement = row.querySelector(".editable-group");
-    const sectionElement = row.querySelector(".section-select");
-
     const newName = nameElement?.textContent.trim() || "";
-    const newSection = sectionElement?.value || "";
 
     if (!newName) {
       this.showMessage(translate("group_name_required"));
       return;
     }
 
-    if (!newSection) {
-      this.showMessage(translate("program_section_required"));
-      return;
-    }
-
     try {
-      const result = await updateGroupName(groupId, newName, newSection);
+      const result = await updateGroupName(groupId, newName);
 
       if (result.success) {
         // Clear all group-related caches
