@@ -1,6 +1,7 @@
 import { translate } from "./app.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { CONFIG } from "./config.js";
 import {
   getEquipmentInventory,
   saveEquipmentItem,
@@ -48,11 +49,18 @@ export class Inventory {
     this.equipment = equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
   }
 
+  getLocale() {
+    const storedLang = localStorage.getItem('lang') || localStorage.getItem('language') || this.app?.lang || CONFIG.DEFAULT_LANG;
+    if (storedLang === 'en') return 'en-CA';
+    if (storedLang === 'uk') return 'uk-UA';
+    return 'fr-CA';
+  }
+
   formatDate(dateString) {
     if (!dateString) return '-';
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString(localStorage.getItem('language') === 'en' ? 'en-CA' : 'fr-CA');
+      return date.toLocaleDateString(this.getLocale());
     } catch {
       return '-';
     }
@@ -62,7 +70,7 @@ export class Inventory {
     if (value === null || value === undefined || value === '') return '-';
     const numValue = parseFloat(value);
     if (isNaN(numValue)) return '-';
-    return new Intl.NumberFormat(localStorage.getItem('language') === 'en' ? 'en-CA' : 'fr-CA', {
+    return new Intl.NumberFormat(this.getLocale(), {
       style: 'currency',
       currency: 'CAD'
     }).format(numValue);

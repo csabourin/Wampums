@@ -2,6 +2,7 @@ import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from 
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
+import { CONFIG } from "./config.js";
 
 export class MailingList {
         constructor(app) {
@@ -486,7 +487,9 @@ export class MailingList {
         formatDateTime(dateString) {
                 if (!dateString) return "";
                 try {
-                        return new Date(dateString).toLocaleString(this.app.language || "fr-CA");
+                        const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
+                        const locale = lang === 'en' ? 'en-CA' : lang === 'uk' ? 'uk-UA' : 'fr-CA';
+                        return new Date(dateString).toLocaleString(locale);
                 } catch (error) {
                         debugLog("Unable to format date", error);
                         return dateString;

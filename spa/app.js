@@ -327,31 +327,24 @@ export const app = {
                 try {
                         debugLog("Loading translations...");
 
-                        const [enRes, frRes] = await Promise.all([
-                                fetch('/lang/en.json'), // adapte le chemin selon où sont tes fichiers !
-                                fetch('/lang/fr.json')
-                        ]);
+                        const translationFetches = CONFIG.SUPPORTED_LANGS.map(async (langCode) => {
+                                const response = await fetch(`/lang/${langCode}.json`);
+                                if (!response.ok) {
+                                        throw new Error(`Failed to fetch translation file for ${langCode}`);
+                                }
+                                const data = await response.json();
+                                return [langCode, data];
+                        });
 
-                        // Vérifie si le fetch a réussi
-                        if (!enRes.ok || !frRes.ok) throw new Error('Failed to fetch translation files.');
-
-                        const [enTranslations, frTranslations] = await Promise.all([
-                                enRes.json(),
-                                frRes.json()
-                        ]);
-
-                        this.translations = {
-                                en: enTranslations,
-                                fr: frTranslations
-                        };
-                        debugLog("Translations loaded successfully", this.translations);
+                        const resolvedTranslations = await Promise.all(translationFetches);
+                        this.translations = Object.fromEntries(resolvedTranslations);
+                        debugLog("Translations loaded successfully", Object.keys(this.translations));
                 } catch (error) {
                         debugError("Error loading translations:", error);
-                        // Fallback vide
-                        this.translations = {
-                                en: {},
-                                fr: {}
-                        };
+                        this.translations = CONFIG.SUPPORTED_LANGS.reduce((acc, langCode) => {
+                                acc[langCode] = {};
+                                return acc;
+                        }, {});
                 }
         },
 
@@ -485,9 +478,14 @@ export const app = {
         },
 
         setLanguage(lang) {
-                this.lang = lang;
-                document.documentElement.lang = lang;
-                setStorage('lang', lang);
+                const fallbackLang = CONFIG.DEFAULT_LANG;
+                const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(lang) ? lang : fallbackLang;
+
+                this.lang = normalizedLang;
+                this.language = normalizedLang;
+                document.documentElement.lang = normalizedLang;
+                setStorage('lang', normalizedLang);
+                localStorage.setItem('language', normalizedLang);
 
                 this.loadTranslations().then(() => {
                         // Update page title
@@ -516,11 +514,12 @@ export const app = {
                 });
 
                 // Set initial language
-                const savedLang = getStorage('lang', false, 'fr');
-                this.setLanguage(savedLang);
+                const savedLang = getStorage('lang', false, CONFIG.DEFAULT_LANG);
+                const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(savedLang) ? savedLang : CONFIG.DEFAULT_LANG;
+                this.setLanguage(normalizedLang);
                 // Remove active class from all buttons first to avoid duplicates
                 toggleButtons.forEach(b => b.classList.remove('active'));
-                const activeBtn = document.querySelector(`.lang-btn[data-lang="${savedLang}"]`);
+                const activeBtn = document.querySelector(`.lang-btn[data-lang="${normalizedLang}"]`);
                 if (activeBtn) {
                         activeBtn.classList.add('active');
                 }
@@ -576,12 +575,13 @@ export const app = {
         },
 
         translate(key) {
-                const lang = this.lang || 'fr';
-                if (!this.translations[lang]) {
-                        debugLog(`Failed to translating key: ${key} in language: ${lang}`);
-                        return key; // Return the key if language translations aren't loaded yet
+                const activeLang = this.lang && this.translations[this.lang] ? this.lang : CONFIG.DEFAULT_LANG;
+                const translationSet = this.translations[activeLang] || {};
+                const defaultSet = this.translations[CONFIG.DEFAULT_LANG] || {};
+                if (!translationSet[key] && !defaultSet[key]) {
+                        debugLog(`Missing translation for key: ${key} in language: ${activeLang}`);
                 }
-                return this.translations[lang][key] || key;
+                return translationSet[key] || defaultSet[key] || key;
         },
 
         async syncOfflineData() {
