@@ -383,6 +383,7 @@ export async function clearActivityRelatedCaches() {
   const keysToDelete = [
     'activities',
     'upcoming_activities',
+    'v1/activities', // API v1 endpoint cache
   ];
 
   // Also clear any activity-specific caches
@@ -395,9 +396,14 @@ export async function clearActivityRelatedCaches() {
     request.onerror = () => reject(request.error);
   });
 
-  // Find and clear activity-specific caches (e.g., 'activity_123', 'carpool_offers_123')
+  // Find and clear activity-specific caches (e.g., 'activity_123', 'carpool_offers_123', 'v1/activities/123')
   allKeys.forEach(key => {
-    if (typeof key === 'string' && (key.startsWith('activity_') || key.startsWith('carpool_'))) {
+    if (typeof key === 'string' && (
+      key.startsWith('activity_') ||
+      key.startsWith('carpool_') ||
+      key.startsWith('v1/activities/') ||
+      key.startsWith('v1/carpools/')
+    )) {
       keysToDelete.push(key);
     }
   });
