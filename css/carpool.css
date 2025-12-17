@@ -18,17 +18,17 @@
   --carpool-highlight: var(--color-primary, #0f7a5a);
   --carpool-highlight-strong: var(--color-primary-dark, #0b5b43);
   --carpool-highlight-soft: var(--color-primary-light, #18b29a);
-  --carpool-text: var(--color-text, #1d2f2a);
+  --carpool-text: #1d2f2a;
   --carpool-text-muted: var(--color-text-muted, #6f8a81);
-  --carpool-warning: var(--color-warning, #f1b746);
-  --carpool-warning-soft: var(--color-warning-light, #ffd773);
+  --carpool-warning: #bbe69e;
+  --carpool-warning-soft: #af861d;
   --carpool-success: var(--color-success, #1a8f6b);
   --carpool-touch-target: var(--touch-target-min, 44px);
 }
 
 /* Activity Info Card */
 .activity-info-card {
-  background: var(--gradient-primary, linear-gradient(135deg, #0f7a5a 0%, #18b29a 100%));
+  background: var(--carpool-highlight-strong);
   color: var(--color-selected-text, #ffffff);
   padding: var(--space-lg);
   border-radius: var(--carpool-radius);
@@ -90,7 +90,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-sm, 0.5rem);
-  background: var(--gradient-primary, linear-gradient(135deg, #0f7a5a 0%, #18b29a 100%));
+  background: var(--carpool-highlight-strong);
   color: var(--color-selected-text, #ffffff);
   border: 1px solid var(--carpool-highlight);
   border-radius: var(--carpool-radius-sm);
@@ -474,11 +474,12 @@
 }
 
 .unassigned-item {
+  color: var(--carpool-text);
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: var(--space-md, 1rem);
-  background: #fff8e1;
+  background: var(--carpool-surface);
   border: 1px solid #ffe082;
   border-radius: var(--carpool-radius-sm);
   gap: var(--space-md, 1rem);
@@ -713,58 +714,6 @@
   }
 }
 
-/* Dark mode support - Using lighter backgrounds for better mobile readability */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --carpool-surface: #2d4540;
-    --carpool-surface-muted: #3a5550;
-    --carpool-surface-subtle: #264239;
-    --carpool-border: #4a6860;
-    --carpool-border-strong: #587870;
-    --carpool-text: #f5faf8;
-    --carpool-text-muted: #c5d8d2;
-  }
-
-  .activity-card,
-  .carpool-offer-card,
-  .assignment-card,
-  .info-box,
-  .empty-state {
-    background: var(--carpool-surface);
-    color: var(--carpool-text);
-  }
-
-  .activity-card__details,
-  .carpool-offer-card__vehicle,
-  .assignment-card__ride,
-  .child-selection-card,
-  .radio-label {
-    background: var(--carpool-surface-muted);
-  }
-
-  .carpool-offer-card__passengers summary,
-  .stat,
-  .activity-card__description {
-    color: var(--carpool-text-muted);
-  }
-
-  .carpool-section__title,
-  .activity-card__title,
-  .carpool-offer-card__driver strong {
-    color: var(--carpool-text);
-  }
-
-  /* Ensure capacity indicators are visible in dark mode */
-  .capacity-indicator__label,
-  .capacity-indicator__text {
-    color: var(--carpool-text);
-  }
-
-  .capacity-indicator__bar {
-    background: var(--carpool-surface-subtle);
-    border-color: var(--carpool-border);
-  }
-}
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
