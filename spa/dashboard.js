@@ -15,6 +15,7 @@ import {
   sanitizeURL,
 } from "./utils/SecurityUtils.js";
 import { getActivities, createActivity } from "./api/api-activities.js";
+import { clearActivityRelatedCaches } from "./indexedDB.js";
 
 export class Dashboard {
   constructor(app) {
@@ -806,6 +807,36 @@ export class Dashboard {
             </div>
           </div>
 
+          <div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 2px solid #e9ecef;">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #667eea;">${translate('returning_from_activity')}</h3>
+
+            <div style="margin-bottom: 1rem;">
+              <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                ${translate('meeting_location')}
+              </label>
+              <input type="text" name="meeting_location_return"
+                style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+                placeholder="${translate('meeting_location_placeholder')}">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                  ${translate('meeting_time')}
+                </label>
+                <input type="time" name="meeting_time_return"
+                  style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+              </div>
+              <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                  ${translate('departure_time')}
+                </label>
+                <input type="time" name="departure_time_return"
+                  style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+              </div>
+            </div>
+          </div>
+
           <div style="margin-top: 2rem; display: flex; gap: 1rem;">
             <button type="button" id="cancel-quick-create" style="flex: 1; padding: 0.75rem; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem;">
               ${translate('cancel')}
@@ -842,6 +873,10 @@ export class Dashboard {
         submitBtn.textContent = translate('creating') + '...';
 
         const newActivity = await createActivity(data);
+
+        // Clear activity-related caches so the new activity appears immediately
+        await clearActivityRelatedCaches();
+
         modal.remove();
         this.app.showToast(translate('activity_created_success'), 'success');
 
