@@ -68,6 +68,12 @@ export default defineConfig({
             './spa/parent_contact_list.js'
           ],
 
+          // Carpooling module - lazy loaded
+          'carpooling': [
+            './spa/activities.js',
+            './spa/carpool_dashboard.js'
+          ],
+
           // Authentication
           'auth': [
             './spa/login.js',
