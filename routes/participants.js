@@ -73,7 +73,7 @@ module.exports = (pool) => {
     // If user is admin or animation, show ALL participants
     if (userRole === 'admin' || userRole === 'animation') {
       query = `
-        SELECT p.*, pg.group_id, g.name as group_name, g.section as group_section, pg.is_leader, pg.is_second_leader, pg.roles,
+        SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
                COALESCE(
                  (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                   FROM form_submissions
@@ -113,7 +113,7 @@ module.exports = (pool) => {
     } else {
       // For parents, only show participants linked to them
       query = `
-        SELECT p.*, pg.group_id, g.name as group_name, g.section as group_section, pg.is_leader, pg.is_second_leader, pg.roles,
+        SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
                COALESCE(
                  (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                   FROM form_submissions
@@ -941,7 +941,7 @@ module.exports = (pool) => {
 
     // Base query to get participant data
     let query = `
-      SELECT p.*, pg.group_id, g.name as group_name, g.section as group_section, pg.is_leader, pg.is_second_leader, pg.roles,
+      SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
              po.inscription_date,
              COALESCE(
                (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
