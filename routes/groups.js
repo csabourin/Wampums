@@ -246,7 +246,6 @@ module.exports = (pool) => {
     await ensureProgramSectionsSeeded(pool, organizationId);
 
     const updates = [];
-    const params = [];
 
     const normalizedName = name !== undefined ? String(name).trim() : undefined;
     const normalizedProgramSection = program_section !== undefined ? normalizeProgramSection(program_section) : undefined;
@@ -473,8 +472,7 @@ module.exports = (pool) => {
         return res.status(400).json({ success: false, message: 'At least one field to update is required' });
       }
 
-      const updates = [];
-      const params = [];
+    
 
       if (name) {
         params.push(name.trim());
