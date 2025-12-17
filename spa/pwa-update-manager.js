@@ -221,7 +221,7 @@ class PWAUpdateManager {
         prompt.id = 'pwa-update-prompt';
         prompt.className = 'pwa-update-prompt';
 
-        const lang = localStorage.getItem('language') || 'fr';
+        const lang = localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
 
         const messages = {
             fr: {
@@ -235,10 +235,16 @@ class PWAUpdateManager {
                 message: 'A new version of the application is available.',
                 update: 'Update',
                 later: 'Later'
+            },
+            uk: {
+                title: 'Доступна нова версія',
+                message: 'Доступна нова версія застосунку.',
+                update: 'Оновити',
+                later: 'Пізніше'
             }
         };
 
-        const msg = messages[lang] || messages.fr;
+        const msg = messages[lang] || messages[CONFIG.DEFAULT_LANG] || messages.fr;
 
         prompt.innerHTML = `
             <div class="pwa-update-content">

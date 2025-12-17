@@ -4,12 +4,20 @@
 import { translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { API } from './api/api-core.js';
+import { CONFIG } from './config.js';
 
 export class PermissionSlipSign {
   constructor(app, slipId) {
     this.app = app;
     this.slipId = slipId;
     this.slip = null;
+  }
+
+  getLocale() {
+    const lang = this.app?.lang || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
+    if (lang === 'en') return 'en-CA';
+    if (lang === 'uk') return 'uk-UA';
+    return 'fr-CA';
   }
 
   async init() {
@@ -52,9 +60,10 @@ export class PermissionSlipSign {
       return;
     }
 
-    const activityDate = new Date(this.slip.meeting_date).toLocaleDateString('fr-CA');
+    const locale = this.getLocale();
+    const activityDate = new Date(this.slip.meeting_date).toLocaleDateString(locale);
     const deadlineDate = this.slip.deadline_date
-      ? new Date(this.slip.deadline_date).toLocaleDateString('fr-CA')
+      ? new Date(this.slip.deadline_date).toLocaleDateString(locale)
       : null;
 
     const isSigned = this.slip.status === 'signed';
@@ -94,7 +103,7 @@ export class PermissionSlipSign {
               <div class="alert alert-success">
                 <i class="fas fa-check-circle"></i> ${translate('already_signed')}
                 <br>
-                <small>${translate('signed_on')}: ${new Date(this.slip.signed_at).toLocaleString('fr-CA')}</small>
+                <small>${translate('signed_on')}: ${new Date(this.slip.signed_at).toLocaleString(locale)}</small>
                 ${this.slip.signed_by ? `<br><small>${translate('signed_by')}: ${this.slip.signed_by}</small>` : ''}
               </div>
             ` : canSign ? `
