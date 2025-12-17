@@ -231,37 +231,44 @@ module.exports = (pool) => {
         p.date_of_birth,
         po.organization_id,
         COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'user_id', up.user_id,
-              'guardian_name', u.full_name,
-              'guardian_email', u.email
-            )
-          ) FILTER (WHERE up.user_id IS NOT NULL),
+          (
+            SELECT json_agg(DISTINCT guardian_info)
+            FROM (
+              SELECT jsonb_build_object(
+                'user_id', up.user_id,
+                'guardian_name', u.full_name,
+                'guardian_email', u.email
+              ) as guardian_info
+              FROM user_participants up
+              LEFT JOIN users u ON up.user_id = u.id
+              WHERE up.participant_id = p.id AND up.user_id IS NOT NULL
+            ) guardians_subquery
+          ),
           '[]'
         ) as guardians,
         COALESCE(
-          json_agg(
-            DISTINCT jsonb_build_object(
-              'assignment_id', ca.id,
-              'carpool_offer_id', ca.carpool_offer_id,
-              'trip_direction', ca.trip_direction,
-              'driver_name', driver.full_name,
-              'vehicle_make', co.vehicle_make,
-              'vehicle_color', co.vehicle_color
-            )
-          ) FILTER (WHERE ca.id IS NOT NULL),
+          (
+            SELECT json_agg(DISTINCT assignment_info)
+            FROM (
+              SELECT jsonb_build_object(
+                'assignment_id', ca.id,
+                'carpool_offer_id', ca.carpool_offer_id,
+                'trip_direction', ca.trip_direction,
+                'driver_name', driver.full_name,
+                'vehicle_make', co.vehicle_make,
+                'vehicle_color', co.vehicle_color
+              ) as assignment_info
+              FROM carpool_assignments ca
+              LEFT JOIN carpool_offers co ON ca.carpool_offer_id = co.id AND co.activity_id = $1 AND co.is_active = TRUE
+              LEFT JOIN users driver ON co.user_id = driver.id
+              WHERE ca.participant_id = p.id AND ca.id IS NOT NULL
+            ) assignments_subquery
+          ),
           '[]'
         ) as carpool_assignments
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
-       LEFT JOIN user_participants up ON p.id = up.participant_id
-       LEFT JOIN users u ON up.user_id = u.id
-       LEFT JOIN carpool_assignments ca ON p.id = ca.participant_id
-       LEFT JOIN carpool_offers co ON ca.carpool_offer_id = co.id AND co.activity_id = $1 AND co.is_active = TRUE
-       LEFT JOIN users driver ON co.user_id = driver.id
        WHERE po.organization_id = $2
-       GROUP BY p.id, po.organization_id
        ORDER BY p.last_name, p.first_name`,
       [id, organizationId]
     );
