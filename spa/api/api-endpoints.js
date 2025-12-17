@@ -680,8 +680,8 @@ export async function getGroups() {
 /**
  * Add new group
  */
-export async function addGroup(groupName, programSection) {
-    return API.post('v1/groups', { name: groupName, program_section: programSection });
+export async function addGroup(groupName) {
+    return API.post('v1/groups', { name: groupName });
 }
 
 /**
@@ -694,15 +694,11 @@ export async function removeGroup(groupId) {
 /**
  * Update group name
  */
-export async function updateGroupName(groupId, newName, programSection = undefined) {
+export async function updateGroupName(groupId, newName) {
     const payload = {};
 
     if (newName !== undefined) {
         payload.name = newName;
-    }
-
-    if (programSection !== undefined) {
-        payload.program_section = programSection;
     }
 
     return API.put(`v1/groups/${groupId}`, payload);
