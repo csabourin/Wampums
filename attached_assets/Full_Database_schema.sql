@@ -322,8 +322,13 @@ CREATE TABLE public.groups (
   name character varying NOT NULL,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   organization_id integer,
+  program_section text NOT NULL DEFAULT 'general'::text,
   CONSTRAINT groups_pkey PRIMARY KEY (id),
-  CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+  CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(organization_id),
+  CONSTRAINT groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(organization_id),
+  CONSTRAINT groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(section_key),
+  CONSTRAINT groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(section_key)
 );
 CREATE TABLE public.guardian_users (
   guardian_id integer NOT NULL,
@@ -445,6 +450,15 @@ CREATE TABLE public.organization_form_formats (
   CONSTRAINT organization_form_formats_pkey PRIMARY KEY (id),
   CONSTRAINT organization_form_formats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+CREATE TABLE public.organization_program_sections (
+  organization_id integer NOT NULL,
+  section_key text NOT NULL CHECK (length(btrim(section_key)) > 0),
+  display_name text NOT NULL CHECK (length(btrim(display_name)) > 0),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT organization_program_sections_pkey PRIMARY KEY (organization_id, section_key),
+  CONSTRAINT organization_program_sections_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
 CREATE TABLE public.organization_settings (
   id integer NOT NULL DEFAULT nextval('organization_settings_id_seq'::regclass),
   organization_id integer,
@@ -501,10 +515,24 @@ CREATE TABLE public.participant_groups (
   is_leader boolean NOT NULL DEFAULT false,
   is_second_leader boolean NOT NULL DEFAULT false,
   roles text,
+  program_section text NOT NULL,
   CONSTRAINT participant_groups_pkey PRIMARY KEY (participant_id, organization_id),
   CONSTRAINT participant_groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT participant_groups_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
-  CONSTRAINT participant_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id)
+  CONSTRAINT participant_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (organization_id) REFERENCES public.groups(id),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (program_section) REFERENCES public.groups(id),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (group_id) REFERENCES public.groups(organization_id),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (organization_id) REFERENCES public.groups(organization_id),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (program_section) REFERENCES public.groups(organization_id),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (group_id) REFERENCES public.groups(program_section),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (organization_id) REFERENCES public.groups(program_section),
+  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (program_section) REFERENCES public.groups(program_section),
+  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(organization_id),
+  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(organization_id),
+  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(section_key),
+  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(section_key)
 );
 CREATE TABLE public.participant_guardians (
   guardian_id integer NOT NULL,
@@ -660,7 +688,7 @@ CREATE TABLE public.reunion_preparations (
   id integer NOT NULL DEFAULT nextval('reunion_preparations_id_seq'::regclass),
   organization_id integer NOT NULL,
   date date NOT NULL,
-  louveteau_dhonneur text,
+  youth_of_honor text,
   endroit text NOT NULL,
   activities jsonb NOT NULL,
   notes text,
