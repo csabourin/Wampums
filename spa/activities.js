@@ -8,6 +8,7 @@ import {
   updateActivity,
   deleteActivity
 } from './api/api-activities.js';
+import { clearActivityRelatedCaches } from './indexedDB.js';
 
 export class Activities {
   constructor(app) {
@@ -176,7 +177,7 @@ export class Activities {
     document.querySelectorAll('.view-carpools-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const activityId = parseInt(e.target.dataset.activityId);
-        window.location.hash = `#/carpool/${activityId}`;
+        window.location.hash = `/carpool/${activityId}`;
       });
     });
   }
@@ -186,8 +187,8 @@ export class Activities {
     const modalId = 'activity-modal';
 
     const modalHTML = `
-      <div class="modal__backdrop"></div>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
+      <div class="modal__backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: -1;"></div>
+      <div class="modal" style="display: block; position: relative; background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
         <header class="modal__header">
           <h2 id="activity-modal-title">
             ${isEdit ? translate('edit_activity') : translate('add_activity')}
@@ -288,6 +289,15 @@ export class Activities {
       modalContainer = document.createElement('div');
       modalContainer.id = modalId;
       modalContainer.className = 'modal-container';
+      modalContainer.style.position = 'fixed';
+      modalContainer.style.top = '0';
+      modalContainer.style.left = '0';
+      modalContainer.style.width = '100%';
+      modalContainer.style.height = '100%';
+      modalContainer.style.display = 'flex';
+      modalContainer.style.alignItems = 'center';
+      modalContainer.style.justifyContent = 'center';
+      modalContainer.style.zIndex = '10000';
       document.body.appendChild(modalContainer);
     }
     modalContainer.innerHTML = modalHTML;
@@ -295,7 +305,7 @@ export class Activities {
 
     // Attach modal event listeners
     const closeModal = () => {
-      modalContainer.classList.remove('modal-container--visible');
+      modalContainer.remove();
     };
 
     document.getElementById('close-activity-modal')?.addEventListener('click', closeModal);
@@ -317,18 +327,22 @@ export class Activities {
       try {
         if (isEdit) {
           await updateActivity(activity.id, data);
-          this.app.showToast(translate('activity_updated_success'), 'success');
+          this.app.showMessage(translate('activity_updated_success'), 'success');
         } else {
           await createActivity(data);
-          this.app.showToast(translate('activity_created_success'), 'success');
+          this.app.showMessage(translate('activity_created_success'), 'success');
         }
+
+        // Clear activity-related caches so changes appear immediately
+        await clearActivityRelatedCaches();
+
         closeModal();
         await this.loadActivities();
         this.render();
         this.attachEventListeners();
       } catch (error) {
         console.error('Error saving activity:', error);
-        this.app.showToast(error.message || translate('error_saving_activity'), 'error');
+        this.app.showMessage(error.message || translate('error_saving_activity'), 'error');
       }
     });
   }
@@ -336,13 +350,17 @@ export class Activities {
   async deleteActivity(activityId) {
     try {
       await deleteActivity(activityId);
-      this.app.showToast(translate('activity_deleted_success'), 'success');
+
+      // Clear activity-related caches so changes appear immediately
+      await clearActivityRelatedCaches();
+
+      this.app.showMessage(translate('activity_deleted_success'), 'success');
       await this.loadActivities();
       this.render();
       this.attachEventListeners();
     } catch (error) {
       console.error('Error deleting activity:', error);
-      this.app.showToast(error.message || translate('error_deleting_activity'), 'error');
+      this.app.showMessage(error.message || translate('error_deleting_activity'), 'error');
     }
   }
 }

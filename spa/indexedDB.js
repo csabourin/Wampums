@@ -375,6 +375,44 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
   }
 }
 
+/**
+ * Clear activity-related caches
+ * Call this after creating, updating, or deleting activities
+ */
+export async function clearActivityRelatedCaches() {
+  const keysToDelete = [
+    'activities',
+    'upcoming_activities',
+  ];
+
+  // Also clear any activity-specific caches
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  // Find and clear activity-specific caches (e.g., 'activity_123', 'carpool_offers_123')
+  allKeys.forEach(key => {
+    if (typeof key === 'string' && (key.startsWith('activity_') || key.startsWith('carpool_'))) {
+      keysToDelete.push(key);
+    }
+  });
+
+  debugLog("Clearing activity-related caches:", keysToDelete);
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {

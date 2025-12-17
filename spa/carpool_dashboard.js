@@ -46,7 +46,7 @@ export class CarpoolDashboard {
       }
     } catch (error) {
       console.error('Error loading carpool data:', error);
-      this.app.showToast(translate('error_loading_carpool_data'), 'error');
+      this.app.showMessage(translate('error_loading_carpool_data'), 'error');
     }
   }
 
@@ -532,10 +532,10 @@ export class CarpoolDashboard {
       try {
         if (isEdit) {
           await updateCarpoolOffer(offer.id, data);
-          this.app.showToast(translate('ride_offer_updated'), 'success');
+          this.app.showMessage(translate('ride_offer_updated'), 'success');
         } else {
           await createCarpoolOffer(data);
-          this.app.showToast(translate('ride_offer_created'), 'success');
+          this.app.showMessage(translate('ride_offer_created'), 'success');
         }
         await this.loadData();
         this.render();
@@ -555,7 +555,7 @@ export class CarpoolDashboard {
     });
 
     if (userChildren.length === 0) {
-      this.app.showToast(translate('no_children_found'), 'warning');
+      this.app.showMessage(translate('no_children_found'), 'warning');
       return;
     }
 
@@ -640,7 +640,7 @@ export class CarpoolDashboard {
     });
 
     if (availableOffers.length === 0) {
-      this.app.showToast(translate('no_available_rides'), 'warning');
+      this.app.showMessage(translate('no_available_rides'), 'warning');
       return;
     }
 
@@ -726,7 +726,7 @@ export class CarpoolDashboard {
 
       try {
         await assignParticipantToCarpool(data);
-        this.app.showToast(translate('participant_assigned_success'), 'success');
+        this.app.showMessage(translate('participant_assigned_success'), 'success');
         await this.loadData();
         this.render();
         this.attachEventListeners();
@@ -786,13 +786,13 @@ export class CarpoolDashboard {
 
     try {
       await cancelCarpoolOffer(offerId, reason);
-      this.app.showToast(translate('ride_cancelled_success'), 'success');
+      this.app.showMessage(translate('ride_cancelled_success'), 'success');
       await this.loadData();
       this.render();
       this.attachEventListeners();
     } catch (error) {
       console.error('Error cancelling ride:', error);
-      this.app.showToast(error.message || translate('error_cancelling_ride'), 'error');
+      this.app.showMessage(error.message || translate('error_cancelling_ride'), 'error');
     }
   }
 
@@ -803,13 +803,13 @@ export class CarpoolDashboard {
 
     try {
       await removeAssignment(assignmentId);
-      this.app.showToast(translate('assignment_removed_success'), 'success');
+      this.app.showMessage(translate('assignment_removed_success'), 'success');
       await this.loadData();
       this.render();
       this.attachEventListeners();
     } catch (error) {
       console.error('Error removing assignment:', error);
-      this.app.showToast(error.message || translate('error_removing_assignment'), 'error');
+      this.app.showMessage(error.message || translate('error_removing_assignment'), 'error');
     }
   }
 
@@ -846,7 +846,7 @@ export class CarpoolDashboard {
           await onSubmit(formData);
           closeModal();
         } catch (error) {
-          this.app.showToast(error.message || translate('error_occurred'), 'error');
+          this.app.showMessage(error.message || translate('error_occurred'), 'error');
         }
       });
     }
