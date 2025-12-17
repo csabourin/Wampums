@@ -1767,4 +1767,7 @@
   "error_occurred": "An error occurred"
 ,
   "select_activity_for_carpool": "Select an activity to coordinate carpools"
+,
+  "quick_create_activity": "Quick Create Activity",
+  "creating": "Creating"
 }
