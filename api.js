@@ -13,6 +13,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
+const meetingSectionDefaults = require('./config/meeting_sections.json');
 const { success, error: errorResponse } = require('./middleware/response');
 const { respondWithOrganizationFallback, OrganizationNotFoundError } = require('./utils/api-helpers');
 
@@ -988,6 +989,12 @@ async function legacyApiHandler(req, res, next) {
          VALUES ($1, 'organization_info', $2)`,
         [newOrganizationId, JSON.stringify(req.body)]
           );
+          await client.query(
+        `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+         VALUES ($1, 'meeting_sections', $2)
+         ON CONFLICT (organization_id, setting_key) DO NOTHING`,
+        [newOrganizationId, JSON.stringify(meetingSectionDefaults)]
+          );
 
           await client.query(
         `INSERT INTO user_organizations (user_id, organization_id, role)
@@ -1367,18 +1374,23 @@ async function legacyApiHandler(req, res, next) {
         break;
 
       case 'save_reunion_preparation':
-        const { date, animateur_responsable, louveteau_dhonneur, endroit, activities, notes } = req.body;
+        const { date, animateur_responsable, youth_of_honor, endroit, activities, notes } = req.body;
+        const honorList = Array.isArray(youth_of_honor)
+          ? youth_of_honor
+          : typeof youth_of_honor === 'string' && youth_of_honor.trim()
+            ? [youth_of_honor.trim()]
+            : [];
         await client.query(
-          `INSERT INTO reunion_preparations (organization_id, date, animateur_responsable, louveteau_dhonneur, endroit, activities, notes)
+          `INSERT INTO reunion_preparations (organization_id, date, animateur_responsable, youth_of_honor, endroit, activities, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7)
            ON CONFLICT (organization_id, date) DO UPDATE SET
            animateur_responsable = EXCLUDED.animateur_responsable,
-           louveteau_dhonneur = EXCLUDED.louveteau_dhonneur,
+           youth_of_honor = EXCLUDED.youth_of_honor,
            endroit = EXCLUDED.endroit,
            activities = EXCLUDED.activities,
            notes = EXCLUDED.notes,
            updated_at = CURRENT_TIMESTAMP`,
-          [getCurrentOrganizationId(), date, animateur_responsable, JSON.stringify(louveteau_dhonneur), endroit, JSON.stringify(activities), notes]
+          [getCurrentOrganizationId(), date, animateur_responsable, JSON.stringify(honorList), endroit, JSON.stringify(activities), notes]
         );
         jsonResponse(res, true, null, 'Reunion preparation saved successfully');
         break;
@@ -1392,8 +1404,16 @@ async function legacyApiHandler(req, res, next) {
         );
         if (reunionPreparationResult.rows.length > 0) {
           const preparation = reunionPreparationResult.rows[0];
-          preparation.louveteau_dhonneur = JSON.parse(preparation.louveteau_dhonneur);
-          preparation.activities = JSON.parse(preparation.activities);
+          try {
+            preparation.youth_of_honor = JSON.parse(preparation.youth_of_honor || '[]');
+          } catch (error) {
+            preparation.youth_of_honor = preparation.youth_of_honor ? [preparation.youth_of_honor] : [];
+          }
+          try {
+            preparation.activities = JSON.parse(preparation.activities || '[]');
+          } catch (error) {
+            preparation.activities = preparation.activities || [];
+          }
           jsonResponse(res, true, preparation);
         } else {
           jsonResponse(res, false, null, 'No reunion preparation found for this date');

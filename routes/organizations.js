@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const meetingSectionDefaults = require('../config/meeting_sections.json');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -252,6 +253,12 @@ module.exports = (pool, logger) => {
         `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
          VALUES ($1, 'organization_info', $2)`,
         [newOrganizationId, JSON.stringify(orgInfo)]
+      );
+      await client.query(
+        `INSERT INTO organization_settings (organization_id, setting_key, setting_value)
+         VALUES ($1, 'meeting_sections', $2)
+         ON CONFLICT (organization_id, setting_key) DO NOTHING`,
+        [newOrganizationId, JSON.stringify(meetingSectionDefaults)]
       );
 
       // Link current user to the new organization as admin
