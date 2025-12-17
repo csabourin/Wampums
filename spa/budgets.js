@@ -239,6 +239,10 @@ export class Budgets {
                   data-tab="categories">
             ${translate("categories")}
           </button>
+          <button class="tab-btn ${this.activeTab === "items" ? "active" : ""}"
+                  data-tab="items">
+            ${translate("budget_items")}
+          </button>
           <button class="tab-btn ${this.activeTab === "expenses" ? "active" : ""}"
                   data-tab="expenses">
             ${translate("expenses")}
@@ -305,6 +309,8 @@ export class Budgets {
         return this.renderOverview();
       case "categories":
         return this.renderCategories();
+      case "items":
+        return this.renderBudgetItems();
       case "expenses":
         return this.renderExpenses();
       case "planning":
@@ -393,6 +399,55 @@ export class Budgets {
                   .join("")
           }
         </div>
+      </div>
+    `;
+  }
+
+  renderBudgetItems() {
+    return `
+      <div class="budget-items-content">
+        <div class="section-header">
+          <h2>${translate("budget_items")}</h2>
+          <button class="btn btn-primary" id="add-budget-item-btn">
+            ${translate("add_budget_item")}
+          </button>
+        </div>
+
+        <table class="data-table budget-items-table">
+          <thead>
+            <tr>
+              <th>${translate("item_name")}</th>
+              <th>${translate("category")}</th>
+              <th>${translate("description")}</th>
+              <th>${translate("actions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              this.items.length === 0
+                ? `<tr><td colspan="4" class="text-center">${translate("no_budget_items_found")}</td></tr>`
+                : this.items
+                    .map(
+                      (item) => `
+                <tr data-item-id="${item.id}">
+                  <td><strong>${escapeHTML(item.name)}</strong></td>
+                  <td>${escapeHTML(item.category_name || translate("uncategorized"))}</td>
+                  <td class="item-description">${escapeHTML(item.description || "-")}</td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary edit-budget-item-btn" data-id="${item.id}">
+                      ${translate("edit")}
+                    </button>
+                    <button class="btn btn-sm btn-danger delete-budget-item-btn" data-id="${item.id}">
+                      ${translate("delete")}
+                    </button>
+                  </td>
+                </tr>
+              `,
+                    )
+                    .join("")
+            }
+          </tbody>
+        </table>
       </div>
     `;
   }
@@ -977,6 +1032,33 @@ export class Budgets {
       });
     });
 
+    // Add budget item button
+    const addBudgetItemBtn = document.getElementById("add-budget-item-btn");
+    if (addBudgetItemBtn) {
+      addBudgetItemBtn.addEventListener("click", () => this.showBudgetItemModal());
+    }
+
+    // Edit budget item buttons
+    document.querySelectorAll(".edit-budget-item-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const id = parseInt(e.target.dataset.id);
+        const item = this.items.find((i) => i.id === id);
+        if (item) {
+          this.showBudgetItemModal(item);
+        }
+      });
+    });
+
+    // Delete budget item buttons
+    document.querySelectorAll(".delete-budget-item-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const id = parseInt(e.target.dataset.id);
+        if (confirm(translate("confirm_delete_budget_item"))) {
+          await this.deleteBudgetItem(id);
+        }
+      });
+    });
+
     // Add expense button
     const addExpenseBtn = document.getElementById("add-expense-btn");
     if (addExpenseBtn) {
@@ -1226,6 +1308,120 @@ export class Budgets {
     } catch (error) {
       debugError("Error deleting category", error);
       this.app.showMessage(translate("error_deleting_category"), "error");
+    }
+  }
+
+  showBudgetItemModal(item = null) {
+    const isEdit = !!item;
+    const modalHTML = `
+      <div class="modal-overlay" id="budget-item-modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>${isEdit ? translate("edit_budget_item") : translate("add_budget_item")}</h3>
+            <button class="modal-close" id="close-budget-item-modal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form id="budget-item-form">
+              <div class="form-group">
+                <label for="budget-item-name">${translate("item_name")}*</label>
+                <input type="text" id="budget-item-name" required
+                       value="${item ? escapeHTML(item.name) : ""}">
+              </div>
+              <div class="form-group">
+                <label for="budget-item-category">${translate("category")}</label>
+                <select id="budget-item-category">
+                  <option value="">${translate("uncategorized")}</option>
+                  ${this.categories
+                    .map(
+                      (cat) => `
+                    <option value="${cat.id}" ${item?.budget_category_id === cat.id ? "selected" : ""}>
+                      ${escapeHTML(cat.name)}
+                    </option>
+                  `,
+                    )
+                    .join("")}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="budget-item-description">${translate("description")}</label>
+                <textarea id="budget-item-description" rows="3">${item ? escapeHTML(item.description || "") : ""}</textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" id="cancel-budget-item-btn">
+                  ${translate("cancel")}
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  ${isEdit ? translate("update") : translate("create")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML("beforeend", modalHTML);
+
+    document
+      .getElementById("close-budget-item-modal")
+      .addEventListener("click", () => {
+        document.getElementById("budget-item-modal").remove();
+      });
+
+    document
+      .getElementById("cancel-budget-item-btn")
+      .addEventListener("click", () => {
+        document.getElementById("budget-item-modal").remove();
+      });
+
+    document
+      .getElementById("budget-item-form")
+      .addEventListener("submit", async (e) => {
+        e.preventDefault();
+        await this.saveBudgetItem(item?.id);
+      });
+  }
+
+  async saveBudgetItem(itemId = null) {
+    const name = document.getElementById("budget-item-name").value;
+    const categoryId = document.getElementById("budget-item-category").value || null;
+    const description = document.getElementById("budget-item-description").value;
+
+    try {
+      const payload = {
+        name,
+        budget_category_id: categoryId,
+        description,
+      };
+
+      if (itemId) {
+        await updateBudgetItem(itemId, payload);
+        this.app.showMessage(translate("budget_item_updated"), "success");
+      } else {
+        await createBudgetItem(payload);
+        this.app.showMessage(translate("budget_item_created"), "success");
+      }
+
+      document.getElementById("budget-item-modal").remove();
+      await this.loadCoreData();
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError("Error saving budget item", error);
+      this.app.showMessage(translate("error_saving_budget_item"), "error");
+    }
+  }
+
+  async deleteBudgetItem(itemId) {
+    try {
+      await deleteBudgetItem(itemId);
+      this.app.showMessage(translate("budget_item_deleted"), "success");
+      await this.loadCoreData();
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError("Error deleting budget item", error);
+      this.app.showMessage(translate("error_deleting_budget_item"), "error");
     }
   }
 
