@@ -419,6 +419,53 @@ export async function clearActivityRelatedCaches() {
   }
 }
 
+/**
+ * Clear carpool-related caches
+ * Call this after creating, updating, or deleting carpool offers or assignments
+ * @param {number} activityId - Optional activity ID to clear specific activity caches
+ */
+export async function clearCarpoolRelatedCaches(activityId = null) {
+  const keysToDelete = [
+    'v1/carpools/my-offers',
+    'v1/carpools/my-children-assignments',
+  ];
+
+  // If activityId is provided, clear activity-specific caches
+  if (activityId) {
+    keysToDelete.push(`v1/carpools/activity/${activityId}`);
+    keysToDelete.push(`v1/carpools/activity/${activityId}/unassigned`);
+    keysToDelete.push(`v1/activities/${activityId}`);
+    keysToDelete.push(`v1/activities/${activityId}/participants`);
+  } else {
+    // Clear all carpool caches
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const allKeys = await new Promise((resolve, reject) => {
+      const request = store.getAllKeys();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    // Find and clear all carpool-specific caches
+    allKeys.forEach(key => {
+      if (typeof key === 'string' && key.startsWith('v1/carpools/')) {
+        keysToDelete.push(key);
+      }
+    });
+  }
+
+  debugLog("Clearing carpool-related caches:", keysToDelete);
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {
