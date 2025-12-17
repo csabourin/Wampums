@@ -228,7 +228,6 @@ module.exports = (pool) => {
         p.id,
         p.first_name,
         p.last_name,
-        p.date_of_birth,
         po.organization_id,
         COALESCE(
           (
