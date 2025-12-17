@@ -1,6 +1,7 @@
 // api-carpools.js
 // API client for carpool management
 import { API } from './api-core.js';
+import { clearCarpoolRelatedCaches } from '../indexedDB.js';
 
 /**
  * Get all carpool offers for an activity
@@ -28,6 +29,8 @@ export async function getMyOffers() {
  */
 export async function createCarpoolOffer(offerData) {
   const response = await API.post('v1/carpools/offers', offerData);
+  // Invalidate carpool caches for this activity
+  await clearCarpoolRelatedCaches(offerData.activity_id);
   return response.data;
 }
 
@@ -39,6 +42,8 @@ export async function createCarpoolOffer(offerData) {
  */
 export async function updateCarpoolOffer(offerId, offerData) {
   const response = await API.put(`v1/carpools/offers/${offerId}`, offerData);
+  // Invalidate all carpool caches (we don't know which activity)
+  await clearCarpoolRelatedCaches();
   return response.data;
 }
 
@@ -50,6 +55,8 @@ export async function updateCarpoolOffer(offerId, offerData) {
  */
 export async function cancelCarpoolOffer(offerId, reason = '') {
   await API.delete(`v1/carpools/offers/${offerId}`, { reason });
+  // Invalidate all carpool caches (we don't know which activity)
+  await clearCarpoolRelatedCaches();
 }
 
 /**
@@ -59,6 +66,8 @@ export async function cancelCarpoolOffer(offerId, reason = '') {
  */
 export async function assignParticipantToCarpool(assignmentData) {
   const response = await API.post('v1/carpools/assignments', assignmentData);
+  // Invalidate all carpool caches to ensure fresh data
+  await clearCarpoolRelatedCaches();
   return response.data;
 }
 
@@ -69,6 +78,8 @@ export async function assignParticipantToCarpool(assignmentData) {
  */
 export async function removeAssignment(assignmentId) {
   await API.delete(`v1/carpools/assignments/${assignmentId}`);
+  // Invalidate all carpool caches to ensure fresh data
+  await clearCarpoolRelatedCaches();
 }
 
 /**

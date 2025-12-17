@@ -3737,9 +3737,10 @@ details p {
   background: rgba(0, 0, 0, 0.5);
 }
 
-/* Override for nested modal pattern (used in badge dashboard and modal-screen) */
+/* Override for nested modal pattern (used in badge dashboard, modal-screen, and modal-container) */
 .badge-dashboard__modal .modal,
-.modal-screen .modal {
+.modal-screen .modal,
+.modal-container .modal {
   display: block;
   position: relative;
   background: var(--color-surface);
@@ -3832,6 +3833,38 @@ details p {
 .modal__section {
   display: grid;
   gap: var(--space-sm);
+}
+
+.modal__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Modal Container Pattern */
+.modal-container {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+}
+
+.modal-container--visible {
+  display: flex;
+}
+
+.modal-container .modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: -1;
 }
 
 .badge-history {
