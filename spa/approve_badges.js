@@ -27,7 +27,8 @@ export class ApproveBadges {
 
   async fetchPendingBadges() {
     try {
-      this.pendingBadges = await getPendingBadges();
+      const response = await getPendingBadges();
+      this.pendingBadges = response?.data || response || [];
       if (!Array.isArray(this.pendingBadges)) {
         debugError("Pending badges is not an array:", this.pendingBadges);
         this.pendingBadges = [];
@@ -56,11 +57,15 @@ export class ApproveBadges {
 
     return this.pendingBadges
       .map(
-        (badge) => `
+        (badge) => {
+          const badgeLabel = this.getBadgeLabel(badge);
+          const levelLabel = translate("badge_level_label") || translate("badge_star_label") || translate("stars");
+          return `
             <div class="badge-request">
                 <h2>${badge.first_name} ${badge.last_name}</h2>
-                <p>${translate("territoire")}: ${badge.territoire_chasse}</p>
-                <p>${translate("stars")}: ${badge.etoiles}</p>
+                <p>${translate("badge_select_badge") || translate("badge")}: ${badgeLabel}</p>
+                ${badge.badge_section ? `<p>${translate("badge_section_label") || translate("section") || "Section"}: ${badge.badge_section}</p>` : ""}
+                <p>${levelLabel}: ${badge.etoiles}</p>
                 <p>${translate("objectif")}: ${badge.objectif}</p>
                 <p>${translate("description")}: ${badge.description}</p>
                 <p>${translate("date")}: ${badge.date_obtention}</p>
@@ -71,9 +76,19 @@ export class ApproveBadges {
                   badge.id
                 }" data-action="rejected">${translate("reject")}</button>
             </div>
-        `
+        `;
+        }
       )
       .join("");
+  }
+
+  getBadgeLabel(badge) {
+    return (
+      translate(badge.translation_key) ||
+      badge.badge_name ||
+      badge.territoire_chasse ||
+      translate("badge_unknown_label")
+    );
   }
 
   attachEventListeners() {

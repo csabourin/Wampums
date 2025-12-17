@@ -14,6 +14,75 @@ const router = express.Router();
 const { getPointSystemRules } = require('../utils/api-helpers');
 const { authenticate, getOrganizationId, requireOrganizationRole } = require('../middleware/auth');
 
+const DEFAULT_LEVELS = [
+  { level: 1, label_key: 'badge_level_1' },
+  { level: 2, label_key: 'badge_level_2' },
+  { level: 3, label_key: 'badge_level_3' }
+];
+
+const normalizeLevels = (levels, fallbackCount = DEFAULT_LEVELS.length) => {
+  if (Array.isArray(levels) && levels.length > 0) {
+    return levels;
+  }
+  return DEFAULT_LEVELS.slice(0, fallbackCount);
+};
+
+const getLevelCount = (levels, levelCount) => {
+  if (Array.isArray(levels) && levels.length > 0) {
+    return levels.length;
+  }
+  return levelCount || DEFAULT_LEVELS.length;
+};
+
+async function fetchTemplate(client, templateId, organizationId) {
+  if (!templateId) return null;
+  const templateResult = await client.query(
+    `SELECT id, name, template_key, translation_key, section, level_count, levels
+     FROM badge_templates
+     WHERE id = $1 AND organization_id = $2`,
+    [templateId, organizationId]
+  );
+  return templateResult.rows[0] || null;
+}
+
+async function getParticipantSection(client, participantId, organizationId) {
+  const sectionResult = await client.query(
+    `SELECT COALESCE(g.section, 'general') AS section
+     FROM participant_groups pg
+     JOIN groups g ON pg.group_id = g.id
+     WHERE pg.participant_id = $1 AND pg.organization_id = $2
+     LIMIT 1`,
+    [participantId, organizationId]
+  );
+
+  return sectionResult.rows[0]?.section || 'general';
+}
+
+function determineNextLevel(existingLevels, templateLevelCount, requestedLevel) {
+  const usedLevels = new Set(
+    existingLevels
+      .map((row) => parseInt(row.etoiles || row.level || row, 10))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  );
+
+  if (requestedLevel) {
+    if (requestedLevel < 1 || requestedLevel > templateLevelCount) {
+      throw new Error('Invalid level for this badge template');
+    }
+    if (usedLevels.has(requestedLevel)) {
+      throw new Error('Level already recorded for this badge');
+    }
+    return requestedLevel;
+  }
+
+  for (let level = 1; level <= templateLevelCount; level += 1) {
+    if (!usedLevels.has(level)) {
+      return level;
+    }
+  }
+  return null;
+}
+
 /**
  * Export route factory function
  * Allows dependency injection of pool and logger
@@ -57,9 +126,17 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT * FROM badge_progress
-         WHERE participant_id = $1 AND organization_id = $2
-         ORDER BY date_obtention DESC`,
+        `SELECT bp.*, 
+                bt.name AS badge_name,
+                bt.template_key,
+                bt.translation_key,
+                bt.section AS badge_section,
+                bt.level_count,
+                COALESCE(bt.levels, '[]'::jsonb) AS template_levels
+         FROM badge_progress bp
+         JOIN badge_templates bt ON bp.badge_template_id = bt.id
+         WHERE bp.participant_id = $1 AND bp.organization_id = $2
+         ORDER BY bp.date_obtention DESC`,
         [participantId, organizationId]
       );
 
@@ -92,9 +169,17 @@ module.exports = (pool, logger) => {
       const organizationId = req.organizationId; // Set by requireOrganizationRole middleware
 
       const result = await pool.query(
-        `SELECT bp.*, p.first_name, p.last_name
+        `SELECT bp.*, 
+                p.first_name, 
+                p.last_name,
+                bt.name AS badge_name,
+                bt.translation_key,
+                bt.section AS badge_section,
+                bt.level_count,
+                COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
          JOIN participants p ON bp.participant_id = p.id
+         JOIN badge_templates bt ON bp.badge_template_id = bt.id
          WHERE bp.organization_id = $1 AND bp.status = 'pending'
          ORDER BY bp.created_at DESC`,
         [organizationId]
@@ -124,12 +209,12 @@ module.exports = (pool, logger) => {
    *             type: object
    *             required:
    *               - participant_id
-   *               - territoire_chasse
+   *               - badge_template_id
    *             properties:
    *               participant_id:
    *                 type: integer
-   *               territoire_chasse:
-   *                 type: string
+   *               badge_template_id:
+   *                 type: integer
    *               objectif:
    *                 type: string
    *               description:
@@ -154,37 +239,108 @@ module.exports = (pool, logger) => {
   router.post('/save-badge-progress', authenticate, requireOrganizationRole(), async (req, res) => {
     try {
       const organizationId = req.organizationId; // Set by requireOrganizationRole middleware
-      const { participant_id, territoire_chasse, objectif, description, fierte, raison, date_obtention } = req.body;
+      const {
+        participant_id,
+        badge_template_id,
+        objectif,
+        description,
+        fierte,
+        raison,
+        date_obtention
+      } = req.body;
+      const requestedLevel = parseInt(req.body.level ?? req.body.etoiles, 10) || null;
 
-      if (!participant_id || !territoire_chasse) {
-        return res.status(400).json({ success: false, message: 'Participant ID and territoire_chasse are required' });
+      if (!participant_id || !badge_template_id) {
+        return res.status(400).json({ success: false, message: 'Participant ID and badge_template_id are required' });
       }
 
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
 
-        // Find the next star number for this participant and badge
-        const maxStarResult = await client.query(
-          `SELECT COALESCE(MAX(etoiles), 0) as max_star
-           FROM badge_progress
-           WHERE participant_id = $1 AND territoire_chasse = $2 AND organization_id = $3`,
-          [participant_id, territoire_chasse, organizationId]
+        const participantOrg = await client.query(
+          `SELECT 1 FROM participant_organizations WHERE participant_id = $1 AND organization_id = $2`,
+          [participant_id, organizationId]
+        );
+        if (participantOrg.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Participant not found in organization' });
+        }
+
+        const template = await fetchTemplate(client, parseInt(badge_template_id, 10), organizationId);
+        if (!template) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Badge template not found' });
+        }
+
+        const participantSection = await getParticipantSection(client, participant_id, organizationId);
+        if (
+          template.section &&
+          participantSection &&
+          template.section !== 'general' &&
+          template.section !== participantSection
+        ) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            success: false,
+            message: 'Badge template section does not match participant section'
+          });
+        }
+
+        const templateLevels = normalizeLevels(template.levels, template.level_count);
+        const templateLevelCount = getLevelCount(templateLevels, template.level_count);
+        const existingLevelsResult = await client.query(
+          `SELECT etoiles FROM badge_progress
+           WHERE participant_id = $1 AND badge_template_id = $2 AND organization_id = $3`,
+          [participant_id, template.id, organizationId]
         );
 
-        const nextStarNumber = maxStarResult.rows[0].max_star + 1;
+        let nextLevel;
+        try {
+          nextLevel = determineNextLevel(existingLevelsResult.rows, templateLevelCount, requestedLevel);
+        } catch (validationError) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ success: false, message: validationError.message });
+        }
+
+        if (!nextLevel) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            success: false,
+            message: 'All levels for this badge have already been recorded'
+          });
+        }
 
         const result = await client.query(
           `INSERT INTO badge_progress
-           (participant_id, organization_id, territoire_chasse, objectif, description, fierte, raison, date_obtention, etoiles, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+           (participant_id, organization_id, badge_template_id, territoire_chasse, section, objectif, description, fierte, raison, date_obtention, etoiles, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
            RETURNING *`,
-          [participant_id, organizationId, territoire_chasse, objectif, description, fierte || false, raison, date_obtention, nextStarNumber]
+          [
+            participant_id,
+            organizationId,
+            template.id,
+            template.name,
+            template.section || participantSection || 'general',
+            objectif,
+            description,
+            fierte || false,
+            raison,
+            date_obtention,
+            nextLevel
+          ]
         );
 
         await client.query('COMMIT');
-        console.log(`[badge] Badge progress submitted for participant ${participant_id}: ${territoire_chasse}, star ${nextStarNumber}`);
-        res.json({ success: true, data: result.rows[0], message: 'Badge progress submitted for approval' });
+        const inserted = {
+          ...result.rows[0],
+          badge_name: template.name,
+          translation_key: template.translation_key,
+          badge_section: template.section,
+          level_count: templateLevelCount,
+          template_levels: templateLevels
+        };
+        res.json({ success: true, data: inserted, message: 'Badge progress submitted for approval' });
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -380,9 +536,18 @@ module.exports = (pool, logger) => {
       const organizationId = req.organizationId;
 
       const result = await pool.query(
-        `SELECT bp.*, p.first_name, p.last_name
+        `SELECT bp.*,
+                p.first_name,
+                p.last_name,
+                bt.name AS badge_name,
+                bt.template_key,
+                bt.translation_key,
+                bt.section AS badge_section,
+                bt.level_count,
+                COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
          JOIN participants p ON bp.participant_id = p.id
+         JOIN badge_templates bt ON bp.badge_template_id = bt.id
          WHERE bp.organization_id = $1
          ORDER BY bp.date_obtention DESC`,
         [organizationId]
@@ -429,9 +594,16 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT * FROM badge_progress
-         WHERE participant_id = $1 AND organization_id = $2 AND status = 'approved'
-         ORDER BY date_obtention DESC`,
+        `SELECT bp.*,
+                bt.name AS badge_name,
+                bt.translation_key,
+                bt.section AS badge_section,
+                bt.level_count,
+                COALESCE(bt.levels, '[]'::jsonb) AS template_levels
+         FROM badge_progress bp
+         JOIN badge_templates bt ON bp.badge_template_id = bt.id
+         WHERE bp.participant_id = $1 AND bp.organization_id = $2 AND bp.status = 'approved'
+         ORDER BY bp.date_obtention DESC`,
         [participantId, organizationId]
       );
 
@@ -470,19 +642,67 @@ module.exports = (pool, logger) => {
     try {
       const organizationId = req.organizationId;
       const participantId = req.query.participant_id;
+      const templateId = req.query.badge_template_id ? parseInt(req.query.badge_template_id, 10) : null;
+      const territoireName = req.query.territoire;
 
       if (!participantId) {
         return res.status(400).json({ success: false, message: 'Participant ID is required' });
       }
 
-      const result = await pool.query(
-        `SELECT COALESCE(SUM(etoiles), 0) as total_stars
-         FROM badge_progress
-         WHERE participant_id = $1 AND organization_id = $2 AND status = 'approved'`,
-        [participantId, organizationId]
-      );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
 
-      res.json({ success: true, data: { total_stars: parseInt(result.rows[0].total_stars) } });
+        let template = null;
+
+        if (templateId) {
+          template = await fetchTemplate(client, templateId, organizationId);
+        } else if (territoireName) {
+          const templateResult = await client.query(
+            `SELECT id, name, template_key, translation_key, section, level_count, levels
+             FROM badge_templates
+             WHERE organization_id = $1 AND (name = $2 OR template_key = lower(regexp_replace($2, '[^a-z0-9]+', '_', 'g')))
+             LIMIT 1`,
+            [organizationId, territoireName]
+          );
+          template = templateResult.rows[0] || null;
+        }
+
+        if (!template) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Badge template not found' });
+        }
+
+        const countsResult = await client.query(
+          `SELECT 
+             COUNT(*) FILTER (WHERE status = 'approved') AS approved_levels,
+             COUNT(*) FILTER (WHERE status = 'pending') AS pending_levels
+           FROM badge_progress
+           WHERE participant_id = $1 AND organization_id = $2 AND badge_template_id = $3`,
+          [participantId, organizationId, template.id]
+        );
+
+        const approvedLevels = parseInt(countsResult.rows[0]?.approved_levels, 10) || 0;
+        const pendingLevels = parseInt(countsResult.rows[0]?.pending_levels, 10) || 0;
+        const templateLevelCount = getLevelCount(normalizeLevels(template.levels, template.level_count), template.level_count);
+
+        await client.query('COMMIT');
+        res.json({
+          success: true,
+          data: {
+            current_stars: approvedLevels,
+            has_pending: pendingLevels > 0,
+            max_level: templateLevelCount,
+            badge_template_id: template.id,
+            section: template.section
+          }
+        });
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
     } catch (error) {
       logger.error('Error fetching current stars:', error);
       res.status(500).json({ success: false, message: error.message });
@@ -508,22 +728,46 @@ module.exports = (pool, logger) => {
     try {
       const organizationId = req.organizationId;
 
-      const result = await pool.query(
-        `SELECT setting_value FROM organization_settings
-         WHERE organization_id = $1 AND setting_key = 'badge_system'`,
-        [organizationId]
-      );
+      const [settingsResult, templateResult] = await Promise.all([
+        pool.query(
+          `SELECT setting_value FROM organization_settings
+           WHERE organization_id = $1 AND setting_key = 'badge_system'`,
+          [organizationId]
+        ),
+        pool.query(
+          `SELECT id, name, template_key, translation_key, section, level_count, levels, created_at, updated_at
+           FROM badge_templates
+           WHERE organization_id = $1
+           ORDER BY section, name`,
+          [organizationId]
+        )
+      ]);
 
-      if (result.rows.length > 0) {
+      const templates = templateResult.rows.map((template) => {
+        const normalizedLevels = normalizeLevels(template.levels, template.level_count);
+        return {
+          ...template,
+          levels: normalizedLevels,
+          level_count: getLevelCount(normalizedLevels, template.level_count)
+        };
+      });
+
+      let dataPayload = { templates };
+
+      if (settingsResult.rows.length > 0) {
         try {
-          const badgeSystem = JSON.parse(result.rows[0].setting_value);
-          res.json({ success: true, data: badgeSystem });
+          const badgeSystem = JSON.parse(settingsResult.rows[0].setting_value);
+          dataPayload = { ...badgeSystem, templates };
         } catch (e) {
-          res.json({ success: true, data: result.rows[0].setting_value });
+          dataPayload = { settings: settingsResult.rows[0].setting_value, templates };
         }
-      } else {
-        res.json({ success: true, data: null, message: 'No badge system settings found' });
       }
+
+      res.json({
+        success: true,
+        data: dataPayload,
+        message: templates.length === 0 ? 'No badge system settings found' : undefined
+      });
     } catch (error) {
       logger.error('Error fetching badge system settings:', error);
       res.status(500).json({ success: false, message: error.message });
@@ -613,9 +857,27 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
+        const existingResult = await client.query(
+          `SELECT bp.*, bt.level_count, COALESCE(bt.levels, '[]'::jsonb) AS template_levels
+           FROM badge_progress bp
+           JOIN badge_templates bt ON bp.badge_template_id = bt.id
+           WHERE bp.id = $1 AND bp.organization_id = $2`,
+          [badgeId, organizationId]
+        );
+
+        if (existingResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Badge progress not found' });
+        }
+
+        const existingBadge = existingResult.rows[0];
+        const templateLevels = normalizeLevels(existingBadge.template_levels, existingBadge.level_count);
+        const templateLevelCount = getLevelCount(templateLevels, existingBadge.level_count);
+
         const updateFields = [];
         const values = [];
         let valueIndex = 1;
+        let targetLevel = null;
 
         if (status) {
           updateFields.push(`status = $${valueIndex++}`);
@@ -634,8 +896,25 @@ module.exports = (pool, logger) => {
         }
 
         if (etoiles !== undefined) {
+          targetLevel = parseInt(etoiles, 10) || 0;
+          if (targetLevel < 1 || targetLevel > templateLevelCount) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'Invalid level for this badge' });
+          }
+
+          const conflictCheck = await client.query(
+            `SELECT 1 FROM badge_progress
+             WHERE participant_id = $1 AND badge_template_id = $2 AND etoiles = $3 AND id <> $4 AND organization_id = $5`,
+            [existingBadge.participant_id, existingBadge.badge_template_id, targetLevel, badgeId, organizationId]
+          );
+
+          if (conflictCheck.rowCount > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, message: 'Level already exists for this badge' });
+          }
+
           updateFields.push(`etoiles = $${valueIndex++}`);
-          values.push(parseInt(etoiles, 10) || 0);
+          values.push(targetLevel);
         }
 
         if (objectif !== undefined) {
@@ -676,11 +955,6 @@ module.exports = (pool, logger) => {
           [...values, badgeId, organizationId]
         );
 
-        if (updateResult.rows.length === 0) {
-          await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Badge progress not found' });
-        }
-
         const badge = updateResult.rows[0];
 
         // If approved, award points
@@ -702,8 +976,6 @@ module.exports = (pool, logger) => {
              VALUES ($1, $2, $3, $4, NOW())`,
             [badge.participant_id, groupId, organizationId, badgeEarnPoints]
           );
-
-          console.log(`[badge] Badge ${badgeId} approved for participant ${badge.participant_id}, points: +${badgeEarnPoints}`);
         }
 
         await client.query('COMMIT');

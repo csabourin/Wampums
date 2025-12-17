@@ -151,14 +151,14 @@ module.exports = (pool) => {
    *         description: Group created
    */
   router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
-    const { name } = req.body;
+    const { name, section } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `INSERT INTO groups (name, organization_id)
-       VALUES ($1, $2)
+      `INSERT INTO groups (name, organization_id, section)
+       VALUES ($1, $2, COALESCE($3, 'general'))
        RETURNING *`,
-      [name, organizationId]
+      [name, organizationId, section]
     );
 
     return success(res, result.rows[0], 'Group created successfully', 201);
@@ -184,15 +184,34 @@ module.exports = (pool) => {
    */
   router.put('/:id', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, section } = req.body;
     const organizationId = await getOrganizationId(req, pool);
+
+    if (!name && !section) {
+      return error(res, 'At least one field to update is required', 400);
+    }
+
+    const fields = [];
+    const params = [];
+
+    if (name) {
+      params.push(name);
+      fields.push(`name = $${params.length}`);
+    }
+
+    if (section) {
+      params.push(section);
+      fields.push(`section = $${params.length}`);
+    }
+
+    params.push(id, organizationId);
 
     const result = await pool.query(
       `UPDATE groups
-       SET name = $1
-       WHERE id = $2 AND organization_id = $3
+       SET ${fields.join(', ')}
+       WHERE id = $${params.length - 1} AND organization_id = $${params.length}
        RETURNING *`,
-      [name, id, organizationId]
+      params
     );
 
     if (result.rows.length === 0) {
@@ -277,15 +296,15 @@ module.exports = (pool) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const { name, organization_id } = req.body;
+      const { name, organization_id, section } = req.body;
 
       if (!name || !organization_id) {
         return res.status(400).json({ success: false, message: 'Name and organization ID are required' });
       }
 
       const result = await pool.query(
-        'INSERT INTO groups (name, organization_id, created_at) VALUES ($1, $2, NOW()) RETURNING *',
-        [name.trim(), organization_id]
+        'INSERT INTO groups (name, organization_id, created_at, section) VALUES ($1, $2, NOW(), COALESCE($3, \'general\')) RETURNING *',
+        [name.trim(), organization_id, section]
       );
 
       res.status(201).json({ success: true, message: 'Group created successfully', group: result.rows[0] });
@@ -334,19 +353,34 @@ module.exports = (pool) => {
       }
 
       const groupId = parseInt(req.params.id);
-      const { name } = req.body;
+      const { name, section } = req.body;
 
       if (!groupId) {
         return res.status(400).json({ success: false, message: 'Group ID is required' });
       }
 
-      if (!name) {
+      if (!name && !section) {
         return res.status(400).json({ success: false, message: 'At least one field to update is required' });
       }
 
+      const updates = [];
+      const params = [];
+
+      if (name) {
+        params.push(name.trim());
+        updates.push(`name = $${params.length}`);
+      }
+
+      if (section) {
+        params.push(section);
+        updates.push(`section = $${params.length}`);
+      }
+
+      params.push(groupId);
+
       const result = await pool.query(
-        'UPDATE groups SET name = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-        [name.trim(), groupId]
+        `UPDATE groups SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING *`,
+        params
       );
 
       if (result.rows.length === 0) {

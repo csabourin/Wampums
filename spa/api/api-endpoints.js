@@ -972,8 +972,12 @@ export async function getPendingBadges() {
 /**
  * Get current stars for participant
  */
-export async function getCurrentStars(participantId, territoire) {
-    return API.get('current-stars', { participant_id: participantId, territoire });
+export async function getCurrentStars(participantId, badgeTemplateId) {
+    const params = { participant_id: participantId };
+    if (badgeTemplateId) {
+        params.badge_template_id = badgeTemplateId;
+    }
+    return API.get('current-stars', params);
 }
 
 /**
