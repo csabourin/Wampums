@@ -1789,7 +1789,6 @@ tr:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-block: var(--space-2xl);
 }
 
 .logo {
