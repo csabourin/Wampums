@@ -12,6 +12,26 @@ CREATE TABLE public.activites_rencontre (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT activites_rencontre_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.activities (
+  id integer NOT NULL DEFAULT nextval('activities_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  created_by uuid NOT NULL,
+  name character varying NOT NULL,
+  description text,
+  activity_date date NOT NULL,
+  meeting_location_going text NOT NULL,
+  meeting_time_going time without time zone NOT NULL,
+  departure_time_going time without time zone NOT NULL,
+  meeting_location_return text,
+  meeting_time_return time without time zone,
+  departure_time_return time without time zone,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT activities_pkey PRIMARY KEY (id),
+  CONSTRAINT activities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT activities_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.announcement_logs (
   id integer NOT NULL DEFAULT nextval('announcement_logs_id_seq'::regclass),
   announcement_id integer,
@@ -170,6 +190,42 @@ CREATE TABLE public.calendars (
   CONSTRAINT calendars_pkey PRIMARY KEY (id),
   CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
   CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
+);
+CREATE TABLE public.carpool_assignments (
+  id integer NOT NULL DEFAULT nextval('carpool_assignments_id_seq'::regclass),
+  carpool_offer_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  assigned_by uuid NOT NULL,
+  organization_id integer NOT NULL,
+  trip_direction character varying NOT NULL CHECK (trip_direction::text = ANY (ARRAY['both'::character varying, 'to_activity'::character varying, 'from_activity'::character varying]::text[])),
+  notes text,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT carpool_assignments_pkey PRIMARY KEY (id),
+  CONSTRAINT carpool_assignments_carpool_offer_id_fkey FOREIGN KEY (carpool_offer_id) REFERENCES public.carpool_offers(id),
+  CONSTRAINT carpool_assignments_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT carpool_assignments_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users(id),
+  CONSTRAINT carpool_assignments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.carpool_offers (
+  id integer NOT NULL DEFAULT nextval('carpool_offers_id_seq'::regclass),
+  activity_id integer NOT NULL,
+  user_id uuid NOT NULL,
+  organization_id integer NOT NULL,
+  vehicle_make character varying NOT NULL,
+  vehicle_color character varying NOT NULL,
+  total_seats_available integer NOT NULL CHECK (total_seats_available > 0 AND total_seats_available <= 8),
+  trip_direction character varying NOT NULL CHECK (trip_direction::text = ANY (ARRAY['both'::character varying, 'to_activity'::character varying, 'from_activity'::character varying]::text[])),
+  notes text,
+  is_active boolean DEFAULT true,
+  cancelled_at timestamp with time zone,
+  cancelled_reason text,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT carpool_offers_pkey PRIMARY KEY (id),
+  CONSTRAINT carpool_offers_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.activities(id),
+  CONSTRAINT carpool_offers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT carpool_offers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.equipment_item_organizations (
   equipment_id integer NOT NULL,
