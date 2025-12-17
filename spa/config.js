@@ -77,7 +77,7 @@ export const CONFIG = {
     /**
      * Supported Languages
      */
-    SUPPORTED_LANGS: ["en", "fr", "uk"],
+    SUPPORTED_LANGS: ["en", "fr", "uk", "it"],
 
     /**
      * Storage Keys
