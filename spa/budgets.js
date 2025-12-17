@@ -94,13 +94,11 @@ export class Budgets {
       await this.loadCoreData();
 
       // Render with data
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error loading budgets data:", error);
       // Render error state but allow partial functionality
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
       this.app.showMessage(translate("error_loading_data"), "warning");
     } finally {
       this.isInitializing = false;
@@ -262,6 +260,14 @@ export class Budgets {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Render the budgets view and re-bind all interactions after DOM updates complete.
+   */
+  async renderAndBind() {
+    await this.render();
+    this.attachEventListeners();
   }
 
   renderSummaryCards() {
@@ -997,11 +1003,16 @@ export class Budgets {
   attachEventListeners() {
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        this.activeTab = e.target.dataset.tab;
-        this.updateURL();
-        this.render();
-        this.attachEventListeners();
+      btn.addEventListener("click", async (e) => {
+        try {
+          const targetTab = e.currentTarget?.dataset?.tab || e.target.dataset.tab;
+          this.activeTab = targetTab || "overview";
+          this.updateURL();
+          await this.renderAndBind();
+        } catch (error) {
+          debugError("Error switching budget tabs", error);
+          this.app.showMessage(translate("error_loading_data"), "error");
+        }
       });
     });
 
@@ -1290,8 +1301,7 @@ export class Budgets {
 
       document.getElementById("category-modal").remove();
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error saving category", error);
       this.app.showMessage(translate("error_saving_category"), "error");
@@ -1303,8 +1313,7 @@ export class Budgets {
       await deleteBudgetCategory(categoryId);
       this.app.showMessage(translate("category_deleted"), "success");
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error deleting category", error);
       this.app.showMessage(translate("error_deleting_category"), "error");
@@ -1404,8 +1413,7 @@ export class Budgets {
 
       document.getElementById("budget-item-modal").remove();
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error saving budget item", error);
       this.app.showMessage(translate("error_saving_budget_item"), "error");
@@ -1417,8 +1425,7 @@ export class Budgets {
       await deleteBudgetItem(itemId);
       this.app.showMessage(translate("budget_item_deleted"), "success");
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error deleting budget item", error);
       this.app.showMessage(translate("error_deleting_budget_item"), "error");
@@ -1535,8 +1542,7 @@ export class Budgets {
 
       document.getElementById("expense-modal").remove();
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error saving expense", error);
       this.app.showMessage(translate("error_saving_expense"), "error");
@@ -1548,8 +1554,7 @@ export class Budgets {
       await deleteBudgetExpense(expenseId);
       this.app.showMessage(translate("expense_deleted"), "success");
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error deleting expense", error);
       this.app.showMessage(translate("error_deleting_expense"), "error");
@@ -1674,8 +1679,7 @@ export class Budgets {
 
       document.getElementById("plan-modal").remove();
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error saving budget plan", error);
       this.app.showMessage(translate("error_saving_budget_plan"), "error");
@@ -1687,8 +1691,7 @@ export class Budgets {
       await deleteBudgetPlan(planId);
       this.app.showMessage(translate("budget_plan_deleted"), "success");
       await this.loadCoreData();
-      this.render();
-      this.attachEventListeners();
+      await this.renderAndBind();
     } catch (error) {
       debugError("Error deleting budget plan", error);
       this.app.showMessage(translate("error_deleting_budget_plan"), "error");
