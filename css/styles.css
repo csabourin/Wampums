@@ -5293,7 +5293,7 @@ details p {
   gap: var(--space-xs);
   margin-bottom: var(--space-lg);
   border-bottom: 2px solid var(--color-border);
-  overflow-x: auto;
+  flex-wrap: wrap;
   scrollbar-width: thin;
 }
 
