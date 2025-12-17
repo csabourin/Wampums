@@ -14,6 +14,8 @@ import { ActivityManager } from "./modules/ActivityManager.js";
 import { FormManager } from "./modules/FormManager.js";
 import { DateManager } from "./modules/DateManager.js";
 import { PrintManager } from "./modules/PrintManager.js";
+import { getActiveSectionConfig, getHonorLabel } from "./utils/meetingSections.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class PreparationReunions {
         constructor(app) {
@@ -23,6 +25,9 @@ export class PreparationReunions {
                 this.recentHonors = [];
                 this.organizationSettings = {};
                 this.currentMeetingData = null;
+                this.meetingSections = {};
+                this.sectionConfig = null;
+                this.sectionKey = null;
 
                 // Initialize managers (will be set up after data is fetched)
                 this.activityManager = null;
@@ -37,10 +42,10 @@ export class PreparationReunions {
                         await this.fetchData();
 
                         // Initialize managers after data is loaded
-                        this.activityManager = new ActivityManager(this.app, this.animateurs, this.activities);
+                        this.activityManager = new ActivityManager(this.app, this.animateurs, this.activities, this.sectionConfig);
                         this.dateManager = new DateManager(this.organizationSettings);
-                        this.formManager = new FormManager(this.app, this.organizationSettings, this.animateurs, this.recentHonors, this.activityManager);
-                        this.printManager = new PrintManager(this.activityManager);
+                        this.formManager = new FormManager(this.app, this.organizationSettings, this.animateurs, this.recentHonors, this.activityManager, this.sectionConfig);
+                        this.printManager = new PrintManager(this.activityManager, this.sectionConfig);
 
                         // Fetch available dates and reminder
                         await this.fetchAvailableDates();
@@ -95,6 +100,9 @@ export class PreparationReunions {
 
                 // Use app's organization settings to avoid race condition
                 this.organizationSettings = appSettings || {};
+
+                const meetingSectionSource = activitiesResponse?.meetingSections || this.organizationSettings.meeting_sections;
+                this.updateSectionConfig(meetingSectionSource);
         }
 
         async fetchAvailableDates(forceRefresh = false) {
@@ -102,6 +110,32 @@ export class PreparationReunions {
                 // Handle both array response and object response with dates property
                 const dates = Array.isArray(response) ? response : (response?.dates || []);
                 this.dateManager.setAvailableDates(dates);
+        }
+
+        /**
+         * Merge meeting section configuration from API or settings with defaults
+         * and propagate it to dependent managers.
+         * @param {object} meetingSections - Section-level meeting configuration
+         */
+        updateSectionConfig(meetingSections) {
+                const { sectionConfig, sectionKey, mergedConfig } = getActiveSectionConfig(
+                        meetingSections || this.meetingSections,
+                        this.organizationSettings
+                );
+
+                this.meetingSections = mergedConfig;
+                this.sectionConfig = sectionConfig;
+                this.sectionKey = sectionKey;
+
+                if (this.activityManager) {
+                        this.activityManager.setSectionConfig(sectionConfig);
+                }
+                if (this.formManager) {
+                        this.formManager.setSectionConfig(sectionConfig);
+                }
+                if (this.printManager?.setSectionConfig) {
+                        this.printManager.setSectionConfig(sectionConfig);
+                }
         }
 
         async fetchReminder() {
@@ -118,9 +152,18 @@ export class PreparationReunions {
                 try {
                         const response = await getReunionPreparation(date);
                         if (response.success && response.preparation) {
+                                if (!response.preparation.youth_of_honor && response.preparation.louveteau_dhonneur) {
+                                        response.preparation.youth_of_honor = response.preparation.louveteau_dhonneur;
+                                }
+                                if (response.meetingSections) {
+                                        this.updateSectionConfig(response.meetingSections);
+                                }
                                 // Parse the activities JSON string
                                 if (typeof response.preparation.activities === 'string') {
                                         response.preparation.activities = JSON.parse(response.preparation.activities);
+                                }
+                                if (typeof response.preparation.youth_of_honor === 'string') {
+                                        response.preparation.youth_of_honor = [response.preparation.youth_of_honor];
                                 }
                                 return response.preparation;
                         }
@@ -145,7 +188,7 @@ export class PreparationReunions {
                         return {
                                 animateur_responsable: defaultAnimateur?.id || '',
                                 date: meetingDate,
-                                louveteau_dhonneur: this.recentHonors.map(h => `${h.first_name} ${h.last_name}`).join(', '),
+                                youth_of_honor: this.recentHonors.map(h => `${h.first_name} ${h.last_name}`),
                                 endroit: this.organizationSettings.organization_info?.endroit || '',
                                 activities: selectedActivities,
                                 notes: ''
@@ -178,7 +221,7 @@ export class PreparationReunions {
                 return {
                         date: newDate,
                         animateur_responsable: '',
-                        louveteau_dhonneur: '',
+                        youth_of_honor: [],
                         endroit: this.organizationSettings.organization_info?.endroit || '',
                         activities: selectedActivities,
                         notes: ''
@@ -212,6 +255,17 @@ export class PreparationReunions {
                 const nextMeetingDate = this.formatDateForInput(rawNextMeetingDate);
                 const defaultAnimateur = this.animateurs.find(a => a.full_name === this.organizationSettings.organization_info?.animateur_responsable);
                 const availableDates = this.dateManager.getAvailableDates();
+                const honorLabel = getHonorLabel(this.sectionConfig, translate);
+
+                if (this.activityManager) {
+                        this.activityManager.setSectionConfig(this.sectionConfig);
+                }
+                if (this.formManager) {
+                        this.formManager.setSectionConfig(this.sectionConfig);
+                }
+                if (this.printManager?.setSectionConfig) {
+                        this.printManager.setSectionConfig(this.sectionConfig);
+                }
 
                 const content = `
                         <div class="preparation-reunions">
@@ -234,7 +288,7 @@ export class PreparationReunions {
                                                         <label for="animateur-responsable">${translate("animateur_responsable")}:</label>
                                                         <select id="animateur-responsable" required>
                                                                 <option value="">${translate("select_animateur")}</option>
-                                                                ${this.animateurs.map(a => `<option value="${a.id}" ${a.id === (defaultAnimateur?.id || '') ? 'selected' : ''}>${a.full_name}</option>`).join('')}
+                                                                ${this.animateurs.map(a => `<option value="${a.id}" ${a.id === (defaultAnimateur?.id || '') ? 'selected' : ''}>${escapeHTML(a.full_name)}</option>`).join('')}
                                                         </select>
                                                 </div>
                                                 <div class="form-group">
@@ -244,14 +298,14 @@ export class PreparationReunions {
                                         </div>
                                         <div class="form-row">
                                                 <div class="form-group">
-                                                        <label for="louveteau-dhonneur">${translate("louveteau_dhonneur")}:</label>
-                                                        <ul id="louveteau-dhonneur" class="louveteau-list" contenteditable="true">
-                                                                ${this.recentHonors.map(h => `<li>${h.first_name} ${h.last_name}</li>`).join('')}
+                                                        <label for="youth-of-honor">${honorLabel}:</label>
+                                                        <ul id="youth-of-honor" class="honor-list" contenteditable="true">
+                                                                ${this.recentHonors.map(h => `<li>${escapeHTML(`${h.first_name} ${h.last_name}`)}</li>`).join('')}
                                                         </ul>
                                                 </div>
                                                 <div class="form-group">
                                                         <label for="endroit">${translate("endroit")}:</label>
-                                                        <input type="text" id="endroit" value="${this.organizationSettings.organization_info?.endroit || ''}" required>
+                                                        <input type="text" id="endroit" value="${escapeHTML(this.organizationSettings.organization_info?.endroit || '')}" required>
                                                 </div>
                                         </div>
                                         <table id="activities-table">
@@ -414,7 +468,13 @@ export class PreparationReunions {
                 e.preventDefault();
                 e.stopPropagation();
 
-                const formData = this.formManager.extractFormData();
+                let formData;
+                try {
+                        formData = this.formManager.extractFormData();
+                } catch (error) {
+                        debugError("Validation error saving reunion preparation:", error);
+                        return false;
+                }
 
                 try {
                         await saveReunionPreparation(formData);

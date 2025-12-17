@@ -12,8 +12,9 @@ const router = express.Router();
 const { check } = require('express-validator');
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { validateDate, validateDateOptional, checkValidation } = require('../middleware/validation');
+const { getMeetingSectionConfig } = require('../utils/meeting-sections');
 
 /**
  * Export route factory function
@@ -50,31 +51,40 @@ module.exports = (pool, logger) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const reunionDate = req.query.date || new Date().toISOString().split('T')[0];
 
-      const result = await pool.query(
-        `SELECT id, organization_id, date::text as date, louveteau_dhonneur,
-                endroit, activities, notes, animateur_responsable
-         FROM reunion_preparations
-         WHERE organization_id = $1 AND date = $2`,
-        [organizationId, reunionDate]
-      );
+      const [result, meetingSections] = await Promise.all([
+        pool.query(
+          `SELECT id, organization_id, date::text as date, youth_of_honor,
+                  endroit, activities, notes, animateur_responsable
+           FROM reunion_preparations
+           WHERE organization_id = $1 AND date = $2`,
+          [organizationId, reunionDate]
+        ),
+        getMeetingSectionConfig(pool, organizationId, logger)
+      ]);
 
       if (result.rows.length > 0) {
         const preparation = result.rows[0];
         // Parse JSON fields
         try {
-          preparation.louveteau_dhonneur = JSON.parse(preparation.louveteau_dhonneur || '[]');
+          preparation.youth_of_honor = JSON.parse(preparation.youth_of_honor || '[]');
           preparation.activities = JSON.parse(preparation.activities || '[]');
         } catch (e) {
           logger.warn('Error parsing reunion preparation JSON fields:', e);
+          preparation.youth_of_honor = preparation.youth_of_honor
+            ? [preparation.youth_of_honor].flat()
+            : [];
+          preparation.activities = [];
         }
         res.json({
           success: true,
-          preparation: preparation
+          preparation: preparation,
+          meetingSections
         });
       } else {
         res.json({
           success: false,
-          message: 'No reunion preparation found for this date'
+          message: 'No reunion preparation found for this date',
+          meetingSections
         });
       }
     } catch (error) {
@@ -110,7 +120,7 @@ module.exports = (pool, logger) => {
    *               date:
    *                 type: string
    *                 format: date
-   *               louveteau_dhonneur:
+   *               youth_of_honor:
    *                 type: array
    *               endroit:
    *                 type: string
@@ -131,6 +141,9 @@ module.exports = (pool, logger) => {
     check('endroit').optional().trim().isLength({ max: 500 }).withMessage('endroit must not exceed 500 characters'),
     check('notes').optional().trim().isLength({ max: 5000 }).withMessage('notes must not exceed 5000 characters'),
     check('animateur_responsable').optional().trim().isLength({ max: 200 }).withMessage('animateur_responsable must not exceed 200 characters'),
+    check('youth_of_honor').optional({ nullable: true }).custom(value =>
+      Array.isArray(value) || typeof value === 'string'
+    ).withMessage('youth_of_honor must be an array or string'),
     checkValidation,
     async (req, res) => {
     try {
@@ -142,12 +155,40 @@ module.exports = (pool, logger) => {
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const { date, louveteau_dhonneur, endroit, activities, notes, animateur_responsable } = req.body;
+      const { date, youth_of_honor, endroit, activities, notes, animateur_responsable } = req.body;
+      const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
+      let sectionKey = meetingSections.defaultSection;
+      try {
+        const orgInfoResult = await pool.query(
+          `SELECT setting_value FROM organization_settings
+           WHERE organization_id = $1 AND setting_key = 'organization_info'`,
+          [organizationId]
+        );
+        if (orgInfoResult.rows[0]?.setting_value) {
+          const orgInfo = JSON.parse(orgInfoResult.rows[0].setting_value);
+          if (orgInfo?.meeting_section && meetingSections.sections?.[orgInfo.meeting_section]) {
+            sectionKey = orgInfo.meeting_section;
+          }
+        }
+      } catch (error) {
+        logger.warn('Unable to resolve meeting section from organization_info', { error: error.message });
+      }
+      const honorConfig = meetingSections.sections?.[sectionKey]?.honorField || {};
+      const parsedHonorValues = Array.isArray(youth_of_honor)
+        ? youth_of_honor
+        : typeof youth_of_honor === 'string' && youth_of_honor.trim()
+          ? [youth_of_honor.trim()]
+          : [];
+
+      if (honorConfig.required && parsedHonorValues.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'meeting_section_honor_required'
+        });
+      }
 
       // Convert arrays/objects to appropriate formats
-      const louvetauDhonneurJson = Array.isArray(louveteau_dhonneur)
-        ? JSON.stringify(louveteau_dhonneur)
-        : louveteau_dhonneur;
+      const honorJson = JSON.stringify(parsedHonorValues);
 
       const activitiesJson = typeof activities === 'string'
         ? activities
@@ -157,24 +198,31 @@ module.exports = (pool, logger) => {
       // This prevents race conditions and duplicate key errors
       const result = await pool.query(
         `INSERT INTO reunion_preparations
-         (organization_id, date, louveteau_dhonneur, endroit, activities, notes, animateur_responsable)
+         (organization_id, date, youth_of_honor, endroit, activities, notes, animateur_responsable)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (organization_id, date)
          DO UPDATE SET
-           louveteau_dhonneur = EXCLUDED.louveteau_dhonneur,
+           youth_of_honor = EXCLUDED.youth_of_honor,
            endroit = EXCLUDED.endroit,
            activities = EXCLUDED.activities,
            notes = EXCLUDED.notes,
            animateur_responsable = EXCLUDED.animateur_responsable,
            updated_at = CURRENT_TIMESTAMP
          RETURNING *`,
-        [organizationId, date, louvetauDhonneurJson, endroit, activitiesJson, notes, animateur_responsable]
+        [organizationId, date, honorJson, endroit, activitiesJson, notes, animateur_responsable]
       );
+      const savedPreparation = result.rows[0];
+      try {
+        savedPreparation.youth_of_honor = JSON.parse(savedPreparation.youth_of_honor || '[]');
+        savedPreparation.activities = JSON.parse(savedPreparation.activities || '[]');
+      } catch (error) {
+        logger.warn('Error parsing saved reunion preparation JSON fields:', error);
+      }
 
       res.json({
         success: true,
         message: 'Reunion preparation saved successfully',
-        preparation: result.rows[0]
+        preparation: savedPreparation
       });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {
@@ -260,7 +308,7 @@ module.exports = (pool, logger) => {
       const today = new Date().toISOString().split('T')[0];
 
       const result = await pool.query(
-        `SELECT date::text as date, animateur_responsable, louveteau_dhonneur, endroit, activities, notes
+        `SELECT date::text as date, animateur_responsable, youth_of_honor, endroit, activities, notes
          FROM reunion_preparations
          WHERE organization_id = $1 AND date >= $2
          ORDER BY date ASC
@@ -269,7 +317,16 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length > 0) {
-        res.json({ success: true, meeting: result.rows[0] });
+        const meeting = result.rows[0];
+        try {
+          meeting.youth_of_honor = JSON.parse(meeting.youth_of_honor || '[]');
+          meeting.activities = JSON.parse(meeting.activities || '[]');
+        } catch (e) {
+          logger.warn('Error parsing next meeting JSON fields:', e);
+          meeting.youth_of_honor = meeting.youth_of_honor ? [meeting.youth_of_honor].flat() : [];
+          meeting.activities = [];
+        }
+        res.json({ success: true, meeting });
       } else {
         res.json({ success: true, meeting: null, message: 'No upcoming meetings found' });
       }
@@ -561,11 +618,13 @@ module.exports = (pool, logger) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
       const result = await pool.query(
         `SELECT * FROM activites_rencontre ORDER BY activity`
       );
 
-      res.json({ success: true, data: result.rows });
+      res.json({ success: true, data: result.rows, meetingSections });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {
         return;

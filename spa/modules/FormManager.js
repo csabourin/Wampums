@@ -1,17 +1,27 @@
 import { translate } from "../app.js";
+import { escapeHTML } from "../utils/SecurityUtils.js";
 
 /**
  * FormManager - Handles form population, validation, and data extraction
  * for the Preparation Reunions page
  */
 export class FormManager {
-        constructor(app, organizationSettings, animateurs, recentHonors, activityManager) {
+        constructor(app, organizationSettings, animateurs, recentHonors, activityManager, sectionConfig) {
                 this.app = app;
                 this.organizationSettings = organizationSettings;
                 this.animateurs = animateurs;
                 this.recentHonors = recentHonors;
                 this.activityManager = activityManager;
+                this.sectionConfig = sectionConfig;
                 this.reminder = null;
+        }
+
+        /**
+         * Update section-specific configuration (honor requirements, templates, etc.)
+         * @param {object} sectionConfig - Active section configuration
+         */
+        setSectionConfig(sectionConfig) {
+                this.sectionConfig = sectionConfig;
         }
 
         /**
@@ -42,13 +52,14 @@ export class FormManager {
                 document.getElementById("date").value = this.formatDateForInput(meetingData.date || currentDate);
 
                 // Handle Louveteau d'honneur
-                const louveteauxDHonneur = document.getElementById("louveteau-dhonneur");
-                if (Array.isArray(meetingData.louveteau_dhonneur)) {
-                        louveteauxDHonneur.innerHTML = meetingData.louveteau_dhonneur.map(honor => `<li>${honor}</li>`).join('');
-                } else if (typeof meetingData.louveteau_dhonneur === 'string') {
-                        louveteauxDHonneur.innerHTML = `<li>${meetingData.louveteau_dhonneur}</li>`;
+                const honorList = document.getElementById("youth-of-honor");
+                const honorData = meetingData.youth_of_honor ?? meetingData.louveteau_dhonneur;
+                if (Array.isArray(honorData)) {
+                        honorList.innerHTML = honorData.map(honor => `<li>${escapeHTML(honor)}</li>`).join('');
+                } else if (typeof honorData === 'string') {
+                        honorList.innerHTML = `<li>${escapeHTML(honorData)}</li>`;
                 } else {
-                        louveteauxDHonneur.innerHTML = this.recentHonors.map(h => `<li>${h.first_name} ${h.last_name}</li>`).join('');
+                        honorList.innerHTML = this.recentHonors.map(h => `<li>${escapeHTML(`${h.first_name} ${h.last_name}`)}</li>`).join('');
                 }
 
                 document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';
@@ -97,7 +108,7 @@ export class FormManager {
         resetForm(currentDate) {
                 document.getElementById("animateur-responsable").value = '';
                 document.getElementById("date").value = this.formatDateForInput(currentDate);
-                document.getElementById("louveteau-dhonneur").innerHTML = '';
+                document.getElementById("youth-of-honor").innerHTML = '';
                 document.getElementById("endroit").value = this.organizationSettings.organization_info?.endroit || '';
                 document.getElementById("notes").value = '';
 
@@ -111,12 +122,20 @@ export class FormManager {
          */
         extractFormData() {
                 const updatedActivities = this.activityManager.getSelectedActivitiesFromDOM();
+                const honorValues = Array.from(document.getElementById('youth-of-honor').querySelectorAll('li'))
+                        .map(li => li.textContent.trim())
+                        .filter(Boolean);
+
+                if (this.sectionConfig?.honorField?.required && honorValues.length === 0) {
+                        this.app.showMessage(translate("meeting_section_honor_required"), "error");
+                        throw new Error("Honoree required for this section");
+                }
 
                 return {
                         organization_id: this.app.organizationId,
                         animateur_responsable: document.getElementById('animateur-responsable').value,
                         date: document.getElementById('date').value,
-                        louveteau_dhonneur: Array.from(document.getElementById('louveteau-dhonneur').querySelectorAll('li')).map(li => li.textContent),
+                        youth_of_honor: honorValues,
                         endroit: document.getElementById('endroit').value,
                         activities: updatedActivities,
                         notes: document.getElementById('notes').value,
