@@ -213,6 +213,33 @@ module.exports = (pool) => {
    */
   router.put('/:id', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
     const { id } = req.params;
+
+    if (!name && !section) {
+      return error(res, 'At least one field to update is required', 400);
+    }
+
+    const fields = [];
+    const params = [];
+
+    if (name) {
+      params.push(name);
+      fields.push(`name = $${params.length}`);
+    }
+
+    if (section) {
+      params.push(section);
+      fields.push(`section = $${params.length}`);
+    }
+
+    params.push(id, organizationId);
+
+    const result = await pool.query(
+      `UPDATE groups
+       SET ${fields.join(', ')}
+       WHERE id = $${params.length - 1} AND organization_id = $${params.length}
+       RETURNING *`,
+      params
+    );
     const { name, program_section } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -442,9 +469,28 @@ module.exports = (pool) => {
         return res.status(400).json({ success: false, message: 'Group ID is required' });
       }
 
-      const groupContext = await pool.query(
-        'SELECT organization_id FROM groups WHERE id = $1',
-        [groupId]
+      if (!name && !section) {
+        return res.status(400).json({ success: false, message: 'At least one field to update is required' });
+      }
+
+      const updates = [];
+      const params = [];
+
+      if (name) {
+        params.push(name.trim());
+        updates.push(`name = $${params.length}`);
+      }
+
+      if (section) {
+        params.push(section);
+        updates.push(`section = $${params.length}`);
+      }
+
+      params.push(groupId);
+
+      const result = await pool.query(
+        `UPDATE groups SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING *`,
+        params
       );
 
       if (groupContext.rows.length === 0) {

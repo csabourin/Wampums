@@ -15,9 +15,12 @@ export class BadgeForm {
     this.badgeProgress = [];
     this.currentStars = 0;
     this.hasPending = false;
+    this.maxLevel = 3;
     this.formData = {};
     this.badgeSystemSettings = null;
     this.territoires = [];
+    this.templates = [];
+    this.participantSection = "general";
   }
 
   async init(participantId) {
@@ -38,12 +41,15 @@ export class BadgeForm {
       const result = await getBadgeSystemSettings();
       if (result && result.data) {
         this.badgeSystemSettings = result.data;
+        this.templates = result.data.templates || [];
         this.territoires = result.data.territoires || [];
       } else {
+        this.templates = [];
         this.territoires = this.getDefaultTerritoires();
       }
     } catch (error) {
       debugError("Error fetching badge system settings:", error);
+      this.templates = [];
       this.territoires = this.getDefaultTerritoires();
     }
   }
@@ -59,6 +65,26 @@ export class BadgeForm {
     ];
   }
 
+  getTemplatesForSection() {
+    const section = this.participantSection || "general";
+    return (this.templates || []).filter(
+      (template) =>
+        template.section === section || template.section === "general",
+    );
+  }
+
+  getTemplateById(templateId) {
+    const normalizedId = Number.isFinite(Number(templateId))
+      ? Number(templateId)
+      : templateId;
+    return (this.templates || []).find((template) => template.id === normalizedId);
+  }
+
+  getTemplateLabel(template) {
+    if (!template) return translate("badge_unknown_label");
+    return translate(template.translation_key) || template.name || translate("badge_unknown_label");
+  }
+
   async fetchParticipant(participantId) {
     try {
       const result = await fetchParticipant(participantId);
@@ -67,6 +93,10 @@ export class BadgeForm {
         throw new Error("Participant not found");
       }
       this.participant = result.participant; // Assign the participant object correctly
+      this.participantSection =
+        this.participant.group_section ||
+        this.participant.section ||
+        "general";
     } catch (error) {
       debugError("Error fetching participant:", error);
       throw new Error(`Failed to fetch participant: ${error.message}`);
@@ -80,8 +110,13 @@ export class BadgeForm {
 
   updateFormData() {
     const form = document.getElementById("badge-form");
+    const templateId = parseInt(
+      form.querySelector("#badge_template_id")?.value,
+      10,
+    );
     this.formData = {
-      territoire_chasse: form.querySelector("#territoire_chasse").value,
+      badge_template_id: templateId,
+      badge_template_label: this.getTemplateLabel(this.getTemplateById(templateId)),
       objectif: form.querySelector("#objectif").value,
       description: form.querySelector("#description").value,
       fierte: form.querySelector("#fierte").checked,
@@ -90,26 +125,32 @@ export class BadgeForm {
     };
   }
 
-  renderTerritoireOptions() {
-    return this.territoires
-      .map((t) => `<option value="${t.name}">${t.name}</option>`)
+  renderTemplateOptions() {
+    return this.getTemplatesForSection()
+      .map(
+        (template) =>
+          `<option value="${template.id}">${this.getTemplateLabel(template)}</option>`,
+      )
       .join("");
   }
 
   render() {
+    const templates = this.getTemplatesForSection();
+    const hasTemplates = templates.length > 0;
     const content = `
             <h1>${translate("badge_progress_form")}</h1>
             <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate("participant_name")}</h2>
             <div id="success-message" class="hidden"></div>
             <button id="print-view-btn">${translate("print_badge_form")}</button>
             <form id="badge-form">
-                <label for="territoire_chasse">${translate(
-                  "territoire_chasse",
-                )}:</label>
-                <select id="territoire_chasse" name="territoire_chasse" required>
+                <label for="badge_template_id">${translate(
+                  "badge_select_badge",
+                ) || translate("badge")}:</label>
+                <select id="badge_template_id" name="badge_template_id" required ${hasTemplates ? "" : "disabled"}>
                     <option value="-1" selected disabled>...</option>
-                    ${this.renderTerritoireOptions()}
+                    ${this.renderTemplateOptions()}
                 </select>
+                ${hasTemplates ? "" : `<p class="warning">${translate("no_badge_templates_for_section") || translate("no_badges") || ""}</p>`}
 
                 <div id="starInfo">
                     ${translate(
@@ -140,9 +181,7 @@ export class BadgeForm {
                 )}:</label>
                 <input type="date" id="date_obtention" name="date_obtention" required>
 
-                <input type="hidden" id="etoiles" name="etoiles" value="1">
-
-                <input type="submit" id="submitButton" value="${translate(
+                <input type="submit" id="submitButton" ${hasTemplates ? "" : "disabled"} value="${translate(
                   "save_badge_progress",
                 )}">
             </form>
@@ -212,8 +251,8 @@ export class BadgeForm {
           <h2>${this.participant ? `${this.participant.first_name} ${this.participant.last_name}` : translate("participant_name")}</h2>
 
           <div class="form-field">
-            <label>${translate("territoire_chasse")}:</label>
-            <div class="input-line">${this.formData.territoire_chasse || ""}</div>
+            <label>${translate("badge_select_badge") || translate("badge")}:</label>
+            <div class="input-line">${this.formData.badge_template_label || ""}</div>
           </div>
 
           <div class="form-field">
@@ -258,33 +297,67 @@ export class BadgeForm {
   }
 
   renderBadgeGrid() {
-    return this.territoires
-      .map((territoire) => {
-        const territoireName = territoire.name;
-        const badge = this.badgeProgress.find(
-          (b) =>
-            b.territoire_chasse === territoireName && b.status === "approved",
+    const templates = this.getTemplatesForSection();
+
+    if (!templates.length) {
+      return `<p class="muted">${translate("no_badge_templates_for_section") || translate("no_badges") || ""}</p>`;
+    }
+
+    return templates
+      .map((template) => {
+        const entries = this.badgeProgress.filter(
+          (b) => b.badge_template_id === template.id,
         );
-        const stars = badge ? badge.etoiles : 0;
-        const pendingStars = this.getPendingStars(territoireName);
+        const approvedEntries = entries.filter((b) => b.status === "approved");
+        const pendingEntries = entries.filter((b) => b.status === "pending");
+        const approvedLevels = this.countLevels(approvedEntries, template);
+        const pendingLevels = this.countLevels(pendingEntries, template);
+        const levelCount =
+          template.level_count ||
+          (template.levels?.length || 3);
+        const latestEntry = this.getLatestEntry(approvedEntries);
+        const imageName = template.image || this.getTerritoireImage(template.name);
 
         return `
                 <div class="badge-item">
-                    <img src="/images/${territoire.image || "default.jpg"}" alt="${territoireName}">
-                    <h3>${territoireName}</h3>
+                    ${imageName ? `<img src="/images/${imageName}" alt="${this.getTemplateLabel(template)}">` : ""}
+                    <h3>${this.getTemplateLabel(template)}</h3>
                     <div class="stars">
-                        ${this.renderStars(stars, pendingStars)}
+                        ${this.renderStars(approvedLevels, pendingLevels, levelCount)}
                     </div>
-                    ${badge ? this.renderBadgeDetails(badge) : ""}
+                    ${latestEntry ? this.renderBadgeDetails(latestEntry) : ""}
                 </div>
             `;
       })
       .join("");
   }
 
-  renderStars(stars, pendingStars) {
+  countLevels(entries = [], template = null, uniqueOnly = true) {
+    const levelLimit =
+      template?.level_count || (Array.isArray(template?.levels) ? template.levels.length : 0);
+    if (!uniqueOnly) {
+      return entries.length;
+    }
+    const levelSet = new Set();
+    entries.forEach((entry) => {
+      const level = parseInt(entry.etoiles, 10) || 0;
+      if (level > 0 && (!levelLimit || level <= levelLimit)) {
+        levelSet.add(level);
+      }
+    });
+    return levelSet.size;
+  }
+
+  getLatestEntry(entries = []) {
+    if (!entries.length) return null;
+    return [...entries].sort(
+      (a, b) => new Date(b.date_obtention || 0) - new Date(a.date_obtention || 0),
+    )[0];
+  }
+
+  renderStars(stars, pendingStars, total = 3) {
     let html = "";
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < total; i++) {
       if (i < stars) {
         html += "⭐";
       } else if (i < stars + pendingStars) {
@@ -298,6 +371,7 @@ export class BadgeForm {
 
   renderBadgeDetails(badge) {
     return `
+            <p>${translate("badge_select_badge") || translate("badge")}: ${badge.badge_name || badge.territoire_chasse || ""}</p>
             <p>${translate("date")}: ${badge.date_obtention}</p>
             <details>
                 <summary>${translate("details")}</summary>
@@ -316,9 +390,9 @@ export class BadgeForm {
     return found ? found.image : "default.jpg";
   }
 
-  getPendingStars(territoire) {
+  getPendingStars(templateId) {
     return this.badgeProgress.filter(
-      (b) => b.territoire_chasse === territoire && b.status === "pending",
+      (b) => b.badge_template_id === templateId && b.status === "pending",
     ).length;
   }
 
@@ -326,7 +400,7 @@ export class BadgeForm {
     const form = document.getElementById("badge-form");
     const fierteCheckbox = document.getElementById("fierte");
     const raisonTextarea = document.getElementById("raison");
-    const territoireSelect = document.getElementById("territoire_chasse");
+    const templateSelect = document.getElementById("badge_template_id");
     const submitButton = document.getElementById("submitButton");
 
     document.getElementById("badge-form").addEventListener("input", (e) => {
@@ -342,18 +416,23 @@ export class BadgeForm {
       raisonTextarea.required = fierteCheckbox.checked;
     });
 
-    territoireSelect.addEventListener("change", () => {
-      this.fetchCurrentStars(territoireSelect.value);
+    templateSelect?.addEventListener("change", () => {
+      const templateId = parseInt(templateSelect.value, 10);
+      if (Number.isInteger(templateId)) {
+        this.fetchCurrentStars(templateId);
+      }
     });
 
     form.addEventListener("submit", (e) => this.handleSubmit(e));
   }
 
-  async fetchCurrentStars(territoire) {
+  async fetchCurrentStars(templateId) {
     try {
-      const data = await getCurrentStars(this.participant.id, territoire);
+      const response = await getCurrentStars(this.participant.id, templateId);
+      const data = response?.data || response;
       this.currentStars = data.current_stars;
       this.hasPending = data.has_pending;
+      this.maxLevel = data.max_level || this.maxLevel || 3;
       document.getElementById("currentStars").value = this.currentStars;
       document.getElementById("currentStarsDisplay").textContent =
         this.currentStars;
@@ -365,10 +444,11 @@ export class BadgeForm {
 
   updateSubmitButton() {
     const submitButton = document.getElementById("submitButton");
-    if (this.currentStars >= 3 || this.hasPending) {
+    const reachedMax = this.currentStars >= (this.maxLevel || 3);
+    if (reachedMax || this.hasPending) {
       submitButton.disabled = true;
       submitButton.value =
-        this.currentStars >= 3
+        reachedMax
           ? translate("max_stars_reached")
           : translate("pending_submission_exists");
     } else {
@@ -384,8 +464,12 @@ export class BadgeForm {
 
     if (this.validateForm(form)) {
       try {
-        const result = await saveBadgeProgress(Object.fromEntries(formData));
-        if (result.status === "success") {
+        const payload = Object.fromEntries(formData);
+        payload.badge_template_id = parseInt(payload.badge_template_id, 10);
+        payload.participant_id = this.participant.id;
+
+        const result = await saveBadgeProgress(payload);
+        if (result.success) {
           this.showSuccessMessage(
             translate("badge_progress_submitted_for_approval"),
           );
@@ -406,7 +490,7 @@ export class BadgeForm {
     const errorMessages = [];
 
     form.querySelectorAll("[required]").forEach((field) => {
-      if (!field.value.trim()) {
+      if (!field.value.trim() || field.value === "-1") {
         isValid = false;
         errorMessages.push(
           `${field.previousElementSibling.textContent.replace(

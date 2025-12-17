@@ -22,6 +22,7 @@ export class BadgeDashboard {
     this.participants = [];
     this.badgeEntries = [];
     this.badgeSettings = null;
+    this.templates = [];
     this.records = [];
     this.sortedRecords = [];
     this.visibleCount = 25;
@@ -61,7 +62,10 @@ export class BadgeDashboard {
       if (cachedGroups) this.groups = cachedGroups;
       if (cachedParticipants) this.participants = cachedParticipants;
       if (cachedBadges) this.badgeEntries = cachedBadges;
-      if (cachedSettings) this.badgeSettings = cachedSettings;
+      if (cachedSettings) {
+        this.badgeSettings = cachedSettings;
+        this.templates = cachedSettings.templates || [];
+      }
     } catch (error) {
       debugError("Error hydrating cache for badge dashboard", error);
     }
@@ -116,11 +120,14 @@ export class BadgeDashboard {
 
       if (badgeSettings) {
         this.badgeSettings = badgeSettings;
+        this.templates = badgeSettings.templates || [];
         await setCachedData(
           "badge_dashboard_settings",
           badgeSettings,
           CONFIG.CACHE_DURATION.LONG,
         );
+      } else {
+        this.templates = [];
       }
 
       this.buildRecords();
@@ -135,71 +142,129 @@ export class BadgeDashboard {
   buildRecords() {
     const groupMap = new Map(this.groups.map((group) => [group.id, group]));
     const participantMap = new Map(
-      this.participants.map((participant) => [
-        participant.id,
-        {
-          id: participant.id,
-          firstName: participant.first_name,
-          lastName: participant.last_name,
-          groupId: participant.group_id,
-          groupName:
-            groupMap.get(participant.group_id)?.name || translate("no_group"),
-          badges: new Map(),
-          totalStars: 0,
-        },
-      ]),
+      this.participants.map((participant) => {
+        const group = groupMap.get(participant.group_id);
+        const section =
+          participant.group_section || group?.section || "general";
+        return [
+          participant.id,
+          {
+            id: participant.id,
+            firstName: participant.first_name,
+            lastName: participant.last_name,
+            groupId: participant.group_id,
+            groupName: group?.name || translate("no_group"),
+            section,
+            badges: new Map(),
+            totalStars: 0,
+          },
+        ];
+      }),
     );
 
     this.badgeEntries.forEach((entry) => {
       const participant = participantMap.get(entry.participant_id);
       if (!participant) return;
 
-      const badgeName =
-        entry.territoire_chasse || translate("badge_unknown_label");
-      const stars = parseInt(entry.etoiles, 10) || 0;
-      const badgeKey = badgeName.toLowerCase();
+      const template = this.getTemplateById(entry.badge_template_id);
+      const badgeName = this.getBadgeLabel(template, entry);
+      const templateLevels = template?.levels || entry.template_levels || [];
+      const levelCount =
+        template?.level_count ||
+        (Array.isArray(templateLevels) ? templateLevels.length : 0) ||
+        entry.level_count ||
+        this.getObtainableStars(badgeName, 0, entry.badge_template_id);
+      const badgeKey = entry.badge_template_id
+        ? `template-${entry.badge_template_id}`
+        : (badgeName || "").toLowerCase();
 
       if (!participant.badges.has(badgeKey)) {
         participant.badges.set(badgeKey, {
+          id: entry.badge_template_id,
           name: badgeName,
-          stars: 0,
-          obtainable: this.getObtainableStars(badgeName, stars),
+          translationKey: template?.translation_key || entry.translation_key,
+          section: template?.section || entry.badge_section || participant.section,
+          levelCount,
+          levels: Array.isArray(templateLevels) ? templateLevels : [],
           statuses: new Set(),
           entries: [],
         });
       }
 
       const badge = participant.badges.get(badgeKey);
-      badge.stars += stars;
-      badge.obtainable = Math.max(
-        badge.obtainable,
-        this.getObtainableStars(badgeName, stars),
-      );
       badge.statuses.add(entry.status || "pending");
-      badge.entries.push(entry);
-      participant.totalStars += stars;
+      badge.entries.push({
+        ...entry,
+        badge_name: badgeName,
+        badge_template_id: entry.badge_template_id,
+        badge_section: badge.section,
+      });
     });
 
     this.records = Array.from(participantMap.values()).map((record) => {
       const badges = Array.from(record.badges.values()).map((badge) => {
         const entries = this.sortBadgeEntries(badge.entries);
+        const completedLevels = this.countCompletedLevels(
+          entries,
+          badge.levelCount,
+        );
         return {
           ...badge,
+          stars: completedLevels,
+          obtainable:
+            badge.levelCount ||
+            this.getObtainableStars(badge.name, completedLevels, badge.id),
           entries,
-          starMap: this.buildStarMap(entries),
+          starMap: this.buildStarMap(entries, badge.levelCount),
         };
       });
+
+      const totalStars = badges.reduce((sum, badge) => sum + (badge.stars || 0), 0);
 
       return {
         ...record,
         badges,
+        totalStars,
       };
     });
 
     this.sortRecords();
   }
 
-  getObtainableStars(badgeName, currentStars = 0) {
+  getTemplateById(templateId) {
+    const normalizedId = Number.isFinite(Number(templateId))
+      ? Number(templateId)
+      : templateId;
+    return this.templates.find((template) => template.id === normalizedId);
+  }
+
+  getTemplatesForSection(section) {
+    const normalizedSection = section || "general";
+    return this.templates.filter(
+      (template) =>
+        template.section === normalizedSection || template.section === "general",
+    );
+  }
+
+  getBadgeLabel(template, entry = {}) {
+    if (!template) {
+      return (
+        translate(entry.translation_key) ||
+        entry.badge_name ||
+        entry.territoire_chasse ||
+        translate("badge_unknown_label")
+      );
+    }
+    return translate(template.translation_key) || template.name || translate("badge_unknown_label");
+  }
+
+  getObtainableStars(badgeName, currentStars = 0, templateId = null) {
+    const template = templateId ? this.getTemplateById(templateId) : null;
+    if (template) {
+      const levelCount = template.level_count || template.levels?.length || 0;
+      return Math.max(levelCount || 0, currentStars, 3);
+    }
+
     if (!this.badgeSettings) return Math.max(3, currentStars);
 
     const starFieldMax = this.badgeSettings?.badge_structure?.fields?.find(
@@ -339,9 +404,10 @@ export class BadgeDashboard {
   }
 
   renderBadgeChip(participantId, badge) {
+    const totalLevels = Math.max(1, badge.obtainable);
     const percent = Math.min(
       100,
-      Math.round((badge.stars / badge.obtainable) * 100),
+      Math.round((badge.stars / totalLevels) * 100),
     );
     const statusLabel = Array.from(badge.statuses)
       .map(
@@ -354,7 +420,7 @@ export class BadgeDashboard {
     const badgeImage = this.getBadgeImage(badge.name);
 
     return `
-      <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}">
+      <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}" data-template-id="${badge.id || ""}">
         ${badgeImage ? `<img src="${badgeImage}" alt="${badge.name}" class="badge-chip__image">` : ""}
         <div class="badge-chip__content">
           <div class="badge-chip__name">${badge.name}</div>
@@ -369,14 +435,16 @@ export class BadgeDashboard {
   }
 
   renderBadgeStars(participantId, badge) {
-    return Array.from({ length: badge.obtainable }, (_, index) => {
+    const starTotal = badge.obtainable || badge.levelCount || 3;
+    const levelLabel = translate("badge_level_label") || translate("badge_star_label");
+    return Array.from({ length: starTotal }, (_, index) => {
       const starIndex = index + 1;
-      const isEarned = starIndex <= badge.stars;
       const starMapping = badge.starMap?.find(
         (item) => item.starIndex === starIndex,
       );
+      const isEarned = Boolean(starMapping);
       const entryId = starMapping?.entryId;
-      const ariaLabel = `${translate("badge_star_label")} ${starIndex}${isEarned ? "" : ` ${translate("badge_star_locked")}`}`;
+      const ariaLabel = `${levelLabel} ${starIndex}${isEarned ? "" : ` ${translate("badge_star_locked")}`}`;
 
       return `
         <button
@@ -384,6 +452,7 @@ export class BadgeDashboard {
           data-action="star-details"
           data-participant-id="${participantId}"
           data-badge-name="${badge.name}"
+          data-template-id="${badge.id || ""}"
           data-star-index="${starIndex}"
           ${isEarned ? "" : "disabled"}
           aria-label="${ariaLabel}"
@@ -424,14 +493,14 @@ export class BadgeDashboard {
         const actionButton = event.target.closest("button[data-action]");
         if (!actionButton) return;
 
-        const { action, participantId, badgeName, starIndex } =
+        const { action, participantId, badgeName, starIndex, templateId } =
           actionButton.dataset;
         if (!participantId) return;
 
         if (action === "star-details") {
           this.openBadgeModal(
             parseInt(participantId, 10),
-            badgeName,
+            templateId ? parseInt(templateId, 10) : badgeName,
             false,
             parseInt(starIndex, 10),
           );
@@ -440,7 +509,7 @@ export class BadgeDashboard {
         if (action === "edit-participant") {
           this.openBadgeModal(
             parseInt(participantId, 10),
-            badgeName || null,
+            templateId ? parseInt(templateId, 10) : badgeName || null,
             true,
           );
         }
@@ -547,7 +616,7 @@ export class BadgeDashboard {
 
   openBadgeModal(
     participantId,
-    badgeName = null,
+    badgeTemplateId = null,
     focusEdit = false,
     targetStar = null,
     showAddForm = false,
@@ -562,9 +631,10 @@ export class BadgeDashboard {
 
     const hasExistingBadges = record.badges.length > 0;
     const badge = hasExistingBadges
-      ? this.selectBadge(record.badges, badgeName)
+      ? this.selectBadge(record.badges, badgeTemplateId)
       : null;
-    const territories = this.badgeSettings?.territoires || [];
+    const availableTemplates = this.getTemplatesForSection(record.section);
+    const templateSelectDisabled = availableTemplates.length === 0;
 
     // If no existing badges and no add form requested, show add form
     if (!hasExistingBadges && !showAddForm) {
@@ -578,18 +648,19 @@ export class BadgeDashboard {
     const formattedDefaultDate = this.formatDateInput(
       defaultEntry?.date_obtention,
     );
+    const levelLabel = translate("badge_level_label") || translate("badge_star_label") || "Level";
 
     const badgeOptions = record.badges
       .map(
         (item) =>
-          `<option value="${item.name}" ${item.name === badge?.name ? "selected" : ""}>${item.name}</option>`,
+          `<option value="${item.id || item.name}" ${item.id === (badge?.id || badgeTemplateId) ? "selected" : ""}>${item.name}</option>`,
       )
       .join("");
 
-    const territoryOptions = territories
+    const templateOptions = availableTemplates
       .map(
-        (territory) =>
-          `<option value="${territory.name}">${territory.name}</option>`,
+        (template) =>
+          `<option value="${template.id}" ${template.id === (badge?.id || badgeTemplateId) ? "selected" : ""}>${this.getBadgeLabel(template)}</option>`,
       )
       .join("");
 
@@ -606,7 +677,7 @@ export class BadgeDashboard {
 
         ${
           hasExistingBadges
-            ? `
+              ? `
         <nav class="modal__tabs">
           <button type="button" class="tab-button ${!showAddForm ? "active" : ""}" data-tab="edit">
             ${translate("badge_edit_tab") || "Edit"}
@@ -642,7 +713,7 @@ export class BadgeDashboard {
                   <li>
                     <span class="badge-hist-status">${translate(`badge_status_${entry.status || "pending"}`).substring(0, 3)}</span>
                     <span class="badge-hist-date">${this.formatReadableDate(entry.date_obtention)}</span>
-                    <span class="badge-hist-stars">${entry.etoiles}⭐</span>
+                    <span class="badge-hist-stars">${levelLabel} ${entry.etoiles}</span>
                     ${entry.objectif ? `<p class="badge-hist-text">${entry.objectif}</p>` : ""}
                   </li>
                 `,
@@ -656,7 +727,7 @@ export class BadgeDashboard {
 
             <form id="badge-edit-form" data-participant-id="${participantId}" data-badge-name="${badge?.name || ""}">
               <div class="form-group-compact">
-                <label for="badge-entry-select">${translate("badge_select_entry") || "Entry"} (Star #${defaultEntry?.etoiles || ""})</label>
+                <label for="badge-entry-select">${translate("badge_select_entry") || "Entry"} (${levelLabel} #${defaultEntry?.etoiles || ""})</label>
                 <select id="badge-entry-select" name="entry">
                   ${entries
                     .map(
@@ -706,11 +777,12 @@ export class BadgeDashboard {
           <div class="tab-content ${showAddForm || !hasExistingBadges ? "active" : ""}" data-content="add">
             <form id="badge-add-form" data-participant-id="${participantId}">
               <div class="form-group-compact">
-                <label for="badge-territory">${translate("badge_select_badge") || "Badge"}</label>
-                <select id="badge-territory" name="territoire_chasse" required>
+                <label for="badge-template">${translate("badge_select_badge") || "Badge"}</label>
+                <select id="badge-template" name="badge_template_id" required ${templateSelectDisabled ? "disabled" : ""}>
                   <option value="">${translate("badge_select_prompt") || "Select a badge..."}</option>
-                  ${territoryOptions}
+                  ${templateOptions}
                 </select>
+                ${templateSelectDisabled ? `<p class="muted">${translate("no_badge_templates_for_section") || ""}</p>` : ""}
               </div>
 
               <div class="form-group-compact">
@@ -773,13 +845,13 @@ export class BadgeDashboard {
     const badgeSelect = modal.querySelector("#badge-select");
 
     badgeSelect?.addEventListener("change", (event) => {
-      const nextBadgeName = event.target.value;
+      const nextBadgeId = parseInt(event.target.value, 10) || event.target.value;
       const currentTab = modal
         .querySelector(".tab-button.active")
         ?.getAttribute("data-tab");
       this.openBadgeModal(
         participantId,
-        nextBadgeName,
+        nextBadgeId,
         focusEdit,
         targetStar,
         currentTab === "add",
@@ -798,7 +870,7 @@ export class BadgeDashboard {
       // Update the label to show which star is being edited
       const label = modal.querySelector('label[for="badge-entry-select"]');
       if (label) {
-        label.textContent = `${translate("badge_select_entry") || "Entry"} (Star #${selected.etoiles})`;
+        label.textContent = `${translate("badge_select_entry") || "Entry"} (${levelLabel} #${selected.etoiles})`;
       }
     });
 
@@ -851,10 +923,16 @@ export class BadgeDashboard {
         event.preventDefault();
         const form = event.target;
         const feedback = form.querySelector("#badge-add-feedback");
+        const templateId = parseInt(form.badge_template_id.value, 10);
+        if (!Number.isInteger(templateId)) {
+          feedback.textContent = translate("badge_select_prompt");
+          feedback.className = "feedback-error";
+          return;
+        }
 
         const payload = {
           participant_id: participantId,
-          territoire_chasse: form.territoire_chasse.value,
+          badge_template_id: templateId,
           date_obtention: form.date_obtention.value || null,
           objectif: form.objectif.value?.trim() || null,
           description: form.description.value?.trim() || null,
@@ -877,10 +955,10 @@ export class BadgeDashboard {
           feedback.className = "feedback-success";
           setTimeout(() => {
             // Reopen modal in edit mode with the newly added badge
-            const addedBadgeName = payload.territoire_chasse;
+            const addedBadgeTemplateId = payload.badge_template_id;
             this.openBadgeModal(
               participantId,
-              addedBadgeName,
+              addedBadgeTemplateId,
               false,
               null,
               false,
@@ -918,9 +996,16 @@ export class BadgeDashboard {
     return null;
   }
 
-  selectBadge(badges, badgeName) {
-    if (!badgeName) return badges[0];
-    return badges.find((item) => item.name === badgeName) || badges[0];
+  selectBadge(badges, badgeIdentifier) {
+    if (!badgeIdentifier) return badges[0];
+    const normalizedId = Number.isFinite(Number(badgeIdentifier))
+      ? Number(badgeIdentifier)
+      : badgeIdentifier;
+    return (
+      badges.find((item) => item.id === normalizedId) ||
+      badges.find((item) => item.name === badgeIdentifier) ||
+      badges[0]
+    );
   }
 
   sortBadgeEntries(entries = []) {
@@ -938,21 +1023,35 @@ export class BadgeDashboard {
     return badge.entries.find((entry) => entry.id === mapping.entryId) || null;
   }
 
-  buildStarMap(entries = []) {
+  countCompletedLevels(entries = [], levelCount = 0) {
+    const levelSet = new Set();
+    entries.forEach((entry) => {
+      const level = parseInt(entry.etoiles, 10) || 0;
+      if (level > 0 && (!levelCount || level <= levelCount)) {
+        levelSet.add(level);
+      }
+    });
+    return levelSet.size;
+  }
+
+  buildStarMap(entries = [], levelCount = 0) {
     const map = [];
-    let starCounter = 0;
 
     const orderedEntries = [...entries].sort((a, b) => {
-      const aDate = new Date(a.date_obtention || 0);
-      const bDate = new Date(b.date_obtention || 0);
-      return aDate - bDate;
+      const aLevel = parseInt(a.etoiles, 10) || 0;
+      const bLevel = parseInt(b.etoiles, 10) || 0;
+      if (aLevel === bLevel) {
+        const aDate = new Date(a.date_obtention || 0);
+        const bDate = new Date(b.date_obtention || 0);
+        return aDate - bDate;
+      }
+      return aLevel - bLevel;
     });
 
     orderedEntries.forEach((entry) => {
-      const stars = parseInt(entry.etoiles, 10) || 0;
-      for (let i = 0; i < stars; i += 1) {
-        starCounter += 1;
-        map.push({ starIndex: starCounter, entryId: entry.id });
+      const level = parseInt(entry.etoiles, 10) || 0;
+      if (level > 0 && (!levelCount || level <= levelCount)) {
+        map.push({ starIndex: level, entryId: entry.id });
       }
     });
 

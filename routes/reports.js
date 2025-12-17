@@ -1060,10 +1060,18 @@ module.exports = (pool, logger) => {
       );
 
       const badgeResult = await pool.query(
-        `SELECT territoire_chasse, etoiles, date_obtention::text as date
-         FROM badge_progress
-         WHERE participant_id = $1 AND organization_id = $2 AND status = 'approved'
-         ORDER BY date_obtention ASC`,
+        `SELECT bp.etoiles,
+                bp.date_obtention::text as date,
+                bp.badge_template_id,
+                bt.name AS badge_name,
+                bt.translation_key,
+                bt.section AS badge_section,
+                bt.level_count,
+                COALESCE(bt.levels, '[]'::jsonb) AS template_levels
+         FROM badge_progress bp
+         JOIN badge_templates bt ON bp.badge_template_id = bt.id
+         WHERE bp.participant_id = $1 AND bp.organization_id = $2 AND bp.status = 'approved'
+         ORDER BY bp.date_obtention ASC`,
         [participantId, organizationId]
       );
 

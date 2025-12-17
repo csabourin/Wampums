@@ -1224,8 +1224,9 @@ export class Reports {
 					...(progressData.badges || []).map((item) => ({
 						type: "badge",
 						date: item.date,
-						territory: item.territoire_chasse,
-						stars: item.etoiles,
+						badgeName: translate(item.translation_key) || item.badge_name || item.territoire_chasse,
+						level: item.etoiles,
+						section: item.badge_section,
 					})),
 				].sort((a, b) => new Date(a.date) - new Date(b.date))
 			: [];
@@ -1242,9 +1243,9 @@ export class Reports {
 							title = translate("honor_awarded");
 							meta = event.reason || translate("no_reason_provided");
 						} else {
-							title = translate("badge_star");
-							const starsLabel = translate("stars_count");
-							meta = `${event.territory || ""} · ${event.stars || 0} ${starsLabel}`;
+							title = translate("badge_star") || translate("badge");
+							const levelLabel = translate("badge_level_label") || translate("badge_star_label") || translate("stars_count");
+							meta = `${event.badgeName || ""} · ${levelLabel} ${event.level || 0}${event.section ? ` · ${event.section}` : ""}`;
 						}
 
 						return `
