@@ -224,7 +224,7 @@ export class Reports {
 		document.addEventListener("keydown", (e) => {
 			if (e.key === "Escape") {
 				const modal = document.getElementById("report-modal");
-				if (modal && modal.style.display !== "none") {
+				if (modal && !modal.classList.contains("hidden")) {
 					this.closeReportModal();
 				}
 			}
@@ -239,14 +239,25 @@ export class Reports {
 		const modal = document.getElementById("report-modal");
 		const modalTitle = document.getElementById("report-modal-title");
 
+		if (!modal || !modalTitle) {
+			debugWarn("Report modal elements missing");
+			return;
+		}
+
 		modalTitle.textContent = title;
-		modal.style.display = "block";
+		modal.classList.remove("hidden");
+		modal.setAttribute("aria-hidden", "false");
 		document.body.style.overflow = "hidden"; // Prevent background scrolling
 	}
 
 	closeReportModal() {
 		const modal = document.getElementById("report-modal");
-		modal.style.display = "none";
+		if (!modal) {
+			return;
+		}
+
+		modal.classList.add("hidden");
+		modal.setAttribute("aria-hidden", "true");
 		document.body.style.overflow = ""; // Restore scrolling
 	}
 
