@@ -253,7 +253,7 @@ export class Budgets {
           </button>
         </div>
 
-        <div class="tab-content">
+        <div class="tab-content active">
           ${tabContent}
         </div>
       </div>
