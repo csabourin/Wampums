@@ -713,16 +713,16 @@
   }
 }
 
-/* Dark mode support */
+/* Dark mode support - Using lighter backgrounds for better mobile readability */
 @media (prefers-color-scheme: dark) {
   :root {
-    --carpool-surface: #111c19;
-    --carpool-surface-muted: #162520;
-    --carpool-surface-subtle: #0d1815;
-    --carpool-border: #1f3b33;
-    --carpool-border-strong: #2c4d44;
-    --carpool-text: #e2efea;
-    --carpool-text-muted: #9fb7b0;
+    --carpool-surface: #2d4540;
+    --carpool-surface-muted: #3a5550;
+    --carpool-surface-subtle: #264239;
+    --carpool-border: #4a6860;
+    --carpool-border-strong: #587870;
+    --carpool-text: #f5faf8;
+    --carpool-text-muted: #c5d8d2;
   }
 
   .activity-card,
@@ -749,8 +749,20 @@
   }
 
   .carpool-section__title,
-  .activity-card__title {
+  .activity-card__title,
+  .carpool-offer-card__driver strong {
     color: var(--carpool-text);
+  }
+
+  /* Ensure capacity indicators are visible in dark mode */
+  .capacity-indicator__label,
+  .capacity-indicator__text {
+    color: var(--carpool-text);
+  }
+
+  .capacity-indicator__bar {
+    background: var(--carpool-surface-subtle);
+    border-color: var(--carpool-border);
   }
 }
 
