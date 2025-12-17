@@ -1805,4 +1805,7 @@
   "error_occurred": "Une erreur s'est produite"
 ,
   "select_activity_for_carpool": "Sélectionnez une activité pour coordonner les covoiturages"
+,
+  "quick_create_activity": "Création rapide d'activité",
+  "creating": "Création en cours"
 }

@@ -14,6 +14,7 @@ import {
   sanitizeHTML,
   sanitizeURL,
 } from "./utils/SecurityUtils.js";
+import { getActivities, createActivity } from "./api/api-activities.js";
 
 export class Dashboard {
   constructor(app) {
@@ -284,6 +285,7 @@ export class Dashboard {
   <h3>${translate("dashboard_preparation_section")}</h3>
   <div class="manage-items">
     <a href="/activities"><i class="fa-solid fa-calendar-days"></i><span>${translate("activities_calendar")}</span></a>
+    <a href="#" id="carpool-quick-access"><i class="fa-solid fa-car"></i><span>${translate("carpool_coordination")}</span></a>
     <a href="/preparation-reunions"><i class="fa-solid fa-clipboard-list"></i><span>${translate("preparation_reunions")}</span></a>
     <a href="/view-participant-documents"><i class="fa-solid fa-file-lines"></i><span>${translate("view_participant_documents")}</span></a>
     <a href="/inventory"><i class="fa-solid fa-warehouse"></i><span>${translate("inventory_link")}</span></a>
@@ -597,6 +599,14 @@ export class Dashboard {
     if (refreshBtn) {
       refreshBtn.addEventListener("click", () => this.loadNews(true));
     }
+
+    const carpoolBtn = document.getElementById("carpool-quick-access");
+    if (carpoolBtn) {
+      carpoolBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.showCarpoolQuickAccess();
+      });
+    }
   }
 
   async lazyLogout() {
@@ -622,6 +632,231 @@ export class Dashboard {
     }
 
     this.updatePointsList();
+  }
+
+  async showCarpoolQuickAccess() {
+    try {
+      const activities = await getActivities();
+      const now = new Date();
+      const upcomingActivities = activities.filter(a => new Date(a.activity_date) >= now);
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-screen';
+      modal.style.position = 'fixed';
+      modal.style.top = '0';
+      modal.style.left = '0';
+      modal.style.width = '100%';
+      modal.style.height = '100%';
+      modal.style.background = 'rgba(0,0,0,0.5)';
+      modal.style.display = 'flex';
+      modal.style.alignItems = 'center';
+      modal.style.justifyContent = 'center';
+      modal.style.zIndex = '10000';
+
+      modal.innerHTML = `
+        <div style="background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow: auto; padding: 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h2 style="margin: 0;">${translate('carpool_coordination')}</h2>
+            <button type="button" id="close-carpool-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 0.5rem;">✕</button>
+          </div>
+
+          ${upcomingActivities.length > 0 ? `
+            <p style="color: #666; margin-bottom: 1rem;">${translate('select_activity_for_carpool')}</p>
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+              ${upcomingActivities.map(activity => `
+                <a href="/carpool/${activity.id}" style="padding: 1rem; border: 2px solid #e0e0e0; border-radius: 8px; text-decoration: none; color: inherit; display: block; transition: all 0.2s;">
+                  <div style="display: flex; justify-content: space-between; gap: 1rem;">
+                    <div style="flex: 1;">
+                      <h3 style="margin: 0 0 0.5rem 0;">${escapeHTML(activity.name)}</h3>
+                      <p style="margin: 0; color: #666; font-size: 0.9rem;">
+                        ${new Date(activity.activity_date).toLocaleDateString()} - ${activity.departure_time_going}
+                      </p>
+                      <p style="margin: 0.25rem 0 0 0; color: #999; font-size: 0.85rem;">
+                        ${escapeHTML(activity.meeting_location_going)}
+                      </p>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; font-size: 0.85rem;">
+                      <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px;">
+                        ${activity.carpool_offer_count || 0} ${translate('vehicles')}
+                      </span>
+                      <span style="color: #666;">
+                        ${activity.assigned_participant_count || 0} ${translate('assigned')}
+                      </span>
+                    </div>
+                  </div>
+                </a>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="text-align: center; padding: 2rem; color: #999;">
+              <p style="margin-bottom: 1rem;">${translate('no_upcoming_activities')}</p>
+            </div>
+          `}
+
+          <div style="border-top: 1px solid #e0e0e0; padding-top: 1.5rem; margin-top: 1.5rem;">
+            <button type="button" id="quick-create-activity-btn" class="button" style="width: 100%; padding: 0.75rem; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 500;">
+              ➕ ${translate('quick_create_activity')}
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      // Close handlers
+      const closeBtn = modal.querySelector('#close-carpool-modal');
+      closeBtn.addEventListener('click', () => modal.remove());
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+      });
+
+      // Quick create activity button
+      const quickCreateBtn = modal.querySelector('#quick-create-activity-btn');
+      quickCreateBtn.addEventListener('click', () => {
+        modal.remove();
+        this.showQuickCreateActivityModal();
+      });
+
+      // Add hover effects
+      const activityLinks = modal.querySelectorAll('a[href^="/carpool/"]');
+      activityLinks.forEach(link => {
+        link.addEventListener('mouseenter', (e) => {
+          e.currentTarget.style.borderColor = '#667eea';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(102,126,234,0.15)';
+        });
+        link.addEventListener('mouseleave', (e) => {
+          e.currentTarget.style.borderColor = '#e0e0e0';
+          e.currentTarget.style.boxShadow = 'none';
+        });
+      });
+
+    } catch (error) {
+      debugError('Error loading carpool activities:', error);
+      this.app.showToast(translate('error_loading_activities'), 'error');
+    }
+  }
+
+  showQuickCreateActivityModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-screen';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.background = 'rgba(0,0,0,0.5)';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.zIndex = '10000';
+
+    // Get tomorrow's date as default
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    modal.innerHTML = `
+      <div style="background: white; border-radius: 12px; max-width: 500px; width: 90%; padding: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <h2 style="margin: 0;">${translate('quick_create_activity')}</h2>
+          <button type="button" id="close-quick-create-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 0.5rem;">✕</button>
+        </div>
+
+        <form id="quick-create-activity-form">
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+              ${translate('activity_name')} <span style="color: #dc3545;">*</span>
+            </label>
+            <input type="text" name="name" required
+              style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+              placeholder="${translate('activity_name')}">
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+              ${translate('activity_date')} <span style="color: #dc3545;">*</span>
+            </label>
+            <input type="date" name="activity_date" required value="${tomorrowStr}"
+              style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+              ${translate('meeting_location')} (${translate('going')}) <span style="color: #dc3545;">*</span>
+            </label>
+            <input type="text" name="meeting_location_going" required
+              style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+              placeholder="${translate('meeting_location_placeholder')}">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+              <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                ${translate('meeting_time')} <span style="color: #dc3545;">*</span>
+              </label>
+              <input type="time" name="meeting_time_going" required value="09:00"
+                style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                ${translate('departure_time')} <span style="color: #dc3545;">*</span>
+              </label>
+              <input type="time" name="departure_time_going" required value="09:15"
+                style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+            </div>
+          </div>
+
+          <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+            <button type="button" id="cancel-quick-create" style="flex: 1; padding: 0.75rem; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem;">
+              ${translate('cancel')}
+            </button>
+            <button type="submit" style="flex: 1; padding: 0.75rem; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: 500;">
+              ${translate('create_activity')}
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close handlers
+    const closeBtn = modal.querySelector('#close-quick-create-modal');
+    const cancelBtn = modal.querySelector('#cancel-quick-create');
+    closeBtn.addEventListener('click', () => modal.remove());
+    cancelBtn.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove();
+    });
+
+    // Form submission
+    const form = modal.querySelector('#quick-create-activity-form');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+
+      try {
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = translate('creating') + '...';
+
+        const newActivity = await createActivity(data);
+        modal.remove();
+        this.app.showToast(translate('activity_created_success'), 'success');
+
+        // Redirect to the carpool page for this new activity
+        setTimeout(() => {
+          window.location.hash = `/carpool/${newActivity.id}`;
+        }, 500);
+      } catch (error) {
+        debugError('Error creating activity:', error);
+        this.app.showToast(error.message || translate('error_saving_activity'), 'error');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = false;
+        submitBtn.textContent = translate('create_activity');
+      }
+    });
   }
 
   // -----------------------------
