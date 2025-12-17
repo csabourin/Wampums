@@ -5,6 +5,29 @@ const { authenticate, authorize, getOrganizationId } = require('../middleware/au
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
+/**
+ * Fetch a group's context for a specific organization.
+ *
+ * @param {Object} db - Database pool or client.
+ * @param {number} groupId - Target group identifier.
+ * @param {number} organizationId - Organization identifier used for scoping.
+ * @returns {Promise<{id: number, program_section: string} | null>} Group context or null when not found.
+ */
+async function getGroupForOrganization(db, groupId, organizationId) {
+  if (!groupId) {
+    return null;
+  }
+
+  const groupResult = await db.query(
+    `SELECT id, program_section
+     FROM groups
+     WHERE id = $1 AND organization_id = $2`,
+    [groupId, organizationId]
+  );
+
+  return groupResult.rows[0] || null;
+}
+
 module.exports = (pool) => {
   /**
    * @swagger
@@ -191,10 +214,20 @@ module.exports = (pool) => {
    *     responses:
    *       201:
    *         description: Participant created
-   */
+  */
   router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);
+
+    let groupContext = null;
+
+    if (group_id) {
+      groupContext = await getGroupForOrganization(pool, group_id, organizationId);
+
+      if (!groupContext) {
+        return error(res, 'Group not found in this organization', 404);
+      }
+    }
 
     const client = await pool.connect();
     try {
@@ -217,11 +250,11 @@ module.exports = (pool) => {
       );
 
       // Link to group if provided
-      if (group_id) {
+      if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id)
-           VALUES ($1, $2, $3)`,
-          [participantId, group_id, organizationId]
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, program_section)
+           VALUES ($1, $2, $3, $4)`,
+          [participantId, groupContext.id, organizationId, groupContext.program_section]
         );
       }
 
@@ -281,6 +314,16 @@ module.exports = (pool) => {
     const { group_id, is_leader, is_second_leader, roles } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
+    let groupContext = null;
+
+    if (group_id) {
+      groupContext = await getGroupForOrganization(pool, group_id, organizationId);
+
+      if (!groupContext) {
+        return error(res, 'Group not found in this organization', 404);
+      }
+    }
+
     // Verify user belongs to this organization
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
     if (!authCheck.authorized) {
@@ -310,11 +353,11 @@ module.exports = (pool) => {
       );
 
       // Add new group assignment if group_id is provided
-      if (group_id) {
+      if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [id, group_id, organizationId, is_leader || false, is_second_leader || false, roles || null]
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles, program_section)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null, groupContext.program_section]
         );
       }
 
@@ -344,7 +387,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
-              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles, pg.program_section,
               COALESCE((SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1), 0) as total_points
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -371,7 +414,7 @@ module.exports = (pool) => {
     if (participantId) {
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                pg.group_id, g.name as group_name
+                pg.group_id, g.name as group_name, pg.program_section
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -388,7 +431,7 @@ module.exports = (pool) => {
     } else {
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles, pg.program_section,
                 (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'fiche_sante') > 0 as has_fiche_sante,
                 (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'acceptation_risque') > 0 as has_acceptation_risque
          FROM participants p
@@ -422,6 +465,16 @@ module.exports = (pool) => {
 
     if (!first_name || !last_name) {
       return error(res, 'First name and last name are required', 400);
+    }
+
+    let groupContext = null;
+
+    if (group_id) {
+      groupContext = await getGroupForOrganization(pool, group_id, organizationId);
+
+      if (!groupContext) {
+        return error(res, 'Group not found in this organization', 404);
+      }
     }
 
     const client = await pool.connect();
@@ -488,11 +541,11 @@ module.exports = (pool) => {
         );
 
         // Add new group assignment if group_id is not null
-        if (group_id) {
+        if (groupContext) {
           await client.query(
-            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
-             VALUES ($1, $2, $3)`,
-            [participantId, group_id, organizationId]
+            `INSERT INTO participant_groups (participant_id, group_id, organization_id, program_section)
+             VALUES ($1, $2, $3, $4)`,
+            [participantId, groupContext.id, organizationId, groupContext.program_section]
           );
         }
       }
@@ -530,6 +583,16 @@ module.exports = (pool) => {
       return error(res, 'Participant ID is required', 400);
     }
 
+    let groupContext = null;
+
+    if (group_id) {
+      groupContext = await getGroupForOrganization(pool, group_id, organizationId);
+
+      if (!groupContext) {
+        return error(res, 'Group not found in this organization', 404);
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -541,11 +604,11 @@ module.exports = (pool) => {
       );
 
       // Add new group assignment if group_id is not null/empty
-      if (group_id) {
+      if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [participant_id, group_id, organizationId, is_leader || false, is_second_leader || false, roles || null]
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles, program_section)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [participant_id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null, groupContext.program_section]
         );
       }
 
@@ -594,7 +657,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
-              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles, pg.program_section,
               u.id as user_id, u.email as user_email, u.full_name as user_full_name
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -706,7 +769,7 @@ module.exports = (pool) => {
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
               DATE_PART('year', AGE(CURRENT_DATE, p.date_naissance)) as age,
-              g.name as group_name
+              g.name as group_name, pg.program_section
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
@@ -954,6 +1017,16 @@ module.exports = (pool) => {
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
+    let groupContext = null;
+
+    if (group_id) {
+      groupContext = await getGroupForOrganization(pool, group_id, organizationId);
+
+      if (!groupContext) {
+        return error(res, 'Group not found in this organization', 404);
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -965,8 +1038,12 @@ module.exports = (pool) => {
              last_name = COALESCE($2, last_name),
              date_of_birth = COALESCE($3, date_of_birth)
          WHERE id = $4
+           AND EXISTS (
+             SELECT 1 FROM participant_organizations po
+             WHERE po.participant_id = $4 AND po.organization_id = $5
+           )
          RETURNING *`,
-        [first_name, last_name, date_of_birth, id]
+        [first_name, last_name, date_of_birth, id, organizationId]
       );
 
       if (result.rows.length === 0) {
@@ -981,11 +1058,11 @@ module.exports = (pool) => {
           [id, organizationId]
         );
 
-        if (group_id) {
+        if (groupContext) {
           await client.query(
-            `INSERT INTO participant_groups (participant_id, group_id, organization_id)
-             VALUES ($1, $2, $3)`,
-            [id, group_id, organizationId]
+            `INSERT INTO participant_groups (participant_id, group_id, organization_id, program_section)
+             VALUES ($1, $2, $3, $4)`,
+            [id, groupContext.id, organizationId, groupContext.program_section]
           );
         }
       }

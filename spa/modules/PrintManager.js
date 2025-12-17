@@ -1,18 +1,33 @@
+import { translate } from "../app.js";
+import { getHonorLabel } from "../utils/meetingSections.js";
 /**
  * PrintManager - Handles printing functionality
  * for the Preparation Reunions page
  */
 export class PrintManager {
-        constructor(activityManager) {
+        constructor(activityManager, sectionConfig) {
                 this.activityManager = activityManager;
+                this.sectionConfig = sectionConfig;
+        }
+
+        /**
+         * Update section configuration used for labels when printing
+         * @param {object} sectionConfig - Active section config
+         */
+        setSectionConfig(sectionConfig) {
+                this.sectionConfig = sectionConfig;
         }
 
         /**
          * Print the preparation form
          */
         printPreparation() {
-                const louveteauxDHonneur = document.getElementById("louveteau-dhonneur").innerHTML;
+                const honorListElement = document.getElementById("youth-of-honor");
+                const honorItems = honorListElement
+                        ? Array.from(honorListElement.querySelectorAll("li")).map((li) => li.textContent)
+                        : [];
                 const selectedActivities = this.activityManager.getSelectedActivities();
+                const honorLabel = getHonorLabel(this.sectionConfig, translate);
 
                 const printContent = `
                         <div class="print-preparation">
@@ -23,9 +38,9 @@ export class PrintManager {
                                         <p><strong>Date:</strong> ${document.getElementById("date").value}</p>
                                 </div>
                                 <div class="print-header">
-                                        <p><strong>Louveteau d'honneur:</strong></p>
+                                        <p><strong>${honorLabel}:</strong></p>
                                         <ul>
-                                                ${louveteauxDHonneur}
+                                                ${honorItems.map(item => `<li>${item}</li>`).join('')}
                                         </ul>
                                         <p><strong>Endroit:</strong> ${document.getElementById("endroit").value}</p>
                                 </div>

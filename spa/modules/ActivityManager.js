@@ -1,30 +1,46 @@
 import { translate } from "../app.js";
+import { getSectionActivityTemplates } from "../utils/meetingSections.js";
 
 /**
  * ActivityManager - Handles all activity-related operations
  * for the Preparation Reunions page
  */
 export class ActivityManager {
-        constructor(app, animateurs, activities) {
+        constructor(app, animateurs, activities, sectionConfig) {
                 this.app = app;
                 this.animateurs = animateurs;
                 this.activities = activities;
                 this.selectedActivities = [];
+                this.sectionConfig = sectionConfig;
+        }
+
+        /**
+         * Update section configuration after initialization
+         * @param {object} sectionConfig - Active section configuration
+         */
+        setSectionConfig(sectionConfig) {
+                this.sectionConfig = sectionConfig;
         }
 
         /**
          * Initialize placeholder activities with default values
          */
         initializePlaceholderActivities() {
-                const placeholders = [
-                        { position: 0, time: "18:45", duration: "00:10", activity: translate("activity_welcome_cubs"), type: translate("activity_type_preparation") },
-                        { position: 1, time: "18:55", duration: "00:30", activity: translate("activity_big_game"), type: translate("activity_type_game") },
-                        { position: 2, time: "19:25", duration: "00:05", activity: translate("activity_water_break"), type: translate("activity_type_pause") },
-                        { position: 3, time: "19:30", duration: "00:20", activity: translate("activity_technique"), type: translate("activity_technique") },
-                        { position: 4, time: "19:50", duration: "00:20", activity: translate("activity_discussion"), type: translate("activity_discussion") },
-                        { position: 5, time: "20:10", duration: "00:30", activity: translate("activity_short_game"), type: translate("activity_type_game") },
-                        { position: 6, time: "20:40", duration: "00:05", activity: translate("activity_prayer_departure"), type: translate("activity_type_conclusion") }
-                ];
+                const templates = getSectionActivityTemplates(this.sectionConfig);
+
+                const placeholders = templates.map((template, index) => {
+                        const activityKey = template.activityKey;
+                        const typeKey = template.typeKey;
+                        return {
+                                position: template.position ?? index,
+                                time: template.time || "",
+                                duration: template.duration || "00:00",
+                                activityKey,
+                                typeKey,
+                                activity: template.activity || (activityKey ? translate(activityKey) : translate("default_activity_name")),
+                                type: template.type || (typeKey ? translate(typeKey) : translate("activity_type_preparation"))
+                        };
+                });
 
                 return placeholders.map((ph, index) => {
                         const matchingActivity = this.activities.find(a => a.type === ph.type) || {};
@@ -74,13 +90,14 @@ export class ActivityManager {
          * Render a single activity row
          */
         renderActivityRow(a, index) {
-                const durationMinutes = parseInt(a.duration.split(':')[0]) * 60 + parseInt(a.duration.split(':')[1]);
-                const formattedDuration = this.formatMinutesToHHMM(durationMinutes);
+                const safeDuration = typeof a.duration === 'string' && a.duration.includes(':')
+                        ? a.duration
+                        : '00:00';
 
                 const isCustomActivity = !this.activities.some(activity => activity.activity === a.activity);
-                const activityName = a.activity || translate("default_activity_name");
+                const activityName = a.activity || (a.activityKey ? translate(a.activityKey) : translate("default_activity_name"));
                 const time = a.time || '18:30';
-                const duration = a.duration || '00:00';
+                const duration = safeDuration || '00:00';
                 const responsable = a.responsable || translate("default_responsable");
                 const materiel = a.materiel || '';
 

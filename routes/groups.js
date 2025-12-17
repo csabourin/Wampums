@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const winston = require('winston');
 const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { validateProgramSection, ensureProgramSectionsSeeded } = require('../utils/programSections');
 
 // Configure logger for non-v1 endpoints
 const logger = winston.createLogger({
@@ -33,6 +34,10 @@ function verifyJWT(token) {
   }
 }
 
+function normalizeProgramSection(programSection) {
+  return typeof programSection === 'string' ? programSection.trim() : '';
+}
+
 module.exports = (pool) => {
   /**
    * @swagger
@@ -49,15 +54,19 @@ module.exports = (pool) => {
   router.get('/', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
+    await ensureProgramSectionsSeeded(pool, organizationId);
+
     const result = await pool.query(
       `SELECT g.*,
+              ops.display_name AS program_section_label,
               COUNT(DISTINCT pg.participant_id) as member_count,
               COALESCE(SUM(p.value), 0) as total_points
        FROM groups g
+       LEFT JOIN organization_program_sections ops ON ops.organization_id = g.organization_id AND ops.section_key = g.program_section
        LEFT JOIN participant_groups pg ON g.id = pg.group_id AND pg.organization_id = $1
        LEFT JOIN points p ON g.id = p.group_id AND p.participant_id IS NULL AND p.organization_id = $1
        WHERE g.organization_id = $1
-       GROUP BY g.id
+       GROUP BY g.id, ops.display_name
        ORDER BY g.name`,
       [organizationId]
     );
@@ -94,13 +103,16 @@ module.exports = (pool) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
+    await ensureProgramSectionsSeeded(pool, organizationId);
+
     // Get group info
     const groupResult = await pool.query(
-      `SELECT g.*, COALESCE(SUM(p.value), 0) as total_points
+      `SELECT g.*, COALESCE(SUM(p.value), 0) as total_points, ops.display_name AS program_section_label
        FROM groups g
+       LEFT JOIN organization_program_sections ops ON ops.organization_id = g.organization_id AND ops.section_key = g.program_section
        LEFT JOIN points p ON g.id = p.group_id AND p.participant_id IS NULL AND p.organization_id = $1
        WHERE g.id = $2 AND g.organization_id = $1
-       GROUP BY g.id`,
+       GROUP BY g.id, ops.display_name`,
       [organizationId, id]
     );
 
@@ -110,13 +122,13 @@ module.exports = (pool) => {
 
     // Get members
     const membersResult = await pool.query(
-      `SELECT p.*, pg.is_leader, pg.is_second_leader,
+      `SELECT p.*, pg.is_leader, pg.is_second_leader, pg.program_section,
               COALESCE(SUM(pts.value), 0) as total_points
        FROM participants p
        JOIN participant_groups pg ON p.id = pg.participant_id
        LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
        WHERE pg.group_id = $2 AND pg.organization_id = $1
-       GROUP BY p.id, pg.is_leader, pg.is_second_leader
+       GROUP BY p.id, pg.is_leader, pg.is_second_leader, pg.program_section
        ORDER BY pg.is_leader DESC, pg.is_second_leader DESC, p.first_name`,
       [organizationId, id]
     );
@@ -149,16 +161,33 @@ module.exports = (pool) => {
    *     responses:
    *       201:
    *         description: Group created
-   */
+  */
   router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
-    const { name, section } = req.body;
+    const { name, program_section } = req.body;
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
+    const normalizedProgramSection = normalizeProgramSection(program_section);
+
+    if (!normalizedName) {
+      return error(res, 'Group name is required', 400);
+    }
+
     const organizationId = await getOrganizationId(req, pool);
 
+    await ensureProgramSectionsSeeded(pool, organizationId);
+
+    const sectionValidation = await validateProgramSection(pool, organizationId, normalizedProgramSection);
+
+    if (!sectionValidation.valid) {
+      return error(res, sectionValidation.message, 400);
+    }
+
     const result = await pool.query(
-      `INSERT INTO groups (name, organization_id, section)
-       VALUES ($1, $2, COALESCE($3, 'general'))
-       RETURNING *`,
-      [name, organizationId, section]
+      `INSERT INTO groups (name, organization_id, program_section)
+       VALUES ($1, $2, $3)
+       RETURNING *,
+         (SELECT display_name FROM organization_program_sections ops
+          WHERE ops.organization_id = $2 AND ops.section_key = $3) AS program_section_label`,
+      [normalizedName, organizationId, normalizedProgramSection]
     );
 
     return success(res, result.rows[0], 'Group created successfully', 201);
@@ -184,8 +213,6 @@ module.exports = (pool) => {
    */
   router.put('/:id', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { name, section } = req.body;
-    const organizationId = await getOrganizationId(req, pool);
 
     if (!name && !section) {
       return error(res, 'At least one field to update is required', 400);
@@ -213,12 +240,80 @@ module.exports = (pool) => {
        RETURNING *`,
       params
     );
+    const { name, program_section } = req.body;
+    const organizationId = await getOrganizationId(req, pool);
 
-    if (result.rows.length === 0) {
-      return error(res, 'Group not found', 404);
+    await ensureProgramSectionsSeeded(pool, organizationId);
+
+    const updates = [];
+    const params = [];
+
+    const normalizedName = name !== undefined ? String(name).trim() : undefined;
+    const normalizedProgramSection = program_section !== undefined ? normalizeProgramSection(program_section) : undefined;
+
+    if (normalizedName !== undefined) {
+      if (!normalizedName) {
+        return error(res, 'Group name is required', 400);
+      }
+      updates.push(`name = $${updates.length + 1}`);
+      params.push(normalizedName);
     }
 
-    return success(res, result.rows[0], 'Group updated successfully');
+    if (normalizedProgramSection !== undefined) {
+      const sectionValidation = await validateProgramSection(pool, organizationId, normalizedProgramSection);
+
+      if (!sectionValidation.valid) {
+        return error(res, sectionValidation.message, 400);
+      }
+
+      updates.push(`program_section = $${updates.length + 1}`);
+      params.push(normalizedProgramSection);
+    }
+
+    if (updates.length === 0) {
+      return error(res, 'At least one field to update is required', 400);
+    }
+
+    params.push(id, organizationId);
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const result = await client.query(
+        `UPDATE groups
+         SET ${updates.join(', ')}
+         WHERE id = $${updates.length + 1} AND organization_id = $${updates.length + 2}
+         RETURNING *,
+           (SELECT display_name FROM organization_program_sections ops
+            WHERE ops.organization_id = $${updates.length + 2} AND ops.section_key = program_section) AS program_section_label`,
+        params
+      );
+
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Group not found', 404);
+      }
+
+      if (normalizedProgramSection !== undefined) {
+        await client.query(
+          `UPDATE participant_groups
+           SET program_section = $1
+           WHERE group_id = $2 AND organization_id = $3`,
+          [normalizedProgramSection, id, organizationId]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      return success(res, result.rows[0], 'Group updated successfully');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   /**
@@ -296,15 +391,28 @@ module.exports = (pool) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const { name, organization_id, section } = req.body;
+      const { name, organization_id, program_section } = req.body;
+      const normalizedName = typeof name === 'string' ? name.trim() : '';
+      const normalizedProgramSection = normalizeProgramSection(program_section) || 'general';
 
-      if (!name || !organization_id) {
+      if (!normalizedName || !organization_id) {
         return res.status(400).json({ success: false, message: 'Name and organization ID are required' });
       }
 
+      await ensureProgramSectionsSeeded(pool, organization_id);
+      const sectionValidation = await validateProgramSection(pool, organization_id, normalizedProgramSection);
+
+      if (!sectionValidation.valid) {
+        return res.status(400).json({ success: false, message: sectionValidation.message });
+      }
+
       const result = await pool.query(
-        'INSERT INTO groups (name, organization_id, created_at, section) VALUES ($1, $2, NOW(), COALESCE($3, \'general\')) RETURNING *',
-        [name.trim(), organization_id, section]
+        `INSERT INTO groups (name, organization_id, created_at, program_section)
+         VALUES ($1, $2, NOW(), $3)
+         RETURNING *,
+           (SELECT display_name FROM organization_program_sections ops
+            WHERE ops.organization_id = $2 AND ops.section_key = $3) AS program_section_label`,
+        [normalizedName, organization_id, normalizedProgramSection]
       );
 
       res.status(201).json({ success: true, message: 'Group created successfully', group: result.rows[0] });
@@ -352,8 +460,10 @@ module.exports = (pool) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const groupId = parseInt(req.params.id);
-      const { name, section } = req.body;
+      const groupId = parseInt(req.params.id, 10);
+      const { name, program_section } = req.body;
+      const normalizedName = name !== undefined ? String(name).trim() : undefined;
+      const normalizedProgramSection = program_section !== undefined ? normalizeProgramSection(program_section) : undefined;
 
       if (!groupId) {
         return res.status(400).json({ success: false, message: 'Group ID is required' });
@@ -383,11 +493,79 @@ module.exports = (pool) => {
         params
       );
 
-      if (result.rows.length === 0) {
+      if (groupContext.rows.length === 0) {
         return res.status(404).json({ success: false, message: 'Group not found' });
       }
 
-      res.json({ success: true, message: 'Group updated successfully', group: result.rows[0] });
+      const organizationId = groupContext.rows[0].organization_id;
+      const updates = [];
+      const params = [];
+
+      if (normalizedName !== undefined) {
+        if (!normalizedName) {
+          return res.status(400).json({ success: false, message: 'Group name is required' });
+        }
+        updates.push(`name = $${updates.length + 1}`);
+        params.push(normalizedName);
+      }
+
+      if (normalizedProgramSection !== undefined) {
+        await ensureProgramSectionsSeeded(pool, organizationId);
+        const sectionValidation = await validateProgramSection(pool, organizationId, normalizedProgramSection);
+
+        if (!sectionValidation.valid) {
+          return res.status(400).json({ success: false, message: sectionValidation.message });
+        }
+
+        updates.push(`program_section = $${updates.length + 1}`);
+        params.push(normalizedProgramSection);
+      }
+
+      if (updates.length === 0) {
+        return res.status(400).json({ success: false, message: 'At least one field to update is required' });
+      }
+
+      params.push(groupId, organizationId);
+
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+
+        const result = await client.query(
+          `UPDATE groups
+           SET ${updates.join(', ')}, updated_at = NOW()
+           WHERE id = $${updates.length + 1} AND organization_id = $${updates.length + 2}
+           RETURNING *,
+             (SELECT display_name FROM organization_program_sections ops
+              WHERE ops.organization_id = $${updates.length + 2} AND ops.section_key = program_section) AS program_section_label`,
+          params
+        );
+
+        if (result.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+
+        if (normalizedProgramSection !== undefined) {
+          await client.query(
+            `UPDATE participant_groups
+             SET program_section = $1
+             WHERE group_id = $2 AND organization_id = $3`,
+            [normalizedProgramSection, groupId, organizationId]
+          );
+        }
+
+        await client.query('COMMIT');
+
+        res.json({ success: true, message: 'Group updated successfully', group: result.rows[0] });
+      } catch (error) {
+        await client.query('ROLLBACK');
+        logger.error('Error updating group:', error);
+        res.status(500).json({ success: false, message: 'Error updating group' });
+      } finally {
+        client.release();
+      }
     } catch (error) {
       logger.error('Error updating group:', error);
       res.status(500).json({ success: false, message: 'Error updating group' });
