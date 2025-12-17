@@ -1765,4 +1765,6 @@
   "error_removing_assignment": "Error removing participant",
   "error_loading_carpool_data": "Error loading carpool data",
   "error_occurred": "An error occurred"
+,
+  "select_activity_for_carpool": "Select an activity to coordinate carpools"
 }

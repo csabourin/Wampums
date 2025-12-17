@@ -1803,4 +1803,6 @@
   "error_removing_assignment": "Erreur lors du retrait du participant",
   "error_loading_carpool_data": "Erreur lors du chargement des données de covoiturage",
   "error_occurred": "Une erreur s'est produite"
+,
+  "select_activity_for_carpool": "Sélectionnez une activité pour coordonner les covoiturages"
 }

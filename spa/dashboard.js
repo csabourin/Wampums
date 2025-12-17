@@ -283,6 +283,7 @@ export class Dashboard {
 <section class="dashboard-section">
   <h3>${translate("dashboard_preparation_section")}</h3>
   <div class="manage-items">
+    <a href="/activities"><i class="fa-solid fa-calendar-days"></i><span>${translate("activities_calendar")}</span></a>
     <a href="/preparation-reunions"><i class="fa-solid fa-clipboard-list"></i><span>${translate("preparation_reunions")}</span></a>
     <a href="/view-participant-documents"><i class="fa-solid fa-file-lines"></i><span>${translate("view_participant_documents")}</span></a>
     <a href="/inventory"><i class="fa-solid fa-warehouse"></i><span>${translate("inventory_link")}</span></a>
