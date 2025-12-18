@@ -22,6 +22,7 @@ const qrcode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
 const winston = require('winston');
 const { useDatabaseAuthState } = require('./whatsapp-database-auth');
+const util = require('util');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -207,8 +208,12 @@ class WhatsAppBaileysService {
 
     // Connection closed - handle reconnection
     if (connection === 'close') {
-      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      logger.info(`Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}`);
+      const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== DisconnectReason.badSession;
+      logger.info(
+        `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}`,
+        { lastDisconnect: util.inspect(lastDisconnect, { depth: 3 }) }
+      );
 
       if (shouldReconnect) {
         // Reconnect automatically
@@ -216,25 +221,17 @@ class WhatsAppBaileysService {
           this.initializeConnection(organizationId, connectionObj.userId);
         }, 3000);
       } else {
-        // Logged out - clean up
+        // Logged out or bad session - clean up and clear credentials
         connectionObj.isConnected = false;
 
         try {
-          // Update database
-          await this.pool.query(
-            `UPDATE whatsapp_baileys_connections
-             SET is_connected = FALSE,
-                 last_disconnected_at = NOW(),
-                 updated_at = NOW()
-             WHERE organization_id = $1`,
-            [organizationId]
-          );
+          await this.clearAuthState(organizationId);
 
           // Emit disconnection event
           if (this.io) {
             this.io.to(`org-${organizationId}`).emit('whatsapp-disconnected', {
               organizationId,
-              reason: 'logged_out',
+              reason: statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'invalid_session',
             });
           }
         } catch (error) {
@@ -268,17 +265,7 @@ class WhatsAppBaileysService {
       this.connections.delete(organizationId);
 
       // Clear auth data from database and mark as disconnected
-      await this.pool.query(
-        `UPDATE whatsapp_baileys_connections
-         SET is_connected = FALSE,
-             last_disconnected_at = NOW(),
-             auth_creds = '{}',
-             auth_keys = '{}',
-             updated_at = NOW()
-         WHERE organization_id = $1`,
-        [organizationId]
-      );
-
+      await this.clearAuthState(organizationId);
       logger.info(`Auth data cleared from database for org ${organizationId}`);
 
       logger.info(`WhatsApp disconnected successfully for organization ${organizationId}`);
@@ -342,7 +329,16 @@ class WhatsAppBaileysService {
         [organizationId]
       );
 
-      return result.rows.length > 0 && result.rows[0].is_connected;
+      const dbConnected = result.rows.length > 0 && result.rows[0].is_connected;
+
+      if (dbConnected && !connectionObj) {
+        // Database says connected but runtime has no socket; clear state to allow fresh QR
+        logger.warn(`Stale WhatsApp connection state detected for org ${organizationId}; clearing auth state`);
+        await this.clearAuthState(organizationId);
+        return false;
+      }
+
+      return dbConnected;
     } catch (error) {
       logger.error(`Error checking connection status for org ${organizationId}:`, error);
       return false;
@@ -409,6 +405,33 @@ class WhatsAppBaileysService {
       logger.info(`Restored ${result.rows.length} WhatsApp connections`);
     } catch (error) {
       logger.error('Error restoring WhatsApp connections:', error);
+    }
+  }
+
+  /**
+   * Clear stored WhatsApp authentication state to force a fresh pairing
+   * @param {number} organizationId - Organization ID
+   * @returns {Promise<void>}
+   */
+  async clearAuthState(organizationId) {
+    try {
+      await this.pool.query(
+        `UPDATE whatsapp_baileys_connections
+         SET is_connected = FALSE,
+             last_disconnected_at = NOW(),
+             auth_creds = '{}',
+             auth_keys = '{}',
+             updated_at = NOW()
+         WHERE organization_id = $1`,
+        [organizationId]
+      );
+
+      if (this.connections.has(organizationId)) {
+        this.connections.delete(organizationId);
+      }
+    } catch (error) {
+      logger.error(`Error clearing WhatsApp auth state for org ${organizationId}:`, error);
+      throw error;
     }
   }
 }
