@@ -36,7 +36,9 @@ const { sendEmail, sendAdminVerificationEmail } = require('../utils/index');
 const emailTranslations = {
   en: require('../lang/en.json'),
   fr: require('../lang/fr.json'),
-  uk: require('../lang/uk.json')
+  uk: require('../lang/uk.json'),
+  it: require('../lang/it.json'),
+  id: require('../lang/id.json')
 };
 
 function getEmailTranslations(req) {
