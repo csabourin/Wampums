@@ -159,7 +159,7 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
 /**
  * Send announcement via email, push, and WhatsApp
  */
-async function dispatchAnnouncement(pool, logger, announcement) {
+async function dispatchAnnouncement(pool, logger, announcement, whatsappService = null) {
   const { emails, subscribers, whatsappNumbers } = await buildRecipients(
     pool,
     announcement.organization_id,
@@ -257,7 +257,7 @@ async function dispatchAnnouncement(pool, logger, announcement) {
 
     const whatsappResults = await Promise.allSettled(
       whatsappNumbers.map(async ({ phone, user_id }) => {
-        const success = await sendWhatsApp(phone, whatsappMessage);
+        const success = await sendWhatsApp(phone, whatsappMessage, announcement.organization_id, whatsappService);
         await pool.query(
           `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status, error_message, metadata)
            VALUES ($1, 'whatsapp', $2, $3, $4, $5)`,
@@ -306,7 +306,7 @@ async function dispatchAnnouncement(pool, logger, announcement) {
 /**
  * Claim and send due scheduled announcements
  */
-async function processScheduledAnnouncements(pool, logger) {
+async function processScheduledAnnouncements(pool, logger, whatsappService = null) {
   const dueQuery = `
     UPDATE announcements
     SET status = 'sending', updated_at = NOW()
@@ -318,7 +318,7 @@ async function processScheduledAnnouncements(pool, logger) {
   const { rows } = await pool.query(dueQuery);
   for (const announcement of rows) {
     try {
-      await dispatchAnnouncement(pool, logger, announcement);
+      await dispatchAnnouncement(pool, logger, announcement, whatsappService);
     } catch (error) {
       logger.error('Error sending scheduled announcement:', error);
       await pool.query(
@@ -331,10 +331,10 @@ async function processScheduledAnnouncements(pool, logger) {
   }
 }
 
-module.exports = (pool, logger) => {
+module.exports = (pool, logger, whatsappService = null) => {
   // Background poller to process scheduled announcements
   setInterval(() => {
-    processScheduledAnnouncements(pool, logger).catch((error) =>
+    processScheduledAnnouncements(pool, logger, whatsappService).catch((error) =>
       logger.error('Scheduled announcement poller failed:', error),
     );
   }, SCHEDULE_POLL_INTERVAL_MS).unref();
@@ -401,7 +401,7 @@ module.exports = (pool, logger) => {
         const announcement = rows[0];
 
         if (initialStatus === 'sending') {
-          await dispatchAnnouncement(pool, logger, announcement);
+          await dispatchAnnouncement(pool, logger, announcement, whatsappService);
         }
 
         res.json({ success: true, data: { ...announcement, status: initialStatus } });
