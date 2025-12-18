@@ -164,11 +164,31 @@ async function useDatabaseAuthState(organizationId, pool) {
 
   /**
    * Save credentials to database
-   * @param {Object} creds - Credentials object to save
+   * IMPORTANT: Merges updates with existing credentials instead of replacing them
+   * The creds.update event only sends changed fields, not the full credentials object
+   * @param {Object} creds - Credentials object with updates to save
    */
   const saveCredsToDatabase = async (creds) => {
     try {
-      const serializedCreds = serializeBaileysJson(creds);
+      // Load existing credentials from database
+      const result = await pool.query(
+        `SELECT auth_creds FROM whatsapp_baileys_connections WHERE organization_id = $1`,
+        [organizationId]
+      );
+
+      let existingCreds = {};
+      if (result.rows.length > 0 && result.rows[0].auth_creds) {
+        existingCreds = reviveBaileysJson(result.rows[0].auth_creds, {});
+      }
+
+      // Merge updates with existing credentials
+      // This preserves encryption keys when only the 'me' field is updated during pairing
+      const mergedCreds = {
+        ...existingCreds,
+        ...creds
+      };
+
+      const serializedCreds = serializeBaileysJson(mergedCreds);
 
       await pool.query(
         `INSERT INTO whatsapp_baileys_connections (organization_id, auth_creds, updated_at)
