@@ -57,12 +57,12 @@ async function useDatabaseAuthState(organizationId, pool) {
       ...baseCreds,
       ...creds,
       noiseKey: creds?.noiseKey || baseCreds.noiseKey,
-      identityKey: creds?.identityKey || baseCreds.identityKey,
       signedIdentityKey: creds?.signedIdentityKey || baseCreds.signedIdentityKey,
       signedPreKey: creds?.signedPreKey || baseCreds.signedPreKey,
-      account: creds?.account || baseCreds.account,
     };
 
+    // NOTE: Baileys v7+ does NOT create an "identityKey" field - only "signedIdentityKey"
+    // Previous validation incorrectly checked for identityKey which doesn't exist
     const hasRequiredKeys = Boolean(
       merged?.noiseKey?.private &&
       merged?.noiseKey?.public &&
@@ -70,8 +70,6 @@ async function useDatabaseAuthState(organizationId, pool) {
       merged?.signedIdentityKey?.public &&
       merged?.signedPreKey?.keyPair?.private &&
       merged?.signedPreKey?.keyPair?.public &&
-      merged?.identityKey?.private &&
-      merged?.identityKey?.public &&
       typeof merged?.registrationId === 'number'
     );
 
