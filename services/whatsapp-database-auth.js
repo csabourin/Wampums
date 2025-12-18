@@ -21,6 +21,26 @@ const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
  */
 async function useDatabaseAuthState(organizationId, pool) {
   /**
+   * Reset stored WhatsApp credentials/keys for an organization
+   * Used when existing rows are malformed so a fresh QR can be generated
+   * @returns {Promise<void>}
+   */
+  const resetAuthRow = async () => {
+    await pool.query(
+      `INSERT INTO whatsapp_baileys_connections (organization_id, auth_creds, auth_keys, is_connected, updated_at, last_disconnected_at)
+       VALUES ($1, '{}', '{}', FALSE, NOW(), NOW())
+       ON CONFLICT (organization_id)
+       DO UPDATE SET
+         auth_creds = '{}',
+         auth_keys = '{}',
+         is_connected = FALSE,
+         updated_at = NOW(),
+         last_disconnected_at = NOW()`,
+      [organizationId]
+    );
+  };
+
+  /**
    * Safely revive serialized Baileys data (handles Buffer payloads)
    * @param {Object|string|null} value - Stored JSON/JSONB value
    * @param {Object} fallback - Default value when parsing fails
@@ -59,6 +79,7 @@ async function useDatabaseAuthState(organizationId, pool) {
 
       if (result.rows.length === 0) {
         // No existing state - initialize new credentials
+        await resetAuthRow();
         return {
           creds: initAuthCreds(),
           keys: makeKeyStore({})
@@ -77,6 +98,12 @@ async function useDatabaseAuthState(organizationId, pool) {
       };
     } catch (error) {
       console.error(`Error loading auth state for org ${organizationId}:`, error);
+      // Clear malformed row so a fresh QR can be generated on next init
+      try {
+        await resetAuthRow();
+      } catch (resetError) {
+        console.error(`Error resetting malformed auth row for org ${organizationId}:`, resetError);
+      }
       // Return fresh state if loading fails
       return {
         creds: initAuthCreds(),

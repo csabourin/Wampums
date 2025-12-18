@@ -209,7 +209,9 @@ class WhatsAppBaileysService {
     // Connection closed - handle reconnection
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== DisconnectReason.badSession;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut &&
+        statusCode !== DisconnectReason.badSession &&
+        statusCode !== undefined;
       logger.info(
         `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}`,
         { lastDisconnect: util.inspect(lastDisconnect, { depth: 3 }) }
