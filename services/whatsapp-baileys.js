@@ -104,7 +104,6 @@ class WhatsAppBaileysService {
         isConnected: false,
         organizationId,
         userId,
-        authDir,
         qrCode: null,
       });
 
