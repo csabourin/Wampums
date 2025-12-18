@@ -38,6 +38,7 @@
     "sib-api-v3-sdk": "^8.5.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.3.7",
     "web-push": "^3.6.7",
     "winston": "^3.3.3"
   },

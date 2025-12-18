@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken");
 const Brevo = require("sib-api-v3-sdk");
 const nodemailer = require("nodemailer");
 const winston = require("winston");
+const twilio = require("twilio");
 
 // Configure logger for utilities
 const logger = winston.createLogger({
@@ -34,6 +35,16 @@ if (brevoApiKeyValue) {
   const apiKey = brevoClient.authentications['api-key'];
   apiKey.apiKey = brevoApiKeyValue;
   brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
+}
+
+// Initialize Twilio for WhatsApp
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioWhatsAppFrom = process.env.TWILIO_WHATSAPP_FROM;
+let twilioClient = null;
+
+if (twilioAccountSid && twilioAuthToken) {
+  twilioClient = twilio(twilioAccountSid, twilioAuthToken);
 }
 
 /**
@@ -274,6 +285,57 @@ async function getUserEmailLanguage(pool, userEmail, organizationId) {
  */
 async function sendResetEmail(to, subject, message) {
   return sendEmail(to, subject, message);
+}
+
+/**
+ * Send WhatsApp message using Twilio
+ * @param {string} to - Recipient phone number in E.164 format (e.g., +1234567890)
+ * @param {string} message - Message text (up to 1600 characters for WhatsApp)
+ * @returns {Promise<boolean>} Success status
+ */
+async function sendWhatsApp(to, message) {
+  try {
+    if (!twilioClient) {
+      logger.error("Twilio client not initialized. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables.");
+      return false;
+    }
+
+    if (!twilioWhatsAppFrom) {
+      logger.error("TWILIO_WHATSAPP_FROM environment variable not set.");
+      return false;
+    }
+
+    // Ensure the 'to' number has the whatsapp: prefix
+    const toNumber = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+
+    logger.info("Sending WhatsApp message via Twilio", {
+      to: toNumber,
+      from: twilioWhatsAppFrom
+    });
+
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: twilioWhatsAppFrom,
+      to: toNumber,
+    });
+
+    logger.info("WhatsApp message sent successfully", {
+      messageSid: result.sid,
+      to: toNumber,
+      status: result.status,
+    });
+
+    return true;
+  } catch (error) {
+    logger.error("Error sending WhatsApp message:", error.message || error);
+    if (error.code) {
+      logger.error("Twilio error code:", error.code);
+    }
+    if (error.moreInfo) {
+      logger.error("More info:", error.moreInfo);
+    }
+    return false;
+  }
 }
 
 /**
@@ -546,6 +608,7 @@ module.exports = {
   getUserEmailLanguage,
   sendEmail,
   sendResetEmail,
+  sendWhatsApp,
   sendAdminVerificationEmail,
   determineOrganizationId,
   getJWTPayload,

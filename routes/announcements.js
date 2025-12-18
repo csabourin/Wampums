@@ -14,7 +14,7 @@ const {
   handleOrganizationResolutionError,
   escapeHtml,
 } = require('../utils/api-helpers');
-const { sanitizeInput, sendEmail } = require('../utils');
+const { sanitizeInput, sendEmail, sendWhatsApp } = require('../utils');
 const { checkValidation } = require('../middleware/validation');
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
@@ -69,7 +69,7 @@ async function fetchAnnouncementTemplates(pool, organizationId) {
 }
 
 /**
- * Build email and push recipients based on roles and group filters
+ * Build email, push, and WhatsApp recipients based on roles and group filters
  */
 async function buildRecipients(pool, organizationId, roles, groupIds) {
   const roleFilter = roles.length ? roles : ALLOWED_ROLES;
@@ -77,9 +77,9 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
   const groupFilterClause = groupIds.length ? 'AND pgroups.group_id = ANY($2::int[])' : '';
   const groupParams = groupIds.length ? [organizationId, groupIds] : [organizationId];
 
-  // User roles (admins/animation/parents as users)
+  // User roles (admins/animation/parents as users) - get email and WhatsApp
   const userRoleQuery = `
-    SELECT LOWER(u.email) AS email, u.id AS user_id, uo.role
+    SELECT LOWER(u.email) AS email, u.id AS user_id, uo.role, u.whatsapp_phone_number
     FROM user_organizations uo
     JOIN users u ON u.id = uo.user_id
     WHERE uo.organization_id = $1
@@ -132,6 +132,10 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
     .filter((row) => !row.role || roleFilter.includes(row.role))
     .map((row) => row.email);
 
+  const whatsappNumbers = userRoleResult.rows
+    .filter((row) => row.whatsapp_phone_number && (!row.role || roleFilter.includes(row.role)))
+    .map((row) => ({ phone: row.whatsapp_phone_number, user_id: row.user_id }));
+
   const allEmails = [...roleEmails, ...guardianEmails, ...participantEmails].filter(Boolean);
   const uniqueEmails = [...new Set(allEmails)];
 
@@ -148,14 +152,15 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
   return {
     emails: uniqueEmails,
     subscribers: subscribersResult.rows,
+    whatsappNumbers: whatsappNumbers,
   };
 }
 
 /**
- * Send announcement via email and push
+ * Send announcement via email, push, and WhatsApp
  */
 async function dispatchAnnouncement(pool, logger, announcement) {
-  const { emails, subscribers } = await buildRecipients(
+  const { emails, subscribers, whatsappNumbers } = await buildRecipients(
     pool,
     announcement.organization_id,
     announcement.recipient_roles,
@@ -245,9 +250,46 @@ async function dispatchAnnouncement(pool, logger, announcement) {
     }
   }
 
+  // Send WhatsApp messages
+  let whatsappOutcome = { successes: 0, failures: 0 };
+  if (whatsappNumbers && whatsappNumbers.length > 0) {
+    const whatsappMessage = `*${announcement.subject}*\n\n${announcement.message}`;
+
+    const whatsappResults = await Promise.allSettled(
+      whatsappNumbers.map(async ({ phone, user_id }) => {
+        const success = await sendWhatsApp(phone, whatsappMessage);
+        await pool.query(
+          `INSERT INTO announcement_logs (announcement_id, channel, recipient_user_id, status, error_message, metadata)
+           VALUES ($1, 'whatsapp', $2, $3, $4, $5)`,
+          [
+            announcement.id,
+            user_id,
+            success ? 'sent' : 'failed',
+            success ? null : 'WhatsApp send failed',
+            JSON.stringify({ phone_number: phone })
+          ],
+        );
+        return success;
+      }),
+    );
+
+    whatsappOutcome = whatsappResults.reduce(
+      (acc, result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          acc.successes += 1;
+        } else {
+          acc.failures += 1;
+        }
+        return acc;
+      },
+      { successes: 0, failures: 0 },
+    );
+  }
+
   const emailFailures = emailLogs.filter((log) => log.status === 'fulfilled' && !log.value).length;
   const pushFailures = pushOutcome.failures;
-  const hasFailures = emailFailures > 0 || pushFailures > 0;
+  const whatsappFailures = whatsappOutcome.failures;
+  const hasFailures = emailFailures > 0 || pushFailures > 0 || whatsappFailures > 0;
 
   await pool.query(
     `UPDATE announcements
@@ -258,7 +300,7 @@ async function dispatchAnnouncement(pool, logger, announcement) {
     [hasFailures ? 'partial' : 'sent', announcement.id],
   );
 
-  return { emailFailures, pushFailures };
+  return { emailFailures, pushFailures, whatsappFailures };
 }
 
 /**
