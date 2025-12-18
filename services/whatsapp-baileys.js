@@ -209,9 +209,12 @@ class WhatsAppBaileysService {
     // Connection closed - handle reconnection
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
+      const disconnectMessage = lastDisconnect?.error?.message || '';
+      const handshakeFailure = disconnectMessage.includes('processHandshake') || disconnectMessage.includes("reading 'public'");
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut &&
         statusCode !== DisconnectReason.badSession &&
-        statusCode !== undefined;
+        statusCode !== undefined &&
+        !handshakeFailure;
       logger.info(
         `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}`,
         { lastDisconnect: util.inspect(lastDisconnect, { depth: 3 }) }
@@ -222,23 +225,31 @@ class WhatsAppBaileysService {
         setTimeout(() => {
           this.initializeConnection(organizationId, connectionObj.userId);
         }, 3000);
-      } else {
-        // Logged out or bad session - clean up and clear credentials
-        connectionObj.isConnected = false;
+        return;
+      }
 
-        try {
-          await this.clearAuthState(organizationId);
+      // Logged out, bad session, or handshake failure - clean up and clear credentials
+      connectionObj.isConnected = false;
 
-          // Emit disconnection event
-          if (this.io) {
-            this.io.to(`org-${organizationId}`).emit('whatsapp-disconnected', {
-              organizationId,
-              reason: statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'invalid_session',
-            });
-          }
-        } catch (error) {
-          logger.error(`Error updating disconnection in database for org ${organizationId}:`, error);
+      try {
+        await this.clearAuthState(organizationId);
+
+        // Emit disconnection event
+        if (this.io) {
+          this.io.to(`org-${organizationId}`).emit('whatsapp-disconnected', {
+            organizationId,
+            reason: handshakeFailure ? 'handshake_failed' : statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'invalid_session',
+          });
         }
+
+        // Automatically start a fresh handshake for QR generation when the previous one failed
+        if (handshakeFailure && connectionObj.userId) {
+          setTimeout(() => {
+            this.initializeConnection(organizationId, connectionObj.userId);
+          }, 1000);
+        }
+      } catch (error) {
+        logger.error(`Error updating disconnection in database for org ${organizationId}:`, error);
       }
     }
   }
