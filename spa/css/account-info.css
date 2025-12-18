@@ -118,6 +118,13 @@
   line-height: 1.5;
 }
 
+.section-description {
+  margin: 0 0 16px 0;
+  color: #555;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
 /* Error container */
 .error-container {
   text-align: center;
