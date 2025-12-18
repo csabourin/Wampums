@@ -322,13 +322,8 @@ CREATE TABLE public.groups (
   name character varying NOT NULL,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   organization_id integer,
-  program_section text NOT NULL DEFAULT 'general'::text,
   CONSTRAINT groups_pkey PRIMARY KEY (id),
-  CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(organization_id),
-  CONSTRAINT groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(organization_id),
-  CONSTRAINT groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(section_key),
-  CONSTRAINT groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(section_key)
+  CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.guardian_users (
   guardian_id integer NOT NULL,
@@ -475,7 +470,12 @@ CREATE TABLE public.organizations (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   api_key uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  CONSTRAINT organizations_pkey PRIMARY KEY (id)
+  program_section text NOT NULL DEFAULT 'general'::text,
+  CONSTRAINT organizations_pkey PRIMARY KEY (id),
+  CONSTRAINT organizations_program_section_fk FOREIGN KEY (id) REFERENCES public.organization_program_sections(organization_id),
+  CONSTRAINT organizations_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(organization_id),
+  CONSTRAINT organizations_program_section_fk FOREIGN KEY (id) REFERENCES public.organization_program_sections(section_key),
+  CONSTRAINT organizations_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(section_key)
 );
 CREATE TABLE public.parents_guardians (
   id integer NOT NULL DEFAULT nextval('guardians_id_seq'::regclass),
@@ -515,24 +515,10 @@ CREATE TABLE public.participant_groups (
   is_leader boolean NOT NULL DEFAULT false,
   is_second_leader boolean NOT NULL DEFAULT false,
   roles text,
-  program_section text NOT NULL,
   CONSTRAINT participant_groups_pkey PRIMARY KEY (participant_id, organization_id),
   CONSTRAINT participant_groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT participant_groups_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
-  CONSTRAINT participant_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (group_id) REFERENCES public.groups(id),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (organization_id) REFERENCES public.groups(id),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (program_section) REFERENCES public.groups(id),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (group_id) REFERENCES public.groups(organization_id),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (organization_id) REFERENCES public.groups(organization_id),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (program_section) REFERENCES public.groups(organization_id),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (group_id) REFERENCES public.groups(program_section),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (organization_id) REFERENCES public.groups(program_section),
-  CONSTRAINT participant_groups_group_section_fk FOREIGN KEY (program_section) REFERENCES public.groups(program_section),
-  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(organization_id),
-  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(organization_id),
-  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (organization_id) REFERENCES public.organization_program_sections(section_key),
-  CONSTRAINT participant_groups_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(section_key)
+  CONSTRAINT participant_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id)
 );
 CREATE TABLE public.participant_guardians (
   guardian_id integer NOT NULL,
@@ -697,6 +683,84 @@ CREATE TABLE public.reunion_preparations (
   animateur_responsable uuid,
   CONSTRAINT reunion_preparations_pkey PRIMARY KEY (id),
   CONSTRAINT reunion_preparations_animateur_responsable_fkey FOREIGN KEY (animateur_responsable) REFERENCES public.users(id),
+  CONSTRAINT reunion_preparations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.subscribers (
+  id integer NOT NULL DEFAULT nextval('subscribers_id_seq'::regclass),
+  endpoint text NOT NULL UNIQUE,
+  expiration_time timestamp without time zone,
+  p256dh text,
+  auth text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  organization_id integer,
+  user_id uuid,
+  CONSTRAINT subscribers_pkey PRIMARY KEY (id),
+  CONSTRAINT subscribers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT subscribers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.sync_log (
+  id integer NOT NULL DEFAULT nextval('sync_log_id_seq'::regclass),
+  action character varying NOT NULL,
+  data jsonb NOT NULL,
+  timestamp timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  synced boolean DEFAULT false,
+  CONSTRAINT sync_log_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.translations (
+  id integer NOT NULL DEFAULT nextval('translations_id_seq'::regclass),
+  language_id integer,
+  key character varying NOT NULL,
+  value text NOT NULL,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT translations_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.user_organizations (
+  id integer NOT NULL DEFAULT nextval('user_organizations_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  role character varying NOT NULL,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  user_id uuid,
+  CONSTRAINT user_organizations_pkey PRIMARY KEY (id),
+  CONSTRAINT user_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT user_organizations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.user_participants (
+  participant_id integer NOT NULL,
+  user_id uuid NOT NULL,
+  CONSTRAINT user_participants_pkey PRIMARY KEY (participant_id, user_id),
+  CONSTRAINT user_participants_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT user_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.users (
+  email text NOT NULL UNIQUE,
+  password character varying NOT NULL,
+  is_verified boolean DEFAULT false,
+  verification_token character varying UNIQUE,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  role text,
+  full_name character varying,
+  reset_token character varying,
+  reset_token_expiry timestamp with time zone,
+  id uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  supabase_user_id uuid,
+  token_version integer DEFAULT 0,
+  language_preference character varying,
+  whatsapp_phone_number character varying,
+  CONSTRAINT users_pkey PRIMARY KEY (id, email)
+);
+CREATE TABLE public.whatsapp_baileys_connections (
+  id integer NOT NULL DEFAULT nextval('whatsapp_baileys_connections_id_seq'::regclass),
+  organization_id integer NOT NULL UNIQUE,
+  is_connected boolean DEFAULT false,
+  connected_phone_number character varying,
+  session_data text,
+  last_connected_at timestamp without time zone,
+  last_disconnected_at timestamp without time zone,
+  created_at timestamp without time zone DEFAULT now(),
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT whatsapp_baileys_connections_pkey PRIMARY KEY (id),
+  CONSTRAINT whatsapp_baileys_connections_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);users(id),
   CONSTRAINT reunion_preparations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.subscribers (
