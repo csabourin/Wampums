@@ -18,6 +18,15 @@ const rateLimit = require('express-rate-limit');
 const { getCurrentOrganizationId, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail, sanitizeInput } = require('../utils/index');
 
+const SUPPORTED_TRANSLATION_LANGS = ['en', 'fr', 'uk', 'it', 'id'];
+const DATE_LOCALES = {
+  en: 'en-US',
+  fr: 'fr-FR',
+  uk: 'uk-UA',
+  it: 'it-IT',
+  id: 'id-ID'
+};
+
 /**
  * Helper function to escape HTML
  * @param {string} text - Text to escape
@@ -71,20 +80,15 @@ module.exports = (pool, logger) => {
    */
   router.get('/translations', async (req, res) => {
     try {
-      const frPath = path.join(__dirname, '..', 'lang', 'fr.json');
-      const enPath = path.join(__dirname, '..', 'lang', 'en.json');
+      const translations = await Promise.all(
+        SUPPORTED_TRANSLATION_LANGS.map(async (langCode) => {
+          const langPath = path.join(__dirname, '..', 'lang', `${langCode}.json`);
+          const data = await fs.readFile(langPath, 'utf8');
+          return [langCode, JSON.parse(data)];
+        })
+      );
 
-      const [frData, enData] = await Promise.all([
-        fs.readFile(frPath, 'utf8'),
-        fs.readFile(enPath, 'utf8')
-      ]);
-
-      const translations = {
-        fr: JSON.parse(frData),
-        en: JSON.parse(enData)
-      };
-
-      res.json(translations);
+      res.json(Object.fromEntries(translations));
     } catch (error) {
       logger.error('Error loading translations:', error);
       res.status(500).json({ error: 'Failed to load translations' });
@@ -103,8 +107,8 @@ module.exports = (pool, logger) => {
    *         name: lang
    *         schema:
    *           type: string
-   *           enum: [en, fr]
-   *         description: Language preference (en/fr)
+   *           enum: [en, fr, uk, it, id]
+   *         description: Language preference (en/fr/uk/it/id)
    *     responses:
    *       200:
    *         description: News retrieved successfully
@@ -128,7 +132,7 @@ module.exports = (pool, logger) => {
   router.get('/news', async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const lang = req.query.lang || 'en';
+      const lang = SUPPORTED_TRANSLATION_LANGS.includes(req.query.lang) ? req.query.lang : 'en';
 
       const result = await pool.query(
         `SELECT title, content, created_at
@@ -145,18 +149,34 @@ module.exports = (pool, logger) => {
       if (req.headers.accept && req.headers.accept.includes('application/json')) {
         res.json({ success: true, data: newsItems });
       } else {
+        const locale = DATE_LOCALES[lang] || DATE_LOCALES.en;
+        let translationContent = {};
+
+        try {
+          const translationPath = path.join(__dirname, '..', 'lang', `${lang}.json`);
+          const translationRaw = await fs.readFile(translationPath, 'utf8');
+          translationContent = JSON.parse(translationRaw);
+        } catch (translationError) {
+          logger.warn(`Falling back to English translations for news heading: ${translationError.message}`);
+          const translationPath = path.join(__dirname, '..', 'lang', 'en.json');
+          const translationRaw = await fs.readFile(translationPath, 'utf8');
+          translationContent = JSON.parse(translationRaw);
+        }
+
+        const newsHeading = translationContent.latest_news || 'Latest News';
+
         // Return HTML for backward compatibility
         let html = '';
         if (newsItems.length > 0) {
           html = `<div class="news-accordion" data-latest-timestamp="${newsItems[0].created_at || ''}">
             <div class="news-accordion-header">
-              <h2>${lang === 'fr' ? 'Dernières nouvelles' : 'Latest News'}</h2>
+              <h2>${escapeHtml(newsHeading)}</h2>
             </div>
             <div class="news-accordion-content">`;
 
           newsItems.forEach(news => {
             const date = new Date(news.created_at);
-            const formattedDate = date.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', {
+            const formattedDate = date.toLocaleDateString(locale, {
               year: 'numeric',
               month: 'long',
               day: 'numeric'
