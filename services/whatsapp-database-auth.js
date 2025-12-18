@@ -125,6 +125,7 @@ async function useDatabaseAuthState(organizationId, pool) {
 
       if (result.rows.length === 0) {
         // No existing state - initialize new credentials
+        console.log(`[LOAD STATE] No row found, creating fresh credentials for org ${organizationId}`);
         const baseCreds = await resetAuthRow();
         return {
           creds: baseCreds,
@@ -136,11 +137,16 @@ async function useDatabaseAuthState(organizationId, pool) {
 
       // Parse stored credentials with BufferJSON to handle Buffer objects
       const revivedCreds = reviveBaileysJson(auth_creds, initAuthCreds());
+      console.log(`[LOAD STATE] Loaded creds keys from DB: ${Object.keys(revivedCreds).join(', ')}`);
+
       const { creds, refreshed } = ensureValidCreds(revivedCreds);
       const keys = reviveBaileysJson(auth_keys, {});
 
-      if (refreshed) {
-        console.warn(`Resetting WhatsApp creds for org ${organizationId} due to missing key material`);
+      // If credentials were refreshed/regenerated, OR if database had empty/minimal creds, save them
+      const isEmptyInDb = !revivedCreds.noiseKey || !revivedCreds.signedIdentityKey;
+
+      if (refreshed || isEmptyInDb) {
+        console.warn(`[LOAD STATE] ${refreshed ? 'Refreshing' : 'Initializing'} creds for org ${organizationId} - saving to database`);
         await resetAuthRow(creds);
       }
 
