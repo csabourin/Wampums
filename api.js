@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
+const { Server: SocketIO } = require('socket.io');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
@@ -16,8 +18,17 @@ const swaggerSpecs = require('./config/swagger');
 const meetingSectionDefaults = require('./config/meeting_sections.json');
 const { success, error: errorResponse } = require('./middleware/response');
 const { respondWithOrganizationFallback, OrganizationNotFoundError } = require('./utils/api-helpers');
+const WhatsAppBaileysService = require('./services/whatsapp-baileys');
 
 const app = express();
+const server = http.createServer(app);
+const io = new SocketIO(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || '*',
+    methods: ['GET', 'POST']
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 const HOST = "0.0.0.0";
 
@@ -493,7 +504,6 @@ const formBuilderRoutes = require('./routes/formBuilder')(pool, logger);
 const guardiansRoutes = require('./routes/guardians')(pool, logger);
 const meetingsRoutes = require('./routes/meetings')(pool, logger);
 const notificationsRoutes = require('./routes/notifications')(pool, logger);
-const announcementsRoutes = require('./routes/announcements')(pool, logger);
 const calendarsRoutes = require('./routes/calendars')(pool, logger);
 const fundraisersRoutes = require('./routes/fundraisers')(pool, logger);
 const reportsRoutes = require('./routes/reports')(pool, logger);
@@ -505,6 +515,14 @@ const budgetsRoutes = require('./routes/budgets')(pool, logger);
 const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger);
 const resourcesRoutes = require('./routes/resources')(pool);
 const userProfileRoutes = require('./routes/userProfile')(pool, logger);
+
+// Initialize WhatsApp Baileys Service (must be before routes that use it)
+const whatsappService = new WhatsAppBaileysService(pool);
+whatsappService.setSocketIO(io);
+
+// Initialize routes that depend on WhatsApp service
+const whatsappBaileysRoutes = require('./routes/whatsapp-baileys')(pool, logger, whatsappService);
+const announcementsRoutes = require('./routes/announcements')(pool, logger, whatsappService);
 const medicationRoutes = require('./routes/medication')(pool, logger);
 const activitiesRoutes = require('./routes/activities')(pool);
 const carpoolsRoutes = require('./routes/carpools')(pool);
@@ -688,6 +706,14 @@ app.use('/api', announcementsRoutes);
 logger.info('✅ Announcements routes loaded');
 logger.info('   - POST /api/v1/announcements');
 logger.info('   - GET /api/v1/announcements');
+
+// WhatsApp Baileys Routes (handles /api/v1/whatsapp/baileys/*)
+app.use('/api', whatsappBaileysRoutes);
+logger.info('✅ WhatsApp Baileys routes loaded');
+logger.info('   - POST /api/v1/whatsapp/baileys/connect');
+logger.info('   - POST /api/v1/whatsapp/baileys/disconnect');
+logger.info('   - GET /api/v1/whatsapp/baileys/status');
+logger.info('   - POST /api/v1/whatsapp/baileys/test');
 
 // Honors Routes (handles /api/honors, /api/award-honor, /api/honors-history, /api/recent-honors)
 // Endpoints: honors, award-honor, honors-history, honors-report, recent-honors
@@ -2075,12 +2101,65 @@ app.get('*', (req, res) => {
 });
 
 // ============================================
+// SOCKET.IO SETUP
+// ============================================
+
+// Socket.io authentication middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+
+  if (!token) {
+    return next(new Error('Authentication error: No token provided'));
+  }
+
+  try {
+    const { verifyJWT } = require('./utils/api-helpers');
+    const payload = verifyJWT(token);
+
+    if (!payload || !payload.user_id) {
+      return next(new Error('Authentication error: Invalid token'));
+    }
+
+    socket.userId = payload.user_id;
+    socket.organizationId = payload.organizationId;
+    next();
+  } catch (error) {
+    next(new Error('Authentication error: ' + error.message));
+  }
+});
+
+// Socket.io connection handler
+io.on('connection', (socket) => {
+  logger.info(`Socket.io client connected: ${socket.id}, user: ${socket.userId}, org: ${socket.organizationId}`);
+
+  // Join organization room for targeted broadcasts
+  if (socket.organizationId) {
+    socket.join(`org-${socket.organizationId}`);
+    logger.info(`Socket ${socket.id} joined room: org-${socket.organizationId}`);
+  }
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    logger.info(`Socket.io client disconnected: ${socket.id}`);
+  });
+});
+
+// ============================================
 // START SERVER
 // ============================================
 
 if (require.main === module) {
-  app.listen(PORT, HOST, () => {
+  server.listen(PORT, HOST, async () => {
     console.log(`Server running on ${HOST}:${PORT}`);
+    console.log(`Socket.io enabled for real-time WhatsApp QR codes`);
+
+    // Restore WhatsApp connections on server restart
+    try {
+      await whatsappService.restoreConnections();
+      console.log('WhatsApp connections restored');
+    } catch (error) {
+      logger.error('Error restoring WhatsApp connections:', error);
+    }
   });
 }
 

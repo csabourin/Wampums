@@ -11,6 +11,7 @@ import { makeApiRequest } from "../api/api-core.js";
 import { debugLog, debugError } from "../utils/DebugUtils.js";
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
+import { WhatsAppConnectionModule } from "./whatsapp-connection.js";
 
 /**
  * Account Information Management Class
@@ -20,6 +21,7 @@ export class AccountInfoModule {
     this.app = app;
     this.userData = null;
     this.isLoading = false;
+    this.whatsappModule = null;
   }
 
   /**
@@ -30,6 +32,11 @@ export class AccountInfoModule {
     debugLog("Initializing AccountInfoModule");
     try {
       await this.loadUserData();
+
+      // Initialize WhatsApp connection module
+      this.whatsappModule = new WhatsAppConnectionModule(this.app);
+      await this.whatsappModule.init();
+
       this.render();
       this.attachEventListeners();
     } catch (error) {
@@ -172,6 +179,9 @@ export class AccountInfoModule {
         </form>
       </section>
 
+      <!-- WhatsApp Connection Section (Baileys) -->
+      ${this.whatsappModule ? this.whatsappModule.render() : ''}
+
       <!-- Password Section -->
       <section class="account-section">
         <h2>${translate("account_info_password_title")}</h2>
@@ -269,6 +279,11 @@ export class AccountInfoModule {
     const whatsappForm = document.getElementById("whatsapp-form");
     if (whatsappForm) {
       whatsappForm.addEventListener("submit", (e) => this.handleWhatsAppUpdate(e));
+    }
+
+    // WhatsApp connection module event listeners
+    if (this.whatsappModule) {
+      this.whatsappModule.attachEventListeners();
     }
 
     // Password form

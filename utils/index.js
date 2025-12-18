@@ -288,12 +288,12 @@ async function sendResetEmail(to, subject, message) {
 }
 
 /**
- * Send WhatsApp message using Twilio
+ * Send WhatsApp message using Twilio (fallback method)
  * @param {string} to - Recipient phone number in E.164 format (e.g., +1234567890)
  * @param {string} message - Message text (up to 1600 characters for WhatsApp)
  * @returns {Promise<boolean>} Success status
  */
-async function sendWhatsApp(to, message) {
+async function sendWhatsAppViaTwilio(to, message) {
   try {
     if (!twilioClient) {
       logger.error("Twilio client not initialized. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables.");
@@ -319,7 +319,7 @@ async function sendWhatsApp(to, message) {
       to: toNumber,
     });
 
-    logger.info("WhatsApp message sent successfully", {
+    logger.info("WhatsApp message sent successfully via Twilio", {
       messageSid: result.sid,
       to: toNumber,
       status: result.status,
@@ -327,7 +327,7 @@ async function sendWhatsApp(to, message) {
 
     return true;
   } catch (error) {
-    logger.error("Error sending WhatsApp message:", error.message || error);
+    logger.error("Error sending WhatsApp message via Twilio:", error.message || error);
     if (error.code) {
       logger.error("Twilio error code:", error.code);
     }
@@ -335,6 +335,44 @@ async function sendWhatsApp(to, message) {
       logger.error("More info:", error.moreInfo);
     }
     return false;
+  }
+}
+
+/**
+ * Send WhatsApp message using Baileys (if available) or Twilio (fallback)
+ * @param {string} to - Recipient phone number in E.164 format (e.g., +1234567890)
+ * @param {string} message - Message text (up to 1600 characters for WhatsApp)
+ * @param {number|null} organizationId - Organization ID (for Baileys lookup)
+ * @param {object|null} whatsappService - WhatsApp Baileys service instance (optional)
+ * @returns {Promise<boolean>} Success status
+ */
+async function sendWhatsApp(to, message, organizationId = null, whatsappService = null) {
+  try {
+    // Try to use Baileys if organization ID and service are provided
+    if (organizationId && whatsappService) {
+      const isConnected = await whatsappService.isConnected(organizationId);
+
+      if (isConnected) {
+        logger.info("Using Baileys to send WhatsApp message", { to, organizationId });
+        const success = await whatsappService.sendMessage(organizationId, to, message);
+
+        if (success) {
+          logger.info("WhatsApp message sent successfully via Baileys");
+          return true;
+        } else {
+          logger.warn("Baileys failed to send message, falling back to Twilio");
+        }
+      } else {
+        logger.info("Baileys not connected for organization, using Twilio fallback", { organizationId });
+      }
+    }
+
+    // Fallback to Twilio
+    return await sendWhatsAppViaTwilio(to, message);
+  } catch (error) {
+    logger.error("Error in sendWhatsApp:", error.message || error);
+    // Try Twilio as last resort
+    return await sendWhatsAppViaTwilio(to, message);
   }
 }
 
