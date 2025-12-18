@@ -340,10 +340,28 @@ export class WhatsAppConnectionModule {
    * @param {string} qrDataURL - QR code data URL
    */
   renderQRCode(qrDataURL) {
+    const qrContainer = document.getElementById("whatsapp-qr-container");
     const qrCodeDiv = document.getElementById("whatsapp-qr-code");
-    if (qrCodeDiv) {
-      qrCodeDiv.innerHTML = `<img src="${qrDataURL}" alt="WhatsApp QR Code" style="max-width: 300px; border: 2px solid #25D366; border-radius: 8px;" />`;
+
+    if (!qrCodeDiv) {
+      return;
     }
+
+    // Ensure the container is visible even if the QR arrives after a reconnect
+    if (qrContainer && qrContainer.style.display === "none") {
+      qrContainer.style.display = "block";
+    }
+
+    // Rebuild the image node to force a refresh when Baileys rotates the QR
+    qrCodeDiv.replaceChildren();
+    const img = document.createElement("img");
+    img.src = qrDataURL;
+    img.alt = translate("whatsapp_qr_code_alt") || "WhatsApp QR Code";
+    img.style.maxWidth = "300px";
+    img.style.border = "2px solid #25D366";
+    img.style.borderRadius = "8px";
+    img.setAttribute("data-updated-at", Date.now().toString());
+    qrCodeDiv.appendChild(img);
   }
 
   /**
