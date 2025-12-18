@@ -322,7 +322,7 @@ export class AccountInfoModule {
 
       const response = await makeApiRequest("v1/users/me/name", {
         method: "PATCH",
-        body: JSON.stringify({ fullName }),
+        body: { fullName },
       });
 
       if (response.success) {
@@ -382,7 +382,7 @@ export class AccountInfoModule {
 
       const response = await makeApiRequest("v1/users/me/email", {
         method: "PATCH",
-        body: JSON.stringify({ email }),
+        body: { email },
       });
 
       if (response.success) {
@@ -437,7 +437,7 @@ export class AccountInfoModule {
 
       const response = await makeApiRequest("v1/users/me/language-preference", {
         method: "PATCH",
-        body: JSON.stringify({ languagePreference }),
+        body: { languagePreference },
       });
 
       if (response.success) {
@@ -562,10 +562,10 @@ export class AccountInfoModule {
 
       const response = await makeApiRequest("v1/users/me/password", {
         method: "PATCH",
-        body: JSON.stringify({
+        body: {
           currentPassword,
           newPassword,
-        }),
+        },
       });
 
       if (response.success) {
