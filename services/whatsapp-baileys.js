@@ -211,24 +211,32 @@ class WhatsAppBaileysService {
       const statusCode = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.statusCode;
       const disconnectMessage = lastDisconnect?.error?.message || '';
       const handshakeFailure = disconnectMessage.includes('processHandshake') || disconnectMessage.includes("reading 'public'");
+
+      // Error 515 (Stream Errored) means WhatsApp rejected the pairing - credentials are invalid
+      // Error 401 (Connection Failure) means credentials are unauthorized
+      // These should trigger credential reset, not reconnection
+      const credentialRejection = statusCode === 515 || statusCode === 401;
+
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut &&
         statusCode !== DisconnectReason.badSession &&
         statusCode !== undefined &&
-        !handshakeFailure;
+        !handshakeFailure &&
+        !credentialRejection;
+
       logger.info(
-        `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}`,
+        `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}${credentialRejection ? ' (credential rejection)' : ''}`,
         { lastDisconnect: util.inspect(lastDisconnect, { depth: 3 }) }
       );
 
       if (shouldReconnect) {
-        // Reconnect automatically
+        // Reconnect automatically with existing credentials
         setTimeout(() => {
           this.initializeConnection(organizationId, connectionObj.userId);
         }, 3000);
         return;
       }
 
-      // Logged out, bad session, or handshake failure - clean up and clear credentials
+      // Logged out, bad session, handshake failure, or credential rejection - clean up and clear credentials
       connectionObj.isConnected = false;
 
       try {
@@ -238,12 +246,13 @@ class WhatsAppBaileysService {
         if (this.io) {
           this.io.to(`org-${organizationId}`).emit('whatsapp-disconnected', {
             organizationId,
-            reason: handshakeFailure ? 'handshake_failed' : statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'invalid_session',
+            reason: credentialRejection ? 'credential_rejected' : handshakeFailure ? 'handshake_failed' : statusCode === DisconnectReason.loggedOut ? 'logged_out' : 'invalid_session',
           });
         }
 
-        // Automatically start a fresh handshake for QR generation when the previous one failed
-        if (handshakeFailure && connectionObj.userId) {
+        // Automatically generate fresh QR for credential rejection or handshake failure
+        if ((credentialRejection || handshakeFailure) && connectionObj.userId) {
+          logger.info(`Generating fresh QR code for org ${organizationId} after ${credentialRejection ? 'credential rejection' : 'handshake failure'}`);
           setTimeout(() => {
             this.initializeConnection(organizationId, connectionObj.userId);
           }, 1000);
