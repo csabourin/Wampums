@@ -11,7 +11,10 @@ import { makeApiRequest } from "../api/api-core.js";
 import { debugLog, debugError } from "../utils/DebugUtils.js";
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
-import io from 'socket.io-client';
+
+// Socket.io client is loaded from CDN or served by Socket.io server
+// The io object will be available globally after loading the script
+let io = null;
 
 /**
  * WhatsApp Connection Management Class
@@ -39,22 +42,62 @@ export class WhatsAppConnectionModule {
   }
 
   /**
+   * Load Socket.io client library dynamically
+   */
+  async loadSocketIOClient() {
+    // Check if io is already loaded globally
+    if (window.io) {
+      io = window.io;
+      return true;
+    }
+
+    // Load Socket.io client from the server (automatically served at /socket.io/socket.io.js)
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = '/socket.io/socket.io.js';
+      script.onload = () => {
+        io = window.io;
+        debugLog('Socket.io client loaded successfully');
+        resolve(true);
+      };
+      script.onerror = () => {
+        debugError('Failed to load Socket.io client');
+        reject(new Error('Failed to load Socket.io client'));
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
    * Initialize Socket.io connection for real-time QR code updates
    */
-  initializeSocket() {
+  async initializeSocket() {
     const token = localStorage.getItem('jwtToken');
     if (!token) {
       debugError("No JWT token found for Socket.io authentication");
       return;
     }
 
-    // Connect to Socket.io server
-    const socketUrl = window.location.origin;
-    this.socket = io(socketUrl, {
-      auth: {
-        token: token
+    try {
+      // Load Socket.io client if not already loaded
+      await this.loadSocketIOClient();
+
+      if (!io) {
+        debugError("Socket.io client not available");
+        return;
       }
-    });
+
+      // Connect to Socket.io server
+      const socketUrl = window.location.origin;
+      this.socket = io(socketUrl, {
+        auth: {
+          token: token
+        }
+      });
+    } catch (error) {
+      debugError("Error loading Socket.io client:", error);
+      return;
+    }
 
     // Handle connection
     this.socket.on('connect', () => {
