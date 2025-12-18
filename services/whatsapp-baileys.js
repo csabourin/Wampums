@@ -14,7 +14,6 @@
 const makeWASocket = require('@whiskeysockets/baileys').default;
 const {
   DisconnectReason,
-  useMultiFileAuthState,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   makeInMemoryStore
@@ -22,8 +21,7 @@ const {
 const qrcode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
 const winston = require('winston');
-const path = require('path');
-const fs = require('fs').promises;
+const { useDatabaseAuthState } = require('./whatsapp-database-auth');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -79,12 +77,8 @@ class WhatsAppBaileysService {
         }
       }
 
-      // Create auth directory for this organization
-      const authDir = path.join(__dirname, '..', 'whatsapp-sessions', `org-${organizationId}`);
-      await fs.mkdir(authDir, { recursive: true });
-
-      // Load or create auth state
-      const { state, saveCreds } = await useMultiFileAuthState(authDir);
+      // Load or create auth state from database
+      const { state, saveCreds } = await useDatabaseAuthState(organizationId, this.pool);
 
       // Get latest Baileys version for compatibility
       const { version } = await fetchLatestBaileysVersion();
@@ -274,24 +268,19 @@ class WhatsAppBaileysService {
       // Remove from connections map
       this.connections.delete(organizationId);
 
-      // Update database
+      // Clear auth data from database and mark as disconnected
       await this.pool.query(
         `UPDATE whatsapp_baileys_connections
          SET is_connected = FALSE,
              last_disconnected_at = NOW(),
+             auth_creds = '{}',
+             auth_keys = '{}',
              updated_at = NOW()
          WHERE organization_id = $1`,
         [organizationId]
       );
 
-      // Clean up auth directory
-      const authDir = path.join(__dirname, '..', 'whatsapp-sessions', `org-${organizationId}`);
-      try {
-        await fs.rm(authDir, { recursive: true, force: true });
-        logger.info(`Auth directory cleaned up for org ${organizationId}`);
-      } catch (error) {
-        logger.warn(`Could not delete auth directory for org ${organizationId}:`, error.message);
-      }
+      logger.info(`Auth data cleared from database for org ${organizationId}`);
 
       logger.info(`WhatsApp disconnected successfully for organization ${organizationId}`);
       return true;
