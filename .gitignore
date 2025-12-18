@@ -18,8 +18,9 @@ composer.phar
 /tmp/tests/*
 !/tmp/tests/empty
 
-/logs/*
-!/logs/empty
+# Application logs
+/logs/
+logs/
 *.log
 
 # CakePHP 2
