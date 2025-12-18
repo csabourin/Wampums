@@ -11,6 +11,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { Pool } = require('pg');
+const { BufferJSON } = require('@whiskeysockets/baileys');
 require('dotenv').config();
 
 const SESSIONS_DIR = path.join(__dirname, '..', 'whatsapp-sessions');
@@ -102,7 +103,11 @@ async function migrateSessionsToDatabase() {
 
         console.log(`   ✓ Loaded ${keyCount} keys`);
 
-        // Save to database
+        // Save to database with proper Buffer serialization
+        // IMPORTANT: Must use BufferJSON.replacer to preserve Buffer objects for encryption keys
+        const serializedCreds = JSON.stringify(creds, BufferJSON.replacer);
+        const serializedKeys = JSON.stringify(keys, BufferJSON.replacer);
+
         await pool.query(
           `INSERT INTO whatsapp_baileys_connections (organization_id, auth_creds, auth_keys, updated_at)
            VALUES ($1, $2, $3, NOW())
@@ -111,7 +116,7 @@ async function migrateSessionsToDatabase() {
              auth_creds = $2,
              auth_keys = $3,
              updated_at = NOW()`,
-          [organizationId, JSON.stringify(creds), JSON.stringify(keys)]
+          [organizationId, serializedCreds, serializedKeys]
         );
 
         console.log(`   ✅ Migrated organization ${organizationId} to database\n`);
