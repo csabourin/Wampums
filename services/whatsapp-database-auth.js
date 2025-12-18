@@ -170,6 +170,9 @@ async function useDatabaseAuthState(organizationId, pool) {
    */
   const saveCredsToDatabase = async (creds) => {
     try {
+      console.log(`[CREDS SAVE] Saving credentials for org ${organizationId}`);
+      console.log(`[CREDS SAVE] Update keys: ${Object.keys(creds).join(', ')}`);
+
       // Load existing credentials from database
       const result = await pool.query(
         `SELECT auth_creds FROM whatsapp_baileys_connections WHERE organization_id = $1`,
@@ -179,6 +182,9 @@ async function useDatabaseAuthState(organizationId, pool) {
       let existingCreds = {};
       if (result.rows.length > 0 && result.rows[0].auth_creds) {
         existingCreds = reviveBaileysJson(result.rows[0].auth_creds, {});
+        console.log(`[CREDS SAVE] Existing creds keys: ${Object.keys(existingCreds).join(', ')}`);
+      } else {
+        console.log(`[CREDS SAVE] No existing credentials found`);
       }
 
       // Merge updates with existing credentials
@@ -187,6 +193,8 @@ async function useDatabaseAuthState(organizationId, pool) {
         ...existingCreds,
         ...creds
       };
+      console.log(`[CREDS SAVE] Merged creds keys: ${Object.keys(mergedCreds).join(', ')}`);
+      console.log(`[CREDS SAVE] Has noiseKey: ${!!mergedCreds.noiseKey}, Has me: ${!!mergedCreds.me}`);
 
       const serializedCreds = serializeBaileysJson(mergedCreds);
 
@@ -199,8 +207,10 @@ async function useDatabaseAuthState(organizationId, pool) {
            updated_at = NOW()`,
         [organizationId, serializedCreds]
       );
+
+      console.log(`[CREDS SAVE] ✅ Successfully saved merged credentials`);
     } catch (error) {
-      console.error(`Error saving creds for org ${organizationId}:`, error);
+      console.error(`[CREDS SAVE] ❌ Error saving creds for org ${organizationId}:`, error);
       throw error;
     }
   };
