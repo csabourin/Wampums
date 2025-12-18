@@ -64,6 +64,10 @@ composer.phar
 /npm-debug.log
 /yarn-error.log
 
+# WhatsApp Baileys session data (contains sensitive authentication credentials)
+/whatsapp-sessions/
+whatsapp-baileys.log
+
 # Replit specific files
 .replit
 .cache
