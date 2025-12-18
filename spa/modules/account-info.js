@@ -492,7 +492,7 @@ export class AccountInfoModule {
 
       const response = await makeApiRequest("v1/users/me/whatsapp-phone", {
         method: "PATCH",
-        body: JSON.stringify({ whatsappPhoneNumber: whatsappPhoneNumber || null }),
+        body: { whatsappPhoneNumber: whatsappPhoneNumber || null },
       });
 
       if (response.success) {
