@@ -422,7 +422,7 @@ export class WhatsAppConnectionModule {
 
       const response = await makeApiRequest("v1/whatsapp/baileys/test", {
         method: "POST",
-        body: JSON.stringify({ phoneNumber, message }),
+        body: { phoneNumber, message },
       });
 
       if (response.success) {
