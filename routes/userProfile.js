@@ -83,6 +83,8 @@ module.exports = (pool, logger) => {
    *                       type: string
    *                     role:
    *                       type: string
+   *                     language_preference:
+   *                       type: string
    *       401:
    *         description: Unauthorized
    */
@@ -91,7 +93,7 @@ module.exports = (pool, logger) => {
     const organizationId = req.user.organizationId;
 
     const result = await pool.query(
-      `SELECT u.id, u.full_name, u.email, uo.role
+      `SELECT u.id, u.full_name, u.email, u.language_preference, uo.role
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE u.id = $1 AND uo.organization_id = $2`,
@@ -168,6 +170,81 @@ module.exports = (pool, logger) => {
       logger.info(`User ${userId} updated their name`);
 
       return success(res, result.rows[0], 'Name updated successfully');
+    })
+  );
+
+  /**
+   * @swagger
+   * /api/v1/users/me/language-preference:
+   *   patch:
+   *     summary: Update user's language preference
+   *     description: Update the authenticated user's preferred language for email communications
+   *     tags: [User Profile]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - languagePreference
+   *             properties:
+   *               languagePreference:
+   *                 type: string
+   *                 enum: [en, fr, uk, it]
+   *     responses:
+   *       200:
+   *         description: Language preference updated successfully
+   *       400:
+   *         description: Invalid language code
+   *       401:
+   *         description: Unauthorized
+   */
+  router.patch('/v1/users/me/language-preference',
+    authenticate,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const organizationId = req.user.organizationId;
+      const { languagePreference } = req.body;
+
+      // Supported languages
+      const supportedLanguages = ['en', 'fr', 'uk', 'it'];
+
+      // Validate language code
+      if (!languagePreference) {
+        return errorResponse(res, 'Language preference is required', 400);
+      }
+
+      if (!supportedLanguages.includes(languagePreference)) {
+        return errorResponse(res, `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`, 400);
+      }
+
+      // Verify user belongs to organization
+      const userCheck = await pool.query(
+        `SELECT u.id FROM users u
+         JOIN user_organizations uo ON u.id = uo.user_id
+         WHERE u.id = $1 AND uo.organization_id = $2`,
+        [userId, organizationId]
+      );
+
+      if (userCheck.rows.length === 0) {
+        return errorResponse(res, 'User not found', 404);
+      }
+
+      // Update language preference
+      const result = await pool.query(
+        `UPDATE users
+         SET language_preference = $1
+         WHERE id = $2
+         RETURNING id, full_name, email, language_preference`,
+        [languagePreference, userId]
+      );
+
+      logger.info(`User ${userId} updated their language preference to ${languagePreference}`);
+
+      return success(res, result.rows[0], 'Language preference updated successfully');
     })
   );
 
