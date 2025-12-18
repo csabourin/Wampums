@@ -758,6 +758,8 @@ CREATE TABLE public.whatsapp_baileys_connections (
   last_disconnected_at timestamp without time zone,
   created_at timestamp without time zone DEFAULT now(),
   updated_at timestamp without time zone DEFAULT now(),
+  auth_creds jsonb DEFAULT '{}'::jsonb,
+  auth_keys jsonb DEFAULT '{}'::jsonb,
   CONSTRAINT whatsapp_baileys_connections_pkey PRIMARY KEY (id),
   CONSTRAINT whatsapp_baileys_connections_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );users(id),
