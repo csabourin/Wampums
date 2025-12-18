@@ -303,6 +303,9 @@ export class ParentDashboard {
                                                 <a href="/parent-finance" class="dashboard-button dashboard-button--primary">
                                                         ${translate("my_finances")}
                                                 </a>
+                                                <a href="/account-info" class="dashboard-button dashboard-button--secondary">
+                                                        ${translate("account_settings")}
+                                                </a>
                                         </div>
                                         ${this.renderCarpoolButton()}
                                 </section>

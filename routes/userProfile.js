@@ -45,6 +45,116 @@ const emailChangeLimiter = rateLimit({
 });
 
 /**
+ * Retrieve participant IDs linked to a user within an organization
+ * @param {Object} pool - Database connection pool
+ * @param {string} userId - Authenticated user's UUID
+ * @param {number} organizationId - Organization scope
+ * @returns {Promise<number[]>} Array of participant IDs
+ */
+async function getLinkedParticipantIds(pool, userId, organizationId) {
+  const participantResult = await pool.query(
+    `SELECT up.participant_id
+     FROM user_participants up
+     JOIN participant_organizations po ON up.participant_id = po.participant_id
+     WHERE up.user_id = $1 AND po.organization_id = $2`,
+    [userId, organizationId]
+  );
+
+  return participantResult.rows.map((row) => row.participant_id);
+}
+
+/**
+ * Validate guardian phone inputs to avoid unsafe values
+ * Allows digits, spaces, parentheses, periods, dashes, and plus signs
+ * @param {string|undefined|null} value - Raw phone input
+ * @returns {{isValid: boolean, sanitized: string|null}} Validation result
+ */
+function validateGuardianPhone(value) {
+  if (value === undefined || value === null || value === '') {
+    return { isValid: true, sanitized: null };
+  }
+
+  const trimmed = String(value).trim();
+  const phonePattern = /^[0-9+().\-\s]{0,20}$/;
+
+  return {
+    isValid: phonePattern.test(trimmed),
+    sanitized: trimmed || null,
+  };
+}
+
+/**
+ * Sanitize generic text input to prevent HTML injection
+ * @param {string|undefined|null} value - Raw text input
+ * @returns {string} Sanitized text
+ */
+function sanitizeTextInput(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.replace(/[<>]/g, '').trim();
+}
+
+/**
+ * Build guardian profile payload for the authenticated user
+ * Prefers guardians linked by email or explicit user_uuid mapping; falls back to the first guardian on any linked participant
+ * @param {Object} pool - Database connection pool
+ * @param {string} userId - Authenticated user's UUID
+ * @param {number} organizationId - Organization scope
+ * @returns {Promise<{guardian: Object|null, participantIds: number[], userEmail: string|null}>}
+ */
+async function buildGuardianProfile(pool, userId, organizationId) {
+  const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+
+  if (userResult.rows.length === 0) {
+    return { guardian: null, participantIds: [], userEmail: null };
+  }
+
+  const userEmail = userResult.rows[0].email;
+  const participantIds = await getLinkedParticipantIds(pool, userId, organizationId);
+
+  if (participantIds.length === 0) {
+    return { guardian: null, participantIds, userEmail };
+  }
+
+  const guardianResult = await pool.query(
+    `SELECT g.id, g.nom, g.prenom, g.courriel, g.telephone_residence, g.telephone_travail,
+            g.telephone_cellulaire, g.is_primary, g.is_emergency_contact, COALESCE(pg.lien, g.old_lien) AS lien
+     FROM parents_guardians g
+     JOIN participant_guardians pg ON pg.guardian_id = g.id
+     JOIN participants p ON pg.participant_id = p.id
+     WHERE pg.participant_id = ANY($1::int[])
+       AND (LOWER(g.courriel) = LOWER($2) OR g.user_uuid = $3::uuid)
+     ORDER BY g.is_primary DESC NULLS LAST, g.id ASC
+     LIMIT 1`,
+    [participantIds, userEmail, userId]
+  );
+
+  if (guardianResult.rows.length > 0) {
+    return { guardian: guardianResult.rows[0], participantIds, userEmail };
+  }
+
+  const fallbackGuardian = await pool.query(
+    `SELECT g.id, g.nom, g.prenom, g.courriel, g.telephone_residence, g.telephone_travail,
+            g.telephone_cellulaire, g.is_primary, g.is_emergency_contact, COALESCE(pg.lien, g.old_lien) AS lien
+     FROM parents_guardians g
+     JOIN participant_guardians pg ON pg.guardian_id = g.id
+     JOIN participants p ON pg.participant_id = p.id
+     WHERE pg.participant_id = ANY($1::int[])
+     ORDER BY g.is_primary DESC NULLS LAST, g.id ASC
+     LIMIT 1`,
+    [participantIds]
+  );
+
+  return {
+    guardian: fallbackGuardian.rows[0] || null,
+    participantIds,
+    userEmail,
+  };
+}
+
+/**
  * Export route factory function
  * Allows dependency injection of pool and logger
  *
@@ -104,7 +214,41 @@ module.exports = (pool, logger) => {
       return errorResponse(res, 'User not found', 404);
     }
 
-    return success(res, result.rows[0], 'User information retrieved successfully');
+      return success(res, result.rows[0], 'User information retrieved successfully');
+    }));
+
+  /**
+   * @swagger
+   * /api/v1/users/me/guardian-profile:
+   *   get:
+   *     summary: Get guardian profile for authenticated parent user
+   *     description: Retrieve guardian contact information tied to the authenticated user's linked participants
+   *     tags: [User Profile]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Guardian profile retrieved successfully
+   *       400:
+   *         description: No linked participants found
+   *       401:
+   *         description: Unauthorized
+   */
+  router.get('/v1/users/me/guardian-profile', authenticate, asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+    const organizationId = req.user.organizationId;
+
+    const profile = await buildGuardianProfile(pool, userId, organizationId);
+
+    if (!profile.userEmail) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    if (profile.participantIds.length === 0) {
+      return errorResponse(res, 'No linked participants found for guardian profile', 400);
+    }
+
+    return success(res, profile, 'Guardian profile retrieved successfully');
   }));
 
   /**
@@ -343,6 +487,190 @@ module.exports = (pool, logger) => {
       return success(res, result.rows[0], message);
     })
   );
+
+  /**
+   * @swagger
+   * /api/v1/users/me/guardian-profile:
+   *   patch:
+   *     summary: Update guardian contact info for authenticated user
+   *     description: Create or update the guardian record associated with the authenticated user's linked participants
+   *     tags: [User Profile]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - firstName
+   *               - lastName
+   *             properties:
+   *               firstName:
+   *                 type: string
+   *               lastName:
+   *                 type: string
+   *               relationship:
+   *                 type: string
+   *                 description: Guardian relationship to participant (e.g., parent, guardian)
+   *               homePhone:
+   *                 type: string
+   *               workPhone:
+   *                 type: string
+   *               mobilePhone:
+   *                 type: string
+   *               primaryContact:
+   *                 type: boolean
+   *               emergencyContact:
+   *                 type: boolean
+   *     responses:
+   *       200:
+   *         description: Guardian profile updated successfully
+   *       400:
+   *         description: Validation error or missing participant links
+   *       401:
+   *         description: Unauthorized
+   */
+  router.patch('/v1/users/me/guardian-profile', authenticate, asyncHandler(async (req, res) => {
+    const userId = req.user.id;
+    const organizationId = req.user.organizationId;
+
+    const {
+      firstName,
+      lastName,
+      relationship,
+      homePhone,
+      workPhone,
+      mobilePhone,
+      primaryContact,
+      emergencyContact,
+    } = req.body;
+
+    const trimmedFirstName = sanitizeTextInput(firstName);
+    const trimmedLastName = sanitizeTextInput(lastName);
+    const relationshipValue = sanitizeTextInput(relationship);
+    const trimmedRelationship = relationshipValue ? relationshipValue.slice(0, 120) : null;
+
+    if (!trimmedFirstName || !trimmedLastName) {
+      return errorResponse(res, 'First and last name are required to update guardian info', 400);
+    }
+
+    if (trimmedFirstName.length > 120 || trimmedLastName.length > 120) {
+      return errorResponse(res, 'Names must be 120 characters or fewer', 400);
+    }
+
+    const homeValidation = validateGuardianPhone(homePhone);
+    const workValidation = validateGuardianPhone(workPhone);
+    const mobileValidation = validateGuardianPhone(mobilePhone);
+
+    if (!homeValidation.isValid || !workValidation.isValid || !mobileValidation.isValid) {
+      return errorResponse(res, 'Please provide phone numbers using digits, spaces, plus, dash, parentheses, or periods only', 400);
+    }
+
+    const participantIds = await getLinkedParticipantIds(pool, userId, organizationId);
+
+    if (participantIds.length === 0) {
+      return errorResponse(res, 'No linked participants found for guardian profile', 400);
+    }
+
+    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+
+    if (userResult.rows.length === 0) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    const userEmail = userResult.rows[0].email;
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const guardianLookup = await client.query(
+        `SELECT DISTINCT g.id
+         FROM parents_guardians g
+         JOIN participant_guardians pg ON pg.guardian_id = g.id
+         JOIN participants p ON pg.participant_id = p.id
+         WHERE pg.participant_id = ANY($1::int[])
+           AND (LOWER(g.courriel) = LOWER($2) OR g.user_uuid = $3::uuid)`,
+        [participantIds, userEmail, userId]
+      );
+
+      let guardianIds = guardianLookup.rows.map((row) => row.id);
+
+      if (guardianIds.length === 0) {
+        const insertGuardian = await client.query(
+          `INSERT INTO parents_guardians
+           (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire, is_primary, is_emergency_contact, user_uuid)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING id`,
+          [
+            trimmedFirstName,
+            trimmedLastName,
+            userEmail,
+            homeValidation.sanitized,
+            workValidation.sanitized,
+            mobileValidation.sanitized,
+            Boolean(primaryContact),
+            Boolean(emergencyContact),
+            userId,
+          ]
+        );
+
+        guardianIds = [insertGuardian.rows[0].id];
+      } else {
+        await client.query(
+          `UPDATE parents_guardians
+           SET nom = $1,
+               prenom = $2,
+               courriel = $3,
+               telephone_residence = $4,
+               telephone_travail = $5,
+               telephone_cellulaire = $6,
+               is_primary = $7,
+               is_emergency_contact = $8,
+               user_uuid = $9
+           WHERE id = ANY($10::int[])`,
+          [
+            trimmedFirstName,
+            trimmedLastName,
+            userEmail,
+            homeValidation.sanitized,
+            workValidation.sanitized,
+            mobileValidation.sanitized,
+            Boolean(primaryContact),
+            Boolean(emergencyContact),
+            userId,
+            guardianIds,
+          ]
+        );
+      }
+
+      for (const guardianId of guardianIds) {
+        for (const participantId of participantIds) {
+          await client.query(
+            `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (guardian_id, participant_id)
+             DO UPDATE SET lien = EXCLUDED.lien`,
+            [guardianId, participantId, trimmedRelationship]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      const updatedProfile = await buildGuardianProfile(pool, userId, organizationId);
+
+      return success(res, updatedProfile, 'Guardian profile updated successfully');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Error updating guardian profile:', error);
+      return errorResponse(res, 'Failed to update guardian profile', 500);
+    } finally {
+      client.release();
+    }
+  }));
 
   /**
    * @swagger
