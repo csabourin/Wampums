@@ -87,6 +87,10 @@ async function useDatabaseAuthState(organizationId, pool) {
    * @returns {Promise<Object>} The creds stored after reset
    */
   const resetAuthRow = async (freshCreds = initAuthCreds()) => {
+    console.log(`[RESET AUTH] Resetting auth for org ${organizationId}`);
+    console.log(`[RESET AUTH] Fresh creds keys: ${Object.keys(freshCreds).join(', ')}`);
+    console.log(`[RESET AUTH] Has noiseKey: ${!!freshCreds.noiseKey}, registrationId: ${freshCreds.registrationId}`);
+
     const serializedCreds = serializeBaileysJson(freshCreds);
 
     await pool.query(
@@ -101,6 +105,8 @@ async function useDatabaseAuthState(organizationId, pool) {
          last_disconnected_at = NOW()`,
       [organizationId, serializedCreds]
     );
+
+    console.log(`[RESET AUTH] ✅ Saved fresh credentials to database`);
 
     return freshCreds;
   };
