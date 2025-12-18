@@ -24,6 +24,8 @@ export class AccountInfoModule {
     this.whatsappModule = null;
     this.guardianProfile = { guardian: null, participantIds: [] };
     this.guardianError = null;
+    this.isParent = false;
+    this.canManageWhatsApp = false;
   }
 
   /**
@@ -33,12 +35,22 @@ export class AccountInfoModule {
   async init() {
     debugLog("Initializing AccountInfoModule");
     try {
+      this.isParent = this.app?.userRole === "parent";
+      this.canManageWhatsApp = ["admin", "animation"].includes(this.app?.userRole);
+
       await this.loadUserData();
-      await this.loadGuardianProfile();
+      if (this.isParent) {
+        await this.loadGuardianProfile();
+      } else {
+        this.guardianProfile = { guardian: null, participantIds: [] };
+        this.guardianError = null;
+      }
 
       // Initialize WhatsApp connection module
-      this.whatsappModule = new WhatsAppConnectionModule(this.app);
-      await this.whatsappModule.init();
+      if (this.canManageWhatsApp) {
+        this.whatsappModule = new WhatsAppConnectionModule(this.app);
+        await this.whatsappModule.init();
+      }
 
       this.render();
       this.attachEventListeners();
@@ -97,7 +109,7 @@ export class AccountInfoModule {
    * Render the account information page
    */
   render() {
-    const homeLink = this.app?.userRole === "parent" ? "/parent-dashboard" : "/dashboard";
+    const homeLink = this.isParent ? "/parent-dashboard" : "/dashboard";
 
     const fullName = escapeHTML(this.userData?.full_name || "");
     const email = escapeHTML(this.userData?.email || "");
@@ -169,107 +181,109 @@ export class AccountInfoModule {
         </form>
       </section>
 
-      <!-- Guardian Information Section -->
-      <section class="account-section">
-        <h2>${translate("guardian_info_title")}</h2>
-        <p class="section-description">${translate("guardian_info_description")}</p>
-        <div class="warning-box">
-          <p>${translate("account_info_guardian_sync_notice")}</p>
-          ${this.guardianError ? `<p>${escapeHTML(this.guardianError)}</p>` : ""}
-          ${!hasParticipantLinks ? `<p>${translate("guardian_no_participants")}</p>` : ""}
-        </div>
-        <form id="guardian-form" class="account-form">
-          <div class="form-group">
-            <label for="guardian-first-name">${translate("guardian_first_name")}</label>
-            <input 
-              type="text"
-              id="guardian-first-name"
-              name="guardianFirstName"
-              value="${escapeHTML(defaultGuardianFirstName)}"
-              placeholder="${translate("guardian_first_name")}" 
-              required
-              maxlength="120"
-              ${!hasParticipantLinks ? "disabled" : ""}
-            />
+      ${this.isParent ? `
+        <!-- Guardian Information Section (Parents only) -->
+        <section class="account-section">
+          <h2>${translate("guardian_info_title")}</h2>
+          <p class="section-description">${translate("guardian_info_description")}</p>
+          <div class="warning-box">
+            <p>${translate("account_info_guardian_sync_notice")}</p>
+            ${this.guardianError ? `<p>${escapeHTML(this.guardianError)}</p>` : ""}
+            ${!hasParticipantLinks ? `<p>${translate("guardian_no_participants")}</p>` : ""}
           </div>
-          <div class="form-group">
-            <label for="guardian-last-name">${translate("guardian_last_name")}</label>
-            <input 
-              type="text"
-              id="guardian-last-name"
-              name="guardianLastName"
-              value="${escapeHTML(defaultGuardianLastName)}"
-              placeholder="${translate("guardian_last_name")}" 
-              required
-              maxlength="120"
-              ${!hasParticipantLinks ? "disabled" : ""}
-            />
-          </div>
-          <div class="form-group">
-            <label for="guardian-relationship">${translate("guardian_relationship")}</label>
-            <input 
-              type="text"
-              id="guardian-relationship"
-              name="guardianRelationship"
-              value="${escapeHTML(guardianRelationship)}"
-              placeholder="${translate("guardian_relationship")}" 
-              maxlength="120"
-              ${!hasParticipantLinks ? "disabled" : ""}
-            />
-          </div>
-          <div class="form-group">
-            <label for="guardian-home-phone">${translate("guardian_phone_home")}</label>
-            <input
-              type="tel"
-              id="guardian-home-phone"
-              name="guardianHomePhone"
-              value="${escapeHTML(guardianHomePhone)}"
-              placeholder="${translate("guardian_phone_home")}" 
-              maxlength="20"
-              ${!hasParticipantLinks ? "disabled" : ""}
-            />
-          </div>
-          <div class="form-group">
-            <label for="guardian-work-phone">${translate("guardian_phone_work")}</label>
-            <input
-              type="tel"
-              id="guardian-work-phone"
-              name="guardianWorkPhone"
-              value="${escapeHTML(guardianWorkPhone)}"
-              placeholder="${translate("guardian_phone_work")}" 
-              maxlength="20"
-              ${!hasParticipantLinks ? "disabled" : ""}
-            />
-          </div>
-          <div class="form-group">
-            <label for="guardian-mobile-phone">${translate("guardian_phone_mobile")}</label>
-            <input
-              type="tel"
-              id="guardian-mobile-phone"
-              name="guardianMobilePhone"
-              value="${escapeHTML(guardianMobilePhone)}"
-              placeholder="${translate("guardian_phone_mobile")}" 
-              maxlength="20"
-              ${!hasParticipantLinks ? "disabled" : ""}
-            />
-          </div>
-          <div class="form-group">
-            <label for="guardian-primary">
-              <input type="checkbox" id="guardian-primary" name="guardianPrimary" ${guardianPrimary ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
-              ${translate("guardian_primary_contact")}
-            </label>
-          </div>
-          <div class="form-group">
-            <label for="guardian-emergency">
-              <input type="checkbox" id="guardian-emergency" name="guardianEmergency" ${guardianEmergency ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
-              ${translate("guardian_emergency_contact")}
-            </label>
-          </div>
-          <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? "disabled" : ""}>
-            ${translate("guardian_save")}
-          </button>
-        </form>
-      </section>
+          <form id="guardian-form" class="account-form">
+            <div class="form-group">
+              <label for="guardian-first-name">${translate("guardian_first_name")}</label>
+              <input 
+                type="text"
+                id="guardian-first-name"
+                name="guardianFirstName"
+                value="${escapeHTML(defaultGuardianFirstName)}"
+                placeholder="${translate("guardian_first_name")}" 
+                required
+                maxlength="120"
+                ${!hasParticipantLinks ? "disabled" : ""}
+              />
+            </div>
+            <div class="form-group">
+              <label for="guardian-last-name">${translate("guardian_last_name")}</label>
+              <input 
+                type="text"
+                id="guardian-last-name"
+                name="guardianLastName"
+                value="${escapeHTML(defaultGuardianLastName)}"
+                placeholder="${translate("guardian_last_name")}" 
+                required
+                maxlength="120"
+                ${!hasParticipantLinks ? "disabled" : ""}
+              />
+            </div>
+            <div class="form-group">
+              <label for="guardian-relationship">${translate("guardian_relationship")}</label>
+              <input 
+                type="text"
+                id="guardian-relationship"
+                name="guardianRelationship"
+                value="${escapeHTML(guardianRelationship)}"
+                placeholder="${translate("guardian_relationship")}" 
+                maxlength="120"
+                ${!hasParticipantLinks ? "disabled" : ""}
+              />
+            </div>
+            <div class="form-group">
+              <label for="guardian-home-phone">${translate("guardian_phone_home")}</label>
+              <input
+                type="tel"
+                id="guardian-home-phone"
+                name="guardianHomePhone"
+                value="${escapeHTML(guardianHomePhone)}"
+                placeholder="${translate("guardian_phone_home")}" 
+                maxlength="20"
+                ${!hasParticipantLinks ? "disabled" : ""}
+              />
+            </div>
+            <div class="form-group">
+              <label for="guardian-work-phone">${translate("guardian_phone_work")}</label>
+              <input
+                type="tel"
+                id="guardian-work-phone"
+                name="guardianWorkPhone"
+                value="${escapeHTML(guardianWorkPhone)}"
+                placeholder="${translate("guardian_phone_work")}" 
+                maxlength="20"
+                ${!hasParticipantLinks ? "disabled" : ""}
+              />
+            </div>
+            <div class="form-group">
+              <label for="guardian-mobile-phone">${translate("guardian_phone_mobile")}</label>
+              <input
+                type="tel"
+                id="guardian-mobile-phone"
+                name="guardianMobilePhone"
+                value="${escapeHTML(guardianMobilePhone)}"
+                placeholder="${translate("guardian_phone_mobile")}" 
+                maxlength="20"
+                ${!hasParticipantLinks ? "disabled" : ""}
+              />
+            </div>
+            <div class="form-group">
+              <label for="guardian-primary">
+                <input type="checkbox" id="guardian-primary" name="guardianPrimary" ${guardianPrimary ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
+                ${translate("guardian_primary_contact")}
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="guardian-emergency">
+                <input type="checkbox" id="guardian-emergency" name="guardianEmergency" ${guardianEmergency ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
+                ${translate("guardian_emergency_contact")}
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? "disabled" : ""}>
+              ${translate("guardian_save")}
+            </button>
+          </form>
+        </section>
+      ` : ""}
 
       <!-- Language Preference Section -->
       <section class="account-section">
