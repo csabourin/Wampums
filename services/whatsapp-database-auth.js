@@ -86,64 +86,18 @@ async function useDatabaseAuthState(organizationId, pool) {
   };
 
   /**
-   * Save a key to database
-   * @param {string} type - Key type (pre-key, session, sender-key, app-state-sync-key)
-   * @param {string} id - Key ID
-   * @param {Object} value - Key value
-   */
-  const saveKeyToDatabase = async (type, id, value) => {
-    try {
-      // Load current keys
-      const result = await pool.query(
-        `SELECT auth_keys FROM whatsapp_baileys_connections
-         WHERE organization_id = $1`,
-        [organizationId]
-      );
-
-      let keys = {};
-      if (result.rows.length > 0 && result.rows[0].auth_keys) {
-        keys = result.rows[0].auth_keys;
-      }
-
-      // Update keys
-      if (!keys[type]) {
-        keys[type] = {};
-      }
-
-      if (value === null || value === undefined) {
-        // Delete key
-        delete keys[type][id];
-      } else {
-        // Set key
-        keys[type][id] = value;
-      }
-
-      // Save back to database
-      await pool.query(
-        `INSERT INTO whatsapp_baileys_connections (organization_id, auth_keys, updated_at)
-         VALUES ($1, $2, NOW())
-         ON CONFLICT (organization_id)
-         DO UPDATE SET
-           auth_keys = $2,
-           updated_at = NOW()`,
-        [organizationId, JSON.stringify(keys)]
-      );
-    } catch (error) {
-      console.error(`Error saving key ${type}:${id} for org ${organizationId}:`, error);
-      throw error;
-    }
-  };
-
-  /**
    * Create key store interface compatible with Baileys
    * @param {Object} initialKeys - Initial keys object
    * @returns {Object} Key store with get/set methods
    */
   const makeKeyStore = (initialKeys) => {
+    // Keep a reference that can be updated
+    let keysCache = initialKeys;
+
     return {
       get: async (type, ids) => {
         const data = {};
-        const keys = initialKeys[type] || {};
+        const keys = keysCache[type] || {};
 
         for (const id of ids) {
           let value = keys[id];
@@ -158,11 +112,35 @@ async function useDatabaseAuthState(organizationId, pool) {
         return data;
       },
       set: async (data) => {
+        // Update in-memory cache first
         for (const type in data) {
+          if (!keysCache[type]) {
+            keysCache[type] = {};
+          }
           for (const id in data[type]) {
             const value = data[type][id];
-            await saveKeyToDatabase(type, id, value);
+            if (value === null || value === undefined) {
+              delete keysCache[type][id];
+            } else {
+              keysCache[type][id] = value;
+            }
           }
+        }
+
+        // Then save to database (single query with all keys)
+        try {
+          await pool.query(
+            `INSERT INTO whatsapp_baileys_connections (organization_id, auth_keys, updated_at)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (organization_id)
+             DO UPDATE SET
+               auth_keys = $2,
+               updated_at = NOW()`,
+            [organizationId, JSON.stringify(keysCache)]
+          );
+        } catch (error) {
+          console.error(`Error saving keys for org ${organizationId}:`, error);
+          throw error;
         }
       }
     };
