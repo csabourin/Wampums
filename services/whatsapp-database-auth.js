@@ -21,26 +21,6 @@ const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
  */
 async function useDatabaseAuthState(organizationId, pool) {
   /**
-   * Reset stored WhatsApp credentials/keys for an organization
-   * Used when existing rows are malformed so a fresh QR can be generated
-   * @returns {Promise<void>}
-   */
-  const resetAuthRow = async () => {
-    await pool.query(
-      `INSERT INTO whatsapp_baileys_connections (organization_id, auth_creds, auth_keys, is_connected, updated_at, last_disconnected_at)
-       VALUES ($1, '{}', '{}', FALSE, NOW(), NOW())
-       ON CONFLICT (organization_id)
-       DO UPDATE SET
-         auth_creds = '{}',
-         auth_keys = '{}',
-         is_connected = FALSE,
-         updated_at = NOW(),
-         last_disconnected_at = NOW()`,
-      [organizationId]
-    );
-  };
-
-  /**
    * Safely revive serialized Baileys data (handles Buffer payloads)
    * @param {Object|string|null} value - Stored JSON/JSONB value
    * @param {Object} fallback - Default value when parsing fails
@@ -66,6 +46,68 @@ async function useDatabaseAuthState(organizationId, pool) {
   const serializeBaileysJson = (value) => JSON.stringify(value, BufferJSON.replacer);
 
   /**
+   * Ensure credentials contain all required key pairs so Baileys can complete the handshake.
+   * Falls back to fresh creds when any required field is missing.
+   * @param {Object} creds - Candidate creds loaded from storage
+   * @returns {{creds: Object, refreshed: boolean}} Creds safe for Baileys and flag when regenerated
+   */
+  const ensureValidCreds = (creds) => {
+    const baseCreds = initAuthCreds();
+    const merged = {
+      ...baseCreds,
+      ...creds,
+      noiseKey: creds?.noiseKey || baseCreds.noiseKey,
+      identityKey: creds?.identityKey || baseCreds.identityKey,
+      signedIdentityKey: creds?.signedIdentityKey || baseCreds.signedIdentityKey,
+      signedPreKey: creds?.signedPreKey || baseCreds.signedPreKey,
+      account: creds?.account || baseCreds.account,
+    };
+
+    const hasRequiredKeys = Boolean(
+      merged?.noiseKey?.private &&
+      merged?.noiseKey?.public &&
+      merged?.signedIdentityKey?.private &&
+      merged?.signedIdentityKey?.public &&
+      merged?.signedPreKey?.keyPair?.private &&
+      merged?.signedPreKey?.keyPair?.public &&
+      merged?.identityKey?.private &&
+      merged?.identityKey?.public &&
+      typeof merged?.registrationId === 'number'
+    );
+
+    if (!hasRequiredKeys) {
+      return { creds: baseCreds, refreshed: true };
+    }
+
+    return { creds: merged, refreshed: false };
+  };
+
+  /**
+   * Reset stored WhatsApp credentials/keys for an organization
+   * Used when existing rows are malformed so a fresh QR can be generated
+   * @param {Object} [freshCreds] - Optional creds payload to persist instead of empty placeholders
+   * @returns {Promise<Object>} The creds stored after reset
+   */
+  const resetAuthRow = async (freshCreds = initAuthCreds()) => {
+    const serializedCreds = serializeBaileysJson(freshCreds);
+
+    await pool.query(
+      `INSERT INTO whatsapp_baileys_connections (organization_id, auth_creds, auth_keys, is_connected, updated_at, last_disconnected_at)
+       VALUES ($1, $2, '{}', FALSE, NOW(), NOW())
+       ON CONFLICT (organization_id)
+       DO UPDATE SET
+         auth_creds = $2,
+         auth_keys = '{}',
+         is_connected = FALSE,
+         updated_at = NOW(),
+         last_disconnected_at = NOW()`,
+      [organizationId, serializedCreds]
+    );
+
+    return freshCreds;
+  };
+
+  /**
    * Load auth state from database
    * @returns {Promise<Object>} Auth state with creds and keys
    */
@@ -79,9 +121,9 @@ async function useDatabaseAuthState(organizationId, pool) {
 
       if (result.rows.length === 0) {
         // No existing state - initialize new credentials
-        await resetAuthRow();
+        const baseCreds = await resetAuthRow();
         return {
-          creds: initAuthCreds(),
+          creds: baseCreds,
           keys: makeKeyStore({})
         };
       }
@@ -89,8 +131,14 @@ async function useDatabaseAuthState(organizationId, pool) {
       const { auth_creds, auth_keys } = result.rows[0];
 
       // Parse stored credentials with BufferJSON to handle Buffer objects
-      const creds = reviveBaileysJson(auth_creds, initAuthCreds());
+      const revivedCreds = reviveBaileysJson(auth_creds, initAuthCreds());
+      const { creds, refreshed } = ensureValidCreds(revivedCreds);
       const keys = reviveBaileysJson(auth_keys, {});
+
+      if (refreshed) {
+        console.warn(`Resetting WhatsApp creds for org ${organizationId} due to missing key material`);
+        await resetAuthRow(creds);
+      }
 
       return {
         creds,
@@ -100,7 +148,11 @@ async function useDatabaseAuthState(organizationId, pool) {
       console.error(`Error loading auth state for org ${organizationId}:`, error);
       // Clear malformed row so a fresh QR can be generated on next init
       try {
-        await resetAuthRow();
+        const baseCreds = await resetAuthRow();
+        return {
+          creds: baseCreds,
+          keys: makeKeyStore({})
+        };
       } catch (resetError) {
         console.error(`Error resetting malformed auth row for org ${organizationId}:`, resetError);
       }
