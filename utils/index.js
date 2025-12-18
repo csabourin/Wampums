@@ -140,6 +140,50 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
 }
 
 /**
+ * Get user's preferred email language with organization fallback
+ * @param {object} pool - Database connection pool
+ * @param {string} userEmail - User's email address
+ * @param {number} organizationId - Organization ID
+ * @returns {Promise<string>} Language code (en, fr, uk, it)
+ */
+async function getUserEmailLanguage(pool, userEmail, organizationId) {
+  try {
+    // First, try to get user's language preference
+    const userResult = await pool.query(
+      `SELECT language_preference FROM users WHERE LOWER(email) = LOWER($1)`,
+      [userEmail]
+    );
+
+    if (userResult.rows.length > 0 && userResult.rows[0].language_preference) {
+      return userResult.rows[0].language_preference;
+    }
+
+    // If user has no preference, get organization default
+    const orgResult = await pool.query(
+      `SELECT setting_value FROM organization_settings
+       WHERE organization_id = $1 AND setting_key = 'default_email_language'`,
+      [organizationId]
+    );
+
+    if (orgResult.rows.length > 0) {
+      try {
+        const orgLanguage = JSON.parse(orgResult.rows[0].setting_value);
+        return orgLanguage;
+      } catch {
+        // If parsing fails, return default
+        return 'fr';
+      }
+    }
+
+    // Default to French if no preference found
+    return 'fr';
+  } catch (error) {
+    logger.error('Error getting user email language:', error);
+    return 'fr'; // Default fallback
+  }
+}
+
+/**
  * Send email using Brevo
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
@@ -499,6 +543,7 @@ module.exports = {
   toBool,
   fromBool,
   userHasAccessToParticipant,
+  getUserEmailLanguage,
   sendEmail,
   sendResetEmail,
   sendAdminVerificationEmail,

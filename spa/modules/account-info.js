@@ -66,6 +66,7 @@ export class AccountInfoModule {
   render() {
     const fullName = escapeHTML(this.userData?.full_name || "");
     const email = escapeHTML(this.userData?.email || "");
+    const languagePreference = this.userData?.language_preference || "";
 
     const content = `
       <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
@@ -116,6 +117,31 @@ export class AccountInfoModule {
           </div>
           <button type="submit" class="btn btn-primary" id="email-submit">
             ${translate("account_info_email_button")}
+          </button>
+        </form>
+      </section>
+
+      <!-- Language Preference Section -->
+      <section class="account-section">
+        <h2>${translate("account_info_language_title")}</h2>
+        <p class="section-description">${translate("account_info_language_description")}</p>
+        <form id="language-form" class="account-form">
+          <div class="form-group">
+            <label for="language-select">${translate("account_info_language_label")}</label>
+            <select
+              id="language-select"
+              name="languagePreference"
+              class="form-control"
+            >
+              <option value="" ${!languagePreference ? 'selected' : ''}>${translate("account_info_language_org_default")}</option>
+              <option value="en" ${languagePreference === 'en' ? 'selected' : ''}>English</option>
+              <option value="fr" ${languagePreference === 'fr' ? 'selected' : ''}>Français</option>
+              <option value="uk" ${languagePreference === 'uk' ? 'selected' : ''}>Українська</option>
+              <option value="it" ${languagePreference === 'it' ? 'selected' : ''}>Italiano</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" id="language-submit">
+            ${translate("account_info_language_button")}
           </button>
         </form>
       </section>
@@ -205,6 +231,12 @@ export class AccountInfoModule {
     const emailForm = document.getElementById("email-form");
     if (emailForm) {
       emailForm.addEventListener("submit", (e) => this.handleEmailUpdate(e));
+    }
+
+    // Language preference form
+    const languageForm = document.getElementById("language-form");
+    if (languageForm) {
+      languageForm.addEventListener("submit", (e) => this.handleLanguageUpdate(e));
     }
 
     // Password form
@@ -326,6 +358,54 @@ export class AccountInfoModule {
       this.isLoading = false;
       submitButton.disabled = false;
       submitButton.textContent = translate("account_info_email_button");
+    }
+  }
+
+  /**
+   * Handle language preference update
+   * @param {Event} event - Form submit event
+   */
+  async handleLanguageUpdate(event) {
+    event.preventDefault();
+
+    if (this.isLoading) return;
+
+    const form = event.target;
+    const languageSelect = form.querySelector("#language-select");
+    const languagePreference = languageSelect.value;
+    const submitButton = form.querySelector("#language-submit");
+
+    // Empty value means use organization default
+    if (!languagePreference) {
+      this.app.showMessage(translate("account_info_language_select_required"), "error");
+      return;
+    }
+
+    try {
+      this.isLoading = true;
+      submitButton.disabled = true;
+      submitButton.textContent = translate("loading") || "Loading...";
+
+      debugLog("Updating language preference:", languagePreference);
+
+      const response = await makeApiRequest("v1/users/me/language-preference", {
+        method: "PATCH",
+        body: JSON.stringify({ languagePreference }),
+      });
+
+      if (response.success) {
+        this.app.showMessage(translate("account_info_language_success"), "success");
+        this.userData.language_preference = response.data.language_preference;
+      } else {
+        throw new Error(response.message || translate("account_info_language_error"));
+      }
+    } catch (error) {
+      debugError("Error updating language preference:", error);
+      this.app.showMessage(error.message || translate("account_info_language_error"), "error");
+    } finally {
+      this.isLoading = false;
+      submitButton.disabled = false;
+      submitButton.textContent = translate("account_info_language_button");
     }
   }
 

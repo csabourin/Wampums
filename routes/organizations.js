@@ -188,6 +188,117 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
+   * /api/organization-settings/default-email-language:
+   *   patch:
+   *     summary: Update organization default email language
+   *     description: Update the organization's default language for email communications
+   *     tags: [Organizations]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - language
+   *             properties:
+   *               language:
+   *                 type: string
+   *                 enum: [en, fr, uk, it]
+   *     responses:
+   *       200:
+   *         description: Organization default email language updated successfully
+   *       400:
+   *         description: Invalid language code
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Forbidden - Admin access required
+   */
+  router.patch('/organization-settings/default-email-language', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const { language } = req.body;
+
+      // Supported languages
+      const supportedLanguages = ['en', 'fr', 'uk', 'it'];
+
+      // Validate language code
+      if (!language) {
+        return res.status(400).json({
+          success: false,
+          message: 'Language is required'
+        });
+      }
+
+      if (!supportedLanguages.includes(language)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`
+        });
+      }
+
+      // Verify user has admin role in this organization
+      const roleCheck = await pool.query(
+        `SELECT role FROM user_organizations
+         WHERE user_id = $1 AND organization_id = $2`,
+        [decoded.userId, organizationId]
+      );
+
+      if (roleCheck.rows.length === 0) {
+        return res.status(403).json({
+          success: false,
+          message: 'User not found in organization'
+        });
+      }
+
+      const userRole = roleCheck.rows[0].role;
+      if (userRole !== 'admin' && userRole !== 'director') {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin or director access required to update organization settings'
+        });
+      }
+
+      // Update or insert organization default email language setting
+      await pool.query(
+        `INSERT INTO organization_settings (organization_id, setting_key, setting_value, created_at, updated_at)
+         VALUES ($1, 'default_email_language', $2, NOW(), NOW())
+         ON CONFLICT (organization_id, setting_key)
+         DO UPDATE SET setting_value = $2, updated_at = NOW()`,
+        [organizationId, JSON.stringify(language)]
+      );
+
+      logger.info(`Organization ${organizationId} default email language updated to ${language} by user ${decoded.userId}`);
+
+      res.json({
+        success: true,
+        message: 'Organization default email language updated successfully',
+        data: { language }
+      });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error updating organization default email language:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error updating organization default email language'
+      });
+    }
+  });
+
+  /**
+   * @swagger
    * /api/organizations:
    *   post:
    *     summary: Create new organization
