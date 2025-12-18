@@ -21,6 +21,31 @@ const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
  */
 async function useDatabaseAuthState(organizationId, pool) {
   /**
+   * Safely revive serialized Baileys data (handles Buffer payloads)
+   * @param {Object|string|null} value - Stored JSON/JSONB value
+   * @param {Object} fallback - Default value when parsing fails
+   * @returns {Object} Revived object ready for Baileys
+   */
+  const reviveBaileysJson = (value, fallback) => {
+    if (!value) return fallback;
+
+    try {
+      const serialized = typeof value === "string" ? value : JSON.stringify(value);
+      return JSON.parse(serialized, BufferJSON.reviver);
+    } catch (error) {
+      console.error(`Error reviving Baileys JSON for org ${organizationId}:`, error);
+      return fallback;
+    }
+  };
+
+  /**
+   * Serialize Baileys objects while preserving Buffer fields
+   * @param {Object} value - Value to serialize
+   * @returns {string} JSON string with Buffer-safe serialization
+   */
+  const serializeBaileysJson = (value) => JSON.stringify(value, BufferJSON.replacer);
+
+  /**
    * Load auth state from database
    * @returns {Promise<Object>} Auth state with creds and keys
    */
@@ -34,21 +59,17 @@ async function useDatabaseAuthState(organizationId, pool) {
 
       if (result.rows.length === 0) {
         // No existing state - initialize new credentials
-        const creds = initAuthCreds();
         return {
-          creds,
-          keys: {
-            get: async () => ({}),
-            set: async () => {}
-          }
+          creds: initAuthCreds(),
+          keys: makeKeyStore({})
         };
       }
 
       const { auth_creds, auth_keys } = result.rows[0];
 
       // Parse stored credentials with BufferJSON to handle Buffer objects
-      const creds = auth_creds || initAuthCreds();
-      const keys = auth_keys || {};
+      const creds = reviveBaileysJson(auth_creds, initAuthCreds());
+      const keys = reviveBaileysJson(auth_keys, {});
 
       return {
         creds,
@@ -70,6 +91,8 @@ async function useDatabaseAuthState(organizationId, pool) {
    */
   const saveCredsToDatabase = async (creds) => {
     try {
+      const serializedCreds = serializeBaileysJson(creds);
+
       await pool.query(
         `INSERT INTO whatsapp_baileys_connections (organization_id, auth_creds, updated_at)
          VALUES ($1, $2, NOW())
@@ -77,7 +100,7 @@ async function useDatabaseAuthState(organizationId, pool) {
          DO UPDATE SET
            auth_creds = $2,
            updated_at = NOW()`,
-        [organizationId, JSON.stringify(creds)]
+        [organizationId, serializedCreds]
       );
     } catch (error) {
       console.error(`Error saving creds for org ${organizationId}:`, error);
@@ -101,9 +124,11 @@ async function useDatabaseAuthState(organizationId, pool) {
 
         for (const id of ids) {
           let value = keys[id];
-          if (value) {
+          if (value !== undefined) {
             if (typeof value === 'string') {
               value = JSON.parse(value, BufferJSON.reviver);
+            } else {
+              value = JSON.parse(JSON.stringify(value), BufferJSON.reviver);
             }
             data[id] = value;
           }
@@ -129,14 +154,16 @@ async function useDatabaseAuthState(organizationId, pool) {
 
         // Then save to database (single query with all keys)
         try {
+          const serializedKeys = serializeBaileysJson(keysCache);
+
           await pool.query(
             `INSERT INTO whatsapp_baileys_connections (organization_id, auth_keys, updated_at)
              VALUES ($1, $2, NOW())
              ON CONFLICT (organization_id)
-             DO UPDATE SET
-               auth_keys = $2,
-               updated_at = NOW()`,
-            [organizationId, JSON.stringify(keysCache)]
+               DO UPDATE SET
+                 auth_keys = $2,
+                 updated_at = NOW()`,
+            [organizationId, serializedKeys]
           );
         } catch (error) {
           console.error(`Error saving keys for org ${organizationId}:`, error);
