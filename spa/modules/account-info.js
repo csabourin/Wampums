@@ -67,6 +67,7 @@ export class AccountInfoModule {
     const fullName = escapeHTML(this.userData?.full_name || "");
     const email = escapeHTML(this.userData?.email || "");
     const languagePreference = this.userData?.language_preference || "";
+    const whatsappPhone = escapeHTML(this.userData?.whatsapp_phone_number || "");
 
     const content = `
       <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
@@ -142,6 +143,31 @@ export class AccountInfoModule {
           </div>
           <button type="submit" class="btn btn-primary" id="language-submit">
             ${translate("account_info_language_button")}
+          </button>
+        </form>
+      </section>
+
+      <!-- WhatsApp Phone Number Section -->
+      <section class="account-section">
+        <h2>${translate("account_info_whatsapp_title") || "WhatsApp Notifications"}</h2>
+        <p class="section-description">${translate("account_info_whatsapp_description") || "Set your WhatsApp phone number to receive notifications via WhatsApp. Phone number must be in international format (e.g., +15551234567)."}</p>
+        <form id="whatsapp-form" class="account-form">
+          <div class="form-group">
+            <label for="whatsapp-input">${translate("account_info_whatsapp_label") || "WhatsApp Phone Number"}</label>
+            <input
+              type="tel"
+              id="whatsapp-input"
+              name="whatsappPhoneNumber"
+              value="${whatsappPhone}"
+              placeholder="${translate("account_info_whatsapp_placeholder") || "+15551234567"}"
+              pattern="^\\+[1-9]\\d{6,14}$"
+              title="${translate("account_info_whatsapp_format_help") || "Format: +[country code][number] (e.g., +15551234567)"}"
+              autocomplete="tel"
+            />
+            <small class="form-text">${translate("account_info_whatsapp_help") || "Leave empty to disable WhatsApp notifications"}</small>
+          </div>
+          <button type="submit" class="btn btn-primary" id="whatsapp-submit">
+            ${translate("account_info_whatsapp_button") || "Update WhatsApp Number"}
           </button>
         </form>
       </section>
@@ -237,6 +263,12 @@ export class AccountInfoModule {
     const languageForm = document.getElementById("language-form");
     if (languageForm) {
       languageForm.addEventListener("submit", (e) => this.handleLanguageUpdate(e));
+    }
+
+    // WhatsApp phone number form
+    const whatsappForm = document.getElementById("whatsapp-form");
+    if (whatsappForm) {
+      whatsappForm.addEventListener("submit", (e) => this.handleWhatsAppUpdate(e));
     }
 
     // Password form
@@ -406,6 +438,68 @@ export class AccountInfoModule {
       this.isLoading = false;
       submitButton.disabled = false;
       submitButton.textContent = translate("account_info_language_button");
+    }
+  }
+
+  /**
+   * Handle WhatsApp phone number update
+   * @param {Event} event - Form submit event
+   */
+  async handleWhatsAppUpdate(event) {
+    event.preventDefault();
+
+    if (this.isLoading) return;
+
+    const form = event.target;
+    const whatsappInput = form.querySelector("#whatsapp-input");
+    const whatsappPhoneNumber = whatsappInput.value.trim();
+    const submitButton = form.querySelector("#whatsapp-submit");
+
+    // Validate phone number format if provided (E.164 format)
+    if (whatsappPhoneNumber) {
+      const e164Regex = /^\+[1-9]\d{6,14}$/;
+      if (!e164Regex.test(whatsappPhoneNumber)) {
+        this.app.showMessage(
+          translate("account_info_whatsapp_invalid_format") ||
+          "Invalid phone number format. Please use international format (e.g., +15551234567)",
+          "error"
+        );
+        return;
+      }
+    }
+
+    try {
+      this.isLoading = true;
+      submitButton.disabled = true;
+      submitButton.textContent = translate("loading") || "Loading...";
+
+      debugLog("Updating WhatsApp phone number:", whatsappPhoneNumber || "(removing)");
+
+      const response = await makeApiRequest("v1/users/me/whatsapp-phone", {
+        method: "PATCH",
+        body: JSON.stringify({ whatsappPhoneNumber: whatsappPhoneNumber || null }),
+      });
+
+      if (response.success) {
+        const successMsg = whatsappPhoneNumber
+          ? translate("account_info_whatsapp_success") || "WhatsApp phone number updated successfully"
+          : translate("account_info_whatsapp_removed") || "WhatsApp phone number removed successfully";
+
+        this.app.showMessage(successMsg, "success");
+        this.userData.whatsapp_phone_number = response.data.whatsapp_phone_number;
+      } else {
+        throw new Error(response.message || translate("account_info_whatsapp_error"));
+      }
+    } catch (error) {
+      debugError("Error updating WhatsApp phone number:", error);
+      this.app.showMessage(
+        error.message || translate("account_info_whatsapp_error") || "Failed to update WhatsApp phone number",
+        "error"
+      );
+    } finally {
+      this.isLoading = false;
+      submitButton.disabled = false;
+      submitButton.textContent = translate("account_info_whatsapp_button") || "Update WhatsApp Number";
     }
   }
 

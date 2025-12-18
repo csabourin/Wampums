@@ -93,7 +93,7 @@ module.exports = (pool, logger) => {
     const organizationId = req.user.organizationId;
 
     const result = await pool.query(
-      `SELECT u.id, u.full_name, u.email, u.language_preference, uo.role
+      `SELECT u.id, u.full_name, u.email, u.language_preference, u.whatsapp_phone_number, uo.role
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE u.id = $1 AND uo.organization_id = $2`,
@@ -245,6 +245,91 @@ module.exports = (pool, logger) => {
       logger.info(`User ${userId} updated their language preference to ${languagePreference}`);
 
       return success(res, result.rows[0], 'Language preference updated successfully');
+    })
+  );
+
+  /**
+   * @swagger
+   * /api/v1/users/me/whatsapp-phone:
+   *   patch:
+   *     summary: Update user's WhatsApp phone number
+   *     description: Update the authenticated user's WhatsApp phone number for receiving notifications
+   *     tags: [User Profile]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               whatsappPhoneNumber:
+   *                 type: string
+   *                 description: Phone number in E.164 format (e.g., +1234567890). Set to null or empty string to remove.
+   *                 example: "+15551234567"
+   *     responses:
+   *       200:
+   *         description: WhatsApp phone number updated successfully
+   *       400:
+   *         description: Invalid phone number format
+   *       401:
+   *         description: Unauthorized
+   */
+  router.patch('/v1/users/me/whatsapp-phone',
+    authenticate,
+    asyncHandler(async (req, res) => {
+      const userId = req.user.id;
+      const organizationId = req.user.organizationId;
+      const { whatsappPhoneNumber } = req.body;
+
+      // Verify user belongs to organization
+      const userCheck = await pool.query(
+        `SELECT u.id FROM users u
+         JOIN user_organizations uo ON u.id = uo.user_id
+         WHERE u.id = $1 AND uo.organization_id = $2`,
+        [userId, organizationId]
+      );
+
+      if (userCheck.rows.length === 0) {
+        return errorResponse(res, 'User not found', 404);
+      }
+
+      // Validate phone number format (E.164 format: +[country code][number])
+      // Allow null or empty string to remove the phone number
+      let phoneNumber = null;
+      if (whatsappPhoneNumber && whatsappPhoneNumber.trim() !== '') {
+        const trimmedPhone = whatsappPhoneNumber.trim();
+
+        // Basic E.164 validation: starts with +, followed by 7-15 digits
+        const e164Regex = /^\+[1-9]\d{6,14}$/;
+
+        if (!e164Regex.test(trimmedPhone)) {
+          return errorResponse(res,
+            'Invalid phone number format. Please use E.164 format (e.g., +1234567890)',
+            400
+          );
+        }
+
+        phoneNumber = trimmedPhone;
+      }
+
+      // Update WhatsApp phone number
+      const result = await pool.query(
+        `UPDATE users
+         SET whatsapp_phone_number = $1
+         WHERE id = $2
+         RETURNING id, full_name, email, whatsapp_phone_number`,
+        [phoneNumber, userId]
+      );
+
+      logger.info(`User ${userId} updated their WhatsApp phone number`);
+
+      const message = phoneNumber
+        ? 'WhatsApp phone number updated successfully'
+        : 'WhatsApp phone number removed successfully';
+
+      return success(res, result.rows[0], message);
     })
   );
 
