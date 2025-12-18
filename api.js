@@ -12,7 +12,7 @@ const rateLimit = require('express-rate-limit');
 const { check, validationResult } = require('express-validator');
 const winston = require('winston');
 const path = require('path');
-const fs = require('fs').promises;
+const fs = require('fs');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
 const meetingSectionDefaults = require('./config/meeting_sections.json');
@@ -34,6 +34,23 @@ const HOST = "0.0.0.0";
 
 // Determine if we're in production mode
 const isProduction = process.env.NODE_ENV === 'production';
+
+// Configure logging before database and error handlers
+const logDirectory = path.join(process.cwd(), 'logs');
+try {
+  fs.mkdirSync(logDirectory, { recursive: true });
+} catch (mkdirError) {
+  console.error('Unable to create log directory', mkdirError);
+}
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: path.join(logDirectory, 'error.log'), level: 'error' }),
+    new winston.transports.File({ filename: path.join(logDirectory, 'combined.log') }),
+  ],
+});
 
 // Compression middleware
 let compression;
@@ -126,16 +143,6 @@ const passwordResetLimiter = rateLimit({
 
 // Apply general rate limiter to all routes
 app.use(generalLimiter);
-
-// Configure logging before database and error handlers
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
-  ],
-});
 
 // Serve static files
 // In production, serve from dist folder (Vite build output)
