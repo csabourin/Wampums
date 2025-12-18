@@ -27,13 +27,17 @@ const fs = require('fs').promises;
 
 // Configure logger
 const logger = winston.createLogger({
-  level: 'info',
+  level: 'debug', // Set to debug to capture trace-level logs from Baileys
   format: winston.format.json(),
   transports: [
     new winston.transports.File({ filename: 'whatsapp-baileys.log' }),
     new winston.transports.Console({ format: winston.format.simple() })
   ],
 });
+
+// Add trace method for Baileys compatibility
+// Baileys expects logger.trace() but Winston doesn't have it by default
+logger.trace = (...args) => logger.debug(...args);
 
 /**
  * WhatsApp Baileys Service Class
@@ -92,7 +96,6 @@ class WhatsAppBaileysService {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, logger),
         },
-        printQRInTerminal: true, // Also print in terminal for debugging
         logger: logger,
         browser: ['Wampums', 'Chrome', '10.0'], // Custom browser name
         getMessage: async (key) => {

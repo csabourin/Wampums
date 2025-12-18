@@ -280,19 +280,30 @@ module.exports = (pool, logger) => {
     authenticate,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
-      const organizationId = req.user.organizationId;
       const { whatsappPhoneNumber } = req.body;
 
-      // Verify user belongs to organization
-      const userCheck = await pool.query(
-        `SELECT u.id FROM users u
-         JOIN user_organizations uo ON u.id = uo.user_id
-         WHERE u.id = $1 AND uo.organization_id = $2`,
-        [userId, organizationId]
-      );
+      // Get organization ID from headers or JWT token
+      const { getOrganizationId } = require('../middleware/auth');
+      let organizationId;
+      try {
+        organizationId = await getOrganizationId(req, pool);
+      } catch (error) {
+        logger.warn(`Could not determine organization ID for user ${userId}:`, error.message);
+        organizationId = null;
+      }
 
-      if (userCheck.rows.length === 0) {
-        return errorResponse(res, 'User not found', 404);
+      // Verify user belongs to organization (if organization ID is available)
+      if (organizationId) {
+        const userCheck = await pool.query(
+          `SELECT u.id FROM users u
+           JOIN user_organizations uo ON u.id = uo.user_id
+           WHERE u.id = $1 AND uo.organization_id = $2`,
+          [userId, organizationId]
+        );
+
+        if (userCheck.rows.length === 0) {
+          return errorResponse(res, 'User not found in this organization', 404);
+        }
       }
 
       // Validate phone number format (E.164 format: +[country code][number])
