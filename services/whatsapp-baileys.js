@@ -24,14 +24,23 @@ const winston = require('winston');
 const { useDatabaseAuthState } = require('./whatsapp-database-auth');
 const util = require('util');
 
-// Configure logger
+const WHATSAPP_LOG_LEVEL = process.env.WHATSAPP_LOG_LEVEL || 'info';
+const WHATSAPP_LOG_FILE = process.env.WHATSAPP_LOG_FILE || 'whatsapp-baileys.log';
+const ENABLE_WHATSAPP_CONSOLE_LOGS = process.env.WHATSAPP_CONSOLE_LOGS !== 'false';
+
+// Configure logger (keeping defaults lightweight to avoid event-loop thrashing)
+const loggerTransports = [
+  new winston.transports.File({ filename: WHATSAPP_LOG_FILE, level: WHATSAPP_LOG_LEVEL })
+];
+
+if (ENABLE_WHATSAPP_CONSOLE_LOGS) {
+  loggerTransports.push(new winston.transports.Console({ format: winston.format.simple(), level: WHATSAPP_LOG_LEVEL }));
+}
+
 const logger = winston.createLogger({
-  level: 'debug', // Set to debug to capture trace-level logs from Baileys
+  level: WHATSAPP_LOG_LEVEL,
   format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'whatsapp-baileys.log' }),
-    new winston.transports.Console({ format: winston.format.simple() })
-  ],
+  transports: loggerTransports,
 });
 
 // Add trace method for Baileys compatibility
@@ -48,6 +57,39 @@ class WhatsAppBaileysService {
     this.connections = new Map(); // organizationId -> connection object
     this.messageQueue = new Map(); // organizationId -> message queue
     this.io = null; // Socket.io instance (will be set later)
+    this.cachedBaileysVersion = null; // Cache Baileys version lookup to avoid repeated network calls
+    this.baileysVersionPromise = null; // Track in-flight version fetches
+  }
+
+  /**
+   * Get the WhatsApp Web version Baileys should target.
+   * Cached to avoid repeated remote lookups which can slow server startup.
+   * @returns {Promise<number[]|null>} Version tuple or null when unavailable
+   */
+  async getBaileysVersion() {
+    if (this.cachedBaileysVersion) {
+      return this.cachedBaileysVersion;
+    }
+
+    if (this.baileysVersionPromise) {
+      return this.baileysVersionPromise;
+    }
+
+    this.baileysVersionPromise = (async () => {
+      try {
+        const { version } = await fetchLatestBaileysVersion();
+        this.cachedBaileysVersion = version;
+        logger.info(`Fetched latest Baileys version: ${version.join('.')}`);
+        return version;
+      } catch (error) {
+        logger.warn('Failed to fetch latest Baileys version; using built-in default', error);
+        return this.cachedBaileysVersion; // May be null, allowing Baileys to use its default
+      } finally {
+        this.baileysVersionPromise = null;
+      }
+    })();
+
+    return this.baileysVersionPromise;
   }
 
   /**
@@ -85,12 +127,12 @@ class WhatsAppBaileysService {
       // Load or create auth state from database
       const { state, saveCreds } = await useDatabaseAuthState(organizationId, this.pool);
 
-      // Get latest Baileys version for compatibility
-      const { version } = await fetchLatestBaileysVersion();
+      // Get latest Baileys version for compatibility (cached to avoid repeated lookups)
+      const version = await this.getBaileysVersion();
 
       // Create WhatsApp socket
       const sock = makeWASocket({
-        version,
+        ...(version ? { version } : {}),
         auth: {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, logger),
