@@ -69,11 +69,15 @@ class WhatsAppBaileysService {
     try {
       logger.info(`Initializing WhatsApp connection for organization ${organizationId}`);
 
-      // Check if already connected
+      // Check if already connected OR connection attempt in progress
       if (this.connections.has(organizationId)) {
         const existingConnection = this.connections.get(organizationId);
         if (existingConnection.isConnected) {
           logger.info(`Organization ${organizationId} already connected`);
+          return true;
+        }
+        if (existingConnection.sock) {
+          logger.info(`Organization ${organizationId} connection already in progress, skipping duplicate initialization`);
           return true;
         }
       }
@@ -448,7 +452,16 @@ class WhatsAppBaileysService {
         [organizationId]
       );
 
+      // Close and remove existing socket
       if (this.connections.has(organizationId)) {
+        const connectionObj = this.connections.get(organizationId);
+        if (connectionObj.sock) {
+          try {
+            connectionObj.sock.end();
+          } catch (e) {
+            // Socket might already be closed, ignore errors
+          }
+        }
         this.connections.delete(organizationId);
       }
     } catch (error) {
