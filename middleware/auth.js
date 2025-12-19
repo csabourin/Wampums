@@ -41,7 +41,10 @@ exports.authenticate = (req, res, next) => {
     // Attach user info to request
     req.user = {
       id: decoded.user_id,
-      role: decoded.user_role,
+      role: decoded.user_role, // Legacy: kept for backward compatibility
+      roleIds: decoded.roleIds || [], // New: array of role IDs
+      roleNames: decoded.roleNames || [], // New: array of role names
+      permissions: decoded.permissions || [], // New: array of permission keys
       organizationId: decoded.organizationId
     };
 
@@ -228,4 +231,225 @@ exports.requireOrganizationRole = (allowedRoles = null) => {
       });
     }
   };
+};
+
+/**
+ * Permission-based authorization middleware
+ * Checks if user has specific permission(s)
+ *
+ * @param {...string} permissions - Required permission key(s) (e.g., 'finance.view', 'users.manage')
+ * @returns {Function} Express middleware
+ *
+ * @example
+ * router.post('/budgets', authenticate, requirePermission('budget.manage'), async (req, res) => {
+ *   // User has budget.manage permission
+ * });
+ *
+ * @example
+ * // Multiple permissions (user needs ALL of them)
+ * router.delete('/users/:id', authenticate, requirePermission('users.delete', 'users.manage'), async (req, res) => {
+ *   // User has both users.delete AND users.manage permissions
+ * });
+ */
+exports.requirePermission = (...permissions) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      // Get pool from app locals
+      const pool = req.app.locals.pool;
+      if (!pool) {
+        logger.error('Database pool not available in requirePermission middleware');
+        return res.status(500).json({
+          success: false,
+          message: 'Server configuration error'
+        });
+      }
+
+      // Get organization ID
+      const organizationId = await exports.getOrganizationId(req, pool);
+      req.organizationId = organizationId;
+
+      // Fetch user's permissions for this organization
+      const permissionsQuery = `
+        SELECT DISTINCT p.permission_key
+        FROM user_organizations uo
+        CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+        JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE uo.user_id = $1 AND uo.organization_id = $2
+      `;
+
+      const result = await pool.query(permissionsQuery, [req.user.id, organizationId]);
+      const userPermissions = result.rows.map(row => row.permission_key);
+
+      // Store permissions in request for later use
+      req.userPermissions = userPermissions;
+
+      // Also fetch user's roles for context
+      const rolesQuery = `
+        SELECT DISTINCT r.role_name, r.display_name
+        FROM user_organizations uo
+        CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+        JOIN roles r ON r.id = role_id_text::integer
+        WHERE uo.user_id = $1 AND uo.organization_id = $2
+      `;
+
+      const rolesResult = await pool.query(rolesQuery, [req.user.id, organizationId]);
+      req.userRoles = rolesResult.rows.map(row => row.role_name);
+      req.userRoleDisplayNames = rolesResult.rows.map(row => row.display_name);
+
+      // Check if user has all required permissions
+      const requiredPermissions = Array.isArray(permissions[0]) ? permissions[0] : permissions;
+      const hasAllPermissions = requiredPermissions.every(perm => userPermissions.includes(perm));
+
+      if (!hasAllPermissions) {
+        const missingPermissions = requiredPermissions.filter(perm => !userPermissions.includes(perm));
+        logger.info(`Permission denied for user ${req.user.id}: missing ${missingPermissions.join(', ')}`);
+
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient permissions',
+          required: requiredPermissions,
+          missing: missingPermissions
+        });
+      }
+
+      next();
+    } catch (error) {
+      if (error instanceof OrganizationNotFoundError) {
+        return respondWithOrganizationFallback(res);
+      }
+
+      logger.error('Error in requirePermission middleware:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Permission check failed'
+      });
+    }
+  };
+};
+
+/**
+ * Block demo roles from making changes
+ * Use on POST, PUT, PATCH, DELETE endpoints to prevent demo users from modifying data
+ *
+ * @returns {Function} Express middleware
+ *
+ * @example
+ * router.post('/participants', authenticate, blockDemoRoles, requirePermission('participants.create'), async (req, res) => {
+ *   // Demo users will be blocked before reaching this point
+ * });
+ */
+exports.blockDemoRoles = async (req, res, next) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Get pool from app locals
+    const pool = req.app.locals.pool;
+    if (!pool) {
+      logger.error('Database pool not available in blockDemoRoles middleware');
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error'
+      });
+    }
+
+    // Get organization ID
+    const organizationId = await exports.getOrganizationId(req, pool);
+
+    // Check if user has any demo roles
+    const demoRolesQuery = `
+      SELECT DISTINCT r.role_name
+      FROM user_organizations uo
+      CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+      JOIN roles r ON r.id = role_id_text::integer
+      WHERE uo.user_id = $1
+        AND uo.organization_id = $2
+        AND r.role_name IN ('demoadmin', 'demoparent')
+    `;
+
+    const result = await pool.query(demoRolesQuery, [req.user.id, organizationId]);
+
+    if (result.rows.length > 0) {
+      const demoRoles = result.rows.map(row => row.role_name);
+      logger.info(`Demo role blocked from ${req.method} ${req.path}: user ${req.user.id} has roles ${demoRoles.join(', ')}`);
+
+      return res.status(403).json({
+        success: false,
+        message: 'This feature is not available in demo mode. Demo accounts have read-only access.',
+        isDemo: true
+      });
+    }
+
+    next();
+  } catch (error) {
+    if (error instanceof OrganizationNotFoundError) {
+      return respondWithOrganizationFallback(res);
+    }
+
+    logger.error('Error in blockDemoRoles middleware:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Authorization check failed'
+    });
+  }
+};
+
+/**
+ * Helper function to check if user has any of the specified permissions
+ * Use this in route handlers when you need conditional logic based on permissions
+ *
+ * @param {Object} req - Express request object (must have userPermissions attached)
+ * @param {...string} permissions - Permission key(s) to check
+ * @returns {boolean} True if user has at least one of the permissions
+ *
+ * @example
+ * if (hasAnyPermission(req, 'finance.manage', 'budget.manage')) {
+ *   // User can see financial details
+ * }
+ */
+exports.hasAnyPermission = (req, ...permissions) => {
+  if (!req.userPermissions) {
+    return false;
+  }
+  return permissions.some(perm => req.userPermissions.includes(perm));
+};
+
+/**
+ * Helper function to check if user has all of the specified permissions
+ *
+ * @param {Object} req - Express request object (must have userPermissions attached)
+ * @param {...string} permissions - Permission key(s) to check
+ * @returns {boolean} True if user has all of the permissions
+ */
+exports.hasAllPermissions = (req, ...permissions) => {
+  if (!req.userPermissions) {
+    return false;
+  }
+  return permissions.every(perm => req.userPermissions.includes(perm));
+};
+
+/**
+ * Helper function to check if user has a specific role
+ *
+ * @param {Object} req - Express request object (must have userRoles attached)
+ * @param {...string} roles - Role name(s) to check
+ * @returns {boolean} True if user has at least one of the roles
+ */
+exports.hasAnyRole = (req, ...roles) => {
+  if (!req.userRoles) {
+    return false;
+  }
+  return roles.some(role => req.userRoles.includes(role));
 };

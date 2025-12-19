@@ -101,7 +101,9 @@ async function sendSubscriptionToServer(subscription) {
 
 export const app = {
         isLoggedIn: false,
-        userRole: null,
+        userRole: null, // Primary role (for backward compatibility)
+        userRoles: [], // All user roles
+        userPermissions: [], // All user permissions
         userFullName: null,
         lang: null,
         currentPage: "",
@@ -144,6 +146,8 @@ export const app = {
                         const session = Login.checkSession();
                         this.isLoggedIn = session.isLoggedIn;
                         this.userRole = session.userRole;
+                        this.userRoles = session.userRoles || [];
+                        this.userPermissions = session.userPermissions || [];
                         this.userFullName = session.userFullName;
 
                         debugLog("Session checked:", {

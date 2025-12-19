@@ -186,10 +186,42 @@ module.exports = (pool, logger) => {
           });
         }
 
+        // Fetch user's roles and permissions for this organization
+        const rolesResult = await pool.query(
+          `SELECT DISTINCT r.id as role_id, r.role_name
+           FROM user_organizations uo
+           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+           JOIN roles r ON r.id = role_id_text::integer
+           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+          [user.id, organizationId]
+        );
+
+        const permissionsResult = await pool.query(
+          `SELECT DISTINCT p.permission_key
+           FROM user_organizations uo
+           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+           JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+           JOIN permissions p ON p.id = rp.permission_id
+           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+          [user.id, organizationId]
+        );
+
+        const roleIds = rolesResult.rows.map(r => r.role_id);
+        const roleNames = rolesResult.rows.map(r => r.role_name);
+        const permissions = permissionsResult.rows.map(p => p.permission_key);
+
+        // Determine primary role for backward compatibility
+        // Priority: district > unitadmin > leader > finance > equipment > administration > parent
+        const rolePriority = ['district', 'unitadmin', 'leader', 'finance', 'equipment', 'administration', 'parent', 'demoadmin', 'demoparent'];
+        const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
+
         const token = jwt.sign(
           {
             user_id: user.id,
-            user_role: user.role,
+            user_role: primaryRole, // Legacy: primary role for backward compatibility
+            roleIds: roleIds,
+            roleNames: roleNames,
+            permissions: permissions,
             organizationId: organizationId
           },
           jwtKey,
@@ -211,7 +243,9 @@ module.exports = (pool, logger) => {
           success: true,
           message: 'login_successful',
           token: token,
-          user_role: user.role,
+          user_role: primaryRole, // Primary role for backward compatibility
+          user_roles: roleNames, // All user roles
+          user_permissions: permissions, // All user permissions
           user_full_name: user.full_name,
           user_id: user.id,
           organization_id: organizationId

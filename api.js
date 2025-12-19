@@ -522,6 +522,7 @@ const budgetsRoutes = require('./routes/budgets')(pool, logger);
 const externalRevenueRoutes = require('./routes/external-revenue')(pool, logger);
 const resourcesRoutes = require('./routes/resources')(pool);
 const userProfileRoutes = require('./routes/userProfile')(pool, logger);
+const rolesRoutes = require('./routes/roles')(pool, logger);
 
 // Initialize WhatsApp Baileys Service (must be before routes that use it)
 const whatsappService = new WhatsAppBaileysService(pool);
@@ -589,6 +590,20 @@ logger.info('   - GET /api/v1/users/me');
 logger.info('   - PATCH /api/v1/users/me/name');
 logger.info('   - PATCH /api/v1/users/me/email');
 logger.info('   - PATCH /api/v1/users/me/password');
+
+// Role Management Routes (handles /api/roles, /api/permissions, etc.)
+// Endpoints: roles (GET, POST, DELETE), permissions (GET), users/:id/roles (GET, PUT)
+app.use('/', rolesRoutes);
+logger.info('✅ Role management routes loaded');
+logger.info('   - GET /api/roles');
+logger.info('   - POST /api/roles');
+logger.info('   - DELETE /api/roles/:roleId');
+logger.info('   - GET /api/roles/:roleId/permissions');
+logger.info('   - POST /api/roles/:roleId/permissions');
+logger.info('   - DELETE /api/roles/:roleId/permissions/:permissionId');
+logger.info('   - GET /api/permissions');
+logger.info('   - GET /api/users/:userId/roles');
+logger.info('   - PUT /api/users/:userId/roles');
 
 // Meeting Routes (handles /api/reunion-preparation, /api/reunion-dates, /api/next-meeting-info, etc.)
 // Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, reminder, save_reminder, activites-rencontre

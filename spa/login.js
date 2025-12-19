@@ -157,6 +157,8 @@ handleLoginSuccess(result) {
   const token = result.token || (result.data && result.data.token);
   const userId = result.user_id || (result.data && result.data.user_id);
   const userRole = result.user_role || (result.data && result.data.user_role);
+  const userRoles = result.user_roles || (result.data && result.data.user_roles) || [userRole]; // Array of role names
+  const userPermissions = result.user_permissions || (result.data && result.data.user_permissions) || []; // Array of permission keys
   const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
   const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
@@ -190,13 +192,17 @@ handleLoginSuccess(result) {
 
   // Update app state
   this.app.isLoggedIn = true;
-  this.app.userRole = userRole;
+  this.app.userRole = userRole; // Primary role (for backward compatibility)
+  this.app.userRoles = userRoles; // All roles
+  this.app.userPermissions = userPermissions; // All permissions
   this.app.userFullName = userFullName;
 
   // Store user data in localStorage using StorageUtils
   const userData = {
     jwtToken: token,
-    userRole: userRole || "",
+    userRole: userRole || "", // Primary role (for backward compatibility)
+    userRoles: JSON.stringify(userRoles), // Store as JSON string
+    userPermissions: JSON.stringify(userPermissions), // Store as JSON string
     userFullName: userFullName,
     userId: userId
   };
@@ -260,22 +266,38 @@ handleLoginSuccess(result) {
 
   /**
    * Check if user has a valid session
-   * @returns {Object} Session information: isLoggedIn, userRole, and userFullName
+   * @returns {Object} Session information: isLoggedIn, userRole, userRoles, userPermissions, and userFullName
    */
   static checkSession() {
     const token = getStorage('jwtToken');
     const userRole = getStorage('userRole');
+    const userRolesStr = getStorage('userRoles');
+    const userPermissionsStr = getStorage('userPermissions');
     const userFullName = getStorage('userFullName');
     const userId = getStorage('userId');
+
+    // Parse roles and permissions from JSON strings
+    let userRoles = [];
+    let userPermissions = [];
+    try {
+      userRoles = userRolesStr ? JSON.parse(userRolesStr) : (userRole ? [userRole] : []);
+      userPermissions = userPermissionsStr ? JSON.parse(userPermissionsStr) : [];
+    } catch (e) {
+      debugError("Error parsing roles/permissions from localStorage:", e);
+      userRoles = userRole ? [userRole] : [];
+      userPermissions = [];
+    }
 
     // Simple check - we consider the user logged in if we have a token AND user ID
     // The actual token validation happens on the server
     const isLoggedIn = !!token && !!userId && !!userRole;
 
-    debugLog("Session check:", { isLoggedIn, userRole, userFullName, userId });
+    debugLog("Session check:", { isLoggedIn, userRole, userRoles, userPermissions, userFullName, userId });
     return {
       isLoggedIn,
       userRole,
+      userRoles,
+      userPermissions,
       userFullName,
       userId
     };
