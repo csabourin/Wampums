@@ -157,9 +157,9 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
 }
 
 /**
- * Send announcement via email, push, and WhatsApp
+ * Send announcement via email, push, WhatsApp, and Google Chat
  */
-async function dispatchAnnouncement(pool, logger, announcement, whatsappService = null) {
+async function dispatchAnnouncement(pool, logger, announcement, whatsappService = null, googleChatService = null) {
   const { emails, subscribers, whatsappNumbers } = await buildRecipients(
     pool,
     announcement.organization_id,
@@ -286,10 +286,63 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
     );
   }
 
+  // Send Google Chat broadcast
+  let googleChatOutcome = { successes: 0, failures: 0 };
+  if (googleChatService) {
+    try {
+      // Check if Google Chat is configured for this organization
+      const configCheck = await pool.query(
+        `SELECT id FROM google_chat_config
+         WHERE organization_id = $1 AND is_active = TRUE`,
+        [announcement.organization_id]
+      );
+
+      if (configCheck.rows.length > 0) {
+        // Check if broadcast space is configured
+        const spaceCheck = await pool.query(
+          `SELECT space_id FROM google_chat_spaces
+           WHERE organization_id = $1 AND is_broadcast_space = TRUE AND is_active = TRUE`,
+          [announcement.organization_id]
+        );
+
+        if (spaceCheck.rows.length > 0) {
+          // Send broadcast to Google Chat Space
+          await googleChatService.sendBroadcast(
+            announcement.organization_id,
+            announcement.subject,
+            announcement.message
+          );
+
+          googleChatOutcome.successes = 1;
+
+          await pool.query(
+            `INSERT INTO announcement_logs (announcement_id, channel, status)
+             VALUES ($1, 'google_chat', 'sent')`,
+            [announcement.id]
+          );
+
+          logger.info(`Google Chat broadcast sent for announcement ${announcement.id}`);
+        } else {
+          logger.info(`No broadcast space configured for organization ${announcement.organization_id}, skipping Google Chat`);
+        }
+      }
+    } catch (error) {
+      logger.error('Google Chat broadcast failed:', error);
+      googleChatOutcome.failures = 1;
+
+      await pool.query(
+        `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
+         VALUES ($1, 'google_chat', 'failed', $2)`,
+        [announcement.id, error.message || 'Google Chat send failed']
+      );
+    }
+  }
+
   const emailFailures = emailLogs.filter((log) => log.status === 'fulfilled' && !log.value).length;
   const pushFailures = pushOutcome.failures;
   const whatsappFailures = whatsappOutcome.failures;
-  const hasFailures = emailFailures > 0 || pushFailures > 0 || whatsappFailures > 0;
+  const googleChatFailures = googleChatOutcome.failures;
+  const hasFailures = emailFailures > 0 || pushFailures > 0 || whatsappFailures > 0 || googleChatFailures > 0;
 
   await pool.query(
     `UPDATE announcements
@@ -300,13 +353,13 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
     [hasFailures ? 'partial' : 'sent', announcement.id],
   );
 
-  return { emailFailures, pushFailures, whatsappFailures };
+  return { emailFailures, pushFailures, whatsappFailures, googleChatFailures };
 }
 
 /**
  * Claim and send due scheduled announcements
  */
-async function processScheduledAnnouncements(pool, logger, whatsappService = null) {
+async function processScheduledAnnouncements(pool, logger, whatsappService = null, googleChatService = null) {
   const dueQuery = `
     UPDATE announcements
     SET status = 'sending', updated_at = NOW()
@@ -318,7 +371,7 @@ async function processScheduledAnnouncements(pool, logger, whatsappService = nul
   const { rows } = await pool.query(dueQuery);
   for (const announcement of rows) {
     try {
-      await dispatchAnnouncement(pool, logger, announcement, whatsappService);
+      await dispatchAnnouncement(pool, logger, announcement, whatsappService, googleChatService);
     } catch (error) {
       logger.error('Error sending scheduled announcement:', error);
       await pool.query(
@@ -331,10 +384,10 @@ async function processScheduledAnnouncements(pool, logger, whatsappService = nul
   }
 }
 
-module.exports = (pool, logger, whatsappService = null) => {
+module.exports = (pool, logger, whatsappService = null, googleChatService = null) => {
   // Background poller to process scheduled announcements
   setInterval(() => {
-    processScheduledAnnouncements(pool, logger, whatsappService).catch((error) =>
+    processScheduledAnnouncements(pool, logger, whatsappService, googleChatService).catch((error) =>
       logger.error('Scheduled announcement poller failed:', error),
     );
   }, SCHEDULE_POLL_INTERVAL_MS).unref();
@@ -401,7 +454,7 @@ module.exports = (pool, logger, whatsappService = null) => {
         const announcement = rows[0];
 
         if (initialStatus === 'sending') {
-          await dispatchAnnouncement(pool, logger, announcement, whatsappService);
+          await dispatchAnnouncement(pool, logger, announcement, whatsappService, googleChatService);
         }
 
         res.json({ success: true, data: { ...announcement, status: initialStatus } });

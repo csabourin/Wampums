@@ -17,6 +17,7 @@
     "migrate:create": "node-pg-migrate create"
   },
   "dependencies": {
+    "@googleapis/chat": "^44.4.0",
     "@supabase/supabase-js": "^2.87.1",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcrypt": "^5.0.1",
@@ -29,6 +30,7 @@
     "express-rate-limit": "^5.2.6",
     "express-validator": "^6.12.1",
     "glob": "^13.0.0",
+    "google-auth-library": "^10.5.0",
     "helmet": "^4.6.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",

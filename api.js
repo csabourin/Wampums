@@ -527,9 +527,14 @@ const userProfileRoutes = require('./routes/userProfile')(pool, logger);
 const whatsappService = new WhatsAppBaileysService(pool);
 whatsappService.setSocketIO(io);
 
-// Initialize routes that depend on WhatsApp service
+// Initialize Google Chat Service
+const GoogleChatService = require('./services/google-chat');
+const googleChatService = new GoogleChatService(pool);
+
+// Initialize routes that depend on WhatsApp and Google Chat services
 const whatsappBaileysRoutes = require('./routes/whatsapp-baileys')(pool, logger, whatsappService);
-const announcementsRoutes = require('./routes/announcements')(pool, logger, whatsappService);
+const announcementsRoutes = require('./routes/announcements')(pool, logger, whatsappService, googleChatService);
+const googleChatRoutes = require('./routes/google-chat')(pool, logger);
 const medicationRoutes = require('./routes/medication')(pool, logger);
 const activitiesRoutes = require('./routes/activities')(pool);
 const carpoolsRoutes = require('./routes/carpools')(pool);
@@ -721,6 +726,17 @@ logger.info('   - POST /api/v1/whatsapp/baileys/connect');
 logger.info('   - POST /api/v1/whatsapp/baileys/disconnect');
 logger.info('   - GET /api/v1/whatsapp/baileys/status');
 logger.info('   - POST /api/v1/whatsapp/baileys/test');
+
+// Google Chat Routes (handles /api/google-chat/*)
+app.use('/api', googleChatRoutes);
+logger.info('✅ Google Chat routes loaded');
+logger.info('   - POST /api/google-chat/config');
+logger.info('   - GET /api/google-chat/config');
+logger.info('   - POST /api/google-chat/spaces');
+logger.info('   - GET /api/google-chat/spaces');
+logger.info('   - POST /api/google-chat/send-message');
+logger.info('   - POST /api/google-chat/broadcast');
+logger.info('   - GET /api/google-chat/messages');
 
 // Honors Routes (handles /api/honors, /api/award-honor, /api/honors-history, /api/recent-honors)
 // Endpoints: honors, award-honor, honors-history, honors-report, recent-honors
