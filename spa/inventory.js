@@ -11,6 +11,7 @@ import {
   deleteEquipmentItem
 } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
+import { canViewInventory } from "./utils/PermissionUtils.js";
 
 // Maximum photo file size: 3MB
 const MAX_PHOTO_SIZE = 3 * 1024 * 1024;
@@ -33,6 +34,12 @@ export class Inventory {
   }
 
   async init() {
+    // Check permission
+    if (!canViewInventory()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     try {
       await this.refreshData();
       this.render();

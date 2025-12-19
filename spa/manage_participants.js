@@ -11,6 +11,7 @@ import { translate } from "./app.js";
 import { CONFIG } from "./config.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { canViewParticipants } from "./utils/PermissionUtils.js";
 
 export class ManageParticipants {
   constructor(app) {
@@ -39,6 +40,12 @@ export class ManageParticipants {
   }
 
   async init() {
+    // Check permission
+    if (!canViewParticipants()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     try {
       await this.loadProgramSections();
       await this.fetchData();

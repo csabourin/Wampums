@@ -50,6 +50,12 @@ export class Finance {
   }
 
   async init() {
+    // Check permission
+    if (!canViewFinance()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     // Prevent race conditions - only one init at a time
     if (this.isInitializing) {
       debugError("Finance init already in progress, skipping duplicate call");

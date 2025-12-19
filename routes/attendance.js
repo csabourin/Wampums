@@ -1,7 +1,7 @@
 // RESTful routes for attendance
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { validateIdBody, validateDate, validateAttendanceStatus, checkValidation, validateIdQuery, validateDateOptional } = require('../middleware/validation');
 const { getPointSystemRules } = require('../utils');
@@ -34,6 +34,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/',
     authenticate,
+    requirePermission('attendance.view'),
     validateDateOptional('date'),
     validateIdQuery('participant_id'),
     checkValidation,
@@ -81,7 +82,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of dates
    */
-  router.get('/dates', authenticate, asyncHandler(async (req, res) => {
+  router.get('/dates', authenticate, requirePermission('attendance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(

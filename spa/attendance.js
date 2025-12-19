@@ -12,6 +12,7 @@ import { getTodayISO, formatDate, isValidDate, isoToDateString } from "./utils/D
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
+import { canViewAttendance } from "./utils/PermissionUtils.js";
 
 
 export class Attendance {
@@ -32,6 +33,12 @@ export class Attendance {
   }
 
   async init() {
+    // Check permission
+    if (!canViewAttendance()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     try {
       this.renderSkeleton();  this.isLoading = true;
 

@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const winston = require('winston');
-const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 // Configure logger for non-v1 endpoints
 const logger = winston.createLogger({
@@ -45,7 +45,7 @@ module.exports = (pool) => {
    *       200:
    *         description: List of groups
    */
-  router.get('/', authenticate, asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('groups.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -89,7 +89,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Group details with members
    */
-  router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('groups.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -149,7 +149,7 @@ module.exports = (pool) => {
    *       201:
    *         description: Group created
   */
-  router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, requirePermission('groups.create'), asyncHandler(async (req, res) => {
     const { name } = req.body;
     const normalizedName = typeof name === 'string' ? name.trim() : '';
 
@@ -187,7 +187,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Group updated
    */
-  router.put('/:id', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('groups.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { name } = req.body;
     const organizationId = await getOrganizationId(req, pool);
@@ -235,7 +235,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Group deleted
    */
-  router.delete('/:id', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('groups.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
