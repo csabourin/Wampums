@@ -6,6 +6,7 @@ import {
   getOrganizationSettings,
   CONFIG,
 } from "./ajax-functions.js";
+import { getAttendanceDates, getAttendance } from "./api/api-endpoints.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
@@ -34,7 +35,11 @@ export class Dashboard {
       await this.fetchOrganizationInfo();
       await this.preloadDashboardData();
       this.attachEventListeners();
-      await this.preloadAttendanceData();
+
+      // Prefetch critical pages data after dashboard is ready
+      // This is non-blocking and runs in background
+      this.prefetchCriticalPages();
+
       this.loadNews();
     } catch (error) {
       debugError("Error initializing dashboard:", error);
@@ -88,19 +93,47 @@ export class Dashboard {
   }
 
   /**
-   * Gracefully preload attendance cache to maintain backward compatibility
-   * when the attendance module moves data loading elsewhere.
+   * Prefetch critical data for the most time-sensitive pages:
+   * - Attendance page (dates and today's data)
+   * - Points page (groups data)
    *
-   * This is intentionally non-blocking beyond the awaited promise to avoid
-   * failing dashboard initialization if IndexedDB is unavailable.
+   * This ensures instant loading when users navigate to these pages.
+   * Runs after dashboard render to avoid blocking initial display.
    */
-  async preloadAttendanceData() {
+  async prefetchCriticalPages() {
     try {
-      await getCachedData(
-        `attendance_${new Date().toISOString().split("T")[0]}`,
-      );
+      const today = new Date().toISOString().split("T")[0];
+
+      // Prefetch all critical data in parallel for maximum performance
+      await Promise.allSettled([
+        // Attendance page data
+        getAttendanceDates().catch(error => {
+          debugLog("Prefetch attendance dates skipped:", error);
+          return null;
+        }),
+        getAttendance(today).catch(error => {
+          debugLog("Prefetch today's attendance skipped:", error);
+          return null;
+        }),
+
+        // Points page data (groups)
+        // Only fetch if not already loaded by preloadDashboardData
+        (async () => {
+          if (this.groups && this.groups.length > 0) {
+            debugLog("Groups already loaded, skipping prefetch");
+            return null;
+          }
+          return getGroups().catch(error => {
+            debugLog("Prefetch groups skipped:", error);
+            return null;
+          });
+        })()
+      ]);
+
+      debugLog("Critical pages prefetch completed");
     } catch (error) {
-      debugLog("Attendance preload skipped", error);
+      // Non-blocking: errors shouldn't affect dashboard
+      debugLog("Critical pages prefetch error (non-blocking):", error);
     }
   }
 
