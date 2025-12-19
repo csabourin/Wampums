@@ -10,6 +10,10 @@
 const express = require('express');
 const router = express.Router();
 
+// Import auth middleware
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/response');
+
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
@@ -43,16 +47,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/fundraisers', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+  router.get('/fundraisers', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
       const includeArchived = req.query.include_archived === 'true';
 
       let query = `
@@ -88,14 +84,7 @@ module.exports = (pool, logger) => {
         success: true,
         fundraisers: result.rows
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching fundraisers:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -120,16 +109,8 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Fundraiser not found
    */
-  router.get('/fundraisers/:id', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+  router.get('/fundraisers/:id', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
       const { id } = req.params;
 
       const result = await pool.query(
@@ -149,14 +130,7 @@ module.exports = (pool, logger) => {
       }
 
       res.json({ success: true, fundraiser: result.rows[0] });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching fundraiser:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -196,21 +170,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.post('/fundraisers', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.post('/fundraisers', authenticate, blockDemoRoles, requirePermission('fundraisers.create'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const { name, start_date, end_date, objective } = req.body;
 
@@ -278,14 +239,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    } catch (error) {
-      logger.error('Error creating fundraiser:', error);
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -330,21 +284,8 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Fundraiser not found
    */
-  router.put('/fundraisers/:id', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.put('/fundraisers/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const { id } = req.params;
       const { name, start_date, end_date, objective, result } = req.body;
@@ -366,14 +307,7 @@ module.exports = (pool, logger) => {
       }
 
       res.json({ success: true, fundraiser: updateResult.rows[0] });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error updating fundraiser:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -411,21 +345,8 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Fundraiser not found
    */
-  router.put('/fundraisers/:id/archive', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.put('/fundraisers/:id/archive', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const { id } = req.params;
       const { archived } = req.body;
@@ -447,14 +368,7 @@ module.exports = (pool, logger) => {
       }
 
       res.json({ success: true, fundraiser: result.rows[0] });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error archiving fundraiser:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   return router;
 };

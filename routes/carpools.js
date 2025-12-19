@@ -1,7 +1,7 @@
 // RESTful routes for carpool offers and assignments
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 module.exports = (pool) => {
@@ -9,7 +9,7 @@ module.exports = (pool) => {
    * Get all carpool offers for an activity
    * Accessible by: animation, admin, parent
    */
-  router.get('/activity/:activityId', authenticate, asyncHandler(async (req, res) => {
+  router.get('/activity/:activityId', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -48,7 +48,7 @@ module.exports = (pool) => {
    * Get user's own carpool offers
    * Accessible by: animation, admin, parent
    */
-  router.get('/my-offers', authenticate, asyncHandler(async (req, res) => {
+  router.get('/my-offers', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
@@ -75,7 +75,7 @@ module.exports = (pool) => {
    * Create a new carpool offer
    * Accessible by: animation, admin, parent
    */
-  router.post('/offers', authenticate, asyncHandler(async (req, res) => {
+  router.post('/offers', authenticate, blockDemoRoles, requirePermission('carpools.create'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
@@ -147,7 +147,7 @@ module.exports = (pool) => {
    * Update a carpool offer
    * Accessible by: owner of offer, or animation/admin
    */
-  router.put('/offers/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -223,7 +223,7 @@ module.exports = (pool) => {
    * Cancel/deactivate a carpool offer
    * Accessible by: owner of offer, or animation/admin
    */
-  router.delete('/offers/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -301,7 +301,7 @@ module.exports = (pool) => {
    * Assign a participant to a carpool
    * Accessible by: parent (own children), animation/admin (any child)
    */
-  router.post('/assignments', authenticate, asyncHandler(async (req, res) => {
+  router.post('/assignments', authenticate, blockDemoRoles, requirePermission('carpools.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
     const userRole = req.user.role;
@@ -412,7 +412,7 @@ module.exports = (pool) => {
    * Remove a participant from a carpool assignment
    * Accessible by: parent (own children), animation/admin (any child)
    */
-  router.delete('/assignments/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/assignments/:id', authenticate, blockDemoRoles, requirePermission('carpools.manage'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -458,7 +458,7 @@ module.exports = (pool) => {
    * Get carpool assignments for current user's children
    * Accessible by: parent
    */
-  router.get('/my-children-assignments', authenticate, asyncHandler(async (req, res) => {
+  router.get('/my-children-assignments', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
@@ -500,7 +500,7 @@ module.exports = (pool) => {
    * Get unassigned participants for an activity
    * Accessible by: animation, admin
    */
-  router.get('/activity/:activityId/unassigned', authenticate, authorize('animation', 'admin'), asyncHandler(async (req, res) => {
+  router.get('/activity/:activityId/unassigned', authenticate, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { activityId } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 

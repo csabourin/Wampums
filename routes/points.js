@@ -272,61 +272,47 @@ module.exports = (pool, logger) => {
    */
   router.get('/points-leaderboard', authenticate, requirePermission('points.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    const { type, limit } = req.query;
+    const resultLimit = parseInt(limit) || 10;
 
-      // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
+    if (type === 'groups') {
+      // Group leaderboard
+      const result = await pool.query(
+        `SELECT g.id, g.name,
+                COALESCE(SUM(pts.value), 0) as total_points,
+                COUNT(DISTINCT pg.participant_id) as member_count
+         FROM groups g
+         LEFT JOIN participant_groups pg ON g.id = pg.group_id AND pg.organization_id = $1
+         LEFT JOIN points pts ON pts.group_id = g.id AND pts.organization_id = $1
+         WHERE g.organization_id = $1
+         GROUP BY g.id, g.name
+         ORDER BY total_points DESC
+         LIMIT $2`,
+        [organizationId, resultLimit]
+      );
 
-      const { type, limit } = req.query;
-      const resultLimit = parseInt(limit) || 10;
+      res.json({ success: true, data: result.rows, type: 'groups' });
+    } else {
+      // Individual leaderboard (default)
+      const result = await pool.query(
+        `SELECT p.id, p.first_name, p.last_name,
+                g.name as group_name,
+                COALESCE(SUM(pts.value), 0) as total_points
+         FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+         LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
+         WHERE po.organization_id = $1
+         GROUP BY p.id, p.first_name, p.last_name, g.name
+         ORDER BY total_points DESC
+         LIMIT $2`,
+        [organizationId, resultLimit]
+      );
 
-      if (type === 'groups') {
-        // Group leaderboard
-        const result = await pool.query(
-          `SELECT g.id, g.name,
-                  COALESCE(SUM(pts.value), 0) as total_points,
-                  COUNT(DISTINCT pg.participant_id) as member_count
-           FROM groups g
-           LEFT JOIN participant_groups pg ON g.id = pg.group_id AND pg.organization_id = $1
-           LEFT JOIN points pts ON pts.group_id = g.id AND pts.organization_id = $1
-           WHERE g.organization_id = $1
-           GROUP BY g.id, g.name
-           ORDER BY total_points DESC
-           LIMIT $2`,
-          [organizationId, resultLimit]
-        );
-
-        res.json({ success: true, data: result.rows, type: 'groups' });
-      } else {
-        // Individual leaderboard (default)
-        const result = await pool.query(
-          `SELECT p.id, p.first_name, p.last_name,
-                  g.name as group_name,
-                  COALESCE(SUM(pts.value), 0) as total_points
-           FROM participants p
-           JOIN participant_organizations po ON p.id = po.participant_id
-           LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-           LEFT JOIN groups g ON pg.group_id = g.id
-           LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
-           WHERE po.organization_id = $1
-           GROUP BY p.id, p.first_name, p.last_name, g.name
-           ORDER BY total_points DESC
-           LIMIT $2`,
-          [organizationId, resultLimit]
-        );
-
-        res.json({ success: true, data: result.rows, type: 'individuals' });
-      }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching points leaderboard:', error);
-      res.status(500).json({ success: false, message: error.message });
+      res.json({ success: true, data: result.rows, type: 'individuals' });
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -343,47 +329,27 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/points-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/points-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+              COALESCE(SUM(pts.value), 0) as total_points,
+              COUNT(DISTINCT h.id) as honors_count
+       FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
+       LEFT JOIN honors h ON p.id = h.participant_id
+       WHERE po.organization_id = $1
+       GROUP BY p.id, p.first_name, p.last_name, g.name
+       ORDER BY total_points DESC, p.first_name, p.last_name`,
+      [organizationId]
+    );
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
-
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
-                COALESCE(SUM(pts.value), 0) as total_points,
-                COUNT(DISTINCT h.id) as honors_count
-         FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-         LEFT JOIN groups g ON pg.group_id = g.id
-         LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
-         LEFT JOIN honors h ON p.id = h.participant_id
-         WHERE po.organization_id = $1
-         GROUP BY p.id, p.first_name, p.last_name, g.name
-         ORDER BY total_points DESC, p.first_name, p.last_name`,
-        [organizationId]
-      );
-
-      res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching points report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    res.json({ success: true, data: result.rows });
+  }));
 
   return router;
 };
