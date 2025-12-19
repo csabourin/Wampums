@@ -9,6 +9,7 @@ import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
+import { isParent } from "./utils/PermissionUtils.js";
 
 export class ParentFinance {
   constructor(app) {
@@ -181,9 +182,9 @@ export class ParentFinance {
   }
 
   renderLoading() {
-    const backLink = this.app.userRole === "admin" || this.app.userRole === "animation"
-      ? `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
-      : `<a href="/parent-dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
+    const backLink = isParent()
+      ? `<a href="/parent-dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
+      : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
 
     const content = `
       <div class="parent-finance-page">
@@ -200,9 +201,9 @@ export class ParentFinance {
   }
 
   render() {
-    const backLink = this.app.userRole === "admin" || this.app.userRole === "animation"
-      ? `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
-      : `<a href="/parent-dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
+    const backLink = isParent()
+      ? `<a href="/parent-dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
+      : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
 
     const content = `
       <section class="parent-finance-page">

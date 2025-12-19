@@ -1,6 +1,12 @@
 {
   "Add": "Menambahkan",
   "Delete": "Menghapus",
+  "district": "Administrator Distrik",
+  "unitadmin": "Administrator Unit",
+  "finance": "Keuangan",
+  "equipment": "Peralatan",
+  "demoadmin": "Admin Demo",
+  "demoparent": "Orang Tua Demo",
   "District": "Daerah",
   "Friday": "Jumat",
   "Location": "Lokasi",

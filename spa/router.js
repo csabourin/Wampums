@@ -5,6 +5,34 @@ import { Dashboard } from "./dashboard.js";
 import { Login } from "./login.js";
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
+import {
+  canApproveBadges,
+  canCreateOrganization,
+  canManageActivities,
+  canManageAttendance,
+  canManageBudget,
+  canManageFinance,
+  canManageFundraisers,
+  canManageInventory,
+  canManagePoints,
+  canManageRoles,
+  canSendCommunications,
+  canViewActivities,
+  canViewAttendance,
+  canViewBadges,
+  canViewBudget,
+  canViewCarpools,
+  canViewFinance,
+  canViewFundraisers,
+  canViewGroups,
+  canViewInventory,
+  canViewParticipants,
+  canViewReports,
+  canViewUsers,
+  hasAnyRole,
+  hasRole,
+  isParent
+} from "./utils/PermissionUtils.js";
 
 // Lazy-loaded modules - loaded on demand for better performance
 // These will be dynamically imported when the route is accessed
@@ -153,8 +181,17 @@ export class Router {
     this.app.isLoggedIn = session.isLoggedIn;
     this.app.userRole = session.userRole;
     this.app.userFullName = session.userFullName;
+    this.app.userRoles = session.userRoles;
+    this.app.userPermissions = session.userPermissions;
 
     try {
+      const guard = (condition) => {
+        if (!condition) {
+          this.loadNotAuthorizedPage();
+          return false;
+        }
+        return true;
+      };
       // Allow access to login, register, permission slip signing, and index pages without being logged in
       if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign"].includes(routeName)) {
           if (path !== "/login") {
@@ -169,7 +206,7 @@ export class Router {
 
       switch (routeName) {
         case "dashboard":
-          if (this.app.userRole === "parent") {
+          if (isParent()) {
             await this.loadParentDashboard();
           } else {
             await this.loadDashboard();
@@ -181,113 +218,101 @@ export class Router {
           await report.init();
           break;
           case "admin":
-          if (this.app.userRole !== "admin") {
-            this.loadNotAuthorizedPage();
-          } else {
-            await this.loadAdminPage();
+          if (!guard(hasAnyRole('district', 'unitadmin', 'demoadmin'))) {
+            break;
           }
+          await this.loadAdminPage();
           break;
         case "fundraisers":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation"){
-            this.loadNotAuthorizedPage();
-          } else {
-            await this.loadFundraisersPage();
+          if (!guard(canViewFundraisers() || canManageFundraisers() || canViewFinance())) {
+            break;
           }
+          await this.loadFundraisersPage();
           break;
         case "finance":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const Finance = await this.loadModule('Finance');
-            const finance = new Finance(this.app);
-            await finance.init();
+          if (!guard(canViewFinance())) {
+            break;
           }
+          const Finance = await this.loadModule('Finance');
+          const finance = new Finance(this.app);
+          await finance.init();
           break;
         case "budgets":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const Budgets = await this.loadModule('Budgets');
-            const budgets = new Budgets(this.app);
-            await budgets.init();
+          if (!guard(canViewBudget() || canManageBudget() || canManageFinance())) {
+            break;
           }
+          const Budgets = await this.loadModule('Budgets');
+          const budgets = new Budgets(this.app);
+          await budgets.init();
           break;
         case "externalRevenue":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const ExternalRevenue = await this.loadModule('ExternalRevenue');
-            const externalRevenue = new ExternalRevenue(this.app);
-            await externalRevenue.init();
+          if (!guard(canManageFinance() || canViewFinance())) {
+            break;
           }
+          const ExternalRevenue = await this.loadModule('ExternalRevenue');
+          const externalRevenue = new ExternalRevenue(this.app);
+          await externalRevenue.init();
           break;
         case "expenses":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const Expenses = await this.loadModule('Expenses');
-            const expenses = new Expenses(this.app);
-            await expenses.init();
+          if (!guard(canManageFinance() || canViewFinance())) {
+            break;
           }
+          const Expenses = await this.loadModule('Expenses');
+          const expenses = new Expenses(this.app);
+          await expenses.init();
           break;
         case "revenueDashboard":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const RevenueDashboard = await this.loadModule('RevenueDashboard');
-            const revenueDashboard = new RevenueDashboard(this.app);
-            await revenueDashboard.init();
+          if (!guard(canViewFinance() || canViewFundraisers() || canViewBudget())) {
+            break;
           }
-          break;
-        case "resourceDashboard":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const ResourceDashboard = await this.loadModule('ResourceDashboard');
-            const resourceDashboard = new ResourceDashboard(this.app);
-            await resourceDashboard.init();
+          const RevenueDashboard = await this.loadModule('RevenueDashboard');
+        const revenueDashboard = new RevenueDashboard(this.app);
+        await revenueDashboard.init();
+        break;
+      case "resourceDashboard":
+          if (!guard(canViewInventory())) {
+            break;
           }
+          const ResourceDashboard = await this.loadModule('ResourceDashboard');
+          const resourceDashboard = new ResourceDashboard(this.app);
+          await resourceDashboard.init();
           break;
         case "inventory":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const Inventory = await this.loadModule('Inventory');
-            const inventory = new Inventory(this.app);
-            await inventory.init();
+          if (!guard(canViewInventory())) {
+            break;
           }
+          const Inventory = await this.loadModule('Inventory');
+          const inventory = new Inventory(this.app);
+          await inventory.init();
           break;
         case "medicationManagement":
         case "medicationPlanning":
         case "medicationDispensing":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const MedicationManagement = await this.loadModule('MedicationManagement');
-            const medicationManagement = new MedicationManagement(this.app, {
-              view: routeName === "medicationDispensing" ? "dispensing" : "planning",
-              enableAlerts: routeName === "medicationDispensing"
-            });
-            await medicationManagement.init();
+          if (!guard(canViewAttendance() || canViewParticipants())) {
+            break;
           }
+          const MedicationManagement = await this.loadModule('MedicationManagement');
+          const medicationManagement = new MedicationManagement(this.app, {
+            view: routeName === "medicationDispensing" ? "dispensing" : "planning",
+            enableAlerts: routeName === "medicationDispensing"
+          });
+          await medicationManagement.init();
           break;
         case "materialManagement":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const MaterialManagement = await this.loadModule('MaterialManagement');
-            const materialManagement = new MaterialManagement(this.app);
-            await materialManagement.init();
+          if (!guard(canManageInventory() || canViewInventory())) {
+            break;
           }
+          const MaterialManagement = await this.loadModule('MaterialManagement');
+          const materialManagement = new MaterialManagement(this.app);
+          await materialManagement.init();
           break;
         case "permissionSlipDashboard":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation" && this.app.userRole !== "leader") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const PermissionSlipDashboard = await this.loadModule('PermissionSlipDashboard');
-            const permissionSlipDashboard = new PermissionSlipDashboard(this.app);
-            await permissionSlipDashboard.init();
+          if (!guard(canViewParticipants())) {
+            break;
           }
+          const PermissionSlipDashboard = await this.loadModule('PermissionSlipDashboard');
+          const permissionSlipDashboard = new PermissionSlipDashboard(this.app);
+          await permissionSlipDashboard.init();
           break;
         case "permissionSlipSign":
           // Public route - allow anyone to sign permission slips via email link
@@ -297,36 +322,36 @@ export class Router {
           await permissionSlipSign.init();
           break;
         case "calendars":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation"){
-            this.loadNotAuthorizedPage();
-          } else {
-            await this.loadCalendarsPage(param);
+          if (!guard(canViewFundraisers() || canManageFundraisers())) {
+            break;
           }
+          await this.loadCalendarsPage(param);
           break;
           case "createOrganization":
-          if (this.app.userRole !== "admin") {
-              this.loadNotAuthorizedPage();
-          } else {
-              const CreateOrganization = await this.loadModule('CreateOrganization');
-              const createOrganization = new CreateOrganization(this.app);
-              await createOrganization.init();
+          if (!guard(canCreateOrganization() || hasRole('district'))) {
+              break;
           }
+          const CreateOrganization = await this.loadModule('CreateOrganization');
+          const createOrganization = new CreateOrganization(this.app);
+          await createOrganization.init();
           break;
         case "parentDashboard":
+          if (!guard(isParent())) {
+            break;
+          }
           await this.loadParentDashboard();
           break;
         case "parentFinance":
-          if (this.app.userRole !== "parent") {
-            this.loadNotAuthorizedPage();
-          } else {
-            await this.loadParentFinance();
+          if (!guard(isParent())) {
+            break;
           }
+          await this.loadParentFinance();
           break;
         case "login":
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
             this.route(
-              this.app.userRole === "parent"
+              isParent()
                 ? "/parent-dashboard"
                 : "/dashboard"
             );
@@ -346,48 +371,93 @@ export class Router {
           await this.loadResetPasswordPage();
           break;
         case "attendance":
+          if (!guard(canViewAttendance())) {
+            break;
+          }
           await this.loadAttendance();
           break;
           case "UpcomingMeeting":
+          if (!guard(canViewActivities() || canViewParticipants())) {
+            break;
+          }
           await this.loadUpcomingMeeting();
           break;
           case "formulaireInscription":
+          if (!guard(isParent() || canViewParticipants())) {
+            break;
+          }
           await this.loadFormulaireInscription(param);
           break;
           case "mailingList":
+          if (!guard(canSendCommunications())) {
+            break;
+          }
           await this.loadMailingList();
           break;
         case "managePoints":
+          if (!guard(canManagePoints())) {
+            break;
+          }
           await this.loadManagePoints();
           break;
         case "timeSinceRegistration":
+          if (!guard(canViewParticipants())) {
+            break;
+          }
           await this.loadTimeSinceRegistration();
           break;
         case "manageHonors":
+          if (!guard(canManagePoints())) {
+            break;
+          }
           await this.loadManageHonors();
           break;
         case "manageParticipants":
+          if (!guard(canViewParticipants())) {
+            break;
+          }
           await this.loadManageParticipants();
           break;
         case "manageUsersParticipants":
+          if (!guard(canViewUsers())) {
+            break;
+          }
           await this.loadManageUsersParticipants();
           break;
         case "manageGroups":
+          if (!guard(canViewGroups())) {
+            break;
+          }
           await this.loadManageGroups();
           break;
         case "viewParticipantDocuments":
+          if (!guard(canViewParticipants())) {
+            break;
+          }
           await this.loadViewParticipantDocuments();
           break;
         case "parentContactList":
+          if (!guard(canSendCommunications() || canViewParticipants())) {
+            break;
+          }
           await this.loadParentContactList();
           break;
           case 'reports':
+          if (!guard(canViewReports())) {
+            break;
+          }
           await this.loadReports();
           break;
         case "approveBadges":
+          if (!guard(canApproveBadges())) {
+            break;
+          }
           await this.loadApproveBadges();
           break;
         case "badgeDashboard":
+          if (!guard(canViewBadges() || canApproveBadges())) {
+            break;
+          }
           await this.loadBadgeDashboard();
           break;
         case "ficheSante":
@@ -406,25 +476,25 @@ export class Router {
           await this.loadAccountInfo();
           break;
         case "formBuilder":
-          if (this.app.userRole !== "admin") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const FormBuilder = await this.loadModule('FormBuilder');
-            const formBuilder = new FormBuilder(this.app);
-            await formBuilder.init();
+          if (!guard(hasAnyRole('district', 'unitadmin'))) {
+            break;
           }
+          const FormBuilder = await this.loadModule('FormBuilder');
+          const formBuilder = new FormBuilder(this.app);
+          await formBuilder.init();
           break;
         case "activities":
-          if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
-            this.loadNotAuthorizedPage();
-          } else {
-            const Activities = await this.loadModule('Activities');
-            const activities = new Activities(this.app);
-            await activities.init();
+          if (!guard(canViewActivities() || canManageActivities())) {
+            break;
           }
+          const Activities = await this.loadModule('Activities');
+          const activities = new Activities(this.app);
+          await activities.init();
           break;
         case "carpool":
-          // Accessible by all logged-in users (animation and parents)
+          if (!guard(isParent() || canViewCarpools())) {
+            break;
+          }
           const CarpoolDashboard = await this.loadModule('CarpoolDashboard');
           const carpoolDashboard = new CarpoolDashboard(this.app, param);
           await carpoolDashboard.init();
@@ -432,6 +502,9 @@ export class Router {
         case "roleManagement":
           // Only accessible by users with roles.view permission (district/unitadmin)
           // Permission check is done within the RoleManagement component
+          if (!guard(canManageRoles() || hasAnyRole('district', 'unitadmin'))) {
+            break;
+          }
           const RoleManagement = await this.loadModule('RoleManagement');
           const roleManagement = new RoleManagement(this.app);
           await roleManagement.init();
@@ -440,7 +513,7 @@ export class Router {
           if (this.app.isLoggedIn) {
             // Redirect to appropriate dashboard if already logged in
             this.route(
-              this.app.userRole === "parent"
+              isParent()
                 ? "/parent-dashboard"
                 : "/dashboard"
             );
@@ -455,9 +528,10 @@ export class Router {
 
       // Load activity widget only on dashboard/activity-related routes for better performance
       const activityRoutes = ['dashboard', 'activities', 'carpool'];
+      const canShowActivityWidget = (canViewActivities() || canManageActivities() || canManageAttendance()) && !isParent();
       if (
         this.app.isLoggedIn &&
-        (this.app.userRole === 'admin' || this.app.userRole === 'animation') &&
+        canShowActivityWidget &&
         activityRoutes.includes(routeName) &&
         !this.activityWidgetInitialized  // Check if the widget is already initialized
       ) {
@@ -514,10 +588,6 @@ export class Router {
     const Admin = await this.loadModule('Admin');
     const admin = new Admin(this.app);
     await admin.init();
-  }
-
-  loadNotAuthorizedPage() {
-    document.getElementById("app").innerHTML = `<h1>${translate("error_403_forbidden")}</h1>`;
   }
 
   // Helper method to lazy-load and cache modules
@@ -623,10 +693,6 @@ export class Router {
   }
 
   async loadManageParticipants() {
-    if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
-      this.route("/");
-      return;
-    }
     const ManageParticipants = await this.loadModule('ManageParticipants');
     const manageParticipants = new ManageParticipants(this.app);
     await manageParticipants.init();
@@ -670,11 +736,6 @@ export class Router {
   }
 
   async loadBadgeDashboard() {
-    if (!['admin', 'animation', 'leader'].includes(this.app.userRole)) {
-      this.loadNotAuthorizedPage();
-      return;
-    }
-
     const BadgeDashboard = await this.loadModule('BadgeDashboard');
     const badgeDashboard = new BadgeDashboard(this.app);
     await badgeDashboard.init();

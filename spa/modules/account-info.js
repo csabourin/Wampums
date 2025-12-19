@@ -12,6 +12,7 @@ import { debugLog, debugError } from "../utils/DebugUtils.js";
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { WhatsAppConnectionModule } from "./whatsapp-connection.js";
+import { canSendCommunications, isParent } from "../utils/PermissionUtils.js";
 
 /**
  * Account Information Management Class
@@ -35,8 +36,8 @@ export class AccountInfoModule {
   async init() {
     debugLog("Initializing AccountInfoModule");
     try {
-      this.isParent = this.app?.userRole === "parent";
-      this.canManageWhatsApp = ["admin", "animation"].includes(this.app?.userRole);
+      this.isParent = isParent();
+      this.canManageWhatsApp = canSendCommunications();
 
       await this.loadUserData();
       if (this.isParent) {

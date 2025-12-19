@@ -5,15 +5,16 @@ import {
         getCurrentOrganizationId,
         getOrganizationFormFormats,
 } from "./ajax-functions.js";
+import { canCreateOrganization, hasRole } from "./utils/PermissionUtils.js";
 
 export class CreateOrganization {
 		constructor(app) {
 				this.app = app;
-				this.formHandler = null;
+                this.formHandler = null;
 		}
 
                 async init() {
-                                if (this.app.userRole !== "admin") {
+                                if (!canCreateOrganization() && !hasRole('district')) {
                                                 this.app.router.navigate("/dashboard");
                                                 return;
                                 }

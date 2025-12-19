@@ -2,6 +2,7 @@ import { getFundraisers, createFundraiser, updateFundraiser, archiveFundraiser }
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { clearFundraiserRelatedCaches } from './indexedDB.js';
+import { canManageFundraisers } from "./utils/PermissionUtils.js";
 
 export class Fundraisers {
         constructor(app) {
@@ -56,7 +57,7 @@ export class Fundraisers {
 	}
 
 	renderAddButton() {
-		if (this.app.userRole === 'admin' || this.app.userRole === 'animation') {
+		if (canManageFundraisers()) {
 			return `
 				<button id="add-fundraiser-btn" class="primary-btn" aria-label="${translate("add_fundraiser")}">
 					${translate("add_fundraiser")}
@@ -86,7 +87,7 @@ export class Fundraisers {
 			`<span class="status-badge active" aria-label="${translate("active")}">${translate("active")}</span>` :
 			`<span class="status-badge inactive" aria-label="${translate("inactive")}">${translate("inactive")}</span>`;
 
-		const canEdit = this.app.userRole === 'admin' || this.app.userRole === 'animation';
+		const canEdit = canManageFundraisers();
 
 		return `
 			<article class="fundraiser-card" role="listitem">
@@ -141,7 +142,7 @@ export class Fundraisers {
 	renderArchivedFundraiserCard(fundraiser) {
 		const startDate = new Date(fundraiser.start_date).toLocaleDateString();
 		const endDate = new Date(fundraiser.end_date).toLocaleDateString();
-		const canEdit = this.app.userRole === 'admin' || this.app.userRole === 'animation';
+		const canEdit = canManageFundraisers();
 
 		return `
 			<article class="fundraiser-card archived" role="listitem">

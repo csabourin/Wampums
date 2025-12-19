@@ -2,6 +2,7 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { registerForOrganization, getUserChildren } from "./ajax-functions.js";
+import { isParent } from "./utils/PermissionUtils.js";
 
 export class RegisterOrganization {
 	constructor(app) {
@@ -10,7 +11,7 @@ export class RegisterOrganization {
 	}
 
 	async init() {
-		if (this.app.userRole === 'parent') {
+		if (isParent()) {
 			this.children = await getUserChildren(this.app.userId);
 		}
 		this.render();
@@ -24,7 +25,10 @@ export class RegisterOrganization {
 				<label for="role">${translate("select_role")}:</label>
 				<select id="role" name="role" required>
 					<option value="parent">${translate("parent")}</option>
-					<option value="animation">${translate("animation")}</option>
+					<option value="leader">${translate("leader")}</option>
+					<option value="finance">${translate("finance")}</option>
+					<option value="equipment">${translate("equipment") || translate("inventory")}</option>
+					<option value="administration">${translate("administration")}</option>
 				</select>
 				<label for="registration_password">${translate("registration_password")}:</label>
 				<input type="password" id="registration_password" name="registration_password" required>

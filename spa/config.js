@@ -140,9 +140,15 @@ export const CONFIG = {
      * User Roles
      */
     ROLES: {
-        ADMIN: "admin",
-        ANIMATION: "animation",
+        DISTRICT: "district",
+        UNIT_ADMIN: "unitadmin",
+        LEADER: "leader",
         PARENT: "parent",
+        FINANCE: "finance",
+        EQUIPMENT: "equipment",
+        ADMINISTRATION: "administration",
+        DEMO_ADMIN: "demoadmin",
+        DEMO_PARENT: "demoparent",
     },
 
     /**

@@ -14,6 +14,7 @@ import {
   clearBadgeRelatedCaches,
 } from "./indexedDB.js";
 import { debugError } from "./utils/DebugUtils.js";
+import { canApproveBadges, canManageBadges, canViewBadges } from "./utils/PermissionUtils.js";
 
 export class BadgeDashboard {
   constructor(app) {
@@ -46,7 +47,7 @@ export class BadgeDashboard {
   }
 
   canAccess() {
-    return ["admin", "animation", "leader"].includes(this.app.userRole);
+    return canViewBadges() || canApproveBadges() || canManageBadges();
   }
 
   async hydrateFromCache() {

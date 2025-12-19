@@ -2,6 +2,7 @@
 import {translate} from "./app.js";
 import { getReunionPreparation } from "./ajax-functions.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { canManageActivities, canManageAttendance, canViewActivities } from "./utils/PermissionUtils.js";
 
 export class ActivityWidget {
 	constructor(app) {
@@ -46,7 +47,7 @@ export class ActivityWidget {
 
 
 	isAuthorized() {
-		return this.app.userRole === 'admin' || this.app.userRole === 'animation';
+		return canViewActivities() || canManageActivities() || canManageAttendance();
 	}
 
 	async fetchCurrentActivities() {

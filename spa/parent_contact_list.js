@@ -1,6 +1,7 @@
 import { getParentContactList } from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
+import { canSendCommunications, canViewParticipants } from "./utils/PermissionUtils.js";
 
 export class ParentContactList {
   constructor(app) {
@@ -10,7 +11,7 @@ export class ParentContactList {
   }
 
   async init() {
-    if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
+    if (!canSendCommunications() && !canViewParticipants()) {
       this.app.router.navigate("/");
       return;
     }

@@ -1,5 +1,5 @@
 // carpool_dashboard.js
-// Carpool coordination dashboard for parents and animation staff
+// Carpool coordination dashboard for parents and staff with carpool permissions
 import { translate } from './app.js';
 import {
   getActivity,
@@ -14,6 +14,7 @@ import {
   removeAssignment,
   getUnassignedParticipants
 } from './api/api-carpools.js';
+import { canManageCarpools, canViewCarpools, isParent } from './utils/PermissionUtils.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -23,11 +24,16 @@ export class CarpoolDashboard {
     this.carpoolOffers = [];
     this.participants = [];
     this.unassignedParticipants = [];
-    this.userRole = localStorage.getItem('userRole');
-    this.isStaff = ['animation', 'admin'].includes(this.userRole);
+    this.isParentUser = isParent();
+    this.isStaff = !this.isParentUser && canManageCarpools();
+    this.hasCarpoolAccess = canViewCarpools() || canManageCarpools();
   }
 
   async init() {
+    if (!this.hasCarpoolAccess) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
     await this.loadData();
     this.render();
     this.attachEventListeners();
@@ -420,7 +426,7 @@ export class CarpoolDashboard {
       });
     });
 
-    // Quick assign buttons (for animation staff)
+    // Quick assign buttons (for staff users)
     document.querySelectorAll('.quick-assign-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const participantId = parseInt(e.target.dataset.participantId);

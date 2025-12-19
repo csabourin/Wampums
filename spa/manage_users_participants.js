@@ -7,6 +7,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { canViewUsers } from "./utils/PermissionUtils.js";
 
 export class ManageUsersParticipants {
   constructor(app) {
@@ -16,7 +17,7 @@ export class ManageUsersParticipants {
   }
 
   async init() {
-    if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
+    if (!canViewUsers()) {
       this.app.router.navigate("/");
       return;
     }

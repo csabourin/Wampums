@@ -2,6 +2,7 @@ import { getParticipantsWithDocuments, getOrganizationFormFormats, getFormSubmis
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
+import { canViewParticipants } from "./utils/PermissionUtils.js";
 
 export class ViewParticipantDocuments {
   constructor(app) {
@@ -12,7 +13,7 @@ export class ViewParticipantDocuments {
   }
 
   async init() {
-    if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
+    if (!canViewParticipants()) {
       this.app.router.navigate("/");
       return;
     }
