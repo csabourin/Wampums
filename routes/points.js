@@ -10,6 +10,10 @@
 const express = require('express');
 const router = express.Router();
 
+// Import auth middleware
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/response');
+
 // Import utilities and middleware
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { success, error: errorResponse } = require('../middleware/response');
@@ -34,50 +38,39 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Points data retrieved
    */
-  router.get('/points-data', async (req, res) => {
-    try {
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+  router.get('/points-data', authenticate, requirePermission('points.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      // Fetch all groups with total points
-      const groupsResult = await pool.query(
-        `SELECT g.id, g.name, COALESCE(SUM(p.value), 0) AS total_points
-         FROM groups g
-         LEFT JOIN points p ON g.id = p.group_id AND p.organization_id = $1
-         WHERE g.organization_id = $1
-         GROUP BY g.id, g.name
-         ORDER BY g.name`,
-        [organizationId]
-      );
+    // Fetch all groups with total points
+    const groupsResult = await pool.query(
+      `SELECT g.id, g.name, COALESCE(SUM(p.value), 0) AS total_points
+       FROM groups g
+       LEFT JOIN points p ON g.id = p.group_id AND p.organization_id = $1
+       WHERE g.organization_id = $1
+       GROUP BY g.id, g.name
+       ORDER BY g.name`,
+      [organizationId]
+    );
 
-      // Fetch all participants with their associated group and total points
-      const participantsResult = await pool.query(
-        `SELECT part.id, part.first_name, part.last_name, pg.group_id, COALESCE(SUM(p.value), 0) AS total_points
-         FROM participants part
-         JOIN participant_organizations po ON part.id = po.participant_id
-         LEFT JOIN participant_groups pg ON part.id = pg.participant_id AND pg.organization_id = $1
-         LEFT JOIN points p ON part.id = p.participant_id AND p.organization_id = $1
-         WHERE po.organization_id = $1
-         GROUP BY part.id, part.first_name, part.last_name, pg.group_id
-         ORDER BY part.first_name`,
-        [organizationId]
-      );
+    // Fetch all participants with their associated group and total points
+    const participantsResult = await pool.query(
+      `SELECT part.id, part.first_name, part.last_name, pg.group_id, COALESCE(SUM(p.value), 0) AS total_points
+       FROM participants part
+       JOIN participant_organizations po ON part.id = po.participant_id
+       LEFT JOIN participant_groups pg ON part.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN points p ON part.id = p.participant_id AND p.organization_id = $1
+       WHERE po.organization_id = $1
+       GROUP BY part.id, part.first_name, part.last_name, pg.group_id
+       ORDER BY part.first_name`,
+      [organizationId]
+    );
 
-      res.json({
-        success: true,
-        groups: groupsResult.rows,
-        participants: participantsResult.rows
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching points data:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  });
+    res.json({
+      success: true,
+      groups: groupsResult.rows,
+      participants: participantsResult.rows
+    });
+  }));
 
   /**
    * @swagger
