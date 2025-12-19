@@ -10,6 +10,10 @@
 const express = require('express');
 const router = express.Router();
 
+// Import auth middleware
+const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/response');
+
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
 
@@ -43,38 +47,23 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/users', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/users', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+    const organizationId = req.query.organization_id || await getOrganizationId(req, pool);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.is_verified, uo.role
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1
+       ORDER BY u.full_name`,
+      [organizationId]
+    );
 
-      const organizationId = req.query.organization_id || await getCurrentOrganizationId(req, pool, logger);
-
-      const result = await pool.query(
-        `SELECT u.id, u.email, u.full_name, u.is_verified, uo.role
-         FROM users u
-         JOIN user_organizations uo ON u.id = uo.user_id
-         WHERE uo.organization_id = $1
-         ORDER BY u.full_name`,
-        [organizationId]
-      );
-
-      res.json({
-        success: true,
-        users: result.rows
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching users:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    res.json({
+      success: true,
+      users: result.rows
+    });
+  }));
 
   /**
    * @swagger
@@ -91,41 +80,20 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/pending-users', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/pending-users', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.full_name, u.is_verified, u.created_at, uo.role
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1 AND u.is_verified = false
+       ORDER BY u.created_at DESC`,
+      [organizationId]
+    );
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user has admin role in this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin']);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      const result = await pool.query(
-        `SELECT u.id, u.email, u.full_name, u.is_verified, u.created_at, uo.role
-         FROM users u
-         JOIN user_organizations uo ON u.id = uo.user_id
-         WHERE uo.organization_id = $1 AND u.is_verified = false
-         ORDER BY u.created_at DESC`,
-        [organizationId]
-      );
-
-      res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching pending users:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    res.json({ success: true, data: result.rows });
+  }));
 
   /**
    * @swagger
@@ -140,38 +108,23 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of animators
    */
-  router.get('/animateurs', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/animateurs', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+    const result = await pool.query(
+      `SELECT u.id, u.full_name
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1 AND uo.role IN ('admin', 'animation')
+       ORDER BY u.full_name`,
+      [organizationId]
+    );
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const result = await pool.query(
-        `SELECT u.id, u.full_name
-         FROM users u
-         JOIN user_organizations uo ON u.id = uo.user_id
-         WHERE uo.organization_id = $1 AND uo.role IN ('admin', 'animation')
-         ORDER BY u.full_name`,
-        [organizationId]
-      );
-
-      res.json({
-        success: true,
-        animateurs: result.rows
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching animateurs:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    res.json({
+      success: true,
+      animateurs: result.rows
+    });
+  }));
 
   /**
    * @swagger
@@ -186,38 +139,23 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of parent users
    */
-  router.get('/parent-users', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/parent-users', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.full_name
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE uo.organization_id = $1 AND uo.role = 'parent'
+       ORDER BY u.full_name`,
+      [organizationId]
+    );
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const result = await pool.query(
-        `SELECT u.id, u.email, u.full_name
-         FROM users u
-         JOIN user_organizations uo ON u.id = uo.user_id
-         WHERE uo.organization_id = $1 AND uo.role = 'parent'
-         ORDER BY u.full_name`,
-        [organizationId]
-      );
-
-      res.json({
-        success: true,
-        users: result.rows
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching parent users:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    res.json({
+      success: true,
+      users: result.rows
+    });
+  }));
 
   /**
    * @swagger
@@ -232,39 +170,24 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: User's children
    */
-  router.get('/user-children', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/user-children', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+              g.name as group_name, pg.group_id
+       FROM participants p
+       JOIN user_participants up ON p.id = up.participant_id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+       LEFT JOIN groups g ON pg.group_id = g.id
+       WHERE up.user_id = $2 AND po.organization_id = $1
+       ORDER BY p.first_name, p.last_name`,
+      [organizationId, req.user.id]
+    );
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                g.name as group_name, pg.group_id
-         FROM participants p
-         JOIN user_participants up ON p.id = up.participant_id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-         LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE up.user_id = $2 AND po.organization_id = $1
-         ORDER BY p.first_name, p.last_name`,
-        [organizationId, decoded.user_id]
-      );
-
-      res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching user children:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    res.json({ success: true, data: result.rows });
+  }));
 
   /**
    * @swagger
@@ -292,57 +215,35 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.post('/approve-user', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.post('/approve-user', authenticate, blockDemoRoles, requirePermission('users.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { user_id } = req.body;
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user has admin role in this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin']);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      const { user_id } = req.body;
-
-      if (!user_id) {
-        return res.status(400).json({ success: false, message: 'User ID is required' });
-      }
-
-      // Verify target user exists and belongs to this organization
-      const userCheck = await pool.query(
-        `SELECT u.id, u.email, uo.role FROM users u
-         JOIN user_organizations uo ON u.id = uo.user_id
-         WHERE u.id = $1 AND uo.organization_id = $2`,
-        [user_id, organizationId]
-      );
-
-      if (userCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'User not found in this organization' });
-      }
-
-      // Update user verification status
-      await pool.query(
-        `UPDATE users SET is_verified = true WHERE id = $1`,
-        [user_id]
-      );
-
-      console.log(`[user] User ${user_id} approved by admin ${decoded.user_id}`);
-      res.json({ success: true, message: 'User approved successfully' });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error approving user:', error);
-      res.status(500).json({ success: false, message: error.message });
+    if (!user_id) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
     }
-  });
+
+    // Verify target user exists and belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT u.id, u.email, uo.role FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       WHERE u.id = $1 AND uo.organization_id = $2`,
+      [user_id, organizationId]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+
+    // Update user verification status
+    await pool.query(
+      `UPDATE users SET is_verified = true WHERE id = $1`,
+      [user_id]
+    );
+
+    logger.info(`User ${user_id} approved by admin ${req.user.id}`);
+    res.json({ success: true, message: 'User approved successfully' });
+  }));
 
   /**
    * @swagger
