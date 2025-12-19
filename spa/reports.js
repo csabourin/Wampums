@@ -26,11 +26,12 @@ import {
 } from "./ajax-functions.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
+import { canViewReports } from "./utils/PermissionUtils.js";
 
 const REPORT_CURRENCY = "CAD";
 
 export class Reports {
-	constructor(app) {
+  constructor(app) {
 		this.app = app;
 		this.participantList = [];
 		this.selectedParticipantId = null;
@@ -38,7 +39,7 @@ export class Reports {
 	}
 
 	async init() {
-		if (this.app.userRole !== "animation" && this.app.userRole !== "admin") {
+		if (!canViewReports()) {
 			this.app.router.navigate("/");
 			return;
 		}

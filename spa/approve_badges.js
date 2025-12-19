@@ -2,6 +2,7 @@ import { getPendingBadges, updateBadgeStatus } from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { clearBadgeRelatedCaches } from "./indexedDB.js";
+import { canApproveBadges } from "./utils/PermissionUtils.js";
 
 export class ApproveBadges {
   constructor(app) {
@@ -10,7 +11,7 @@ export class ApproveBadges {
   }
 
   async init() {
-    if (this.app.userRole === "parent") {
+    if (!canApproveBadges()) {
       this.app.router.navigate("/dashboard");
       return;
     }

@@ -208,6 +208,258 @@ export function canCreateOrganization() {
 }
 
 /**
+ * Determine if the current user can view finance data
+ *
+ * @returns {boolean} True when finance view permission is granted
+ */
+export function canViewFinance() {
+  return hasPermission('finance.view');
+}
+
+/**
+ * Determine if the current user can manage finance data
+ *
+ * @returns {boolean} True when finance manage permission is granted
+ */
+export function canManageFinance() {
+  return hasPermission('finance.manage');
+}
+
+/**
+ * Determine if the current user can approve finance actions
+ *
+ * @returns {boolean} True when finance approve permission is granted
+ */
+export function canApproveFinance() {
+  return hasPermission('finance.approve') || canManageFinance();
+}
+
+/**
+ * Determine if the current user can view budget data
+ *
+ * @returns {boolean} True when budget view permission is granted
+ */
+export function canViewBudget() {
+  return hasPermission('budget.view');
+}
+
+/**
+ * Determine if the current user can manage budget data
+ *
+ * @returns {boolean} True when budget manage permission is granted
+ */
+export function canManageBudget() {
+  return hasPermission('budget.manage');
+}
+
+/**
+ * Determine if the current user can view fundraiser information
+ *
+ * @returns {boolean} True when fundraiser view permission is granted
+ */
+export function canViewFundraisers() {
+  return hasPermission('fundraisers.view');
+}
+
+/**
+ * Determine if the current user can create or edit fundraisers
+ *
+ * @returns {boolean} True when any fundraiser management permission is granted
+ */
+export function canManageFundraisers() {
+  return hasAnyPermission('fundraisers.create', 'fundraisers.edit', 'fundraisers.delete');
+}
+
+/**
+ * Determine if the current user can view inventory data
+ *
+ * @returns {boolean} True when any inventory access permission is granted
+ */
+export function canViewInventory() {
+  return hasAnyPermission('inventory.view', 'inventory.manage', 'inventory.reserve', 'inventory.value');
+}
+
+/**
+ * Determine if the current user can manage inventory items
+ *
+ * @returns {boolean} True when inventory manage permission is granted
+ */
+export function canManageInventory() {
+  return hasPermission('inventory.manage');
+}
+
+/**
+ * Determine if the current user can view badge data
+ *
+ * @returns {boolean} True when badges view permission is granted
+ */
+export function canViewBadges() {
+  return hasPermission('badges.view');
+}
+
+/**
+ * Determine if the current user can approve badge completions
+ *
+ * @returns {boolean} True when badges approve permission is granted
+ */
+export function canApproveBadges() {
+  return hasPermission('badges.approve');
+}
+
+/**
+ * Determine if the current user can manage badge definitions
+ *
+ * @returns {boolean} True when badges manage permission is granted
+ */
+export function canManageBadges() {
+  return hasPermission('badges.manage');
+}
+
+/**
+ * Determine if the current user can view participant data
+ *
+ * @returns {boolean} True when participants view permission is granted
+ */
+export function canViewParticipants() {
+  return hasPermission('participants.view');
+}
+
+/**
+ * Determine if the current user can edit participant data
+ *
+ * @returns {boolean} True when any participant mutation permission is granted
+ */
+export function canManageParticipants() {
+  return hasAnyPermission('participants.edit', 'participants.create', 'participants.delete', 'participants.transfer');
+}
+
+/**
+ * Determine if the current user can view user accounts
+ *
+ * @returns {boolean} True when users view permission is granted
+ */
+export function canViewUsers() {
+  return hasPermission('users.view');
+}
+
+/**
+ * Determine if the current user can manage user accounts
+ *
+ * @returns {boolean} True when any user management permission is granted
+ */
+export function canManageUsers() {
+  return hasAnyPermission('users.edit', 'users.delete', 'users.assign_roles', 'users.invite', 'users.assign_district');
+}
+
+/**
+ * Determine if the current user can view group data
+ *
+ * @returns {boolean} True when groups view permission is granted
+ */
+export function canViewGroups() {
+  return hasPermission('groups.view');
+}
+
+/**
+ * Determine if the current user can manage groups
+ *
+ * @returns {boolean} True when any group mutation permission is granted
+ */
+export function canManageGroups() {
+  return hasAnyPermission('groups.create', 'groups.edit', 'groups.delete');
+}
+
+/**
+ * Determine if the current user can send communications
+ *
+ * @returns {boolean} True when communications send permission is granted
+ */
+export function canSendCommunications() {
+  return hasPermission('communications.send');
+}
+
+/**
+ * Determine if the current user can view reports
+ *
+ * @returns {boolean} True when reports view permission is granted
+ */
+export function canViewReports() {
+  return hasPermission('reports.view');
+}
+
+/**
+ * Determine if the current user can view activities
+ *
+ * @returns {boolean} True when activities view permission is granted
+ */
+export function canViewActivities() {
+  return hasPermission('activities.view');
+}
+
+/**
+ * Determine if the current user can manage activities
+ *
+ * @returns {boolean} True when any activity mutation permission is granted
+ */
+export function canManageActivities() {
+  return hasAnyPermission('activities.create', 'activities.edit', 'activities.delete');
+}
+
+/**
+ * Determine if the current user can view attendance data
+ *
+ * @returns {boolean} True when attendance view or manage permission is granted
+ */
+export function canViewAttendance() {
+  return hasAnyPermission('attendance.view', 'attendance.manage');
+}
+
+/**
+ * Determine if the current user can manage attendance
+ *
+ * @returns {boolean} True when attendance manage permission is granted
+ */
+export function canManageAttendance() {
+  return hasPermission('attendance.manage');
+}
+
+/**
+ * Determine if the current user can manage points and honors
+ *
+ * @returns {boolean} True when points manage permission is granted
+ */
+export function canManagePoints() {
+  return hasPermission('points.manage');
+}
+
+/**
+ * Determine if the current user can view points and honors
+ *
+ * @returns {boolean} True when points view permission is granted
+ */
+export function canViewPoints() {
+  return hasPermission('points.view');
+}
+
+/**
+ * Determine if the current user can view carpool information
+ *
+ * @returns {boolean} True when any carpool access permission is granted
+ */
+export function canViewCarpools() {
+  return hasAnyPermission('carpools.view', 'carpools.manage');
+}
+
+/**
+ * Determine if the current user can manage carpools
+ *
+ * @returns {boolean} True when carpool manage permission is granted
+ */
+export function canManageCarpools() {
+  return hasPermission('carpools.manage');
+}
+
+/**
  * Get all user's permissions
  *
  * @returns {Array<string>} Array of permission keys

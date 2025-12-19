@@ -13,6 +13,7 @@ import { translate } from "./app.js";
 import { hexStringToUint8Array, base64UrlEncode } from './functions.js';
 import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { isParent } from "./utils/PermissionUtils.js";
 
 export class ParentDashboard {
   constructor(app) {
@@ -279,10 +280,10 @@ export class ParentDashboard {
                                                 ${translate("install_app")}
                                         </button>`; // Initially hidden
 
-                // Check if the user role is admin or animation
-                const backLink = this.app.userRole === "admin" || this.app.userRole === "animation"
-                        ? `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`
-                        : ``;
+                // Only show staff back link when accessed outside the parent context
+                const backLink = isParent()
+                        ? ``
+                        : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
 
                 // Dynamically replace the title with the organization name
                 const userName = this.app.userFullName || localStorage.getItem('userFullName') || '';

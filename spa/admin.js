@@ -14,6 +14,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { canCreateOrganization, canManageUsers, canSendCommunications } from "./utils/PermissionUtils.js";
 
 export class Admin {
         constructor(app) {
@@ -24,6 +25,10 @@ export class Admin {
         }
 
         async init() {
+                if (!canManageUsers()) {
+                        this.app.router.navigate("/dashboard");
+                        return;
+                }
                 this.currentOrganizationId =
                         (await getCurrentOrganizationId()) ||
                         this.app.organizationId ||
@@ -92,18 +97,20 @@ export class Admin {
         }
 
         render() {
+                const showNotifications = canSendCommunications();
                 const content = `
                         <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
                         <h1>${this.app.translate("admin_panel")}</h1>
                         <div id="message"></div>
 
                         <div class="admin-quick-actions" style="margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                <button id="create-organization-btn">${translate("create_new_organization")}</button>
+                                ${canCreateOrganization() ? `<button id="create-organization-btn">${translate("create_new_organization")}</button>` : ""}
                                 <a href="/form-builder" class="button-link" style="display: inline-block; padding: 0.5rem 1rem; background: #007bff; color: white; text-decoration: none; border-radius: 4px;">
                                         ${translate("form_builder_title")}
                                 </a>
                         </div>
 
+${showNotifications ? `
 <h2>${this.app.translate("send_notification")}</h2>
 <form id="notification-form">
         <label for="notification-title">${this.app.translate("title")}</label>
@@ -120,7 +127,7 @@ export class Admin {
         <button type="submit">${this.app.translate("send_notification")}</button>
 </form>
 
-<div id="notification-result"></div>
+<div id="notification-result"></div>` : ""}
 
 <h2>${this.app.translate("import_data")}</h2>
 <div class="import-section">
@@ -159,6 +166,35 @@ export class Admin {
                 document.getElementById("app").innerHTML = content;
         }
 
+        getRoleOptions() {
+                const roleLabels = {
+                        district: translate("district") || "District",
+                        unitadmin: translate("unitadmin") || translate("admin"),
+                        leader: translate("leader"),
+                        parent: translate("parent"),
+                        finance: translate("finance"),
+                        equipment: translate("equipment") || translate("inventory"),
+                        administration: translate("administration") || translate("reports"),
+                        demoadmin: translate("demoadmin") || translate("demo_admin"),
+                        demoparent: translate("demoparent") || translate("demo_parent"),
+                };
+
+                return [
+                        "district",
+                        "unitadmin",
+                        "leader",
+                        "finance",
+                        "equipment",
+                        "administration",
+                        "parent",
+                        "demoadmin",
+                        "demoparent",
+                ].map((role) => ({
+                        value: role,
+                        label: roleLabels[role] || role,
+                }));
+        }
+
         renderUsers() {
                 const users = Array.isArray(this.users)
                         ? this.users
@@ -171,7 +207,7 @@ export class Admin {
 
                 return users
                         .map((user) => {
-                                const safeFullName = escapeHTML(
+                        const safeFullName = escapeHTML(
                                         user.full_name || user.fullName || "",
                                 );
                                 const safeEmail = escapeHTML(user.email || "");
@@ -179,15 +215,19 @@ export class Admin {
                                         user.isVerified !== undefined
                                                 ? user.isVerified
                                                 : user.is_verified;
+                                const roleOptions = this.getRoleOptions();
+                                const primaryRole = Array.isArray(user.roles)
+                                        ? user.roles[0]
+                                        : user.role;
 
                                 return `
                         <tr>
                                 <td>${safeFullName} - ${safeEmail}</td>
                                 <td>
                                         <select class="role-select" data-user-id="${user.id}">
-                                                <option value="parent" ${user.role === "parent" ? "selected" : ""}>${this.app.translate("parent")}</option>
-                                                <option value="animation" ${user.role === "animation" ? "selected" : ""}>${this.app.translate("animation")}</option>
-                                                <option value="admin" ${user.role === "admin" ? "selected" : ""}>${this.app.translate("admin")}</option>
+                                                ${roleOptions.map((role) => `
+                                                        <option value="${role.value}" ${primaryRole === role.value ? "selected" : ""}>${role.label}</option>
+                                                `).join("")}
                                         </select>
                                 </td>
                                 <td>${isVerified ? "✅" : "❌"}</td>
@@ -221,11 +261,14 @@ export class Admin {
         }
 
         initEventListeners() {
-                document.getElementById(
+                const createOrganizationBtn = document.getElementById(
                         "create-organization-btn",
-                ).addEventListener("click", () => {
-                        this.app.router.navigate("/create-organization");
-                });
+                );
+                if (createOrganizationBtn) {
+                        createOrganizationBtn.addEventListener("click", () => {
+                                this.app.router.navigate("/create-organization");
+                        });
+                }
 
                 document.getElementById("users-table").addEventListener(
                         "change",
@@ -261,7 +304,9 @@ export class Admin {
                         },
                 );
 
-                this.initNotificationForm();
+                if (document.getElementById("notification-form")) {
+                        this.initNotificationForm();
+                }
                 this.initImportHandlers();
         }
 

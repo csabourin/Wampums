@@ -3,6 +3,7 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import {login, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
 import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
+import { isParent } from "./utils/PermissionUtils.js";
 
 export class Login {
   constructor(app) {
@@ -231,7 +232,7 @@ handleLoginSuccess(result) {
   debugLog("organizationId:", getStorage("organizationId"));
 
   // Redirect based on user role
-  if (userRole === "parent") {
+  if (isParent()) {
     debugLog("Redirecting to parent dashboard");
     this.app.router.route("/parent-dashboard");
   } else {

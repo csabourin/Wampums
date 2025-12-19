@@ -23,6 +23,7 @@ import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { clearFinanceRelatedCaches } from "./indexedDB.js";
 import { LoadingStateManager, CacheWithTTL, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
+import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -251,6 +252,8 @@ export class Finance {
   }
 
   render() {
+    const canEditDefinitions = canManageFinance();
+    const canSeeReports = canViewFinance();
     const content = `
       <section class="finance-page">
         <header class="finance-header">
@@ -263,8 +266,8 @@ export class Finance {
         </header>
         <div class="finance-tabs" role="tablist">
           ${this.renderTabButton("memberships", translate("finance_memberships_tab"))}
-          ${this.app.userRole === "admin" ? this.renderTabButton("definitions", translate("finance_definitions_tab")) : ""}
-          ${["admin", "animation"].includes(this.app.userRole) ? this.renderTabButton("reports", translate("financial_report")) : ""}
+          ${canEditDefinitions ? this.renderTabButton("definitions", translate("finance_definitions_tab")) : ""}
+          ${canSeeReports ? this.renderTabButton("reports", translate("financial_report")) : ""}
         </div>
         <div id="finance-content" class="finance-content" aria-live="polite">
           ${this.renderActiveTab()}
@@ -299,7 +302,7 @@ export class Finance {
   }
 
   renderDefinitionsSection() {
-    if (this.app.userRole !== "admin") {
+    if (!canManageFinance()) {
       return `<p class="finance-helper">${translate("finance_admin_only")}</p>`;
     }
 

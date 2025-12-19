@@ -3,9 +3,10 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
+import { canSendCommunications } from "./utils/PermissionUtils.js";
 
 export class MailingList {
-        constructor(app) {
+  constructor(app) {
                 this.app = app;
                 this.mailingList = {};
                 this.announcements = [];
@@ -15,7 +16,7 @@ export class MailingList {
         }
 
         async init() {
-                if (this.app.userRole !== "admin" && this.app.userRole !== "animation") {
+                if (!canSendCommunications()) {
                         this.app.router.navigate("/");
                         return;
                 }
@@ -67,8 +68,14 @@ export class MailingList {
         renderAnnouncementComposer() {
                 const roles = [
                         { key: "parent", label: translate("parents") },
-                        { key: "animation", label: translate("animation") },
-                        { key: "admin", label: translate("admins") },
+                        { key: "leader", label: translate("leader") },
+                        { key: "unitadmin", label: translate("unitadmin") || translate("admin") },
+                        { key: "district", label: translate("district") || translate("admin") },
+                        { key: "finance", label: translate("finance") },
+                        { key: "equipment", label: translate("equipment") || translate("inventory") },
+                        { key: "administration", label: translate("administration") || translate("reports") },
+                        { key: "demoparent", label: translate("demoparent") || translate("parent") },
+                        { key: "demoadmin", label: translate("demoadmin") || translate("admin") },
                 ];
 
                 const templateOptions = this.templates?.length
@@ -293,7 +300,7 @@ export class MailingList {
                                                  <button class="copy-role-emails" data-role="parent">${translate('copy_emails_for')} ${translate('parents')}</button>
                                                  </div>`;
 
-                // Render other groups (e.g., animation and admin)
+                // Render other groups (e.g., leaders, administrators, finance)
                 Object.entries(emailsByRole).forEach(([role, emails]) => {
                         if (role !== 'parent') {
                                 html += `

@@ -1,5 +1,5 @@
 // activities.js
-// Activity calendar management for animation staff
+// Activity calendar management for leaders and administrators
 import { translate } from './app.js';
 import {
   getActivities,

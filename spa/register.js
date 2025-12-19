@@ -36,7 +36,10 @@ export class Register {
                 <label for="user_type">${translate("user_type")}:</label>
                 <select id="user_type" name="user_type" required>
                     <option value="parent">${translate("parent")}</option>
-                    <option value="animation">${translate("animation")}</option>
+                    <option value="leader">${translate("leader")}</option>
+                    <option value="finance">${translate("finance")}</option>
+                    <option value="equipment">${translate("equipment") || translate("inventory")}</option>
+                    <option value="administration">${translate("administration")}</option>
                 </select>
 
                 <input type="submit" value="${translate("register")}">

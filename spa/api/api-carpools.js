@@ -92,7 +92,7 @@ export async function getMyChildrenAssignments() {
 }
 
 /**
- * Get unassigned participants for an activity (animation only)
+ * Get unassigned participants for an activity (staff only)
  * @param {number} activityId - Activity ID
  * @returns {Promise<Array>} List of unassigned participants
  */

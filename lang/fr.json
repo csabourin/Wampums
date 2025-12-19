@@ -1,6 +1,12 @@
 {
   "Add": "Ajouter",
   "Delete": "Supprimer",
+  "district": "Administrateur de district",
+  "unitadmin": "Administrateur d'unité",
+  "finance": "Finances",
+  "equipment": "Équipement",
+  "demoadmin": "Administrateur démo",
+  "demoparent": "Parent démo",
   "District": "District",
   "Friday": "Vendredi",
   "Location": "Emplacement",

@@ -15,6 +15,7 @@ import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, debounce, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateDateField, validateRequired } from "./utils/ValidationUtils.js";
+import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -360,7 +361,7 @@ export class Expenses {
   }
 
   renderActionButtons() {
-    const canEdit = this.app.userRole === 'admin' || this.app.userRole === 'animation';
+    const canEdit = canManageFinance();
     
     if (!canEdit) {
       return '';
@@ -410,8 +411,8 @@ export class Expenses {
   }
 
   renderExpenseRow(expense) {
-    const canEdit = this.app.userRole === 'admin' || this.app.userRole === 'animation';
-    const canDelete = this.app.userRole === 'admin';
+    const canEdit = canManageFinance();
+    const canDelete = canApproveFinance();
 
     return `
       <tr data-expense-id="${expense.id}">

@@ -20,6 +20,7 @@ import {
   validateDateField,
   validateRequired,
 } from "./utils/ValidationUtils.js";
+import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -299,8 +300,7 @@ export class ExternalRevenue {
   }
 
   renderActionButtons() {
-    const canEdit =
-      this.app.userRole === "admin" || this.app.userRole === "animation";
+    const canEdit = canManageFinance();
 
     if (!canEdit) {
       return "";
@@ -346,9 +346,8 @@ export class ExternalRevenue {
   }
 
   renderRevenueRow(revenue) {
-    const canEdit =
-      this.app.userRole === "admin" || this.app.userRole === "animation";
-    const canDelete = this.app.userRole === "admin";
+    const canEdit = canManageFinance();
+    const canDelete = canApproveFinance();
 
     return `
       <tr data-revenue-id="${revenue.id}">
