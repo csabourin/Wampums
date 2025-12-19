@@ -152,7 +152,7 @@ export const app = {
                                 userFullName: this.userFullName,
                         });
 
-                        // Get organization ID from storage (synchronous)
+                        // CRITICAL: Get organization ID FIRST - everything depends on it
                         let storedOrgId = getStorage('currentOrganizationId') || getStorage('organizationId');
                         if (storedOrgId && storedOrgId.startsWith('{')) {
                                 try {
@@ -162,41 +162,11 @@ export const app = {
                                         storedOrgId = null;
                                 }
                         }
-                        this.organizationId = (storedOrgId && storedOrgId !== '[object Object]') ? storedOrgId : 1;
 
-                        // Initialize router IMMEDIATELY (before async operations)
-                        debugLog("Initializing router...");
-                        this.router = initRouter(this);
-
-                        // Route to current path immediately to show UI fast
-                        const currentPath = window.location.pathname;
-                        debugLog(`Routing to current path: ${currentPath}`);
-                        this.router.route(currentPath);
-
-                        this.initCompleted = true;
-                        debugLog("App init completed (fast path)");
-
-                        // Now perform async operations in background (non-blocking)
-                        this.initializeBackgroundTasks();
-
-                } catch (error) {
-                        debugError("Initialization error:", error);
-                        document.getElementById("app").innerHTML = `
-                                <div class="error-container">
-                                        <h1>${this.translate('application_error') || 'Application Error'}</h1>
-                                        <p>${this.translate('error_loading_application') || 'Error loading application'}</p>
-                                        <button onclick="window.location.reload()">${this.translate('reload') || 'Reload'}</button>
-                                </div>
-                        `;
-                }
-        },
-
-        // Background initialization tasks (non-blocking)
-        async initializeBackgroundTasks() {
-                try {
-                        // Fetch organization ID if needed
-                        if (!this.organizationId || this.organizationId === 1) {
+                        // If no valid org ID in storage, fetch it NOW (blocking but fast)
+                        if (!storedOrgId || storedOrgId === '[object Object]') {
                                 try {
+                                        debugLog("Fetching organization ID (required)...");
                                         const orgData = await fetchOrganizationId();
                                         let orgId;
                                         if (typeof orgData === 'object' && orgData.data) {
@@ -214,16 +184,59 @@ export const app = {
                                         debugLog("Organization ID fetched:", orgId);
                                 } catch (error) {
                                         debugError("Error fetching organization ID:", error);
+                                        // Set default as fallback
+                                        this.organizationId = 1;
+                                        setStorageMultiple({
+                                                currentOrganizationId: this.organizationId,
+                                                organizationId: this.organizationId
+                                        });
+                                        debugLog("Using default organization ID: 1");
                                 }
+                        } else {
+                                this.organizationId = storedOrgId;
+                                debugLog("Using stored organization ID:", storedOrgId);
                         }
 
+                        // Initialize router IMMEDIATELY (now that we have org ID)
+                        debugLog("Initializing router...");
+                        this.router = initRouter(this);
+
+                        // Route to current path immediately to show UI fast
+                        const currentPath = window.location.pathname;
+                        debugLog(`Routing to current path: ${currentPath}`);
+                        this.router.route(currentPath);
+
+                        this.initCompleted = true;
+                        debugLog("App init completed (fast path)");
+
+                        // Now perform remaining async operations in background (non-blocking)
+                        this.initializeBackgroundTasks();
+
+                } catch (error) {
+                        debugError("Initialization error:", error);
+                        document.getElementById("app").innerHTML = `
+                                <div class="error-container">
+                                        <h1>${this.translate('application_error') || 'Application Error'}</h1>
+                                        <p>${this.translate('error_loading_application') || 'Error loading application'}</p>
+                                        <button onclick="window.location.reload()">${this.translate('reload') || 'Reload'}</button>
+                                </div>
+                        `;
+                }
+        },
+
+        // Background initialization tasks (non-blocking)
+        // Organization ID is already loaded in init() - these are lower priority tasks
+        async initializeBackgroundTasks() {
+                try {
                         // Ensure JWT token exists (in background)
                         const token = getStorage('jwtToken');
                         if (!token && this.organizationId) {
                                 try {
+                                        debugLog("Fetching organization JWT...");
                                         const data = await fetchOrganizationJwt(this.organizationId);
                                         if (data.success && data.token) {
                                                 setStorage('jwtToken', data.token);
+                                                debugLog("Organization JWT obtained");
                                         }
                                 } catch (error) {
                                         debugError("Error getting organization JWT:", error);
