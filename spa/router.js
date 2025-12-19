@@ -53,7 +53,8 @@ const lazyModules = {
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
   FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder),
   Activities: () => import('./activities.js').then(m => m.Activities),
-  CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard)
+  CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
+  RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement)
 };
 
 // Cache for loaded modules
@@ -116,7 +117,8 @@ const routes = {
   "/form-builder": "formBuilder",
   "/admin/form-builder": "formBuilder",
   "/activities": "activities",
-  "/carpool/:id": "carpool"
+  "/carpool/:id": "carpool",
+  "/role-management": "roleManagement"
 
 };
 
@@ -426,6 +428,13 @@ export class Router {
           const CarpoolDashboard = await this.loadModule('CarpoolDashboard');
           const carpoolDashboard = new CarpoolDashboard(this.app, param);
           await carpoolDashboard.init();
+          break;
+        case "roleManagement":
+          // Only accessible by users with roles.view permission (district/unitadmin)
+          // Permission check is done within the RoleManagement component
+          const RoleManagement = await this.loadModule('RoleManagement');
+          const roleManagement = new RoleManagement(this.app);
+          await roleManagement.init();
           break;
         case "register":
           if (this.app.isLoggedIn) {

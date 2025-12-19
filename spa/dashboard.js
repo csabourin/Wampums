@@ -17,6 +17,14 @@ import {
 } from "./utils/SecurityUtils.js";
 import { getActivities, createActivity } from "./api/api-activities.js";
 import { clearActivityRelatedCaches } from "./indexedDB.js";
+import {
+  hasPermission,
+  hasAnyPermission,
+  canCreateOrganization,
+  canManageRoles,
+  canViewRoles,
+  isAdmin
+} from "./utils/PermissionUtils.js";
 
 export class Dashboard {
   constructor(app) {
@@ -283,10 +291,27 @@ export class Dashboard {
   //          RENDER
   // -----------------------------
   render() {
-    const adminLink =
-      this.app.userRole === "admin"
-        ? `<a href="/admin" id="admin-link"><i class="fa-solid fa-user-shield"></i><span>${translate("administration")}</span></a>`
-        : ``;
+    // Permission-based visibility checks
+    const showFinanceSection = hasAnyPermission('finance.view', 'budget.view');
+    const showRoleManagement = canViewRoles();
+    const showOrgCreation = canCreateOrganization();
+    const showReports = hasAnyPermission('reports.view', 'reports.export');
+    const showAdminPanel = isAdmin(); // Old admin panel (legacy)
+
+    // Build administration section links
+    const administrationLinks = [];
+
+    if (showRoleManagement) {
+      administrationLinks.push(`<a href="/role-management"><i class="fa-solid fa-user-tag"></i><span>${translate("role_management") || "Role Management"}</span></a>`);
+    }
+
+    if (showOrgCreation) {
+      administrationLinks.push(`<a href="/create-organization"><i class="fa-solid fa-building"></i><span>${translate("create_organization") || "Create Organization"}</span></a>`);
+    }
+
+    if (showAdminPanel) {
+      administrationLinks.push(`<a href="/admin" id="admin-link"><i class="fa-solid fa-user-shield"></i><span>${translate("administration")}</span></a>`);
+    }
 
     const content = `
       <h1>${translate("dashboard_title")}</h1>
@@ -338,35 +363,46 @@ export class Dashboard {
   </div>
 </section>
 
+${showFinanceSection ? `
 <!-- FINANCE & BUDGET -->
 <section class="dashboard-section">
   <h3>${translate("dashboard_finance_section")}</h3>
   <div class="manage-items">
-    <a href="/finance"><i class="fa-solid fa-coins"></i><span>${translate("finance_memberships_tab")}</span></a>
-    <a href="/finance?tab=definitions"><i class="fa-solid fa-file-invoice-dollar"></i><span>${translate("finance_definitions_tab")}</span></a>
-    <a href="/finance?tab=reports"><i class="fa-solid fa-chart-pie"></i><span>${translate("financial_report")}</span></a>
-    <a href="/expenses"><i class="fa-solid fa-wallet"></i><span>${translate("expense_tracking")}</span></a>
-    <a href="/external-revenue"><i class="fa-solid fa-hand-holding-dollar"></i><span>${translate("external_revenue")}</span></a>
+    ${hasPermission('finance.view') ? `<a href="/finance"><i class="fa-solid fa-coins"></i><span>${translate("finance_memberships_tab")}</span></a>` : ''}
+    ${hasPermission('finance.view') ? `<a href="/finance?tab=definitions"><i class="fa-solid fa-file-invoice-dollar"></i><span>${translate("finance_definitions_tab")}</span></a>` : ''}
+    ${hasPermission('finance.view') ? `<a href="/finance?tab=reports"><i class="fa-solid fa-chart-pie"></i><span>${translate("financial_report")}</span></a>` : ''}
+    ${hasAnyPermission('finance.manage', 'finance.view') ? `<a href="/expenses"><i class="fa-solid fa-wallet"></i><span>${translate("expense_tracking")}</span></a>` : ''}
+    ${hasAnyPermission('finance.manage', 'finance.view') ? `<a href="/external-revenue"><i class="fa-solid fa-hand-holding-dollar"></i><span>${translate("external_revenue")}</span></a>` : ''}
   </div>
 </section>
+` : ''}
 
 <!-- ADMIN -->
 <section class="dashboard-section">
   <h3>${translate("dashboard_admin_section")}</h3>
   <div class="manage-items">
-    <a href="/manage-participants"><i class="fa-solid fa-id-card"></i><span>${translate("manage_names")}</span></a>
-    <a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>
-    <a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>
+    ${hasPermission('participants.view') ? `<a href="/manage-participants"><i class="fa-solid fa-id-card"></i><span>${translate("manage_names")}</span></a>` : ''}
+    ${hasPermission('groups.view') ? `<a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>` : ''}
+    ${hasPermission('users.view') ? `<a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>` : ''}
     <a href="/account-info"><i class="fa-solid fa-user-circle"></i><span>${translate("account_info")}</span></a>
-    <a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>
-    <a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>
-    <a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>
-    <a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>
-    <a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>
-    <a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>
-    ${adminLink}
+    ${hasPermission('communications.send') ? `<a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>` : ''}
+    ${hasPermission('fundraisers.view') ? `<a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>` : ''}
+    ${hasAnyPermission('finance.view', 'fundraisers.view') ? `<a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>` : ''}
+    ${hasPermission('budget.view') ? `<a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>` : ''}
+    ${showReports ? `<a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>` : ''}
+    ${showReports ? `<a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>` : ''}
   </div>
 </section>
+
+${administrationLinks.length > 0 ? `
+<!-- ADMINISTRATION -->
+<section class="dashboard-section administration-section">
+  <h3>${translate("system_administration") || "System Administration"}</h3>
+  <div class="manage-items">
+    ${administrationLinks.join('\n    ')}
+  </div>
+</section>
+` : ''}
 
 
 
