@@ -59,6 +59,7 @@ class WhatsAppBaileysService {
     this.io = null; // Socket.io instance (will be set later)
     this.cachedBaileysVersion = null; // Cache Baileys version lookup to avoid repeated network calls
     this.baileysVersionPromise = null; // Track in-flight version fetches
+    this.reconnectAttempts = new Map(); // organizationId -> { count, lastAttempt }
   }
 
   /**
@@ -111,17 +112,27 @@ class WhatsAppBaileysService {
     try {
       logger.info(`Initializing WhatsApp connection for organization ${organizationId}`);
 
-      // Check if already connected OR connection attempt in progress
+      // Check if already connected OR connection attempt in progress (prevent zombie processes)
       if (this.connections.has(organizationId)) {
         const existingConnection = this.connections.get(organizationId);
         if (existingConnection.isConnected) {
           logger.info(`Organization ${organizationId} already connected`);
           return true;
         }
-        if (existingConnection.sock) {
-          logger.info(`Organization ${organizationId} connection already in progress, skipping duplicate initialization`);
+        if (existingConnection.sock && !existingConnection.sock.ws?.isClosed) {
+          logger.info(`Organization ${organizationId} connection already in progress, preventing zombie process`);
           return true;
         }
+        // Clean up stale/closed connection
+        logger.info(`Cleaning up stale connection for organization ${organizationId}`);
+        try {
+          if (existingConnection.sock) {
+            existingConnection.sock.end();
+          }
+        } catch (e) {
+          // Socket might already be closed, ignore errors
+        }
+        this.connections.delete(organizationId);
       }
 
       // Load or create auth state from database
@@ -219,6 +230,9 @@ class WhatsAppBaileysService {
       logger.info(`WhatsApp connected successfully for organization ${organizationId}`);
       connectionObj.isConnected = true;
 
+      // Reset reconnect attempts on successful connection
+      this.reconnectAttempts.delete(organizationId);
+
       try {
         // Get phone number from connection
         const phoneNumber = connectionObj.sock.user?.id?.split(':')[0] || null;
@@ -258,29 +272,56 @@ class WhatsAppBaileysService {
       const disconnectMessage = lastDisconnect?.error?.message || '';
       const handshakeFailure = disconnectMessage.includes('processHandshake') || disconnectMessage.includes("reading 'public'");
 
-      // Error 515 (Stream Errored) means WhatsApp rejected the pairing - credentials are invalid
-      // Error 401 (Connection Failure) means credentials are unauthorized
-      // These should trigger credential reset, not reconnection
-      const credentialRejection = statusCode === 515 || statusCode === 401;
+      // Error 515 (Stream Errored) is often temporary - WhatsApp may have multiple connections with same session
+      // This should trigger reconnection WITHOUT clearing credentials
+      const isTemporaryError = statusCode === 515;
 
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut &&
+      // Error 401 (Connection Failure) means credentials are unauthorized - clear credentials
+      const credentialRejection = statusCode === 401;
+
+      // Should reconnect for temporary errors (515), connection issues, but NOT for logout/bad session
+      const shouldReconnect = (statusCode !== DisconnectReason.loggedOut &&
         statusCode !== DisconnectReason.badSession &&
         statusCode !== undefined &&
         !handshakeFailure &&
-        !credentialRejection;
+        !credentialRejection) || isTemporaryError;
 
       logger.info(
-        `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}${credentialRejection ? ' (credential rejection)' : ''}`,
+        `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}${isTemporaryError ? ' (temporary error - will reconnect)' : ''}${credentialRejection ? ' (credential rejection)' : ''}`,
         { lastDisconnect: util.inspect(lastDisconnect, { depth: 3 }) }
       );
 
       if (shouldReconnect) {
-        // Reconnect automatically with existing credentials
+        // Get or initialize reconnect attempts
+        const reconnectInfo = this.reconnectAttempts.get(organizationId) || { count: 0, lastAttempt: 0 };
+        const now = Date.now();
+        const timeSinceLastAttempt = now - reconnectInfo.lastAttempt;
+
+        // Reset counter if it's been more than 5 minutes since last attempt
+        if (timeSinceLastAttempt > 5 * 60 * 1000) {
+          reconnectInfo.count = 0;
+        }
+
+        reconnectInfo.count++;
+        reconnectInfo.lastAttempt = now;
+        this.reconnectAttempts.set(organizationId, reconnectInfo);
+
+        // Exponential backoff: 3s, 6s, 12s, 24s, 48s (max)
+        const baseDelay = 3000;
+        const maxDelay = 48000;
+        const backoffDelay = Math.min(baseDelay * Math.pow(2, reconnectInfo.count - 1), maxDelay);
+
+        logger.info(`Reconnecting org ${organizationId} (attempt ${reconnectInfo.count}) in ${backoffDelay}ms`);
+
+        // Reconnect automatically with existing credentials (without deleting keys)
         setTimeout(() => {
           this.initializeConnection(organizationId, connectionObj.userId);
-        }, 3000);
+        }, backoffDelay);
         return;
       }
+
+      // Reset reconnect attempts on permanent disconnection
+      this.reconnectAttempts.delete(organizationId);
 
       // Logged out, bad session, handshake failure, or credential rejection - clean up and clear credentials
       connectionObj.isConnected = false;
