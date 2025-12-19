@@ -2,7 +2,7 @@ import { getFundraisers, createFundraiser, updateFundraiser, archiveFundraiser }
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { clearFundraiserRelatedCaches } from './indexedDB.js';
-import { canManageFundraisers } from "./utils/PermissionUtils.js";
+import { canManageFundraisers, canViewFundraisers } from "./utils/PermissionUtils.js";
 
 export class Fundraisers {
         constructor(app) {
@@ -15,6 +15,12 @@ export class Fundraisers {
         }
 
 	async init() {
+		// Check permission
+		if (!canViewFundraisers()) {
+			this.app.router.navigate("/dashboard");
+			return;
+		}
+
 		await this.fetchFundraisers();
 		this.render();
 		this.initEventListeners();

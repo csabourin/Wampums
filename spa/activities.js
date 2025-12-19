@@ -9,6 +9,7 @@ import {
   deleteActivity
 } from './api/api-activities.js';
 import { clearActivityRelatedCaches } from './indexedDB.js';
+import { canViewActivities } from './utils/PermissionUtils.js';
 
 export class Activities {
   constructor(app) {
@@ -18,6 +19,12 @@ export class Activities {
   }
 
   async init() {
+    // Check permission
+    if (!canViewActivities()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     await this.loadActivities();
     this.render();
     this.attachEventListeners();

@@ -24,6 +24,7 @@ import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
+import { canViewBudget } from "./utils/PermissionUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -78,6 +79,12 @@ export class Budgets {
   }
 
   async init() {
+    // Check permission
+    if (!canViewBudget()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     // Prevent race conditions - only one init at a time
     if (this.isInitializing) {
       debugError("Budgets init already in progress, skipping duplicate call");

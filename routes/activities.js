@@ -1,7 +1,7 @@
 // RESTful routes for activities and event calendar
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 module.exports = (pool) => {
@@ -9,7 +9,7 @@ module.exports = (pool) => {
    * Get all activities for the organization
    * Accessible by: animation, admin, parent
    */
-  router.get('/', authenticate, asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -35,7 +35,7 @@ module.exports = (pool) => {
    * Get a specific activity by ID
    * Accessible by: animation, admin, parent
    */
-  router.get('/:id', authenticate, asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -61,7 +61,7 @@ module.exports = (pool) => {
    * Create a new activity
    * Accessible by: animation, admin only
    */
-  router.post('/', authenticate, authorize('animation', 'admin'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, requirePermission('activities.create'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
@@ -113,7 +113,7 @@ module.exports = (pool) => {
    * Update an activity
    * Accessible by: animation, admin only
    */
-  router.put('/:id', authenticate, authorize('animation', 'admin'), asyncHandler(async (req, res) => {
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('activities.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -181,7 +181,7 @@ module.exports = (pool) => {
    * Soft delete an activity
    * Accessible by: animation, admin only
    */
-  router.delete('/:id', authenticate, authorize('animation', 'admin'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -208,7 +208,7 @@ module.exports = (pool) => {
    * Get participants for an activity (for carpool assignment)
    * Accessible by: animation, admin, parent
    */
-  router.get('/:id/participants', authenticate, asyncHandler(async (req, res) => {
+  router.get('/:id/participants', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 

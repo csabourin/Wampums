@@ -1,7 +1,7 @@
 // RESTful routes for participants
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
@@ -59,7 +59,7 @@ module.exports = (pool) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/', authenticate, asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
@@ -215,7 +215,7 @@ module.exports = (pool) => {
    *       201:
    *         description: Participant created
   */
-  router.post('/', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, requirePermission('participants.create'), asyncHandler(async (req, res) => {
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
@@ -309,7 +309,7 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.patch('/:id/group-membership', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.patch('/:id/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { group_id, is_leader, is_second_leader, roles } = req.body;
     const organizationId = await getOrganizationId(req, pool);
@@ -382,7 +382,7 @@ module.exports = (pool) => {
    * Get all participants (simple list with basic info)
    * Similar to v1 but returns simpler format
    */
-  router.get('/participants', authenticate, asyncHandler(async (req, res) => {
+  router.get('/participants', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -407,7 +407,7 @@ module.exports = (pool) => {
    * If participant_id is provided, returns single participant
    * Otherwise returns all participants with form submission flags
    */
-  router.get('/participant-details', authenticate, asyncHandler(async (req, res) => {
+  router.get('/participant-details', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const participantId = req.query.participant_id;
 
@@ -452,7 +452,7 @@ module.exports = (pool) => {
    * Save participant (create or update)
    * Includes duplicate checking and group assignment
    */
-  router.post('/save-participant', authenticate, asyncHandler(async (req, res) => {
+  router.post('/save-participant', authenticate, blockDemoRoles, requirePermission('participants.create'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
@@ -568,7 +568,7 @@ module.exports = (pool) => {
    * POST /api/update-participant-group
    * Update participant group membership and roles (leader/second leader)
    */
-  router.post('/update-participant-group', authenticate, asyncHandler(async (req, res) => {
+  router.post('/update-participant-group', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
@@ -627,7 +627,7 @@ module.exports = (pool) => {
    * POST /api/link-participant-to-organization
    * Link participant to organization
    */
-  router.post('/link-participant-to-organization', authenticate, asyncHandler(async (req, res) => {
+  router.post('/link-participant-to-organization', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { participant_id, inscription_date } = req.body;
@@ -652,7 +652,7 @@ module.exports = (pool) => {
    * GET /api/participants-with-users
    * Get participants with their associated user information
    */
-  router.get('/participants-with-users', authenticate, asyncHandler(async (req, res) => {
+  router.get('/participants-with-users', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -677,7 +677,7 @@ module.exports = (pool) => {
    * POST /api/link-user-participants
    * Link user to multiple participants (self-linking or admin linking)
    */
-  router.post('/link-user-participants', authenticate, asyncHandler(async (req, res) => {
+  router.post('/link-user-participants', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
@@ -763,7 +763,7 @@ module.exports = (pool) => {
    * GET /api/participant-ages
    * Get participants with their calculated ages
    */
-  router.get('/participant-ages', authenticate, asyncHandler(async (req, res) => {
+  router.get('/participant-ages', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -786,7 +786,7 @@ module.exports = (pool) => {
    * GET /api/participant-calendar
    * Get calendar data for a specific participant
    */
-  router.get('/participant-calendar', authenticate, asyncHandler(async (req, res) => {
+  router.get('/participant-calendar', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const { participant_id } = req.query;
 
     if (!participant_id) {
@@ -812,7 +812,7 @@ module.exports = (pool) => {
    * Get participants with their document submission status
    * Requires admin or animation role
    */
-  router.get('/participants-with-documents', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.get('/participants-with-documents', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -836,7 +836,7 @@ module.exports = (pool) => {
    * Associate a user with a participant
    * Requires admin or animation role
    */
-  router.post('/associate-user-participant', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.post('/associate-user-participant', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { user_id, participant_id } = req.body;
@@ -860,7 +860,7 @@ module.exports = (pool) => {
    * Link a parent to a participant (child)
    * Requires admin or animation role
    */
-  router.post('/link-parent-participant', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.post('/link-parent-participant', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { parent_id, participant_id, relationship } = req.body;
@@ -885,7 +885,7 @@ module.exports = (pool) => {
    * Remove participant from their group
    * Requires admin or animation role
    */
-  router.delete('/participant-groups/:participantId', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.delete('/participant-groups/:participantId', authenticate, blockDemoRoles, requirePermission('participants.delete'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const { participantId } = req.params;
@@ -929,7 +929,7 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.get('/:id(\\d+)', authenticate, asyncHandler(async (req, res) => {
+  router.get('/:id(\\d+)', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const id = parseInt(req.params.id, 10);
 
     if (Number.isNaN(id)) {
@@ -1012,7 +1012,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Participant updated
    */
-  router.put('/:id', authenticate, authorize('admin', 'animation'), asyncHandler(async (req, res) => {
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);
@@ -1096,7 +1096,7 @@ module.exports = (pool) => {
    *       200:
    *         description: Participant deleted
    */
-  router.delete('/:id', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('participants.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 

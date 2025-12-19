@@ -9,6 +9,7 @@ import { CONFIG } from "./config.js";
 import { clearGroupRelatedCaches } from "./indexedDB.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { canViewGroups } from "./utils/PermissionUtils.js";
 
 export class ManageGroups {
   constructor(app) {
@@ -17,6 +18,12 @@ export class ManageGroups {
   }
 
   async init() {
+    // Check permission
+    if (!canViewGroups()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     try {
       await this.fetchGroups();
       this.render();

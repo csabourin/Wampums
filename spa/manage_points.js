@@ -18,6 +18,7 @@ import {
   getCachedData,
   clearPointsRelatedCaches,
 } from "./indexedDB.js";
+import { canViewPoints } from "./utils/PermissionUtils.js";
 
 export class ManagePoints {
   constructor(app) {
@@ -30,6 +31,12 @@ export class ManagePoints {
   }
 
   async init() {
+    // Check permission
+    if (!canViewPoints()) {
+      this.app.router.navigate("/dashboard");
+      return;
+    }
+
     try {
       await this.preloadManagePointsData();
       this.render();
