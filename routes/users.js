@@ -275,65 +275,43 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Invalid role or cannot change own role
    */
-  router.post('/update-user-role', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.post('/update-user-role', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { user_id, role } = req.body;
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user has admin role in this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin']);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      const { user_id, role } = req.body;
-
-      if (!user_id || !role) {
-        return res.status(400).json({ success: false, message: 'User ID and role are required' });
-      }
-
-      const validRoles = ['admin', 'animation', 'parent', 'leader'];
-      if (!validRoles.includes(role)) {
-        return res.status(400).json({ success: false, message: `Invalid role. Valid roles: ${validRoles.join(', ')}` });
-      }
-
-      // Prevent admin from changing their own role
-      if (user_id === decoded.user_id) {
-        return res.status(400).json({ success: false, message: 'Cannot change your own role' });
-      }
-
-      // Verify target user belongs to this organization
-      const userCheck = await pool.query(
-        `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
-        [user_id, organizationId]
-      );
-
-      if (userCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'User not found in this organization' });
-      }
-
-      // Update user role in organization
-      await pool.query(
-        `UPDATE user_organizations SET role = $1 WHERE user_id = $2 AND organization_id = $3`,
-        [role, user_id, organizationId]
-      );
-
-      console.log(`[user] User ${user_id} role updated to ${role} by admin ${decoded.user_id}`);
-      res.json({ success: true, message: 'User role updated successfully' });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error updating user role:', error);
-      res.status(500).json({ success: false, message: error.message });
+    if (!user_id || !role) {
+      return res.status(400).json({ success: false, message: 'User ID and role are required' });
     }
-  });
+
+    const validRoles = ['admin', 'animation', 'parent', 'leader'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: `Invalid role. Valid roles: ${validRoles.join(', ')}` });
+    }
+
+    // Prevent admin from changing their own role
+    if (user_id === req.user.id) {
+      return res.status(400).json({ success: false, message: 'Cannot change your own role' });
+    }
+
+    // Verify target user belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
+      [user_id, organizationId]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+
+    // Update user role in organization
+    await pool.query(
+      `UPDATE user_organizations SET role = $1 WHERE user_id = $2 AND organization_id = $3`,
+      [role, user_id, organizationId]
+    );
+
+    logger.info(`User ${user_id} role updated to ${role} by admin ${req.user.id}`);
+    res.json({ success: true, message: 'User role updated successfully' });
+  }));
 
   /**
    * @swagger
@@ -367,106 +345,83 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: User linked successfully
    */
-  router.post('/link-user-participants', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.post('/link-user-participants', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    let { user_id, participant_ids } = req.body;
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      let { user_id, participant_ids } = req.body;
-
-      // If no user_id provided, use the current user (self-linking)
-      if (!user_id) {
-        user_id = decoded.user_id;
-      }
-
-      // If user is trying to link someone else, they need admin role
-      if (user_id !== decoded.user_id) {
-        const adminCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin']);
-        if (!adminCheck.authorized) {
-          return res.status(403).json({ success: false, message: 'Only admins can link participants to other users' });
-        }
-      }
-
-      if (!participant_ids || !Array.isArray(participant_ids)) {
-        return res.status(400).json({ success: false, message: 'participant_ids array is required' });
-      }
-
-      // Verify target user belongs to this organization
-      const userCheck = await pool.query(
-        `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
-        [user_id, organizationId]
-      );
-
-      if (userCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'User not found in this organization' });
-      }
-
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-
-        // Only remove existing links if replace_all is true (admin replacing all links)
-        // For self-linking (adding children), we just add to existing links
-        const replaceAll = req.body.replace_all === true;
-        if (replaceAll && user_id !== decoded.user_id) {
-          await client.query(
-            `DELETE FROM user_participants WHERE user_id = $1`,
-            [user_id]
-          );
-        }
-
-        // Add new links for each participant (verify they belong to org)
-        for (const participantId of participant_ids) {
-          // Verify participant belongs to this organization
-          const participantCheck = await client.query(
-            `SELECT id FROM participants p
-             JOIN participant_organizations po ON p.id = po.participant_id
-             WHERE p.id = $1 AND po.organization_id = $2`,
-            [participantId, organizationId]
-          );
-
-          if (participantCheck.rows.length > 0) {
-            await client.query(
-              `INSERT INTO user_participants (user_id, participant_id)
-               VALUES ($1, $2)
-               ON CONFLICT (user_id, participant_id) DO NOTHING`,
-              [user_id, participantId]
-            );
-          }
-        }
-
-        await client.query('COMMIT');
-        console.log(`[user] User ${user_id} linked to ${participant_ids.length} participants`);
-        res.json({ success: true, message: 'User linked to participants successfully' });
-      } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error linking user to participants:', error);
-      res.status(500).json({ success: false, message: error.message });
+    // If no user_id provided, use the current user (self-linking)
+    if (!user_id) {
+      user_id = req.user.id;
     }
-  });
+
+    // If user is trying to link someone else, they need users.edit permission
+    // This is already checked by the middleware, so we just verify it's them or they have permission
+    if (user_id !== req.user.id) {
+      // Additional check: must have users.edit permission to link other users
+      const { hasAnyPermission } = require('../middleware/auth');
+      if (!hasAnyPermission(req, 'users.edit')) {
+        return res.status(403).json({ success: false, message: 'Only admins can link participants to other users' });
+      }
+    }
+
+    if (!participant_ids || !Array.isArray(participant_ids)) {
+      return res.status(400).json({ success: false, message: 'participant_ids array is required' });
+    }
+
+    // Verify target user belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
+      [user_id, organizationId]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Only remove existing links if replace_all is true (admin replacing all links)
+      // For self-linking (adding children), we just add to existing links
+      const replaceAll = req.body.replace_all === true;
+      if (replaceAll && user_id !== req.user.id) {
+        await client.query(
+          `DELETE FROM user_participants WHERE user_id = $1`,
+          [user_id]
+        );
+      }
+
+      // Add new links for each participant (verify they belong to org)
+      for (const participantId of participant_ids) {
+        // Verify participant belongs to this organization
+        const participantCheck = await client.query(
+          `SELECT id FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE p.id = $1 AND po.organization_id = $2`,
+          [participantId, organizationId]
+        );
+
+        if (participantCheck.rows.length > 0) {
+          await client.query(
+            `INSERT INTO user_participants (user_id, participant_id)
+             VALUES ($1, $2)
+             ON CONFLICT (user_id, participant_id) DO NOTHING`,
+            [user_id, participantId]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      logger.info(`User ${user_id} linked to ${participant_ids.length} participants`);
+      res.json({ success: true, message: 'User linked to participants successfully' });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }));
 
   /**
    * @swagger
@@ -495,47 +450,25 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Association created
    */
-  router.post('/associate-user-participant', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.post('/associate-user-participant', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    const { user_id, participant_id } = req.body;
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
-
-      const { user_id, participant_id } = req.body;
-
-      if (!user_id || !participant_id) {
-        return res.status(400).json({
-          success: false,
-          message: 'User ID and participant ID are required'
-        });
-      }
-
-      await pool.query(
-        `INSERT INTO user_participants (user_id, participant_id)
-         VALUES ($1, $2)
-         ON CONFLICT (user_id, participant_id) DO NOTHING`,
-        [user_id, participant_id]
-      );
-
-      res.json({ success: true, message: 'User associated with participant successfully' });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error associating user with participant:', error);
-      res.status(500).json({ success: false, message: error.message });
+    if (!user_id || !participant_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and participant ID are required'
+      });
     }
-  });
+
+    await pool.query(
+      `INSERT INTO user_participants (user_id, participant_id)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id, participant_id) DO NOTHING`,
+      [user_id, participant_id]
+    );
+
+    res.json({ success: true, message: 'User associated with participant successfully' });
+  }));
 
   /**
    * @swagger
@@ -561,44 +494,18 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Permission check result
    */
-  router.post('/permissions/check', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.post('/permissions/check', authenticate, asyncHandler(async (req, res) => {
+    const { operation } = req.body;
 
-      if (!decoded || !decoded.userId) {
-        return res.json({ hasPermission: false });
-      }
-
-      const { operation } = req.body;
-
-      if (!operation) {
-        return res.json({ hasPermission: false });
-      }
-
-      const userId = decoded.userId;
-
-      // Check user's permission for the specific operation
-      const result = await pool.query(
-        `SELECT u.id, p.allowed
-         FROM users u
-         LEFT JOIN user_organizations uo ON u.id = uo.user_id
-         LEFT JOIN permissions p ON uo.role = p.role
-         WHERE u.id = $1 AND p.operation = $2`,
-        [userId, operation]
-      );
-
-      const hasPermission = result.rows.length > 0 && result.rows[0].allowed;
-
-      res.json({ hasPermission });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error checking permission:', error);
-      res.json({ hasPermission: false });
+    if (!operation) {
+      return res.json({ hasPermission: false });
     }
-  });
+
+    // Use the permission system to check if user has the requested permission
+    const hasPermission = req.userPermissions ? req.userPermissions.includes(operation) : false;
+
+    res.json({ hasPermission });
+  }));
 
   return router;
 };

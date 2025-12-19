@@ -105,16 +105,8 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Points updated successfully
    */
-  router.post('/update-points', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+  router.post('/update-points', authenticate, blockDemoRoles, requirePermission('points.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
       const updates = req.body;
 
       console.log('[update-points] Request body:', JSON.stringify(updates));
@@ -278,16 +270,8 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Leaderboard retrieved
    */
-  router.get('/points-leaderboard', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+  router.get('/points-leaderboard', authenticate, requirePermission('points.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
       // Verify user belongs to this organization
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
