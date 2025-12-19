@@ -215,65 +215,133 @@ document.addEventListener("DOMContentLoaded", function() {
       );
 
       const children = [];
+      const childIds = childrenResult.rows.map(c => c.id);
 
-      for (const child of childrenResult.rows) {
-        // Get attendance (last 10)
-        const attendanceResult = await pool.query(
-          `SELECT date::text as date, status FROM attendance
-           WHERE participant_id = $1 AND organization_id = $2
-           ORDER BY date DESC LIMIT 10`,
-          [child.id, organizationId]
+      if (childIds.length === 0) {
+        // No children, return early
+        const nextMeetingResult = await pool.query(
+          `SELECT date::text as date, endroit, notes FROM reunion_preparations
+           WHERE organization_id = $1 AND date >= CURRENT_DATE
+           ORDER BY date ASC LIMIT 1`,
+          [organizationId]
         );
 
-        // Get total points
-        const pointsResult = await pool.query(
-          `SELECT COALESCE(SUM(value), 0) as total_points FROM points
-           WHERE participant_id = $1 AND organization_id = $2`,
-          [child.id, organizationId]
-        );
+        return res.json({
+          success: true,
+          data: {
+            children: [],
+            next_meeting: nextMeetingResult.rows[0] || null
+          }
+        });
+      }
 
-        // Get honors count
-        const honorsResult = await pool.query(
-          `SELECT COUNT(*) as honor_count FROM honors
-           WHERE participant_id = $1 AND organization_id = $2`,
-          [child.id, organizationId]
-        );
+      // Batch fetch all data with optimized queries (fix N+1 problem)
+      const [attendanceResults, pointsResults, honorsResults, badgesResults, formsResults] = await Promise.all([
+        // Get attendance (last 10 per child)
+        pool.query(
+          `SELECT participant_id, date::text as date, status
+           FROM (
+             SELECT participant_id, date, status,
+                    ROW_NUMBER() OVER (PARTITION BY participant_id ORDER BY date DESC) as rn
+             FROM attendance
+             WHERE participant_id = ANY($1) AND organization_id = $2
+           ) t
+           WHERE rn <= 10
+           ORDER BY participant_id, date DESC`,
+          [childIds, organizationId]
+        ),
 
-        // Get approved badges
-        const badgesResult = await pool.query(
-          `SELECT bp.etoiles,
-                  bp.date_obtention,
-                  bp.badge_template_id,
-                  bt.name AS badge_name,
-                  bt.translation_key,
-                  bt.section AS badge_section,
-                  bt.level_count,
-                  COALESCE(bt.levels, '[]'::jsonb) AS template_levels
+        // Get total points for all children
+        pool.query(
+          `SELECT participant_id, COALESCE(SUM(value), 0) as total_points
+           FROM points
+           WHERE participant_id = ANY($1) AND organization_id = $2
+           GROUP BY participant_id`,
+          [childIds, organizationId]
+        ),
+
+        // Get honors count for all children
+        pool.query(
+          `SELECT participant_id, COUNT(*) as honor_count
+           FROM honors
+           WHERE participant_id = ANY($1) AND organization_id = $2
+           GROUP BY participant_id`,
+          [childIds, organizationId]
+        ),
+
+        // Get approved badges for all children
+        pool.query(
+          `SELECT bp.participant_id, bp.etoiles, bp.date_obtention, bp.badge_template_id,
+                  bt.name AS badge_name, bt.translation_key, bt.section AS badge_section,
+                  bt.level_count, COALESCE(bt.levels, '[]'::jsonb) AS template_levels
            FROM badge_progress bp
            JOIN badge_templates bt ON bp.badge_template_id = bt.id
-           WHERE bp.participant_id = $1 AND bp.organization_id = $2 AND bp.status = 'approved'
-           ORDER BY bp.date_obtention DESC`,
-          [child.id, organizationId]
-        );
+           WHERE bp.participant_id = ANY($1) AND bp.organization_id = $2 AND bp.status = 'approved'
+           ORDER BY bp.participant_id, bp.date_obtention DESC`,
+          [childIds, organizationId]
+        ),
 
-        // Get form submission status
-        const formsResult = await pool.query(
-          `SELECT form_type, updated_at FROM form_submissions
-           WHERE participant_id = $1 AND organization_id = $2`,
-          [child.id, organizationId]
-        );
+        // Get form submissions for all children
+        pool.query(
+          `SELECT participant_id, form_type, updated_at
+           FROM form_submissions
+           WHERE participant_id = ANY($1) AND organization_id = $2`,
+          [childIds, organizationId]
+        )
+      ]);
 
+      // Group results by participant_id for efficient lookup
+      const attendanceByChild = {};
+      const pointsByChild = {};
+      const honorsByChild = {};
+      const badgesByChild = {};
+      const formsByChild = {};
+
+      attendanceResults.rows.forEach(row => {
+        if (!attendanceByChild[row.participant_id]) attendanceByChild[row.participant_id] = [];
+        attendanceByChild[row.participant_id].push({ date: row.date, status: row.status });
+      });
+
+      pointsResults.rows.forEach(row => {
+        pointsByChild[row.participant_id] = parseInt(row.total_points);
+      });
+
+      honorsResults.rows.forEach(row => {
+        honorsByChild[row.participant_id] = parseInt(row.honor_count);
+      });
+
+      badgesResults.rows.forEach(row => {
+        if (!badgesByChild[row.participant_id]) badgesByChild[row.participant_id] = [];
+        badgesByChild[row.participant_id].push({
+          etoiles: row.etoiles,
+          date_obtention: row.date_obtention,
+          badge_template_id: row.badge_template_id,
+          badge_name: row.badge_name,
+          translation_key: row.translation_key,
+          badge_section: row.badge_section,
+          level_count: row.level_count,
+          template_levels: row.template_levels
+        });
+      });
+
+      formsResults.rows.forEach(row => {
+        if (!formsByChild[row.participant_id]) formsByChild[row.participant_id] = [];
+        formsByChild[row.participant_id].push({ type: row.form_type, updated_at: row.updated_at });
+      });
+
+      // Build children array with batched data
+      for (const child of childrenResult.rows) {
         children.push({
           id: child.id,
           first_name: child.first_name,
           last_name: child.last_name,
           date_naissance: child.date_naissance,
           group_name: child.group_name,
-          attendance: attendanceResult.rows,
-          total_points: parseInt(pointsResult.rows[0].total_points),
-          honor_count: parseInt(honorsResult.rows[0].honor_count),
-          badges: badgesResult.rows,
-          forms: formsResult.rows.map(f => ({ type: f.form_type, updated_at: f.updated_at }))
+          attendance: attendanceByChild[child.id] || [],
+          total_points: pointsByChild[child.id] || 0,
+          honor_count: honorsByChild[child.id] || 0,
+          badges: badgesByChild[child.id] || [],
+          forms: formsByChild[child.id] || []
         });
       }
 

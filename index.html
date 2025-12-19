@@ -59,10 +59,17 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="alternate" type="application/rss+xml" href="/rss.xml" title="Wampums">
 
-    <!-- Stylesheets -->
+    <!-- Stylesheets - optimized for performance -->
+    <!-- Critical CSS loaded first (main styles) -->
     <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/carpool.css">
-    <link rel="stylesheet" href="/css/account-info.css">
+    <!-- Non-critical CSS loaded with low priority -->
+    <link rel="preload" href="/css/carpool.css" as="style" onload="this.rel='stylesheet'">
+    <link rel="preload" href="/css/account-info.css" as="style" onload="this.rel='stylesheet'">
+    <noscript>
+        <link rel="stylesheet" href="/css/carpool.css">
+        <link rel="stylesheet" href="/css/account-info.css">
+    </noscript>
+    <!-- FontAwesome loaded asynchronously -->
     <link
         rel="preload"
         as="style"

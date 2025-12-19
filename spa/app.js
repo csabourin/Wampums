@@ -134,104 +134,13 @@ export const app = {
                 this.createMessageBanner();
 
                 try {
+                        // Register service worker in background
                         this.registerServiceWorker();
 
-                        // Check storage for organization ID
-                        let storedOrgId = getStorage('currentOrganizationId') ||
-                                getStorage('organizationId');
-
-                        // Handle case where organization ID might be stored as an object
-                        if (storedOrgId && storedOrgId.startsWith('{')) {
-                                try {
-                                        const parsed = JSON.parse(storedOrgId);
-                                        storedOrgId = parsed.organizationId || parsed.id;
-                                } catch (e) {
-                                        debugLog('Failed to parse stored organization ID:', e);
-                                        storedOrgId = null;
-                                }
-                        }
-
-                        if (storedOrgId && storedOrgId !== '[object Object]') {
-                                this.organizationId = storedOrgId;
-                                debugLog("Using stored organization ID:", storedOrgId);
-                        } else {
-                                // Fetch organization ID if not in localStorage
-                                try {
-                                        debugLog("Fetching organization ID...");
-                                        const orgData = await fetchOrganizationId();
-
-                                        // Handle the response properly - extract the actual ID value
-                                        let orgId;
-                                        if (typeof orgData === 'object' && orgData.data) {
-                                                orgId = orgData.data.organizationId || orgData.data;
-                                        } else if (typeof orgData === 'object') {
-                                                orgId = orgData.organizationId || orgData.id || orgData;
-                                        } else {
-                                                orgId = orgData;
-                                        }
-
-                                        this.organizationId = orgId;
-
-                                        // Store consistently in both places for compatibility
-                                        setStorageMultiple({
-                                                currentOrganizationId: orgId,
-                                                organizationId: orgId
-                                        });
-
-                                        debugLog("Organization ID fetched and stored:", orgId);
-                                } catch (error) {
-                                        debugError("Error fetching organization ID:", error);
-                                        // Set a default organization ID to prevent blocking the app
-                                        this.organizationId = 1;
-                                        setStorageMultiple({
-                                                currentOrganizationId: this.organizationId,
-                                                organizationId: this.organizationId
-                                        });
-                                        debugLog("Using default organization ID: 1");
-                                }
-                        }
-
-                        // Check for JWT token
-                        const token = getStorage('jwtToken');
-                        if (!token && this.organizationId) {
-                                // If no token exists but we have organization ID, get an organization JWT
-                                try {
-                                        debugLog("No JWT token found, fetching organization JWT...");
-                                        const data = await fetchOrganizationJwt(this.organizationId);
-                                        if (data.success && data.token) {
-                                                setStorage('jwtToken', data.token);
-                                                debugLog("Organization JWT obtained successfully");
-                                        } else {
-                                                debugLog("Failed to get organization JWT:", data);
-                                        }
-                                } catch (error) {
-                                        debugError("Error getting organization JWT:", error);
-                                }
-                        } else {
-                                debugLog("JWT token already exists in localStorage");
-                        }
-
-                        // Try to fetch organization settings, but don't block the app if it fails
-                        try {
-                                debugLog("Fetching organization settings...");
-                                await this.fetchOrganizationSettings();
-                        } catch (error) {
-                                debugError("Failed to fetch organization settings:", error.message);
-                                debugLog("Using default organization settings");
-                                // Set some default settings so the app doesn't break
-                                this.organizationSettings = {
-                                        name: 'Scouts',
-                                        // Add other default settings as needed
-                                };
-                        }
-
-                        // Load translations before proceeding
-                        debugLog("Loading translations...");
-                        await this.loadTranslations();
-
+                        // Initialize language toggle early (synchronous)
                         this.initLanguageToggle();
 
-                        // Check for existing session
+                        // Check for existing session (synchronous from localStorage)
                         const session = Login.checkSession();
                         this.isLoggedIn = session.isLoggedIn;
                         this.userRole = session.userRole;
@@ -243,38 +152,105 @@ export const app = {
                                 userFullName: this.userFullName,
                         });
 
-                        if (this.isLoggedIn) {
-                                // User is logged in, proceed with post-login actions
-                                this.handlePostLoginActions();
+                        // Get organization ID from storage (synchronous)
+                        let storedOrgId = getStorage('currentOrganizationId') || getStorage('organizationId');
+                        if (storedOrgId && storedOrgId.startsWith('{')) {
+                                try {
+                                        const parsed = JSON.parse(storedOrgId);
+                                        storedOrgId = parsed.organizationId || parsed.id;
+                                } catch (e) {
+                                        storedOrgId = null;
+                                }
                         }
+                        this.organizationId = (storedOrgId && storedOrgId !== '[object Object]') ? storedOrgId : 1;
 
-                        // Initialize router
+                        // Initialize router IMMEDIATELY (before async operations)
                         debugLog("Initializing router...");
                         this.router = initRouter(this);
 
-                        // Always route to the current path after initialization
+                        // Route to current path immediately to show UI fast
                         const currentPath = window.location.pathname;
                         debugLog(`Routing to current path: ${currentPath}`);
                         this.router.route(currentPath);
 
-                        // Initialize offline support
-                        debugLog("Initializing offline support...");
-                        initOfflineSupport();
-
-                        this.syncOfflineData();
                         this.initCompleted = true;
-                        debugLog("App init completed");
+                        debugLog("App init completed (fast path)");
+
+                        // Now perform async operations in background (non-blocking)
+                        this.initializeBackgroundTasks();
+
                 } catch (error) {
                         debugError("Initialization error:", error);
-
-                        // Create a simple message to inform the user even if initialization fails
                         document.getElementById("app").innerHTML = `
                                 <div class="error-container">
-                                        <h1>${this.translate('application_error')}</h1>
-                                        <p>${this.translate('error_loading_application')}</p>
-                                        <button onclick="window.location.reload()">${this.translate('reload')}</button>
+                                        <h1>${this.translate('application_error') || 'Application Error'}</h1>
+                                        <p>${this.translate('error_loading_application') || 'Error loading application'}</p>
+                                        <button onclick="window.location.reload()">${this.translate('reload') || 'Reload'}</button>
                                 </div>
                         `;
+                }
+        },
+
+        // Background initialization tasks (non-blocking)
+        async initializeBackgroundTasks() {
+                try {
+                        // Fetch organization ID if needed
+                        if (!this.organizationId || this.organizationId === 1) {
+                                try {
+                                        const orgData = await fetchOrganizationId();
+                                        let orgId;
+                                        if (typeof orgData === 'object' && orgData.data) {
+                                                orgId = orgData.data.organizationId || orgData.data;
+                                        } else if (typeof orgData === 'object') {
+                                                orgId = orgData.organizationId || orgData.id || orgData;
+                                        } else {
+                                                orgId = orgData;
+                                        }
+                                        this.organizationId = orgId;
+                                        setStorageMultiple({
+                                                currentOrganizationId: orgId,
+                                                organizationId: orgId
+                                        });
+                                        debugLog("Organization ID fetched:", orgId);
+                                } catch (error) {
+                                        debugError("Error fetching organization ID:", error);
+                                }
+                        }
+
+                        // Ensure JWT token exists (in background)
+                        const token = getStorage('jwtToken');
+                        if (!token && this.organizationId) {
+                                try {
+                                        const data = await fetchOrganizationJwt(this.organizationId);
+                                        if (data.success && data.token) {
+                                                setStorage('jwtToken', data.token);
+                                        }
+                                } catch (error) {
+                                        debugError("Error getting organization JWT:", error);
+                                }
+                        }
+
+                        // Load only the current language (lazy load others on demand)
+                        const currentLang = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
+                        await this.loadTranslation(currentLang);
+
+                        // Fetch organization settings (in background, with caching)
+                        this.fetchOrganizationSettings().catch(error => {
+                                debugError("Failed to fetch organization settings:", error);
+                                this.organizationSettings = { name: 'Scouts' };
+                        });
+
+                        // Handle post-login actions if logged in
+                        if (this.isLoggedIn) {
+                                this.handlePostLoginActions();
+                        }
+
+                        // Initialize offline support
+                        initOfflineSupport();
+                        this.syncOfflineData();
+
+                } catch (error) {
+                        debugError("Background initialization error:", error);
                 }
         },
 
@@ -325,15 +301,40 @@ export const app = {
                 }
         },
 
-        async loadTranslations() {
-                if (Object.keys(this.translations).length > 0) {
-                        debugLog("Translations already loaded, skipping");
+        // Load a single translation file (lazy loading)
+        async loadTranslation(langCode) {
+                if (this.translations[langCode]) {
+                        debugLog(`Translation for ${langCode} already loaded`);
                         return;
                 }
                 try {
-                        debugLog("Loading translations...");
+                        debugLog(`Loading translation for ${langCode}...`);
+                        const response = await fetch(`/lang/${langCode}.json`);
+                        if (!response.ok) {
+                                throw new Error(`Failed to fetch translation file for ${langCode}`);
+                        }
+                        const data = await response.json();
+                        this.translations[langCode] = data;
+                        debugLog(`Translation for ${langCode} loaded successfully`);
+                } catch (error) {
+                        debugError(`Error loading translation for ${langCode}:`, error);
+                        this.translations[langCode] = {};
+                }
+        },
+
+        // Load all translations (fallback for backward compatibility)
+        async loadTranslations() {
+                if (Object.keys(this.translations).length === CONFIG.SUPPORTED_LANGS.length) {
+                        debugLog("All translations already loaded, skipping");
+                        return;
+                }
+                try {
+                        debugLog("Loading all translations...");
 
                         const translationFetches = CONFIG.SUPPORTED_LANGS.map(async (langCode) => {
+                                if (this.translations[langCode]) {
+                                        return [langCode, this.translations[langCode]];
+                                }
                                 const response = await fetch(`/lang/${langCode}.json`);
                                 if (!response.ok) {
                                         throw new Error(`Failed to fetch translation file for ${langCode}`);
@@ -348,7 +349,7 @@ export const app = {
                 } catch (error) {
                         debugError("Error loading translations:", error);
                         this.translations = CONFIG.SUPPORTED_LANGS.reduce((acc, langCode) => {
-                                acc[langCode] = {};
+                                acc[langCode] = this.translations[langCode] || {};
                                 return acc;
                         }, {});
                 }
@@ -483,7 +484,7 @@ export const app = {
                 document.body.appendChild(container);
         },
 
-        setLanguage(lang) {
+        async setLanguage(lang) {
                 const fallbackLang = CONFIG.DEFAULT_LANG;
                 const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(lang) ? lang : fallbackLang;
 
@@ -493,14 +494,15 @@ export const app = {
                 setStorage('lang', normalizedLang);
                 localStorage.setItem('language', normalizedLang);
 
-                this.loadTranslations().then(() => {
-                        // Update page title
-                        this.updatePageTitle();
+                // Load only the required translation (lazy loading)
+                await this.loadTranslation(normalizedLang);
 
-                        if (this.router && this.initCompleted) {
-                                this.router.reloadCurrentRoute();
-                        }
-                });
+                // Update page title
+                this.updatePageTitle();
+
+                if (this.router && this.initCompleted) {
+                        this.router.reloadCurrentRoute();
+                }
         },
 
         updatePageTitle() {
