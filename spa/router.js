@@ -443,16 +443,20 @@ export class Router {
         default:
           this.loadNotFoundPage();
       }
+
+      // Load activity widget only on dashboard/activity-related routes for better performance
+      const activityRoutes = ['dashboard', 'activities', 'carpool'];
       if (
         this.app.isLoggedIn &&
         (this.app.userRole === 'admin' || this.app.userRole === 'animation') &&
+        activityRoutes.includes(routeName) &&
         !this.activityWidgetInitialized  // Check if the widget is already initialized
       ) {
         import('./init-activity-widget.js').then(module => {
           module.initActivityWidget(this.app);
         });
         this.activityWidgetInitialized = true;  // Mark the widget as initialized
-      }      
+      }
     } catch (error) {
       debugError("Routing error:", error);
       this.app.renderError("An error occurred while loading the page.");

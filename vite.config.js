@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import legacy from '@vitejs/plugin-legacy';
+// Removed legacy plugin to reduce bundle size - targeting modern browsers only
+// import legacy from '@vitejs/plugin-legacy';
 import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig({
@@ -206,10 +207,8 @@ export default defineConfig({
       }
     }),
 
-    // Legacy browser support (optional)
-    legacy({
-      targets: ['defaults', 'not IE 11']
-    }),
+    // Legacy browser support removed - targeting modern browsers (ES2020+) for better performance
+    // This reduces bundle size significantly and improves load times
 
     // Bundle analyzer (only in analysis mode)
     process.env.ANALYZE && visualizer({
@@ -218,7 +217,7 @@ export default defineConfig({
       gzipSize: true,
       brotliSize: true
     })
-  ],
+  ].filter(Boolean),
 
   // Optimize dependencies
   optimizeDeps: {
