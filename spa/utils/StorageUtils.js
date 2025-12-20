@@ -120,6 +120,54 @@ export function clearStorage(isSession = false) {
 }
 
 /**
+ * Clear user-specific data from storage while preserving device-level preferences
+ * This is used during logout to remove session data without breaking device trust (2FA)
+ * @param {boolean} isSession - Use sessionStorage instead of localStorage
+ * @returns {boolean} True if successful
+ */
+export function clearUserData(isSession = false) {
+    try {
+        const storage = getStorageObject(isSession);
+
+        // Keys to PRESERVE across logout (device-level preferences, not user-specific)
+        const keysToPreserve = [
+            'device_token',              // 2FA device trust - must preserve!
+            'organizationId',            // Organization context
+            'currentOrganizationId',     // Current organization context
+            'language',                  // Language preference
+            'lang',                      // Alternative language key
+            'wampums-lang',             // Namespaced language key
+            'dashboard_points_collapsed', // UI preference (non-critical)
+            'lastSwVersionPrompt',       // PWA update state (non-critical)
+        ];
+
+        // For sessionStorage, clear everything (no need to preserve device-level prefs)
+        if (isSession) {
+            storage.clear();
+            return true;
+        }
+
+        // For localStorage, selectively remove user-specific keys
+        const allKeys = Object.keys(storage);
+
+        for (const key of allKeys) {
+            // Skip preserved keys
+            if (keysToPreserve.includes(key)) {
+                continue;
+            }
+
+            // Remove user-specific keys
+            storage.removeItem(key);
+        }
+
+        return true;
+    } catch (error) {
+        debugError('Error clearing user data from storage:', error);
+        return false;
+    }
+}
+
+/**
  * Check if a key exists in storage
  * @param {string} key - Storage key
  * @param {boolean} isSession - Use sessionStorage instead of localStorage
