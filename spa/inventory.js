@@ -26,8 +26,15 @@ const ALLOWED_PHOTO_TYPES = [
   'image/heic-sequence',
   'image/heif-sequence'
 ];
+const HEIC_PHOTO_TYPES = [
+  'image/heic',
+  'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence'
+];
 const ALLOWED_PHOTO_EXTENSIONS = ['jpeg', 'jpg', 'png', 'gif', 'webp', 'heic', 'heif'];
 const GENERIC_PHOTO_MIME_TYPES = ['', 'application/octet-stream', 'binary/octet-stream'];
+const HEIC_PHOTO_EXTENSIONS = ['heic', 'heif'];
 
 /**
  * Determine whether a selected photo file is allowed based on MIME type or safe extension fallback.
@@ -57,6 +64,27 @@ function isAllowedPhotoFile(file) {
 }
 
 /**
+ * Determine if a file should be treated as HEIC/HEIF based on MIME type or extension.
+ * @param {File} file
+ * @returns {boolean}
+ */
+function isHeicPhotoFile(file) {
+  if (!file) {
+    return false;
+  }
+  const mimeType = (file.type || '').toLowerCase().split(';')[0];
+  if (HEIC_PHOTO_TYPES.includes(mimeType)) {
+    return true;
+  }
+  const extension = (file.name || '').split('.').pop();
+  if (!extension) {
+    return false;
+  }
+  const normalizedExtension = extension.toLowerCase();
+  return HEIC_PHOTO_EXTENSIONS.includes(normalizedExtension) && GENERIC_PHOTO_MIME_TYPES.includes(mimeType);
+}
+
+/**
  * Inventory management page for equipment and materials
  * Features: equipment CRUD, photo upload, gallery view, mobile-first design
  */
@@ -67,10 +95,13 @@ export class Inventory {
     this.viewMode = 'gallery'; // 'gallery' or 'table'
     this.editingEquipment = null;
     this.photoPreview = null;
+    this.photoPreviewUrl = null;
     this.selectedPhotoFile = null;
     this.modalPhotoPreview = null;
+    this.modalPhotoPreviewUrl = null;
     this.modalSelectedPhotoFile = null;
     this.lastFocusedElement = null;
+    this.heicConverterPromise = null;
     this.handleImagePreviewKeydown = this.handleImagePreviewKeydown.bind(this);
   }
 
@@ -953,7 +984,7 @@ export class Inventory {
         }
       });
 
-      photoInput.addEventListener("change", (event) => {
+      photoInput.addEventListener("change", async (event) => {
         const file = event.target.files[0];
         if (file) {
           // Validate file
@@ -969,21 +1000,48 @@ export class Inventory {
             return;
           }
 
+          const normalization = await this.normalizePhotoFile(file);
+
           if (isModal) {
-            this.modalSelectedPhotoFile = file;
+            this.modalSelectedPhotoFile = normalization.processedFile;
           } else {
-            this.selectedPhotoFile = file;
+            this.selectedPhotoFile = normalization.processedFile;
           }
 
-          // Show preview
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            photoPreviewImg.src = e.target.result;
+          if (normalization.previewFile) {
+            // Show preview using an object URL (works for converted WebP)
+            const previewUrl = URL.createObjectURL(normalization.previewFile);
+            photoPreviewImg.src = previewUrl;
             photoPreviewImg.classList.remove('hidden');
             photoPlaceholder.classList.add('hidden');
             removePhotoBtn.classList.remove('hidden');
-          };
-          reader.readAsDataURL(file);
+
+            if (isModal) {
+              if (this.modalPhotoPreviewUrl) {
+                URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+              }
+              this.modalPhotoPreviewUrl = previewUrl;
+            } else {
+              if (this.photoPreviewUrl) {
+                URL.revokeObjectURL(this.photoPreviewUrl);
+              }
+              this.photoPreviewUrl = previewUrl;
+            }
+          } else {
+            if (isModal && this.modalPhotoPreviewUrl) {
+              URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+              this.modalPhotoPreviewUrl = null;
+            }
+            if (!isModal && this.photoPreviewUrl) {
+              URL.revokeObjectURL(this.photoPreviewUrl);
+              this.photoPreviewUrl = null;
+            }
+            this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
+            removePhotoBtn.classList.remove('hidden');
+            if (normalization.error) {
+              this.app.showMessage(translate("equipment_photo_preview_unavailable"), "warning");
+            }
+          }
         }
       });
     }
@@ -998,6 +1056,75 @@ export class Inventory {
         }
       });
     }
+  }
+
+  async loadHeicConverter() {
+    if (this.heicConverterPromise) {
+      return this.heicConverterPromise;
+    }
+
+    this.heicConverterPromise = import(
+      /* @vite-ignore */ CONFIG.UI.HEIC_CONVERTER_URL
+    ).then((module) => module.default || module);
+
+    return this.heicConverterPromise;
+  }
+
+  showPreviewUnavailableState(photoPreviewImg, photoPlaceholder) {
+    if (photoPreviewImg) {
+      photoPreviewImg.src = '';
+      photoPreviewImg.classList.add('hidden');
+    }
+
+    if (photoPlaceholder) {
+      const textEl = photoPlaceholder.querySelector('.photo-text');
+      const hintEl = photoPlaceholder.querySelector('.photo-hint');
+      if (textEl) {
+        textEl.textContent = translate("equipment_photo_preview_unavailable");
+      }
+      if (hintEl) {
+        hintEl.textContent = translate("equipment_photo_click_to_upload");
+      }
+      photoPlaceholder.classList.remove('hidden');
+    }
+  }
+
+  /**
+   * Normalize a selected photo file to ensure previewability and upload consistency.
+   * Converts HEIC/HEIF inputs to WebP for browsers that cannot render HEIC directly.
+   * @param {File} file
+   * @returns {Promise<{processedFile: File, previewFile: File, error?: Error}>}
+   */
+  async normalizePhotoFile(file) {
+    if (!isHeicPhotoFile(file)) {
+      return { processedFile: file, previewFile: file };
+    }
+
+    try {
+      const heic2any = await this.loadHeicConverter();
+      const convertedBlob = await heic2any({
+        blob: file,
+        toType: 'image/webp',
+        quality: 0.82
+      });
+      const normalizedName = this.buildWebpFilename(file.name);
+      const convertedFile = new File([convertedBlob], normalizedName, { type: 'image/webp' });
+      return { processedFile: convertedFile, previewFile: convertedFile };
+    } catch (conversionError) {
+      debugError("Error converting HEIC for preview:", conversionError);
+      this.heicConverterPromise = null;
+      return { processedFile: file, previewFile: null, error: conversionError };
+    }
+  }
+
+  buildWebpFilename(originalName) {
+    if (!originalName) {
+      return 'photo.webp';
+    }
+    const withoutExtension = originalName.includes('.')
+      ? originalName.replace(/\.[^.]+$/, '')
+      : originalName;
+    return `${withoutExtension}.webp`;
   }
 
   setupModalHandlers() {
@@ -1195,6 +1322,11 @@ export class Inventory {
     if (photoPlaceholder) photoPlaceholder.classList.remove('hidden');
     if (removePhotoBtn) removePhotoBtn.classList.add('hidden');
 
+    if (this.photoPreviewUrl) {
+      URL.revokeObjectURL(this.photoPreviewUrl);
+      this.photoPreviewUrl = null;
+    }
+
     this.selectedPhotoFile = null;
     this.photoPreview = null;
   }
@@ -1212,6 +1344,11 @@ export class Inventory {
     }
     if (photoPlaceholder) photoPlaceholder.classList.remove('hidden');
     if (removePhotoBtn) removePhotoBtn.classList.add('hidden');
+
+    if (this.modalPhotoPreviewUrl) {
+      URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+      this.modalPhotoPreviewUrl = null;
+    }
 
     this.modalSelectedPhotoFile = null;
     this.modalPhotoPreview = null;

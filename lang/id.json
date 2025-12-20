@@ -1511,6 +1511,7 @@
   "equipment_photo": "Foto",
   "equipment_photo_click_to_upload": "Klik untuk mengunggah foto",
   "equipment_photo_max_size": "Maks 3MB (JPEG, PNG, GIF, WebP)",
+  "equipment_photo_preview_unavailable": "Pratinjau tidak tersedia untuk file HEIC ini di perangkat ini. File akan dikonversi setelah diunggah.",
   "equipment_photo_remove": "Hapus foto",
   "equipment_photo_too_large": "Foto terlalu besar. Ukuran maksimalnya adalah 3MB.",
   "equipment_photo_invalid_type": "Jenis berkas tidak valid. Harap unggah gambar JPEG, PNG, GIF, HEIC, HEIF, atau WebP.",

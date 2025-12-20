@@ -205,6 +205,10 @@ export const CONFIG = {
         // Toast notification duration (in milliseconds)
         TOAST_DURATION: 3000,
 
+        // Optional client-side HEIC to WebP converter URL (lazy-loaded only when needed)
+        HEIC_CONVERTER_URL:
+            "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js",
+
         // Success message display duration before redirect (in milliseconds)
         SUCCESS_REDIRECT_DELAY: 3000,
 

@@ -1514,6 +1514,7 @@
   "equipment_photo": "Photo",
   "equipment_photo_click_to_upload": "Click to upload photo",
   "equipment_photo_max_size": "Max 3MB (JPEG, PNG, GIF, WebP)",
+  "equipment_photo_preview_unavailable": "Preview unavailable for this HEIC file on this device. It will be converted after upload.",
   "equipment_photo_remove": "Remove photo",
   "equipment_photo_too_large": "Photo is too large. Maximum size is 3MB.",
   "equipment_photo_invalid_type": "Invalid file type. Please upload a JPEG, PNG, GIF, HEIC, HEIF, or WebP image.",
