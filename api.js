@@ -583,6 +583,7 @@ const dashboardsRoutes = require("./routes/dashboards")(pool, logger);
 const publicRoutes = require("./routes/public")(pool, logger);
 const importRoutes = require("./routes/import")(pool, logger);
 const financeRoutes = require("./routes/finance")(pool, logger);
+const stripeRoutes = require("./routes/stripe")(pool, logger);
 const budgetsRoutes = require("./routes/budgets")(pool, logger);
 const externalRevenueRoutes = require("./routes/external-revenue")(
   pool,
@@ -887,6 +888,13 @@ app.use("/api", financeRoutes);
 logger.info("✅ Finance routes loaded");
 logger.info("   - CRUD /api/v1/finance/fee-definitions");
 logger.info("   - CRUD /api/v1/finance/participant-fees");
+
+// Stripe Payment Routes (handles payment intents and webhooks)
+app.use("/api", stripeRoutes);
+logger.info("✅ Stripe payment routes loaded");
+logger.info("   - POST /api/v1/stripe/create-payment-intent");
+logger.info("   - POST /api/v1/stripe/webhook");
+logger.info("   - GET /api/v1/stripe/payment-status/:paymentIntentId");
 logger.info("   - GET /api/v1/finance/reports/summary");
 
 // Budget Routes (handles budget categories, items, expenses, and budget reports)
