@@ -32,17 +32,17 @@ This integration uses **@whiskeysockets/baileys**, an unofficial WhatsApp Web AP
 
 ### 1. Database Migration
 
-Run the migration to create the WhatsApp connections table:
+Run the migrations to create/update the WhatsApp connections table (including auth storage via `migrations/20250212000000_migrate_whatsapp_auth_to_database.js`):
 
 ```bash
-# Using psql directly
-psql $DATABASE_URL -f migrations/add_whatsapp_baileys_integration.sql
+# Apply all pending migrations
+npm run migrate -- up
 
-# OR using npm migration script
-npm run migrate:up
+# OR use the helper script that wraps the same command
+node scripts/run-whatsapp-migration.js
 ```
 
-This creates the `whatsapp_baileys_connections` table to store connection status and session data.
+This creates the `whatsapp_baileys_connections` table to store connection status and serialized Baileys credentials/keys.
 
 ### 2. Environment Variables
 
@@ -379,7 +379,7 @@ CREATE TABLE whatsapp_baileys_connections (
 1. **services/whatsapp-baileys.js** - Core WhatsApp service
 2. **routes/whatsapp-baileys.js** - API endpoints
 3. **spa/modules/whatsapp-connection.js** - Frontend UI
-4. **migrations/add_whatsapp_baileys_integration.sql** - Database schema
+4. **migrations/20250212000000_migrate_whatsapp_auth_to_database.js** - Database schema
 
 ## 🎨 Frontend Customization
 
