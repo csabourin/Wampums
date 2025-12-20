@@ -67,11 +67,25 @@ module.exports = (pool) => {
     const groupId = req.query.group_id;
     const userRole = req.user.role;
     const userId = req.user.id;
+    const parentOnlyRoles = ['parent', 'demoparent'];
+    const staffParticipantRoles = ['district', 'unitadmin', 'leader', 'admin', 'animation', 'demoadmin'];
+    const userRoles = Array.isArray(req.userRoles) && req.userRoles.length > 0
+      ? req.userRoles
+      : (userRole ? [userRole] : []);
+    const hasStaffRole = userRoles.some(role => staffParticipantRoles.includes(role));
+    const isParentOnly = userRoles.every(role => parentOnlyRoles.includes(role));
+
+    if (!hasStaffRole && !isParentOnly) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions for participant access'
+      });
+    }
 
     let query, params, countQuery, countParams;
 
-    // If user is admin or animation, show ALL participants
-    if (userRole === 'admin' || userRole === 'animation') {
+    // If user has any non-parent role, show ALL participants
+    if (hasStaffRole) {
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
                COALESCE(
@@ -101,7 +115,7 @@ module.exports = (pool) => {
       query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       params.push(limit, offset);
 
-      // Count query for admin/animation
+      // Count query for staff roles
       countQuery = `
         SELECT COUNT(DISTINCT p.id) as total
         FROM participants p

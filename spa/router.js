@@ -17,6 +17,7 @@ import {
   canManagePoints,
   canManageRoles,
   canSendCommunications,
+  canAccessParentTools,
   canViewActivities,
   canViewAttendance,
   canViewBadges,
@@ -336,13 +337,13 @@ export class Router {
           await createOrganization.init();
           break;
         case "parentDashboard":
-          if (!guard(isParent())) {
+          if (!guard(canAccessParentTools())) {
             break;
           }
           await this.loadParentDashboard();
           break;
         case "parentFinance":
-          if (!guard(isParent())) {
+          if (!guard(canAccessParentTools())) {
             break;
           }
           await this.loadParentFinance();

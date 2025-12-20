@@ -194,6 +194,18 @@ document.addEventListener("DOMContentLoaded", function() {
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const roleNames = Array.isArray(decoded.roleNames) ? decoded.roleNames : [];
+      const permissions = Array.isArray(decoded.permissions) ? decoded.permissions : [];
+      const userRoles = roleNames.length > 0 ? roleNames : (decoded.user_role ? [decoded.user_role] : []);
+      const parentOnlyRoles = ['parent', 'demoparent'];
+      const staffParticipantRoles = ['district', 'unitadmin', 'leader', 'admin', 'animation', 'demoadmin'];
+      const hasStaffRole = userRoles.some(role => staffParticipantRoles.includes(role));
+      const isParentOnly = userRoles.every(role => parentOnlyRoles.includes(role));
+      const canViewAllParticipants = hasStaffRole && permissions.includes('participants.view');
+
+      if (!hasStaffRole && !isParentOnly) {
+        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
+      }
 
       // Verify user belongs to this organization
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
@@ -201,18 +213,28 @@ document.addEventListener("DOMContentLoaded", function() {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
-      // Get children linked to this user
-      const childrenResult = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                g.name as group_name
-         FROM participants p
-         JOIN user_participants up ON p.id = up.participant_id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-         LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE up.user_id = $2 AND po.organization_id = $1`,
-        [organizationId, decoded.user_id]
-      );
+      // Get participants scoped to user permissions
+      const participantBaseQuery = `
+        SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+               g.name as group_name
+        FROM participants p
+        JOIN participant_organizations po ON p.id = po.participant_id
+        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+        LEFT JOIN groups g ON pg.group_id = g.id
+      `;
+
+      const childrenResult = canViewAllParticipants
+        ? await pool.query(
+            `${participantBaseQuery}
+             WHERE po.organization_id = $1`,
+            [organizationId]
+          )
+        : await pool.query(
+            `${participantBaseQuery}
+             JOIN user_participants up ON p.id = up.participant_id
+             WHERE up.user_id = $2 AND po.organization_id = $1`,
+            [organizationId, decoded.user_id]
+          );
 
       const children = [];
       const childIds = childrenResult.rows.map(c => c.id);

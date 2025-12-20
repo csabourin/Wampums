@@ -154,6 +154,29 @@ export function isParent() {
 }
 
 /**
+ * Determine if the current user can access parent-facing tools
+ * Allows staff with participant visibility to use parent dashboards
+ *
+ * @returns {boolean} True when user is a parent or has participant view access
+ */
+export function canAccessParentTools() {
+  const parentFriendlyStaffRoles = [
+    'district',
+    'unitadmin',
+    'leader',
+    'admin',
+    'animation',
+    'demoadmin'
+  ];
+
+  if (isParent()) {
+    return true;
+  }
+
+  return hasAnyRole(...parentFriendlyStaffRoles) && canViewParticipants();
+}
+
+/**
  * Check if user is an admin (district or unitadmin)
  *
  * @returns {boolean} True if user is an admin
