@@ -15,7 +15,7 @@ import { canViewInventory } from "./utils/PermissionUtils.js";
 
 // Maximum photo file size: 3MB
 const MAX_PHOTO_SIZE = 3 * 1024 * 1024;
-const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
 
 /**
  * Inventory management page for equipment and materials
@@ -160,7 +160,7 @@ export class Inventory {
                     <img id="photo-preview-img" class="hidden" alt="" />
                     <button type="button" id="remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
                   </div>
-                  <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" />
+                  <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" />
                 </div>
               </label>
             </div>
@@ -257,7 +257,7 @@ export class Inventory {
                       <img id="modal-photo-preview-img" class="hidden" alt="" />
                       <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
                     </div>
-                    <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" class="hidden" />
+                    <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" />
                   </div>
                 </label>
               </div>
