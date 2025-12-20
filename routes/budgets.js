@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { verifyOrganizationMembership } = require('../utils/api-helpers');
 const { toNumeric, validateMoney, validateDate } = require('../utils/validation-helpers');
 
 // Configuration constants
@@ -15,7 +14,7 @@ module.exports = (pool, logger) => {
    * GET /v1/budget/categories
    * Get all budget categories for the organization
    */
-  router.get('/v1/budget/categories', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/budget/categories', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -44,13 +43,8 @@ module.exports = (pool, logger) => {
    * POST /v1/budget/categories
    * Create a new budget category (admin only)
    */
-  router.post('/v1/budget/categories', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/budget/categories', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { name, description, category_type, display_order } = req.body;
 
@@ -74,13 +68,8 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/categories/:id
    * Update a budget category (admin only)
    */
-  router.put('/v1/budget/categories/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/budget/categories/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const { name, description, category_type, display_order, active } = req.body;
@@ -110,13 +99,8 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/categories/:id
    * Soft delete a budget category (admin only)
    */
-  router.delete('/v1/budget/categories/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/categories/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
 
@@ -142,7 +126,7 @@ module.exports = (pool, logger) => {
    * GET /v1/budget/items
    * Get all budget items, optionally filtered by category
    */
-  router.get('/v1/budget/items', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/budget/items', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { category_id } = req.query;
 
@@ -172,13 +156,8 @@ module.exports = (pool, logger) => {
    * POST /v1/budget/items
    * Create a new budget item (admin/animation)
    */
-  router.post('/v1/budget/items', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/budget/items', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const {
       budget_category_id,
@@ -228,13 +207,8 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/items/:id
    * Update a budget item (admin/animation)
    */
-  router.put('/v1/budget/items/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/budget/items/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const {
@@ -282,13 +256,8 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/items/:id
    * Soft delete a budget item (admin/animation)
    */
-  router.delete('/v1/budget/items/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/items/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
 
@@ -314,7 +283,7 @@ module.exports = (pool, logger) => {
    * GET /v1/budget/expenses
    * Get expenses with optional filters
    */
-  router.get('/v1/budget/expenses', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/budget/expenses', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { start_date, end_date, category_id, item_id } = req.query;
 
@@ -374,13 +343,8 @@ module.exports = (pool, logger) => {
    * POST /v1/budget/expenses
    * Record a new expense (admin/animation)
    */
-  router.post('/v1/budget/expenses', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/budget/expenses', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const {
       budget_category_id,
@@ -441,13 +405,8 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/expenses/:id
    * Update an expense (admin/animation)
    */
-  router.put('/v1/budget/expenses/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/budget/expenses/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const {
@@ -525,13 +484,8 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/expenses/:id
    * Delete an expense (admin only)
    */
-  router.delete('/v1/budget/expenses/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/expenses/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
 
@@ -556,7 +510,7 @@ module.exports = (pool, logger) => {
    * GET /v1/budget/reports/summary
    * Get comprehensive budget summary combining all revenue sources and expenses
    */
-  router.get('/v1/budget/reports/summary', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/budget/reports/summary', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { fiscal_year_start, fiscal_year_end } = req.query;
 
@@ -672,7 +626,7 @@ module.exports = (pool, logger) => {
    * GET /v1/budget/reports/revenue-breakdown
    * Get detailed revenue breakdown by source with filtering options
    */
-  router.get('/v1/budget/reports/revenue-breakdown', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/budget/reports/revenue-breakdown', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { 
       fiscal_year_start, 
@@ -754,7 +708,7 @@ module.exports = (pool, logger) => {
    * GET /v1/budget/plans
    * Get budget plans with optional fiscal year filter
    */
-  router.get('/v1/budget/plans', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/budget/plans', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { fiscal_year_start, fiscal_year_end } = req.query;
 
@@ -798,13 +752,8 @@ module.exports = (pool, logger) => {
    * POST /v1/budget/plans
    * Create a new budget plan (admin/animation)
    */
-  router.post('/v1/budget/plans', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/budget/plans', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const {
       budget_item_id,
@@ -874,13 +823,8 @@ module.exports = (pool, logger) => {
    * PUT /v1/budget/plans/:id
    * Update an existing budget plan (admin/animation)
    */
-  router.put('/v1/budget/plans/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/budget/plans/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const {
@@ -964,13 +908,8 @@ module.exports = (pool, logger) => {
    * DELETE /v1/budget/plans/:id
    * Delete a budget plan (admin only)
    */
-  router.delete('/v1/budget/plans/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/budget/plans/:id', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
 
@@ -995,7 +934,7 @@ module.exports = (pool, logger) => {
    * GET /v1/expenses/summary
    * Get expense summary by category for a date range
    */
-  router.get('/v1/expenses/summary', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/expenses/summary', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { start_date, end_date, category_id } = req.query;
 
@@ -1060,7 +999,7 @@ module.exports = (pool, logger) => {
    * GET /v1/expenses/monthly
    * Get monthly expense breakdown
    */
-  router.get('/v1/expenses/monthly', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/expenses/monthly', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { fiscal_year_start, fiscal_year_end, category_id } = req.query;
 
@@ -1111,13 +1050,8 @@ module.exports = (pool, logger) => {
    * POST /v1/expenses/bulk
    * Bulk create expenses (useful for import or batch entry)
    */
-  router.post('/v1/expenses/bulk', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/expenses/bulk', authenticate, blockDemoRoles, requirePermission('budget.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { expenses } = req.body;
 
@@ -1204,7 +1138,7 @@ module.exports = (pool, logger) => {
    * GET /v1/revenue/dashboard
    * Get aggregated revenue data from all sources
    */
-  router.get('/v1/revenue/dashboard', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/revenue/dashboard', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { fiscal_year_start, fiscal_year_end } = req.query;
 
@@ -1274,7 +1208,7 @@ module.exports = (pool, logger) => {
    * GET /v1/revenue/by-source
    * Get revenue breakdown by source
    */
-  router.get('/v1/revenue/by-source', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/revenue/by-source', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { start_date, end_date } = req.query;
 
@@ -1315,7 +1249,7 @@ module.exports = (pool, logger) => {
    * GET /v1/revenue/by-category
    * Get revenue breakdown by budget category
    */
-  router.get('/v1/revenue/by-category', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/revenue/by-category', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { start_date, end_date } = req.query;
 
@@ -1366,7 +1300,7 @@ module.exports = (pool, logger) => {
    * GET /v1/revenue/comparison
    * Compare actual revenue vs budgeted revenue
    */
-  router.get('/v1/revenue/comparison', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/revenue/comparison', authenticate, requirePermission('budget.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { fiscal_year_start, fiscal_year_end } = req.query;
 

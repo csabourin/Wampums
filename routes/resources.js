@@ -5,7 +5,7 @@ const { check, param, query } = require('express-validator');
 const router = express.Router();
 const multer = require('multer');
 
-const { authenticate, requireOrganizationRole, getOrganizationId } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { checkValidation } = require('../middleware/validation');
 const { handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -42,8 +42,8 @@ function parseDate(dateString) {
 }
 
 module.exports = (pool) => {
-  const leaderRoles = ['admin', 'leader', 'animation'];
-  const leaderAndParents = ['admin', 'leader', 'animation', 'parent'];
+  const parentRoles = ['parent', 'demoparent'];
+  const staffRoles = ['district', 'unitadmin', 'leader', 'finance', 'administration', 'demoadmin', 'equipment'];
 
   async function verifyMeeting(meetingId, organizationId) {
     if (!meetingId) {
@@ -107,7 +107,7 @@ module.exports = (pool) => {
   router.get(
     '/equipment',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    requirePermission('inventory.view'),
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
@@ -145,7 +145,8 @@ module.exports = (pool) => {
   router.post(
     '/equipment',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.manage'),
     [
       check('name').isString().trim().isLength({ min: 2, max: 150 }),
       check('category').optional().isString().trim().isLength({ max: 100 }),
@@ -231,7 +232,8 @@ module.exports = (pool) => {
   router.put(
     '/equipment/:id',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.manage'),
     [
       param('id').isInt({ min: 1 }),
       check('name').optional().isString().trim().isLength({ min: 2, max: 150 }),
@@ -299,7 +301,8 @@ module.exports = (pool) => {
   router.delete(
     '/equipment/:id',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.manage'),
     [param('id').isInt({ min: 1 })],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -359,7 +362,8 @@ module.exports = (pool) => {
   router.post(
     '/equipment/:id/photo',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.manage'),
     [param('id').isInt({ min: 1 })],
     checkValidation,
     upload.single('photo'),
@@ -440,7 +444,8 @@ module.exports = (pool) => {
   router.delete(
     '/equipment/:id/photo',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.manage'),
     [param('id').isInt({ min: 1 })],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -499,7 +504,7 @@ module.exports = (pool) => {
   router.get(
     '/equipment/reservations',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    requirePermission('inventory.view'),
     [
       query('meeting_date').optional().isISO8601(),
       query('date_from').optional().isISO8601(),
@@ -552,7 +557,8 @@ module.exports = (pool) => {
   router.post(
     '/equipment/reservations',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.reserve'),
     [
       check('equipment_id').isInt({ min: 1 }),
       check('meeting_date').optional().isISO8601(),
@@ -693,7 +699,8 @@ module.exports = (pool) => {
   router.patch(
     '/equipment/reservations/:id',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.reserve'),
     [
       param('id').isInt({ min: 1 }),
       check('reserved_quantity').optional().isInt({ min: 1 }),
@@ -798,7 +805,8 @@ module.exports = (pool) => {
   router.post(
     '/equipment/reservations/bulk',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('inventory.reserve'),
     [
       check('date_from').isISO8601(),
       check('date_to').isISO8601(),
@@ -914,7 +922,7 @@ module.exports = (pool) => {
   router.get(
     '/permission-slips',
     authenticate,
-    requireOrganizationRole(leaderAndParents),
+    requirePermission('participants.view'),
     [
       query('meeting_date').optional().isISO8601(),
       query('participant_id').optional().isInt({ min: 1 })
@@ -928,7 +936,8 @@ module.exports = (pool) => {
         const params = [organizationId];
         let filter = '';
 
-        if (req.userRole === 'parent') {
+        const isParentOnly = hasAnyRole(req, ...parentRoles) && !hasAnyRole(req, ...staffRoles);
+        if (isParentOnly) {
           const allowedParticipantIds = await getParentParticipantIds(req.user.id, organizationId);
           if (participantId && !allowedParticipantIds.includes(participantId)) {
             return error(res, 'Permission denied for participant', 403);
@@ -975,7 +984,8 @@ module.exports = (pool) => {
   router.post(
     '/permission-slips/send-emails',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('communications.send'),
     [
       check('meeting_date').isISO8601(),
       check('activity_title').optional().isString().trim().isLength({ max: 200 }),
@@ -1099,7 +1109,8 @@ module.exports = (pool) => {
   router.post(
     '/permission-slips/send-reminders',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('communications.send'),
     [
       check('meeting_date').isISO8601(),
       check('activity_title').optional().isString().trim().isLength({ max: 200 }),
@@ -1221,7 +1232,8 @@ module.exports = (pool) => {
   router.post(
     '/permission-slips',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('activities.edit'),
     [
       check('participant_ids').optional({ nullable: true }).isArray({ max: 200 }),
       check('participant_ids.*').optional({ nullable: true }).isInt({ min: 1 }),
@@ -1239,9 +1251,6 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-
-        // Debug logging
-        console.log('[Permission Slip Creation] Request body:', JSON.stringify(req.body, null, 2));
 
         const {
           participant_ids,
@@ -1397,7 +1406,8 @@ module.exports = (pool) => {
   router.patch(
     '/permission-slips/:id/archive',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    blockDemoRoles,
+    requirePermission('activities.edit'),
     [param('id').isInt({ min: 1 })],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -1441,7 +1451,7 @@ module.exports = (pool) => {
   router.get(
     '/status/dashboard',
     authenticate,
-    requireOrganizationRole(leaderRoles),
+    requirePermission('activities.view'),
     [query('meeting_date').optional().isISO8601()],
     checkValidation,
     asyncHandler(async (req, res) => {
