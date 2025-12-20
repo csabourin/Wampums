@@ -113,6 +113,7 @@ export {
 
     // Authentication & Users
     login,
+    verify2FA,
     register,
     verifyEmail,
     requestPasswordReset,

@@ -32,6 +32,14 @@ const { authenticate } = require('../middleware/auth');
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { sendEmail, sendAdminVerificationEmail } = require('../utils/index');
+const {
+  generate2FACode,
+  store2FACode,
+  verify2FACode,
+  createTrustedDevice,
+  verifyTrustedDevice,
+  send2FAEmail
+} = require('../utils/twoFactor');
 
 const emailTranslations = {
   en: require('../lang/en.json'),
@@ -186,6 +194,33 @@ module.exports = (pool, logger) => {
           });
         }
 
+        // Check if device is trusted (2FA)
+        const deviceToken = req.headers['x-device-token'];
+        const isTrustedDevice = await verifyTrustedDevice(pool, user.id, organizationId, deviceToken);
+
+        // If device is not trusted, send 2FA code
+        if (!isTrustedDevice) {
+          const code = generate2FACode();
+          const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+          const userAgent = req.headers['user-agent'] || '';
+
+          // Store the code in database
+          await store2FACode(pool, user.id, organizationId, code, ipAddress, userAgent);
+
+          // Send email with code
+          await send2FAEmail(normalizedEmail, code, user.full_name);
+
+          // Return response indicating 2FA is required
+          return res.status(200).json({
+            success: true,
+            requires_2fa: true,
+            message: '2fa_code_sent',
+            user_id: user.id,
+            email: normalizedEmail
+          });
+        }
+
+        // Device is trusted, proceed with normal login
         // Fetch user's roles and permissions for this organization
         const rolesResult = await pool.query(
           `SELECT DISTINCT r.id as role_id, r.role_name
@@ -263,6 +298,166 @@ module.exports = (pool, logger) => {
       logger.error('Login error:', error);
       res.status(500).json({
         success: false,
+          message: 'internal_server_error'
+        });
+      }
+    });
+
+  /**
+   * @swagger
+   * /public/verify-2fa:
+   *   post:
+   *     summary: Verify 2FA code (public endpoint)
+   *     description: Verify the 2FA code sent via email and complete login
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - email
+   *               - code
+   *             properties:
+   *               email:
+   *                 type: string
+   *                 format: email
+   *               code:
+   *                 type: string
+   *                 description: 6-digit verification code
+   *     responses:
+   *       200:
+   *         description: 2FA verified successfully, returns JWT token
+   *       401:
+   *         description: Invalid or expired code
+   */
+  router.post('/public/verify-2fa',
+    authLimiter,
+    validateEmail,
+    checkValidation,
+    async (req, res) => {
+      try {
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const { email, code } = req.body;
+        const normalizedEmail = normalizeEmailValue(email);
+
+        if (!code || code.length !== 6) {
+          return res.status(400).json({
+            success: false,
+            message: 'invalid_2fa_code'
+          });
+        }
+
+        // Fetch user
+        const userResult = await pool.query(
+          `SELECT u.id, u.email, u.full_name, uo.role
+           FROM users u
+           JOIN user_organizations uo ON u.id = uo.user_id
+           WHERE u.email = $1 AND uo.organization_id = $2`,
+          [normalizedEmail, organizationId]
+        );
+
+        const user = userResult.rows[0];
+
+        if (!user) {
+          return res.status(401).json({
+            success: false,
+            message: 'invalid_email'
+          });
+        }
+
+        // Verify the 2FA code
+        const isValid = await verify2FACode(pool, user.id, organizationId, code);
+
+        if (!isValid) {
+          return res.status(401).json({
+            success: false,
+            message: 'invalid_or_expired_2fa_code'
+          });
+        }
+
+        // Create trusted device token
+        const userAgent = req.headers['user-agent'] || '';
+        const newDeviceToken = await createTrustedDevice(pool, user.id, organizationId, userAgent);
+
+        // Fetch user's roles and permissions for this organization
+        const rolesResult = await pool.query(
+          `SELECT DISTINCT r.id as role_id, r.role_name
+           FROM user_organizations uo
+           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+           JOIN roles r ON r.id = role_id_text::integer
+           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+          [user.id, organizationId]
+        );
+
+        const permissionsResult = await pool.query(
+          `SELECT DISTINCT p.permission_key
+           FROM user_organizations uo
+           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+           JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+           JOIN permissions p ON p.id = rp.permission_id
+           WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+          [user.id, organizationId]
+        );
+
+        const roleIds = rolesResult.rows.map(r => r.role_id);
+        const roleNames = rolesResult.rows.map(r => r.role_name);
+        const permissions = permissionsResult.rows.map(p => p.permission_key);
+
+        // Determine primary role for backward compatibility
+        const rolePriority = ['district', 'unitadmin', 'leader', 'finance', 'equipment', 'administration', 'parent', 'demoadmin', 'demoparent'];
+        const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
+
+        const token = jwt.sign(
+          {
+            user_id: user.id,
+            user_role: primaryRole,
+            roleIds: roleIds,
+            roleNames: roleNames,
+            permissions: permissions,
+            organizationId: organizationId
+          },
+          jwtKey,
+          { expiresIn: '7d' }
+        );
+
+        // Check for guardian participants
+        const guardianResult = await pool.query(
+          `SELECT pg.id, p.id AS participant_id, p.first_name, p.last_name
+           FROM parents_guardians pg
+           JOIN participant_guardians pgu ON pg.id = pgu.guardian_id
+           JOIN participants p ON pgu.participant_id = p.id
+           LEFT JOIN user_participants up ON up.participant_id = p.id AND up.user_id = $1
+           WHERE pg.courriel = $2 AND up.participant_id IS NULL`,
+          [user.id, normalizedEmail]
+        );
+
+        const response = {
+          success: true,
+          message: 'login_successful',
+          token: token,
+          device_token: newDeviceToken,  // Return device token for client to store
+          user_role: primaryRole,
+          user_roles: roleNames,
+          user_permissions: permissions,
+          user_full_name: user.full_name,
+          user_id: user.id,
+          organization_id: organizationId
+        };
+
+        if (guardianResult.rows.length > 0) {
+          response.guardian_participants = guardianResult.rows;
+        }
+
+        res.json(response);
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('2FA verification error:', error);
+        res.status(500).json({
+          success: false,
           message: 'internal_server_error'
         });
       }
