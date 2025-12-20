@@ -4,6 +4,7 @@ const express = require('express');
 const { check, param, query } = require('express-validator');
 const router = express.Router();
 const multer = require('multer');
+const sharp = require('sharp');
 
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
@@ -13,6 +14,7 @@ const { sendEmail } = require('../utils/index');
 const {
   MAX_FILE_SIZE,
   ALLOWED_MIME_TYPES,
+  OUTPUT_MIME_TYPE,
   validateFile,
   generateFilePath,
   uploadFile,
@@ -20,6 +22,11 @@ const {
   extractPathFromUrl,
   isStorageConfigured
 } = require('../utils/supabase-storage');
+
+const PHOTO_MAX_WIDTH = 640;
+const PHOTO_MAX_HEIGHT = 480;
+const PHOTO_WEBP_QUALITY = 82;
+const WEBP_EXTENSION = OUTPUT_MIME_TYPE.split('/')[1];
 
 // Configure multer for memory storage (3MB limit)
 const upload = multer({
@@ -31,7 +38,7 @@ const upload = multer({
     if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.'), false);
+      cb(new Error('Invalid file type. Only JPEG, PNG, GIF, HEIC, and WebP images are allowed.'), false);
     }
   }
 });
@@ -400,18 +407,27 @@ module.exports = (pool) => {
           return error(res, validation.error, 400);
         }
 
-        // Delete old photo if exists
-        const oldPhotoUrl = equipmentCheck.rows[0].photo_url;
-        if (oldPhotoUrl) {
-          const oldPath = extractPathFromUrl(oldPhotoUrl);
-          if (oldPath) {
-            await deleteFile(oldPath);
-          }
+        // Resize and convert to WebP before upload
+        let processedBuffer;
+        try {
+          processedBuffer = await sharp(req.file.buffer)
+            .resize({
+              width: PHOTO_MAX_WIDTH,
+              height: PHOTO_MAX_HEIGHT,
+              fit: 'inside',
+              withoutEnlargement: true
+            })
+            .webp({ quality: PHOTO_WEBP_QUALITY })
+            .toBuffer();
+        } catch (processingError) {
+          return error(res, 'Unable to process image upload', 400);
         }
 
+        const oldPhotoUrl = equipmentCheck.rows[0].photo_url;
+
         // Generate file path and upload
-        const filePath = generateFilePath(organizationId, equipmentId, req.file.originalname);
-        const uploadResult = await uploadFile(req.file.buffer, filePath, req.file.mimetype);
+        const filePath = generateFilePath(organizationId, equipmentId, req.file.originalname, WEBP_EXTENSION);
+        const uploadResult = await uploadFile(processedBuffer, filePath, OUTPUT_MIME_TYPE);
 
         if (!uploadResult.success) {
           return error(res, uploadResult.error || 'Failed to upload photo', 500);
@@ -425,6 +441,13 @@ module.exports = (pool) => {
            RETURNING *`,
           [uploadResult.url, equipmentId]
         );
+
+        if (oldPhotoUrl) {
+          const oldPath = extractPathFromUrl(oldPhotoUrl);
+          if (oldPath) {
+            await deleteFile(oldPath);
+          }
+        }
 
         return success(res, { equipment: updateResult.rows[0], photo_url: uploadResult.url }, 'Photo uploaded successfully');
       } catch (err) {

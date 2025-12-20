@@ -6,6 +6,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 // Maximum file size: 3MB
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
+const OUTPUT_MIME_TYPE = "image/webp";
 
 // Allowed MIME types for images
 const ALLOWED_MIME_TYPES = [
@@ -13,7 +14,9 @@ const ALLOWED_MIME_TYPES = [
   "image/jpg",
   "image/png",
   "image/gif",
-  "image/webp",
+  "image/heic",
+  "image/heif",
+  OUTPUT_MIME_TYPE,
 ];
 
 // Initialize Supabase client (lazy initialization)
@@ -126,11 +129,13 @@ function validateFile(file) {
  * @param {number} organizationId - Organization ID
  * @param {number} equipmentId - Equipment ID (optional for new items)
  * @param {string} originalFilename - Original filename
+ * @param {string} [targetExtension] - Optional extension (without dot) for the stored file
  * @returns {string} File path in storage
  */
-function generateFilePath(organizationId, equipmentId, originalFilename) {
+function generateFilePath(organizationId, equipmentId, originalFilename, targetExtension) {
   const timestamp = Date.now();
-  const extension = originalFilename.split(".").pop().toLowerCase();
+  const normalizedExtension = (targetExtension || (originalFilename?.split(".").pop() ?? "")).replace(/^\./, "").toLowerCase();
+  const extension = normalizedExtension || "webp";
   const sanitizedFilename = `equipment_${equipmentId || "new"}_${timestamp}.${extension}`;
   return `org_${organizationId}/${sanitizedFilename}`;
 }
@@ -234,6 +239,7 @@ function isStorageConfigured() {
 module.exports = {
   MAX_FILE_SIZE,
   ALLOWED_MIME_TYPES,
+  OUTPUT_MIME_TYPE,
   validateFile,
   generateFilePath,
   uploadFile,
