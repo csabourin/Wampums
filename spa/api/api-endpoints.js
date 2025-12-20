@@ -41,6 +41,23 @@ async function invalidateMedicationCaches(extraKeys = []) {
     }
 }
 
+async function invalidateUserAssociationCaches() {
+    try {
+        const { deleteCachedData } = await import('../indexedDB.js');
+        const cacheKeys = ['participants-with-users', 'parent-users'];
+
+        await Promise.all(cacheKeys.map(async (cacheKey) => {
+            try {
+                await deleteCachedData(cacheKey);
+            } catch (cacheError) {
+                debugWarn('Failed to invalidate user association cache key', cacheKey, cacheError);
+            }
+        }));
+    } catch (error) {
+        debugError('Unable to invalidate user association caches', error);
+    }
+}
+
 // ============================================================================
 // PUBLIC ENDPOINTS (No Authentication Required)
 // ============================================================================
@@ -497,9 +514,10 @@ export async function getParticipantAge() {
 
 /**
  * Get participants with linked users
+ * @param {boolean} [forceRefresh=false] - Whether to bypass cached results
  */
-export async function getParticipantsWithUsers() {
-    return API.get('participants-with-users');
+export async function getParticipantsWithUsers(forceRefresh = false) {
+    return API.get('participants-with-users', {}, { forceRefresh });
 }
 
 /**
@@ -516,20 +534,32 @@ export async function linkParticipantToOrganization(participantId, organizationI
  * Remove participant from organization (admin only)
  */
 export async function removeParticipantFromOrganization(participantId, organizationId) {
-    return API.post('remove-participant-from-organization', {
+    const response = await API.post('remove-participant-from-organization', {
         participant_id: participantId,
         organization_id: organizationId
     });
+
+    if (response?.success) {
+        await invalidateUserAssociationCaches();
+    }
+
+    return response;
 }
 
 /**
  * Associate user to participant
  */
 export async function associateUser(participantId, userId) {
-    return API.post('associate-user', {
+    const response = await API.post('associate-user', {
         participant_id: participantId,
         user_id: userId
     });
+
+    if (response?.success) {
+        await invalidateUserAssociationCaches();
+    }
+
+    return response;
 }
 
 /**
@@ -665,8 +695,8 @@ export async function fetchParents(participantId) {
 /**
  * Get parent users
  */
-export async function getParentUsers() {
-    return API.get('parent-users');
+export async function getParentUsers(forceRefresh = false) {
+    return API.get('parent-users', {}, { forceRefresh });
 }
 
 /**

@@ -40,14 +40,14 @@ export class ManageUsersParticipants {
     }
   }
 
-  async fetchData() {
+  async fetchData(forceRefresh = false) {
     // Load data with individual error handling to prevent total failure
     const [participantsResponse, parentUsersResponse] = await Promise.all([
-      getParticipantsWithUsers().catch(error => {
+      getParticipantsWithUsers(forceRefresh).catch(error => {
         debugError("Error loading participants with users:", error);
         return { success: false, data: [] };
       }),
-      getParentUsers().catch(error => {
+      getParentUsers(forceRefresh).catch(error => {
         debugError("Error loading parent users:", error);
         return { success: false, data: [] };
       })
@@ -238,7 +238,10 @@ export class ManageUsersParticipants {
         const result = await removeParticipantFromOrganization(participantId);
         if (result.success) {
           this.showMessage(translate("participant_removed_from_organization"));
-          await this.fetchData();
+          this.removeParticipantLocally(participantId);
+          this.render();
+          this.attachEventListeners();
+          await this.fetchData(true);
           this.render();
           this.attachEventListeners();
         } else {
@@ -259,7 +262,10 @@ export class ManageUsersParticipants {
         const result = await associateUser(participantId, userId);
         if (result.success) {
           this.showMessage(translate("user_associated_successfully"));
-          await this.fetchData();
+          this.updateParticipantAssociationLocally(participantId, userId);
+          this.render();
+          this.attachEventListeners();
+          await this.fetchData(true);
           this.render();
           this.attachEventListeners();
         } else {
@@ -288,5 +294,63 @@ export class ManageUsersParticipants {
       <p>${translate("error_loading_manage_users_participants")}</p>
     `;
     document.getElementById("app").innerHTML = errorMessage;
+  }
+
+  /**
+   * Remove a participant from local state for immediate UI feedback.
+   * @param {string|number} participantId
+   */
+  removeParticipantLocally(participantId) {
+    if (!participantId) {
+      return;
+    }
+    this.participants = this.participants.filter(
+      (participant) => `${participant.id}` !== `${participantId}`
+    );
+  }
+
+  /**
+   * Update participant association locally so the UI reflects changes without waiting for a fresh fetch.
+   * @param {string|number} participantId
+   * @param {string|number} userId
+   */
+  updateParticipantAssociationLocally(participantId, userId) {
+    if (!participantId || !userId) {
+      return;
+    }
+
+    const participant = this.participants.find(
+      (entry) => `${entry.id}` === `${participantId}`
+    );
+    if (!participant) {
+      return;
+    }
+
+    const parentUser = this.parentUsers.find(
+      (user) => `${user.id}` === `${userId}`
+    );
+    if (!parentUser) {
+      return;
+    }
+
+    const associationName =
+      parentUser.full_name ||
+      parentUser.user_full_name ||
+      parentUser.email ||
+      parentUser.user_email;
+    if (!associationName) {
+      return;
+    }
+
+    const currentAssociations = (participant.associated_users || "")
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    if (!currentAssociations.includes(associationName)) {
+      currentAssociations.push(associationName);
+    }
+
+    participant.associated_users = currentAssociations.join(", ");
   }
 }
