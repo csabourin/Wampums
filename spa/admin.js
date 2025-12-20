@@ -14,7 +14,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { canCreateOrganization, canManageUsers, canSendCommunications } from "./utils/PermissionUtils.js";
+import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
 
 export class Admin {
         constructor(app) {
@@ -22,10 +22,25 @@ export class Admin {
                 this.users = [];
                 this.subscribers = [];
                 this.currentOrganizationId = null;
+                this.permissions = {
+                        canAccessAdmin: false,
+                        canCreateOrg: false,
+                        canManageUsers: false,
+                        canViewUsers: false,
+                        canSendCommunications: false,
+                };
         }
 
         async init() {
-                if (!canManageUsers()) {
+                this.permissions = {
+                        canAccessAdmin: canAccessAdminPanel(),
+                        canCreateOrg: canCreateOrganization(),
+                        canManageUsers: canManageUsers(),
+                        canViewUsers: canViewUsers(),
+                        canSendCommunications: canSendCommunications(),
+                };
+
+                if (!this.permissions.canAccessAdmin) {
                         this.app.router.navigate("/dashboard");
                         return;
                 }
@@ -43,46 +58,61 @@ export class Admin {
                         );
                         return;
                 }
-                await this.fetchData();
+                await this.fetchData(this.getDataFetchOptions());
                 this.render();
                 this.initEventListeners();
         }
 
-        async fetchData() {
-                try {
-                        const usersResult = await getUsers(
-                                this.currentOrganizationId,
-                        );
-                        this.users = this.normalizeUserList(usersResult);
+        async fetchData(options = {}) {
+                const { loadUsers = false, loadSubscribers = false } = options;
 
-                        if (!usersResult?.success) {
-                                debugWarn(
-                                        "Users request did not return success flag",
-                                        usersResult,
-                                );
+                try {
+                        if (loadUsers) {
+                                try {
+                                        const usersResult = await getUsers(
+                                                this.currentOrganizationId,
+                                        );
+                                        this.users = this.normalizeUserList(usersResult);
+
+                                        if (!usersResult?.success) {
+                                                debugWarn(
+                                                        "Users request did not return success flag",
+                                                        usersResult,
+                                                );
+                                        }
+                                } catch (userError) {
+                                        debugError("Error fetching users:", userError);
+                                        this.users = [];
+                                }
+                        } else {
+                                this.users = [];
                         }
 
-                        try {
-                                const subscribersResult = await getSubscribers(
-                                        this.currentOrganizationId,
-                                );
-                                this.subscribers = Array.isArray(
-                                        subscribersResult?.data,
-                                )
-                                        ? subscribersResult.data
-                                        : [];
-
-                                if (!subscribersResult?.success) {
-                                        debugWarn(
-                                                "Subscribers request did not return success flag",
-                                                subscribersResult,
+                        if (loadSubscribers) {
+                                try {
+                                        const subscribersResult = await getSubscribers(
+                                                this.currentOrganizationId,
                                         );
+                                        this.subscribers = Array.isArray(
+                                                subscribersResult?.data,
+                                        )
+                                                ? subscribersResult.data
+                                                : [];
+
+                                        if (!subscribersResult?.success) {
+                                                debugWarn(
+                                                        "Subscribers request did not return success flag",
+                                                        subscribersResult,
+                                                );
+                                        }
+                                } catch (subscriberError) {
+                                        debugWarn(
+                                                "Unable to load subscribers; proceeding without list",
+                                                subscriberError,
+                                        );
+                                        this.subscribers = [];
                                 }
-                        } catch (subscriberError) {
-                                debugWarn(
-                                        "Unable to load subscribers; proceeding without list",
-                                        subscriberError,
-                                );
+                        } else {
                                 this.subscribers = [];
                         }
                 } catch (error) {
@@ -96,15 +126,23 @@ export class Admin {
                 }
         }
 
+        getDataFetchOptions() {
+                return {
+                        loadUsers: this.permissions.canManageUsers || this.permissions.canViewUsers,
+                        loadSubscribers: this.permissions.canSendCommunications,
+                };
+        }
+
         render() {
-                const showNotifications = canSendCommunications();
+                const showNotifications = this.permissions.canSendCommunications;
+                const showUserManagement = this.permissions.canManageUsers || this.permissions.canViewUsers;
                 const content = `
                         <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
                         <h1>${this.app.translate("admin_panel")}</h1>
                         <div id="message"></div>
 
                         <div class="admin-quick-actions" style="margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                ${canCreateOrganization() ? `<button id="create-organization-btn">${translate("create_new_organization")}</button>` : ""}
+                                ${this.permissions.canCreateOrg ? `<button id="create-organization-btn">${translate("create_new_organization")}</button>` : ""}
                                 <a href="/form-builder" class="button-link" style="display: inline-block; padding: 0.5rem 1rem; background: #007bff; color: white; text-decoration: none; border-radius: 4px;">
                                         ${translate("form_builder_title")}
                                 </a>
@@ -145,6 +183,7 @@ ${showNotifications ? `
         <div id="import-result"></div>
 </div>
 
+                        ${showUserManagement ? `
                         <h2>${this.app.translate("user_management")}</h2>
                         <table>
                                 <thead>
@@ -159,8 +198,8 @@ ${showNotifications ? `
                                         ${this.renderUsers()}
                                 </tbody>
                         </table>
+                        ` : ""}
 
-                        
                         <a href="/dashboard">${this.app.translate("back_to_dashboard")}</a>
                 `;
                 document.getElementById("app").innerHTML = content;
@@ -199,6 +238,8 @@ ${showNotifications ? `
                 const users = Array.isArray(this.users)
                         ? this.users
                         : this.normalizeUserList(this.users);
+                const canModifyUsers = this.permissions.canManageUsers;
+                const roleSelectAttributes = canModifyUsers ? "" : ' disabled aria-disabled="true"';
 
                 debugLog(users);
                 if (!users.length) {
@@ -224,7 +265,7 @@ ${showNotifications ? `
                         <tr>
                                 <td>${safeFullName} - ${safeEmail}</td>
                                 <td>
-                                        <select class="role-select" data-user-id="${user.id}">
+                                        <select class="role-select" data-user-id="${user.id}"${roleSelectAttributes}>
                                                 ${roleOptions.map((role) => `
                                                         <option value="${role.value}" ${primaryRole === role.value ? "selected" : ""}>${role.label}</option>
                                                 `).join("")}
@@ -232,7 +273,7 @@ ${showNotifications ? `
                                 </td>
                                 <td>${isVerified ? "✅" : "❌"}</td>
                                 <td>
-                                        ${!isVerified ? `<button class="approve-btn" data-user-id="${user.id}">${this.app.translate("approve")}</button>` : ""}
+                                        ${!isVerified && canModifyUsers ? `<button class="approve-btn" data-user-id="${user.id}">${this.app.translate("approve")}</button>` : ""}
                                 </td>
                         </tr>`;
                         })
@@ -270,39 +311,42 @@ ${showNotifications ? `
                         });
                 }
 
-                document.getElementById("users-table").addEventListener(
-                        "change",
-                        async (event) => {
-                                if (
-                                        event.target.classList.contains(
-                                                "role-select",
-                                        )
-                                ) {
-                                        const userId =
-                                                event.target.dataset.userId;
-                                        const newRole = event.target.value;
-                                        await this.updateUserRole(
-                                                userId,
-                                                newRole,
-                                        );
-                                }
-                        },
-                );
+                const usersTable = document.getElementById("users-table");
+                if (usersTable && this.permissions.canManageUsers) {
+                        usersTable.addEventListener(
+                                "change",
+                                async (event) => {
+                                        if (
+                                                event.target.classList.contains(
+                                                        "role-select",
+                                                )
+                                        ) {
+                                                const userId =
+                                                        event.target.dataset.userId;
+                                                const newRole = event.target.value;
+                                                await this.updateUserRole(
+                                                        userId,
+                                                        newRole,
+                                                );
+                                        }
+                                },
+                        );
 
-                document.getElementById("users-table").addEventListener(
-                        "click",
-                        async (event) => {
-                                if (
-                                        event.target.classList.contains(
-                                                "approve-btn",
-                                        )
-                                ) {
-                                        const userId =
-                                                event.target.dataset.userId;
-                                        await this.approveUser(userId);
-                                }
-                        },
-                );
+                        usersTable.addEventListener(
+                                "click",
+                                async (event) => {
+                                        if (
+                                                event.target.classList.contains(
+                                                        "approve-btn",
+                                                )
+                                        ) {
+                                                const userId =
+                                                        event.target.dataset.userId;
+                                                await this.approveUser(userId);
+                                        }
+                                },
+                        );
+                }
 
                 if (document.getElementById("notification-form")) {
                         this.initNotificationForm();
@@ -324,7 +368,7 @@ ${showNotifications ? `
                                         ),
                                         "success",
                                 );
-                                await this.fetchData();
+                                await this.fetchData(this.getDataFetchOptions());
                                 this.render();
                         } else {
                                 this.app.showMessage(
@@ -356,7 +400,7 @@ ${showNotifications ? `
                                         ),
                                         "success",
                                 );
-                                await this.fetchData();
+                                await this.fetchData(this.getDataFetchOptions());
                                 this.render();
                         } else {
                                 this.app.showMessage(

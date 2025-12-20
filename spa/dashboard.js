@@ -20,10 +20,10 @@ import { clearActivityRelatedCaches } from "./indexedDB.js";
 import {
   hasPermission,
   hasAnyPermission,
+  canAccessAdminPanel,
   canCreateOrganization,
   canManageRoles,
   canViewRoles,
-  isAdmin
 } from "./utils/PermissionUtils.js";
 
 export class Dashboard {
@@ -296,7 +296,7 @@ export class Dashboard {
     const showRoleManagement = canViewRoles();
     const showOrgCreation = canCreateOrganization();
     const showReports = hasAnyPermission('reports.view', 'reports.export');
-    const showAdminPanel = isAdmin(); // Old admin panel (legacy)
+    const showAdminPanel = canAccessAdminPanel(); // Old admin panel (legacy)
 
     // Build administration section links
     const administrationLinks = [];

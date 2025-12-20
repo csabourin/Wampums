@@ -164,8 +164,6 @@ export function canAccessParentTools() {
     'district',
     'unitadmin',
     'leader',
-    'admin',
-    'animation',
     'demoadmin'
   ];
 
@@ -173,7 +171,11 @@ export function canAccessParentTools() {
     return true;
   }
 
-  return hasAnyRole(...parentFriendlyStaffRoles) && canViewParticipants();
+  if (!canViewParticipants()) {
+    return false;
+  }
+
+  return hasAnyRole(...parentFriendlyStaffRoles);
 }
 
 /**
@@ -480,6 +482,35 @@ export function canViewCarpools() {
  */
 export function canManageCarpools() {
   return hasPermission('carpools.manage');
+}
+
+/**
+ * Determine if the current user can access administrative tools
+ *
+ * Combines permission checks with leadership roles to keep compatibility
+ * with existing role payloads coming from /api/roles.
+ *
+ * @returns {boolean} True when the user can access admin interfaces
+ */
+export function canAccessAdminPanel() {
+  if (canManageUsers() || canViewUsers() || canManageRoles() || canViewRoles() || canCreateOrganization() || canSendCommunications()) {
+    return true;
+  }
+
+  return hasAnyRole('district', 'unitadmin', 'leader', 'demoadmin');
+}
+
+/**
+ * Determine if the current user can manage form builder tools
+ *
+ * @returns {boolean} True when user has form permissions or admin access
+ */
+export function canManageForms() {
+  if (hasAnyPermission('forms.view', 'forms.create', 'forms.edit', 'forms.manage')) {
+    return true;
+  }
+
+  return canAccessAdminPanel();
 }
 
 /**
