@@ -16,8 +16,11 @@ import {
   canManageInventory,
   canManagePoints,
   canManageRoles,
+  canViewRoles,
   canSendCommunications,
+  canAccessAdminPanel,
   canAccessParentTools,
+  canManageForms,
   canViewActivities,
   canViewAttendance,
   canViewBadges,
@@ -30,8 +33,6 @@ import {
   canViewParticipants,
   canViewReports,
   canViewUsers,
-  hasAnyRole,
-  hasRole,
   isParent
 } from "./utils/PermissionUtils.js";
 
@@ -219,7 +220,7 @@ export class Router {
           await report.init();
           break;
           case "admin":
-          if (!guard(hasAnyRole('district', 'unitadmin', 'demoadmin'))) {
+          if (!guard(canAccessAdminPanel())) {
             break;
           }
           await this.loadAdminPage();
@@ -329,7 +330,7 @@ export class Router {
           await this.loadCalendarsPage(param);
           break;
           case "createOrganization":
-          if (!guard(canCreateOrganization() || hasRole('district'))) {
+          if (!guard(canCreateOrganization())) {
               break;
           }
           const CreateOrganization = await this.loadModule('CreateOrganization');
@@ -477,7 +478,7 @@ export class Router {
           await this.loadAccountInfo();
           break;
         case "formBuilder":
-          if (!guard(hasAnyRole('district', 'unitadmin'))) {
+          if (!guard(canManageForms())) {
             break;
           }
           const FormBuilder = await this.loadModule('FormBuilder');
@@ -501,9 +502,9 @@ export class Router {
           await carpoolDashboard.init();
           break;
         case "roleManagement":
-          // Only accessible by users with roles.view permission (district/unitadmin)
+          // Only accessible by users with role management permissions
           // Permission check is done within the RoleManagement component
-          if (!guard(canManageRoles() || hasAnyRole('district', 'unitadmin'))) {
+          if (!guard(canManageRoles() || canViewRoles())) {
             break;
           }
           const RoleManagement = await this.loadModule('RoleManagement');
