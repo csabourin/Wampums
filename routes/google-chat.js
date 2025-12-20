@@ -48,7 +48,8 @@ module.exports = (pool, logger) => {
    *     summary: Configure Google Chat integration
    *     description: Upload service account credentials and configure Google Chat for the organization (admin only)
    *     tags: [GoogleChat]
-   *     security:
+   *     x-permission: org.edit
+    *     security:
    *       - bearerAuth: []
    *     requestBody:
    *       required: true
@@ -89,7 +90,9 @@ module.exports = (pool, logger) => {
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
         // Only admins can configure Google Chat
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin']);
+        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+          requiredPermissions: ['org.edit'],
+        });
         if (!membership.authorized) {
           return res.status(403).json({ error: 'Admin access required' });
         }
@@ -137,7 +140,8 @@ module.exports = (pool, logger) => {
    *     summary: Get Google Chat configuration status
    *     description: Check if Google Chat is configured for the organization
    *     tags: [GoogleChat]
-   *     security:
+   *     x-permission: org.view
+    *     security:
    *       - bearerAuth: []
    *     responses:
    *       200:
@@ -156,7 +160,9 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId);
+      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+        requiredPermissions: ['org.view'],
+      });
       if (!membership.authorized) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
@@ -197,7 +203,8 @@ module.exports = (pool, logger) => {
    *     summary: Register a Google Chat Space
    *     description: Register a Google Chat Space for the organization (admin only)
    *     tags: [GoogleChat]
-   *     security:
+   *     x-permission: org.edit
+    *     security:
    *       - bearerAuth: []
    *     requestBody:
    *       required: true
@@ -240,7 +247,9 @@ module.exports = (pool, logger) => {
 
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin']);
+        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+          requiredPermissions: ['org.edit'],
+        });
         if (!membership.authorized) {
           return res.status(403).json({ error: 'Admin access required' });
         }
@@ -311,7 +320,8 @@ module.exports = (pool, logger) => {
    *     summary: List registered Google Chat Spaces
    *     description: Get all registered Google Chat Spaces for the organization
    *     tags: [GoogleChat]
-   *     security:
+   *     x-permission: communications.send
+    *     security:
    *       - bearerAuth: []
    *     responses:
    *       200:
@@ -328,7 +338,9 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId);
+      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+        requiredPermissions: ['communications.send'],
+      });
       if (!membership.authorized) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
@@ -362,7 +374,8 @@ module.exports = (pool, logger) => {
    *     summary: Send a message to a Google Chat Space
    *     description: Send a message to a specific Google Chat Space (admin only)
    *     tags: [GoogleChat]
-   *     security:
+   *     x-permission: communications.send
+    *     security:
    *       - bearerAuth: []
    *     requestBody:
    *       required: true
@@ -402,7 +415,9 @@ module.exports = (pool, logger) => {
 
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin']);
+        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+          requiredPermissions: ['communications.send'],
+        });
         if (!membership.authorized) {
           return res.status(403).json({ error: 'Admin access required' });
         }
@@ -471,7 +486,8 @@ module.exports = (pool, logger) => {
    *     summary: Broadcast message to default announcement space
    *     description: Send a broadcast message to the organization's default Google Chat Space (admin only)
    *     tags: [GoogleChat]
-   *     security:
+   *     x-permission: communications.send
+    *     security:
    *       - bearerAuth: []
    *     requestBody:
    *       required: true
@@ -510,7 +526,9 @@ module.exports = (pool, logger) => {
 
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin']);
+        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+          requiredPermissions: ['communications.send'],
+        });
         if (!membership.authorized) {
           return res.status(403).json({ error: 'Admin access required' });
         }
@@ -542,7 +560,8 @@ module.exports = (pool, logger) => {
    *     summary: Get message history
    *     description: Retrieve Google Chat message history for the organization
    *     tags: [GoogleChat]
-   *     security:
+   *     x-permission: communications.send
+    *     security:
    *       - bearerAuth: []
    *     parameters:
    *       - in: query
@@ -565,7 +584,9 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId);
+      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+        requiredPermissions: ['communications.send'],
+      });
       if (!membership.authorized) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }

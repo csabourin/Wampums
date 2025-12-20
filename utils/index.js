@@ -114,7 +114,7 @@ function fromBool(value) {
  * @returns {Promise<boolean>}
  */
 async function userHasAccessToParticipant(pool, userId, participantId) {
-  // Check if user is a guardian of the participant
+  // Guardians always have access
   const guardianCheck = await pool.query(
     `SELECT 1 FROM user_participants
      WHERE user_id = $1 AND participant_id = $2`,
@@ -125,18 +125,29 @@ async function userHasAccessToParticipant(pool, userId, participantId) {
     return true;
   }
 
-  // Check if user has animation or admin role in same organization
-  const roleCheck = await pool.query(
+  // Staff access is governed by participant-related permissions in the participant's organizations
+  const accessCheck = await pool.query(
     `SELECT 1
-     FROM user_organizations uo
-     JOIN participant_organizations po ON uo.organization_id = po.organization_id
-     WHERE uo.user_id = $1
-       AND po.participant_id = $2
-       AND uo.role IN ('animation', 'admin')`,
+     FROM participant_organizations po
+     JOIN user_organizations uo
+       ON uo.organization_id = po.organization_id
+      AND uo.user_id = $1
+     CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+     JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+     JOIN permissions p ON p.id = rp.permission_id
+     WHERE po.participant_id = $2
+       AND p.permission_key IN (
+         'participants.view',
+         'participants.edit',
+         'participants.create',
+         'participants.delete',
+         'participants.transfer'
+       )
+     LIMIT 1`,
     [userId, participantId],
   );
 
-  return roleCheck.rows.length > 0;
+  return accessCheck.rows.length > 0;
 }
 
 /**

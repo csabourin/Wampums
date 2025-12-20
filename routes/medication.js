@@ -4,7 +4,8 @@ const { authenticate, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
-const ALLOWED_ROLES = ['admin', 'animation', 'leader'];
+const MEDICATION_READ_PERMISSIONS = ['participants.view'];
+const MEDICATION_MANAGE_PERMISSIONS = ['participants.edit'];
 
 const validateStatus = (status) => ['scheduled', 'given', 'missed', 'cancelled'].includes(status);
 
@@ -35,10 +36,13 @@ module.exports = (pool, logger) => {
   /**
    * GET /v1/medication/requirements
    * List medication requirement definitions for the organization
+   * Permission: participants.view
    */
   router.get('/v1/medication/requirements', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -62,10 +66,13 @@ module.exports = (pool, logger) => {
   /**
    * GET /v1/medication/fiche-medications
    * List distinct medications captured in fiche_sante submissions
+   * Permission: participants.view
    */
   router.get('/v1/medication/fiche-medications', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -89,10 +96,13 @@ module.exports = (pool, logger) => {
   /**
    * POST /v1/medication/requirements
    * Create a medication requirement and participant assignments
+   * Permission: participants.edit
    */
   router.post('/v1/medication/requirements', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -192,13 +202,16 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  /**
-   * PUT /v1/medication/requirements/:id
-   * Update a medication requirement and participant assignments
-   */
+/**
+ * PUT /v1/medication/requirements/:id
+ * Update a medication requirement and participant assignments
+ * Permission: participants.edit
+ */
   router.put('/v1/medication/requirements/:id', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -329,13 +342,16 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  /**
-   * GET /v1/medication/participant-medications
-   * List participant medication assignments
-   */
+/**
+ * GET /v1/medication/participant-medications
+ * List participant medication assignments
+ * Permission: participants.view
+ */
   router.get('/v1/medication/participant-medications', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -353,13 +369,16 @@ module.exports = (pool, logger) => {
     return success(res, { participant_medications: result.rows }, 'Participant medications loaded');
   }));
 
-  /**
-   * GET /v1/medication/distributions
-   * List scheduled and historical medication distributions
-   */
+/**
+ * GET /v1/medication/distributions
+ * List scheduled and historical medication distributions
+ * Permission: participants.edit
+ */
   router.get('/v1/medication/distributions', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -386,13 +405,16 @@ module.exports = (pool, logger) => {
     return success(res, { distributions: result.rows }, 'Medication distributions loaded');
   }));
 
-  /**
-   * POST /v1/medication/distributions
-   * Schedule or update medication distributions for a single participant per entry
-   */
+/**
+ * POST /v1/medication/distributions
+ * Schedule or update medication distributions for a single participant per entry
+ * Permission: participants.edit
+ */
   router.post('/v1/medication/distributions', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -503,13 +525,16 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  /**
-   * PATCH /v1/medication/distributions/:id
-   * Update the status of a medication distribution entry
-   */
+/**
+ * PATCH /v1/medication/distributions/:id
+ * Update the status of a medication distribution entry
+ * Permission: participants.edit
+ */
   router.patch('/v1/medication/distributions/:id', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ALLOWED_ROLES);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -560,4 +585,3 @@ module.exports = (pool, logger) => {
 
   return router;
 };
-

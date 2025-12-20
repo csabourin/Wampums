@@ -394,6 +394,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
   /**
    * Create a new announcement
+   * Permission: communications.send
    */
   router.post(
     '/v1/announcements',
@@ -416,7 +417,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
         }
 
         const organizationId = await getCurrentOrganizationId(req, pool, logger);
-        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin', 'animation']);
+        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+          requiredPermissions: ['communications.send'],
+        });
         if (!membership.authorized) {
           return res.status(403).json({ success: false, message: membership.message });
         }
@@ -480,7 +483,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin', 'animation']);
+      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+        requiredPermissions: ['communications.send'],
+      });
       if (!membership.authorized) {
         return res.status(403).json({ success: false, message: membership.message });
       }

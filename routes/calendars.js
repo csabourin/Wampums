@@ -29,6 +29,7 @@ module.exports = (pool, logger) => {
    *     summary: Get all calendar entries
    *     description: Retrieve calendar entries with participant and payment information
    *     tags: [Calendars]
+   *     x-permission: finance.view
    *     security:
    *       - bearerAuth: []
    *     responses:
@@ -61,6 +62,13 @@ module.exports = (pool, logger) => {
 
       if (fundraiserCheck.rows.length === 0) {
         return res.status(403).json({ success: false, message: 'Access denied to this fundraiser' });
+      }
+
+      const permissionCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
+        requiredPermissions: ['finance.view'],
+      });
+      if (!permissionCheck.authorized) {
+        return res.status(403).json({ success: false, message: permissionCheck.message });
       }
 
       // Fetch all calendar entries for this fundraiser, regardless of participant's current organization status
@@ -97,6 +105,7 @@ module.exports = (pool, logger) => {
    *     summary: Update calendar entry
    *     description: Update calendar entry details (admin/animation only)
    *     tags: [Calendars]
+   *     x-permission: finance.manage
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -145,8 +154,10 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
+        requiredPermissions: ['finance.manage'],
+      });
+      if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
 
@@ -197,6 +208,7 @@ module.exports = (pool, logger) => {
    *     summary: Update payment amount for a calendar entry
    *     description: Update payment information for calendar (admin/animation only)
    *     tags: [Calendars]
+   *     x-permission: finance.manage
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -239,8 +251,10 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
+        requiredPermissions: ['finance.manage'],
+      });
+      if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
 
