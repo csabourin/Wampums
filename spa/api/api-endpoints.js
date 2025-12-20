@@ -2077,10 +2077,15 @@ export async function switchOrganization(organizationId) {
  */
 export async function getOrganizationSettings(orgId = null) {
     const params = orgId ? { organization_id: orgId } : {};
-    return API.get('organization-settings', params, {
-        cacheKey: `org_settings_${orgId || 'current'}`,
-        cacheDuration: CONFIG.CACHE_DURATION.LONG
-    });
+    try {
+        return await API.get('organization-settings', params, {
+            cacheKey: `org_settings_${orgId || 'current'}`,
+            cacheDuration: CONFIG.CACHE_DURATION.LONG
+        });
+    } catch (error) {
+        debugWarn('Falling back to public organization settings:', error);
+        return getPublicOrganizationSettings();
+    }
 }
 
 /**
