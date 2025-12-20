@@ -22,6 +22,8 @@ composer.phar
 /logs/
 logs/
 *.log
+# Root-level debug log file
+/debug.log
 
 # CakePHP 2
 
