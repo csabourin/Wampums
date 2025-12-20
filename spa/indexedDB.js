@@ -376,6 +376,42 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
 }
 
 /**
+ * Clear cached external revenue data to avoid stale finance dashboards.
+ * Deletes the main list cache and any summary caches scoped by date.
+ * @returns {Promise<void>} Resolves when the caches have been removed
+ */
+export async function clearExternalRevenueCaches() {
+  const keysToDelete = new Set(['external_revenue']);
+
+  try {
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const allKeys = await new Promise((resolve, reject) => {
+      const request = store.getAllKeys();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    allKeys.forEach((key) => {
+      if (typeof key === "string" && key.startsWith("external_revenue_summary_")) {
+        keysToDelete.add(key);
+      }
+    });
+  } catch (error) {
+    debugWarn("Unable to enumerate external revenue caches for cleanup:", error);
+  }
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
+/**
  * Clear activity-related caches
  * Call this after creating, updating, or deleting activities
  */

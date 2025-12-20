@@ -1939,10 +1939,11 @@ export async function createExpensesBulk(expenses) {
 /**
  * Get external revenue entries with optional filters
  */
-export async function getExternalRevenue(filters = {}) {
+export async function getExternalRevenue(filters = {}, cacheOptions = {}) {
     return API.get('v1/revenue/external', filters, {
         cacheKey: 'external_revenue',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        ...cacheOptions
     });
 }
 
@@ -1970,7 +1971,7 @@ export async function deleteExternalRevenue(id) {
 /**
  * Get external revenue summary
  */
-export async function getExternalRevenueSummary(startDate = null, endDate = null) {
+export async function getExternalRevenueSummary(startDate = null, endDate = null, cacheOptions = {}) {
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
@@ -1978,7 +1979,8 @@ export async function getExternalRevenueSummary(startDate = null, endDate = null
     const cacheKey = `external_revenue_summary_${startDate || 'all'}_${endDate || 'all'}`;
     return API.get('v1/revenue/external/summary', params, {
         cacheKey,
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        ...cacheOptions
     });
 }
 

@@ -8,7 +8,8 @@ import {
 } from "./api/api-endpoints.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { debugError, debugLog } from "./utils/DebugUtils.js";
+import { clearExternalRevenueCaches } from "./indexedDB.js";
+import { debugError, debugLog, debugWarn } from "./utils/DebugUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import {
   LoadingStateManager,
@@ -127,11 +128,12 @@ export class ExternalRevenue {
     });
   }
 
-  async loadRevenues() {
+  async loadRevenues(forceRefresh = false) {
     return this.loadingManager.withLoading("revenues", async () => {
       try {
+        const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
         const response = await retryWithBackoff(
-          () => getExternalRevenue(this.filters),
+          () => getExternalRevenue(this.filters, cacheOptions),
           { maxRetries: 2 },
         );
         this.revenues = response?.data || [];
@@ -144,11 +146,13 @@ export class ExternalRevenue {
     });
   }
 
-  async loadSummary() {
+  async loadSummary(forceRefresh = false) {
     try {
+      const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
       const response = await getExternalRevenueSummary(
         this.filters.start_date,
         this.filters.end_date,
+        cacheOptions,
       );
       this.summary = response?.data || null;
       debugLog("Loaded external revenue summary", this.summary);
@@ -156,6 +160,55 @@ export class ExternalRevenue {
       debugError("Error loading summary", error);
       this.summary = null;
     }
+  }
+
+  /**
+   * Refresh both the revenue list and summary, optionally bypassing caches.
+   * @param {boolean} forceRefresh - When true, bypass cached data.
+   */
+  async reloadRevenuesAndSummary(forceRefresh = false) {
+    await Promise.all([
+      this.loadRevenues(forceRefresh),
+      this.loadSummary(forceRefresh),
+    ]);
+    this.render();
+    this.attachEventListeners();
+  }
+
+  getCategoryName(categoryId) {
+    if (!categoryId) {
+      return "";
+    }
+
+    const category = this.categories.find(
+      (cat) => String(cat.id) === String(categoryId),
+    );
+    return category?.name || "";
+  }
+
+  buildRevenueWithCategory(revenue) {
+    if (!revenue) {
+      return null;
+    }
+
+    return {
+      ...revenue,
+      category_name:
+        revenue.category_name ||
+        (revenue.budget_category_id
+          ? this.getCategoryName(revenue.budget_category_id)
+          : ""),
+    };
+  }
+
+  async clearRevenueCachesAndRefresh() {
+    try {
+      await clearExternalRevenueCaches();
+    } catch (error) {
+      debugWarn("Unable to clear external revenue caches", error);
+    }
+
+    await this.reloadRevenuesAndSummary(true);
   }
 
   formatCurrency(amount) {
@@ -436,9 +489,7 @@ export class ExternalRevenue {
     ).value;
     this.filters.category_id = document.getElementById("filter-category").value;
 
-    await Promise.all([this.loadRevenues(), this.loadSummary()]);
-    this.render();
-    this.attachEventListeners();
+    await this.reloadRevenuesAndSummary();
   }
 
   async resetFilters() {
@@ -449,9 +500,7 @@ export class ExternalRevenue {
       category_id: "all",
     };
 
-    await Promise.all([this.loadRevenues(), this.loadSummary()]);
-    this.render();
-    this.attachEventListeners();
+    await this.reloadRevenuesAndSummary();
   }
 
   showRevenueModal(revenue = null) {
@@ -586,6 +635,7 @@ export class ExternalRevenue {
     const receiptUrl = document.getElementById("revenue-receipt-url").value;
     const notes = document.getElementById("revenue-notes").value;
 
+    const previousRevenues = [...this.revenues];
     try {
       const payload = {
         revenue_type: revenueType,
@@ -599,32 +649,53 @@ export class ExternalRevenue {
         notes,
       };
 
-      if (revenueId) {
-        await updateExternalRevenue(revenueId, payload);
-        this.app.showMessage(translate("external_revenue_updated"), "success");
+      const response = revenueId
+        ? await updateExternalRevenue(revenueId, payload)
+        : await createExternalRevenue(payload);
+      const successKey = revenueId
+        ? "external_revenue_updated"
+        : "external_revenue_created";
+
+      const normalizedRevenue = this.buildRevenueWithCategory({
+        ...payload,
+        ...response?.data,
+      });
+
+      if (normalizedRevenue) {
+        if (revenueId) {
+          this.revenues = this.revenues.map((revenue) =>
+            revenue.id === revenueId ? { ...revenue, ...normalizedRevenue } : revenue,
+          );
+        } else {
+          this.revenues = [normalizedRevenue, ...this.revenues];
+        }
       } else {
-        await createExternalRevenue(payload);
-        this.app.showMessage(translate("external_revenue_created"), "success");
+        debugWarn("No revenue data returned from API; falling back to refetch");
       }
 
       document.getElementById("revenue-modal").remove();
-      await Promise.all([this.loadRevenues(), this.loadSummary()]);
       this.render();
       this.attachEventListeners();
+      this.app.showMessage(translate(successKey), "success");
+      await this.clearRevenueCachesAndRefresh();
     } catch (error) {
+      this.revenues = previousRevenues;
       debugError("Error saving external revenue", error);
       this.app.showMessage(translate("error_saving_external_revenue"), "error");
     }
   }
 
   async deleteRevenue(revenueId) {
+    const previousRevenues = [...this.revenues];
     try {
       await deleteExternalRevenue(revenueId);
-      this.app.showMessage(translate("external_revenue_deleted"), "success");
-      await Promise.all([this.loadRevenues(), this.loadSummary()]);
+      this.revenues = this.revenues.filter((revenue) => revenue.id !== revenueId);
       this.render();
       this.attachEventListeners();
+      this.app.showMessage(translate("external_revenue_deleted"), "success");
+      await this.clearRevenueCachesAndRefresh();
     } catch (error) {
+      this.revenues = previousRevenues;
       debugError("Error deleting external revenue", error);
       this.app.showMessage(
         translate("error_deleting_external_revenue"),
