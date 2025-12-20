@@ -805,6 +805,7 @@ app.use("/api", notificationsRoutes);
 logger.info("✅ Notifications routes loaded");
 logger.info("   - POST /api/send-notification");
 logger.info("   - POST /api/push-subscription");
+logger.info("   - POST /api/v1/push-subscription");
 
 // Announcement Routes (handles /api/v1/announcements)
 app.use("/api", announcementsRoutes);
