@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
@@ -51,13 +51,8 @@ function formatFeeRow(row) {
 }
 
 module.exports = (pool, logger) => {
-  router.get('/v1/finance/fee-definitions', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/finance/fee-definitions', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const result = await pool.query(
       `SELECT id, organization_id, registration_fee, membership_fee, year_start, year_end, created_at
@@ -70,13 +65,8 @@ module.exports = (pool, logger) => {
     return success(res, result.rows, 'Fee definitions loaded');
   }));
 
-  router.post('/v1/finance/fee-definitions', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/finance/fee-definitions', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { registration_fee, membership_fee, year_start, year_end } = req.body;
 
@@ -134,13 +124,8 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.put('/v1/finance/fee-definitions/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/finance/fee-definitions/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const { registration_fee, membership_fee, year_start, year_end } = req.body;
@@ -181,13 +166,8 @@ module.exports = (pool, logger) => {
     return success(res, updateResult.rows[0], 'Fee definition updated');
   }));
 
-  router.delete('/v1/finance/fee-definitions/:id', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/finance/fee-definitions/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
 
@@ -205,13 +185,8 @@ module.exports = (pool, logger) => {
     return success(res, true, 'Fee definition deleted');
   }));
 
-  router.get('/v1/finance/participant-fees', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/finance/participant-fees', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const result = await pool.query(
       `WITH paid AS (
