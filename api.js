@@ -108,7 +108,7 @@ app.use(
         ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
         fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
-        imgSrc: ["'self'", "data:", "https:"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
         connectSrc,
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
