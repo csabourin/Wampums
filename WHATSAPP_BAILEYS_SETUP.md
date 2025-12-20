@@ -73,7 +73,7 @@ WhatsApp connections restored
 
 ### Step 1: Navigate to Account Settings
 
-Scout Leaders (with `admin` or `animation` role) should:
+Scout Leaders (with `district` or `leader` role) should:
 
 1. Log into Wampums
 2. Navigate to **Account Settings** (usually at `/account-info`)
@@ -301,7 +301,7 @@ This checks the database for organizations with `is_connected = true` and attemp
 
 - **Socket.io**: Authenticated via JWT token in handshake
 - **API Endpoints**: Protected by existing JWT middleware
-- **Role-Based**: Only `admin` and `animation` roles can connect/disconnect
+- **Role-Based**: Only `district` and `leader` roles can connect/disconnect, respecting existing permissions middleware
 
 ### Session Data
 
@@ -513,7 +513,7 @@ router.get('/v1/whatsapp/baileys/health', async (req, res) => {
 3. **Message templates** - predefined WhatsApp message formats
 4. **Analytics dashboard** - track delivery rates, failures
 5. **Scheduled disconnections** - auto-disconnect after X hours of inactivity
-6. **Webhook notifications** - notify admins when connection drops
+6. **Webhook notifications** - notify district leads when connection drops
 7. **Message queuing** - queue messages during disconnection
 8. **Media support** - send images, PDFs via WhatsApp
 

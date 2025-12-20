@@ -49,7 +49,7 @@ const translations = {
 		// Features
 		features_title: "Fonctions conçues pour les unités scoutes",
 		features_body:
-			"Chaque module est pensé pour les réalités des équipes d'animation : préparation rapide, suivi clair et collaboration avec les parents.",
+			"Chaque module est pensé pour les réalités des équipes de responsables et du district : préparation rapide, suivi clair et collaboration avec les parents.",
 		feature1_title: "Planification des rencontres",
 		feature1_body:
 			"Planifiez les activités hebdomadaires, matériaux et responsabilités, avec un calendrier partagé.",
@@ -61,7 +61,7 @@ const translations = {
 			"Envoyez des nouvelles, rappels et documents pour que les familles restent alignées.",
 		feature4_title: "Gestion des rôles",
 		feature4_body:
-			"Attribuez les rôles (admin, animation, parents) et sécurisez l'accès aux données.",
+			"Attribuez les rôles (district, responsables, parents) et sécurisez l'accès aux données.",
 		feature5_title: "Documents et consentements",
 		feature5_body:
 			"Stockez fiches santé, autorisations et rapports pour des activités conformes.",
@@ -95,9 +95,9 @@ const translations = {
 
 		// Benefits
 		benefits_title: "Pourquoi Wampums aide votre communauté",
-		benefit1_title: "Animation efficace",
+		benefit1_title: "Leadership efficace",
 		benefit1_body:
-			"Moins d'administration, plus de temps sur le terrain grâce à des modèles et rappels prêts à l'emploi.",
+			"Moins de gestion de district, plus de temps sur le terrain grâce à des modèles et rappels prêts à l'emploi.",
 		benefit2_title: "Parents rassurés",
 		benefit2_body:
 			"Informations claires, notifications rapides et documents centralisés pour suivre l'avancement.",
@@ -205,7 +205,7 @@ const translations = {
 			"Send updates, reminders, and documents so families stay aligned.",
 		feature4_title: "Role management",
 		feature4_body:
-			"Assign roles (admin, leaders, parents) and secure access to data.",
+			"Assign roles (district, leaders, parents) and secure access to data.",
 		feature5_title: "Documents & consents",
 		feature5_body:
 			"Store health forms, permissions, and reports to keep activities compliant.",
@@ -235,7 +235,7 @@ const translations = {
 		benefits_title: "How Wampums supports your community",
 		benefit1_title: "Effective leadership",
 		benefit1_body:
-			"Less admin, more time outdoors thanks to ready-to-use templates and reminders.",
+			"Less district overhead, more time outdoors thanks to ready-to-use templates and reminders.",
 		benefit2_title: "Confident parents",
 		benefit2_body:
 			"Clear information, fast notifications, and centralized documents to follow progress.",
