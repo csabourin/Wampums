@@ -344,7 +344,7 @@ export class Dashboard {
   <h3>${translate("dashboard_preparation_section")}</h3>
   <div class="manage-items">
     <a href="/activities"><i class="fa-solid fa-calendar-days"></i><span>${translate("activities_calendar")}</span></a>
-    <a href="#" id="carpool-quick-access"><i class="fa-solid fa-car"></i><span>${translate("carpool_coordination")}</span></a>
+    <a href="/carpool" id="carpool-quick-access"><i class="fa-solid fa-car"></i><span>${translate("carpool_coordination")}</span></a>
     <a href="/preparation-reunions"><i class="fa-solid fa-clipboard-list"></i><span>${translate("preparation_reunions")}</span></a>
     <a href="/view-participant-documents"><i class="fa-solid fa-file-lines"></i><span>${translate("view_participant_documents")}</span></a>
     <a href="/inventory"><i class="fa-solid fa-warehouse"></i><span>${translate("inventory_link")}</span></a>
@@ -672,9 +672,22 @@ ${administrationLinks.length > 0 ? `
 
     const carpoolBtn = document.getElementById("carpool-quick-access");
     if (carpoolBtn) {
-      carpoolBtn.addEventListener("click", (e) => {
+      carpoolBtn.addEventListener("click", async (e) => {
         e.preventDefault();
-        this.showCarpoolQuickAccess();
+        e.stopPropagation();
+
+        if (this.app?.router) {
+          this.app.router.navigate("/carpool");
+        }
+
+        try {
+          await this.showCarpoolQuickAccess();
+        } catch (error) {
+          debugError("Error opening carpool quick access:", error);
+          if (typeof this.app?.showMessage === "function") {
+            this.app.showMessage("error_loading_activities", "error");
+          }
+        }
       });
     }
   }

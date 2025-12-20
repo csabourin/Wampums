@@ -83,6 +83,7 @@ const lazyModules = {
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
   FormBuilder: () => import('./formBuilder.js').then(m => m.FormBuilder),
   Activities: () => import('./activities.js').then(m => m.Activities),
+  CarpoolLanding: () => import('./carpool.js').then(m => m.CarpoolLanding),
   CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
   RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement)
 };
@@ -147,6 +148,7 @@ const routes = {
   "/form-builder": "formBuilder",
   "/admin/form-builder": "formBuilder",
   "/activities": "activities",
+  "/carpool": "carpoolLanding",
   "/carpool/:id": "carpool",
   "/role-management": "roleManagement"
 
@@ -493,6 +495,14 @@ export class Router {
           const activities = new Activities(this.app);
           await activities.init();
           break;
+        case "carpoolLanding":
+          if (!guard(isParent() || canViewCarpools())) {
+            break;
+          }
+          const CarpoolLanding = await this.loadModule('CarpoolLanding');
+          const carpoolLanding = new CarpoolLanding(this.app);
+          await carpoolLanding.init();
+          break;
         case "carpool":
           if (!guard(isParent() || canViewCarpools())) {
             break;
@@ -529,7 +539,7 @@ export class Router {
       }
 
       // Load activity widget only on dashboard/activity-related routes for better performance
-      const activityRoutes = ['dashboard', 'activities', 'carpool'];
+      const activityRoutes = ['dashboard', 'activities', 'carpool', 'carpoolLanding'];
       const canShowActivityWidget = (canViewActivities() || canManageActivities() || canManageAttendance()) && !isParent();
       if (
         this.app.isLoggedIn &&
