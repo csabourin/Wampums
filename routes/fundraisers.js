@@ -65,7 +65,7 @@ module.exports = (pool, logger) => {
           COALESCE(SUM(c.amount), 0) as total_amount,
           COALESCE(SUM(c.amount_paid), 0) as total_paid
         FROM fundraisers f
-        LEFT JOIN calendars c ON c.fundraiser = f.id
+        LEFT JOIN fundraiser_entries c ON c.fundraiser = f.id
         WHERE f.organization = $1
       `;
 
@@ -119,7 +119,7 @@ module.exports = (pool, logger) => {
                 COALESCE(SUM(c.amount), 0) as total_amount,
                 COALESCE(SUM(c.amount_paid), 0) as total_paid
          FROM fundraisers f
-         LEFT JOIN calendars c ON c.fundraiser = f.id
+         LEFT JOIN fundraiser_entries c ON c.fundraiser = f.id
          WHERE f.id = $1 AND f.organization = $2
          GROUP BY f.id`,
         [id, organizationId]
@@ -219,7 +219,7 @@ module.exports = (pool, logger) => {
           ]);
 
           await client.query(
-            `INSERT INTO calendars (participant_id, fundraiser, amount, paid, amount_paid)
+            `INSERT INTO fundraiser_entries (participant_id, fundraiser, amount, paid, amount_paid)
              VALUES ${values}
              ON CONFLICT DO NOTHING`,
             params

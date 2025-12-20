@@ -296,6 +296,8 @@ export async function clearBadgeRelatedCaches() {
 export async function clearFundraiserRelatedCaches(fundraiserId = null) {
   const baseKeys = new Set(['fundraisers']);
   if (fundraiserId) {
+    baseKeys.add(`fundraiser_entries_${fundraiserId}`);
+    // Also clear old calendar cache keys for backward compatibility
     baseKeys.add(`calendars_${fundraiserId}`);
   }
 
@@ -313,6 +315,12 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
       baseKeys.add(key);
     }
 
+    // Clear both old calendar_ and new fundraiser_entries_ cache keys
+    if (key.startsWith('fundraiser_entries_')) {
+      if (!fundraiserId || key === `fundraiser_entries_${fundraiserId}`) {
+        baseKeys.add(key);
+      }
+    }
     if (key.startsWith('calendars_')) {
       if (!fundraiserId || key === `calendars_${fundraiserId}`) {
         baseKeys.add(key);

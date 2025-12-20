@@ -112,8 +112,8 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_calendars_for")} ${fundraiser.name}">
-						${translate("view_calendars")}
+					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_fundraiser_entries_for")} ${fundraiser.name}">
+						${translate("view_fundraiser_entries")}
 					</a>
 					${canEdit ? `
 						<button class="btn-secondary edit-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("edit")} ${fundraiser.name}">
@@ -166,8 +166,8 @@ export class Fundraisers {
 					</div>
 				</div>
 				<div class="fundraiser-card-footer">
-					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_calendars_for")} ${fundraiser.name}">
-						${translate("view_calendars")}
+					<a href="/calendars/${fundraiser.id}" class="btn-link" aria-label="${translate("view_fundraiser_entries_for")} ${fundraiser.name}">
+						${translate("view_fundraiser_entries")}
 					</a>
 					${canEdit ? `
 						<button class="btn-secondary unarchive-fundraiser-btn" data-id="${fundraiser.id}" aria-label="${translate("unarchive")} ${fundraiser.name}">
