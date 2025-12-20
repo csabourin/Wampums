@@ -368,8 +368,15 @@ export async function getResourceDashboard(params = {}, cacheOptions = {}) {
 /**
  * Get all users for organization
  */
-export async function getUsers(organizationId) {
-    return API.get('users', { organization_id: organizationId });
+export async function getUsers(organizationId, cacheOptions = {}) {
+    const params = { organization_id: organizationId };
+    const cacheKey = buildCacheKey('users', params);
+
+    return API.get('users', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh: cacheOptions.forceRefresh
+    });
 }
 
 /**
@@ -384,6 +391,29 @@ export async function getPendingUsers() {
  */
 export async function checkPermission(permission) {
     return API.post('check-permission', { permission });
+}
+
+/**
+ * Clear cached user lists to ensure admin updates surface immediately
+ *
+ * @param {string|number|null} organizationId - Organization identifier for scoped caches
+ */
+export async function clearUserCaches(organizationId) {
+    const { deleteCachedData } = await import('../indexedDB.js');
+    const orgId = organizationId || getCurrentOrganizationId();
+    const cacheKeys = new Set(['users']);
+
+    if (orgId) {
+        cacheKeys.add(buildCacheKey('users', { organization_id: orgId }));
+    }
+
+    for (const key of cacheKeys) {
+        try {
+            await deleteCachedData(key);
+        } catch (error) {
+            debugWarn('Failed to clear user cache key', key, error);
+        }
+    }
 }
 
 /**
