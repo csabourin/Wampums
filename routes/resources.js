@@ -19,9 +19,9 @@ const { handleOrganizationResolutionError } = require("../utils/api-helpers");
 const { sendEmail } = require("../utils/index");
 const {
   MAX_FILE_SIZE,
-  ALLOWED_MIME_TYPES,
   OUTPUT_MIME_TYPE,
   validateFile,
+  isAllowedImageType,
   generateFilePath,
   uploadFile,
   deleteFile,
@@ -41,7 +41,7 @@ const upload = multer({
     fileSize: MAX_FILE_SIZE,
   },
   fileFilter: (req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    if (isAllowedImageType(file)) {
       cb(null, true);
     } else {
       cb(
@@ -509,7 +509,6 @@ module.exports = (pool) => {
           filePath,
           OUTPUT_MIME_TYPE,
         );
-        alert(OUTPUT_MIME_TYPE);
 
         if (!uploadResult.success) {
           return error(

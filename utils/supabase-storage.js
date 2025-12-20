@@ -16,7 +16,18 @@ const ALLOWED_MIME_TYPES = [
   "image/gif",
   "image/heic",
   "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
   OUTPUT_MIME_TYPE,
+];
+const ALLOWED_IMAGE_EXTENSIONS = [
+  "jpeg",
+  "jpg",
+  "png",
+  "gif",
+  "webp",
+  "heic",
+  "heif",
 ];
 
 // Initialize Supabase client (lazy initialization)
@@ -135,7 +146,7 @@ function validateFile(file) {
     };
   }
 
-  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+  if (!isAllowedImageType(file)) {
     return {
       isValid: false,
       error: `Invalid file type. Allowed types: ${ALLOWED_MIME_TYPES.join(", ")}`,
@@ -143,6 +154,38 @@ function validateFile(file) {
   }
 
   return { isValid: true };
+}
+
+/**
+ * Determine whether an uploaded image file is of an allowed type.
+ * This includes MIME type checks and a safe extension fallback for HEIC/HEIF,
+ * which may arrive with empty or generic MIME types from some browsers.
+ * @param {Object} file - Multer file object
+ * @returns {boolean}
+ */
+function isAllowedImageType(file) {
+  if (!file) {
+    return false;
+  }
+
+  const mimeType = (file.mimetype || "").toLowerCase().split(";")[0];
+  if (ALLOWED_MIME_TYPES.includes(mimeType)) {
+    return true;
+  }
+
+  const extension = (file.originalname || "").split(".").pop();
+  if (!extension) {
+    return false;
+  }
+
+  const normalizedExtension = extension.toLowerCase();
+  const isKnownExtension = ALLOWED_IMAGE_EXTENSIONS.includes(normalizedExtension);
+  const isGenericMimeType =
+    mimeType === "" ||
+    mimeType === "application/octet-stream" ||
+    mimeType === "binary/octet-stream";
+
+  return isKnownExtension && isGenericMimeType;
 }
 
 /**
@@ -273,6 +316,7 @@ module.exports = {
   ALLOWED_MIME_TYPES,
   OUTPUT_MIME_TYPE,
   validateFile,
+  isAllowedImageType,
   generateFilePath,
   uploadFile,
   deleteFile,
