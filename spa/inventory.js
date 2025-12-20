@@ -15,7 +15,46 @@ import { canViewInventory } from "./utils/PermissionUtils.js";
 
 // Maximum photo file size: 3MB
 const MAX_PHOTO_SIZE = 3 * 1024 * 1024;
-const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
+const ALLOWED_PHOTO_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence'
+];
+const ALLOWED_PHOTO_EXTENSIONS = ['jpeg', 'jpg', 'png', 'gif', 'webp', 'heic', 'heif'];
+const GENERIC_PHOTO_MIME_TYPES = ['', 'application/octet-stream', 'binary/octet-stream'];
+
+/**
+ * Determine whether a selected photo file is allowed based on MIME type or safe extension fallback.
+ * Some browsers provide empty or generic MIME types for HEIC/HEIF uploads; in those cases we
+ * fall back to validating the extension while keeping the allowed list narrow.
+ * @param {File} file
+ * @returns {boolean}
+ */
+function isAllowedPhotoFile(file) {
+  if (!file) {
+    return false;
+  }
+
+  const mimeType = (file.type || '').toLowerCase().split(';')[0];
+  if (ALLOWED_PHOTO_TYPES.includes(mimeType)) {
+    return true;
+  }
+
+  const extension = (file.name || '').split('.').pop();
+  if (!extension) {
+    return false;
+  }
+
+  const normalizedExtension = extension.toLowerCase();
+  const isKnownExtension = ALLOWED_PHOTO_EXTENSIONS.includes(normalizedExtension);
+  return isKnownExtension && GENERIC_PHOTO_MIME_TYPES.includes(mimeType);
+}
 
 /**
  * Inventory management page for equipment and materials
@@ -924,7 +963,7 @@ export class Inventory {
             return;
           }
 
-          if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+          if (!isAllowedPhotoFile(file)) {
             this.app.showMessage(translate("equipment_photo_invalid_type"), "error");
             photoInput.value = '';
             return;
