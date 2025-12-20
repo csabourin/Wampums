@@ -4,7 +4,6 @@ const express = require("express");
 const { check, param, query } = require("express-validator");
 const router = express.Router();
 const multer = require("multer");
-const sharp = require("sharp");
 
 const {
   authenticate,
@@ -22,17 +21,14 @@ const {
   OUTPUT_MIME_TYPE,
   validateFile,
   isAllowedImageType,
+  convertImageToWebP,
   generateFilePath,
   uploadFile,
   deleteFile,
   extractPathFromUrl,
   isStorageConfigured,
+  WEBP_EXTENSION,
 } = require("../utils/supabase-storage");
-
-const PHOTO_MAX_WIDTH = 640;
-const PHOTO_MAX_HEIGHT = 480;
-const PHOTO_WEBP_QUALITY = 82;
-const WEBP_EXTENSION = OUTPUT_MIME_TYPE.split("/")[1];
 
 // Configure multer for memory storage (3MB limit)
 const upload = multer({
@@ -482,15 +478,10 @@ module.exports = (pool) => {
         // Resize and convert to WebP before upload
         let processedBuffer;
         try {
-          processedBuffer = await sharp(req.file.buffer)
-            .resize({
-              width: PHOTO_MAX_WIDTH,
-              height: PHOTO_MAX_HEIGHT,
-              fit: "inside",
-              withoutEnlargement: true,
-            })
-            .webp({ quality: PHOTO_WEBP_QUALITY })
-            .toBuffer();
+          processedBuffer = await convertImageToWebP(req.file.buffer, {
+            mimeType: req.file.mimetype,
+            originalFilename: req.file.originalname,
+          });
         } catch (processingError) {
           return error(res, "Unable to process image upload", 400);
         }
