@@ -109,14 +109,14 @@ module.exports = (pool) => {
 
     // Get members
     const membersResult = await pool.query(
-      `SELECT p.*, pg.is_leader, pg.is_second_leader,
+      `SELECT p.*, pg.first_leader, pg.second_leader,
               COALESCE(SUM(pts.value), 0) as total_points
        FROM participants p
        JOIN participant_groups pg ON p.id = pg.participant_id
        LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
        WHERE pg.group_id = $2 AND pg.organization_id = $1
-       GROUP BY p.id, pg.is_leader, pg.is_second_leader
-       ORDER BY pg.is_leader DESC, pg.is_second_leader DESC, p.first_name`,
+       GROUP BY p.id, pg.first_leader, pg.second_leader
+       ORDER BY pg.first_leader DESC, pg.second_leader DESC, p.first_name`,
       [organizationId, id]
     );
 

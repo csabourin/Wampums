@@ -1703,8 +1703,9 @@ CREATE TABLE participant_groups (
   participant_id INTEGER REFERENCES participants(id) ON DELETE CASCADE,
   group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
   organization_id INTEGER NOT NULL REFERENCES organizations(id),
-  is_leader BOOLEAN DEFAULT FALSE,
-  is_second_leader BOOLEAN DEFAULT FALSE,
+  first_leader BOOLEAN DEFAULT FALSE,
+  second_leader BOOLEAN DEFAULT FALSE,
+  roles TEXT,
   PRIMARY KEY (participant_id, group_id, organization_id)
 );
 ```

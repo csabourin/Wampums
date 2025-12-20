@@ -13,6 +13,7 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { canViewAttendance } from "./utils/PermissionUtils.js";
+import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 
 
 export class Attendance {
@@ -67,7 +68,7 @@ export class Attendance {
     try {
       const cachedData = await getCachedData(`attendance_${this.currentDate}`);
       if (cachedData) {
-        this.participants = cachedData.participants;
+        this.participants = normalizeParticipantList(cachedData.participants);
         this.attendanceData = cachedData.attendanceData;
         this.guests = cachedData.guests;
         this.groups = cachedData.groups;
@@ -135,7 +136,7 @@ export class Attendance {
       // Support both new format (data) and old format (participants)
       const participantsList = participantsResponse.data || participantsResponse.participants;
       if (participantsResponse.success && Array.isArray(participantsList)) {
-        this.participants = participantsList;
+        this.participants = normalizeParticipantList(participantsList);
       } else {
         throw new Error("Invalid participants data structure");
       }
@@ -188,12 +189,12 @@ export class Attendance {
       Object.values(this.groups).forEach(group => {
         group.participants.sort((a, b) => {
           // Sort leaders first
-          if (a.is_leader && !b.is_leader) return -1;
-          if (!a.is_leader && b.is_leader) return 1;
+          if (a.first_leader && !b.first_leader) return -1;
+          if (!a.first_leader && b.first_leader) return 1;
 
           // Sort second leaders last
-          if (a.is_second_leader && !b.is_second_leader) return 1;
-          if (!a.is_second_leader && b.is_second_leader) return -1;
+          if (a.second_leader && !b.second_leader) return 1;
+          if (!a.second_leader && b.second_leader) return -1;
 
           // Alphabetical sort by first name for non-leaders and non-second-leaders
           return a.first_name.localeCompare(b.first_name);
@@ -369,8 +370,8 @@ export class Attendance {
         participantRow.dataset.groupId = group.id;
         participantRow.innerHTML = `
           <span class="participant-name">${participant.first_name} ${participant.last_name}    
-            ${participant.is_leader ? `<span class="badge leader">${translate("leader")}</span>` : ''}
-            ${participant.is_second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ''}
+            ${participant.first_leader ? `<span class="badge leader">${translate("leader")}</span>` : ''}
+            ${participant.second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ''}
           </span>      
           <span class="participant-status ${statusClass}">${translate(status)}</span>
         `;

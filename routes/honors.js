@@ -57,7 +57,7 @@ module.exports = (pool, logger) => {
       // Get participants
       const participantsResult = await pool.query(
         `SELECT p.id as participant_id, p.first_name, p.last_name,
-                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader
+                pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1

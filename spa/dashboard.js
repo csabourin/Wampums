@@ -25,6 +25,7 @@ import {
   canManageRoles,
   canViewRoles,
 } from "./utils/PermissionUtils.js";
+import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 
 export class Dashboard {
   constructor(app) {
@@ -173,15 +174,17 @@ export class Dashboard {
       const needsFreshGroups = !cachedGroups;
 
       if (cachedParticipants) {
-        this.participants = cachedParticipants.map((p) => ({
-          id: p.id,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          group_id: p.group_id,
-          group_name: p.group_name,
-          is_leader: p.is_leader,
-          is_second_leader: p.is_second_leader,
-        }));
+        this.participants = normalizeParticipantList(
+          cachedParticipants.map((p) => ({
+            id: p.id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            group_id: p.group_id,
+            group_name: p.group_name,
+            first_leader: p.first_leader ?? p.is_leader,
+            second_leader: p.second_leader ?? p.is_second_leader,
+          }))
+        );
       }
 
       if (cachedGroups) {
@@ -213,6 +216,8 @@ export class Dashboard {
         this.participants = mergedParticipants;
       }
 
+      this.participants = normalizeParticipantList(this.participants);
+
       if (needsFreshGroups) {
         await this.fetchData(false, true);
       }
@@ -224,8 +229,10 @@ export class Dashboard {
           last_name: p.last_name,
           group_id: p.group_id,
           group_name: p.group_name,
-          is_leader: p.is_leader,
-          is_second_leader: p.is_second_leader,
+          first_leader: p.first_leader,
+          second_leader: p.second_leader,
+          is_leader: p.first_leader,
+          is_second_leader: p.second_leader,
         }));
         await setCachedData(
           "dashboard_participant_info",
@@ -491,10 +498,10 @@ ${administrationLinks.length > 0 ? `
 
   renderParticipantsForGroup(participants) {
     participants.sort((a, b) => {
-      if (a.is_leader && !b.is_leader) return -1;
-      if (!a.is_leader && b.is_leader) return 1;
-      if (a.is_second_leader && !b.is_second_leader) return 1;
-      if (!a.is_second_leader && b.is_second_leader) return -1;
+      if (a.first_leader && !b.first_leader) return -1;
+      if (!a.first_leader && b.first_leader) return 1;
+      if (a.second_leader && !b.second_leader) return 1;
+      if (!a.second_leader && b.second_leader) return -1;
       return a.first_name.localeCompare(b.first_name);
     });
 
@@ -508,11 +515,11 @@ ${administrationLinks.length > 0 ? `
                data-type="individual"
                data-group-id="${p.group_id || "none"}"
                data-points="${pts}"
-               data-name="${p.first_name}">
+              data-name="${p.first_name}">
             <span class="participant-name">
               ${p.first_name} ${p.last_name}
-              ${p.is_leader ? ` <span class="badge leader">${translate("leader")}</span>` : ""}
-              ${p.is_second_leader ? ` <span class="badge second-leader">${translate("second_leader")}</span>` : ""}
+              ${p.first_leader ? ` <span class="badge leader">${translate("leader")}</span>` : ""}
+              ${p.second_leader ? ` <span class="badge second-leader">${translate("second_leader")}</span>` : ""}
             </span>
             <span class="participant-points" id="name-points-${p.id}">${pts}</span>
           </div>

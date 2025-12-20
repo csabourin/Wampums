@@ -1,6 +1,7 @@
 import { getParticipants, getGroups } from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
+import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 
 export class PrintableGroupParticipantReport {
 		constructor(app) {
@@ -42,7 +43,9 @@ export class PrintableGroupParticipantReport {
 				]);
 
 				// Support both new format (data) and old format (participants/groups)
-				this.participants = participantsResponse.data || participantsResponse.participants || [];
+				this.participants = normalizeParticipantList(
+          participantsResponse.data || participantsResponse.participants || []
+        );
 				this.groups = groupsResponse.data || groupsResponse.groups || [];
 
 				// Sort groups alphabetically
@@ -106,10 +109,10 @@ export class PrintableGroupParticipantReport {
 				return this.groups.map(group => {
 						const groupParticipants = this.participants.filter(p => p.group_id === group.id);
 						groupParticipants.sort((a, b) => {
-								if (a.is_leader) return -1;
-								if (b.is_leader) return 1;
-								if (a.is_second_leader) return 1;
-								if (b.is_second_leader) return -1;
+								if (a.first_leader) return -1;
+								if (b.first_leader) return 1;
+								if (a.second_leader) return 1;
+								if (b.second_leader) return -1;
 								return a.first_name.localeCompare(b.first_name);
 						});
 
@@ -118,8 +121,8 @@ export class PrintableGroupParticipantReport {
 										${index === 0 ? `<td rowspan="${groupParticipants.length}">${group.name}</td>` : ''}
 										<td>${participant.first_name} ${participant.last_name}</td>
 										<td>
-												${participant.is_leader ? `<strong>${translate("leader")}</strong>` : 
-													participant.is_second_leader ? `<strong>${translate("second_leader")}</strong>` : ""}
+												${participant.first_leader ? `<strong>${translate("leader")}</strong>` : 
+													participant.second_leader ? `<strong>${translate("second_leader")}</strong>` : ""}
 										</td>
 								</tr>
 						`).join('');

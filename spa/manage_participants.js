@@ -12,6 +12,7 @@ import { CONFIG } from "./config.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canViewParticipants } from "./utils/PermissionUtils.js";
+import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 
 export class ManageParticipants {
   constructor(app) {
@@ -80,7 +81,8 @@ export class ManageParticipants {
 
     if (participantsResponse.success) {
       // Support both new format (data) and old format (participants)
-      this.participants = participantsResponse.data || participantsResponse.participants || [];
+      const rawParticipants = participantsResponse.data || participantsResponse.participants || [];
+      this.participants = normalizeParticipantList(rawParticipants);
     } else {
       debugError("Failed to fetch participants data");
       this.participants = [];
@@ -214,9 +216,9 @@ export class ManageParticipants {
           </td>
           <td>
             <select class="role-select" data-participant-id="${participant.id}" ${!participant.group_id ? "disabled" : ""}>
-              <option value="none" ${!participant.is_leader && !participant.is_second_leader ? "selected" : ""}>${translate("none")}</option>
-              <option value="leader" ${participant.is_leader ? "selected" : ""}>${translate("leader")}</option>
-              <option value="second_leader" ${participant.is_second_leader ? "selected" : ""}>${translate("second_leader")}</option>
+              <option value="none" ${!participant.first_leader && !participant.second_leader ? "selected" : ""}>${translate("none")}</option>
+              <option value="leader" ${participant.first_leader ? "selected" : ""}>${translate("leader")}</option>
+              <option value="second_leader" ${participant.second_leader ? "selected" : ""}>${translate("second_leader")}</option>
             </select>
           </td>
           <td>
@@ -312,8 +314,8 @@ export class ManageParticipants {
       const requestData = {
           participant_id: participantId,
           group_id: groupId,
-          is_leader: false,
-          is_second_leader: false,
+          first_leader: false,
+          second_leader: false,
           roles: null
       };
 
@@ -323,8 +325,8 @@ export class ManageParticipants {
           const result = await updateParticipantGroup(
               requestData.participant_id,
               requestData.group_id,
-              requestData.is_leader,
-              requestData.is_second_leader,
+              requestData.first_leader,
+              requestData.second_leader,
               requestData.roles
           );
 
@@ -369,16 +371,16 @@ export class ManageParticipants {
       return;
     }
 
-    // Ensure we are passing valid boolean values (true/false) for is_leader and is_second_leader
-    const isLeader = role === "leader" ? true : false;
-    const isSecondLeader = role === "second_leader" ? true : false;
+    // Ensure we are passing valid boolean values (true/false) for first_leader and second_leader
+    const isLeader = role === "leader";
+    const isSecondLeader = role === "second_leader";
 
     // Log the data that will be sent
     const requestData = {
       participant_id: participantId,
       group_id: groupId,
-      is_leader: isLeader,
-      is_second_leader: isSecondLeader,
+      first_leader: isLeader,
+      second_leader: isSecondLeader,
       roles: roles
     };
 
@@ -420,15 +422,15 @@ export class ManageParticipants {
 
     // Get current role values
     const role = roleSelect.value;
-    const isLeader = role === "leader" ? true : false;
-    const isSecondLeader = role === "second_leader" ? true : false;
+    const isLeader = role === "leader";
+    const isSecondLeader = role === "second_leader";
 
     // Log the data that will be sent
     const requestData = {
       participant_id: participantId,
       group_id: groupId,
-      is_leader: isLeader,
-      is_second_leader: isSecondLeader,
+      first_leader: isLeader,
+      second_leader: isSecondLeader,
       roles: roles
     };
 
