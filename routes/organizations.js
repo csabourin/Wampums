@@ -267,6 +267,15 @@ module.exports = (pool, logger) => {
 
       await client.query('BEGIN');
 
+      // Resolve district role ID so the creator is assigned the correct permission-backed role
+      const districtRoleResult = await client.query(
+        `SELECT id FROM roles WHERE role_name = 'district' LIMIT 1`
+      );
+      if (districtRoleResult.rows.length === 0) {
+        throw new Error('District role not found; cannot assign organization owner role');
+      }
+      const districtRoleId = districtRoleResult.rows[0].id;
+
       // Create new organization
       const orgResult = await client.query(
         'INSERT INTO organizations (name, created_at) VALUES ($1, NOW()) RETURNING id',
@@ -300,11 +309,11 @@ module.exports = (pool, logger) => {
 
       await ensureProgramSectionsSeeded(client, newOrganizationId);
 
-      // Link current user to the new organization as admin
+      // Link current user to the new organization with district-level permissions
       await client.query(
-        `INSERT INTO user_organizations (user_id, organization_id, role, created_at)
-         VALUES ($1, $2, 'admin', NOW())`,
-        [userId, newOrganizationId]
+        `INSERT INTO user_organizations (user_id, organization_id, role, role_ids, created_at)
+         VALUES ($1, $2, 'district', jsonb_build_array($3), NOW())`,
+        [userId, newOrganizationId, districtRoleId]
       );
 
       await client.query('COMMIT');

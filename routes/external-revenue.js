@@ -13,9 +13,17 @@ module.exports = (pool, logger) => {
   /**
    * GET /api/v1/revenue/external
    * List external revenue entries (donations, sponsorships, grants, other)
+   * Permission: finance.view
    */
   router.get('/v1/revenue/external', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    const permissionCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['finance.view'],
+    });
+
+    if (!permissionCheck.authorized) {
+      return error(res, permissionCheck.message, 403);
+    }
     const { start_date, end_date, revenue_type, category_id } = req.query;
 
     const hasCategoryFilter = category_id && category_id !== 'all';
@@ -94,13 +102,16 @@ module.exports = (pool, logger) => {
   /**
    * POST /api/v1/revenue/external
    * Create a new external revenue entry
+   * Permission: finance.manage
    */
   router.post('/v1/revenue/external', authenticate, asyncHandler(async (req, res) => {
     try {
       logger.info('[external-revenue] POST request received:', { body: req.body, user: req.user?.id });
 
       const organizationId = await getOrganizationId(req, pool);
-      const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
+      const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+        requiredPermissions: ['finance.manage'],
+      });
 
       if (!authCheck.authorized) {
         return error(res, authCheck.message, 403);
@@ -187,10 +198,13 @@ module.exports = (pool, logger) => {
   /**
    * PUT /api/v1/revenue/external/:id
    * Update an external revenue entry
+   * Permission: finance.manage
    */
   router.put('/v1/revenue/external/:id', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['finance.manage'],
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -280,10 +294,13 @@ module.exports = (pool, logger) => {
   /**
    * DELETE /api/v1/revenue/external/:id
    * Delete an external revenue entry
+   * Permission: finance.manage
    */
   router.delete('/v1/revenue/external/:id', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['finance.manage'],
+    });
 
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
@@ -309,9 +326,17 @@ module.exports = (pool, logger) => {
   /**
    * GET /api/v1/revenue/external/summary
    * Get summary of external revenue by category and type
+   * Permission: finance.view
    */
   router.get('/v1/revenue/external/summary', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    const permissionCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['finance.view'],
+    });
+
+    if (!permissionCheck.authorized) {
+      return error(res, permissionCheck.message, 403);
+    }
     const { start_date, end_date } = req.query;
 
     let query = `

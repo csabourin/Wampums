@@ -339,7 +339,9 @@ module.exports = (pool) => {
     }
 
     // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['participants.edit'],
+    });
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
     }
@@ -470,7 +472,9 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['participants.create'],
+    });
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
     }
@@ -586,7 +590,9 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['participants.edit'],
+    });
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
     }
@@ -695,7 +701,9 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: ['participants.edit'],
+    });
     if (!authCheck.authorized) {
       return error(res, authCheck.message, 403);
     }
@@ -709,7 +717,9 @@ module.exports = (pool) => {
 
     // If user is trying to link someone else, they need admin role
     if (user_id !== req.user.id) {
-      const adminCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin']);
+      const adminCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+        requiredPermissions: ['users.assign_roles'],
+      });
       if (!adminCheck.authorized) {
         return error(res, 'Only admins can link participants to other users', 403);
       }

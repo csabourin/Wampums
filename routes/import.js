@@ -66,7 +66,9 @@ module.exports = function(pool, logger) {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin']);
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
+        requiredPermissions: ['org.edit'],
+      });
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: 'Admin access required' });
       }

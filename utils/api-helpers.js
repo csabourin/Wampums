@@ -269,44 +269,97 @@ function handleError(err, req, res, next, logger) {
 }
 
 /**
- * Verify user belongs to organization with specific role
+ * Verify user belongs to an organization with required permissions or roles.
+ *
+ * Regression note: prefer permission keys (e.g., communications.send, org.edit).
+ * Legacy role arrays (admin/animation) are mapped to district/leader role names
+ * to maintain compatibility with the permission-driven system.
  *
  * @param {Object} pool - Database pool
  * @param {number} userId - User ID
  * @param {number} organizationId - Organization ID
- * @param {Array<string>|null} requiredRoles - Required roles (null = any role)
- * @returns {Promise<Object>} { authorized: boolean, role: string|null, message: string }
- *
- * @example
- * const { authorized, role } = await verifyOrganizationMembership(
- *   pool, userId, organizationId, ['admin', 'animation']
- * );
- * if (!authorized) {
- *   return res.status(403).json({ error: 'Access denied' });
- * }
+ * @param {Object|Array<string>|null} requirements - Permission/role requirements
+ * @param {Array<string>} [requirements.requiredRoles] - Optional role names to allow
+ * @param {Array<string>} [requirements.requiredPermissions] - Permission keys the user must have
+ * @returns {Promise<Object>} { authorized: boolean, role: string|null, roles: string[], permissions: string[], message?: string }
  */
-async function verifyOrganizationMembership(pool, userId, organizationId, requiredRoles = null) {
+async function verifyOrganizationMembership(pool, userId, organizationId, requirements = null) {
   try {
-    let query = `SELECT role FROM user_organizations
-                 WHERE user_id = $1 AND organization_id = $2`;
-    const params = [userId, organizationId];
+    const options = Array.isArray(requirements)
+      ? { requiredRoles: requirements }
+      : (requirements || {});
 
-    const result = await pool.query(query, params);
+    const requiredRoles = (options.requiredRoles || []).map((roleName) => {
+      if (roleName === 'admin') return 'district';
+      if (roleName === 'animation') return 'leader';
+      return roleName;
+    });
 
-    if (result.rows.length === 0) {
-      return { authorized: false, role: null, message: 'User not a member of this organization' };
+    const requiredPermissions = options.requiredPermissions || [];
+
+    const membershipResult = await pool.query(
+      `SELECT role_ids, role
+       FROM user_organizations
+       WHERE user_id = $1 AND organization_id = $2`,
+      [userId, organizationId]
+    );
+
+    if (membershipResult.rows.length === 0) {
+      return { authorized: false, role: null, roles: [], permissions: [], message: 'User not a member of this organization' };
     }
 
-    const userRole = result.rows[0].role;
+    const membership = membershipResult.rows[0];
 
-    if (requiredRoles && !requiredRoles.includes(userRole)) {
-      return { authorized: false, role: userRole, message: 'Insufficient permissions' };
+    // Resolve role names from role IDs for permission-aware checks
+    const rolesResult = await pool.query(
+      `SELECT DISTINCT r.role_name
+       FROM user_organizations uo
+       CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+       JOIN roles r ON r.id = role_id_text::integer
+       WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+      [userId, organizationId]
+    );
+
+    const resolvedRoles = rolesResult.rows.map((row) => row.role_name);
+    const primaryRole = resolvedRoles[0] || membership.role || null;
+
+    if (requiredRoles.length) {
+      const hasRole = requiredRoles.some((role) => resolvedRoles.includes(role) || membership.role === role);
+      if (!hasRole) {
+        return { authorized: false, role: primaryRole, roles: resolvedRoles, permissions: [], message: 'Insufficient permissions' };
+      }
     }
 
-    return { authorized: true, role: userRole };
+    let userPermissions = [];
+    if (requiredPermissions.length) {
+      const permissionsResult = await pool.query(
+        `SELECT DISTINCT p.permission_key
+         FROM user_organizations uo
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(uo.role_ids, '[]'::jsonb)) AS role_id_text
+         JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+        [userId, organizationId]
+      );
+
+      userPermissions = permissionsResult.rows.map((row) => row.permission_key);
+
+      const hasAllPermissions = requiredPermissions.every((permission) => userPermissions.includes(permission));
+      if (!hasAllPermissions) {
+        return {
+          authorized: false,
+          role: primaryRole,
+          roles: resolvedRoles,
+          permissions: userPermissions,
+          message: 'Insufficient permissions'
+        };
+      }
+    }
+
+    return { authorized: true, role: primaryRole, roles: resolvedRoles, permissions: userPermissions };
   } catch (error) {
     logger.error('Error verifying organization membership:', error);
-    return { authorized: false, role: null, message: 'Authorization check failed' };
+    return { authorized: false, role: null, roles: [], permissions: [], message: 'Authorization check failed' };
   }
 }
 

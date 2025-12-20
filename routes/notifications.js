@@ -127,6 +127,7 @@ module.exports = (pool, logger) => {
    *     summary: Get all push notification subscribers
    *     description: Retrieve list of all push notification subscribers (admin only)
    *     tags: [Notifications]
+   *     x-permission: communications.send
    *     security:
    *       - bearerAuth: []
    *     responses:
@@ -148,8 +149,10 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || authCheck.role !== 'admin') {
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
+        requiredPermissions: ['communications.send'],
+      });
+      if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
 
@@ -179,6 +182,7 @@ module.exports = (pool, logger) => {
    *     summary: Send push notification to all subscribers
    *     description: Send web push notification (admin only)
    *     tags: [Notifications]
+   *     x-permission: communications.send
    *     security:
    *       - bearerAuth: []
    *     requestBody:
@@ -214,13 +218,14 @@ module.exports = (pool, logger) => {
       const token = req.headers.authorization?.split(' ')[1];
       const payload = verifyJWT(token);
 
-      // Only admin can send notifications
-      if (!payload || payload.user_role !== 'admin') {
+      if (!payload?.user_id) {
         return res.status(403).json({ error: 'Forbidden: Admin access required' });
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, ['admin']);
+      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+        requiredPermissions: ['communications.send'],
+      });
       if (!membership.authorized) {
         return res.status(403).json({ error: membership.message || 'Forbidden: Admin access required' });
       }
