@@ -1,5 +1,5 @@
 import { debugLog, debugWarn, debugError } from './DebugUtils.js';
-import { clearStorage } from './StorageUtils.js';
+import { clearUserData } from './StorageUtils.js';
 import { deleteIndexedDB } from '../indexedDB.js';
 
 /**
@@ -36,14 +36,16 @@ async function clearAllCaches() {
 /**
  * Clear all client-side storage, caches, and IndexedDB data.
  * Intended for logout flows to prevent cross-account data leakage.
+ * Preserves device-level preferences like 2FA device trust tokens.
  * @returns {Promise<void>} Resolves when cleanup tasks finish
  */
 export async function clearAllClientData() {
-  debugLog('Clearing client data (localStorage, sessionStorage, caches, IndexedDB)');
+  debugLog('Clearing user data (preserving device preferences like 2FA device tokens)');
 
-  // Clear Web Storage synchronously to remove tokens immediately
-  clearStorage(false);
-  clearStorage(true);
+  // Clear user-specific data while preserving device-level preferences
+  // This ensures device_token (2FA trust) and language preferences persist
+  clearUserData(false); // localStorage - selective clearing
+  clearUserData(true);  // sessionStorage - full clearing (no device prefs here)
 
   // Clear Cache Storage and IndexedDB
   await Promise.all([
