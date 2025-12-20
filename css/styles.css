@@ -6922,3 +6922,123 @@ details p {
 /* ================================================
    Form Builder Styles (end)
    ================================================ */
+
+/* ================================================
+   Stripe Payment Modal Styles
+   ================================================ */
+
+.payment-modal {
+  max-width: 600px;
+  width: 90%;
+}
+
+.payment-info {
+  background-color: var(--color-bg-secondary, #f5f5f5);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.payment-info p {
+  margin: 0.5rem 0;
+  color: var(--color-text-primary, #333);
+}
+
+.payment-form-container {
+  margin: 1.5rem 0;
+}
+
+#payment-element {
+  margin-bottom: 1rem;
+}
+
+.payment-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border, #e0e0e0);
+}
+
+.payment-actions button {
+  flex: 0 1 auto;
+}
+
+.payment-btn-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.payment-btn-spinner .spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  color: var(--color-error, #d32f2f);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: rgba(211, 47, 47, 0.1);
+  border-radius: 4px;
+  display: none;
+}
+
+.error-message:not(:empty) {
+  display: block;
+}
+
+/* Finance page payment buttons */
+.finance-actions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border, #e0e0e0);
+}
+
+.pay-now-btn {
+  width: 100%;
+  max-width: 300px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .payment-modal {
+    width: 95%;
+    max-width: none;
+  }
+
+  .payment-actions {
+    flex-direction: column-reverse;
+  }
+
+  .payment-actions button {
+    width: 100%;
+  }
+
+  .pay-now-btn {
+    max-width: none;
+  }
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .payment-btn-spinner .spinner {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* ================================================
+   Stripe Payment Modal Styles (end)
+   ================================================ */

@@ -3,6 +3,8 @@ import {
   fetchParticipants,
   getParticipantStatement
 } from "./ajax-functions.js";
+import { createStripePaymentIntent, getStripePaymentStatus } from "./api/api-endpoints.js";
+import { clearFinanceRelatedCaches } from "./indexedDB.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { CONFIG } from './config.js';
@@ -25,6 +27,13 @@ export class ParentFinance {
     // Loading state management
     this.loadingManager = new LoadingStateManager();
     this.isInitializing = false;
+
+    // Stripe integration
+    this.stripe = null;
+    this.elements = null;
+    this.paymentElement = null;
+    this.currentPaymentIntentId = null;
+    this.currentFeeId = null;
   }
 
   async init() {
@@ -38,6 +47,9 @@ export class ParentFinance {
     let hasErrors = false;
 
     try {
+      // Initialize Stripe
+      await this.initializeStripe();
+
       // Render loading state immediately
       this.renderLoading();
 
@@ -73,6 +85,34 @@ export class ParentFinance {
       this.app.showMessage(translate("error_loading_data"), "error");
     } finally {
       this.isInitializing = false;
+    }
+  }
+
+  async initializeStripe() {
+    try {
+      // Load Stripe.js dynamically
+      if (!window.Stripe) {
+        const script = document.createElement('script');
+        script.src = 'https://js.stripe.com/v3/';
+        script.async = true;
+        document.head.appendChild(script);
+
+        await new Promise((resolve, reject) => {
+          script.onload = resolve;
+          script.onerror = reject;
+        });
+      }
+
+      const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+      if (!publishableKey) {
+        debugError("Stripe publishable key not found in environment");
+        return;
+      }
+
+      this.stripe = window.Stripe(publishableKey);
+      debugLog("Stripe initialized successfully");
+    } catch (error) {
+      debugError("Error initializing Stripe:", error);
     }
   }
 
@@ -314,9 +354,10 @@ export class ParentFinance {
       .map(fee => {
         const yearRange = this.formatYearRange(fee.year_start, fee.year_end);
         const statusLabel = translate(fee.status) || fee.status;
+        const hasOutstanding = fee.outstanding > 0;
 
         return `
-          <div class="finance-list__row">
+          <div class="finance-list__row" data-fee-id="${fee.id}">
             <div>
               <p class="finance-meta"><strong>${yearRange}</strong></p>
               <p class="finance-meta">${translate("status")}: ${statusLabel}</p>
@@ -335,6 +376,18 @@ export class ParentFinance {
                 <span class="finance-stat__value--alert">${this.formatCurrency(fee.outstanding)}</span>
               </div>
             </div>
+            ${hasOutstanding ? `
+              <div class="finance-actions">
+                <button
+                  class="btn btn-primary pay-now-btn"
+                  data-fee-id="${fee.id}"
+                  data-amount="${fee.outstanding}"
+                  data-participant-name="${escapeHTML(fee.participant_name || '')}"
+                >
+                  💳 ${translate("pay_now")} (${this.formatCurrency(fee.outstanding)})
+                </button>
+              </div>
+            ` : ''}
           </div>
         `;
       })
@@ -368,7 +421,199 @@ export class ParentFinance {
   }
 
   attachEventListeners() {
-    // Add any interactive elements here if needed
+    // Attach pay now button listeners
+    const payButtons = document.querySelectorAll('.pay-now-btn');
+    payButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const feeId = e.target.dataset.feeId;
+        const amount = parseFloat(e.target.dataset.amount);
+        const participantName = e.target.dataset.participantName;
+        this.openPaymentModal(feeId, amount, participantName);
+      });
+    });
+
     debugLog("Parent finance event listeners attached");
+  }
+
+  openPaymentModal(feeId, amount, participantName) {
+    if (!this.stripe) {
+      this.app.showMessage(translate("payment_system_unavailable"), "error");
+      return;
+    }
+
+    this.currentFeeId = feeId;
+
+    // Render payment modal
+    const modalHTML = this.renderPaymentModal(feeId, amount, participantName);
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Attach modal event listeners
+    this.attachModalEventListeners(feeId, amount);
+  }
+
+  renderPaymentModal(feeId, amount, participantName) {
+    return `
+      <div class="modal-overlay" id="payment-modal">
+        <div class="modal-content payment-modal">
+          <div class="modal-header">
+            <h2>💳 ${translate("make_payment")}</h2>
+            <button class="modal-close" id="close-payment-modal">&times;</button>
+          </div>
+
+          <div class="modal-body">
+            <div class="payment-info">
+              <p><strong>${translate("participant")}:</strong> ${escapeHTML(participantName)}</p>
+              <p><strong>${translate("amount_to_pay")}:</strong> ${this.formatCurrency(amount)}</p>
+            </div>
+
+            <div class="payment-form-container">
+              <div id="payment-element"></div>
+              <div id="payment-error-message" class="error-message"></div>
+            </div>
+
+            <div class="payment-actions">
+              <button class="btn btn-secondary" id="cancel-payment">${translate("cancel")}</button>
+              <button class="btn btn-primary" id="submit-payment" disabled>
+                <span class="payment-btn-text">${translate("pay")} ${this.formatCurrency(amount)}</span>
+                <span class="payment-btn-spinner" style="display: none;">
+                  <span class="spinner"></span> ${translate("processing")}...
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  attachModalEventListeners(feeId, amount) {
+    const modal = document.getElementById('payment-modal');
+    const closeBtn = document.getElementById('close-payment-modal');
+    const cancelBtn = document.getElementById('cancel-payment');
+    const submitBtn = document.getElementById('submit-payment');
+
+    const closeModal = () => {
+      modal.remove();
+      this.elements = null;
+      this.paymentElement = null;
+      this.currentPaymentIntentId = null;
+      this.currentFeeId = null;
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+
+    // Initialize payment
+    this.initializePayment(feeId, amount, submitBtn);
+  }
+
+  async initializePayment(feeId, amount, submitBtn) {
+    try {
+      // Create payment intent
+      const response = await createStripePaymentIntent(feeId, amount);
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to create payment intent');
+      }
+
+      const { clientSecret, paymentIntentId } = response.data;
+      this.currentPaymentIntentId = paymentIntentId;
+
+      // Create Stripe Elements
+      this.elements = this.stripe.elements({
+        clientSecret,
+        appearance: {
+          theme: 'stripe',
+          variables: {
+            colorPrimary: '#0066cc',
+          }
+        }
+      });
+
+      // Create and mount payment element
+      this.paymentElement = this.elements.create('payment');
+      this.paymentElement.mount('#payment-element');
+
+      // Enable submit button when ready
+      this.paymentElement.on('ready', () => {
+        submitBtn.disabled = false;
+      });
+
+      // Handle payment submission
+      submitBtn.addEventListener('click', () => this.handlePaymentSubmit(submitBtn));
+
+    } catch (error) {
+      debugError("Error initializing payment:", error);
+      const errorDiv = document.getElementById('payment-error-message');
+      if (errorDiv) {
+        errorDiv.textContent = error.message || translate("payment_initialization_failed");
+      }
+      this.app.showMessage(translate("payment_initialization_failed"), "error");
+    }
+  }
+
+  async handlePaymentSubmit(submitBtn) {
+    // Disable submit button and show loading state
+    submitBtn.disabled = true;
+    const btnText = submitBtn.querySelector('.payment-btn-text');
+    const btnSpinner = submitBtn.querySelector('.payment-btn-spinner');
+    btnText.style.display = 'none';
+    btnSpinner.style.display = 'inline-block';
+
+    const errorDiv = document.getElementById('payment-error-message');
+    errorDiv.textContent = '';
+
+    try {
+      // Confirm payment
+      const { error, paymentIntent } = await this.stripe.confirmPayment({
+        elements: this.elements,
+        confirmParams: {
+          return_url: window.location.origin + '/parent-finance',
+        },
+        redirect: 'if_required'
+      });
+
+      if (error) {
+        // Payment failed
+        errorDiv.textContent = error.message;
+        btnText.style.display = 'inline-block';
+        btnSpinner.style.display = 'none';
+        submitBtn.disabled = false;
+        this.app.showMessage(error.message, "error");
+        debugError("Payment error:", error);
+      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+        // Payment succeeded
+        debugLog("Payment succeeded:", paymentIntent);
+        this.app.showMessage(translate("payment_successful"), "success");
+
+        // CRITICAL: Invalidate finance caches immediately
+        await clearFinanceRelatedCaches(this.currentFeeId);
+
+        // Close modal
+        const modal = document.getElementById('payment-modal');
+        if (modal) {
+          modal.remove();
+        }
+
+        // Refresh data and re-render
+        await this.fetchAllStatements();
+        this.calculateConsolidatedTotals();
+        this.render();
+        this.attachEventListeners();
+      }
+    } catch (err) {
+      debugError("Payment submission error:", err);
+      errorDiv.textContent = translate("payment_failed");
+      btnText.style.display = 'inline-block';
+      btnSpinner.style.display = 'none';
+      submitBtn.disabled = false;
+      this.app.showMessage(translate("payment_failed"), "error");
+    }
   }
 }

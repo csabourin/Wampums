@@ -1837,6 +1837,27 @@ export async function getParticipantStatement(participantId) {
 }
 
 // ============================================================================
+// STRIPE PAYMENTS
+// ============================================================================
+
+/**
+ * Create a Stripe payment intent for a participant fee
+ */
+export async function createStripePaymentIntent(participant_fee_id, amount) {
+    return API.post('v1/stripe/create-payment-intent', {
+        participant_fee_id,
+        amount
+    });
+}
+
+/**
+ * Get the status of a Stripe payment intent
+ */
+export async function getStripePaymentStatus(paymentIntentId) {
+    return API.get(`v1/stripe/payment-status/${paymentIntentId}`);
+}
+
+// ============================================================================
 // BUDGET
 // ============================================================================
 
