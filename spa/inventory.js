@@ -601,6 +601,8 @@ export class Inventory {
         }
 
         .modal-container {
+          position: relative;
+          z-index: 1001;
           background: var(--bg-card, white);
           border-radius: 12px;
           width: 100%;
@@ -608,6 +610,7 @@ export class Inventory {
           max-height: 90vh;
           overflow-y: auto;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+          min-width: 300px;
         }
 
         .modal-container.modal-small {
