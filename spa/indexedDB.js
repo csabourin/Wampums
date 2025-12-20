@@ -376,6 +376,68 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
 }
 
 /**
+ * Clear all budget-related cache entries to avoid stale financial data after mutations.
+ * @param {Object} [options] - Cache clearing options
+ * @param {number|string|null} [options.categoryId=null] - Category identifier to clear category-specific item caches
+ * @param {string|null} [options.fiscalYearStart=null] - Fiscal year start date used for summary/plans cache keys
+ * @param {string|null} [options.fiscalYearEnd=null] - Fiscal year end date used for summary/plans cache keys
+ * @returns {Promise<void>} Resolves when relevant caches are cleared
+ */
+export async function clearBudgetCaches({ categoryId = null, fiscalYearStart = null, fiscalYearEnd = null } = {}) {
+  const baseKeys = new Set([
+    'budget_categories',
+    'budget_items',
+    'budget_expenses',
+    'budget_plans'
+  ]);
+
+  if (categoryId) {
+    baseKeys.add(`budget_items_cat_${categoryId}`);
+  }
+
+  if (fiscalYearStart && fiscalYearEnd) {
+    baseKeys.add(`budget_summary_${fiscalYearStart}_${fiscalYearEnd}`);
+    baseKeys.add(`budget_plans_${fiscalYearStart}_${fiscalYearEnd}`);
+  }
+
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  allKeys.forEach((key) => {
+    if (key.startsWith('budget_items')) {
+      baseKeys.add(key);
+    }
+    if (key.startsWith('budget_revenue_')) {
+      baseKeys.add(key);
+    }
+    if (key.startsWith('budget_summary_')) {
+      baseKeys.add(key);
+    }
+    if (key.startsWith('budget_plans_')) {
+      baseKeys.add(key);
+    }
+  });
+
+  debugLog("Clearing budget-related caches:", Array.from(baseKeys));
+
+  for (const key of baseKeys) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+
+  db.close();
+}
+
+/**
  * Clear activity-related caches
  * Call this after creating, updating, or deleting activities
  */

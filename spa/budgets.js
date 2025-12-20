@@ -18,6 +18,7 @@ import {
   updateBudgetPlan,
   deleteBudgetPlan,
 } from "./api/api-endpoints.js";
+import { clearBudgetCaches } from "./indexedDB.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
@@ -121,13 +122,13 @@ export class Budgets {
     }
   }
 
-  async loadCoreData() {
+  async loadCoreData(forceRefresh = false) {
     return this.loadingManager.withLoading('core-data', async () => {
       debugLog("Loading budget data...");
       // Load data with individual error handling and retry logic
       const [categories, items, expenses, summary, plans] = await Promise.all([
         retryWithBackoff(
-          () => getBudgetCategories(),
+          () => getBudgetCategories({}, { forceRefresh }),
           {
             maxRetries: 2,
             onRetry: (attempt, max, delay) => {
@@ -139,7 +140,7 @@ export class Budgets {
           return { data: [] };
         }),
         retryWithBackoff(
-          () => getBudgetItems(),
+          () => getBudgetItems(null, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
           debugError("Error loading budget items:", error);
@@ -149,21 +150,21 @@ export class Budgets {
           () => getBudgetExpenses({
             start_date: this.fiscalYear.start,
             end_date: this.fiscalYear.end,
-          }),
+          }, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
           debugError("Error loading budget expenses:", error);
           return { data: [] };
         }),
         retryWithBackoff(
-          () => getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end),
+          () => getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
           debugError("Error loading budget summary:", error);
           return { data: null };
         }),
         retryWithBackoff(
-          () => getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end),
+          () => getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
           debugError("Error loading budget plans:", error);
@@ -275,6 +276,22 @@ export class Budgets {
   async renderAndBind() {
     await this.render();
     this.attachEventListeners();
+  }
+
+  async refreshBudgetData(forceRefresh = false) {
+    await this.loadCoreData(forceRefresh);
+    await this.renderAndBind();
+  }
+
+  async invalidateBudgetCaches({ categoryId = null } = {}) {
+    await clearBudgetCaches({
+      categoryId,
+      fiscalYearStart: this.fiscalYear.start,
+      fiscalYearEnd: this.fiscalYear.end,
+    });
+    this.summaryReport = null;
+    this.revenueBreakdown = null;
+    this.revenueBreakdownSummary = null;
   }
 
   renderSummaryCards() {
@@ -1300,15 +1317,21 @@ export class Budgets {
 
       if (categoryId) {
         await updateBudgetCategory(categoryId, payload);
+        this.categories = this.categories.map((cat) =>
+          cat.id === categoryId ? { ...cat, ...payload } : cat,
+        );
         this.app.showMessage(translate("category_updated"), "success");
       } else {
-        await createBudgetCategory(payload);
+        const response = await createBudgetCategory(payload);
+        if (response?.data) {
+          this.categories = [...this.categories, response.data];
+        }
         this.app.showMessage(translate("category_created"), "success");
       }
 
       document.getElementById("category-modal").remove();
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches();
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error saving category", error);
       this.app.showMessage(translate("error_saving_category"), "error");
@@ -1318,9 +1341,10 @@ export class Budgets {
   async deleteCategory(categoryId) {
     try {
       await deleteBudgetCategory(categoryId);
+      this.categories = this.categories.filter((cat) => cat.id !== categoryId);
       this.app.showMessage(translate("category_deleted"), "success");
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches();
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error deleting category", error);
       this.app.showMessage(translate("error_deleting_category"), "error");
@@ -1412,15 +1436,21 @@ export class Budgets {
 
       if (itemId) {
         await updateBudgetItem(itemId, payload);
+        this.items = this.items.map((item) =>
+          item.id === itemId ? { ...item, ...payload } : item,
+        );
         this.app.showMessage(translate("budget_item_updated"), "success");
       } else {
-        await createBudgetItem(payload);
+        const response = await createBudgetItem(payload);
+        if (response?.data) {
+          this.items = [...this.items, response.data];
+        }
         this.app.showMessage(translate("budget_item_created"), "success");
       }
 
       document.getElementById("budget-item-modal").remove();
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches({ categoryId });
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error saving budget item", error);
       this.app.showMessage(translate("error_saving_budget_item"), "error");
@@ -1430,9 +1460,10 @@ export class Budgets {
   async deleteBudgetItem(itemId) {
     try {
       await deleteBudgetItem(itemId);
+      this.items = this.items.filter((item) => item.id !== itemId);
       this.app.showMessage(translate("budget_item_deleted"), "success");
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches();
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error deleting budget item", error);
       this.app.showMessage(translate("error_deleting_budget_item"), "error");
@@ -1541,15 +1572,21 @@ export class Budgets {
 
       if (expenseId) {
         await updateBudgetExpense(expenseId, payload);
+        this.expenses = this.expenses.map((expense) =>
+          expense.id === expenseId ? { ...expense, ...payload } : expense,
+        );
         this.app.showMessage(translate("expense_updated"), "success");
       } else {
-        await createBudgetExpense(payload);
+        const response = await createBudgetExpense(payload);
+        if (response?.data) {
+          this.expenses = [response.data, ...this.expenses];
+        }
         this.app.showMessage(translate("expense_created"), "success");
       }
 
       document.getElementById("expense-modal").remove();
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches();
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error saving expense", error);
       this.app.showMessage(translate("error_saving_expense"), "error");
@@ -1559,9 +1596,10 @@ export class Budgets {
   async deleteExpense(expenseId) {
     try {
       await deleteBudgetExpense(expenseId);
+      this.expenses = this.expenses.filter((expense) => expense.id !== expenseId);
       this.app.showMessage(translate("expense_deleted"), "success");
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches();
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error deleting expense", error);
       this.app.showMessage(translate("error_deleting_expense"), "error");
@@ -1678,15 +1716,21 @@ export class Budgets {
 
       if (planId) {
         await updateBudgetPlan(planId, payload);
+        this.budgetPlans = this.budgetPlans.map((plan) =>
+          plan.id === planId ? { ...plan, ...payload } : plan,
+        );
         this.app.showMessage(translate("budget_plan_updated"), "success");
       } else {
-        await createBudgetPlan(payload);
+        const response = await createBudgetPlan(payload);
+        if (response?.data) {
+          this.budgetPlans = [...this.budgetPlans, response.data];
+        }
         this.app.showMessage(translate("budget_plan_created"), "success");
       }
 
       document.getElementById("plan-modal").remove();
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches();
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error saving budget plan", error);
       this.app.showMessage(translate("error_saving_budget_plan"), "error");
@@ -1696,9 +1740,10 @@ export class Budgets {
   async deletePlan(planId) {
     try {
       await deleteBudgetPlan(planId);
+      this.budgetPlans = this.budgetPlans.filter((plan) => plan.id !== planId);
       this.app.showMessage(translate("budget_plan_deleted"), "success");
-      await this.loadCoreData();
-      await this.renderAndBind();
+      await this.invalidateBudgetCaches();
+      await this.refreshBudgetData(true);
     } catch (error) {
       debugError("Error deleting budget plan", error);
       this.app.showMessage(translate("error_deleting_budget_plan"), "error");
