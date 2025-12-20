@@ -8,8 +8,8 @@ const sharp = require("sharp");
 // Lazy-loaded to avoid adding HEIC conversion overhead when not needed
 let heicConvert = null;
 
-// Maximum file size: 3MB
-const MAX_FILE_SIZE = 3 * 1024 * 1024;
+// Maximum file size: 30MB (allows large originals; client should downscale before upload)
+const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const OUTPUT_MIME_TYPE = "image/webp";
 const PHOTO_MAX_WIDTH = 640;
 const PHOTO_MAX_HEIGHT = 480;

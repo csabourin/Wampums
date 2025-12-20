@@ -1,5 +1,5 @@
 import { translate } from "./app.js";
-import { debugError, debugLog } from "./utils/DebugUtils.js";
+import { debugError, debugLog, debugWarn } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import {
@@ -13,8 +13,14 @@ import {
 import { deleteCachedData } from "./indexedDB.js";
 import { canViewInventory } from "./utils/PermissionUtils.js";
 
-// Maximum photo file size: 3MB
-const MAX_PHOTO_SIZE = 3 * 1024 * 1024;
+// Maximum photo file size (original, before client-side optimization)
+const MAX_PHOTO_SIZE = CONFIG.PHOTO_UPLOAD.MAX_ORIGINAL_SIZE_BYTES;
+const TARGET_MAX_EDGE_PX = CONFIG.PHOTO_UPLOAD.TARGET_MAX_EDGE_PX;
+const TARGET_MAX_BYTES = CONFIG.PHOTO_UPLOAD.TARGET_MAX_BYTES;
+const STREAM_CHUNK_SIZE = CONFIG.PHOTO_UPLOAD.STREAM_CHUNK_SIZE;
+const WEBP_QUALITY = CONFIG.PHOTO_UPLOAD.WEBP_QUALITY;
+const MIN_WEBP_QUALITY = CONFIG.PHOTO_UPLOAD.MIN_WEBP_QUALITY;
+const WORKER_TIMEOUT_MS = CONFIG.PHOTO_UPLOAD.WORKER_TIMEOUT_MS;
 const ALLOWED_PHOTO_TYPES = [
   'image/jpeg',
   'image/jpg',
@@ -221,17 +227,23 @@ export class Inventory {
               <label class="stacked">
                 <span>${escapeHTML(translate("equipment_photo"))}</span>
                 <div class="photo-upload-container" id="photo-upload-container">
-                  <div class="photo-preview" id="photo-preview">
-                    <div class="photo-placeholder" id="photo-placeholder">
-                      <span class="photo-icon">📷</span>
-                      <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
-                      <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
+                    <div class="photo-preview" id="photo-preview">
+                      <div class="photo-placeholder" id="photo-placeholder">
+                        <span class="photo-icon">📷</span>
+                        <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
+                        <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
+                      </div>
+                      <div class="photo-progress hidden" id="photo-progress-main" role="status" aria-live="polite">
+                        <div class="progress-bar">
+                          <span class="progress-fill" id="photo-progress-main-bar"></span>
+                        </div>
+                        <div class="progress-text" id="photo-progress-main-text">${escapeHTML(translate("equipment_photo_processing"))}</div>
+                      </div>
+                      <img id="photo-preview-img" class="hidden" alt="" />
+                      <button type="button" id="remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
                     </div>
-                    <img id="photo-preview-img" class="hidden" alt="" />
-                    <button type="button" id="remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
+                    <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" />
                   </div>
-                  <input type="file" id="photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif" class="hidden" />
-                </div>
               </label>
             </div>
 
@@ -323,6 +335,12 @@ export class Inventory {
                         <span class="photo-icon">📷</span>
                         <span class="photo-text">${escapeHTML(translate("equipment_photo_click_to_upload"))}</span>
                         <span class="photo-hint">${escapeHTML(translate("equipment_photo_max_size"))}</span>
+                      </div>
+                      <div class="photo-progress hidden" id="photo-progress-modal" role="status" aria-live="polite">
+                        <div class="progress-bar">
+                          <span class="progress-fill" id="photo-progress-modal-bar"></span>
+                        </div>
+                        <div class="progress-text" id="photo-progress-modal-text">${escapeHTML(translate("equipment_photo_processing"))}</div>
                       </div>
                       <img id="modal-photo-preview-img" class="hidden" alt="" />
                       <button type="button" id="modal-remove-photo-btn" class="remove-photo-btn hidden" aria-label="${escapeHTML(translate("equipment_photo_remove"))}">×</button>
@@ -422,6 +440,42 @@ export class Inventory {
         .inventory-page .photo-hint {
           font-size: 0.8rem;
           opacity: 0.7;
+        }
+
+        .inventory-page .photo-progress {
+          width: 100%;
+          max-width: 320px;
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          padding: 0.75rem;
+          background: rgba(0, 0, 0, 0.04);
+          border-radius: 8px;
+          border: 1px solid var(--border-color, #e0e0e0);
+        }
+
+        .inventory-page .photo-progress .progress-bar {
+          position: relative;
+          width: 100%;
+          height: 8px;
+          background: var(--bg-secondary, #f0f0f0);
+          border-radius: 999px;
+          overflow: hidden;
+        }
+
+        .inventory-page .photo-progress .progress-fill {
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 0%;
+          background: var(--primary-color, #4a90d9);
+          transition: width 0.2s ease;
+        }
+
+        .inventory-page .photo-progress .progress-text {
+          font-size: 0.9rem;
+          color: var(--text-muted, #555);
         }
 
         .inventory-page #photo-preview-img,
@@ -987,61 +1041,14 @@ export class Inventory {
       photoInput.addEventListener("change", async (event) => {
         const file = event.target.files[0];
         if (file) {
-          // Validate file
-          if (file.size > MAX_PHOTO_SIZE) {
-            this.app.showMessage(translate("equipment_photo_too_large"), "error");
-            photoInput.value = '';
-            return;
-          }
-
-          if (!isAllowedPhotoFile(file)) {
-            this.app.showMessage(translate("equipment_photo_invalid_type"), "error");
-            photoInput.value = '';
-            return;
-          }
-
-          const normalization = await this.normalizePhotoFile(file);
-
-          if (isModal) {
-            this.modalSelectedPhotoFile = normalization.processedFile;
-          } else {
-            this.selectedPhotoFile = normalization.processedFile;
-          }
-
-          if (normalization.previewFile) {
-            // Show preview using an object URL (works for converted WebP)
-            const previewUrl = URL.createObjectURL(normalization.previewFile);
-            photoPreviewImg.src = previewUrl;
-            photoPreviewImg.classList.remove('hidden');
-            photoPlaceholder.classList.add('hidden');
-            removePhotoBtn.classList.remove('hidden');
-
-            if (isModal) {
-              if (this.modalPhotoPreviewUrl) {
-                URL.revokeObjectURL(this.modalPhotoPreviewUrl);
-              }
-              this.modalPhotoPreviewUrl = previewUrl;
-            } else {
-              if (this.photoPreviewUrl) {
-                URL.revokeObjectURL(this.photoPreviewUrl);
-              }
-              this.photoPreviewUrl = previewUrl;
-            }
-          } else {
-            if (isModal && this.modalPhotoPreviewUrl) {
-              URL.revokeObjectURL(this.modalPhotoPreviewUrl);
-              this.modalPhotoPreviewUrl = null;
-            }
-            if (!isModal && this.photoPreviewUrl) {
-              URL.revokeObjectURL(this.photoPreviewUrl);
-              this.photoPreviewUrl = null;
-            }
-            this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
-            removePhotoBtn.classList.remove('hidden');
-            if (normalization.error) {
-              this.app.showMessage(translate("equipment_photo_preview_unavailable"), "warning");
-            }
-          }
+          await this.handlePhotoSelection({
+            file,
+            isModal,
+            photoPreviewImg,
+            photoPlaceholder,
+            removePhotoBtn,
+            photoInput
+          });
         }
       });
     }
@@ -1055,6 +1062,356 @@ export class Inventory {
           this.clearPhotoPreview();
         }
       });
+    }
+  }
+
+  /**
+   * Validate selected photo against size and type constraints.
+   * @param {File} file
+   * @returns {{isValid: boolean, errorKey?: string}}
+   */
+  validatePhotoFile(file) {
+    if (!file) {
+      return { isValid: false, errorKey: "equipment_photo_invalid_type" };
+    }
+
+    if (file.size > MAX_PHOTO_SIZE) {
+      return { isValid: false, errorKey: "equipment_photo_too_large" };
+    }
+
+    if (!isAllowedPhotoFile(file)) {
+      return { isValid: false, errorKey: "equipment_photo_invalid_type" };
+    }
+
+    return { isValid: true };
+  }
+
+  getPhotoProgressElements(isModal) {
+    const container = document.getElementById(isModal ? "photo-progress-modal" : "photo-progress-main");
+    const bar = document.getElementById(isModal ? "photo-progress-modal-bar" : "photo-progress-main-bar");
+    const text = document.getElementById(isModal ? "photo-progress-modal-text" : "photo-progress-main-text");
+    return { container, bar, text };
+  }
+
+  /**
+   * Update the photo processing progress UI.
+   * @param {Object} options
+   * @param {boolean} options.visible
+   * @param {number} [options.percent]
+   * @param {string} [options.messageKey]
+   * @param {boolean} [options.isModal]
+   */
+  updatePhotoProgress({ visible, percent = 0, messageKey, isModal = false }) {
+    const { container, bar, text } = this.getPhotoProgressElements(isModal);
+    if (!container || !bar || !text) {
+      return;
+    }
+
+    if (visible) {
+      container.classList.remove("hidden");
+    } else {
+      container.classList.add("hidden");
+    }
+
+    const safePercent = Math.min(100, Math.max(0, percent));
+    bar.style.width = `${safePercent}%`;
+
+    if (messageKey) {
+      text.textContent = translate(messageKey).replace("{percent}", Math.round(safePercent));
+    }
+  }
+
+  resetPhotoProgress(isModal) {
+    this.updatePhotoProgress({ visible: false, percent: 0, messageKey: "equipment_photo_processing", isModal });
+  }
+
+  /**
+   * Stream-read a File into a Blob to avoid loading the whole file at once.
+   * Reports incremental progress so the user sees activity even on large inputs.
+   * @param {File} file
+   * @param {boolean} isModal
+   * @returns {Promise<Blob>}
+   */
+  async streamFileToBlob(file, isModal) {
+    if (typeof file.stream !== "function") {
+      const buffer = await file.arrayBuffer();
+      return new Blob([buffer], { type: file.type || "application/octet-stream" });
+    }
+
+    const reader = file.stream().getReader();
+    const chunks = [];
+    let received = 0;
+    let lastProgressEmit = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        received += value.length;
+        if (received > MAX_PHOTO_SIZE) {
+          throw new Error("file-too-large");
+        }
+        if (received - lastProgressEmit >= STREAM_CHUNK_SIZE && file.size) {
+          const basePercent = 5;
+          const streamPercent = Math.min(15, Math.round((received / file.size) * 10));
+          this.updatePhotoProgress({
+            visible: true,
+            percent: basePercent + streamPercent,
+            messageKey: "equipment_photo_processing",
+            isModal,
+          });
+          lastProgressEmit = received;
+        }
+      }
+    }
+
+    return new Blob(chunks, { type: file.type || "application/octet-stream" });
+  }
+
+  /**
+   * Spawn an isolated worker for image resizing/encoding.
+   * Uses OffscreenCanvas when available to keep UI responsive.
+   * @returns {Worker|null}
+   */
+  createImageProcessingWorker() {
+    if (typeof Worker === "undefined") {
+      return null;
+    }
+
+    const workerScript = `
+      const encodeWebp = async (canvas, quality) => {
+        if (canvas.convertToBlob) {
+          return canvas.convertToBlob({ type: "image/webp", quality });
+        }
+        return new Promise((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) return resolve(blob);
+            reject(new Error("Encoding failed"));
+          }, "image/webp", quality);
+        });
+      };
+
+      self.onmessage = async (event) => {
+        const { buffer, mimeType, name, targetMaxEdge, targetMaxBytes, quality, minQuality } = event.data;
+        try {
+          const sourceBlob = new Blob([buffer], { type: mimeType || "application/octet-stream" });
+          postMessage({ type: "progress", percent: 10, stage: "decode" });
+
+          const imageBitmap = await createImageBitmap(sourceBlob);
+          const { width, height } = imageBitmap;
+          const maxEdge = Math.max(width, height);
+          const scale = maxEdge > targetMaxEdge ? targetMaxEdge / maxEdge : 1;
+          const targetWidth = Math.max(1, Math.round(width * scale));
+          const targetHeight = Math.max(1, Math.round(height * scale));
+
+          const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+          const ctx = canvas.getContext("2d", { alpha: true, willReadFrequently: false });
+          ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+          postMessage({ type: "progress", percent: 40, stage: "draw" });
+
+          let currentQuality = quality;
+          let outputBlob = await encodeWebp(canvas, currentQuality);
+          let safeguard = 0;
+
+          while (outputBlob.size > targetMaxBytes && currentQuality > minQuality && safeguard < 8) {
+            currentQuality = Math.max(minQuality, currentQuality - 0.08);
+            outputBlob = await encodeWebp(canvas, currentQuality);
+            safeguard += 1;
+            postMessage({ type: "progress", percent: 40 + Math.min(40, safeguard * 6), stage: "encode" });
+          }
+
+          const optimizedBuffer = await outputBlob.arrayBuffer();
+          postMessage({
+            type: "result",
+            buffer: optimizedBuffer,
+            mimeType: outputBlob.type || "image/webp",
+            name,
+            width: targetWidth,
+            height: targetHeight,
+            size: outputBlob.size
+          }, [optimizedBuffer]);
+        } catch (err) {
+          postMessage({ type: "error", message: err?.message || "Processing failed" });
+        }
+      };
+    `;
+
+    const blob = new Blob([workerScript], { type: "application/javascript" });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url);
+    worker._wampumsUrl = url;
+    return worker;
+  }
+
+  /**
+   * Optimize a photo file with a worker (resize + WebP encode).
+   * Falls back to original file if processing fails.
+   * @param {File} file
+   * @param {boolean} isModal
+   * @returns {Promise<{ processedFile: File, previewFile: File, skipped?: boolean }>}
+   */
+  async optimizePhotoFile(file, isModal) {
+    if (!file) {
+      return { processedFile: file, previewFile: file, skipped: true };
+    }
+
+    const maxEdgeTarget = TARGET_MAX_EDGE_PX;
+    const worker = this.createImageProcessingWorker();
+
+    if (!worker) {
+      debugWarn("Image worker not available; skipping client-side resize");
+      return { processedFile: file, previewFile: file, skipped: true };
+    }
+
+    const teardown = () => {
+      if (worker._wampumsUrl) {
+        URL.revokeObjectURL(worker._wampumsUrl);
+      }
+      worker.terminate();
+    };
+
+    const sourceBlob = await this.streamFileToBlob(file, isModal);
+    const buffer = await sourceBlob.arrayBuffer();
+    const fileName = file.name || "photo.webp";
+
+    return new Promise((resolve) => {
+      let timeoutId = setTimeout(() => {
+        debugError("Worker timed out while processing photo");
+        teardown();
+        resolve({ processedFile: file, previewFile: file, skipped: true, error: new Error("timeout") });
+      }, WORKER_TIMEOUT_MS);
+
+      worker.onmessage = (event) => {
+        const { type, percent, message, buffer: resultBuffer, mimeType, size } = event.data || {};
+        if (type === "progress") {
+          this.updatePhotoProgress({
+            visible: true,
+            percent: percent || 0,
+            messageKey: "equipment_photo_processing",
+            isModal,
+          });
+          return;
+        }
+
+        if (type === "result" && resultBuffer) {
+          clearTimeout(timeoutId);
+          teardown();
+          const optimizedFile = new File([resultBuffer], fileName, { type: mimeType || "image/webp" });
+          this.updatePhotoProgress({
+            visible: true,
+            percent: 100,
+            messageKey: "equipment_photo_processing_done",
+            isModal,
+          });
+          resolve({ processedFile: optimizedFile, previewFile: optimizedFile, size });
+          return;
+        }
+
+        if (type === "error") {
+          debugError("Worker error during photo processing:", message);
+          clearTimeout(timeoutId);
+          teardown();
+          resolve({ processedFile: file, previewFile: file, error: new Error(message) });
+        }
+      };
+
+      worker.onerror = (err) => {
+        debugError("Worker failed during photo processing:", err);
+        clearTimeout(timeoutId);
+        teardown();
+        resolve({ processedFile: file, previewFile: file, error: err });
+      };
+
+      worker.postMessage(
+        {
+          buffer,
+          mimeType: file.type,
+          name: fileName,
+          targetMaxEdge: maxEdgeTarget,
+          targetMaxBytes: TARGET_MAX_BYTES,
+          quality: WEBP_QUALITY,
+          minQuality: MIN_WEBP_QUALITY,
+        },
+        [buffer],
+      );
+    });
+  }
+
+  /**
+   * Handle photo selection, including validation, HEIC normalization, client-side resize, and preview updates.
+   */
+  async handlePhotoSelection({ file, isModal, photoPreviewImg, photoPlaceholder, removePhotoBtn, photoInput }) {
+    const validation = this.validatePhotoFile(file);
+    if (!validation.isValid) {
+      this.app.showMessage(translate(validation.errorKey), "error");
+      if (photoInput) {
+        photoInput.value = "";
+      }
+      return;
+    }
+
+    try {
+      this.updatePhotoProgress({ visible: true, percent: 5, messageKey: "equipment_photo_processing", isModal });
+
+      // Normalize HEIC first (main thread because the helper library lives there)
+      const normalization = await this.normalizePhotoFile(file);
+      this.updatePhotoProgress({ visible: true, percent: 15, messageKey: "equipment_photo_processing", isModal });
+
+      // Resize + re-encode in worker
+      const optimized = await this.optimizePhotoFile(normalization.processedFile, isModal);
+      const processedFile = optimized.processedFile || normalization.processedFile;
+      const previewFile = optimized.previewFile || normalization.previewFile || processedFile;
+
+      if (isModal) {
+        this.modalSelectedPhotoFile = processedFile;
+      } else {
+        this.selectedPhotoFile = processedFile;
+      }
+
+      if (previewFile) {
+        const previewUrl = URL.createObjectURL(previewFile);
+        photoPreviewImg.src = previewUrl;
+        photoPreviewImg.classList.remove("hidden");
+        photoPlaceholder.classList.add("hidden");
+        removePhotoBtn.classList.remove("hidden");
+
+        if (isModal) {
+          if (this.modalPhotoPreviewUrl) {
+            URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+          }
+          this.modalPhotoPreviewUrl = previewUrl;
+        } else {
+          if (this.photoPreviewUrl) {
+            URL.revokeObjectURL(this.photoPreviewUrl);
+          }
+          this.photoPreviewUrl = previewUrl;
+        }
+      } else {
+        if (isModal && this.modalPhotoPreviewUrl) {
+          URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+          this.modalPhotoPreviewUrl = null;
+        }
+        if (!isModal && this.photoPreviewUrl) {
+          URL.revokeObjectURL(this.photoPreviewUrl);
+          this.photoPreviewUrl = null;
+        }
+        this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
+        removePhotoBtn.classList.remove("hidden");
+        if (normalized?.error || optimized?.error) {
+          this.app.showMessage(translate("equipment_photo_preview_unavailable"), "warning");
+        }
+      }
+
+      this.updatePhotoProgress({ visible: true, percent: 100, messageKey: "equipment_photo_processing_done", isModal });
+      setTimeout(() => this.resetPhotoProgress(isModal), 500);
+    } catch (processingError) {
+      debugError("Error handling photo selection:", processingError);
+      this.app.showMessage(translate("equipment_photo_processing_error"), "error");
+      if (photoInput) {
+        photoInput.value = "";
+      }
+      this.resetPhotoProgress(isModal);
     }
   }
 
@@ -1322,6 +1679,8 @@ export class Inventory {
     if (photoPlaceholder) photoPlaceholder.classList.remove('hidden');
     if (removePhotoBtn) removePhotoBtn.classList.add('hidden');
 
+    this.resetPhotoProgress(false);
+
     if (this.photoPreviewUrl) {
       URL.revokeObjectURL(this.photoPreviewUrl);
       this.photoPreviewUrl = null;
@@ -1344,6 +1703,8 @@ export class Inventory {
     }
     if (photoPlaceholder) photoPlaceholder.classList.remove('hidden');
     if (removePhotoBtn) removePhotoBtn.classList.add('hidden');
+
+    this.resetPhotoProgress(true);
 
     if (this.modalPhotoPreviewUrl) {
       URL.revokeObjectURL(this.modalPhotoPreviewUrl);
