@@ -51,7 +51,19 @@ module.exports = (pool, logger) => {
     const organizationId = req.query.organization_id || await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `SELECT u.id, u.email, u.full_name, u.is_verified, uo.role
+      `SELECT
+         u.id,
+         u.email,
+         u.full_name,
+         u.is_verified,
+         uo.role,
+         uo.role_ids,
+         COALESCE(
+           (SELECT json_agg(json_build_object('id', r.id, 'role_name', r.role_name, 'display_name', r.display_name))
+            FROM roles r
+            WHERE r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)),
+           '[]'::json
+         ) as roles
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE uo.organization_id = $1
@@ -84,7 +96,20 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
-      `SELECT u.id, u.email, u.full_name, u.is_verified, u.created_at, uo.role
+      `SELECT
+         u.id,
+         u.email,
+         u.full_name,
+         u.is_verified,
+         u.created_at,
+         uo.role,
+         uo.role_ids,
+         COALESCE(
+           (SELECT json_agg(json_build_object('id', r.id, 'role_name', r.role_name, 'display_name', r.display_name))
+            FROM roles r
+            WHERE r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)),
+           '[]'::json
+         ) as roles
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE uo.organization_id = $1 AND u.is_verified = false
@@ -283,14 +308,39 @@ module.exports = (pool, logger) => {
       return res.status(400).json({ success: false, message: 'User ID and role are required' });
     }
 
-    const validRoles = ['admin', 'animation', 'parent', 'leader'];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({ success: false, message: `Invalid role. Valid roles: ${validRoles.join(', ')}` });
+    // Map old role names to new role names for backwards compatibility
+    const roleMapping = {
+      'admin': 'district',
+      'animation': 'leader',
+      'parent': 'parent',
+      'leader': 'leader'
+    };
+
+    // Support both old and new role names
+    const mappedRole = roleMapping[role] || role;
+
+    // Get list of valid roles from database
+    const rolesResult = await pool.query('SELECT role_name FROM roles');
+    const validRoles = rolesResult.rows.map(r => r.role_name);
+
+    if (!validRoles.includes(mappedRole)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid role. Valid roles: ${validRoles.join(', ')}`
+      });
     }
 
-    // Prevent admin from changing their own role
+    // Prevent users from changing their own role
     if (user_id === req.user.id) {
       return res.status(400).json({ success: false, message: 'Cannot change your own role' });
+    }
+
+    // Check if user is trying to assign district role
+    if (mappedRole === 'district' && !req.userPermissions.includes('users.assign_district')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to assign the district administrator role'
+      });
     }
 
     // Verify target user belongs to this organization
@@ -303,14 +353,176 @@ module.exports = (pool, logger) => {
       return res.status(404).json({ success: false, message: 'User not found in this organization' });
     }
 
-    // Update user role in organization
-    await pool.query(
-      `UPDATE user_organizations SET role = $1 WHERE user_id = $2 AND organization_id = $3`,
-      [role, user_id, organizationId]
+    // Get role ID for the new role
+    const roleIdResult = await pool.query(
+      'SELECT id FROM roles WHERE role_name = $1',
+      [mappedRole]
     );
 
-    logger.info(`User ${user_id} role updated to ${role} by admin ${req.user.id}`);
+    if (roleIdResult.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Role not found' });
+    }
+
+    const roleId = roleIdResult.rows[0].id;
+
+    // Update user role in organization (both old and new columns for backwards compatibility)
+    await pool.query(
+      `UPDATE user_organizations
+       SET role = $1, role_ids = jsonb_build_array($2::integer)
+       WHERE user_id = $3 AND organization_id = $4`,
+      [mappedRole, roleId, user_id, organizationId]
+    );
+
+    logger.info(`User ${user_id} role updated to ${mappedRole} (ID: ${roleId}) by user ${req.user.id}`);
     res.json({ success: true, message: 'User role updated successfully' });
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/users/{userId}/roles:
+   *   get:
+   *     summary: Get user's roles in organization
+   *     description: Retrieve all roles assigned to a user in the current organization
+   *     tags: [Users, Roles]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: userId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: User ID
+   *     responses:
+   *       200:
+   *         description: User roles retrieved successfully
+   *       404:
+   *         description: User not found in organization
+   */
+  router.get('/v1/users/:userId/roles', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const userId = parseInt(req.params.userId, 10);
+
+    // Verify user belongs to organization
+    const userCheck = await pool.query(
+      `SELECT role_ids FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
+      [userId, organizationId]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+
+    const roleIds = userCheck.rows[0].role_ids || [];
+
+    // Get role details
+    if (roleIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const rolesResult = await pool.query(
+      `SELECT id, role_name, display_name, description
+       FROM roles
+       WHERE id = ANY($1::int[])
+       ORDER BY display_name`,
+      [roleIds]
+    );
+
+    res.json({ success: true, data: rolesResult.rows });
+  }));
+
+  /**
+   * @swagger
+   * /api/v1/users/{userId}/roles:
+   *   put:
+   *     summary: Update user's roles in organization
+   *     description: Assign multiple roles to a user (replaces all existing roles)
+   *     tags: [Users, Roles]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: userId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: User ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - roleIds
+   *             properties:
+   *               roleIds:
+   *                 type: array
+   *                 items:
+   *                   type: integer
+   *                 description: Array of role IDs to assign
+   *     responses:
+   *       200:
+   *         description: Roles updated successfully
+   *       400:
+   *         description: Invalid role IDs or cannot change own roles
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.put('/v1/users/:userId/roles', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const userId = parseInt(req.params.userId, 10);
+    const { roleIds } = req.body;
+
+    if (!Array.isArray(roleIds) || roleIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'roleIds must be a non-empty array' });
+    }
+
+    // Prevent users from changing their own roles
+    if (userId === req.user.id) {
+      return res.status(400).json({ success: false, message: 'Cannot change your own roles' });
+    }
+
+    // Verify all role IDs are valid
+    const rolesResult = await pool.query(
+      `SELECT id, role_name FROM roles WHERE id = ANY($1::int[])`,
+      [roleIds]
+    );
+
+    if (rolesResult.rows.length !== roleIds.length) {
+      return res.status(400).json({ success: false, message: 'One or more invalid role IDs' });
+    }
+
+    // Check if user is trying to assign district role
+    const hasDistrictRole = rolesResult.rows.some(r => r.role_name === 'district');
+    if (hasDistrictRole && !req.userPermissions.includes('users.assign_district')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to assign the district administrator role'
+      });
+    }
+
+    // Verify target user belongs to this organization
+    const userCheck = await pool.query(
+      `SELECT id FROM user_organizations WHERE user_id = $1 AND organization_id = $2`,
+      [userId, organizationId]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+    }
+
+    // Update user roles (also update the old 'role' column with the first role for backwards compatibility)
+    const firstRoleName = rolesResult.rows[0].role_name;
+    await pool.query(
+      `UPDATE user_organizations
+       SET role_ids = $1::jsonb, role = $2
+       WHERE user_id = $3 AND organization_id = $4`,
+      [JSON.stringify(roleIds), firstRoleName, userId, organizationId]
+    );
+
+    logger.info(`User ${userId} roles updated to [${roleIds.join(', ')}] by user ${req.user.id}`);
+    res.json({ success: true, message: 'User roles updated successfully' });
   }));
 
   /**
