@@ -37,7 +37,7 @@ const frToEn = {
   "birthdate": "Birthdate",
   "create_new_organization": "Create new organization",
   "create_organization": "Create organization",
-  "back_to_admin": "Back to admin",
+  "back_to_admin": "Back to district tools",
   "organization_created_successfully": "Organization created successfully",
   "error_creating_organization": "Error creating organization",
   "Logo": "Logo",
@@ -53,7 +53,7 @@ const frToEn = {
   "Friday": "Friday",
   "Saturday": "Saturday",
   "Sunday": "Sunday",
-  "Responsible Animator": "Responsible Animator",
+  "Responsible Animator": "Responsible Leader",
   "select_date": "Select date",
   "upcoming_meeting": "Upcoming meeting",
   "activities": "Activities",
@@ -139,7 +139,7 @@ const newTranslations = {
     "invalid_or_expired_token": "Invalid or expired token",
     "insufficient_permissions": "Insufficient permissions",
     "invalid_email_or_password": "Invalid email or password",
-    "account_not_verified_login": "Your account is not yet verified. Please wait for admin verification.",
+    "account_not_verified_login": "Your account is not yet verified. Please wait for district verification.",
     "unauthorized": "Unauthorized",
 
     // Backend: Validation errors
@@ -200,7 +200,7 @@ const newTranslations = {
     "user_approved_success": "User approved successfully",
     "user_role_updated_successfully_action": "User role updated successfully",
     "user_linked_to_participants_successfully": "User linked to participants successfully",
-    "user_registered_await_approval": "User registered successfully. Please wait for admin approval.",
+    "user_registered_await_approval": "User registered successfully. Please wait for district approval.",
     "password_reset_success": "Password reset successful",
 
     // Backend: Not found messages
@@ -234,13 +234,13 @@ const newTranslations = {
     "error_getting_organization_settings": "Error getting organization settings",
     "error_fetching_reunion_preparation": "Error fetching reunion preparation",
     "failed_to_save_subscription": "Failed to save subscription",
-    "forbidden_admin_required": "Forbidden: Admin access required",
+    "forbidden_admin_required": "Forbidden: District access required",
     "vapid_key_not_set": "VAPID private key is not set",
     "web_push_not_configured": "Web push not configured. Install web-push package.",
     "updates_must_be_array": "Updates must be an array",
     "access_denied_to_participant": "Access denied to this participant",
     "cannot_change_own_role": "Cannot change your own role",
-    "only_admins_can_link_participants": "Only admins can link participants to other users",
+    "only_admins_can_link_participants": "Only district leads can link participants to other users",
 
     // Routes: Success messages
     "attendance_marked_successfully": "Attendance marked successfully",
@@ -315,7 +315,7 @@ const newTranslations = {
     "invalid_or_expired_token": "Jeton invalide ou expiré",
     "insufficient_permissions": "Permissions insuffisantes",
     "invalid_email_or_password": "Email ou mot de passe invalide",
-    "account_not_verified_login": "Votre compte n'est pas encore vérifié. Veuillez attendre la vérification par l'administrateur.",
+    "account_not_verified_login": "Votre compte n'est pas encore vérifié. Veuillez attendre la vérification par le district.",
     "unauthorized": "Non autorisé",
 
     // Backend: Validation errors
@@ -376,7 +376,7 @@ const newTranslations = {
     "user_approved_success": "Utilisateur approuvé avec succès",
     "user_role_updated_successfully_action": "Rôle de l'utilisateur mis à jour avec succès",
     "user_linked_to_participants_successfully": "Utilisateur lié aux participants avec succès",
-    "user_registered_await_approval": "Utilisateur enregistré avec succès. Veuillez attendre l'approbation de l'administrateur.",
+    "user_registered_await_approval": "Utilisateur enregistré avec succès. Veuillez attendre l'approbation du district.",
     "password_reset_success": "Réinitialisation du mot de passe réussie",
 
     // Backend: Not found messages
@@ -410,13 +410,13 @@ const newTranslations = {
     "error_getting_organization_settings": "Erreur lors de l'obtention des paramètres de l'organisation",
     "error_fetching_reunion_preparation": "Erreur lors de la récupération de la préparation de la réunion",
     "failed_to_save_subscription": "Échec de l'enregistrement de l'abonnement",
-    "forbidden_admin_required": "Interdit : Accès administrateur requis",
+    "forbidden_admin_required": "Interdit : accès réservé au district",
     "vapid_key_not_set": "La clé privée VAPID n'est pas définie",
     "web_push_not_configured": "Web push non configuré. Installez le package web-push.",
     "updates_must_be_array": "Les mises à jour doivent être un tableau",
     "access_denied_to_participant": "Accès refusé à ce participant",
     "cannot_change_own_role": "Impossible de changer son propre rôle",
-    "only_admins_can_link_participants": "Seuls les administrateurs peuvent lier des participants à d'autres utilisateurs",
+    "only_admins_can_link_participants": "Seuls les responsables de district peuvent lier des participants à d'autres utilisateurs",
 
     // Routes: Success messages
     "attendance_marked_successfully": "Présence marquée avec succès",
