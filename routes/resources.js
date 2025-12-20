@@ -30,7 +30,7 @@ const {
   WEBP_EXTENSION,
 } = require("../utils/supabase-storage");
 
-// Configure multer for memory storage (3MB limit)
+// Configure multer for memory storage (30MB limit; client-side resize should reduce payloads)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {

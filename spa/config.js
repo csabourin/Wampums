@@ -200,7 +200,7 @@ export const CONFIG = {
         DEFAULT_PAGE_SIZE: 50,
 
         // Maximum file upload size (in bytes)
-        MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+        MAX_FILE_SIZE: 30 * 1024 * 1024, // 30MB
 
         // Toast notification duration (in milliseconds)
         TOAST_DURATION: 3000,
@@ -217,6 +217,30 @@ export const CONFIG = {
 
         // Skeleton loading minimum display time (in milliseconds)
         MIN_LOADING_TIME: 300,
+    },
+
+    /**
+     * Photo upload processing and safety constraints
+     */
+    PHOTO_UPLOAD: {
+        // Max original file size accepted from the client (bytes)
+        MAX_ORIGINAL_SIZE_BYTES: 30 * 1024 * 1024, // 30MB
+
+        // Target long-edge resize for client-side optimization (pixels)
+        TARGET_MAX_EDGE_PX: 2048,
+
+        // Max desired upload payload size after optimization (bytes)
+        TARGET_MAX_BYTES: 5 * 1024 * 1024, // 5MB
+
+        // Chunk size for streaming reads (bytes)
+        STREAM_CHUNK_SIZE: 512 * 1024, // 512KB
+
+        // Preferred and minimum WebP qualities for resize/export
+        WEBP_QUALITY: 0.82,
+        MIN_WEBP_QUALITY: 0.55,
+
+        // Safety timeout (ms) for worker-based processing
+        WORKER_TIMEOUT_MS: 15000,
     },
 
     /**
