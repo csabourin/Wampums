@@ -461,7 +461,7 @@ CREATE TABLE public.medication_requirements (
   frequency_times jsonb,
   frequency_slots jsonb,
   frequency_interval_hours integer,
-  frequency_interval_start time without time zone,
+  frequency_interval_start character varying(5),
   CONSTRAINT medication_requirements_pkey PRIMARY KEY (id),
   CONSTRAINT medication_requirements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT medication_requirements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
