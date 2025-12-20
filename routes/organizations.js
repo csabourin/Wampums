@@ -23,6 +23,62 @@ const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/pr
 // Get JWT key from environment
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
 
+const PUBLIC_ORGANIZATION_SETTING_KEYS = [
+  'organization_info',
+  'program_sections',
+  'meeting_sections',
+  'branding',
+  'equipment_categories'
+];
+
+/**
+ * Load and parse organization settings from the database, ensuring program sections are hydrated.
+ *
+ * @param {Object} pool - PostgreSQL connection pool
+ * @param {number} organizationId - Organization identifier
+ * @returns {Promise<Object>} Parsed organization settings object
+ */
+async function loadOrganizationSettings(pool, organizationId) {
+  const result = await pool.query(
+    `SELECT setting_key, setting_value
+     FROM organization_settings
+     WHERE organization_id = $1`,
+    [organizationId]
+  );
+
+  const settings = {};
+  result.rows.forEach(row => {
+    try {
+      settings[row.setting_key] = JSON.parse(row.setting_value);
+    } catch {
+      settings[row.setting_key] = row.setting_value;
+    }
+  });
+
+  await ensureProgramSectionsSeeded(pool, organizationId);
+  settings.program_sections = await getProgramSections(pool, organizationId);
+
+  return settings;
+}
+
+/**
+ * Filter organization settings to a public-safe subset for unauthenticated requests.
+ *
+ * @param {Object} settings - Full organization settings payload
+ * @returns {Object} Whitelisted public settings
+ */
+function buildPublicOrganizationSettings(settings = {}) {
+  const publicSettings = {};
+
+  PUBLIC_ORGANIZATION_SETTING_KEYS.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(settings, key)) {
+      publicSettings[key] = settings[key];
+    }
+  });
+
+  return publicSettings;
+}
+
 /**
  * Export route factory function
  * Allows dependency injection of pool and logger
@@ -128,33 +184,53 @@ module.exports = (pool, logger) => {
    *                   type: object
    *                   additionalProperties: true
    */
-  router.get('/organization-settings', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  // Public-safe organization settings (no authentication, limited data)
+  router.get('/organization-settings', asyncHandler(async (req, res, next) => {
+    if (!req.baseUrl?.startsWith('/public')) {
+      return next();
+    }
 
-      const result = await pool.query(
-        `SELECT setting_key, setting_value
-         FROM organization_settings
-         WHERE organization_id = $1`,
-        [organizationId]
-      );
+    try {
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const settings = await loadOrganizationSettings(pool, organizationId);
 
-      // Convert rows to key-value object
-      const settings = {};
-      result.rows.forEach(row => {
-        try {
-          settings[row.setting_key] = JSON.parse(row.setting_value);
-        } catch {
-          settings[row.setting_key] = row.setting_value;
-        }
+      return res.json({
+        success: true,
+        data: buildPublicOrganizationSettings(settings)
       });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
 
-      await ensureProgramSectionsSeeded(pool, organizationId);
-      settings.program_sections = await getProgramSections(pool, organizationId);
+      logger.error('Error fetching public organization settings:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching organization settings'
+      });
+    }
+  }));
 
-      res.json({
+  router.get('/organization-settings', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
+    try {
+      const organizationId = await getOrganizationId(req, pool);
+      const settings = await loadOrganizationSettings(pool, organizationId);
+
+      return res.json({
         success: true,
         data: settings
       });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+
+      logger.error('Error fetching organization settings:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching organization settings'
+      });
+    }
   }));
 
   /**

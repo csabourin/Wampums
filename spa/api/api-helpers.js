@@ -122,10 +122,12 @@ export function buildPublicUrl(endpoint, params = {}) {
  */
 export async function fetchPublic(endpoint, options = {}) {
     const url = buildPublicUrl(endpoint);
+    const organizationId = getCurrentOrganizationId();
     const response = await fetch(url, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
+            ...(organizationId ? { 'x-organization-id': organizationId } : {}),
             ...options.headers
         }
     });
