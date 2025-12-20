@@ -24,7 +24,9 @@ export function deleteIndexedDB() {
     };
 
     deleteRequest.onblocked = () => {
-      debugWarn("IndexedDB deletion blocked. Close other tabs using the app to complete cleanup.");
+      debugWarn(
+        "IndexedDB deletion blocked. Close other tabs using the app to complete cleanup.",
+      );
     };
   });
 }
@@ -65,9 +67,9 @@ export function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000) {
       const record = {
         key: key,
         data: data,
-        type: 'cache',
+        type: "cache",
         timestamp: Date.now(),
-        expiration: Date.now() + expirationTime
+        expiration: Date.now() + expirationTime,
       };
 
       const request = store.put(record);
@@ -104,7 +106,7 @@ export function getCachedData(key) {
 
       request.onsuccess = () => {
         const record = request.result;
-        debugLog(request," Retrieved record:", record);
+        debugLog(request, " Retrieved record:", record);
 
         if (record && record.expiration > Date.now()) {
           debugLog("Returning valid cached data:", record.data);
@@ -113,7 +115,13 @@ export function getCachedData(key) {
           if (!record) {
             debugLog("No data found for key:", key);
           } else {
-            debugLog("Data expired for key:", key,Date.now(),` exp:`,record.expiration);
+            debugLog(
+              "Data expired for key:",
+              key,
+              Date.now(),
+              ` exp:`,
+              record.expiration,
+            );
             const cleanupTx = db.transaction(STORE_NAME, "readwrite");
             const cleanupStore = cleanupTx.objectStore(STORE_NAME);
             cleanupStore.delete(key);
@@ -138,11 +146,11 @@ export async function saveOfflineData(action, data) {
 
       const record = {
         key: `${action}`,
-        type: 'offline',
+        type: "offline",
         action,
         data,
         timestamp: Date.now(),
-        retryCount: 0
+        retryCount: 0,
       };
 
       const request = store.put(record);
@@ -181,7 +189,7 @@ export async function clearOfflineData() {
 
       request.onsuccess = () => {
         const offlineRecords = request.result || [];
-        offlineRecords.forEach(record => {
+        offlineRecords.forEach((record) => {
           store.delete(record.key);
         });
         resolve();
@@ -218,10 +226,10 @@ export async function deleteCachedData(key) {
 
 export async function clearPointsRelatedCaches() {
   const keysToDelete = [
-    'participants',
-    'manage_points_data',
-    'dashboard_groups',
-    'dashboard_participant_info'
+    "participants",
+    "manage_points_data",
+    "dashboard_groups",
+    "dashboard_participant_info",
   ];
 
   debugLog("Clearing points-related caches:", keysToDelete);
@@ -237,12 +245,12 @@ export async function clearPointsRelatedCaches() {
 
 export async function clearGroupRelatedCaches() {
   const keysToDelete = [
-    'groups',
-    'participants',
-    'participants_v2', // Clear new versioned cache
-    'manage_points_data',
-    'dashboard_groups',
-    'dashboard_participant_info'
+    "groups",
+    "participants",
+    "participants_v2", // Clear new versioned cache
+    "manage_points_data",
+    "dashboard_groups",
+    "dashboard_participant_info",
   ];
 
   debugLog("Clearing group-related caches:", keysToDelete);
@@ -259,7 +267,7 @@ export async function clearGroupRelatedCaches() {
 
   // Delete attendance caches which contain group_id
   for (const key of allKeys) {
-    if (key.startsWith('attendance_')) {
+    if (key.startsWith("attendance_")) {
       keysToDelete.push(key);
     }
   }
@@ -275,11 +283,11 @@ export async function clearGroupRelatedCaches() {
 
 export async function clearBadgeRelatedCaches() {
   const keysToDelete = [
-    'badge_dashboard_badges',
-    'badge_dashboard_participants',
-    'badge_dashboard_groups',
-    'badge_summary',         // API-level cache used by getBadgeSummary()
-    'participants'           // API-level cache used by getParticipants()
+    "badge_dashboard_badges",
+    "badge_dashboard_participants",
+    "badge_dashboard_groups",
+    "badge_summary", // API-level cache used by getBadgeSummary()
+    "participants", // API-level cache used by getParticipants()
   ];
 
   debugLog("Clearing badge-related caches:", keysToDelete);
@@ -294,7 +302,7 @@ export async function clearBadgeRelatedCaches() {
 }
 
 export async function clearFundraiserRelatedCaches(fundraiserId = null) {
-  const baseKeys = new Set(['fundraisers']);
+  const baseKeys = new Set(["fundraisers"]);
   if (fundraiserId) {
     baseKeys.add(`fundraiser_entries_${fundraiserId}`);
     // Also clear old calendar cache keys for backward compatibility
@@ -310,18 +318,18 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
     request.onerror = () => reject(request.error);
   });
 
-  allKeys.forEach(key => {
-    if (key.startsWith('fundraisers')) {
+  allKeys.forEach((key) => {
+    if (key.startsWith("fundraisers")) {
       baseKeys.add(key);
     }
 
     // Clear both old calendar_ and new fundraiser_entries_ cache keys
-    if (key.startsWith('fundraiser_entries_')) {
+    if (key.startsWith("fundraiser_entries_")) {
       if (!fundraiserId || key === `fundraiser_entries_${fundraiserId}`) {
         baseKeys.add(key);
       }
     }
-    if (key.startsWith('calendars_')) {
+    if (key.startsWith("calendars_")) {
       if (!fundraiserId || key === `calendars_${fundraiserId}`) {
         baseKeys.add(key);
       }
@@ -340,10 +348,7 @@ export async function clearFundraiserRelatedCaches(fundraiserId = null) {
 }
 
 export async function clearFinanceRelatedCaches(participantFeeId = null) {
-  const baseKeys = new Set([
-    'participant_fees',
-    'finance_report'
-  ]);
+  const baseKeys = new Set(["participant_fees", "finance_report"]);
 
   if (participantFeeId) {
     baseKeys.add(`participant_fee_payments_${participantFeeId}`);
@@ -359,13 +364,16 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
     request.onerror = () => reject(request.error);
   });
 
-  allKeys.forEach(key => {
-    if (key.startsWith('participant_fee_payments_')) {
-      if (!participantFeeId || key === `participant_fee_payments_${participantFeeId}`) {
+  allKeys.forEach((key) => {
+    if (key.startsWith("participant_fee_payments_")) {
+      if (
+        !participantFeeId ||
+        key === `participant_fee_payments_${participantFeeId}`
+      ) {
         baseKeys.add(key);
       }
     }
-    if (key.startsWith('payment_plans_')) {
+    if (key.startsWith("payment_plans_")) {
       if (!participantFeeId || key === `payment_plans_${participantFeeId}`) {
         baseKeys.add(key);
       }
@@ -389,7 +397,7 @@ export async function clearFinanceRelatedCaches(participantFeeId = null) {
  * @returns {Promise<void>} Resolves when the caches have been removed
  */
 export async function clearExternalRevenueCaches() {
-  const keysToDelete = new Set(['external_revenue']);
+  const keysToDelete = new Set(["external_revenue"]);
 
   try {
     const db = await openDB();
@@ -402,16 +410,22 @@ export async function clearExternalRevenueCaches() {
     });
 
     allKeys.forEach((key) => {
-      if (typeof key === "string" && key.startsWith("external_revenue_summary_")) {
+      if (
+        typeof key === "string" &&
+        key.startsWith("external_revenue_summary_")
+      ) {
         keysToDelete.add(key);
       }
     });
   } catch (error) {
-    debugWarn("Unable to enumerate external revenue caches for cleanup:", error);
+    debugWarn(
+      "Unable to enumerate external revenue caches for cleanup:",
+      error,
+    );
   }
 
   for (const key of keysToDelete) {
-        try {
+    try {
       await deleteCachedData(key);
     } catch (error) {
       debugWarn(`Failed to delete cache for ${key}:`, error);
@@ -419,19 +433,23 @@ export async function clearExternalRevenueCaches() {
   }
 }
 
- * Clear all budget-related cache entries to avoid stale financial data after mutations.
+/* Clear all budget-related cache entries to avoid stale financial data after mutations.
  * @param {Object} [options] - Cache clearing options
  * @param {number|string|null} [options.categoryId=null] - Category identifier to clear category-specific item caches
  * @param {string|null} [options.fiscalYearStart=null] - Fiscal year start date used for summary/plans cache keys
  * @param {string|null} [options.fiscalYearEnd=null] - Fiscal year end date used for summary/plans cache keys
  * @returns {Promise<void>} Resolves when relevant caches are cleared
  */
-export async function clearBudgetCaches({ categoryId = null, fiscalYearStart = null, fiscalYearEnd = null } = {}) {
+export async function clearBudgetCaches({
+  categoryId = null,
+  fiscalYearStart = null,
+  fiscalYearEnd = null,
+} = {}) {
   const baseKeys = new Set([
-    'budget_categories',
-    'budget_items',
-    'budget_expenses',
-    'budget_plans'
+    "budget_categories",
+    "budget_items",
+    "budget_expenses",
+    "budget_plans",
   ]);
 
   if (categoryId) {
@@ -453,16 +471,16 @@ export async function clearBudgetCaches({ categoryId = null, fiscalYearStart = n
   });
 
   allKeys.forEach((key) => {
-    if (key.startsWith('budget_items')) {
+    if (key.startsWith("budget_items")) {
       baseKeys.add(key);
     }
-    if (key.startsWith('budget_revenue_')) {
+    if (key.startsWith("budget_revenue_")) {
       baseKeys.add(key);
     }
-    if (key.startsWith('budget_summary_')) {
+    if (key.startsWith("budget_summary_")) {
       baseKeys.add(key);
     }
-    if (key.startsWith('budget_plans_')) {
+    if (key.startsWith("budget_plans_")) {
       baseKeys.add(key);
     }
   });
@@ -484,9 +502,9 @@ export async function clearBudgetCaches({ categoryId = null, fiscalYearStart = n
  */
 export async function clearActivityRelatedCaches() {
   const keysToDelete = [
-    'activities',
-    'upcoming_activities',
-    'v1/activities', // API v1 endpoint cache
+    "activities",
+    "upcoming_activities",
+    "v1/activities", // API v1 endpoint cache
   ];
 
   // Also clear any activity-specific caches
@@ -500,13 +518,14 @@ export async function clearActivityRelatedCaches() {
   });
 
   // Find and clear activity-specific caches (e.g., 'activity_123', 'carpool_offers_123', 'v1/activities/123')
-  allKeys.forEach(key => {
-    if (typeof key === 'string' && (
-      key.startsWith('activity_') ||
-      key.startsWith('carpool_') ||
-      key.startsWith('v1/activities/') ||
-      key.startsWith('v1/carpools/')
-    )) {
+  allKeys.forEach((key) => {
+    if (
+      typeof key === "string" &&
+      (key.startsWith("activity_") ||
+        key.startsWith("carpool_") ||
+        key.startsWith("v1/activities/") ||
+        key.startsWith("v1/carpools/"))
+    ) {
       keysToDelete.push(key);
     }
   });
@@ -529,8 +548,8 @@ export async function clearActivityRelatedCaches() {
  */
 export async function clearCarpoolRelatedCaches(activityId = null) {
   const keysToDelete = [
-    'v1/carpools/my-offers',
-    'v1/carpools/my-children-assignments',
+    "v1/carpools/my-offers",
+    "v1/carpools/my-children-assignments",
   ];
 
   // If activityId is provided, clear activity-specific caches
@@ -551,8 +570,8 @@ export async function clearCarpoolRelatedCaches(activityId = null) {
     });
 
     // Find and clear all carpool-specific caches
-    allKeys.forEach(key => {
-      if (typeof key === 'string' && key.startsWith('v1/carpools/')) {
+    allKeys.forEach((key) => {
+      if (typeof key === "string" && key.startsWith("v1/carpools/")) {
         keysToDelete.push(key);
       }
     });
@@ -583,19 +602,19 @@ export async function syncOfflineData() {
     for (const item of offlineData) {
       try {
         switch (item.action) {
-          case 'updateAttendance':
+          case "updateAttendance":
             await updateAttendance(
               item.data.participantIds,
               item.data.newStatus,
-              item.data.date
+              item.data.date,
             );
             break;
 
-          case 'saveParticipant':
+          case "saveParticipant":
             await saveParticipant(item.data);
             break;
 
-          case 'saveGuest':
+          case "saveGuest":
             await saveGuest(item.data);
             break;
 
@@ -605,18 +624,20 @@ export async function syncOfflineData() {
         }
 
         // If successful, remove the item from offline storage
-        await openDB().then(db => {
+        await openDB().then((db) => {
           const tx = db.transaction(STORE_NAME, "readwrite");
           const store = tx.objectStore(STORE_NAME);
           return store.delete(item.key);
         });
-
       } catch (error) {
-        debugError(`Error syncing offline data for action ${item.action}:`, error);
+        debugError(
+          `Error syncing offline data for action ${item.action}:`,
+          error,
+        );
 
         // Increment retry count and update the record
         if (item.retryCount < 3) {
-          await openDB().then(db => {
+          await openDB().then((db) => {
             const tx = db.transaction(STORE_NAME, "readwrite");
             const store = tx.objectStore(STORE_NAME);
             item.retryCount = (item.retryCount || 0) + 1;
