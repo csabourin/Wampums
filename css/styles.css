@@ -3849,7 +3849,6 @@ details p {
   position: fixed;
   inset: 0;
   z-index: var(--z-modal);
-  display: none;
   align-items: center;
   justify-content: center;
   padding: var(--space-md);
