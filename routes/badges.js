@@ -12,7 +12,8 @@ const router = express.Router();
 
 // Import utilities
 const { getPointSystemRules } = require('../utils/api-helpers');
-const { authenticate, getOrganizationId, requireOrganizationRole } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/response');
 
 const DEFAULT_LEVELS = [
   { level: 1, label_key: 'badge_level_1' },
@@ -116,8 +117,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-progress', authenticate, async (req, res) => {
-    try {
+  router.get('/badge-progress', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const participantId = req.query.participant_id;
 
@@ -141,11 +141,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      logger.error('Error fetching badge progress:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -164,9 +160,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/pending-badges', authenticate, requireOrganizationRole(['admin', 'leader']), async (req, res) => {
-    try {
-      const organizationId = req.organizationId; // Set by requireOrganizationRole middleware
+  router.get('/pending-badges', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT bp.*, 
@@ -186,11 +181,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      logger.error('Error fetching pending badges:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -236,9 +227,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/save-badge-progress', authenticate, requireOrganizationRole(), async (req, res) => {
-    try {
-      const organizationId = req.organizationId; // Set by requireOrganizationRole middleware
+  router.post('/save-badge-progress', authenticate, blockDemoRoles, requirePermission('badges.manage'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
       const {
         participant_id,
         badge_template_id,
@@ -347,11 +337,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    } catch (error) {
-      logger.error('Error saving badge progress:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -385,10 +371,9 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Badge not found
    */
-  router.post('/approve-badge', authenticate, requireOrganizationRole(['admin', 'leader']), async (req, res) => {
-    try {
+  router.post('/approve-badge', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
       const userId = req.user.id;
-      const organizationId = req.organizationId;
+      const organizationId = await getOrganizationId(req, pool);
       const { badge_id } = req.body;
 
       if (!badge_id) {
@@ -448,11 +433,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    } catch (error) {
-      logger.error('Error approving badge:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -486,10 +467,9 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Badge not found
    */
-  router.post('/reject-badge', authenticate, requireOrganizationRole(['admin', 'leader']), async (req, res) => {
-    try {
+  router.post('/reject-badge', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
       const userId = req.user.id;
-      const organizationId = req.organizationId;
+      const organizationId = await getOrganizationId(req, pool);
       const { badge_id } = req.body;
 
       if (!badge_id) {
@@ -510,11 +490,7 @@ module.exports = (pool, logger) => {
 
       console.log(`[badge] Badge ${badge_id} rejected`);
       res.json({ success: true, message: 'Badge rejected' });
-    } catch (error) {
-      logger.error('Error rejecting badge:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -531,9 +507,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-summary', authenticate, requireOrganizationRole(), async (req, res) => {
-    try {
-      const organizationId = req.organizationId;
+  router.get('/badge-summary', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT bp.*,
@@ -554,11 +529,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      logger.error('Error fetching badge summary:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -584,9 +555,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-history', authenticate, requireOrganizationRole(), async (req, res) => {
-    try {
-      const organizationId = req.organizationId;
+  router.get('/badge-history', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
       const participantId = req.query.participant_id;
 
       if (!participantId) {
@@ -608,11 +578,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      logger.error('Error fetching badge history:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -638,9 +604,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/current-stars', authenticate, requireOrganizationRole(), async (req, res) => {
-    try {
-      const organizationId = req.organizationId;
+  router.get('/current-stars', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
       const participantId = req.query.participant_id;
       const templateId = req.query.badge_template_id ? parseInt(req.query.badge_template_id, 10) : null;
       const territoireName = req.query.territoire;
@@ -703,11 +668,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    } catch (error) {
-      logger.error('Error fetching current stars:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -724,9 +685,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-system-settings', authenticate, requireOrganizationRole(), async (req, res) => {
-    try {
-      const organizationId = req.organizationId;
+  router.get('/badge-system-settings', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const [settingsResult, templateResult] = await Promise.all([
         pool.query(
@@ -768,11 +728,7 @@ module.exports = (pool, logger) => {
         data: dataPayload,
         message: templates.length === 0 ? 'No badge system settings found' : undefined
       });
-    } catch (error) {
-      logger.error('Error fetching badge system settings:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -814,10 +770,9 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Badge progress not found
    */
-  router.put('/badge-progress/:id', authenticate, requireOrganizationRole(['admin', 'leader', 'animation']), async (req, res) => {
-    try {
+  router.put('/badge-progress/:id', authenticate, blockDemoRoles, requirePermission('badges.manage'), asyncHandler(async (req, res) => {
       const userId = req.user.id; // Set by authenticate middleware
-      const organizationId = req.organizationId; // Set by requireOrganizationRole middleware
+      const organizationId = await getOrganizationId(req, pool);
       const badgeId = parseInt(req.params.id);
       const {
         status,
@@ -991,11 +946,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    } catch (error) {
-      logger.error('Error updating badge progress:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   return router;
 };

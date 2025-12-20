@@ -10,6 +10,10 @@
 const express = require('express');
 const router = express.Router();
 
+// Import auth middleware
+const { authenticate, requirePermission, getOrganizationId } = require('../middleware/auth');
+const { asyncHandler } = require('../middleware/response');
+
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
@@ -37,22 +41,8 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/mailing-list', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Ensure the user belongs to the organization with the proper role
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
+  router.get('/mailing-list', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       // Build email list by user role (admin/animation/etc.)
       const usersEmailsResult = await pool.query(
@@ -122,14 +112,7 @@ module.exports = (pool, logger) => {
         participant_emails: participantEmails,
         unique_emails: uniqueEmails,
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching mailing list:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -154,22 +137,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/health-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user belongs to this organization with admin or animation role
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
+  router.get('/health-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const groupId = req.query.group_id;
 
@@ -226,14 +195,7 @@ module.exports = (pool, logger) => {
       });
 
       res.json({ success: true, data: healthReport });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching health report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -272,22 +234,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/attendance-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user belongs to this organization with admin or animation role
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
+  router.get('/attendance-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const { start_date, end_date, group_id, format } = req.query;
 
@@ -365,14 +313,7 @@ module.exports = (pool, logger) => {
       }
 
       res.json({ success: true, data: attendanceReport });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching attendance report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -391,22 +332,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/missing-documents-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user belongs to this organization with admin or animation role
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, ['admin', 'animation', 'leader']);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
+  router.get('/missing-documents-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       // Get required form types from organization settings
       const settingsResult = await pool.query(
@@ -462,14 +389,7 @@ module.exports = (pool, logger) => {
         data: missingDocsReport,
         required_forms: requiredForms
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching missing documents report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -488,21 +408,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/health-contact-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/health-contact-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
@@ -519,14 +426,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching health contact report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -545,21 +445,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/allergies-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/allergies-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
@@ -578,14 +465,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching allergies report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -604,21 +484,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/medication-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/medication-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
@@ -636,14 +503,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching medication report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -662,21 +522,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/vaccine-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/vaccine-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
@@ -692,14 +539,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching vaccine report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -718,21 +558,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/leave-alone-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/leave-alone-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
@@ -748,14 +575,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching leave alone report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -774,21 +594,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/media-authorization-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/media-authorization-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
@@ -804,14 +611,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching media authorization report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -830,21 +630,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/honors-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/honors-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT h.honor_name, h.category, COUNT(*) as count,
@@ -859,14 +646,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching honors report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -885,21 +665,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/points-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/points-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
@@ -918,34 +685,14 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching points report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * GET /api/time-since-registration-report
    * Get time since registration report for all participants
    */
-  router.get('/time-since-registration-report', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/time-since-registration-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
@@ -974,14 +721,7 @@ module.exports = (pool, logger) => {
       );
 
       res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching time since registration report:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -1006,21 +746,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/participant-progress', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/participant-progress', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       const participantsResult = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, g.name as group_name
@@ -1117,14 +844,7 @@ module.exports = (pool, logger) => {
           }
         }
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching participant progress:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   /**
    * @swagger
@@ -1143,21 +863,8 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/parent-contact-list', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized || !['admin', 'animation'].includes(authCheck.role)) {
-        return res.status(403).json({ success: false, message: 'Insufficient permissions' });
-      }
+  router.get('/parent-contact-list', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
 
       // Get all participants with their guardians
       const result = await pool.query(
@@ -1191,14 +898,7 @@ module.exports = (pool, logger) => {
         success: true,
         contacts: result.rows
       });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching parent contact list:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+  }));
 
   return router;
 };

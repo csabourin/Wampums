@@ -129,7 +129,8 @@ module.exports = (pool, logger) => {
    */
   router.post('/',
     authenticate,
-    authorize('admin', 'animation'),
+    blockDemoRoles,
+    requirePermission('attendance.manage'),
     validateIdBody('participant_id'),
     validateDate('date'),
     validateAttendanceStatus,
@@ -212,17 +213,12 @@ module.exports = (pool, logger) => {
    *         description: Attendance data with participants
    */
   router.get('/attendance',
+    authenticate,
+    requirePermission('attendance.view'),
     validateDateOptional('date'),
     checkValidation,
     asyncHandler(async (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = verifyJWT(token);
-
-    if (!decoded || !decoded.user_id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const organizationId = await getCurrentOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
     const requestedDate = req.query.date || new Date().toISOString().split('T')[0];
 
     // Get participants with attendance for the date
@@ -265,15 +261,8 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of dates
    */
-  router.get('/attendance-dates', asyncHandler(async (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = verifyJWT(token);
-
-    if (!decoded || !decoded.user_id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const organizationId = await getCurrentOrganizationId(req, pool);
+  router.get('/attendance-dates', authenticate, requirePermission('attendance.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
       `SELECT DISTINCT date::text as date FROM attendance WHERE organization_id = $1 ORDER BY date DESC`,
@@ -320,18 +309,14 @@ module.exports = (pool, logger) => {
    *         description: Attendance updated successfully
    */
   router.post('/update-attendance',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('attendance.manage'),
     validateAttendanceStatus,
     validateDate('date'),
     checkValidation,
     asyncHandler(async (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = verifyJWT(token);
-
-    if (!decoded || !decoded.user_id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const organizationId = await getCurrentOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
     const { participant_id, status, date } = req.body;
 
     // Handle both single participant_id and array of participant_ids
