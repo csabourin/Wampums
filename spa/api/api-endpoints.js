@@ -143,12 +143,16 @@ export async function login(email, password, organization_id) {
 
         debugLog('Sending login request via api-endpoints.js...', email);
 
+        // Get device token from localStorage (if previously trusted)
+        const deviceToken = localStorage.getItem('device_token') || '';
+
         const url = new URL('/public/login', CONFIG.API_BASE_URL);
         const response = await fetch(url.toString(), {
             method: "POST",
             headers: {
                 'Content-Type': 'application/json',
-                'x-organization-id': String(orgId)
+                'x-organization-id': String(orgId),
+                'x-device-token': deviceToken
             },
             body: JSON.stringify(requestBody)
         });
@@ -166,6 +170,68 @@ export async function login(email, password, organization_id) {
         return data;
     } catch (error) {
         debugError("Error during login:", error);
+        throw error;
+    }
+}
+
+/**
+ * Verify 2FA code and complete login
+ */
+export async function verify2FA(email, code, organization_id) {
+    try {
+        let orgId = organization_id || getCurrentOrganizationId();
+
+        if (!orgId) {
+            debugWarn('Organization ID missing from storage, fetching from server...');
+            const orgResponse = await getOrganizationId();
+            orgId = orgResponse?.organization_id || orgResponse?.organizationId || orgResponse?.id;
+
+            if (orgId) {
+                localStorage.setItem(CONFIG.STORAGE_KEYS.CURRENT_ORGANIZATION_ID, orgId);
+                localStorage.setItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID, orgId);
+            }
+        }
+
+        if (!orgId) {
+            throw new Error('Organization ID is required for 2FA verification');
+        }
+
+        const requestBody = {
+            email: email,
+            code: code
+        };
+
+        debugLog('Sending 2FA verification request...', email);
+
+        const url = new URL('/public/verify-2fa', CONFIG.API_BASE_URL);
+        const response = await fetch(url.toString(), {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+                'x-organization-id': String(orgId)
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            return {
+                success: false,
+                status: response.status,
+                message: data?.message || 'invalid_2fa_code'
+            };
+        }
+
+        // Store device token if returned
+        if (data.device_token) {
+            localStorage.setItem('device_token', data.device_token);
+            debugLog('Device token stored for future logins');
+        }
+
+        return data;
+    } catch (error) {
+        debugError("Error during 2FA verification:", error);
         throw error;
     }
 }

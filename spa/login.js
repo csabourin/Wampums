@@ -1,6 +1,6 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import {login, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
+import {login, verify2FA, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
 import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
@@ -117,8 +117,14 @@ async attachLoginFormListener() {
       debugLog("Login result received:", result);
 
       if (result.success) {
-        debugLog("Login successful, handling login success...");
-        this.handleLoginSuccess(result);
+        // Check if 2FA is required
+        if (result.requires_2fa) {
+          debugLog("2FA required, showing verification form...");
+          this.show2FAForm(email, setStatus);
+        } else {
+          debugLog("Login successful, handling login success...");
+          this.handleLoginSuccess(result);
+        }
       } else {
         debugWarn("Login failed:", result.message);
         const friendlyMessage = this.translateApiMessage(result.message);
@@ -240,6 +246,161 @@ handleLoginSuccess(result) {
     this.app.router.route("/dashboard");
   }
 }
+
+  /**
+   * Show 2FA verification form
+   * @param {string} email - User's email address
+   * @param {Function} setStatus - Function to set status messages
+   */
+  show2FAForm(email, setStatus) {
+    const appContainer = document.getElementById("app");
+    if (!appContainer) {
+      debugError("Could not find app container element");
+      return;
+    }
+
+    const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
+
+    const content = `
+      <div class="login-container">
+        <h1>${translate("two_factor_verification") || "Verify Your Identity"}</h1>
+        <h2>${organizationName}</h2>
+        <p style="margin: 20px 0; text-align: center;">
+          ${translate("two_factor_message") || "We've sent a 6-digit verification code to your email. Please enter it below."}
+        </p>
+        <form id="verify-2fa-form">
+          <div class="form-group">
+            <input
+              type="text"
+              name="code"
+              placeholder="${translate("verification_code") || "Verification Code"}"
+              autocomplete="one-time-code"
+              maxlength="6"
+              pattern="[0-9]{6}"
+              inputmode="numeric"
+              style="font-size: 24px; letter-spacing: 8px; text-align: center; font-family: monospace;"
+              required>
+          </div>
+          <button type="submit" class="btn-primary">${translate("verify") || "Verify"}</button>
+        </form>
+        <div id="verify-message" class="status-message" role="status" aria-live="polite"></div>
+        <p style="text-align: center; margin-top: 20px;">
+          <a href="#" id="back-to-login">${translate("back_to_login") || "Back to Login"}</a>
+        </p>
+      </div>
+    `;
+
+    appContainer.innerHTML = content;
+    this.attach2FAFormListener(email);
+  }
+
+  /**
+   * Attach event listener to 2FA verification form
+   * @param {string} email - User's email address
+   */
+  attach2FAFormListener(email) {
+    const form = document.getElementById("verify-2fa-form");
+    const statusElement = document.getElementById("verify-message");
+    const backToLogin = document.getElementById("back-to-login");
+
+    if (!form) {
+      debugError("2FA form not found in DOM");
+      return;
+    }
+
+    const setStatus = (message, type = "info") => {
+      if (!statusElement) return;
+      statusElement.textContent = message;
+      statusElement.className = `status-message ${type}`;
+    };
+
+    // Show success message
+    setStatus(translate("verification_code_sent") || "A verification code has been sent to your email.", "success");
+
+    // Handle back to login
+    if (backToLogin) {
+      backToLogin.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.render();
+      });
+    }
+
+    // Handle form submission
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      debugLog("2FA verification form submitted");
+
+      const formData = new FormData(form);
+      const code = formData.get("code");
+
+      if (!code || code.length !== 6) {
+        setStatus(translate("invalid_code_format") || "Please enter a valid 6-digit code.", "error");
+        return;
+      }
+
+      setStatus("", "info");
+      const submitButton = form.querySelector("button[type='submit']");
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
+
+      try {
+        debugLog("Sending 2FA verification request...");
+
+        const result = await verify2FA(email, code);
+
+        debugLog("2FA verification result:", result);
+
+        if (result.success) {
+          debugLog("2FA verification successful, handling login success...");
+          setStatus(translate("verification_successful") || "Verification successful! Logging you in...", "success");
+
+          // Store device token if returned
+          if (result.device_token) {
+            localStorage.setItem('device_token', result.device_token);
+            debugLog('Device token stored for future logins');
+          }
+
+          // Handle successful login
+          this.handleLoginSuccess(result);
+        } else {
+          debugWarn("2FA verification failed:", result.message);
+          const friendlyMessage = this.translate2FAMessage(result.message);
+          setStatus(friendlyMessage, "error");
+        }
+      } catch (error) {
+        debugError("2FA verification error:", error);
+        setStatus(`${translate("verification_error") || "Verification failed"}: ${error.message}`, "error");
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
+      }
+    });
+
+    // Auto-focus the code input
+    const codeInput = form.querySelector('input[name="code"]');
+    if (codeInput) {
+      codeInput.focus();
+    }
+
+    debugLog("2FA form listener attached");
+  }
+
+  /**
+   * Translate 2FA error messages
+   */
+  translate2FAMessage(message) {
+    const messageKey = message || "invalid_2fa_code";
+    const messageMap = {
+      invalid_2fa_code: translate("invalid_verification_code") || "Invalid verification code.",
+      invalid_or_expired_2fa_code: translate("invalid_or_expired_code") || "Invalid or expired verification code. Please try logging in again.",
+      too_many_attempts: translate("too_many_attempts") || "Too many attempts. Please try logging in again.",
+      internal_server_error: translate("internal_server_error") || "An error occurred. Please try again."
+    };
+
+    return messageMap[messageKey] || translate("verification_error") || "Verification failed. Please try again.";
+  }
 
   translateApiMessage(message) {
     const messageKey = message || "invalid_email_or_password";
