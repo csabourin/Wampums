@@ -1142,7 +1142,7 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
     const { fiscal_year_start, fiscal_year_end } = req.query;
 
-    // Get revenue from v_budget_revenue view (includes fees, fundraisers, calendars)
+    // Get revenue from v_budget_revenue view (includes fees, fundraisers, fundraiser entries)
     let revenueQuery = `
       SELECT
         revenue_source,

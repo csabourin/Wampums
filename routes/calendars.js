@@ -1,10 +1,10 @@
 /**
- * Calendar Routes
+ * Fundraiser Entry Routes
  *
- * Handles calendar entries, payment tracking, and scheduling
+ * Handles fundraiser entries, payment tracking, and participant management
  * All endpoints in this module are prefixed with /api
  *
- * @module routes/calendars
+ * @module routes/fundraiser-entries
  */
 
 const express = require('express');
@@ -19,22 +19,22 @@ const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, 
  *
  * @param {Object} pool - Database connection pool
  * @param {Object} logger - Winston logger instance
- * @returns {Router} Express router with calendar routes
+ * @returns {Router} Express router with fundraiser entry routes
  */
 module.exports = (pool, logger) => {
   /**
    * @swagger
    * /api/calendars:
    *   get:
-   *     summary: Get all calendar entries
-   *     description: Retrieve calendar entries with participant and payment information
-   *     tags: [Calendars]
+   *     summary: Get all fundraiser entries
+   *     description: Retrieve fundraiser entries with participant and payment information
+   *     tags: [Fundraiser Entries]
    *     x-permission: finance.view
    *     security:
    *       - bearerAuth: []
    *     responses:
    *       200:
-   *         description: Calendar entries retrieved successfully
+   *         description: Fundraiser entries retrieved successfully
    *       401:
    *         description: Unauthorized
    */
@@ -71,12 +71,12 @@ module.exports = (pool, logger) => {
         return res.status(403).json({ success: false, message: permissionCheck.message });
       }
 
-      // Fetch all calendar entries for this fundraiser, regardless of participant's current organization status
+      // Fetch all fundraiser entries for this fundraiser, regardless of participant's current organization status
       // This is important for inactive fundraisers where participants may have left the organization
       const result = await pool.query(
         `SELECT c.id, c.participant_id, c.amount as calendar_amount, c.amount_paid, c.paid, c.updated_at, c.fundraiser,
                 p.first_name, p.last_name, g.name as group_name, pg.group_id
-         FROM calendars c
+         FROM fundraiser_entries c
          JOIN participants p ON c.participant_id = p.id
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
          LEFT JOIN groups g ON pg.group_id = g.id
@@ -87,13 +87,13 @@ module.exports = (pool, logger) => {
 
       res.json({
         success: true,
-        calendars: result.rows
+        fundraiser_entries: result.rows
       });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {
         return;
       }
-      logger.error('Error fetching calendars:', error);
+      logger.error('Error fetching fundraiser entries:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
@@ -102,9 +102,9 @@ module.exports = (pool, logger) => {
    * @swagger
    * /api/calendars/{id}:
    *   put:
-   *     summary: Update calendar entry
-   *     description: Update calendar entry details (admin/animation only)
-   *     tags: [Calendars]
+   *     summary: Update fundraiser entry
+   *     description: Update fundraiser entry details (admin/animation only)
+   *     tags: [Fundraiser Entries]
    *     x-permission: finance.manage
    *     security:
    *       - bearerAuth: []
@@ -135,13 +135,13 @@ module.exports = (pool, logger) => {
    *                 type: string
    *     responses:
    *       200:
-   *         description: Calendar updated successfully
+   *         description: Fundraiser entry updated successfully
    *       401:
    *         description: Unauthorized
    *       403:
    *         description: Insufficient permissions
    *       404:
-   *         description: Calendar entry not found
+   *         description: Fundraiser entry not found
    */
   router.put('/calendars/:id', async (req, res) => {
     try {
@@ -164,20 +164,20 @@ module.exports = (pool, logger) => {
       const { id } = req.params;
       const { amount, amount_paid, paid } = req.body;
 
-      // Verify the calendar entry belongs to this organization through its fundraiser
+      // Verify the fundraiser entry belongs to this organization through its fundraiser
       const verifyResult = await pool.query(
-        `SELECT c.* FROM calendars c
+        `SELECT c.* FROM fundraiser_entries c
          JOIN fundraisers f ON c.fundraiser = f.id
          WHERE c.id = $1 AND f.organization = $2`,
         [id, organizationId]
       );
 
       if (verifyResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Calendar entry not found' });
+        return res.status(404).json({ success: false, message: 'Fundraiser entry not found' });
       }
 
       const result = await pool.query(
-        `UPDATE calendars
+        `UPDATE fundraiser_entries
          SET amount = COALESCE($1, amount),
              amount_paid = COALESCE($2, amount_paid),
              paid = COALESCE($3, paid),
@@ -188,7 +188,7 @@ module.exports = (pool, logger) => {
       );
 
       if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Calendar entry not found' });
+        return res.status(404).json({ success: false, message: 'Fundraiser entry not found' });
       }
 
       res.json({ success: true, data: result.rows[0] });
@@ -196,7 +196,7 @@ module.exports = (pool, logger) => {
       if (handleOrganizationResolutionError(res, error, logger)) {
         return;
       }
-      logger.error('Error updating calendar:', error);
+      logger.error('Error updating fundraiser entry:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
@@ -205,9 +205,9 @@ module.exports = (pool, logger) => {
    * @swagger
    * /api/calendars/{id}/payment:
    *   put:
-   *     summary: Update payment amount for a calendar entry
-   *     description: Update payment information for calendar (admin/animation only)
-   *     tags: [Calendars]
+   *     summary: Update payment amount for a fundraiser entry
+   *     description: Update payment information for fundraiser entry (admin/animation only)
+   *     tags: [Fundraiser Entries]
    *     x-permission: finance.manage
    *     security:
    *       - bearerAuth: []
@@ -238,7 +238,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    *       404:
-   *         description: Calendar entry not found
+   *         description: Fundraiser entry not found
    */
   router.put('/calendars/:id/payment', async (req, res) => {
     try {
@@ -267,21 +267,21 @@ module.exports = (pool, logger) => {
 
       // Get current amount and verify organization
       const currentResult = await pool.query(
-        `SELECT c.amount FROM calendars c
+        `SELECT c.amount FROM fundraiser_entries c
          JOIN fundraisers f ON c.fundraiser = f.id
          WHERE c.id = $1 AND f.organization = $2`,
         [id, organizationId]
       );
 
       if (currentResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Calendar entry not found' });
+        return res.status(404).json({ success: false, message: 'Fundraiser entry not found' });
       }
 
       const amountDue = parseFloat(currentResult.rows[0].amount) || 0;
       const paid = parseFloat(amount_paid) >= amountDue;
 
       const result = await pool.query(
-        `UPDATE calendars
+        `UPDATE fundraiser_entries
          SET amount_paid = $1,
              paid = $2,
              updated_at = CURRENT_TIMESTAMP
@@ -295,7 +295,7 @@ module.exports = (pool, logger) => {
       if (handleOrganizationResolutionError(res, error, logger)) {
         return;
       }
-      logger.error('Error updating calendar payment:', error);
+      logger.error('Error updating fundraiser entry payment:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
@@ -304,9 +304,9 @@ module.exports = (pool, logger) => {
    * @swagger
    * /api/participant-calendar:
    *   get:
-   *     summary: Get calendar entries for a specific participant
-   *     description: Retrieve all calendar entries for a participant
-   *     tags: [Calendars]
+   *     summary: Get fundraiser entries for a specific participant
+   *     description: Retrieve all fundraiser entries for a participant
+   *     tags: [Fundraiser Entries]
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -317,7 +317,7 @@ module.exports = (pool, logger) => {
    *           type: integer
    *     responses:
    *       200:
-   *         description: Participant calendar entries retrieved successfully
+   *         description: Participant fundraiser entries retrieved successfully
    *       400:
    *         description: Participant ID is required
    *       401:
@@ -342,7 +342,7 @@ module.exports = (pool, logger) => {
 
       const result = await pool.query(
         `SELECT c.*, p.first_name, p.last_name, f.name as fundraiser_name
-         FROM calendars c
+         FROM fundraiser_entries c
          JOIN participants p ON c.participant_id = p.id
          JOIN fundraisers f ON c.fundraiser = f.id
          WHERE c.participant_id = $1 AND f.organization = $2
@@ -355,7 +355,7 @@ module.exports = (pool, logger) => {
       if (handleOrganizationResolutionError(res, error, logger)) {
         return;
       }
-      logger.error('Error fetching participant calendar:', error);
+      logger.error('Error fetching participant fundraiser entries:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });

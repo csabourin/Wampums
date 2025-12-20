@@ -196,7 +196,7 @@ CREATE TABLE public.budget_revenues (
   CONSTRAINT budget_revenues_budget_item_id_fkey FOREIGN KEY (budget_item_id) REFERENCES public.budget_items(id),
   CONSTRAINT budget_revenues_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE TABLE public.calendars (
+CREATE TABLE public.fundraiser_entries (
   participant_id integer,
   amount integer NOT NULL DEFAULT 0,
   paid boolean NOT NULL DEFAULT false,
@@ -204,9 +204,9 @@ CREATE TABLE public.calendars (
   amount_paid double precision DEFAULT '0'::double precision,
   fundraiser integer,
   id integer GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
-  CONSTRAINT calendars_pkey PRIMARY KEY (id),
-  CONSTRAINT calendars_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
-  CONSTRAINT calendars_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
+  CONSTRAINT fundraiser_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT fundraiser_entries_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
+  CONSTRAINT fundraiser_entries_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
 CREATE TABLE public.carpool_assignments (
   id integer NOT NULL DEFAULT nextval('carpool_assignments_id_seq'::regclass),
@@ -572,8 +572,8 @@ CREATE TABLE public.participant_groups (
   participant_id integer NOT NULL,
   group_id integer,
   organization_id integer NOT NULL,
-  is_leader boolean NOT NULL DEFAULT false,
-  is_second_leader boolean NOT NULL DEFAULT false,
+  first_leader boolean NOT NULL DEFAULT false,
+  second_leader boolean NOT NULL DEFAULT false,
   roles text,
   CONSTRAINT participant_groups_pkey PRIMARY KEY (participant_id, organization_id),
   CONSTRAINT participant_groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),

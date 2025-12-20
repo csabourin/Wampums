@@ -619,11 +619,12 @@ logger.info('   - GET /api/reminder');
 logger.info('   - POST /api/save_reminder');
 logger.info('   - GET /api/activites-rencontre');
 
-// Calendar Routes (handles /api/calendars, /api/calendars/:id, /api/participant-calendar)
+// Fundraiser Entry Routes (handles /api/calendars, /api/calendars/:id, /api/participant-calendar)
+// Uses fundraiser_entries database table
 // Endpoints: calendars (GET/PUT), calendars/:id/payment, participant-calendar
 // IMPORTANT: Must be mounted before participants routes to prevent /:id route from catching calendars
 app.use('/api', calendarsRoutes);
-logger.info('✅ Calendar routes loaded');
+logger.info('✅ Fundraiser entry routes loaded');
 logger.info('   - GET /api/calendars');
 logger.info('   - PUT /api/calendars/:id');
 logger.info('   - PUT /api/calendars/:id/payment');
@@ -1552,10 +1553,10 @@ async function legacyApiHandler(req, res, next) {
                   COALESCE(c.paid, FALSE) AS paid,
                   c.updated_at
            FROM participants p
-           LEFT JOIN calendars c ON p.id = c.participant_id AND c.organization_id = $1
+           LEFT JOIN fundraiser_entries c ON p.id = c.participant_id AND c.organization_id = $1
            LEFT JOIN participant_organizations po ON po.participant_id = p.id AND po.organization_id = $1
            WHERE po.organization_id = $1
-           OR p.id IN (SELECT participant_id FROM calendars WHERE organization_id = $1)
+           OR p.id IN (SELECT participant_id FROM fundraiser_entries WHERE organization_id = $1)
            ORDER BY p.last_name, p.first_name`,
           [organizationId]
         );
@@ -1565,24 +1566,24 @@ async function legacyApiHandler(req, res, next) {
       case 'update_calendar':
         const { participant_id: participantIdCal, amount, amount_paid } = req.body;
         await client.query(
-          `INSERT INTO calendars (participant_id, amount, amount_paid, paid, organization_id)
+          `INSERT INTO fundraiser_entries (participant_id, amount, amount_paid, paid, organization_id)
            VALUES ($1, $2, $3, FALSE, $4)
            ON CONFLICT (participant_id, organization_id)
            DO UPDATE SET amount = EXCLUDED.amount, amount_paid = EXCLUDED.amount_paid, updated_at = CURRENT_TIMESTAMP`,
           [participantIdCal, amount, amount_paid || 0, organizationId]
         );
-        jsonResponse(res, true, null, 'Calendar updated successfully');
+        jsonResponse(res, true, null, 'Fundraiser entry updated successfully');
         break;
 
       case 'update_calendar_amount_paid':
         const { participant_id: participantIdAmountPaid, amount_paid: amountPaidUpdate } = req.body;
         await client.query(
-          `UPDATE calendars
+          `UPDATE fundraiser_entries
            SET amount_paid = $1, updated_at = CURRENT_TIMESTAMP
            WHERE participant_id = $2 AND organization_id = $3`,
           [amountPaidUpdate, participantIdAmountPaid, organizationId]
         );
-        jsonResponse(res, true, null, 'Calendar amount paid updated successfully');
+        jsonResponse(res, true, null, 'Fundraiser entry amount paid updated successfully');
         break;
 
       case 'save_guest':
