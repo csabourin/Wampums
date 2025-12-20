@@ -335,6 +335,16 @@ ADD COLUMN role_ids JSONB DEFAULT '[]'::jsonb;
 - Check user's roles: `SELECT * FROM user_permissions WHERE user_id = 'xxx';`
 - Verify role-permission mapping: `SELECT * FROM role_permissions WHERE role_id = X;`
 - Check if permission exists: `SELECT * FROM permissions WHERE permission_key = 'xxx';`
+- Use the summary view to audit assignments: `SELECT * FROM user_role_permissions_summary WHERE organization_id = 1 ORDER BY full_name;`
+
+### User Role & Permission View
+
+Use the `user_role_permissions_summary` view to quickly review account access:
+
+- **Columns**: `organization_id`, `user_id`, `full_name`, `roles` (text[]), `permissions` (text[])
+- **Includes** legacy `user_organizations.role` plus new `role_ids` entries
+- **Aggregation** deduplicates role and permission keys for each organization/user pairing
+- **Example**: `SELECT full_name, roles, permissions FROM user_role_permissions_summary WHERE user_id = 42;`
 
 ## 📞 Support
 
