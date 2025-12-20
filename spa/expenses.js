@@ -16,6 +16,7 @@ import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, debounce, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateDateField, validateRequired } from "./utils/ValidationUtils.js";
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
+import { deleteCachedData } from "./indexedDB.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -193,6 +194,66 @@ export class Expenses {
       debugError("Error loading monthly data", error);
       this.monthlyData = [];
     }
+  }
+
+  /**
+   * Build cache keys used by expense-related endpoints based on the current filters.
+   * @returns {string[]} Cache keys to clear.
+   */
+  getExpenseCacheKeys() {
+    const categoryKey = this.filters.category_id !== 'all' ? this.filters.category_id : 'all';
+    const summaryCacheKey = `expense_summary_${this.filters.start_date || 'all'}_${this.filters.end_date || 'all'}_${categoryKey}`;
+    const monthlyCacheKey = `expenses_monthly_${this.fiscalYear.start || 'all'}_${this.fiscalYear.end || 'all'}_${categoryKey}`;
+    return ['budget_expenses', summaryCacheKey, monthlyCacheKey];
+  }
+
+  /**
+   * Clear cached expense data to ensure reloads fetch fresh information after mutations.
+   * @returns {Promise<void>}
+   */
+  async clearExpenseCaches() {
+    const cacheKeys = this.getExpenseCacheKeys();
+    try {
+      await Promise.all(cacheKeys.map(key => deleteCachedData(key)));
+      debugLog("Cleared expense caches", cacheKeys);
+    } catch (error) {
+      debugError("Error clearing expense caches", error);
+    }
+  }
+
+  /**
+   * Apply optimistic changes to the local expense list for immediate UI feedback.
+   * @param {"update"|"delete"} action - Type of change to apply.
+   * @param {number} expenseId - Target expense identifier.
+   * @param {object} [updates={}] - Fields to merge when updating.
+   */
+  applyOptimisticExpenseChange(action, expenseId, updates = {}) {
+    if (!expenseId || !Array.isArray(this.expenses)) {
+      return;
+    }
+
+    if (action === "update") {
+      this.expenses = this.expenses.map(expense =>
+        expense.id === expenseId ? { ...expense, ...updates } : expense
+      );
+    } else if (action === "delete") {
+      this.expenses = this.expenses.filter(expense => expense.id !== expenseId);
+    }
+  }
+
+  /**
+   * Clear caches and reload expense-related data, then refresh the UI.
+   * @returns {Promise<void>}
+   */
+  async refreshExpenseData() {
+    await this.clearExpenseCaches();
+    await Promise.all([
+      this.loadExpenses(),
+      this.loadSummary(),
+      this.loadMonthlyData()
+    ]);
+    this.render();
+    this.attachEventListeners();
   }
 
   formatCurrency(amount) {
@@ -916,6 +977,7 @@ export class Expenses {
 
       if (expenseId) {
         await updateBudgetExpense(expenseId, payload);
+        this.applyOptimisticExpenseChange("update", expenseId, payload);
         this.app.showMessage(translate("expense_updated"), "success");
       } else {
         await createBudgetExpense(payload);
@@ -923,13 +985,7 @@ export class Expenses {
       }
 
       document.getElementById("expense-modal").remove();
-      await Promise.all([
-        this.loadExpenses(),
-        this.loadSummary(),
-        this.loadMonthlyData()
-      ]);
-      this.render();
-      this.attachEventListeners();
+      await this.refreshExpenseData();
     } catch (error) {
       debugError("Error saving expense", error);
       this.app.showMessage(translate("error_saving_expense"), "error");
@@ -975,13 +1031,7 @@ export class Expenses {
       this.app.showMessage(translate("bulk_expenses_created", { count: expenses.length }), "success");
       
       document.getElementById("bulk-expense-modal").remove();
-      await Promise.all([
-        this.loadExpenses(),
-        this.loadSummary(),
-        this.loadMonthlyData()
-      ]);
-      this.render();
-      this.attachEventListeners();
+      await this.refreshExpenseData();
     } catch (error) {
       debugError("Error creating bulk expenses", error);
       this.app.showMessage(translate("error_creating_bulk_expenses"), "error");
@@ -991,14 +1041,9 @@ export class Expenses {
   async deleteExpense(expenseId) {
     try {
       await deleteBudgetExpense(expenseId);
+      this.applyOptimisticExpenseChange("delete", expenseId);
       this.app.showMessage(translate("expense_deleted"), "success");
-      await Promise.all([
-        this.loadExpenses(),
-        this.loadSummary(),
-        this.loadMonthlyData()
-      ]);
-      this.render();
-      this.attachEventListeners();
+      await this.refreshExpenseData();
     } catch (error) {
       debugError("Error deleting expense", error);
       this.app.showMessage(translate("error_deleting_expense"), "error");
