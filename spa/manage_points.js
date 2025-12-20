@@ -19,6 +19,7 @@ import {
   clearPointsRelatedCaches,
 } from "./indexedDB.js";
 import { canViewPoints } from "./utils/PermissionUtils.js";
+import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 
 export class ManagePoints {
   constructor(app) {
@@ -56,6 +57,9 @@ export class ManagePoints {
       const cachedData = await getCachedData("manage_points_data");
       if (cachedData) {
         // Initialize arrays
+        this.participants = normalizeParticipantList(
+          cachedData.participants || []
+        );
         this.groups = cachedData.groups || [];
         this.groupedParticipants = cachedData.groupedParticipants || {};
         this.unassignedParticipants = cachedData.unassignedParticipants || [];
@@ -64,7 +68,9 @@ export class ManagePoints {
         const freshData = await getParticipants();
         if (freshData.success) {
           // Support both new format (data) and old format (participants)
-          this.participants = freshData.data || freshData.participants || [];
+          this.participants = normalizeParticipantList(
+            freshData.data || freshData.participants || []
+          );
           debugLog(
             "Fresh participants loaded:",
             this.participants.length,
@@ -119,13 +125,15 @@ export class ManagePoints {
         participantsResponse.success &&
         Array.isArray(participantsResponse.data)
       ) {
-        this.participants = participantsResponse.data;
+        this.participants = normalizeParticipantList(participantsResponse.data);
       } else if (
         participantsResponse.success &&
         Array.isArray(participantsResponse.participants)
       ) {
         // Backward compatibility
-        this.participants = participantsResponse.participants;
+        this.participants = normalizeParticipantList(
+          participantsResponse.participants
+        );
       } else {
         debugError(
           "Unexpected participants data structure:",
@@ -144,8 +152,10 @@ export class ManagePoints {
         last_name: participant.last_name,
         group_id: participant.group_id,
         group_name: participant.group_name,
-        is_leader: participant.is_leader,
-        is_second_leader: participant.is_second_leader,
+        first_leader: participant.first_leader,
+        second_leader: participant.second_leader,
+        is_leader: participant.first_leader,
+        is_second_leader: participant.second_leader,
         total_points: participant.total_points || 0,
       }));
 
@@ -837,10 +847,11 @@ export class ManagePoints {
     Object.values(this.groupedParticipants).forEach((groupParticipants) => {
       groupParticipants.sort((a, b) => {
         // Sort by leader status first
-        if (a.is_leader !== b.is_leader) return b.is_leader ? 1 : -1;
+        if (a.first_leader !== b.first_leader)
+          return b.first_leader ? 1 : -1;
         // Then by second leader status
-        if (a.is_second_leader !== b.is_second_leader)
-          return b.is_second_leader ? 1 : -1;
+        if (a.second_leader !== b.second_leader)
+          return b.second_leader ? 1 : -1;
         // Finally by name
         return a.first_name.localeCompare(b.first_name);
       });
