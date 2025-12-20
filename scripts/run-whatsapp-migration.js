@@ -1,34 +1,54 @@
 #!/usr/bin/env node
-const { Pool } = require('pg');
-const fs = require('fs');
+const { spawn } = require('child_process');
 const path = require('path');
 require('dotenv').config();
 
+/**
+ * Run the WhatsApp auth migration using the standard migration pipeline.
+ * Leverages npm scripts so we stay aligned with node-pg-migrate conventions.
+ * @returns {Promise<void>}
+ */
 async function runMigration() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || process.env.PGDATABASE || process.env.POSTGRES_URL,
-    ssl: { rejectUnauthorized: false }
-  });
+  const databaseUrl = process.env.DATABASE_URL || process.env.PGDATABASE || process.env.POSTGRES_URL;
 
-  try {
-    console.log('🔄 Running WhatsApp database migration...\n');
+  if (!databaseUrl) {
+    console.error('❌ DATABASE_URL (or PGDATABASE/POSTGRES_URL) must be set before running migrations.');
+    process.exit(1);
+  }
 
-    const sql = fs.readFileSync(
-      path.join(__dirname, '..', 'migrations', 'migrate_whatsapp_auth_to_database.sql'),
-      'utf8'
+  console.log('🔄 Running WhatsApp database migration via node-pg-migrate...\n');
+
+  await new Promise((resolve, reject) => {
+    const migrateProcess = spawn(
+      'npm',
+      ['run', 'migrate', '--', 'up'],
+      {
+        cwd: path.join(__dirname, '..'),
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          DATABASE_URL: databaseUrl
+        }
+      }
     );
 
-    await pool.query(sql);
-    console.log('✅ Migration completed successfully!\n');
-    console.log('You can now restart your server and try connecting WhatsApp again.');
+    migrateProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log('\n✅ Migration completed successfully!');
+        console.log('You can now restart your server and try connecting WhatsApp again.');
+        resolve();
+        return;
+      }
 
-  } catch (error) {
-    console.error('❌ Migration failed:', error.message);
-    console.error('\nPlease run the SQL manually in your database GUI.');
+      reject(new Error(`Migration process exited with code ${code}`));
+    });
+
+    migrateProcess.on('error', reject);
+  }).catch((error) => {
+    console.error('\n❌ Migration failed:', error.message);
+    console.error('Please ensure node-pg-migrate is installed and try running `npm run migrate -- up` manually.');
     process.exit(1);
-  } finally {
-    await pool.end();
-  }
+  });
 }
 
 runMigration();
