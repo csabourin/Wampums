@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
-const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
 function toNumeric(value) {
   const numeric = Number(value);
@@ -213,13 +212,8 @@ module.exports = (pool, logger) => {
     return success(res, formatted, 'Participant fees loaded');
   }));
 
-  router.post('/v1/finance/participant-fees', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/finance/participant-fees', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const {
       participant_id,
@@ -284,13 +278,8 @@ module.exports = (pool, logger) => {
     return success(res, formatFeeRow(insertResult.rows[0]), 'Participant fee created', 201);
   }));
 
-  router.put('/v1/finance/participant-fees/:id', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/finance/participant-fees/:id', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const {
@@ -342,13 +331,8 @@ module.exports = (pool, logger) => {
     return success(res, formatFeeRow(updateResult.rows[0]), 'Participant fee updated');
   }));
 
-  router.get('/v1/finance/participant-fees/:id/payments', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/finance/participant-fees/:id/payments', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const feeRow = await pool.query(
@@ -371,13 +355,8 @@ module.exports = (pool, logger) => {
     return success(res, payments.rows, 'Payments loaded');
   }));
 
-  router.post('/v1/finance/participant-fees/:id/payments', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/finance/participant-fees/:id/payments', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const { payment_plan_id, amount, payment_date, method, reference_number } = req.body;
@@ -432,13 +411,8 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.put('/v1/finance/payments/:paymentId', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/finance/payments/:paymentId', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { paymentId } = req.params;
     const { amount, payment_date, method, reference_number } = req.body;
@@ -505,13 +479,8 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.get('/v1/finance/participant-fees/:id/payment-plans', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/finance/participant-fees/:id/payment-plans', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const feeRow = await pool.query(
@@ -534,13 +503,8 @@ module.exports = (pool, logger) => {
     return success(res, plans.rows, 'Payment plans loaded');
   }));
 
-  router.post('/v1/finance/participant-fees/:id/payment-plans', authenticate, asyncHandler(async (req, res) => {
+  router.post('/v1/finance/participant-fees/:id/payment-plans', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { id } = req.params;
     const { number_of_payments, amount_per_payment, start_date, frequency, notes } = req.body;
@@ -576,13 +540,8 @@ module.exports = (pool, logger) => {
     return success(res, insertResult.rows[0], 'Payment plan created', 201);
   }));
 
-  router.put('/v1/finance/payment-plans/:planId', authenticate, asyncHandler(async (req, res) => {
+  router.put('/v1/finance/payment-plans/:planId', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { planId } = req.params;
     const { number_of_payments, amount_per_payment, start_date, frequency, notes } = req.body;
@@ -630,13 +589,8 @@ module.exports = (pool, logger) => {
     return success(res, updated.rows[0], 'Payment plan updated');
   }));
 
-  router.delete('/v1/finance/payment-plans/:planId', authenticate, asyncHandler(async (req, res) => {
+  router.delete('/v1/finance/payment-plans/:planId', authenticate, blockDemoRoles, requirePermission('finance.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const { planId } = req.params;
 
@@ -660,13 +614,8 @@ module.exports = (pool, logger) => {
     return success(res, true, 'Payment plan deleted');
   }));
 
-  router.get('/v1/finance/reports/summary', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/finance/reports/summary', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, ['admin', 'animation']);
-
-    if (!authCheck.authorized) {
-      return error(res, authCheck.message, 403);
-    }
 
     const totalsResult = await pool.query(
       `WITH paid AS (
@@ -747,13 +696,8 @@ module.exports = (pool, logger) => {
     return success(res, payload, 'Financial summary ready');
   }));
 
-  router.get('/v1/finance/participants/:participantId/statement', authenticate, asyncHandler(async (req, res) => {
+  router.get('/v1/finance/participants/:participantId/statement', authenticate, requirePermission('finance.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
-
-    if (!membership.authorized) {
-      return error(res, membership.message, 403);
-    }
 
     const { participantId } = req.params;
 
@@ -769,7 +713,8 @@ module.exports = (pool, logger) => {
       return error(res, 'Participant not found in this organization', 404);
     }
 
-    const isStaff = ['admin', 'animation'].includes(membership.role);
+    const staffRoles = ['district', 'unitadmin', 'leader', 'finance', 'administration', 'demoadmin'];
+    const isStaff = hasAnyRole(req, ...staffRoles);
 
     if (!isStaff) {
       const guardianLink = await pool.query(
