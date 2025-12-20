@@ -101,6 +101,7 @@ export class Inventory {
     this.modalPhotoPreviewUrl = null;
     this.modalSelectedPhotoFile = null;
     this.lastFocusedElement = null;
+    this.heicConverterPromise = null;
     this.handleImagePreviewKeydown = this.handleImagePreviewKeydown.bind(this);
   }
 
@@ -1001,35 +1002,45 @@ export class Inventory {
 
           const normalization = await this.normalizePhotoFile(file);
 
-          if (normalization.error) {
-            this.app.showMessage(translate("equipment_photo_upload_error"), "error");
-            photoInput.value = '';
-            return;
-          }
-
           if (isModal) {
             this.modalSelectedPhotoFile = normalization.processedFile;
           } else {
             this.selectedPhotoFile = normalization.processedFile;
           }
 
-          // Show preview using an object URL (works for converted WebP)
-          const previewUrl = URL.createObjectURL(normalization.previewFile);
-          photoPreviewImg.src = previewUrl;
-          photoPreviewImg.classList.remove('hidden');
-          photoPlaceholder.classList.add('hidden');
-          removePhotoBtn.classList.remove('hidden');
+          if (normalization.previewFile) {
+            // Show preview using an object URL (works for converted WebP)
+            const previewUrl = URL.createObjectURL(normalization.previewFile);
+            photoPreviewImg.src = previewUrl;
+            photoPreviewImg.classList.remove('hidden');
+            photoPlaceholder.classList.add('hidden');
+            removePhotoBtn.classList.remove('hidden');
 
-          if (isModal) {
-            if (this.modalPhotoPreviewUrl) {
-              URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+            if (isModal) {
+              if (this.modalPhotoPreviewUrl) {
+                URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+              }
+              this.modalPhotoPreviewUrl = previewUrl;
+            } else {
+              if (this.photoPreviewUrl) {
+                URL.revokeObjectURL(this.photoPreviewUrl);
+              }
+              this.photoPreviewUrl = previewUrl;
             }
-            this.modalPhotoPreviewUrl = previewUrl;
           } else {
-            if (this.photoPreviewUrl) {
-              URL.revokeObjectURL(this.photoPreviewUrl);
+            if (isModal && this.modalPhotoPreviewUrl) {
+              URL.revokeObjectURL(this.modalPhotoPreviewUrl);
+              this.modalPhotoPreviewUrl = null;
             }
-            this.photoPreviewUrl = previewUrl;
+            if (!isModal && this.photoPreviewUrl) {
+              URL.revokeObjectURL(this.photoPreviewUrl);
+              this.photoPreviewUrl = null;
+            }
+            this.showPreviewUnavailableState(photoPreviewImg, photoPlaceholder);
+            removePhotoBtn.classList.remove('hidden');
+            if (normalization.error) {
+              this.app.showMessage(translate("equipment_photo_preview_unavailable"), "warning");
+            }
           }
         }
       });
@@ -1047,6 +1058,37 @@ export class Inventory {
     }
   }
 
+  async loadHeicConverter() {
+    if (this.heicConverterPromise) {
+      return this.heicConverterPromise;
+    }
+
+    this.heicConverterPromise = import(
+      /* @vite-ignore */ CONFIG.UI.HEIC_CONVERTER_URL
+    ).then((module) => module.default || module);
+
+    return this.heicConverterPromise;
+  }
+
+  showPreviewUnavailableState(photoPreviewImg, photoPlaceholder) {
+    if (photoPreviewImg) {
+      photoPreviewImg.src = '';
+      photoPreviewImg.classList.add('hidden');
+    }
+
+    if (photoPlaceholder) {
+      const textEl = photoPlaceholder.querySelector('.photo-text');
+      const hintEl = photoPlaceholder.querySelector('.photo-hint');
+      if (textEl) {
+        textEl.textContent = translate("equipment_photo_preview_unavailable");
+      }
+      if (hintEl) {
+        hintEl.textContent = translate("equipment_photo_click_to_upload");
+      }
+      photoPlaceholder.classList.remove('hidden');
+    }
+  }
+
   /**
    * Normalize a selected photo file to ensure previewability and upload consistency.
    * Converts HEIC/HEIF inputs to WebP for browsers that cannot render HEIC directly.
@@ -1059,7 +1101,7 @@ export class Inventory {
     }
 
     try {
-      const heic2any = (await import('heic2any')).default;
+      const heic2any = await this.loadHeicConverter();
       const convertedBlob = await heic2any({
         blob: file,
         toType: 'image/webp',
@@ -1070,7 +1112,8 @@ export class Inventory {
       return { processedFile: convertedFile, previewFile: convertedFile };
     } catch (conversionError) {
       debugError("Error converting HEIC for preview:", conversionError);
-      return { processedFile: file, previewFile: file, error: conversionError };
+      this.heicConverterPromise = null;
+      return { processedFile: file, previewFile: null, error: conversionError };
     }
   }
 

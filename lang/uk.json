@@ -1501,6 +1501,7 @@
   "equipment_photo": "Фото",
   "equipment_photo_click_to_upload": "Натисніть, щоб завантажити фото",
   "equipment_photo_max_size": "Макс. 3 МБ (JPEG, PNG, GIF, WebP)",
+  "equipment_photo_preview_unavailable": "Попередній перегляд цього файлу HEIC недоступний на цьому пристрої. Його буде перетворено після завантаження.",
   "equipment_photo_remove": "Видалити фото",
   "equipment_photo_too_large": "Фото завелике. Максимальний розмір – 3 МБ.",
   "equipment_photo_invalid_type": "Недійсний тип файлу. Завантажте зображення JPEG, PNG, GIF, HEIC, HEIF або WebP.",

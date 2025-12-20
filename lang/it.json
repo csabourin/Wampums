@@ -1486,6 +1486,7 @@
   "equipment_photo": "Foto",
   "equipment_photo_click_to_upload": "Fai clic per caricare la foto",
   "equipment_photo_max_size": "Massimo 3 MB (JPEG, PNG, GIF, Web P)",
+  "equipment_photo_preview_unavailable": "Anteprima non disponibile per questo file HEIC su questo dispositivo. Verrà convertito dopo il caricamento.",
   "equipment_photo_remove": "Rimuovi foto",
   "equipment_photo_too_large": "La foto è troppo grande. La dimensione massima è 3 MB.",
   "equipment_photo_invalid_type": "Tipo di file non valido. Carica un'immagine JPEG, PNG, HEIC, HEIF GIF o Web P.",
