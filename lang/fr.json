@@ -1007,7 +1007,7 @@
   "parent_guardian": "Parent/tuteur",
   "parent_name_label": "Nom du parent",
   "parent_tuteur": "Parent/Tuteur",
-  "parent_tuteur_confirmation": "Je confirme que je suis le parent ou le gardien d’un participant mineur et que je signe ce formulaire d’acceptation des risques et de renonciation en mon nom de tuteur/gardien de cet enfant. Je déclare avoir bien informé le mineur de tous les risques susmentionnés ou de tout autre risque dont j’aurais connaissance et ferai en sorte de retirer ce mineur des activités si je juge que les risques sont trop importants pour lui.",
+  "parent_tuteur_confirmation": "Je confirme que je suis le parent ou le gardien d’un participant mineur et que je signe ce formulaire d’acceptation des risques et de renonciation en mon nom de tuteur/gardien de cet enfant. Je da�clare avoir bien informé le mineur de tous les risques susmentionnés ou de tout autre risque dont j’aurais connaissance et ferai en sorte de retirer ce mineur des activités si je juge que les risques sont trop importants pour lui.",
   "parents": "Parents/Tuteurs",
   "parents_label": "Parents",
   "partial": "Livraison partielle",
@@ -1554,7 +1554,7 @@
   "equipment_photo_max_size": "Max 3 Mo (JPEG, PNG, GIF, WebP)",
   "equipment_photo_remove": "Supprimer la photo",
   "equipment_photo_too_large": "La photo est trop volumineuse. Taille maximale : 3 Mo.",
-  "equipment_photo_invalid_type": "Type de fichier invalide. Veuillez téléverser une image JPEG, PNG, GIF ou WebP.",
+  "equipment_photo_invalid_type": "Type de fichier invalide. Veuillez téléverser une image JPEG, PNG, GIF, HEIC, HEIF ou WebP.",
   "equipment_photo_upload_error": "Échec du téléversement de la photo, mais le matériel a été enregistré.",
   "equipment_add_new": "Ajouter du nouveau matériel",
   "equipment_edit": "Modifier le matériel",
@@ -1780,8 +1780,7 @@
   "reservation_form": "Formulaire de réservation",
   "existing_reservations": "Réservations existantes",
   "organization": "Organisation",
-  "date_required": "Veuillez sélectionner les dates de réservation"
-,
+  "date_required": "Veuillez sélectionner les dates de réservation",
   "activities_calendar": "Calendrier d'activités",
   "add_activity": "Ajouter une activité",
   "upcoming_activities": "Activités à venir",
@@ -1874,10 +1873,8 @@
   "assignment_removed_success": "Participant retiré du covoiturage",
   "error_removing_assignment": "Erreur lors du retrait du participant",
   "error_loading_carpool_data": "Erreur lors du chargement des données de covoiturage",
-  "error_occurred": "Une erreur s'est produite"
-,
-  "select_activity_for_carpool": "Sélectionnez une activité pour coordonner les covoiturages"
-,
+  "error_occurred": "Une erreur s'est produite",
+  "select_activity_for_carpool": "Sélectionnez une activité pour coordonner les covoiturages",
   "quick_create_activity": "Création rapide d'activité",
   "creating": "Création en cours"
 }

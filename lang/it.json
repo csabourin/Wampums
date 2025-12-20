@@ -1488,7 +1488,7 @@
   "equipment_photo_max_size": "Massimo 3 MB (JPEG, PNG, GIF, Web P)",
   "equipment_photo_remove": "Rimuovi foto",
   "equipment_photo_too_large": "La foto è troppo grande. La dimensione massima è 3 MB.",
-  "equipment_photo_invalid_type": "Tipo di file non valido. Carica un'immagine JPEG, PNG, GIF o Web P.",
+  "equipment_photo_invalid_type": "Tipo di file non valido. Carica un'immagine JPEG, PNG, HEIC, HEIF GIF o Web P.",
   "equipment_photo_upload_error": "Impossibile caricare la foto, ma l'attrezzatura è stata salvata.",
   "equipment_add_new": "Aggiungi nuova attrezzatura",
   "equipment_edit": "Modifica attrezzatura",

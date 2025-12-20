@@ -27,7 +27,9 @@ function getSupabaseClient() {
     let supabaseUrl = process.env.SUPABASE_URL;
     // Prioritize SUPABASE_SERVICE_KEY (more likely to be a JWT) over SUPABASE_STORAGE_SECRET_KEY
     // SUPABASE_STORAGE_SECRET_KEY might be an S3 secret access key, not a JWT
-    let supabaseSecretKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_STORAGE_SECRET_KEY;
+    let supabaseSecretKey =
+      process.env.SUPABASE_SERVICE_KEY ||
+      process.env.SUPABASE_STORAGE_SECRET_KEY;
 
     if (!supabaseUrl || !supabaseSecretKey) {
       throw new Error(
@@ -40,48 +42,67 @@ function getSupabaseClient() {
 
     // Convert S3 endpoint URL to base Supabase URL if needed
     // e.g., https://xxx.storage.supabase.co/storage/v1/s3 -> https://xxx.supabase.co
-    if (supabaseUrl.includes('.storage.supabase.co')) {
-      const match = supabaseUrl.match(/https:\/\/([^.]+)\.storage\.supabase\.co/);
+    if (supabaseUrl.includes(".storage.supabase.co")) {
+      const match = supabaseUrl.match(
+        /https:\/\/([^.]+)\.storage\.supabase\.co/,
+      );
       if (match) {
         supabaseUrl = `https://${match[1]}.supabase.co`;
-        console.log(`[Supabase Storage] Converted S3 endpoint to base URL: ${supabaseUrl}`);
+        console.log(
+          `[Supabase Storage] Converted S3 endpoint to base URL: ${supabaseUrl}`,
+        );
       }
     }
 
     // Validate that the secret key looks like a JWT (should have 3 parts separated by dots)
-    const keyParts = supabaseSecretKey.split('.');
+    const keyParts = supabaseSecretKey.split(".");
     if (keyParts.length !== 3) {
-      console.error(`[Supabase Storage] Invalid service key format. Expected JWT with 3 parts, got ${keyParts.length} parts.`);
-      console.error(`[Supabase Storage] Key preview: ${supabaseSecretKey.substring(0, 50)}...`);
+      console.error(
+        `[Supabase Storage] Invalid service key format. Expected JWT with 3 parts, got ${keyParts.length} parts.`,
+      );
+      console.error(
+        `[Supabase Storage] Key preview: ${supabaseSecretKey.substring(0, 50)}...`,
+      );
       throw new Error(
         "SUPABASE_STORAGE_SECRET_KEY or SUPABASE_SERVICE_KEY must be a valid JWT (service_role key). " +
-        "It should look like: eyJhbGciOiJ... (3 parts separated by dots)"
+          "It should look like: eyJhbGciOiJ... (3 parts separated by dots)",
       );
     }
 
     // Decode the JWT payload to check the role
     try {
-      const payload = JSON.parse(Buffer.from(keyParts[1], 'base64').toString());
+      const payload = JSON.parse(Buffer.from(keyParts[1], "base64").toString());
       const role = payload.role;
 
-      console.log(`[Supabase Storage] Initializing client with URL: ${supabaseUrl}`);
-      console.log(`[Supabase Storage] Service key preview: ${supabaseSecretKey.substring(0, 50)}... (${keyParts.length} parts)`);
+      console.log(
+        `[Supabase Storage] Initializing client with URL: ${supabaseUrl}`,
+      );
+      console.log(
+        `[Supabase Storage] Service key preview: ${supabaseSecretKey.substring(0, 50)}... (${keyParts.length} parts)`,
+      );
       console.log(`[Supabase Storage] Detected JWT role: ${role}`);
 
-      if (role === 'anon') {
-        console.error(`[Supabase Storage] ERROR: Using 'anon' key instead of 'service_role' key!`);
+      if (role === "anon") {
+        console.error(
+          `[Supabase Storage] ERROR: Using 'anon' key instead of 'service_role' key!`,
+        );
         throw new Error(
           "SUPABASE_SERVICE_KEY must be the 'service_role' key, not the 'anon' key. " +
-          "The anon key is public and cannot upload files. " +
-          "Find the service_role key in Supabase: Project Settings > API > service_role key (secret)"
+            "The anon key is public and cannot upload files. " +
+            "Find the service_role key in Supabase: Project Settings > API > service_role key (secret)",
         );
       }
 
-      if (role !== 'service_role') {
-        console.warn(`[Supabase Storage] WARNING: Expected role 'service_role' but got '${role}'. This may cause permission issues.`);
+      if (role !== "service_role") {
+        console.warn(
+          `[Supabase Storage] WARNING: Expected role 'service_role' but got '${role}'. This may cause permission issues.`,
+        );
       }
     } catch (decodeError) {
-      console.warn(`[Supabase Storage] Could not decode JWT to verify role:`, decodeError.message);
+      console.warn(
+        `[Supabase Storage] Could not decode JWT to verify role:`,
+        decodeError.message,
+      );
     }
 
     // Use the storage-specific secret key to authenticate S3-compatible storage operations
@@ -132,9 +153,19 @@ function validateFile(file) {
  * @param {string} [targetExtension] - Optional extension (without dot) for the stored file
  * @returns {string} File path in storage
  */
-function generateFilePath(organizationId, equipmentId, originalFilename, targetExtension) {
+function generateFilePath(
+  organizationId,
+  equipmentId,
+  originalFilename,
+  targetExtension,
+) {
   const timestamp = Date.now();
-  const normalizedExtension = (targetExtension || (originalFilename?.split(".").pop() ?? "")).replace(/^\./, "").toLowerCase();
+  const normalizedExtension = (
+    targetExtension ||
+    (originalFilename?.split(".").pop() ?? "")
+  )
+    .replace(/^\./, "")
+    .toLowerCase();
   const extension = normalizedExtension || "webp";
   const sanitizedFilename = `equipment_${equipmentId || "new"}_${timestamp}.${extension}`;
   return `org_${organizationId}/${sanitizedFilename}`;
@@ -231,7 +262,8 @@ function extractPathFromUrl(publicUrl) {
 function isStorageConfigured() {
   return !!(
     process.env.SUPABASE_URL &&
-    (process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_STORAGE_SECRET_KEY) &&
+    (process.env.SUPABASE_SERVICE_KEY ||
+      process.env.SUPABASE_STORAGE_SECRET_KEY) &&
     process.env.SUPABASE_STORAGE_BUCKET
   );
 }

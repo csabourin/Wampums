@@ -1513,7 +1513,7 @@
   "equipment_photo_max_size": "Maks 3MB (JPEG, PNG, GIF, WebP)",
   "equipment_photo_remove": "Hapus foto",
   "equipment_photo_too_large": "Foto terlalu besar. Ukuran maksimalnya adalah 3MB.",
-  "equipment_photo_invalid_type": "Jenis berkas tidak valid. Harap unggah gambar JPEG, PNG, GIF, atau WebP.",
+  "equipment_photo_invalid_type": "Jenis berkas tidak valid. Harap unggah gambar JPEG, PNG, GIF, HEIC, HEIF, atau WebP.",
   "equipment_photo_upload_error": "Gagal mengunggah foto, namun peralatan telah disimpan.",
   "equipment_add_new": "Tambahkan peralatan baru",
   "equipment_edit": "Sunting peralatan",
