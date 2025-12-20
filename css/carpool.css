@@ -26,6 +26,101 @@
   --carpool-touch-target: var(--touch-target-min, 44px);
 }
 
+/* Carpool Landing */
+.carpool-landing {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.carpool-landing .page__header-top {
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.carpool-landing .page__title-block {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.carpool-landing .page__eyebrow {
+  margin: 0;
+  color: var(--color-text-muted, #6f8a81);
+  font-weight: var(--font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.carpool-landing__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+}
+
+@media (min-width: 720px) {
+  .carpool-landing__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.carpool-landing__link {
+  justify-content: center;
+}
+
+.carpool-landing__skeletons {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+}
+
+@media (min-width: 768px) {
+  .carpool-landing__skeletons {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
+.carpool-landing__card {
+  background: var(--carpool-surface);
+  border: 1px solid var(--carpool-border);
+  border-radius: var(--carpool-radius);
+  padding: var(--space-lg);
+  box-shadow: var(--carpool-shadow);
+}
+
+.carpool-landing__card h2 {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--font-size-lg, 1.125rem);
+}
+
+.carpool-landing__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.carpool-landing__pill {
+  display: inline-block;
+  inline-size: 82px;
+  block-size: var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--color-border-light, #e0e0e0);
+  flex-shrink: 0;
+}
+
+.carpool-landing__skeleton-lines {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.carpool-landing__line {
+  display: block;
+  inline-size: 100%;
+  block-size: calc(var(--space-sm) + 0.35rem);
+  border-radius: var(--radius-sm);
+  background: var(--color-border-light, #e0e0e0);
+}
+
 /* Activity Info Card */
 .activity-info-card {
   background: var(--carpool-highlight-strong);
