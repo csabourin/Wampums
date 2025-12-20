@@ -124,6 +124,7 @@ export {
     checkPermission,
     approveUser,
     updateUserRole,
+    clearUserCaches,
 
     // Participants
     getParticipants,

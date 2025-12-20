@@ -11,6 +11,7 @@ import {
         getSubscribers,
         getCurrentOrganizationId,
         importSISC,
+        clearUserCaches,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
@@ -64,13 +65,18 @@ export class Admin {
         }
 
         async fetchData(options = {}) {
-                const { loadUsers = false, loadSubscribers = false } = options;
+                const {
+                        loadUsers = false,
+                        loadSubscribers = false,
+                        userCacheOptions = {},
+                } = options;
 
                 try {
                         if (loadUsers) {
                                 try {
                                         const usersResult = await getUsers(
                                                 this.currentOrganizationId,
+                                                userCacheOptions,
                                         );
                                         this.users = this.normalizeUserList(usersResult);
 
@@ -130,6 +136,7 @@ export class Admin {
                 return {
                         loadUsers: this.permissions.canManageUsers || this.permissions.canViewUsers,
                         loadSubscribers: this.permissions.canSendCommunications,
+                        userCacheOptions: {},
                 };
         }
 
@@ -280,6 +287,53 @@ ${showNotifications ? `
                         .join("");
         }
 
+        /**
+         * Optimistically update the local user list with a new role selection.
+         *
+         * @param {string|number} userId - Identifier of the user being updated
+         * @param {string} newRole - New primary role value
+         */
+        applyOptimisticRoleUpdate(userId, newRole) {
+                if (!Array.isArray(this.users)) {
+                        return;
+                }
+
+                this.users = this.users.map((user) => {
+                        if (`${user.id}` !== `${userId}`) {
+                                return user;
+                        }
+
+                        const updatedRoles = Array.isArray(user.roles)
+                                ? [newRole, ...user.roles.filter((role) => role !== newRole)]
+                                : [newRole];
+
+                        return {
+                                ...user,
+                                role: newRole,
+                                roles: updatedRoles,
+                        };
+                });
+        }
+
+        /**
+         * Optimistically mark a user as approved in the local list.
+         *
+         * @param {string|number} userId - Identifier of the approved user
+         */
+        applyOptimisticApproval(userId) {
+                if (!Array.isArray(this.users)) {
+                        return;
+                }
+
+                this.users = this.users.map((user) => (`${user.id}` === `${userId}`
+                        ? {
+                                ...user,
+                                isVerified: true,
+                                is_verified: true,
+                        }
+                        : user));
+        }
+
         renderSubscribers() {
                 const subscribers = Array.isArray(this.subscribers)
                         ? this.subscribers
@@ -368,7 +422,12 @@ ${showNotifications ? `
                                         ),
                                         "success",
                                 );
-                                await this.fetchData(this.getDataFetchOptions());
+                                this.applyOptimisticRoleUpdate(userId, newRole);
+                                await clearUserCaches(this.currentOrganizationId);
+                                await this.fetchData({
+                                        ...this.getDataFetchOptions(),
+                                        userCacheOptions: { forceRefresh: true },
+                                });
                                 this.render();
                         } else {
                                 this.app.showMessage(
@@ -400,7 +459,12 @@ ${showNotifications ? `
                                         ),
                                         "success",
                                 );
-                                await this.fetchData(this.getDataFetchOptions());
+                                this.applyOptimisticApproval(userId);
+                                await clearUserCaches(this.currentOrganizationId);
+                                await this.fetchData({
+                                        ...this.getDataFetchOptions(),
+                                        userCacheOptions: { forceRefresh: true },
+                                });
                                 this.render();
                         } else {
                                 this.app.showMessage(
