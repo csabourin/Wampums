@@ -1711,10 +1711,11 @@ export async function getParticipantStatement(participantId) {
 /**
  * Get budget categories for the current organization
  */
-export async function getBudgetCategories() {
-    return API.get('v1/budget/categories', {}, {
+export async function getBudgetCategories(params = {}, cacheOptions = {}) {
+    return API.get('v1/budget/categories', params, {
         cacheKey: 'budget_categories',
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh: cacheOptions.forceRefresh
     });
 }
 
@@ -1742,11 +1743,12 @@ export async function deleteBudgetCategory(id) {
 /**
  * Get budget items, optionally filtered by category
  */
-export async function getBudgetItems(categoryId = null) {
+export async function getBudgetItems(categoryId = null, cacheOptions = {}) {
     const params = categoryId ? { category_id: categoryId } : {};
     return API.get('v1/budget/items', params, {
         cacheKey: categoryId ? `budget_items_cat_${categoryId}` : 'budget_items',
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh: cacheOptions.forceRefresh
     });
 }
 
@@ -1774,10 +1776,11 @@ export async function deleteBudgetItem(id) {
 /**
  * Get budget expenses with optional filters
  */
-export async function getBudgetExpenses(filters = {}) {
+export async function getBudgetExpenses(filters = {}, cacheOptions = {}) {
     return API.get('v1/budget/expenses', filters, {
         cacheKey: 'budget_expenses',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: cacheOptions.forceRefresh
     });
 }
 
@@ -1805,14 +1808,15 @@ export async function deleteBudgetExpense(id) {
 /**
  * Get comprehensive budget summary report
  */
-export async function getBudgetSummaryReport(fiscalYearStart, fiscalYearEnd) {
+export async function getBudgetSummaryReport(fiscalYearStart, fiscalYearEnd, cacheOptions = {}) {
     const params = {
         fiscal_year_start: fiscalYearStart,
         fiscal_year_end: fiscalYearEnd
     };
     return API.get('v1/budget/reports/summary', params, {
         cacheKey: `budget_summary_${fiscalYearStart}_${fiscalYearEnd}`,
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: cacheOptions.forceRefresh
     });
 }
 
@@ -1860,7 +1864,7 @@ export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, 
 /**
  * Get budget plans with optional fiscal year filter
  */
-export async function getBudgetPlans(fiscalYearStart = null, fiscalYearEnd = null) {
+export async function getBudgetPlans(fiscalYearStart = null, fiscalYearEnd = null, cacheOptions = {}) {
     const params = {};
     if (fiscalYearStart && fiscalYearEnd) {
         params.fiscal_year_start = fiscalYearStart;
@@ -1868,7 +1872,8 @@ export async function getBudgetPlans(fiscalYearStart = null, fiscalYearEnd = nul
     }
     return API.get('v1/budget/plans', params, {
         cacheKey: fiscalYearStart ? `budget_plans_${fiscalYearStart}_${fiscalYearEnd}` : 'budget_plans',
-        cacheDuration: CONFIG.CACHE_DURATION.SHORT
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: cacheOptions.forceRefresh
     });
 }
 

@@ -87,7 +87,7 @@ module.exports = (pool) => {
     // If user has any non-parent role, show ALL participants
     if (hasStaffRole) {
       query = `
-        SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+        SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
                  (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                   FROM form_submissions
@@ -127,7 +127,7 @@ module.exports = (pool) => {
     } else {
       // For parents, only show participants linked to them
       query = `
-        SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+        SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
                  (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
                   FROM form_submissions
@@ -308,10 +308,10 @@ module.exports = (pool) => {
    *               group_id:
    *                 type: integer
    *                 description: Group ID (null to remove from group)
-   *               is_leader:
+   *               first_leader:
    *                 type: boolean
    *                 default: false
-   *               is_second_leader:
+   *               second_leader:
    *                 type: boolean
    *                 default: false
    *               roles:
@@ -325,7 +325,7 @@ module.exports = (pool) => {
    */
   router.patch('/:id/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { group_id, is_leader, is_second_leader, roles } = req.body;
+    const { group_id, first_leader, second_leader, roles } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
     let groupContext = null;
@@ -371,9 +371,9 @@ module.exports = (pool) => {
       // Add new group assignment if group_id is provided
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles)
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, first_leader, second_leader, roles)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null]
+          [id, groupContext.id, organizationId, first_leader || false, second_leader || false, roles || null]
         );
       }
 
@@ -403,7 +403,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
-              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+              pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
               COALESCE((SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1), 0) as total_points
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -447,7 +447,7 @@ module.exports = (pool) => {
     } else {
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+                pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                 (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'fiche_sante') > 0 as has_fiche_sante,
                 (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'acceptation_risque') > 0 as has_acceptation_risque
          FROM participants p
@@ -597,7 +597,7 @@ module.exports = (pool) => {
       return error(res, authCheck.message, 403);
     }
 
-    const { participant_id, group_id, is_leader, is_second_leader, roles } = req.body;
+    const { participant_id, group_id, first_leader, second_leader, roles } = req.body;
 
     if (!participant_id) {
       return error(res, 'Participant ID is required', 400);
@@ -626,9 +626,9 @@ module.exports = (pool) => {
       // Add new group assignment if group_id is not null/empty
       if (groupContext) {
         await client.query(
-          `INSERT INTO participant_groups (participant_id, group_id, organization_id, is_leader, is_second_leader, roles)
+          `INSERT INTO participant_groups (participant_id, group_id, organization_id, first_leader, second_leader, roles)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [participant_id, groupContext.id, organizationId, is_leader || false, is_second_leader || false, roles || null]
+          [participant_id, groupContext.id, organizationId, first_leader || false, second_leader || false, roles || null]
         );
       }
 
@@ -677,7 +677,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
-              pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+              pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
               u.id as user_id, u.email as user_email, u.full_name as user_full_name
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
@@ -821,7 +821,7 @@ module.exports = (pool) => {
 
     const result = await pool.query(
       `SELECT c.*, p.first_name, p.last_name
-       FROM calendars c
+       FROM fundraiser_entries c
        JOIN participants p ON c.participant_id = p.id
        WHERE c.participant_id = $1 AND c.organization_id = $2
        ORDER BY c.date DESC`,
@@ -965,7 +965,7 @@ module.exports = (pool) => {
 
     // Base query to get participant data
     let query = `
-      SELECT p.*, pg.group_id, g.name as group_name, pg.is_leader, pg.is_second_leader, pg.roles,
+      SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
              po.inscription_date,
              COALESCE(
                (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))

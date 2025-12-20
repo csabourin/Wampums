@@ -41,11 +41,11 @@ export class Calendars {
 	async fetchCalendars() {
 		try {
 			const response = await getCalendarsForFundraiser(this.fundraiserId);
-			this.calendars = response.calendars || [];
+			this.calendars = response.fundraiser_entries || [];
 			this.applySorting();
 		} catch (error) {
-			debugError('Error fetching calendars:', error);
-			this.app.showMessage('error_fetching_calendars', 'error');
+			debugError('Error fetching fundraiser entries:', error);
+			this.app.showMessage('error_fetching_fundraiser_entries', 'error');
 		}
 	}
 
@@ -120,7 +120,7 @@ export class Calendars {
 
 	renderCalendarsTable() {
 		if (this.calendars.length === 0) {
-			return `<p class="no-data">${translate("no_calendars_data")}</p>`;
+			return `<p class="no-data">${translate("no_fundraiser_entries_data")}</p>`;
 		}
 
 		return `
@@ -272,11 +272,11 @@ export class Calendars {
 				}
 				// Invalidate fundraisers cache so totals are updated
                                 await clearFundraiserRelatedCaches(this.fundraiserId);
-				this.app.showMessage('calendar_amount_updated', 'success');
+				this.app.showMessage('fundraiser_entry_amount_updated', 'success');
 			}
 		} catch (error) {
-			debugError('Error updating calendar amount:', error);
-			this.app.showMessage('error_updating_calendar_amount', 'error');
+			debugError('Error updating fundraiser entry amount:', error);
+			this.app.showMessage('error_updating_fundraiser_entry_amount', 'error');
 		}
 	}
 
@@ -296,12 +296,12 @@ export class Calendars {
 				}
 				// Invalidate fundraisers cache so totals are updated
                                 await clearFundraiserRelatedCaches(this.fundraiserId);
-				this.app.showMessage('calendar_amount_paid_updated', 'success');
+				this.app.showMessage('fundraiser_entry_amount_paid_updated', 'success');
 				this.updateTableOnly();
 			}
 		} catch (error) {
-			debugError('Error updating calendar amount paid:', error);
-			this.app.showMessage('error_updating_calendar_amount_paid', 'error');
+			debugError('Error updating fundraiser entry amount paid:', error);
+			this.app.showMessage('error_updating_fundraiser_entry_amount_paid', 'error');
 		}
 	}
 
@@ -317,11 +317,11 @@ export class Calendars {
 				}
 				// Invalidate fundraisers cache so totals are updated
                                 await clearFundraiserRelatedCaches(this.fundraiserId);
-				this.app.showMessage('calendar_paid_status_updated', 'success');
+				this.app.showMessage('fundraiser_entry_paid_status_updated', 'success');
 			}
 		} catch (error) {
-			debugError('Error updating calendar paid status:', error);
-			this.app.showMessage('error_updating_calendar_paid_status', 'error');
+			debugError('Error updating fundraiser entry paid status:', error);
+			this.app.showMessage('error_updating_fundraiser_entry_paid_status', 'error');
 		}
 	}
 
@@ -335,7 +335,7 @@ export class Calendars {
 		printWindow.document.write(`
 			<html>
 				<head>
-					<title>${this.fundraiser.name} - ${translate("calendar_sales_title")}</title>
+					<title>${this.fundraiser.name} - ${translate("fundraiser_sales_title")}</title>
 					<style>
 						@page {
 							size: letter;
