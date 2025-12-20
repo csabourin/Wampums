@@ -196,18 +196,6 @@ CREATE TABLE public.budget_revenues (
   CONSTRAINT budget_revenues_budget_item_id_fkey FOREIGN KEY (budget_item_id) REFERENCES public.budget_items(id),
   CONSTRAINT budget_revenues_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
-CREATE TABLE public.fundraiser_entries (
-  participant_id integer,
-  amount integer NOT NULL DEFAULT 0,
-  paid boolean NOT NULL DEFAULT false,
-  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-  amount_paid double precision DEFAULT '0'::double precision,
-  fundraiser integer,
-  id integer GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
-  CONSTRAINT fundraiser_entries_pkey PRIMARY KEY (id),
-  CONSTRAINT fundraiser_entries_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
-  CONSTRAINT fundraiser_entries_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
-);
 CREATE TABLE public.carpool_assignments (
   id integer NOT NULL DEFAULT nextval('carpool_assignments_id_seq'::regclass),
   carpool_offer_id integer NOT NULL,
@@ -318,6 +306,18 @@ CREATE TABLE public.form_submissions (
   CONSTRAINT form_submissions_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
   CONSTRAINT form_submissions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT form_submissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.fundraiser_entries (
+  participant_id integer,
+  amount integer NOT NULL DEFAULT 0,
+  paid boolean NOT NULL DEFAULT false,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  amount_paid double precision DEFAULT '0'::double precision,
+  fundraiser integer,
+  id integer GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
+  CONSTRAINT fundraiser_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT fundraiser_entries_fundraiser_fkey FOREIGN KEY (fundraiser) REFERENCES public.fundraisers(id),
+  CONSTRAINT fundraiser_entries_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
 CREATE TABLE public.fundraisers (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -461,7 +461,7 @@ CREATE TABLE public.medication_requirements (
   frequency_times jsonb,
   frequency_slots jsonb,
   frequency_interval_hours integer,
-  frequency_interval_start character varying(5),
+  frequency_interval_start time without time zone,
   CONSTRAINT medication_requirements_pkey PRIMARY KEY (id),
   CONSTRAINT medication_requirements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT medication_requirements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
@@ -672,6 +672,15 @@ CREATE TABLE public.permission_slips (
   CONSTRAINT permission_slips_guardian_id_fkey FOREIGN KEY (guardian_id) REFERENCES public.parents_guardians(id),
   CONSTRAINT permission_slips_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.reunion_preparations(id)
 );
+CREATE TABLE public.permissions (
+  id integer NOT NULL DEFAULT nextval('permissions_id_seq'::regclass),
+  permission_key character varying NOT NULL UNIQUE,
+  permission_name character varying NOT NULL,
+  category character varying NOT NULL,
+  description text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT permissions_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.points (
   id integer NOT NULL DEFAULT nextval('points_id_seq'::regclass),
   participant_id integer,
@@ -745,6 +754,23 @@ CREATE TABLE public.reunion_preparations (
   CONSTRAINT reunion_preparations_animateur_responsable_fkey FOREIGN KEY (animateur_responsable) REFERENCES public.users(id),
   CONSTRAINT reunion_preparations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+CREATE TABLE public.role_permissions (
+  role_id integer NOT NULL,
+  permission_id integer NOT NULL,
+  CONSTRAINT role_permissions_pkey PRIMARY KEY (role_id, permission_id),
+  CONSTRAINT role_permissions_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id),
+  CONSTRAINT role_permissions_permission_id_fkey FOREIGN KEY (permission_id) REFERENCES public.permissions(id)
+);
+CREATE TABLE public.roles (
+  id integer NOT NULL DEFAULT nextval('roles_id_seq'::regclass),
+  role_name character varying NOT NULL UNIQUE,
+  display_name character varying NOT NULL,
+  description text,
+  is_system_role boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT roles_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.subscribers (
   id integer NOT NULL DEFAULT nextval('subscribers_id_seq'::regclass),
   endpoint text NOT NULL UNIQUE,
@@ -780,9 +806,17 @@ CREATE TABLE public.user_organizations (
   role character varying NOT NULL,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   user_id uuid,
+  role_ids jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT user_organizations_pkey PRIMARY KEY (id),
   CONSTRAINT user_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT user_organizations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.user_organizations_backup (
+  id integer,
+  organization_id integer,
+  role character varying,
+  created_at timestamp without time zone,
+  user_id uuid
 );
 CREATE TABLE public.user_participants (
   participant_id integer NOT NULL,
