@@ -31,6 +31,8 @@ export class Inventory {
     this.selectedPhotoFile = null;
     this.modalPhotoPreview = null;
     this.modalSelectedPhotoFile = null;
+    this.lastFocusedElement = null;
+    this.handleImagePreviewKeydown = this.handleImagePreviewKeydown.bind(this);
   }
 
   async init() {
@@ -286,6 +288,19 @@ export class Inventory {
         </div>
       </div>
 
+      <!-- Image Preview Modal -->
+      <div class="modal-overlay hidden" id="image-preview-modal" aria-hidden="true">
+        <div class="modal-container modal-image-preview" role="dialog" aria-modal="true" aria-labelledby="image-preview-title">
+          <div class="modal-header">
+            <h2 id="image-preview-title">${escapeHTML(translate("inventory_image_preview_title"))}</h2>
+            <button type="button" class="modal-close-btn" id="image-preview-close-btn" aria-label="${escapeHTML(translate("inventory_image_preview_close"))}">×</button>
+          </div>
+          <div class="modal-body image-preview-body">
+            <img id="image-preview-img" alt="" />
+          </div>
+        </div>
+      </div>
+
       <style>
         /* Mobile-first inventory styles */
         .inventory-page .photo-upload-section {
@@ -534,6 +549,19 @@ export class Inventory {
           height: 45px;
           object-fit: cover;
           border-radius: 4px;
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .inventory-page .previewable-image:focus-visible {
+          outline: 3px solid var(--primary-color, #4a90d9);
+          outline-offset: 2px;
+          box-shadow: 0 0 0 4px rgba(74, 144, 217, 0.25);
+        }
+
+        .inventory-page .previewable-image:hover {
+          transform: scale(1.01);
+          box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
         }
 
         .inventory-page .table-no-photo {
@@ -586,6 +614,12 @@ export class Inventory {
           max-width: 400px;
         }
 
+        .modal-container.modal-image-preview {
+          max-width: 1000px;
+          width: 100%;
+          background: transparent;
+        }
+
         .modal-header {
           display: flex;
           justify-content: space-between;
@@ -621,6 +655,24 @@ export class Inventory {
           padding: 1.5rem;
         }
 
+        .image-preview-body {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 1rem;
+          background: var(--bg-card, white);
+        }
+
+        #image-preview-img {
+          max-width: calc(100vw - 2.5rem);
+          max-height: calc(100vh - 8rem);
+          width: 100%;
+          height: auto;
+          object-fit: contain;
+          border-radius: 10px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        }
+
         .modal-actions {
           justify-content: flex-end;
         }
@@ -653,6 +705,22 @@ export class Inventory {
           .modal-container {
             max-height: 95vh;
           }
+
+          #image-preview-img {
+            max-height: calc(100vh - 7rem);
+            max-width: calc(100vw - 2rem);
+          }
+        }
+
+        @media (min-width: 768px) {
+          .modal-container.modal-image-preview {
+            max-width: 90vw;
+          }
+
+          #image-preview-img {
+            max-width: calc(90vw - 3rem);
+            max-height: calc(90vh - 6rem);
+          }
         }
       </style>
     `;
@@ -673,7 +741,7 @@ export class Inventory {
           <div class="equipment-card" data-equipment-id="${item.id}">
             <div class="equipment-card-image">
               ${item.photo_url
-                ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" loading="lazy" />`
+                ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" loading="lazy" class="previewable-image" role="button" tabindex="0" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
                 : `<span class="no-photo">📦</span>`
               }
             </div>
@@ -750,7 +818,7 @@ export class Inventory {
               <tr>
                 <td>
                   ${item.photo_url
-                    ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" class="table-photo" loading="lazy" />`
+                    ? `<img src="${escapeHTML(item.photo_url)}" alt="${escapeHTML(item.name)}" class="table-photo previewable-image" loading="lazy" role="button" tabindex="0" data-photo-url="${escapeHTML(item.photo_url)}" data-photo-alt="${escapeHTML(item.name)}" />`
                     : `<div class="table-no-photo">📦</div>`
                   }
                 </td>
@@ -824,6 +892,9 @@ export class Inventory {
 
     // Modal handlers
     this.setupModalHandlers();
+
+    // Image preview handlers
+    this.setupImagePreviewHandlers();
   }
 
   setupPhotoUpload(containerId, inputId, previewImgId, placeholderId, removeBtnId, isModal) {
@@ -949,6 +1020,125 @@ export class Inventory {
     }
   }
 
+  setupImagePreviewHandlers() {
+    const previewableImages = document.querySelectorAll(".previewable-image");
+    const overlay = document.getElementById("image-preview-modal");
+    const closeBtn = document.getElementById("image-preview-close-btn");
+
+    previewableImages.forEach((img) => {
+      const openHandler = () => {
+        const photoUrl = img.getAttribute("data-photo-url");
+        const altText = img.getAttribute("data-photo-alt") || "";
+        this.openImagePreview(photoUrl, altText);
+      };
+
+      img.addEventListener("click", openHandler);
+      img.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openHandler();
+        }
+      });
+    });
+
+    if (overlay) {
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+          this.closeImagePreview();
+        }
+      });
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => this.closeImagePreview());
+    }
+  }
+
+  openImagePreview(imageUrl, altText = "") {
+    const overlay = document.getElementById("image-preview-modal");
+    const image = document.getElementById("image-preview-img");
+    const closeBtn = document.getElementById("image-preview-close-btn");
+    const safeSrc = this.getSafeImageSrc(imageUrl);
+
+    if (!overlay || !image || !closeBtn || !safeSrc) {
+      return;
+    }
+
+    this.lastFocusedElement = document.activeElement;
+    image.setAttribute("src", safeSrc);
+    image.setAttribute("alt", altText || translate("inventory_image_preview_alt_fallback"));
+
+    overlay.classList.remove("hidden");
+    overlay.setAttribute("aria-hidden", "false");
+    this.updateBodyScrollLock();
+    closeBtn.focus({ preventScroll: true });
+
+    document.addEventListener("keydown", this.handleImagePreviewKeydown);
+  }
+
+  closeImagePreview() {
+    const overlay = document.getElementById("image-preview-modal");
+    const image = document.getElementById("image-preview-img");
+
+    if (overlay) {
+      overlay.classList.add("hidden");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+
+    if (image) {
+      image.removeAttribute("src");
+      image.setAttribute("alt", "");
+    }
+
+    this.updateBodyScrollLock();
+    document.removeEventListener("keydown", this.handleImagePreviewKeydown);
+
+    if (this.lastFocusedElement && typeof this.lastFocusedElement.focus === "function") {
+      this.lastFocusedElement.focus({ preventScroll: true });
+    }
+    this.lastFocusedElement = null;
+  }
+
+  handleImagePreviewKeydown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.closeImagePreview();
+    }
+  }
+
+  getSafeImageSrc(imageUrl) {
+    if (typeof imageUrl !== "string") {
+      return null;
+    }
+
+    const trimmed = imageUrl.trim();
+    const lowered = trimmed.toLowerCase();
+
+    if (lowered.startsWith("javascript:") || lowered.startsWith("vbscript:")) {
+      debugError("Blocked unsafe image src", imageUrl);
+      return null;
+    }
+
+    if (lowered.startsWith("data:")) {
+      return lowered.startsWith("data:image/") ? trimmed : null;
+    }
+
+    if (lowered.startsWith("blob:") ||
+        lowered.startsWith("http://") ||
+        lowered.startsWith("https://") ||
+        lowered.startsWith("//") ||
+        lowered.startsWith("/")) {
+      return trimmed;
+    }
+
+    return trimmed;
+  }
+
+  updateBodyScrollLock() {
+    const activeOverlays = document.querySelectorAll(".modal-overlay:not(.hidden)");
+    document.body.style.overflow = activeOverlays.length > 0 ? "hidden" : "";
+  }
+
   clearPhotoPreview() {
     const photoInput = document.getElementById("photo-input");
     const photoPreviewImg = document.getElementById("photo-preview-img");
@@ -1022,12 +1212,12 @@ export class Inventory {
 
     // Show modal
     document.getElementById("edit-equipment-modal").classList.remove("hidden");
-    document.body.style.overflow = 'hidden';
+    this.updateBodyScrollLock();
   }
 
   closeEditModal() {
     document.getElementById("edit-equipment-modal").classList.add("hidden");
-    document.body.style.overflow = '';
+    this.updateBodyScrollLock();
     this.editingEquipment = null;
     this.clearModalPhotoPreview();
     document.getElementById("editEquipmentForm").reset();
@@ -1038,12 +1228,12 @@ export class Inventory {
     const message = translate("equipment_delete_confirm_message").replace("{name}", equipmentName);
     document.getElementById("delete-confirm-message").textContent = message;
     document.getElementById("delete-confirm-modal").classList.remove("hidden");
-    document.body.style.overflow = 'hidden';
+    this.updateBodyScrollLock();
   }
 
   closeDeleteModal() {
     document.getElementById("delete-confirm-modal").classList.add("hidden");
-    document.body.style.overflow = '';
+    this.updateBodyScrollLock();
     this.deletingEquipmentId = null;
   }
 
