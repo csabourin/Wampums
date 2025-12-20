@@ -58,6 +58,11 @@
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0"
   },
+  "jest": {
+    "setupFiles": [
+      "<rootDir>/test/setupJest.js"
+    ]
+  },
   "overrides": {
     "node-pg-migrate": {
       "glob": "^11.1.0"

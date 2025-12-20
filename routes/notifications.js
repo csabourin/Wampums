@@ -10,6 +10,8 @@
 const express = require('express');
 const router = express.Router();
 const { check } = require('express-validator');
+const { authenticate, getOrganizationId } = require('../middleware/auth');
+const { success, error } = require('../middleware/response');
 
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -26,7 +28,7 @@ const { checkValidation } = require('../middleware/validation');
 module.exports = (pool, logger) => {
   /**
    * @swagger
-   * /api/push-subscription:
+   * /api/v1/push-subscription:
    *   post:
    *     summary: Subscribe to push notifications
    *     description: Save push subscription for a user
@@ -64,27 +66,21 @@ module.exports = (pool, logger) => {
    */
   // Accept both legacy and versioned paths to avoid 404s during rollout
   router.post(['/push-subscription', '/v1/push-subscription'],
+    authenticate,
     check('endpoint').notEmpty().withMessage('endpoint is required').isURL().withMessage('endpoint must be a valid URL'),
     check('keys.p256dh').notEmpty().withMessage('keys.p256dh is required'),
     check('keys.auth').notEmpty().withMessage('keys.auth is required'),
     checkValidation,
     async (req, res) => {
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
+      const organizationId = await getOrganizationId(req, pool);
 
-      if (!payload || !payload.user_id) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId);
+      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
       if (!membership.authorized) {
-        return res.status(403).json({ success: false, message: membership.message || 'Insufficient permissions' });
+        return error(res, membership.message || 'Insufficient permissions', 403);
       }
 
-      const { endpoint, expirationTime, keys } = req.body;
+      const { endpoint, expirationTime, keys = {} } = req.body;
       const { p256dh, auth } = keys;
 
       // Perform the subscription write asynchronously so the response is non-blocking
@@ -97,11 +93,11 @@ module.exports = (pool, logger) => {
              expiration_time = EXCLUDED.expiration_time,
              p256dh = EXCLUDED.p256dh,
              auth = EXCLUDED.auth`,
-        [payload.user_id, organizationId, endpoint, expirationTime, p256dh, auth]
+        [req.user.id, organizationId, endpoint, expirationTime, p256dh, auth]
       );
 
       // Respond immediately to keep the client flow fast while still persisting in the background.
-      res.status(202).json({ success: true, message: 'Subscription accepted' });
+      success(res, null, 'Subscription accepted', 202);
 
       upsertPromise.catch((error) => {
         logger.error('Error saving subscription asynchronously:', error);
@@ -111,13 +107,13 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error initiating subscription save:', error);
-      res.status(500).json({ error: 'Failed to save subscription' });
+      error(res, 'Failed to save subscription', 500);
     }
   });
 
   // Lightweight health check to prevent expensive 404 handling on accidental GET requests
   router.get(['/push-subscription', '/v1/push-subscription'], (req, res) => {
-    res.status(405).json({ success: false, message: 'Method not allowed. Use POST to register push subscriptions.' });
+    error(res, 'Method not allowed. Use POST to register push subscriptions.', 405);
   });
 
   /**
