@@ -3,10 +3,18 @@
  * Handles file uploads to Supabase Storage with size validation
  */
 const { createClient } = require("@supabase/supabase-js");
+const sharp = require("sharp");
+
+// Lazy-loaded to avoid adding HEIC conversion overhead when not needed
+let heicConvert = null;
 
 // Maximum file size: 3MB
 const MAX_FILE_SIZE = 3 * 1024 * 1024;
 const OUTPUT_MIME_TYPE = "image/webp";
+const PHOTO_MAX_WIDTH = 640;
+const PHOTO_MAX_HEIGHT = 480;
+const PHOTO_WEBP_QUALITY = 82;
+const WEBP_EXTENSION = OUTPUT_MIME_TYPE.split("/")[1];
 
 // Allowed MIME types for images
 const ALLOWED_MIME_TYPES = [
@@ -20,6 +28,13 @@ const ALLOWED_MIME_TYPES = [
   "image/heif-sequence",
   OUTPUT_MIME_TYPE,
 ];
+const HEIC_MIME_TYPES = [
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
+];
+const HEIC_EXTENSIONS = ["heic", "heif"];
 const ALLOWED_IMAGE_EXTENSIONS = [
   "jpeg",
   "jpg",
@@ -28,6 +43,11 @@ const ALLOWED_IMAGE_EXTENSIONS = [
   "webp",
   "heic",
   "heif",
+];
+const GENERIC_MIME_TYPES = [
+  "",
+  "application/octet-stream",
+  "binary/octet-stream",
 ];
 
 // Initialize Supabase client (lazy initialization)
@@ -180,12 +200,74 @@ function isAllowedImageType(file) {
 
   const normalizedExtension = extension.toLowerCase();
   const isKnownExtension = ALLOWED_IMAGE_EXTENSIONS.includes(normalizedExtension);
-  const isGenericMimeType =
-    mimeType === "" ||
-    mimeType === "application/octet-stream" ||
-    mimeType === "binary/octet-stream";
+  const isGenericMimeType = GENERIC_MIME_TYPES.includes(mimeType);
 
   return isKnownExtension && isGenericMimeType;
+}
+
+/**
+ * Determine whether an uploaded file should be treated as HEIC/HEIF based on MIME
+ * type or safe extension fallback (for browsers that send generic MIME types).
+ * @param {Object} file - Multer file object
+ * @returns {boolean}
+ */
+function isHeicFile(file) {
+  if (!file) return false;
+
+  const mimeType = (file.mimetype || "").toLowerCase().split(";")[0];
+  if (HEIC_MIME_TYPES.includes(mimeType)) {
+    return true;
+  }
+
+  const extension = (file.originalname || "").split(".").pop();
+  if (!extension) return false;
+
+  const normalizedExtension = extension.toLowerCase();
+  return (
+    HEIC_EXTENSIONS.includes(normalizedExtension) &&
+    GENERIC_MIME_TYPES.includes(mimeType)
+  );
+}
+
+/**
+ * Convert an uploaded image buffer to a resized WebP buffer.
+ * HEIC/HEIF inputs are converted to JPEG first to ensure compatibility before
+ * resizing and WebP conversion.
+ * @param {Buffer} fileBuffer - Raw file buffer from multer
+ * @param {Object} options
+ * @param {string} [options.mimeType] - MIME type provided by the client
+ * @param {string} [options.originalFilename] - Original filename for extension fallback
+ * @returns {Promise<Buffer>} WebP buffer
+ */
+async function convertImageToWebP(fileBuffer, { mimeType, originalFilename }) {
+  const normalizedMime = (mimeType || "").toLowerCase().split(";")[0];
+  const extension = (originalFilename || "").split(".").pop()?.toLowerCase() || "";
+  const shouldTreatAsHeic =
+    HEIC_MIME_TYPES.includes(normalizedMime) || HEIC_EXTENSIONS.includes(extension);
+
+  let workingBuffer = fileBuffer;
+
+  if (shouldTreatAsHeic) {
+    if (!heicConvert) {
+      heicConvert = require("heic-convert");
+    }
+
+    workingBuffer = await heicConvert({
+      buffer: fileBuffer,
+      format: "JPEG",
+      quality: 1,
+    });
+  }
+
+  return sharp(workingBuffer)
+    .resize({
+      width: PHOTO_MAX_WIDTH,
+      height: PHOTO_MAX_HEIGHT,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({ quality: PHOTO_WEBP_QUALITY })
+    .toBuffer();
 }
 
 /**
@@ -315,8 +397,14 @@ module.exports = {
   MAX_FILE_SIZE,
   ALLOWED_MIME_TYPES,
   OUTPUT_MIME_TYPE,
+  PHOTO_MAX_WIDTH,
+  PHOTO_MAX_HEIGHT,
+  PHOTO_WEBP_QUALITY,
+  WEBP_EXTENSION,
   validateFile,
   isAllowedImageType,
+  isHeicFile,
+  convertImageToWebP,
   generateFilePath,
   uploadFile,
   deleteFile,
