@@ -234,16 +234,7 @@ module.exports = (pool, logger) => {
       } finally {
         client.release();
       }
-    } catch (error) {
-      console.error('[update-points] ERROR:', error.message);
-      console.error('[update-points] Stack:', error.stack);
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error updating points:', error);
-      return errorResponse(res, error.message, 500);
-    }
-  });
+  }));
 
   /**
    * @swagger

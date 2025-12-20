@@ -265,7 +265,8 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Organization name is required' });
       }
 
-      await client.query('BEGIN');
+      try {
+        await client.query('BEGIN');
 
       // Resolve district role ID so the creator is assigned the correct permission-backed role
       const districtRoleResult = await client.query(
@@ -323,12 +324,12 @@ module.exports = (pool, logger) => {
         message: 'Organization created successfully',
         organization_id: newOrganizationId
       });
-      } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
-      }
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }));
 
   /**

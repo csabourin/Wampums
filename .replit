@@ -26,18 +26,6 @@ externalPort = 80
 localPort = 5173
 externalPort = 5173
 
-[[ports]]
-localPort = 33341
-externalPort = 3001
-
-[[ports]]
-localPort = 42179
-externalPort = 3003
-
-[[ports]]
-localPort = 45639
-externalPort = 3002
-
 [userenv]
 
 [userenv.development]
