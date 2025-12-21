@@ -6,3 +6,5 @@ jest.mock('@whiskeysockets/baileys', () => ({
   makeCacheableSignalKeyStore: jest.fn(() => ({})),
   useMultiFileAuthState: jest.fn(() => Promise.resolve({ state: {}, saveCreds: jest.fn() }))
 }));
+
+process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy';
