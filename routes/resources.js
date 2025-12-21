@@ -76,6 +76,103 @@ module.exports = (pool) => {
     "equipment",
   ];
 
+  /**
+   * Determine whether equipment should be shared with the owner's local group.
+   * Defaults to true to maintain backward compatibility for legacy records.
+   * @param {object} attributes - Attributes JSON stored on the equipment row.
+   * @param {boolean|undefined} override - Optional override provided by the caller.
+   * @returns {boolean}
+   */
+  function resolveShareWithLocalGroup(attributes, override) {
+    if (override !== undefined) {
+      return Boolean(override);
+    }
+
+    const attributeFlag =
+      attributes && typeof attributes === "object"
+        ? attributes.share_with_local_group
+        : undefined;
+    if (attributeFlag === undefined || attributeFlag === null) {
+      return true;
+    }
+    return Boolean(attributeFlag);
+  }
+
+  /**
+   * Retrieve all organizations that share a local group with the owner organization.
+   * @param {number} ownerOrganizationId
+   * @returns {Promise<number[]>}
+   */
+  async function getOrganizationsInSameLocalGroup(ownerOrganizationId) {
+    const localGroupOrgs = await pool.query(
+      `SELECT DISTINCT peers.organization_id
+         FROM organization_local_groups owner_groups
+         JOIN organization_local_groups peers
+           ON peers.local_group_id = owner_groups.local_group_id
+        WHERE owner_groups.organization_id = $1`,
+      [ownerOrganizationId],
+    );
+
+    return localGroupOrgs.rows.map((row) => row.organization_id);
+  }
+
+  /**
+   * Synchronize equipment visibility records to reflect sharing rules.
+   * @param {Object} params
+   * @param {number} params.equipmentId
+   * @param {number} params.ownerOrganizationId
+   * @param {boolean} params.shareWithLocalGroup
+   * @param {number[]} [params.sharedOrganizationIds]
+   * @param {boolean} [params.overrideExisting]
+   * @returns {Promise<number[]>} - The final list of organization IDs with explicit visibility entries.
+   */
+  async function syncEquipmentOrganizations({
+    equipmentId,
+    ownerOrganizationId,
+    shareWithLocalGroup,
+    sharedOrganizationIds = [],
+    overrideExisting = false,
+  }) {
+    const targetOrgIds = new Set([ownerOrganizationId]);
+    (Array.isArray(sharedOrganizationIds) ? sharedOrganizationIds : []).forEach(
+      (orgId) => {
+        if (Number.isInteger(orgId)) {
+          targetOrgIds.add(orgId);
+        }
+      },
+    );
+
+    if (shareWithLocalGroup) {
+      const localGroupOrgIds = await getOrganizationsInSameLocalGroup(
+        ownerOrganizationId,
+      );
+      localGroupOrgIds.forEach((orgId) => targetOrgIds.add(orgId));
+    }
+
+    const normalizedOrgIds = Array.from(targetOrgIds);
+
+    if (overrideExisting && normalizedOrgIds.length > 0) {
+      await pool.query(
+        `DELETE FROM equipment_item_organizations
+         WHERE equipment_id = $1
+           AND organization_id <> ALL($2::int[])`,
+        [equipmentId, normalizedOrgIds],
+      );
+    }
+
+    for (const orgId of normalizedOrgIds) {
+      // eslint-disable-next-line no-await-in-loop
+      await pool.query(
+        `INSERT INTO equipment_item_organizations (equipment_id, organization_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [equipmentId, orgId],
+      );
+    }
+
+    return normalizedOrgIds;
+  }
+
   async function verifyMeeting(meetingId, organizationId) {
     if (!meetingId) {
       return null;
@@ -119,16 +216,33 @@ module.exports = (pool) => {
   async function verifyEquipmentAccess(equipmentId, organizationId) {
     const accessResult = await pool.query(
       `SELECT 1
-       FROM equipment_item_organizations eio
-       JOIN equipment_items ei ON ei.id = eio.equipment_id
-       WHERE eio.equipment_id = $1
-         AND eio.organization_id = $2
-         AND ei.is_active IS DISTINCT FROM false`,
+         FROM equipment_items ei
+         LEFT JOIN equipment_item_organizations eio
+           ON eio.equipment_id = ei.id
+          AND eio.organization_id = $2
+         LEFT JOIN organization_local_groups owner_olg
+           ON owner_olg.organization_id = ei.organization_id
+         LEFT JOIN organization_local_groups requester_olg
+           ON requester_olg.organization_id = $2
+          AND requester_olg.local_group_id = owner_olg.local_group_id
+        WHERE ei.id = $1
+          AND ei.is_active IS DISTINCT FROM false
+          AND (
+            eio.organization_id IS NOT NULL
+            OR ei.organization_id = $2
+            OR (
+              COALESCE((ei.attributes->>'share_with_local_group')::boolean, true)
+              AND requester_olg.local_group_id IS NOT NULL
+            )
+          )
+        LIMIT 1`,
       [equipmentId, organizationId],
     );
 
     if (accessResult.rows.length === 0) {
-      throw new Error("Equipment not accessible for organization");
+      const accessError = new Error("Equipment not accessible for organization");
+      accessError.statusCode = 403;
+      throw accessError;
     }
   }
 
@@ -143,23 +257,50 @@ module.exports = (pool) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
         const result = await pool.query(
-          `SELECT e.*, 
+          `WITH requester_groups AS (
+             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
+           ),
+           accessible_equipment AS (
+             SELECT e.*
+             FROM equipment_items e
+             LEFT JOIN equipment_item_organizations eio
+               ON eio.equipment_id = e.id
+              AND eio.organization_id = $1
+             LEFT JOIN organization_local_groups owner_olg
+               ON owner_olg.organization_id = e.organization_id
+             LEFT JOIN requester_groups rg
+               ON rg.local_group_id = owner_olg.local_group_id
+             WHERE e.is_active IS DISTINCT FROM false
+               AND (
+                 eio.organization_id IS NOT NULL
+                 OR e.organization_id = $1
+                 OR (
+                   COALESCE((e.attributes->>'share_with_local_group')::boolean, true)
+                   AND rg.local_group_id IS NOT NULL
+                 )
+               )
+           ),
+           shared_visibility AS (
+             SELECT e.id AS equipment_id,
+                    ARRAY_AGG(DISTINCT org.name ORDER BY org.name) FILTER (WHERE org.name IS NOT NULL) AS shared_organizations
+               FROM accessible_equipment e
+               LEFT JOIN equipment_item_organizations eio ON eio.equipment_id = e.id
+               LEFT JOIN organization_local_groups owner_olg ON owner_olg.organization_id = e.organization_id
+               LEFT JOIN organization_local_groups olg ON olg.local_group_id = owner_olg.local_group_id
+               LEFT JOIN organizations org ON org.id = COALESCE(eio.organization_id, olg.organization_id)
+              WHERE COALESCE((e.attributes->>'share_with_local_group')::boolean, true) OR eio.organization_id IS NOT NULL
+              GROUP BY e.id
+           )
+           SELECT e.*,
                   COALESCE((
                     SELECT SUM(CASE WHEN er.status IN ('reserved','confirmed') THEN er.reserved_quantity ELSE 0 END)
                     FROM equipment_reservations er
                     WHERE er.equipment_id = e.id
                   ), 0) AS reserved_quantity,
-                  COALESCE((
-                    SELECT ARRAY_AGG(o.name ORDER BY o.name)
-                    FROM equipment_item_organizations eio
-                    JOIN organizations o ON o.id = eio.organization_id
-                    WHERE eio.equipment_id = e.id
-                  ), '{}') AS shared_organizations
-           FROM equipment_items e
-           JOIN equipment_item_organizations access ON access.equipment_id = e.id AND access.organization_id = $1
-           WHERE e.is_active IS DISTINCT FROM false
-           GROUP BY e.id
-           ORDER BY e.category NULLS LAST, e.name`,
+                  COALESCE(shared_visibility.shared_organizations, '{}'::text[]) AS shared_organizations
+             FROM accessible_equipment e
+             LEFT JOIN shared_visibility ON shared_visibility.equipment_id = e.id
+             ORDER BY e.category NULLS LAST, e.name`,
           [organizationId],
         );
 
@@ -168,7 +309,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error fetching equipment", 500);
+        return error(res, err.message || "Error fetching equipment", err.statusCode || 500);
       }
     }),
   );
@@ -205,6 +346,7 @@ module.exports = (pool) => {
         .isString()
         .trim()
         .isLength({ max: 500 }),
+      check("share_with_local_group").optional().isBoolean(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -225,6 +367,22 @@ module.exports = (pool) => {
           location_type,
           location_details,
         } = req.body;
+
+        const attributesPayload =
+          attributes && typeof attributes === "object" ? attributes : {};
+        const shareWithLocalGroup = resolveShareWithLocalGroup(
+          attributesPayload,
+          req.body.share_with_local_group,
+        );
+        const mergedAttributes = {
+          ...attributesPayload,
+          share_with_local_group: shareWithLocalGroup,
+        };
+
+        const sharedIdsProvided = Array.isArray(shared_organization_ids);
+        const sanitizedSharedIds = sharedIdsProvided
+          ? shared_organization_ids.filter((id) => Number.isInteger(id))
+          : [];
 
         const available = quantity_available ?? quantity_total;
         const normalizedAcquisitionDate = acquisition_date
@@ -258,7 +416,7 @@ module.exports = (pool) => {
             quantity_total,
             available,
             condition_note,
-            attributes,
+            mergedAttributes,
             item_value || null,
             photo_url || null,
             normalizedAcquisitionDate,
@@ -267,26 +425,14 @@ module.exports = (pool) => {
           ],
         );
 
-        const uniqueOrgIds = new Set(
-          [organizationId].concat(
-            Array.isArray(shared_organization_ids)
-              ? shared_organization_ids
-              : [],
-          ),
-        );
-        for (const orgId of uniqueOrgIds) {
-          if (!Number.isInteger(orgId)) {
-            continue;
-          }
-
-          // eslint-disable-next-line no-await-in-loop
-          await pool.query(
-            `INSERT INTO equipment_item_organizations (equipment_id, organization_id)
-             VALUES ($1, $2)
-             ON CONFLICT DO NOTHING`,
-            [insertResult.rows[0].id, orgId],
-          );
-        }
+        await syncEquipmentOrganizations({
+          equipmentId: insertResult.rows[0].id,
+          ownerOrganizationId: organizationId,
+          shareWithLocalGroup,
+          sharedOrganizationIds: sanitizedSharedIds,
+          overrideExisting:
+            req.body.share_with_local_group === false || sharedIdsProvided,
+        });
 
         return success(
           res,
@@ -298,7 +444,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving equipment", 500);
+        return error(res, err.message || "Error saving equipment", err.statusCode || 500);
       }
     }),
   );
@@ -335,12 +481,20 @@ module.exports = (pool) => {
         .isString()
         .trim()
         .isLength({ max: 500 }),
+      check("shared_organization_ids").optional().isArray({ max: 50 }),
+      check("shared_organization_ids.*").optional().isInt({ min: 0 }),
+      check("share_with_local_group").optional().isBoolean(),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
         const equipmentId = parseInt(req.params.id, 10);
+        const sharedIdsProvided = Array.isArray(req.body.shared_organization_ids);
+        const sanitizedSharedIds = sharedIdsProvided
+          ? req.body.shared_organization_ids.filter((id) => Number.isInteger(id))
+          : [];
+        const shareWithLocalGroupOverride = req.body.share_with_local_group;
 
         // Handle acquisition_date normalization
         if (req.body.acquisition_date) {
@@ -355,7 +509,6 @@ module.exports = (pool) => {
           "quantity_available",
           "condition_note",
           "is_active",
-          "attributes",
           "item_value",
           "photo_url",
           "acquisition_date",
@@ -371,12 +524,73 @@ module.exports = (pool) => {
           }
         });
 
-        if (updates.length === 0) {
+        // Verify organization has access to this equipment (owner or shared)
+        await verifyEquipmentAccess(equipmentId, organizationId);
+
+        const existingEquipment = await pool.query(
+          `SELECT * FROM equipment_items WHERE id = $1`,
+          [equipmentId],
+        );
+
+        if (existingEquipment.rows.length === 0) {
+          return error(res, "Equipment not found", 404);
+        }
+
+        const currentAttributes =
+          existingEquipment.rows[0].attributes && typeof existingEquipment.rows[0].attributes === "object"
+            ? existingEquipment.rows[0].attributes
+            : {};
+
+        const attributesUpdateRequired =
+          req.body.attributes !== undefined || shareWithLocalGroupOverride !== undefined;
+        if (attributesUpdateRequired) {
+          const incomingAttributes =
+            req.body.attributes && typeof req.body.attributes === "object"
+              ? req.body.attributes
+              : {};
+          const mergedAttributes = {
+            ...currentAttributes,
+            ...incomingAttributes,
+          };
+          mergedAttributes.share_with_local_group = resolveShareWithLocalGroup(
+            mergedAttributes,
+            shareWithLocalGroupOverride,
+          );
+
+          updates.push(`attributes = $${updates.length + 2}`);
+          values.push(mergedAttributes);
+        }
+
+        const hasShareChanges =
+          attributesUpdateRequired ||
+          sharedIdsProvided ||
+          shareWithLocalGroupOverride !== undefined;
+
+        if (updates.length === 0 && !hasShareChanges) {
           return success(res, null, "No changes detected");
         }
 
-        // Verify organization has access to this equipment (owner or shared)
-        await verifyEquipmentAccess(equipmentId, organizationId);
+        if (updates.length === 0) {
+          const shareWithLocalGroup = resolveShareWithLocalGroup(
+            existingEquipment.rows[0].attributes,
+            shareWithLocalGroupOverride,
+          );
+
+          await syncEquipmentOrganizations({
+            equipmentId,
+            ownerOrganizationId: existingEquipment.rows[0].organization_id,
+            shareWithLocalGroup,
+            sharedOrganizationIds: sanitizedSharedIds,
+            overrideExisting:
+              shareWithLocalGroupOverride === false || sharedIdsProvided,
+          });
+
+          return success(
+            res,
+            { equipment: existingEquipment.rows[0] },
+            "Equipment updated",
+          );
+        }
 
         // Update equipment (any organization with access can update)
         const queryText = `UPDATE equipment_items
@@ -389,12 +603,26 @@ module.exports = (pool) => {
           return error(res, "Equipment not found", 404);
         }
 
+        const shareWithLocalGroup = resolveShareWithLocalGroup(
+          result.rows[0].attributes ?? currentAttributes,
+          shareWithLocalGroupOverride,
+        );
+
+        await syncEquipmentOrganizations({
+          equipmentId,
+          ownerOrganizationId: result.rows[0].organization_id,
+          shareWithLocalGroup,
+          sharedOrganizationIds: sanitizedSharedIds,
+          overrideExisting:
+            shareWithLocalGroupOverride === false || sharedIdsProvided,
+        });
+
         return success(res, { equipment: result.rows[0] }, "Equipment updated");
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error updating equipment", 500);
+        return error(res, err.message || "Error updating equipment", err.statusCode || 500);
       }
     }),
   );
@@ -461,7 +689,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error deleting equipment", 500);
+        return error(res, err.message || "Error deleting equipment", err.statusCode || 500);
       }
     }),
   );
@@ -577,7 +805,7 @@ module.exports = (pool) => {
             400,
           );
         }
-        return error(res, err.message || "Error uploading photo", 500);
+        return error(res, err.message || "Error uploading photo", err.statusCode || 500);
       }
     }),
   );
@@ -643,7 +871,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error deleting photo", 500);
+        return error(res, err.message || "Error deleting photo", err.statusCode || 500);
       }
     }),
   );
@@ -688,13 +916,68 @@ module.exports = (pool) => {
         }
 
         const result = await pool.query(
-          `SELECT er.*, e.name AS equipment_name, e.category, e.location_type, e.location_details, er.organization_id AS reservation_organization_id, o.name AS organization_name
-           FROM equipment_reservations er
-           JOIN equipment_items e ON e.id = er.equipment_id
-           JOIN equipment_item_organizations access ON access.equipment_id = er.equipment_id AND access.organization_id = $1
-           LEFT JOIN organizations o ON o.id = er.organization_id
-           WHERE 1=1 ${filter}
-           ORDER BY COALESCE(er.date_from, er.meeting_date) DESC, e.name`,
+          `WITH requester_groups AS (
+             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
+           ),
+           accessible_reservations AS (
+             SELECT er.*,
+                    e.name AS equipment_name,
+                    e.category,
+                    e.location_type,
+                    e.location_details,
+                    e.organization_id AS owner_organization_id,
+                    owner_org.name AS owner_organization_name,
+                    er.organization_id AS reservation_organization_id,
+                    reservation_org.name AS organization_name
+               FROM equipment_reservations er
+               JOIN equipment_items e ON e.id = er.equipment_id
+               LEFT JOIN organizations reservation_org ON reservation_org.id = er.organization_id
+               LEFT JOIN organizations owner_org ON owner_org.id = e.organization_id
+               LEFT JOIN equipment_item_organizations eio
+                 ON eio.equipment_id = er.equipment_id
+                AND eio.organization_id = $1
+               LEFT JOIN organization_local_groups owner_olg
+                 ON owner_olg.organization_id = e.organization_id
+               LEFT JOIN requester_groups rg
+                 ON rg.local_group_id = owner_olg.local_group_id
+              WHERE 1=1 ${filter}
+                AND e.is_active IS DISTINCT FROM false
+                AND (
+                  eio.organization_id IS NOT NULL
+                  OR e.organization_id = $1
+                  OR (
+                    COALESCE((e.attributes->>'share_with_local_group')::boolean, true)
+                    AND rg.local_group_id IS NOT NULL
+                  )
+                )
+           ),
+           owner_local_groups AS (
+             SELECT ar.equipment_id,
+                    ARRAY_AGG(DISTINCT lg.id ORDER BY lg.id) FILTER (WHERE lg.id IS NOT NULL) AS owner_local_group_ids,
+                    ARRAY_AGG(DISTINCT lg.name ORDER BY lg.name) FILTER (WHERE lg.name IS NOT NULL) AS owner_local_group_names
+               FROM accessible_reservations ar
+               LEFT JOIN organization_local_groups olg ON olg.organization_id = ar.owner_organization_id
+               LEFT JOIN local_groups lg ON lg.id = olg.local_group_id
+              GROUP BY ar.equipment_id
+           ),
+           reservation_local_groups AS (
+             SELECT ar.id AS reservation_id,
+                    ARRAY_AGG(DISTINCT lg.id ORDER BY lg.id) FILTER (WHERE lg.id IS NOT NULL) AS reservation_local_group_ids,
+                    ARRAY_AGG(DISTINCT lg.name ORDER BY lg.name) FILTER (WHERE lg.name IS NOT NULL) AS reservation_local_group_names
+               FROM accessible_reservations ar
+               LEFT JOIN organization_local_groups olg ON olg.organization_id = ar.reservation_organization_id
+               LEFT JOIN local_groups lg ON lg.id = olg.local_group_id
+              GROUP BY ar.id
+           )
+           SELECT ar.*,
+                  COALESCE(olg.owner_local_group_ids, '{}'::int[]) AS owner_local_group_ids,
+                  COALESCE(olg.owner_local_group_names, '{}'::text[]) AS owner_local_group_names,
+                  COALESCE(rlg.reservation_local_group_ids, '{}'::int[]) AS reservation_local_group_ids,
+                  COALESCE(rlg.reservation_local_group_names, '{}'::text[]) AS reservation_local_group_names
+             FROM accessible_reservations ar
+             LEFT JOIN owner_local_groups olg ON olg.equipment_id = ar.equipment_id
+             LEFT JOIN reservation_local_groups rlg ON rlg.reservation_id = ar.id
+             ORDER BY COALESCE(ar.date_from, ar.meeting_date) DESC, ar.equipment_name`,
           params,
         );
 
@@ -703,7 +986,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error fetching reservations", 500);
+        return error(res, err.message || "Error fetching reservations", err.statusCode || 500);
       }
     }),
   );
@@ -875,7 +1158,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving reservation", 500);
+        return error(res, err.message || "Error saving reservation", err.statusCode || 500);
       }
     }),
   );
@@ -1006,7 +1289,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error updating reservation", 500);
+        return error(res, err.message || "Error updating reservation", err.statusCode || 500);
       }
     }),
   );
@@ -1132,7 +1415,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving bulk reservations", 500);
+        return error(res, err.message || "Error saving bulk reservations", err.statusCode || 500);
       }
     }),
   );
@@ -1209,7 +1492,7 @@ module.exports = (pool) => {
         return error(
           res,
           err.message || "Error fetching permission slips",
-          500,
+          err.statusCode || 500,
         );
       }
     }),
@@ -1355,7 +1638,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error sending emails", 500);
+        return error(res, err.message || "Error sending emails", err.statusCode || 500);
       }
     }),
   );
@@ -1501,7 +1784,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error sending reminders", 500);
+        return error(res, err.message || "Error sending reminders", err.statusCode || 500);
       }
     }),
   );
@@ -1629,7 +1912,7 @@ module.exports = (pool) => {
         if (handleOrganizationResolutionError(res, err)) {
           return;
         }
-        return error(res, err.message || "Error saving permission slip", 500);
+        return error(res, err.message || "Error saving permission slip", err.statusCode || 500);
       }
     }),
   );
@@ -1658,7 +1941,7 @@ module.exports = (pool) => {
 
         return success(res, slipResult.rows[0]);
       } catch (err) {
-        return error(res, err.message || "Error fetching permission slip", 500);
+        return error(res, err.message || "Error fetching permission slip", err.statusCode || 500);
       }
     }),
   );
@@ -1711,7 +1994,7 @@ module.exports = (pool) => {
           "Permission slip signed",
         );
       } catch (err) {
-        return error(res, err.message || "Error signing permission slip", 500);
+        return error(res, err.message || "Error signing permission slip", err.statusCode || 500);
       }
     }),
   );
@@ -1762,7 +2045,7 @@ module.exports = (pool) => {
         return error(
           res,
           err.message || "Error archiving permission slip",
-          500,
+          err.statusCode || 500,
         );
       }
     }),
@@ -1791,13 +2074,72 @@ module.exports = (pool) => {
         );
 
         const reservationSummary = await pool.query(
-          `SELECT e.name, er.meeting_date, er.status, er.reserved_quantity, er.organization_id AS reservation_organization_id, o.name AS organization_name
-           FROM equipment_reservations er
-           JOIN equipment_items e ON e.id = er.equipment_id
-           JOIN equipment_item_organizations access ON access.equipment_id = er.equipment_id AND access.organization_id = $1
-           LEFT JOIN organizations o ON o.id = er.organization_id
-           WHERE er.meeting_date = $2
-           ORDER BY e.name`,
+          `WITH requester_groups AS (
+             SELECT local_group_id FROM organization_local_groups WHERE organization_id = $1
+           ),
+           accessible_reservations AS (
+             SELECT er.*,
+                    e.name,
+                    er.organization_id AS reservation_organization_id,
+                    o.name AS organization_name,
+                    e.organization_id AS owner_organization_id,
+                    owner_org.name AS owner_organization_name
+               FROM equipment_reservations er
+               JOIN equipment_items e ON e.id = er.equipment_id
+               LEFT JOIN organizations o ON o.id = er.organization_id
+               LEFT JOIN organizations owner_org ON owner_org.id = e.organization_id
+               LEFT JOIN equipment_item_organizations eio
+                 ON eio.equipment_id = er.equipment_id
+                AND eio.organization_id = $1
+               LEFT JOIN organization_local_groups owner_olg
+                 ON owner_olg.organization_id = e.organization_id
+               LEFT JOIN requester_groups rg
+                 ON rg.local_group_id = owner_olg.local_group_id
+              WHERE er.meeting_date = $2
+                AND e.is_active IS DISTINCT FROM false
+                AND (
+                  eio.organization_id IS NOT NULL
+                  OR e.organization_id = $1
+                  OR (
+                    COALESCE((e.attributes->>'share_with_local_group')::boolean, true)
+                    AND rg.local_group_id IS NOT NULL
+                  )
+                )
+           ),
+           owner_local_groups AS (
+             SELECT ar.equipment_id,
+                    ARRAY_AGG(DISTINCT lg.id ORDER BY lg.id) FILTER (WHERE lg.id IS NOT NULL) AS owner_local_group_ids,
+                    ARRAY_AGG(DISTINCT lg.name ORDER BY lg.name) FILTER (WHERE lg.name IS NOT NULL) AS owner_local_group_names
+               FROM accessible_reservations ar
+               LEFT JOIN organization_local_groups olg ON olg.organization_id = ar.owner_organization_id
+               LEFT JOIN local_groups lg ON lg.id = olg.local_group_id
+              GROUP BY ar.equipment_id
+           ),
+           reservation_local_groups AS (
+             SELECT ar.id AS reservation_id,
+                    ARRAY_AGG(DISTINCT lg.id ORDER BY lg.id) FILTER (WHERE lg.id IS NOT NULL) AS reservation_local_group_ids,
+                    ARRAY_AGG(DISTINCT lg.name ORDER BY lg.name) FILTER (WHERE lg.name IS NOT NULL) AS reservation_local_group_names
+               FROM accessible_reservations ar
+               LEFT JOIN organization_local_groups olg ON olg.organization_id = ar.reservation_organization_id
+               LEFT JOIN local_groups lg ON lg.id = olg.local_group_id
+              GROUP BY ar.id
+           )
+           SELECT ar.name,
+                  ar.meeting_date,
+                  ar.status,
+                  ar.reserved_quantity,
+                  ar.reservation_organization_id,
+                  ar.organization_name,
+                  ar.owner_organization_id,
+                  ar.owner_organization_name,
+                  COALESCE(olg.owner_local_group_ids, '{}'::int[]) AS owner_local_group_ids,
+                  COALESCE(olg.owner_local_group_names, '{}'::text[]) AS owner_local_group_names,
+                  COALESCE(rlg.reservation_local_group_ids, '{}'::int[]) AS reservation_local_group_ids,
+                  COALESCE(rlg.reservation_local_group_names, '{}'::text[]) AS reservation_local_group_names
+             FROM accessible_reservations ar
+             LEFT JOIN owner_local_groups olg ON olg.equipment_id = ar.equipment_id
+             LEFT JOIN reservation_local_groups rlg ON rlg.reservation_id = ar.id
+             ORDER BY ar.name`,
           [organizationId, dateFilter],
         );
 
@@ -1813,7 +2155,7 @@ module.exports = (pool) => {
         return error(
           res,
           err.message || "Error loading resource dashboard",
-          500,
+          err.statusCode || 500,
         );
       }
     }),
