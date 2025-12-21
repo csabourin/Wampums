@@ -250,6 +250,18 @@ export class Inventory {
               </label>
             </div>
 
+            <fieldset class="stacked equipment-visibility">
+              <legend>${escapeHTML(translate("equipment_visibility_label"))}</legend>
+              <label class="radio-option">
+                <input type="radio" name="equipment_visibility" value="shared" checked />
+                <span>${escapeHTML(translate("equipment_visibility_shared"))}</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="equipment_visibility" value="unit" />
+                <span>${escapeHTML(translate("equipment_visibility_unit"))}</span>
+              </label>
+            </fieldset>
+
             <label class="stacked">
               <span>${escapeHTML(translate("equipment_condition"))}</span>
               <input type="text" name="condition_note" id="equipment_condition_note" maxlength="500" />
@@ -444,6 +456,35 @@ export class Inventory {
         /* Mobile-first inventory styles */
         .inventory-page .photo-upload-section {
           margin: 1rem 0;
+        }
+
+        .inventory-page .equipment-visibility {
+          border: 1px solid var(--border-color, #e5e7eb);
+          border-radius: 8px;
+          padding: 0.75rem;
+          margin: 0.5rem 0 1rem 0;
+        }
+
+        .inventory-page .equipment-visibility legend {
+          font-weight: 600;
+          margin-bottom: 0.5rem;
+        }
+
+        .inventory-page .equipment-visibility .radio-option {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 0.35rem;
+          font-size: 0.95rem;
+        }
+
+        .inventory-page .equipment-visibility .radio-option:last-child {
+          margin-bottom: 0;
+        }
+
+        .inventory-page .equipment-visibility input[type="radio"] {
+          width: 18px;
+          height: 18px;
         }
 
         .inventory-page .photo-upload-container {
@@ -1853,6 +1894,9 @@ export class Inventory {
       location_type: formData.get('location_type') || LOCATION_TYPES[0].value,
       location_details: formData.get('location_details')?.trim() || null
     };
+
+    const shareWithLocalGroup = (formData.get('equipment_visibility') || 'shared') !== 'unit';
+    payload.share_with_local_group = shareWithLocalGroup;
 
     // Remove null/undefined values to avoid validation issues
     Object.keys(payload).forEach(key => {
