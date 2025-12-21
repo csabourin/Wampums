@@ -10,6 +10,13 @@ import {
 import { deleteCachedData } from "./indexedDB.js";
 import { CONFIG } from "./config.js";
 
+const LOCATION_TYPES = [
+  { value: 'local_scout_hall', labelKey: 'location_type_local_scout_hall' },
+  { value: 'warehouse', labelKey: 'location_type_warehouse' },
+  { value: 'leader_home', labelKey: 'location_type_leader_home' },
+  { value: 'other', labelKey: 'location_type_other' }
+];
+
 /**
  * Material management page for reserving equipment for activities
  */
@@ -67,6 +74,24 @@ export class MaterialManagement {
       // Reservations overlap if: res.date_from <= selected.date_to AND res.date_to >= selected.date_from
       return resFrom <= dateTo && resTo >= dateFrom;
     });
+  }
+
+  /**
+   * Format the pickup location with translated labels for display.
+   * @param {Object} item
+   * @returns {string}
+   */
+  formatLocation(item = {}) {
+    const type = item.location_type || LOCATION_TYPES[0].value;
+    const typeLabel = translate(
+      LOCATION_TYPES.find((entry) => entry.value === type)?.labelKey || LOCATION_TYPES[0].labelKey
+    );
+    const details = item.location_details || '';
+    const cleanedDetails = details.trim();
+    if (cleanedDetails) {
+      return `${typeLabel} — ${cleanedDetails}`;
+    }
+    return typeLabel;
   }
 
   render() {
@@ -139,6 +164,7 @@ export class MaterialManagement {
                       <span class="equipment-name">${escapeHTML(item.name)}</span>
                       <span class="equipment-category">${escapeHTML(item.category || '')}</span>
                       <span class="equipment-available">(${escapeHTML(translate("equipment_available"))}: ${item.quantity_total ?? 0})</span>
+                      <span class="equipment-location">${escapeHTML(this.formatLocation(item))}</span>
                     </label>
                     ${isChecked ? `
                       <label class="quantity-input">
@@ -195,6 +221,7 @@ export class MaterialManagement {
               <thead>
                 <tr>
                   <th>${escapeHTML(translate("equipment_name"))}</th>
+                  <th>${escapeHTML(translate("equipment_location"))}</th>
                   <th>${escapeHTML(translate("reservation_date_range"))}</th>
                   <th>${escapeHTML(translate("reserved_quantity"))}</th>
                   <th>${escapeHTML(translate("reservation_for"))}</th>
@@ -204,7 +231,7 @@ export class MaterialManagement {
               </thead>
               <tbody>
                 ${this.reservations.length === 0
-                  ? `<tr><td colspan="6">${escapeHTML(translate("no_data_available"))}</td></tr>`
+                  ? `<tr><td colspan="7">${escapeHTML(translate("no_data_available"))}</td></tr>`
                   : this.reservations.map((reservation) => {
                       const dateRange = reservation.date_from && reservation.date_to
                         ? `${formatDate(reservation.date_from, this.app.lang || 'en')} - ${formatDate(reservation.date_to, this.app.lang || 'en')}`
@@ -212,6 +239,7 @@ export class MaterialManagement {
                       return `
                         <tr>
                           <td>${escapeHTML(reservation.equipment_name || '')}</td>
+                          <td>${escapeHTML(this.formatLocation(reservation))}</td>
                           <td>${escapeHTML(dateRange)}</td>
                           <td>${escapeHTML(String(reservation.reserved_quantity || 0))}</td>
                           <td>${escapeHTML(reservation.reserved_for || '-')}</td>

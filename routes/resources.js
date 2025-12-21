@@ -50,6 +50,13 @@ const upload = multer({
   },
 });
 
+const LOCATION_TYPES = [
+  "local_scout_hall",
+  "warehouse",
+  "leader_home",
+  "other",
+];
+
 function parseDate(dateString) {
   const parsed = new Date(dateString);
   return Number.isNaN(parsed.getTime())
@@ -188,6 +195,16 @@ module.exports = (pool) => {
       check("item_value").optional().isNumeric(),
       check("photo_url").optional().isString().trim().isLength({ max: 500 }),
       check("acquisition_date").optional().isISO8601(),
+      check("location_type")
+        .optional()
+        .isString()
+        .trim()
+        .isIn(LOCATION_TYPES),
+      check("location_details")
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 500 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -205,6 +222,8 @@ module.exports = (pool) => {
           item_value,
           photo_url,
           acquisition_date,
+          location_type,
+          location_details,
         } = req.body;
 
         const available = quantity_available ?? quantity_total;
@@ -214,8 +233,8 @@ module.exports = (pool) => {
 
         const insertResult = await pool.query(
           `INSERT INTO equipment_items
-           (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes, item_value, photo_url, acquisition_date)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           (organization_id, name, category, description, quantity_total, quantity_available, condition_note, attributes, item_value, photo_url, acquisition_date, location_type, location_details)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (organization_id, name)
            DO UPDATE SET
              category = EXCLUDED.category,
@@ -227,6 +246,8 @@ module.exports = (pool) => {
              item_value = EXCLUDED.item_value,
              photo_url = EXCLUDED.photo_url,
              acquisition_date = EXCLUDED.acquisition_date,
+             location_type = EXCLUDED.location_type,
+             location_details = EXCLUDED.location_details,
              updated_at = CURRENT_TIMESTAMP
            RETURNING *`,
           [
@@ -241,6 +262,8 @@ module.exports = (pool) => {
             item_value || null,
             photo_url || null,
             normalizedAcquisitionDate,
+            location_type || LOCATION_TYPES[0],
+            location_details ?? "",
           ],
         );
 
@@ -302,6 +325,16 @@ module.exports = (pool) => {
       check("item_value").optional().isNumeric(),
       check("photo_url").optional().isString().trim().isLength({ max: 500 }),
       check("acquisition_date").optional().isISO8601(),
+      check("location_type")
+        .optional()
+        .isString()
+        .trim()
+        .isIn(LOCATION_TYPES),
+      check("location_details")
+        .optional()
+        .isString()
+        .trim()
+        .isLength({ max: 500 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -326,6 +359,8 @@ module.exports = (pool) => {
           "item_value",
           "photo_url",
           "acquisition_date",
+          "location_type",
+          "location_details",
         ];
         const updates = [];
         const values = [];
@@ -653,7 +688,7 @@ module.exports = (pool) => {
         }
 
         const result = await pool.query(
-          `SELECT er.*, e.name AS equipment_name, e.category, er.organization_id AS reservation_organization_id, o.name AS organization_name
+          `SELECT er.*, e.name AS equipment_name, e.category, e.location_type, e.location_details, er.organization_id AS reservation_organization_id, o.name AS organization_name
            FROM equipment_reservations er
            JOIN equipment_items e ON e.id = er.equipment_id
            JOIN equipment_item_organizations access ON access.equipment_id = er.equipment_id AND access.organization_id = $1
