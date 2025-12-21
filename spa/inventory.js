@@ -42,6 +42,13 @@ const ALLOWED_PHOTO_EXTENSIONS = ['jpeg', 'jpg', 'png', 'gif', 'webp', 'heic', '
 const GENERIC_PHOTO_MIME_TYPES = ['', 'application/octet-stream', 'binary/octet-stream'];
 const HEIC_PHOTO_EXTENSIONS = ['heic', 'heif'];
 
+const LOCATION_TYPES = [
+  { value: 'local_scout_hall', labelKey: 'location_type_local_scout_hall' },
+  { value: 'warehouse', labelKey: 'location_type_warehouse' },
+  { value: 'leader_home', labelKey: 'location_type_leader_home' },
+  { value: 'other', labelKey: 'location_type_other' }
+];
+
 /**
  * Determine whether a selected photo file is allowed based on MIME type or safe extension fallback.
  * Some browsers provide empty or generic MIME types for HEIC/HEIF uploads; in those cases we
@@ -161,6 +168,24 @@ export class Inventory {
     }).format(numValue);
   }
 
+  /**
+   * Format the pickup location with a translated label and optional details.
+   * @param {Object} item
+   * @returns {string}
+   */
+  formatLocation(item = {}) {
+    const type = item.location_type || LOCATION_TYPES[0].value;
+    const typeLabel = translate(
+      LOCATION_TYPES.find((entry) => entry.value === type)?.labelKey || LOCATION_TYPES[0].labelKey
+    );
+    const details = item.location_details || '';
+    const cleanedDetails = details.trim();
+    if (cleanedDetails) {
+      return `${typeLabel} — ${cleanedDetails}`;
+    }
+    return typeLabel;
+  }
+
   render() {
     const container = document.getElementById("app");
     if (!container) {
@@ -209,6 +234,19 @@ export class Inventory {
               <label class="stacked">
                 <span>${escapeHTML(translate("equipment_acquisition_date"))}</span>
                 <input type="date" name="acquisition_date" id="equipment_acquisition_date" />
+              </label>
+            </div>
+
+            <div class="grid grid-2">
+              <label class="stacked">
+                <span>${escapeHTML(translate("equipment_location_type"))}</span>
+                <select name="location_type" id="equipment_location_type">
+                  ${LOCATION_TYPES.map((type) => `<option value="${type.value}">${escapeHTML(translate(type.labelKey))}</option>`).join('')}
+                </select>
+              </label>
+              <label class="stacked">
+                <span>${escapeHTML(translate("equipment_location_details"))}</span>
+                <input type="text" name="location_details" id="equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate("equipment_location_details_placeholder"))}" />
               </label>
             </div>
 
@@ -312,6 +350,19 @@ export class Inventory {
                 <label class="stacked">
                   <span>${escapeHTML(translate("equipment_acquisition_date"))}</span>
                   <input type="date" name="acquisition_date" id="modal_equipment_acquisition_date" />
+                </label>
+              </div>
+
+              <div class="grid grid-2">
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_location_type"))}</span>
+                  <select name="location_type" id="modal_equipment_location_type">
+                    ${LOCATION_TYPES.map((type) => `<option value="${type.value}">${escapeHTML(translate(type.labelKey))}</option>`).join('')}
+                  </select>
+                </label>
+                <label class="stacked">
+                  <span>${escapeHTML(translate("equipment_location_details"))}</span>
+                  <input type="text" name="location_details" id="modal_equipment_location_details" maxlength="500" placeholder="${escapeHTML(translate("equipment_location_details_placeholder"))}" />
                 </label>
               </div>
 
@@ -892,6 +943,10 @@ export class Inventory {
                   <span class="equipment-card-detail-label">${escapeHTML(translate("equipment_acquisition_date"))}</span>
                   <span class="equipment-card-detail-value">${escapeHTML(this.formatDate(item.acquisition_date))}</span>
                 </div>
+                <div class="equipment-card-detail">
+                  <span class="equipment-card-detail-label">${escapeHTML(translate("equipment_location"))}</span>
+                  <span class="equipment-card-detail-value">${escapeHTML(this.formatLocation(item))}</span>
+                </div>
               </div>
             </div>
             <div class="equipment-card-actions">
@@ -911,20 +966,21 @@ export class Inventory {
           <table class="data-table">
             <thead>
               <tr>
-                <th>${escapeHTML(translate("equipment_photo"))}</th>
-                <th>${escapeHTML(translate("equipment_name"))}</th>
-                <th>${escapeHTML(translate("equipment_category"))}</th>
-                <th>${escapeHTML(translate("equipment_quantity_total"))}</th>
-                <th>${escapeHTML(translate("equipment_item_value"))}</th>
-                <th>${escapeHTML(translate("actions"))}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td colspan="6">${escapeHTML(translate("no_data_available"))}</td></tr>
-            </tbody>
-          </table>
-        </div>
-      `;
+              <th>${escapeHTML(translate("equipment_photo"))}</th>
+              <th>${escapeHTML(translate("equipment_name"))}</th>
+              <th>${escapeHTML(translate("equipment_category"))}</th>
+              <th>${escapeHTML(translate("equipment_location"))}</th>
+              <th>${escapeHTML(translate("equipment_quantity_total"))}</th>
+              <th>${escapeHTML(translate("equipment_item_value"))}</th>
+              <th>${escapeHTML(translate("actions"))}</th>
+            </tr>
+          </thead>
+          <tbody>
+              <tr><td colspan="7">${escapeHTML(translate("no_data_available"))}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
     }
 
     return `
@@ -935,6 +991,7 @@ export class Inventory {
               <th>${escapeHTML(translate("equipment_photo"))}</th>
               <th>${escapeHTML(translate("equipment_name"))}</th>
               <th>${escapeHTML(translate("equipment_category"))}</th>
+              <th>${escapeHTML(translate("equipment_location"))}</th>
               <th>${escapeHTML(translate("equipment_quantity_total"))}</th>
               <th>${escapeHTML(translate("equipment_item_value"))}</th>
               <th>${escapeHTML(translate("actions"))}</th>
@@ -951,6 +1008,7 @@ export class Inventory {
                 </td>
                 <td>${escapeHTML(item.name)}</td>
                 <td>${escapeHTML(item.category || '-')}</td>
+                <td>${escapeHTML(this.formatLocation(item))}</td>
                 <td>${escapeHTML(String(item.quantity_total ?? 0))}</td>
                 <td>${escapeHTML(this.formatCurrency(item.item_value))}</td>
                 <td>
@@ -1731,6 +1789,8 @@ export class Inventory {
     document.getElementById("modal_equipment_acquisition_date").value = equipment.acquisition_date ? equipment.acquisition_date.slice(0, 10) : '';
     document.getElementById("modal_equipment_condition_note").value = equipment.condition_note || '';
     document.getElementById("modal_equipment_description").value = equipment.description || '';
+    document.getElementById("modal_equipment_location_type").value = equipment.location_type || LOCATION_TYPES[0].value;
+    document.getElementById("modal_equipment_location_details").value = equipment.location_details || '';
 
     // Show existing photo if available
     if (equipment.photo_url) {
@@ -1789,13 +1849,15 @@ export class Inventory {
       quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,
       condition_note: formData.get('condition_note')?.trim() || null,
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
-      acquisition_date: formData.get('acquisition_date')?.trim() || null
+      acquisition_date: formData.get('acquisition_date')?.trim() || null,
+      location_type: formData.get('location_type') || LOCATION_TYPES[0].value,
+      location_details: formData.get('location_details')?.trim() || null
     };
 
     // Remove null/undefined values to avoid validation issues
     Object.keys(payload).forEach(key => {
       if (payload[key] === null || payload[key] === undefined || payload[key] === '') {
-        if (key !== 'name') { // name is required, keep empty string
+        if (key !== 'name' && key !== 'location_details') { // name is required, location_details can clear existing data
           delete payload[key];
         }
       }
@@ -1846,13 +1908,15 @@ export class Inventory {
       quantity_available: formData.get('quantity_available') ? parseInt(formData.get('quantity_available'), 10) : null,
       condition_note: formData.get('condition_note')?.trim() || null,
       item_value: formData.get('item_value') ? parseFloat(formData.get('item_value')) : null,
-      acquisition_date: formData.get('acquisition_date')?.trim() || null
+      acquisition_date: formData.get('acquisition_date')?.trim() || null,
+      location_type: formData.get('location_type') || LOCATION_TYPES[0].value,
+      location_details: formData.get('location_details')?.trim() || null
     };
 
     // Remove null/undefined values to avoid validation issues
     Object.keys(payload).forEach(key => {
       if (payload[key] === null || payload[key] === undefined || payload[key] === '') {
-        if (key !== 'name') { // name is required, keep empty string
+        if (key !== 'name' && key !== 'location_details') { // name is required, location_details can clear existing data
           delete payload[key];
         }
       }
