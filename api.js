@@ -590,6 +590,7 @@ const externalRevenueRoutes = require("./routes/external-revenue")(
   logger,
 );
 const resourcesRoutes = require("./routes/resources")(pool);
+const localGroupsRoutes = require("./routes/localGroups")(pool);
 const userProfileRoutes = require("./routes/userProfile")(pool, logger);
 const rolesRoutes = require("./routes/roles")(pool, logger);
 
@@ -868,6 +869,14 @@ logger.info("   - GET /api/v1/groups/:id");
 logger.info("   - POST /api/v1/groups");
 logger.info("   - PUT /api/v1/groups/:id");
 logger.info("   - DELETE /api/v1/groups/:id");
+
+// Local Group Routes (handles /api/v1/local-groups)
+app.use("/api/v1/local-groups", localGroupsRoutes);
+logger.info("✅ Local group routes loaded");
+logger.info("   - GET /api/v1/local-groups");
+logger.info("   - GET /api/v1/local-groups/memberships");
+logger.info("   - POST /api/v1/local-groups/memberships");
+logger.info("   - DELETE /api/v1/local-groups/memberships/:localGroupId");
 
 // Public Routes (handles /api/translations, /api/news)
 // Endpoints: translations, news

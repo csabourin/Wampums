@@ -58,6 +58,28 @@ async function loadOrganizationSettings(pool, organizationId) {
   await ensureProgramSectionsSeeded(pool, organizationId);
   settings.program_sections = await getProgramSections(pool, organizationId);
 
+  const [localGroupMemberships, allLocalGroups] = await Promise.all([
+    pool.query(
+      `SELECT lg.id, lg.name, lg.slug
+       FROM local_groups lg
+       INNER JOIN organization_local_groups olg
+         ON olg.local_group_id = lg.id
+       WHERE olg.organization_id = $1
+       ORDER BY lg.name`,
+      [organizationId]
+    ),
+    pool.query(
+      `SELECT id, name, slug
+       FROM local_groups
+       ORDER BY name`
+    )
+  ]);
+
+  settings.local_groups = {
+    memberships: localGroupMemberships.rows,
+    available: allLocalGroups.rows
+  };
+
   return settings;
 }
 
