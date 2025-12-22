@@ -31,7 +31,7 @@ const { authenticate } = require('../middleware/auth');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
-const { sendEmail, sendAdminVerificationEmail } = require('../utils/index');
+const { sendEmail, sendAdminVerificationEmail, getTranslationsByCode, getUserEmailLanguage } = require('../utils/index');
 const {
   generate2FACode,
   store2FACode,
@@ -208,7 +208,7 @@ module.exports = (pool, logger) => {
           await store2FACode(pool, user.id, organizationId, code, ipAddress, userAgent);
 
           // Send email with code
-          await send2FAEmail(normalizedEmail, code, user.full_name);
+          await send2FAEmail(normalizedEmail, code, user.full_name, organizationId, pool);
 
           // Return response indicating 2FA is required
           return res.status(200).json({
@@ -704,6 +704,8 @@ module.exports = (pool, logger) => {
           });
         }
 
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
         // Generate a strong reset token and hash it before storage
         const rawResetToken = crypto.randomBytes(32).toString('hex');
         const hashedToken = crypto.createHash('sha256').update(rawResetToken).digest('hex');
@@ -740,16 +742,39 @@ module.exports = (pool, logger) => {
         const baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;
         const resetLink = `${baseUrl}/reset-password?token=${rawResetToken}`;
 
-        // Send password reset email
-        const subject = 'Wampums - Password Reset Request';
-        const message = `You have requested to reset your password.\n\nClick the following link to reset your password:\n${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you did not request this reset, please ignore this email.`;
+        // Send password reset email with localization
+        const preferredLanguage = await getUserEmailLanguage(pool, normalizedEmail, organizationId);
+        const translations = getTranslationsByCode(preferredLanguage);
+        const fallbackTranslations = getTranslationsByCode('en');
+
+        const subject = translations.password_reset_email_subject || fallbackTranslations.password_reset_email_subject || 'Wampums - Password Reset Request';
+        const heading = translations.password_reset_email_heading || fallbackTranslations.password_reset_email_heading || 'Password Reset Request';
+        const greeting = translations.password_reset_email_greeting || fallbackTranslations.password_reset_email_greeting || 'Hello,';
+        const intro = translations.password_reset_email_intro || fallbackTranslations.password_reset_email_intro || 'You have requested to reset your password.';
+        const buttonLabel = translations.password_reset_email_button || fallbackTranslations.password_reset_email_button || 'Reset Password';
+        const copyHint = translations.password_reset_email_copy_hint || fallbackTranslations.password_reset_email_copy_hint || 'Or copy this link:';
+        const expiry = translations.password_reset_email_expiry || fallbackTranslations.password_reset_email_expiry || 'This link will expire in 1 hour.';
+        const ignore = translations.password_reset_email_ignore || fallbackTranslations.password_reset_email_ignore || "If you did not request this reset, please ignore this email.";
+
+        const message = [
+          greeting,
+          "",
+          intro,
+          "",
+          resetLink,
+          "",
+          expiry,
+          "",
+          ignore
+        ].join('\n');
+
         const html = `
-          <h2>Password Reset Request</h2>
-          <p>You have requested to reset your password.</p>
-          <p><a href="${resetLink}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
-          <p>Or copy this link: <a href="${resetLink}">${resetLink}</a></p>
-          <p><em>This link will expire in 1 hour.</em></p>
-          <p>If you did not request this reset, please ignore this email.</p>
+          <h2>${heading}</h2>
+          <p>${intro}</p>
+          <p><a href="${resetLink}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">${buttonLabel}</a></p>
+          <p>${copyHint} <a href="${resetLink}">${resetLink}</a></p>
+          <p><em>${expiry}</em></p>
+          <p>${ignore}</p>
         `;
 
         const emailSent = await sendEmail(normalizedEmail, subject, message, html);

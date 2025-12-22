@@ -29,11 +29,29 @@ const senderName = process.env.EMAIL_FROM_NAME || 'Wampums';
 const brevoSmtpKey = process.env.BREVO_SMTP_KEY;
 const brevoSmtpUser = process.env.BREVO_SMTP_USER || '9d142c001@smtp-brevo.com';
 
+const translationBundles = {
+  en: require("../lang/en.json"),
+  fr: require("../lang/fr.json"),
+  uk: require("../lang/uk.json"),
+  it: require("../lang/it.json"),
+  id: require("../lang/id.json"),
+};
+
 // Initialize Brevo
 if (brevoApiKeyValue) {
   const apiKey = brevoClient.authentications['api-key'];
   apiKey.apiKey = brevoApiKeyValue;
   brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
+}
+
+/**
+ * Get translation bundle by language code with English fallback
+ * @param {string} languageCode - Preferred language code (e.g., en, fr)
+ * @returns {object} Translation object
+ */
+function getTranslationsByCode(languageCode = "en") {
+  const normalized = (languageCode || "en").slice(0, 2).toLowerCase();
+  return translationBundles[normalized] || translationBundles.en;
 }
 
 /**
@@ -339,6 +357,9 @@ async function sendAdminVerificationEmail(
   translations = {},
 ) {
   try {
+    const overrideTranslations = translations && Object.keys(translations).length > 0 ? translations : null;
+    const englishTranslations = getTranslationsByCode("en");
+
     // Fetch admin emails for the organization
     const adminResult = await pool.query(
       `SELECT u.email
@@ -367,21 +388,27 @@ async function sendAdminVerificationEmail(
 
     const orgName = orgResult.rows[0]?.org_name || "Wampums.app";
 
-    const subject = (
-      translations.new_animator_registration_subject ||
-      "New Animator Registration for {orgName}"
-    ).replace("{orgName}", orgName);
-
-    const message = (
-      translations.new_animator_registration_body ||
-      "A new animator has registered for {orgName}:\n\nName: {animatorName}\nEmail: {animatorEmail}\n\nPlease review and approve their account."
-    )
-      .replace("{orgName}", orgName)
-      .replace("{animatorName}", animatorName)
-      .replace("{animatorEmail}", animatorEmail);
-
     // Send email to all admins
     for (const adminEmail of adminEmails) {
+      const adminLanguage = await getUserEmailLanguage(pool, adminEmail, organizationId);
+      const adminTranslations = getTranslationsByCode(adminLanguage);
+      const subject = (
+        adminTranslations.new_animator_registration_subject ||
+        overrideTranslations?.new_animator_registration_subject ||
+        englishTranslations.new_animator_registration_subject ||
+        "New Animator Registration for {orgName}"
+      ).replace("{orgName}", orgName);
+
+      const message = (
+        adminTranslations.new_animator_registration_body ||
+        overrideTranslations?.new_animator_registration_body ||
+        englishTranslations.new_animator_registration_body ||
+        "A new animator has registered for {orgName}:\n\nName: {animatorName}\nEmail: {animatorEmail}\n\nPlease review and approve their account."
+      )
+        .replace("{orgName}", orgName)
+        .replace("{animatorName}", animatorName)
+        .replace("{animatorEmail}", animatorEmail);
+
       const result = await sendEmail(adminEmail, subject, message);
       if (!result) {
         logger.error(
@@ -605,4 +632,5 @@ module.exports = {
   safeJSONParse,
   hasPermission,
   getPointSystemRules,
+  getTranslationsByCode,
 };
