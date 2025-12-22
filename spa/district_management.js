@@ -2,11 +2,13 @@ import {
   CONFIG,
   clearUserCaches,
   getCurrentOrganizationId,
-  getRoleCatalog,
+  getRoleAuditLog,
+  getRoleBundles,
   getRolePermissions,
   getUserOrganizations,
   getUsers,
-  updateUserRolesV1,
+  getUserRoleAssignments,
+  updateUserRoleBundles,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData } from "./indexedDB.js";
@@ -69,6 +71,11 @@ export class DistrictManagement {
     this.organizations = [];
     this.rolePermissions = {};
     this.roleBundleIndex = { list: [], byId: new Map(), byName: new Map() };
+    this.auditLogByUser = {};
+    this.auditPanelError = "";
+    this.loadingAuditUserId = null;
+    this.savingUserId = null;
+    this.formStatus = { type: "", message: "" };
     this.debouncedSearch = debounce((event) => {
       this.searchTerm = event.target.value || "";
       this.renderAndBind();
@@ -108,6 +115,7 @@ export class DistrictManagement {
         this.lastSyncedAt = cached.lastSyncedAt || null;
         this.queuedChanges = cached.queuedChanges || [];
         this.userMeta = cached.userMeta || {};
+        this.auditLogByUser = cached.auditLogByUser || {};
       }
     } catch (error) {
       debugError("district_management: failed to hydrate cache", error);
@@ -130,6 +138,7 @@ export class DistrictManagement {
           userMeta: this.userMeta,
           organizationId: this.organizationId,
           organizations: this.organizations,
+          auditLogByUser: this.auditLogByUser,
         },
         CACHE_DURATION,
       );
@@ -193,7 +202,7 @@ export class DistrictManagement {
       }
 
       const [roleResponse, usersResponse] = await Promise.all([
-        getRoleCatalog({ forceRefresh, organizationId }),
+        getRoleBundles({ forceRefresh, organizationId }),
         getUsers(organizationId, { forceRefresh }),
       ]);
 
@@ -540,6 +549,12 @@ export class DistrictManagement {
     const mfaRequired = this.isHighRiskChange(user);
     const incidentUrl = sanitizeURL(INCIDENT_REPORT_URL);
     const validationState = this.getValidationState(user);
+    const isSaving = this.savingUserId === user.id;
+    const statusMessage = this.formStatus?.message
+      ? `<div class="dm-status dm-status--${escapeHTML(this.formStatus.type || "info")}" role="status" aria-live="polite">
+          ${escapeHTML(this.formStatus.message)}
+        </div>`
+      : "";
 
     const bundleList = bundles
       .map((bundle) => {
@@ -574,13 +589,15 @@ export class DistrictManagement {
       .join("");
 
     const blockingMessage = validationState.blocking;
-    const saveDisabled = Boolean(blockingMessage) || this.isOffline || (mfaRequired && !this.mfaAcknowledged);
+    const saveDisabled =
+      Boolean(blockingMessage) || this.isOffline || (mfaRequired && !this.mfaAcknowledged) || isSaving;
     const warningContent =
       validationState.warnings && validationState.warnings.length
         ? `<div class="dm-warning" role="status" aria-live="polite">
             ${validationState.warnings.map((warning) => `<p class="dm-helper">${escapeHTML(warning)}</p>`).join("")}
           </div>`
         : "";
+    const auditPanel = this.renderAuditPanel(user);
 
     return `
       <div class="modal-overlay show" role="dialog" aria-modal="true" aria-labelledby="dm-modal-title">
@@ -595,6 +612,7 @@ export class DistrictManagement {
           </header>
 
           <div class="dm-modal-body">
+            ${isSaving ? `<p class="dm-helper" role="status" aria-live="polite">${translate("district_management_saving")}</p>` : ""}
             <div class="dm-modal-section">
               <p class="dm-section-title">${translate("district_management_bundles_title")}</p>
               <div class="dm-bundle-list">${bundleList}</div>
@@ -608,6 +626,8 @@ export class DistrictManagement {
               <textarea id="dm-audit-note" rows="3" placeholder="${translate("district_management_audit_placeholder")}">${escapeHTML(this.auditNote)}</textarea>
               <p class="dm-helper">${translate("district_management_audit_helper")}</p>
             </div>
+
+            ${auditPanel}
 
             ${mfaRequired ? `
               <div class="dm-modal-section dm-high-risk" role="alert">
@@ -626,19 +646,93 @@ export class DistrictManagement {
 
             ${warningContent}
             ${blockingMessage ? `<p class="error-text" role="alert">${escapeHTML(blockingMessage)}</p>` : ""}
+            ${statusMessage}
           </div>
 
           <div class="dm-modal-actions">
-            <button id="dm-queue" class="btn btn--secondary">
+            <button id="dm-queue" class="btn btn--secondary" ${isSaving ? "disabled" : ""}>
               ${translate("district_management_queue_change")}
             </button>
             <button id="dm-save" class="btn btn--primary" ${saveDisabled ? "disabled" : ""}>
-              ${this.isOffline ? translate("district_management_offline_disabled") : translate("district_management_save")}
+              ${
+                this.isOffline
+                  ? translate("district_management_offline_disabled")
+                  : isSaving
+                    ? translate("district_management_saving")
+                    : translate("district_management_save")
+              }
             </button>
           </div>
         </div>
       </div>
     `;
+  }
+
+  renderAuditPanel(user) {
+    const entries = this.auditLogByUser[user.id] || [];
+    const isLoading = this.loadingAuditUserId === user.id;
+    const incidentUrl = sanitizeURL(INCIDENT_REPORT_URL);
+    const incidentCta = incidentUrl
+      ? `<a class="text-link" href="${incidentUrl}" target="_blank" rel="noopener noreferrer">
+          ${translate("district_management_incident_report_cta")}
+        </a>`
+      : "";
+
+    let content = "";
+    if (this.auditPanelError) {
+      content = `<p class="error-text" role="alert">${escapeHTML(this.auditPanelError)}</p>`;
+    } else if (isLoading) {
+      content = `<p class="dm-helper">${translate("district_management_audit_loading")}</p>`;
+    } else if (!entries.length) {
+      content = `<p class="dm-helper">${translate("district_management_audit_empty")}</p>`;
+    } else {
+      content = `<ul class="dm-audit-list">${entries.map((entry) => this.renderAuditEntry(entry)).join("")}</ul>`;
+    }
+
+    return `
+      <div class="dm-modal-section">
+        <div class="dm-section-header">
+          <p class="dm-section-title">${translate("district_management_audit_panel_title")}</p>
+          ${incidentCta}
+        </div>
+        ${content}
+      </div>
+    `;
+  }
+
+  renderAuditEntry(entry) {
+    const actor = escapeHTML(entry.actor_name || entry.actor || translate("district_management_unknown_actor"));
+    const action = escapeHTML(entry.summary || entry.action || translate("district_management_audit_unknown_change"));
+    const createdAt = this.formatAuditTimestamp(entry.created_at || entry.timestamp);
+    const statusBadge =
+      entry.status === "error"
+        ? `<span class="status-pill status-pill--warning">${translate("district_management_audit_status_error")}</span>`
+        : "";
+
+    return `
+      <li class="dm-audit-entry">
+        <div class="dm-audit-meta">
+          <span class="dm-audit-actor">${actor}</span>
+          <span class="dm-audit-time">${createdAt}</span>
+          ${statusBadge}
+        </div>
+        <p class="dm-audit-summary">${action}</p>
+      </li>
+    `;
+  }
+
+  formatAuditTimestamp(value) {
+    if (!value) return translate("district_management_audit_time_unknown");
+    try {
+      const lang = this.app?.lang || "en";
+      return new Date(value).toLocaleString(lang, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    } catch (error) {
+      debugError("district_management: failed to format audit timestamp", error);
+      return escapeHTML(String(value));
+    }
   }
 
   attachEventListeners() {
@@ -783,14 +877,48 @@ export class DistrictManagement {
       .filter(Boolean);
   }
 
-  openModal(userId) {
+  async loadAuditLog(userId, forceRefresh = false) {
+    this.loadingAuditUserId = userId;
+    this.auditPanelError = "";
+    this.renderAndBind();
+
+    try {
+      const response = await getRoleAuditLog(userId, {
+        limit: 15,
+        organizationId: this.organizationId,
+        forceRefresh,
+      });
+      if (response?.success) {
+        this.auditLogByUser[userId] = response.data || response.audit || [];
+      } else if (response?.message) {
+        this.auditPanelError = sanitizeHTML(response.message, { stripAll: true });
+        this.auditLogByUser[userId] = [];
+      } else {
+        this.auditLogByUser[userId] = [];
+      }
+    } catch (error) {
+      debugError("district_management: failed to load audit log", error);
+      this.auditPanelError = sanitizeHTML(
+        error?.message || translate("district_management_audit_error"),
+        { stripAll: true },
+      );
+    } finally {
+      this.loadingAuditUserId = null;
+      this.renderAndBind();
+    }
+  }
+
+  async openModal(userId) {
     this.selectedUserId = userId;
     const user = this.users.find((u) => u.id === userId);
     const roleIds = (user?.roles || []).map((role) => role.id || role.role_id || role.role_name);
     this.selectedRoleIds = new Set(roleIds);
     this.auditNote = "";
     this.mfaAcknowledged = false;
+    this.formStatus = { type: "", message: "" };
+    this.auditPanelError = "";
     this.renderAndBind();
+    this.loadAuditLog(userId, true);
   }
 
   closeModal() {
@@ -798,6 +926,9 @@ export class DistrictManagement {
     this.selectedRoleIds = new Set();
     this.auditNote = "";
     this.mfaAcknowledged = false;
+    this.loadingAuditUserId = null;
+    this.auditPanelError = "";
+    this.formStatus = { type: "", message: "" };
     this.renderAndBind();
   }
 
@@ -937,6 +1068,27 @@ export class DistrictManagement {
     this.applyOptimisticRoles(user, previousRoleIds);
   }
 
+  async reconcileUserRoles(userId) {
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) return;
+
+    try {
+      const response = await getUserRoleAssignments(userId, {
+        organizationId: this.organizationId,
+        forceRefresh: true,
+      });
+      if (response?.success) {
+        const roles = response.data || [];
+        const roleIds = roles.map((role) => role.id);
+        this.applyOptimisticRoles(user, roleIds);
+        this.selectedRoleIds = new Set(roleIds);
+        this.filteredUsers = this.getFilteredUsers();
+      }
+    } catch (error) {
+      debugError("district_management: failed to reconcile user roles", error);
+    }
+  }
+
   /**
    * Persist selected bundle choices for the active user.
    * Optimistically updates the UI, rolls back on error, and clears caches on success.
@@ -965,25 +1117,54 @@ export class DistrictManagement {
     const selectedRoleIds = Array.from(this.selectedRoleIds);
     this.applyOptimisticRoles(user, selectedRoleIds);
     this.filteredUsers = this.getFilteredUsers();
+    this.savingUserId = user.id;
+    this.formStatus = { type: "info", message: translate("district_management_saving") };
     this.renderAndBind();
 
     try {
-      await updateUserRolesV1(user.id, selectedRoleIds, {
-        audit_note: this.auditNote.trim(),
-        bundles: this.describeSelectedBundles(selectedRoleIds),
-        organizationId: this.organizationId,
-      });
+      await updateUserRoleBundles(
+        user.id,
+        {
+          roleIds: selectedRoleIds,
+          bundleIds: selectedRoleIds,
+          bundles: this.describeSelectedBundles(selectedRoleIds),
+          audit_note: this.auditNote.trim(),
+        },
+        {
+          organizationId: this.organizationId,
+          audit_note: this.auditNote.trim(),
+          bundles: this.describeSelectedBundles(selectedRoleIds),
+          roleIds: selectedRoleIds,
+        },
+      );
+      await this.reconcileUserRoles(user.id);
+      await this.loadAuditLog(user.id, true);
+      this.recordLocalAuditEntry(user.id, selectedRoleIds, "success");
       this.userMeta[user.id] = { lastSyncedAt: Date.now(), roleCount: selectedRoleIds.length };
       this.lastSyncedAt = Date.now();
       await clearUserCaches(this.organizationId);
-      await this.persistCache();
+      this.formStatus = { type: "success", message: translate("district_management_assignment_saved") };
       this.app.showMessage("district_management_assignment_saved", "success");
       this.closeModal();
     } catch (error) {
       debugError("district_management: save failed", error);
       this.rollbackRoles(user, previousRoleIds);
       this.queueChange(user.id, selectedRoleIds, error?.message);
+      const safeMessage = sanitizeHTML(
+        error?.message || translate("district_management_assignment_failed"),
+        { stripAll: true },
+      );
+      this.formStatus = { type: "error", message: safeMessage };
+      this.recordLocalAuditEntry(user.id, selectedRoleIds, "error");
+      this.userMeta[user.id] = {
+        lastSyncedAt: this.userMeta[user.id]?.lastSyncedAt || Date.now(),
+        roleCount: previousRoleIds.length,
+      };
       this.app.showMessage("district_management_assignment_failed", "error");
+      this.renderAndBind();
+    } finally {
+      this.savingUserId = null;
+      await this.persistCache();
       this.renderAndBind();
     }
   }
@@ -1033,6 +1214,23 @@ export class DistrictManagement {
       .map((id) => roleLookup.get(id))
       .filter(Boolean)
       .map((role) => role.display_name || role.role_name);
+  }
+
+  recordLocalAuditEntry(userId, roleIds, status = "success") {
+    const actorName =
+      this.app?.userFullName ||
+      localStorage.getItem("userFullName") ||
+      translate("district_management_unknown_actor");
+    const summary = this.describeSelectedBundles(roleIds).join(", ");
+    const entry = {
+      actor_name: actorName,
+      summary,
+      status,
+      created_at: new Date().toISOString(),
+    };
+
+    const existing = this.auditLogByUser[userId] || [];
+    this.auditLogByUser[userId] = [entry, ...existing].slice(0, 15);
   }
 
   /**

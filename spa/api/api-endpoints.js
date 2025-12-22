@@ -452,14 +452,25 @@ export async function getResourceDashboard(params = {}, cacheOptions = {}) {
  * Get all users for organization
  */
 export async function getUsers(organizationId, cacheOptions = {}) {
-    const params = { organization_id: organizationId };
-    const cacheKey = buildCacheKey('users', params);
+    const orgId = organizationId || getCurrentOrganizationId();
+    const params = orgId ? { organization_id: orgId } : {};
+    const cacheKey = buildCacheKey('v1/users', params);
 
-    return API.get('users', params, {
-        cacheKey,
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
-        forceRefresh: cacheOptions.forceRefresh
-    });
+    try {
+        return await API.get('v1/users', params, {
+            cacheKey,
+            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+            forceRefresh: cacheOptions.forceRefresh
+        });
+    } catch (error) {
+        debugWarn('v1/users unavailable, falling back to legacy /users', error);
+        const fallbackCacheKey = buildCacheKey('users', params);
+        return API.get('users', params, {
+            cacheKey: fallbackCacheKey,
+            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+            forceRefresh: cacheOptions.forceRefresh
+        });
+    }
 }
 
 /**
@@ -468,12 +479,42 @@ export async function getUsers(organizationId, cacheOptions = {}) {
 export async function getRoleCatalog(options = {}) {
     const { forceRefresh = false, organizationId } = options || {};
     const params = organizationId ? { organization_id: organizationId } : {};
-    const cacheKey = buildCacheKey('role_catalog', params);
-    return API.get('roles', params, {
-        cacheKey,
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
-        forceRefresh
-    });
+    const cacheKey = buildCacheKey('v1/roles', params);
+    try {
+        return await API.get('v1/roles', params, {
+            cacheKey,
+            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+            forceRefresh
+        });
+    } catch (error) {
+        debugWarn('v1/roles unavailable, using legacy /roles', error);
+        const fallbackCacheKey = buildCacheKey('role_catalog', params);
+        return API.get('roles', params, {
+            cacheKey: fallbackCacheKey,
+            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+            forceRefresh
+        });
+    }
+}
+
+/**
+ * Retrieve role bundles (metadata-first) with graceful fallback to role catalog.
+ */
+export async function getRoleBundles(options = {}) {
+    const { forceRefresh = false, organizationId } = options || {};
+    const params = organizationId ? { organization_id: organizationId } : {};
+    const cacheKey = buildCacheKey('v1/roles/bundles', params);
+
+    try {
+        return await API.get('v1/roles/bundles', params, {
+            cacheKey,
+            cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+            forceRefresh
+        });
+    } catch (error) {
+        debugWarn('v1/roles/bundles unavailable, falling back to catalog', error);
+        return getRoleCatalog({ forceRefresh, organizationId });
+    }
 }
 
 /**
@@ -509,6 +550,61 @@ export async function updateUserRolesV1(userId, roleIds, metadata = {}) {
 }
 
 /**
+ * Update a user's role bundles using the dedicated v1 endpoint, with role assignment fallback.
+ */
+export async function updateUserRoleBundles(userId, bundlePayload = {}, metadata = {}) {
+    const params = metadata.organizationId ? { organization_id: metadata.organizationId } : {};
+    const bundleNames = bundlePayload.bundles || metadata.bundles || [];
+    const payload = {
+        bundleIds: bundlePayload.bundleIds || bundleNames || [],
+        roleIds: bundlePayload.roleIds || metadata.roleIds || [],
+        audit_note: bundlePayload.audit_note || metadata.audit_note || metadata.auditNote,
+    };
+
+    if (bundlePayload.bundles && !payload.bundleIds.length) {
+        payload.bundleIds = bundlePayload.bundles;
+    }
+
+    try {
+        return await API.put(`v1/users/${userId}/role-bundles`, payload, params);
+    } catch (error) {
+        debugWarn('role-bundles endpoint unavailable, falling back to role assignment', error);
+        if (Array.isArray(payload.roleIds) && payload.roleIds.length) {
+            return updateUserRolesV1(userId, payload.roleIds, {
+                ...metadata,
+                audit_note: payload.audit_note,
+                bundles: bundleNames.length ? bundleNames : payload.bundleIds
+            });
+        }
+        throw error;
+    }
+}
+
+/**
+ * Fetch recent role assignment audit logs for a user.
+ */
+export async function getRoleAuditLog(userId, options = {}) {
+    const { limit = 10, organizationId, forceRefresh = false } = options || {};
+    const params = {
+        user_id: userId,
+        limit,
+        organization_id: organizationId || getCurrentOrganizationId()
+    };
+    const cacheKey = buildCacheKey('v1/audit/roles', params);
+
+    try {
+        return await API.get('v1/audit/roles', params, {
+            cacheKey,
+            cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+            forceRefresh
+        });
+    } catch (error) {
+        debugWarn('Audit log endpoint unavailable', error);
+        return { success: false, data: [] };
+    }
+}
+
+/**
  * Get pending users awaiting approval
  */
 export async function getPendingUsers() {
@@ -530,11 +626,14 @@ export async function checkPermission(permission) {
 export async function clearUserCaches(organizationId) {
     const { deleteCachedData } = await import('../indexedDB.js');
     const orgId = organizationId || getCurrentOrganizationId();
-    const cacheKeys = new Set(['users', 'role_catalog']);
+    const cacheKeys = new Set(['users', 'role_catalog', 'v1/users', 'v1/roles', 'v1/roles/bundles']);
 
     if (orgId) {
         cacheKeys.add(buildCacheKey('users', { organization_id: orgId }));
         cacheKeys.add(buildCacheKey('role_catalog', { organization_id: orgId }));
+        cacheKeys.add(buildCacheKey('v1/users', { organization_id: orgId }));
+        cacheKeys.add(buildCacheKey('v1/roles', { organization_id: orgId }));
+        cacheKeys.add(buildCacheKey('v1/roles/bundles', { organization_id: orgId }));
     }
 
     for (const key of cacheKeys) {
