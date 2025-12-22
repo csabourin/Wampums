@@ -465,12 +465,14 @@ export async function getUsers(organizationId, cacheOptions = {}) {
 /**
  * Get available role catalog for the current organization scope
  */
-export async function getRoleCatalog(cacheOptions = {}) {
-    const cacheKey = 'role_catalog';
-    return API.get('roles', {}, {
+export async function getRoleCatalog(options = {}) {
+    const { forceRefresh = false, organizationId } = options || {};
+    const params = organizationId ? { organization_id: organizationId } : {};
+    const cacheKey = buildCacheKey('role_catalog', params);
+    return API.get('roles', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
-        forceRefresh: cacheOptions.forceRefresh
+        forceRefresh
     });
 }
 
@@ -501,7 +503,9 @@ export async function updateUserRolesV1(userId, roleIds, metadata = {}) {
         payload.bundles = metadata.bundles;
     }
 
-    return API.put(`v1/users/${userId}/roles`, payload);
+    const params = metadata.organizationId ? { organization_id: metadata.organizationId } : {};
+
+    return API.put(`v1/users/${userId}/roles`, payload, params);
 }
 
 /**
@@ -526,10 +530,11 @@ export async function checkPermission(permission) {
 export async function clearUserCaches(organizationId) {
     const { deleteCachedData } = await import('../indexedDB.js');
     const orgId = organizationId || getCurrentOrganizationId();
-    const cacheKeys = new Set(['users']);
+    const cacheKeys = new Set(['users', 'role_catalog']);
 
     if (orgId) {
         cacheKeys.add(buildCacheKey('users', { organization_id: orgId }));
+        cacheKeys.add(buildCacheKey('role_catalog', { organization_id: orgId }));
     }
 
     for (const key of cacheKeys) {
@@ -553,6 +558,32 @@ export async function approveUser(userId) {
  */
 export async function updateUserRole(userId, role) {
     return API.post('update-user-role', { user_id: userId, role });
+}
+
+/**
+ * Retrieve permissions for a specific role with organization scoping.
+ */
+export async function getRolePermissions(roleId, options = {}) {
+    const { organizationId, forceRefresh = false } = options || {};
+    const params = organizationId ? { organization_id: organizationId } : {};
+    const cacheKey = buildCacheKey(`roles/${roleId}/permissions`, params);
+    return API.get(`roles/${roleId}/permissions`, params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh
+    });
+}
+
+/**
+ * List organizations the current user belongs to.
+ */
+export async function getUserOrganizations(options = {}) {
+    const { forceRefresh = false } = options || {};
+    return API.get('user-organizations', {}, {
+        cacheKey: 'user-organizations',
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh
+    });
 }
 
 // ============================================================================

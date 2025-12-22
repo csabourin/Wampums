@@ -122,6 +122,8 @@ export {
     logout,
     getUsers,
     getRoleCatalog,
+    getRolePermissions,
+    getUserOrganizations,
     getUserRoleAssignments,
     updateUserRolesV1,
     getPendingUsers,

@@ -4327,6 +4327,21 @@ details p {
   box-shadow: var(--shadow-sm);
 }
 
+.dm-org-context {
+  margin: var(--space-sm) 0 var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.dm-org-context select {
+  width: 100%;
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
 .dm-search input {
   width: 100%;
   padding: var(--space-md);
@@ -4358,6 +4373,13 @@ details p {
   gap: var(--space-sm);
   flex-wrap: wrap;
   padding: var(--space-sm) 0;
+}
+
+.dm-warning {
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm);
+  background: var(--color-warning-light);
+  border-radius: var(--radius-md);
 }
 
 .dm-user-list {
