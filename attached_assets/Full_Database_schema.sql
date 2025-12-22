@@ -256,6 +256,8 @@ CREATE TABLE public.equipment_items (
   acquisition_date date DEFAULT now(),
   item_value numeric,
   photo_url text,
+  location_type character varying NOT NULL DEFAULT 'local_scout_hall'::character varying CHECK (location_type::text = ANY (ARRAY['local_scout_hall'::character varying, 'warehouse'::character varying, 'leader_home'::character varying, 'other'::character varying]::text[])),
+  location_details character varying DEFAULT ''::character varying,
   CONSTRAINT equipment_items_pkey PRIMARY KEY (id),
   CONSTRAINT equipment_items_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
@@ -417,6 +419,14 @@ CREATE TABLE public.languages (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT languages_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.local_groups (
+  id integer NOT NULL DEFAULT nextval('local_groups_id_seq'::regclass),
+  name character varying NOT NULL,
+  slug character varying NOT NULL UNIQUE,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT local_groups_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.medication_distributions (
   id integer NOT NULL DEFAULT nextval('medication_distributions_id_seq'::regclass),
   organization_id integer NOT NULL,
@@ -504,6 +514,14 @@ CREATE TABLE public.organization_form_formats (
   display_type text,
   CONSTRAINT organization_form_formats_pkey PRIMARY KEY (id),
   CONSTRAINT organization_form_formats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.organization_local_groups (
+  organization_id integer NOT NULL,
+  local_group_id integer NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT organization_local_groups_pkey PRIMARY KEY (organization_id, local_group_id),
+  CONSTRAINT organization_local_groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT organization_local_groups_local_group_id_fkey FOREIGN KEY (local_group_id) REFERENCES public.local_groups(id)
 );
 CREATE TABLE public.organization_program_sections (
   organization_id integer NOT NULL,
@@ -640,6 +658,12 @@ CREATE TABLE public.payments (
   method character varying,
   reference_number character varying,
   created_at timestamp without time zone DEFAULT now(),
+  stripe_payment_intent_id character varying,
+  stripe_payment_method_id character varying,
+  stripe_transaction_id character varying,
+  stripe_payment_status character varying,
+  stripe_metadata jsonb DEFAULT '{}'::jsonb,
+  payment_processor character varying DEFAULT 'manual'::character varying,
   CONSTRAINT payments_pkey PRIMARY KEY (id),
   CONSTRAINT payments_participant_fee_id_fkey FOREIGN KEY (participant_fee_id) REFERENCES public.participant_fees(id),
   CONSTRAINT payments_payment_plan_id_fkey FOREIGN KEY (payment_plan_id) REFERENCES public.payment_plans(id)
@@ -799,6 +823,37 @@ CREATE TABLE public.translations (
   value text NOT NULL,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT translations_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.trusted_devices (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  organization_id integer NOT NULL,
+  device_token character varying NOT NULL UNIQUE,
+  device_name text,
+  device_fingerprint character varying,
+  last_used_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  expires_at timestamp with time zone NOT NULL,
+  is_active boolean DEFAULT true,
+  CONSTRAINT trusted_devices_pkey PRIMARY KEY (id),
+  CONSTRAINT trusted_devices_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT trusted_devices_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.two_factor_codes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  organization_id integer NOT NULL,
+  code character varying NOT NULL,
+  code_hash character varying NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  attempts integer DEFAULT 0,
+  verified boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  ip_address character varying,
+  user_agent text,
+  CONSTRAINT two_factor_codes_pkey PRIMARY KEY (id),
+  CONSTRAINT two_factor_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT two_factor_codes_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.user_organizations (
   id integer NOT NULL DEFAULT nextval('user_organizations_id_seq'::regclass),
