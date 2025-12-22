@@ -1,14 +1,21 @@
 /**
- * Role Management Page
+ * Role Management Page (Refactored - Role-Centric)
  *
- * Allows district and unitadmin users to manage user roles within their organization
+ * Allows district and unitadmin users to:
+ * 1. View roles and their permissions
+ * 2. Assign roles to users
  */
 
 import { app, translate } from './app.js';
 import { getApiUrl } from './ajax-functions.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
-import { hasPermission, hasRole, isDistrictAdmin } from './utils/PermissionUtils.js';
+import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
 import { getStorage } from './utils/StorageUtils.js';
+import {
+  clearActivityRelatedCaches,
+  clearParticipantRelatedCaches,
+  deleteCachedData
+} from './indexedDB.js';
 
 export class RoleManagement {
   constructor(appInstance) {
@@ -17,6 +24,8 @@ export class RoleManagement {
     this.roles = [];
     this.permissions = {};
     this.selectedUserId = null;
+    this.selectedRoleId = null;
+    this.activeTab = 'roles'; // 'roles' or 'users'
   }
 
   async init() {
@@ -29,12 +38,13 @@ export class RoleManagement {
     }
 
     try {
-      // Fetch users, roles, and permissions in parallel
-      await Promise.all([
-        this.fetchUsers(),
-        this.fetchRoles(),
-        this.fetchPermissions()
-      ]);
+      // Fetch roles first
+      await this.fetchRoles();
+
+      // Only fetch users if we're on the users tab
+      if (this.activeTab === 'users') {
+        await this.fetchUsers();
+      }
 
       this.render();
     } catch (error) {
@@ -56,7 +66,7 @@ export class RoleManagement {
     }
 
     const result = await response.json();
-    this.users = result.data || [];
+    this.users = result.users || result.data || [];
     debugLog('Fetched users:', this.users.length);
   }
 
@@ -77,8 +87,8 @@ export class RoleManagement {
     debugLog('Fetched roles:', this.roles.length);
   }
 
-  async fetchPermissions() {
-    const response = await fetch(`${getApiUrl()}/permissions`, {
+  async fetchRolePermissions(roleId) {
+    const response = await fetch(`${getApiUrl()}/roles/${roleId}/permissions`, {
       headers: {
         'Authorization': `Bearer ${getStorage('jwtToken')}`,
         'X-Organization-Id': getStorage('currentOrganizationId')
@@ -86,12 +96,11 @@ export class RoleManagement {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch permissions');
+      throw new Error('Failed to fetch role permissions');
     }
 
     const result = await response.json();
-    this.permissions = result.data || {};
-    debugLog('Fetched permission categories:', Object.keys(this.permissions).length);
+    return result.data || [];
   }
 
   async fetchUserRoles(userId) {
@@ -126,7 +135,26 @@ export class RoleManagement {
       throw new Error(error.message || 'Failed to update user roles');
     }
 
+    // Clear relevant caches after role update
+    await this.invalidateUserCaches(userId);
+
     return await response.json();
+  }
+
+  async invalidateUserCaches(userId) {
+    try {
+      // Clear user-specific caches
+      await deleteCachedData(`v1/users/${userId}/roles`);
+      await deleteCachedData('v1/users');
+
+      // Clear activity and participant caches as permissions may have changed
+      await clearActivityRelatedCaches();
+      await clearParticipantRelatedCaches();
+
+      debugLog('User caches invalidated after role update');
+    } catch (error) {
+      debugError('Error invalidating user caches:', error);
+    }
   }
 
   renderAccessDenied() {
@@ -158,36 +186,30 @@ export class RoleManagement {
     const content = `
       <div class="role-management-container">
         <div class="page-header">
-          <h1>${translate('role_management') || 'Role Management'}</h1>
+          <h1>${translate('role_management') || 'Role & Permission Management'}</h1>
           <a href="/dashboard" class="back-link">${translate('back_to_dashboard') || 'Back to Dashboard'}</a>
         </div>
 
-        <div class="role-management-layout">
-          <!-- User List -->
-          <div class="user-list-panel">
-            <h2>${translate('users') || 'Users'}</h2>
-            <div class="user-search">
-              <input type="text" id="user-search-input" placeholder="${translate('search_users') || 'Search users...'}" />
-            </div>
-            <div id="user-list" class="user-list">
-              ${this.renderUserList()}
-            </div>
-          </div>
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+          <button
+            class="tab-button ${this.activeTab === 'roles' ? 'active' : ''}"
+            data-tab="roles"
+          >
+            ${translate('roles_and_permissions') || 'Roles & Permissions'}
+          </button>
+          <button
+            class="tab-button ${this.activeTab === 'users' ? 'active' : ''}"
+            data-tab="users"
+            ${!canAssignRoles ? 'disabled' : ''}
+          >
+            ${translate('assign_roles_to_users') || 'Assign Roles to Users'}
+          </button>
+        </div>
 
-          <!-- Role Assignment Panel -->
-          <div class="role-assignment-panel">
-            <div id="role-assignment-content">
-              ${this.renderRoleAssignmentPlaceholder()}
-            </div>
-          </div>
-
-          <!-- Role Information Panel -->
-          <div class="role-info-panel">
-            <h2>${translate('role_information') || 'Role Information'}</h2>
-            <div id="role-info-content">
-              ${this.renderRoleInfoList()}
-            </div>
-          </div>
+        <!-- Tab Content -->
+        <div class="tab-content">
+          ${this.activeTab === 'roles' ? this.renderRolesTab() : this.renderUsersTab()}
         </div>
       </div>
     `;
@@ -199,45 +221,127 @@ export class RoleManagement {
     this.attachEventListeners();
   }
 
+  renderRolesTab() {
+    return `
+      <div class="roles-tab">
+        <div class="tab-description">
+          <p>${translate('roles_tab_description') || 'View all available roles and their associated permissions. Each role grants specific access rights within the organization.'}</p>
+        </div>
+
+        <div class="roles-grid">
+          ${this.roles.map(role => this.renderRoleCard(role)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  renderRoleCard(role) {
+    const isExpanded = this.selectedRoleId === role.id;
+
+    return `
+      <div class="role-card ${isExpanded ? 'expanded' : ''}" data-role-id="${role.id}">
+        <div class="role-card-header">
+          <div class="role-info">
+            <h3 class="role-name">${this.escapeHtml(role.display_name)}</h3>
+            <span class="role-badge role-badge-${role.role_name}">${this.escapeHtml(role.role_name)}</span>
+          </div>
+          <button class="toggle-permissions-btn" data-role-id="${role.id}">
+            <span class="icon">${isExpanded ? '▼' : '▶'}</span>
+            ${translate('view_permissions') || 'View Permissions'}
+          </button>
+        </div>
+
+        <p class="role-description">${this.escapeHtml(role.description || 'No description available')}</p>
+
+        <div class="role-permissions-container ${isExpanded ? 'visible' : 'hidden'}" id="role-permissions-${role.id}">
+          ${isExpanded ? '<div class="loading-spinner">Loading permissions...</div>' : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  renderUsersTab() {
+    if (!hasPermission('users.assign_roles')) {
+      return `
+        <div class="users-tab">
+          <div class="access-denied-message">
+            <p>${translate('no_permission_assign_roles') || 'You do not have permission to assign roles to users.'}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="users-tab">
+        <div class="tab-description">
+          <p>${translate('users_tab_description') || 'Assign one or more roles to users in your organization. Users inherit all permissions from their assigned roles.'}</p>
+        </div>
+
+        <div class="users-layout">
+          <!-- User List -->
+          <div class="user-list-panel">
+            <div class="panel-header">
+              <h2>${translate('users') || 'Users'}</h2>
+              <div class="user-search">
+                <input
+                  type="text"
+                  id="user-search-input"
+                  placeholder="${translate('search_users') || 'Search users...'}"
+                />
+              </div>
+            </div>
+            <div id="user-list" class="user-list">
+              ${this.renderUserList()}
+            </div>
+          </div>
+
+          <!-- User Role Assignment -->
+          <div class="user-assignment-panel">
+            <div id="user-assignment-content">
+              ${this.renderUserAssignmentPlaceholder()}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   renderUserList() {
     if (this.users.length === 0) {
       return `<p class="empty-state">${translate('no_users_found') || 'No users found'}</p>`;
     }
 
-    return this.users.map(user => `
-      <div class="user-item" data-user-id="${user.id}">
-        <div class="user-info">
-          <div class="user-name">${this.escapeHtml(user.full_name || user.email)}</div>
-          <div class="user-email">${this.escapeHtml(user.email)}</div>
+    return this.users.map(user => {
+      const roleNames = (user.roles || []).map(r => r.display_name || r.role_name).join(', ');
+      const isSelected = this.selectedUserId === user.id;
+
+      return `
+        <div class="user-item ${isSelected ? 'selected' : ''}" data-user-id="${user.id}">
+          <div class="user-info">
+            <div class="user-name">${this.escapeHtml(user.full_name || user.email)}</div>
+            <div class="user-email">${this.escapeHtml(user.email)}</div>
+            ${roleNames ? `<div class="user-roles-summary">${this.escapeHtml(roleNames)}</div>` : ''}
+          </div>
+          <div class="user-action">
+            <button class="btn-small btn-manage-roles" data-user-id="${user.id}">
+              ${translate('manage_roles') || 'Manage'}
+            </button>
+          </div>
         </div>
-        <div class="user-role-badge">
-          ${user.role ? this.getRoleDisplayName(user.role) : ''}
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
-  renderRoleAssignmentPlaceholder() {
+  renderUserAssignmentPlaceholder() {
     return `
       <div class="placeholder-state">
-        <p>${translate('select_user_to_manage_roles') || 'Select a user to manage their roles'}</p>
+        <div class="placeholder-icon">👤</div>
+        <p>${translate('select_user_to_manage_roles') || 'Select a user from the list to manage their roles'}</p>
       </div>
     `;
   }
 
-  async renderRoleAssignment(userId) {
-    const canAssignRoles = hasPermission('users.assign_roles');
-
-    if (!canAssignRoles) {
-      return `
-        <div class="role-assignment">
-          <h2>${translate('view_roles') || 'View Roles'}</h2>
-          <p class="info-message">${translate('no_permission_assign_roles') || 'You can view roles but cannot assign them.'}</p>
-          <div id="user-roles-display"></div>
-        </div>
-      `;
-    }
-
+  async renderUserAssignment(userId) {
     const user = this.users.find(u => u.id === userId);
     if (!user) return '';
 
@@ -245,13 +349,19 @@ export class RoleManagement {
     const userRoleIds = userRoles.map(r => r.id);
 
     return `
-      <div class="role-assignment">
-        <h2>${translate('manage_roles_for') || 'Manage Roles for'}: ${this.escapeHtml(user.full_name || user.email)}</h2>
+      <div class="user-assignment">
+        <div class="assignment-header">
+          <h2>${translate('manage_roles_for') || 'Manage Roles for'}:</h2>
+          <div class="user-details">
+            <div class="user-name-large">${this.escapeHtml(user.full_name || user.email)}</div>
+            <div class="user-email-small">${this.escapeHtml(user.email)}</div>
+          </div>
+        </div>
 
-        <form id="role-assignment-form">
+        <form id="user-role-assignment-form">
           <input type="hidden" id="selected-user-id" value="${userId}" />
 
-          <div class="current-roles">
+          <div class="current-roles-section">
             <h3>${translate('current_roles') || 'Current Roles'}</h3>
             <div class="role-badges">
               ${userRoles.length > 0
@@ -265,131 +375,92 @@ export class RoleManagement {
             </div>
           </div>
 
-          <div class="available-roles">
-            <h3>${translate('assign_roles') || 'Assign Roles'}</h3>
+          <div class="available-roles-section">
+            <h3>${translate('available_roles') || 'Available Roles'}</h3>
+            <p class="help-text">${translate('select_roles_help') || 'Select one or more roles to assign to this user. Users will have all permissions from their assigned roles.'}</p>
+
             <div class="role-checkboxes">
               ${this.roles.map(role => `
-                <label class="role-checkbox">
+                <label class="role-checkbox-item">
                   <input
                     type="checkbox"
                     name="role_ids"
                     value="${role.id}"
                     ${userRoleIds.includes(role.id) ? 'checked' : ''}
-                    ${role.role_name === 'parent' ? 'data-is-parent="true"' : ''}
                   />
-                  <span class="role-label">
-                    <strong>${this.escapeHtml(role.display_name)}</strong>
-                    <small>${this.escapeHtml(role.description || '')}</small>
-                  </span>
+                  <div class="role-checkbox-content">
+                    <div class="role-checkbox-header">
+                      <strong>${this.escapeHtml(role.display_name)}</strong>
+                      <span class="role-badge-small role-badge-${role.role_name}">${role.role_name}</span>
+                    </div>
+                    <small class="role-checkbox-description">${this.escapeHtml(role.description || '')}</small>
+                  </div>
                 </label>
               `).join('')}
             </div>
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="btn-primary">${translate('save_roles') || 'Save Roles'}</button>
-            <button type="button" class="btn-secondary" id="cancel-role-assignment">${translate('cancel') || 'Cancel'}</button>
+            <button type="submit" class="btn-primary">
+              ${translate('save_roles') || 'Save Roles'}
+            </button>
+            <button type="button" class="btn-secondary" id="cancel-assignment">
+              ${translate('cancel') || 'Cancel'}
+            </button>
           </div>
 
-          <div id="role-assignment-message" class="status-message"></div>
+          <div id="assignment-message" class="status-message"></div>
         </form>
       </div>
     `;
   }
 
-  renderRoleInfoList() {
-    return `
-      <div class="role-info-list">
-        ${this.roles.map(role => `
-          <div class="role-info-item" data-role-id="${role.id}">
-            <h3 class="role-name">${this.escapeHtml(role.display_name)}</h3>
-            <p class="role-description">${this.escapeHtml(role.description || 'No description')}</p>
-            <button class="btn-small view-permissions-btn" data-role-id="${role.id}">
-              ${translate('view_permissions') || 'View Permissions'}
-            </button>
-            <div class="role-permissions" id="role-permissions-${role.id}" style="display: none;"></div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
+  attachEventListeners() {
+    // Tab switching
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(button => {
+      button.addEventListener('click', async (e) => {
+        const tab = e.currentTarget.dataset.tab;
+        if (tab && tab !== this.activeTab) {
+          this.activeTab = tab;
 
-  async showRolePermissions(roleId) {
-    const permissionsDiv = document.getElementById(`role-permissions-${roleId}`);
-
-    if (permissionsDiv.style.display === 'none') {
-      // Fetch and show permissions
-      try {
-        const response = await fetch(`${getApiUrl()}/roles/${roleId}/permissions`, {
-          headers: {
-            'Authorization': `Bearer ${getStorage('jwtToken')}`,
-            'X-Organization-Id': getStorage('currentOrganizationId')
+          // Fetch users if switching to users tab and not loaded yet
+          if (tab === 'users' && this.users.length === 0) {
+            await this.fetchUsers();
           }
-        });
 
-        if (!response.ok) throw new Error('Failed to fetch role permissions');
+          this.render();
+        }
+      });
+    });
 
-        const result = await response.json();
-        const permissions = result.data || [];
-
-        // Group permissions by category
-        const grouped = permissions.reduce((acc, perm) => {
-          if (!acc[perm.category]) {
-            acc[perm.category] = [];
-          }
-          acc[perm.category].push(perm);
-          return acc;
-        }, {});
-
-        permissionsDiv.innerHTML = `
-          <div class="permissions-list">
-            ${Object.entries(grouped).map(([category, perms]) => `
-              <div class="permission-category">
-                <h4>${this.escapeHtml(category)}</h4>
-                <ul>
-                  ${perms.map(p => `
-                    <li title="${this.escapeHtml(p.description || '')}">
-                      ${this.escapeHtml(p.permission_name)}
-                    </li>
-                  `).join('')}
-                </ul>
-              </div>
-            `).join('')}
-          </div>
-        `;
-        permissionsDiv.style.display = 'block';
-      } catch (error) {
-        debugError('Error fetching role permissions:', error);
-        permissionsDiv.innerHTML = `<p class="error-message">${error.message}</p>`;
-        permissionsDiv.style.display = 'block';
-      }
+    if (this.activeTab === 'roles') {
+      this.attachRolesTabListeners();
     } else {
-      // Hide permissions
-      permissionsDiv.style.display = 'none';
+      this.attachUsersTabListeners();
     }
   }
 
-  attachEventListeners() {
+  attachRolesTabListeners() {
+    // Toggle role permissions
+    const toggleButtons = document.querySelectorAll('.toggle-permissions-btn');
+    toggleButtons.forEach(button => {
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const roleId = parseInt(e.currentTarget.dataset.roleId);
+        await this.toggleRolePermissions(roleId);
+      });
+    });
+  }
+
+  attachUsersTabListeners() {
     // User selection
-    const userItems = document.querySelectorAll('.user-item');
-    userItems.forEach(item => {
-      item.addEventListener('click', async (e) => {
+    const manageButtons = document.querySelectorAll('.btn-manage-roles');
+    manageButtons.forEach(button => {
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
         const userId = e.currentTarget.dataset.userId;
-
-        // Remove active class from all users
-        userItems.forEach(u => u.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-
-        // Show role assignment panel
-        this.selectedUserId = userId;
-        const assignmentContent = document.getElementById('role-assignment-content');
-        assignmentContent.innerHTML = '<div class="loading">Loading...</div>';
-
-        const html = await this.renderRoleAssignment(userId);
-        assignmentContent.innerHTML = html;
-
-        // Attach form listener
-        this.attachRoleAssignmentFormListener();
+        await this.showUserRoleAssignment(userId);
       });
     });
 
@@ -401,28 +472,96 @@ export class RoleManagement {
       });
     }
 
-    // View permissions buttons
-    const viewPermissionsBtns = document.querySelectorAll('.view-permissions-btn');
-    viewPermissionsBtns.forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const roleId = e.target.dataset.roleId;
-        await this.showRolePermissions(roleId);
-      });
-    });
+    // If a user is already selected, attach form listeners
+    if (this.selectedUserId) {
+      this.attachAssignmentFormListeners();
+    }
   }
 
-  attachRoleAssignmentFormListener() {
-    const form = document.getElementById('role-assignment-form');
+  async toggleRolePermissions(roleId) {
+    const wasExpanded = this.selectedRoleId === roleId;
+
+    // Toggle selection
+    this.selectedRoleId = wasExpanded ? null : roleId;
+
+    // Re-render to update UI
+    this.render();
+
+    // If expanding, load permissions
+    if (!wasExpanded) {
+      const container = document.getElementById(`role-permissions-${roleId}`);
+      if (container) {
+        try {
+          const permissions = await this.fetchRolePermissions(roleId);
+          container.innerHTML = this.renderPermissionsList(permissions);
+        } catch (error) {
+          debugError('Error loading role permissions:', error);
+          container.innerHTML = `<p class="error-message">${error.message}</p>`;
+        }
+      }
+    }
+  }
+
+  renderPermissionsList(permissions) {
+    if (permissions.length === 0) {
+      return `<p class="no-permissions">${translate('no_permissions') || 'No permissions assigned to this role'}</p>`;
+    }
+
+    // Group permissions by category
+    const grouped = permissions.reduce((acc, perm) => {
+      if (!acc[perm.category]) {
+        acc[perm.category] = [];
+      }
+      acc[perm.category].push(perm);
+      return acc;
+    }, {});
+
+    return `
+      <div class="permissions-list">
+        ${Object.entries(grouped).map(([category, perms]) => `
+          <div class="permission-category">
+            <h4 class="category-name">${this.escapeHtml(category)}</h4>
+            <ul class="permission-items">
+              ${perms.map(p => `
+                <li class="permission-item" title="${this.escapeHtml(p.description || '')}">
+                  <span class="permission-key">${this.escapeHtml(p.permission_key)}</span>
+                  <span class="permission-name">${this.escapeHtml(p.permission_name)}</span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  async showUserRoleAssignment(userId) {
+    this.selectedUserId = userId;
+
+    const assignmentContent = document.getElementById('user-assignment-content');
+    assignmentContent.innerHTML = '<div class="loading-spinner">Loading...</div>';
+
+    const html = await this.renderUserAssignment(userId);
+    assignmentContent.innerHTML = html;
+
+    // Attach form listener
+    this.attachAssignmentFormListeners();
+  }
+
+  attachAssignmentFormListeners() {
+    const form = document.getElementById('user-role-assignment-form');
     if (!form) return;
 
-    const cancelBtn = document.getElementById('cancel-role-assignment');
+    const cancelBtn = document.getElementById('cancel-assignment');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
-        // Deselect user
         this.selectedUserId = null;
-        document.querySelectorAll('.user-item').forEach(u => u.classList.remove('active'));
-        document.getElementById('role-assignment-content').innerHTML = this.renderRoleAssignmentPlaceholder();
+        document.getElementById('user-assignment-content').innerHTML = this.renderUserAssignmentPlaceholder();
+
+        // Remove selected state from users
+        document.querySelectorAll('.user-item').forEach(item => {
+          item.classList.remove('selected');
+        });
       });
     }
 
@@ -434,21 +573,21 @@ export class RoleManagement {
       const roleIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
 
       if (roleIds.length === 0) {
-        this.showMessage('Please select at least one role', 'error');
+        this.showAssignmentMessage(translate('select_at_least_one_role') || 'Please select at least one role', 'error');
         return;
       }
 
       try {
         await this.updateUserRoles(userId, roleIds);
-        this.showMessage(translate('roles_updated_successfully') || 'Roles updated successfully!', 'success');
+        this.showAssignmentMessage(translate('roles_updated_successfully') || 'Roles updated successfully!', 'success');
 
-        // Refresh user list to show updated role
+        // Refresh user list
         await this.fetchUsers();
         document.getElementById('user-list').innerHTML = this.renderUserList();
-        this.attachEventListeners();
+        this.attachUsersTabListeners();
       } catch (error) {
         debugError('Error updating roles:', error);
-        this.showMessage(error.message, 'error');
+        this.showAssignmentMessage(error.message, 'error');
       }
     });
   }
@@ -469,8 +608,8 @@ export class RoleManagement {
     });
   }
 
-  showMessage(message, type = 'info') {
-    const messageDiv = document.getElementById('role-assignment-message');
+  showAssignmentMessage(message, type = 'info') {
+    const messageDiv = document.getElementById('assignment-message');
     if (messageDiv) {
       messageDiv.textContent = message;
       messageDiv.className = `status-message ${type}`;
@@ -481,11 +620,6 @@ export class RoleManagement {
         messageDiv.className = 'status-message';
       }, 5000);
     }
-  }
-
-  getRoleDisplayName(roleName) {
-    const role = this.roles.find(r => r.role_name === roleName);
-    return role ? role.display_name : roleName;
   }
 
   escapeHtml(text) {

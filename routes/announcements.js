@@ -79,11 +79,12 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
 
   // User roles (admins/animation/parents as users) - get email and WhatsApp
   const userRoleQuery = `
-    SELECT LOWER(u.email) AS email, u.id AS user_id, uo.role, u.whatsapp_phone_number
+    SELECT DISTINCT LOWER(u.email) AS email, u.id AS user_id, u.whatsapp_phone_number
     FROM user_organizations uo
     JOIN users u ON u.id = uo.user_id
+    JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE uo.organization_id = $1
-      AND uo.role = ANY($${groupParams.length + 1}::text[])
+      AND r.role_name = ANY($${groupParams.length + 1}::text[])
       AND u.email IS NOT NULL AND u.email <> ''
   `;
   const userRoleResult = await pool.query(userRoleQuery, [...groupParams, roleFilter]);
@@ -128,12 +129,10 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
     guardianEmails.push(...guardianResult.rows.map((row) => row.email));
     participantEmails.push(...participantResult.rows.map((row) => row.courriel));
   }
-  const roleEmails = userRoleResult.rows
-    .filter((row) => !row.role || roleFilter.includes(row.role))
-    .map((row) => row.email);
+  const roleEmails = userRoleResult.rows.map((row) => row.email);
 
   const whatsappNumbers = userRoleResult.rows
-    .filter((row) => row.whatsapp_phone_number && (!row.role || roleFilter.includes(row.role)))
+    .filter((row) => row.whatsapp_phone_number)
     .map((row) => ({ phone: row.whatsapp_phone_number, user_id: row.user_id }));
 
   const allEmails = [...roleEmails, ...guardianEmails, ...participantEmails].filter(Boolean);
@@ -141,11 +140,13 @@ async function buildRecipients(pool, organizationId, roles, groupIds) {
 
   // Push subscribers limited to requested roles
   const subscriberQuery = `
-    SELECT s.endpoint, s.p256dh, s.auth, s.user_id
+    SELECT DISTINCT s.endpoint, s.p256dh, s.auth, s.user_id
     FROM subscribers s
     JOIN user_organizations uo ON uo.user_id = s.user_id
+    JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
     WHERE s.organization_id = $1
-      AND uo.role = ANY($2::text[])
+      AND uo.organization_id = $1
+      AND r.role_name = ANY($2::text[])
   `;
   const subscribersResult = await pool.query(subscriberQuery, [organizationId, roleFilter]);
 

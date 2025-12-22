@@ -482,8 +482,10 @@ async function verifyOrganizationMembership(
   requiredRoles = null,
 ) {
   try {
-    let query = `SELECT role FROM user_organizations
-                 WHERE user_id = $1 AND organization_id = $2`;
+    let query = `SELECT r.role_name
+                 FROM user_organizations uo
+                 JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
+                 WHERE uo.user_id = $1 AND uo.organization_id = $2`;
     const params = [userId, organizationId];
 
     const result = await pool.query(query, params);
@@ -491,22 +493,24 @@ async function verifyOrganizationMembership(
     if (result.rows.length === 0) {
       return {
         authorized: false,
-        role: null,
+        roles: [],
         message: "User not a member of this organization",
       };
     }
 
-    const userRole = result.rows[0].role;
+    const userRoles = result.rows.map(row => row.role_name);
+    const primaryRole = userRoles[0]; // For backward compatibility
 
-    if (requiredRoles && !requiredRoles.includes(userRole)) {
+    if (requiredRoles && !userRoles.some(role => requiredRoles.includes(role))) {
       return {
         authorized: false,
-        role: userRole,
+        roles: userRoles,
+        role: primaryRole,
         message: "Insufficient permissions",
       };
     }
 
-    return { authorized: true, role: userRole };
+    return { authorized: true, roles: userRoles, role: primaryRole };
   } catch (error) {
     logger.error("Error verifying organization membership:", error);
     return {
@@ -1429,9 +1433,10 @@ async function legacyApiHandler(req, res, next) {
 
       case "get_mailing_list":
         const usersEmailsResult = await client.query(
-          `SELECT u.email, uo.role
+          `SELECT DISTINCT u.email, r.role_name
            FROM user_organizations uo
            JOIN users u ON u.id = uo.user_id
+           JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
            WHERE uo.organization_id = $1
            AND u.email IS NOT NULL
            AND u.email != ''`,
@@ -1440,7 +1445,7 @@ async function legacyApiHandler(req, res, next) {
         const usersEmails = usersEmailsResult.rows;
 
         const emailsByRole = usersEmails.reduce((acc, user) => {
-          const role = user.role;
+          const role = user.role_name;
           const email = user.email.toLowerCase();
           if (!acc[role]) {
             acc[role] = [];
@@ -1528,11 +1533,12 @@ async function legacyApiHandler(req, res, next) {
 
       case "get_animateurs":
         const animateursResult = await client.query(
-          `SELECT u.id, u.full_name
+          `SELECT DISTINCT u.id, u.full_name
            FROM users u
            JOIN user_organizations uo ON u.id = uo.user_id
+           JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
            WHERE uo.organization_id = $1
-           AND uo.role IN ('animation')
+           AND r.role_name IN ('leader', 'district', 'unitadmin')
            ORDER BY u.full_name`,
           [organizationId],
         );
