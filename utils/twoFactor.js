@@ -5,7 +5,7 @@
 
 const crypto = require('crypto');
 const winston = require('winston');
-const { sendEmail } = require('./index');
+const { sendEmail, getUserEmailLanguage, getTranslationsByCode } = require('./index');
 
 // Configure logger
 const logger = winston.createLogger({
@@ -263,27 +263,43 @@ async function verifyTrustedDevice(pool, userId, organizationId, deviceToken) {
  * @param {string} email - Recipient email
  * @param {string} code - Verification code
  * @param {string} userName - User's full name
+ * @param {number|null} organizationId - Organization ID for language fallback
+ * @param {object|null} pool - Database pool to resolve user preferences
  * @returns {Promise<boolean>} Success status
  */
-async function send2FAEmail(email, code, userName = '') {
-  const subject = 'Your Wampums Verification Code';
+async function send2FAEmail(email, code, userName = '', organizationId = null, pool = null) {
+  const safeUserName = (userName || '').trim();
+  const preferredLanguage = organizationId && pool
+    ? await getUserEmailLanguage(pool, email, organizationId)
+    : 'en';
+  const translations = getTranslationsByCode(preferredLanguage);
+  const fallbackTranslations = getTranslationsByCode('en');
+
+  const subject = translations.two_factor_email_subject || fallbackTranslations.two_factor_email_subject || 'Your Wampums verification code';
+  const greetingTemplate = translations.two_factor_email_greeting || fallbackTranslations.two_factor_email_greeting || 'Hello {name},';
+  const intro = translations.two_factor_email_intro || fallbackTranslations.two_factor_email_intro || 'Please use the following code to complete your login:';
+  const expires = translations.two_factor_email_expiry || fallbackTranslations.two_factor_email_expiry || 'This code will expire in 10 minutes.';
+  const ignore = translations.two_factor_email_ignore || fallbackTranslations.two_factor_email_ignore || "If you didn't request this code, please ignore this email and ensure your account is secure.";
+  const footer = translations.two_factor_email_footer || fallbackTranslations.two_factor_email_footer || 'This is an automated message from Wampums. Please do not reply to this email.';
+  const greeting = greetingTemplate.replace('{name}', safeUserName || translations.two_factor_email_generic_name || fallbackTranslations.two_factor_email_generic_name || '');
 
   const textMessage = `
-Hello${userName ? ' ' + userName : ''},
+${greeting}
 
-Your verification code is: ${code}
+${intro}
 
-This code will expire in 10 minutes.
+${translations.two_factor_email_code_label || fallbackTranslations.two_factor_email_code_label || 'Verification code'}: ${code}
 
-If you didn't request this code, please ignore this email.
+${expires}
 
-Best regards,
-The Wampums Team
+${ignore}
+
+${footer}
   `.trim();
 
   const htmlMessage = `
 <!DOCTYPE html>
-<html>
+<html lang="${preferredLanguage}">
 <head>
   <style>
     body {
@@ -325,23 +341,23 @@ The Wampums Team
 </head>
 <body>
   <div class="header">
-    <h2>Wampums Verification Code</h2>
+    <h2>${translations.two_factor_email_heading || fallbackTranslations.two_factor_email_heading || 'Wampums Verification Code'}</h2>
   </div>
 
-  <p>Hello${userName ? ' ' + userName : ''},</p>
+  <p>${greeting}</p>
 
-  <p>Please use the following code to complete your login:</p>
+  <p>${intro}</p>
 
   <div class="code-container">
     <div class="code">${code}</div>
   </div>
 
-  <p><strong>This code will expire in 10 minutes.</strong></p>
+  <p><strong>${expires}</strong></p>
 
-  <p>If you didn't request this code, please ignore this email and ensure your account is secure.</p>
+  <p>${ignore}</p>
 
   <div class="footer">
-    <p>This is an automated message from Wampums. Please do not reply to this email.</p>
+    <p>${footer}</p>
   </div>
 </body>
 </html>
