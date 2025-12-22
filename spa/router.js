@@ -85,7 +85,8 @@ const lazyModules = {
   Activities: () => import('./activities.js').then(m => m.Activities),
   CarpoolLanding: () => import('./carpool.js').then(m => m.CarpoolLanding),
   CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
-  RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement)
+  RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement),
+  DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement)
 };
 
 // Cache for loaded modules
@@ -150,7 +151,8 @@ const routes = {
   "/activities": "activities",
   "/carpool": "carpoolLanding",
   "/carpool/:id": "carpool",
-  "/role-management": "roleManagement"
+  "/role-management": "roleManagement",
+  "/district-management": "districtManagement"
 
 };
 
@@ -520,6 +522,14 @@ export class Router {
           const RoleManagement = await this.loadModule('RoleManagement');
           const roleManagement = new RoleManagement(this.app);
           await roleManagement.init();
+          break;
+        case "districtManagement":
+          if (!guard(canViewRoles())) {
+            break;
+          }
+          const DistrictManagement = await this.loadModule('DistrictManagement');
+          const districtManagement = new DistrictManagement(this.app);
+          await districtManagement.init();
           break;
         case "register":
           if (this.app.isLoggedIn) {

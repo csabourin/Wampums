@@ -310,6 +310,7 @@ export class Dashboard {
 
     if (showRoleManagement) {
       administrationLinks.push(`<a href="/role-management"><i class="fa-solid fa-user-tag"></i><span>${translate("role_management") || "Role Management"}</span></a>`);
+      administrationLinks.push(`<a href="/district-management"><i class="fa-solid fa-sitemap"></i><span>${translate("district_management_title") || "District Management"}</span></a>`);
     }
 
     if (showOrgCreation) {

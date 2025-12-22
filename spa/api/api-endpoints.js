@@ -463,6 +463,48 @@ export async function getUsers(organizationId, cacheOptions = {}) {
 }
 
 /**
+ * Get available role catalog for the current organization scope
+ */
+export async function getRoleCatalog(cacheOptions = {}) {
+    const cacheKey = 'role_catalog';
+    return API.get('roles', {}, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
+        forceRefresh: cacheOptions.forceRefresh
+    });
+}
+
+/**
+ * Get a user's assigned roles within the current organization
+ */
+export async function getUserRoleAssignments(userId, cacheOptions = {}) {
+    const cacheKey = buildCacheKey(`v1/users/${userId}/roles`, { organization_id: getCurrentOrganizationId() });
+    return API.get(`v1/users/${userId}/roles`, {}, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: cacheOptions.forceRefresh
+    });
+}
+
+/**
+ * Update a user's role assignments (multi-role aware)
+ * Returns the standardized API response
+ */
+export async function updateUserRolesV1(userId, roleIds, metadata = {}) {
+    const payload = { roleIds };
+
+    if (metadata.audit_note) {
+        payload.audit_note = metadata.audit_note;
+    }
+
+    if (Array.isArray(metadata.bundles)) {
+        payload.bundles = metadata.bundles;
+    }
+
+    return API.put(`v1/users/${userId}/roles`, payload);
+}
+
+/**
  * Get pending users awaiting approval
  */
 export async function getPendingUsers() {
