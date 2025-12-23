@@ -64,10 +64,13 @@ export class Activities {
     container.innerHTML = `
       <section class="page activities-page">
         <header class="page__header">
-          <h1>${translate('activities_calendar')}</h1>
-          <button class="button button--primary" id="add-activity-btn">
-            ${translate('add_activity')}
-          </button>
+          <div class="page__header-top">
+            <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+            <h1>${translate('activities_calendar')}</h1>
+            <button class="button button--primary" id="add-activity-btn">
+              ${translate('add_activity')}
+            </button>
+          </div>
         </header>
 
         <div class="activities-container">
