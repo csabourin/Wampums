@@ -298,7 +298,7 @@ async function verifyOrganizationMembership(pool, userId, organizationId, requir
     const requiredPermissions = options.requiredPermissions || [];
 
     const membershipResult = await pool.query(
-      `SELECT role_ids, role
+      `SELECT role_ids
        FROM user_organizations
        WHERE user_id = $1 AND organization_id = $2`,
       [userId, organizationId]
@@ -321,10 +321,10 @@ async function verifyOrganizationMembership(pool, userId, organizationId, requir
     );
 
     const resolvedRoles = rolesResult.rows.map((row) => row.role_name);
-    const primaryRole = resolvedRoles[0] || membership.role || null;
+    const primaryRole = resolvedRoles[0] || null;
 
     if (requiredRoles.length) {
-      const hasRole = requiredRoles.some((role) => resolvedRoles.includes(role) || membership.role === role);
+      const hasRole = requiredRoles.some((role) => resolvedRoles.includes(role));
       if (!hasRole) {
         return { authorized: false, role: primaryRole, roles: resolvedRoles, permissions: [], message: 'Insufficient permissions' };
       }
