@@ -2466,8 +2466,8 @@ export async function getApiOrganizationId() {
 /**
  * Create organization
  */
-export async function createOrganization(name) {
-    return API.post('create-organization', { name });
+export async function createOrganization(organizationData) {
+    return API.post('organizations', organizationData);
 }
 
 /**
