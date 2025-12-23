@@ -2,12 +2,18 @@ import { getParentContactList } from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { canSendCommunications, canViewParticipants } from "./utils/PermissionUtils.js";
+import { debounce } from "./utils/PerformanceUtils.js";
 
 export class ParentContactList {
   constructor(app) {
     this.app = app;
     this.children = [];
     this.searchFilter = "";
+    // Create debounced search handler (300ms delay)
+    this.debouncedSearch = debounce((value) => {
+      this.searchFilter = value;
+      this.updateContactList();
+    }, 300);
   }
 
   async init() {
@@ -242,12 +248,12 @@ export class ParentContactList {
       header.addEventListener("click", (e) => this.toggleGroup(e.target));
     });
 
-    // Add search input listener
+    // Add search input listener with debouncing
     const searchInput = document.getElementById("contact-search");
     if (searchInput) {
       searchInput.addEventListener("input", (e) => {
-        this.searchFilter = e.target.value;
-        this.updateContactList();
+        // Use debounced search to avoid excessive filtering
+        this.debouncedSearch(e.target.value);
       });
     }
   }
