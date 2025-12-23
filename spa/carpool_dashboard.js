@@ -16,6 +16,7 @@ import {
 } from './api/api-carpools.js';
 import { canManageCarpools, canViewCarpools, isParent } from './utils/PermissionUtils.js';
 import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
+import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -30,6 +31,7 @@ export class CarpoolDashboard {
     this.hasCarpoolAccess = canViewCarpools() || canManageCarpools();
     // Optimistic update manager for instant UI feedback
     this.optimisticManager = new OptimisticUpdateManager();
+    this.isLoading = true;
   }
 
   async init() {
@@ -37,7 +39,15 @@ export class CarpoolDashboard {
       this.app.router.navigate("/dashboard");
       return;
     }
+
+    // Show loading skeleton
+    this.isLoading = true;
+    this.render();
+
     await this.loadData();
+
+    // Show actual content
+    this.isLoading = false;
     this.render();
     this.attachEventListeners();
   }
@@ -61,6 +71,12 @@ export class CarpoolDashboard {
 
   render() {
     const container = document.getElementById('app');
+
+    // Show loading skeleton while data is being fetched
+    if (this.isLoading) {
+      container.innerHTML = skeletonCarpoolDashboard();
+      return;
+    }
 
     if (!this.activity) {
       container.innerHTML = `
@@ -416,8 +432,14 @@ export class CarpoolDashboard {
     // Delete offer buttons
     document.querySelectorAll('.delete-offer-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
-        const offerId = parseInt(e.target.closest('[data-offer-id]').dataset.offerId);
-        await this.handleCancelOffer(offerId);
+        const button = e.target;
+        const offerId = parseInt(button.closest('[data-offer-id]').dataset.offerId);
+        setButtonLoading(button, true);
+        try {
+          await this.handleCancelOffer(offerId);
+        } finally {
+          setButtonLoading(button, false);
+        }
       });
     });
 
@@ -440,8 +462,14 @@ export class CarpoolDashboard {
     // Remove assignment buttons
     document.querySelectorAll('.remove-assignment-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
-        const assignmentId = parseInt(e.target.dataset.assignmentId);
-        await this.handleRemoveAssignment(assignmentId);
+        const button = e.target;
+        const assignmentId = parseInt(button.dataset.assignmentId);
+        setButtonLoading(button, true);
+        try {
+          await this.handleRemoveAssignment(assignmentId);
+        } finally {
+          setButtonLoading(button, false);
+        }
       });
     });
   }

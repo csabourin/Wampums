@@ -10,6 +10,7 @@ import {
 import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
+import { PerformanceMonitor } from "../utils/PerformanceUtils.js";
 
 /**
  * Add cache buster parameter to URL
@@ -126,12 +127,18 @@ export async function makeApiRequest(endpoint, options = {}) {
     }
 
     let lastError;
+    const startTime = performance.now();
+
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             debugLog(`API Request (attempt ${attempt + 1}):`, method, url);
 
             const response = await fetch(url, requestConfig);
             const result = await handleResponse(response);
+
+            // Log API call performance
+            const duration = performance.now() - startTime;
+            PerformanceMonitor.logAPICall(endpoint, duration, false);
 
             debugLog('API Response:', result);
             return result;
@@ -173,10 +180,13 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
     }
 
     // Try cache first (unless force refresh)
+    const startTime = performance.now();
     if (!forceRefresh) {
         try {
             const cachedData = await getCachedData(cacheKey);
             if (cachedData) {
+                const duration = performance.now() - startTime;
+                PerformanceMonitor.logAPICall(endpoint, duration, true);
                 debugLog('Cache hit for:', cacheKey);
                 return cachedData;
             }

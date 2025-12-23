@@ -17,6 +17,7 @@ import {
 } from "./utils/SecurityUtils.js";
 import { getActivities, createActivity } from "./api/api-activities.js";
 import { clearActivityRelatedCaches } from "./indexedDB.js";
+import { skeletonDashboard } from "./utils/SkeletonUtils.js";
 import {
   hasPermission,
   hasAnyPermission,
@@ -36,13 +37,24 @@ export class Dashboard {
     this.newsLoading = true;
     this.newsError = null;
     this.pointsCollapsed = this.loadPointsCollapsedState();
+    this.isLoading = true;
   }
 
   async init() {
     try {
       this.applyIconFontLoadingStrategy();
+
+      // Show loading skeleton immediately
+      this.isLoading = true;
+      this.render();
+
       await this.fetchOrganizationInfo();
       await this.preloadDashboardData();
+
+      // Data loaded, render actual content
+      this.isLoading = false;
+      this.render();
+
       this.attachEventListeners();
 
       // Prefetch critical pages data after dashboard is ready
@@ -52,6 +64,7 @@ export class Dashboard {
       this.loadNews();
     } catch (error) {
       debugError("Error initializing dashboard:", error);
+      this.isLoading = false;
       this.renderError();
     }
   }
@@ -298,6 +311,14 @@ export class Dashboard {
   //          RENDER
   // -----------------------------
   render() {
+    const container = document.getElementById("app");
+
+    // Show loading skeleton while data is being fetched
+    if (this.isLoading) {
+      container.innerHTML = skeletonDashboard();
+      return;
+    }
+
     // Permission-based visibility checks
     const showFinanceSection = hasAnyPermission('finance.view', 'budget.view');
     const showRoleManagement = canViewRoles();
@@ -427,7 +448,7 @@ ${administrationLinks.length > 0 ? `
       <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
     `;
 
-    document.getElementById("app").innerHTML = content;
+    container.innerHTML = content;
     this.updatePointsList();
     this.updateNewsSection();
   }

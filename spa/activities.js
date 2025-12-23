@@ -10,12 +10,14 @@ import {
 } from './api/api-activities.js';
 import { clearActivityRelatedCaches } from './indexedDB.js';
 import { canViewActivities } from './utils/PermissionUtils.js';
+import { skeletonActivityList, setButtonLoading } from './utils/SkeletonUtils.js';
 
 export class Activities {
   constructor(app) {
     this.app = app;
     this.activities = [];
     this.selectedActivity = null;
+    this.isLoading = true;
   }
 
   async init() {
@@ -25,7 +27,14 @@ export class Activities {
       return;
     }
 
+    // Show loading skeleton
+    this.isLoading = true;
+    this.render();
+
     await this.loadActivities();
+
+    // Show actual content
+    this.isLoading = false;
     this.render();
     this.attachEventListeners();
   }
@@ -42,6 +51,12 @@ export class Activities {
 
   render() {
     const container = document.getElementById('app');
+
+    // Show loading skeleton while data is being fetched
+    if (this.isLoading) {
+      container.innerHTML = skeletonActivityList();
+      return;
+    }
 
     const upcomingActivities = this.activities.filter(a => new Date(a.activity_date) >= new Date());
     const pastActivities = this.activities.filter(a => new Date(a.activity_date) < new Date());
@@ -175,7 +190,13 @@ export class Activities {
       btn.addEventListener('click', async (e) => {
         const activityId = parseInt(e.target.dataset.activityId);
         if (confirm(translate('confirm_delete_activity'))) {
-          await this.deleteActivity(activityId);
+          const button = e.target;
+          setButtonLoading(button, true);
+          try {
+            await this.deleteActivity(activityId);
+          } finally {
+            setButtonLoading(button, false);
+          }
         }
       });
     });
@@ -322,6 +343,7 @@ export class Activities {
     // Form submission
     document.getElementById('activity-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const submitButton = e.target.querySelector('button[type="submit"]');
       const formData = new FormData(e.target);
       const data = Object.fromEntries(formData.entries());
 
@@ -330,6 +352,8 @@ export class Activities {
       if (!data.meeting_location_return) data.meeting_location_return = null;
       if (!data.meeting_time_return) data.meeting_time_return = null;
       if (!data.departure_time_return) data.departure_time_return = null;
+
+      setButtonLoading(submitButton, true);
 
       try {
         if (isEdit) {
@@ -350,6 +374,8 @@ export class Activities {
       } catch (error) {
         console.error('Error saving activity:', error);
         this.app.showMessage(error.message || translate('error_saving_activity'), 'error');
+      } finally {
+        setButtonLoading(submitButton, false);
       }
     });
   }
