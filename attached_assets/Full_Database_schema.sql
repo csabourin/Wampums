@@ -858,20 +858,12 @@ CREATE TABLE public.two_factor_codes (
 CREATE TABLE public.user_organizations (
   id integer NOT NULL DEFAULT nextval('user_organizations_id_seq'::regclass),
   organization_id integer NOT NULL,
-  role character varying NOT NULL,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   user_id uuid,
   role_ids jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT user_organizations_pkey PRIMARY KEY (id),
   CONSTRAINT user_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT user_organizations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
-);
-CREATE TABLE public.user_organizations_backup (
-  id integer,
-  organization_id integer,
-  role character varying,
-  created_at timestamp without time zone,
-  user_id uuid
 );
 CREATE TABLE public.user_participants (
   participant_id integer NOT NULL,
@@ -886,7 +878,6 @@ CREATE TABLE public.users (
   is_verified boolean DEFAULT false,
   verification_token character varying UNIQUE,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-  role text,
   full_name character varying,
   reset_token character varying,
   reset_token_expiry timestamp with time zone,
