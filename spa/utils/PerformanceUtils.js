@@ -175,3 +175,161 @@ export class RequestCancellationManager {
     this.controllers.clear();
   }
 }
+
+/**
+ * Performance Monitoring Utilities
+ */
+
+// Global cache hit tracking
+let cacheHits = 0;
+let cacheMisses = 0;
+
+/**
+ * Record a cache hit
+ */
+export function recordCacheHit() {
+  cacheHits++;
+}
+
+/**
+ * Record a cache miss
+ */
+export function recordCacheMiss() {
+  cacheMisses++;
+}
+
+/**
+ * Get cache hit rate percentage
+ * @returns {string} Cache hit rate as percentage
+ */
+export function getCacheHitRate() {
+  const total = cacheHits + cacheMisses;
+  return total > 0 ? (cacheHits / total * 100).toFixed(2) : '0.00';
+}
+
+/**
+ * Get cache statistics
+ * @returns {Object} Cache statistics
+ */
+export function getCacheStats() {
+  return {
+    hits: cacheHits,
+    misses: cacheMisses,
+    total: cacheHits + cacheMisses,
+    hitRate: getCacheHitRate()
+  };
+}
+
+/**
+ * Reset cache statistics
+ */
+export function resetCacheStats() {
+  cacheHits = 0;
+  cacheMisses = 0;
+}
+
+/**
+ * Performance Monitor for tracking API calls, page loads, and other metrics
+ */
+export class PerformanceMonitor {
+  /**
+   * Log API call performance
+   * @param {string} endpoint - API endpoint
+   * @param {number} duration - Duration in milliseconds
+   * @param {boolean} cacheHit - Whether the result came from cache
+   */
+  static logAPICall(endpoint, duration, cacheHit) {
+    const source = cacheHit ? 'CACHE HIT' : 'NETWORK';
+    console.log(`[API] ${endpoint} - ${duration}ms - ${source}`);
+
+    // Track cache statistics
+    if (cacheHit) {
+      recordCacheHit();
+    } else {
+      recordCacheMiss();
+    }
+  }
+
+  /**
+   * Log page load performance
+   * @param {string} page - Page name or route
+   * @param {number} duration - Duration in milliseconds
+   */
+  static logPageLoad(page, duration) {
+    console.log(`[PAGE] ${page} - ${duration}ms`);
+  }
+
+  /**
+   * Measure execution time of an async function
+   * @param {string} label - Label for the operation
+   * @param {Function} asyncFn - Async function to measure
+   * @returns {Promise} Result of the async function
+   */
+  static async measure(label, asyncFn) {
+    const startTime = performance.now();
+    try {
+      const result = await asyncFn();
+      const duration = performance.now() - startTime;
+      console.log(`[PERF] ${label} - ${duration.toFixed(2)}ms`);
+      return result;
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.log(`[PERF] ${label} - ${duration.toFixed(2)}ms (FAILED)`);
+      throw error;
+    }
+  }
+
+  /**
+   * Start a performance measurement
+   * @param {string} label - Label for the measurement
+   * @returns {Object} Timer object with end() method
+   */
+  static start(label) {
+    const startTime = performance.now();
+    return {
+      end: () => {
+        const duration = performance.now() - startTime;
+        console.log(`[PERF] ${label} - ${duration.toFixed(2)}ms`);
+        return duration;
+      }
+    };
+  }
+
+  /**
+   * Log cache statistics
+   */
+  static logCacheStats() {
+    const stats = getCacheStats();
+    console.log(`[CACHE] Hits: ${stats.hits}, Misses: ${stats.misses}, Hit Rate: ${stats.hitRate}%`);
+  }
+
+  /**
+   * Create a performance mark (uses browser Performance API)
+   * @param {string} name - Mark name
+   */
+  static mark(name) {
+    if (performance.mark) {
+      performance.mark(name);
+    }
+  }
+
+  /**
+   * Measure between two performance marks
+   * @param {string} name - Measure name
+   * @param {string} startMark - Start mark name
+   * @param {string} endMark - End mark name
+   * @returns {number} Duration in milliseconds
+   */
+  static measureBetween(name, startMark, endMark) {
+    if (performance.measure) {
+      performance.measure(name, startMark, endMark);
+      const measures = performance.getEntriesByName(name);
+      if (measures.length > 0) {
+        const duration = measures[0].duration;
+        console.log(`[PERF] ${name} - ${duration.toFixed(2)}ms`);
+        return duration;
+      }
+    }
+    return 0;
+  }
+}

@@ -516,13 +516,16 @@ export class Reports {
 				throw new Error("Form type is required");
 			}
 
-			const response = await getFormSubmissions(null, formType); // Fetch submissions for all participants for the selected form type
+			// Parallelize independent API calls for better performance
+			const [response, formStructure] = await Promise.all([
+				getFormSubmissions(null, formType), // Fetch submissions for all participants for the selected form type
+				getFormStructure() // Get all form structures
+			]);
 
 			if (!response || !response.data) {
 				throw new Error("No form submissions found");
 			}
 
-			const formStructure = await getFormStructure(); // Get all form structures
 			if (!formStructure || !formStructure.data) {
 				throw new Error("No form structure found");
 			}
