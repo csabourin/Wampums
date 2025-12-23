@@ -168,7 +168,7 @@ export class UpcomingMeeting {
 
                                 const content = `
                                                 <div class="upcoming-meeting">
-                                                                <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+                                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                                                                 <h1>${translate("upcoming_meeting")}</h1>
                                                                 <div class="meeting-details">
                                                                                 <p>${meetingDate}</p>

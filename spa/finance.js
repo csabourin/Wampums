@@ -240,7 +240,7 @@ export class Finance {
     const content = `
       <section class="finance-page">
         <header class="finance-header">
-          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div>
             <p class="finance-kicker">${translate("dashboard_day_to_day_section")}</p>
             <h1>${translate("finance_center_title")}</h1>
@@ -263,7 +263,7 @@ export class Finance {
     const content = `
       <section class="finance-page">
         <header class="finance-header">
-          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div>
             <p class="finance-kicker">${translate("dashboard_day_to_day_section")}</p>
             <h1>${translate("finance_center_title")}</h1>

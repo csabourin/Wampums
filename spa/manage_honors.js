@@ -99,7 +99,7 @@ export class ManageHonors {
     ).join('');
 
     const content = `
-        <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
         <h1>${translate("manage_honors")}</h1>
         <div class="date-navigation">
             <label for="date-select">${translate("select_date")}:</label>

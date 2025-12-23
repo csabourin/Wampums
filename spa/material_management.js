@@ -112,7 +112,7 @@ export class MaterialManagement {
     const dateTo = document.getElementById('reservationDateTo')?.value || getTodayISO();
 
     container.innerHTML = `
-      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page material-management-page">
         <div class="card">
           <h1>${escapeHTML(translate("material_management_title"))}</h1>

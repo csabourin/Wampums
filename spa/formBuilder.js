@@ -75,7 +75,7 @@ export class FormBuilder {
         const container = document.getElementById("app");
         container.innerHTML = `
             <div class="form-builder">
-                <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                 <h1>${translate("form_builder_title")}</h1>
                 
                 <div class="form-builder-toolbar">

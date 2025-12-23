@@ -87,7 +87,7 @@ export class ParentContactList {
 
   render() {
     const content = `
-            <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+            <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
             <h1>${translate("parent_contact_list")}</h1>
             <div class="search-container">
                 <input

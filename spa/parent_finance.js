@@ -248,7 +248,7 @@ export class ParentFinance {
     const content = `
       <section class="parent-finance-page">
         <header class="finance-header">
-          <a href="/parent-dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <a href="/parent-dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div>
             <h1>${translate("my_finances")}</h1>
             <p class="finance-subtitle">${translate("view_your_financial_summary")}</p>

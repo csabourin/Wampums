@@ -74,8 +74,8 @@ export class Calendars {
 		const content = `
 			<div class="calendars-header">
 				<div class="header-nav">
-					<a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}" title="${translate("back_to_dashboard")}">🏠</a>
-					<a href="/fundraisers" class="back-button" aria-label="${translate("back_to_fundraisers")}">${translate("back_to_fundraisers")}</a>
+					<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+					<a href="/fundraisers" class="button button--ghost">← ${translate("back_to_fundraisers")}</a>
 				</div>
 				<div class="fundraiser-header-info">
 					<h1>${this.fundraiser.name}</h1>
