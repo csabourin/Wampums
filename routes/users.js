@@ -56,7 +56,6 @@ module.exports = (pool, logger) => {
          u.email,
          u.full_name,
          u.is_verified,
-         uo.role,
          uo.role_ids,
          COALESCE(
            (SELECT json_agg(json_build_object('id', r.id, 'role_name', r.role_name, 'display_name', r.display_name))
@@ -102,7 +101,6 @@ module.exports = (pool, logger) => {
          u.full_name,
          u.is_verified,
          u.created_at,
-         uo.role,
          uo.role_ids,
          COALESCE(
            (SELECT json_agg(json_build_object('id', r.id, 'role_name', r.role_name, 'display_name', r.display_name))
@@ -140,7 +138,8 @@ module.exports = (pool, logger) => {
       `SELECT u.id, u.full_name
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
-       WHERE uo.organization_id = $1 AND uo.role IN ('admin', 'animation')
+       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
+       WHERE uo.organization_id = $1 AND r.role_name IN ('district', 'unitadmin', 'leader')
        ORDER BY u.full_name`,
       [organizationId]
     );
@@ -171,7 +170,8 @@ module.exports = (pool, logger) => {
       `SELECT u.id, u.email, u.full_name
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
-       WHERE uo.organization_id = $1 AND uo.role = 'parent'
+       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
+       WHERE uo.organization_id = $1 AND r.role_name IN ('parent', 'demoparent')
        ORDER BY u.full_name`,
       [organizationId]
     );
@@ -250,7 +250,7 @@ module.exports = (pool, logger) => {
 
     // Verify target user exists and belongs to this organization
     const userCheck = await pool.query(
-      `SELECT u.id, u.email, uo.role FROM users u
+      `SELECT u.id, u.email FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
        WHERE u.id = $1 AND uo.organization_id = $2`,
       [user_id, organizationId]

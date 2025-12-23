@@ -362,10 +362,11 @@ async function sendAdminVerificationEmail(
 
     // Fetch admin emails for the organization
     const adminResult = await pool.query(
-      `SELECT u.email
+      `SELECT DISTINCT u.email
        FROM users u
        JOIN user_organizations uo ON u.id = uo.user_id
-       WHERE uo.organization_id = $1 AND uo.role = 'admin'`,
+       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
+       WHERE uo.organization_id = $1 AND r.role_name IN ('district', 'unitadmin')`,
       [organizationId],
     );
 
@@ -552,9 +553,10 @@ async function hasPermission(
 ) {
   try {
     const result = await pool.query(
-      `SELECT role
-       FROM user_organizations
-       WHERE user_id = $1 AND organization_id = $2`,
+      `SELECT r.role_name
+       FROM user_organizations uo
+       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
+       WHERE uo.user_id = $1 AND uo.organization_id = $2`,
       [userId, organizationId],
     );
 
@@ -562,7 +564,9 @@ async function hasPermission(
       return false;
     }
 
-    return allowedRoles.includes(result.rows[0].role);
+    // Check if user has any of the allowed roles
+    const userRoles = result.rows.map(row => row.role_name);
+    return userRoles.some(role => allowedRoles.includes(role));
   } catch (error) {
     logger.error("Error checking permission:", error);
     return false;
