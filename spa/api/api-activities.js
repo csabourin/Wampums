@@ -1,6 +1,7 @@
 // api-activities.js
 // API client for activities and event calendar management
 import { API } from './api-core.js';
+import { clearActivityRelatedCaches } from '../indexedDB.js';
 
 /**
  * Get all activities for the organization
@@ -28,6 +29,8 @@ export async function getActivity(activityId) {
  */
 export async function createActivity(activityData) {
   const response = await API.post('v1/activities', activityData);
+  // Invalidate activity caches to ensure fresh data
+  await clearActivityRelatedCaches();
   return response.data;
 }
 
@@ -39,6 +42,8 @@ export async function createActivity(activityData) {
  */
 export async function updateActivity(activityId, activityData) {
   const response = await API.put(`v1/activities/${activityId}`, activityData);
+  // Invalidate activity caches to ensure fresh data
+  await clearActivityRelatedCaches();
   return response.data;
 }
 
@@ -49,6 +54,8 @@ export async function updateActivity(activityId, activityData) {
  */
 export async function deleteActivity(activityId) {
   await API.delete(`v1/activities/${activityId}`);
+  // Invalidate activity caches to ensure fresh data
+  await clearActivityRelatedCaches();
 }
 
 /**
