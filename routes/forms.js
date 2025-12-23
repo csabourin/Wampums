@@ -209,7 +209,7 @@ module.exports = (pool, logger) => {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
-      const { participant_id, form_type, submission_data } = req.body;
+      const { participant_id, form_type, submission_data, status } = req.body;
 
       if (!participant_id || !form_type || !submission_data) {
         return res.status(400).json({ success: false, message: 'Participant ID, form_type, and submission_data are required' });
@@ -219,6 +219,21 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
+        // Get the current active version for this form type
+        const versionResult = await client.query(
+          `SELECT ffv.id as version_id
+           FROM organization_form_formats off
+           JOIN form_format_versions ffv ON off.current_version_id = ffv.id
+           WHERE off.organization_id = $1 AND off.form_type = $2 AND ffv.is_active = true`,
+          [organizationId, form_type]
+        );
+
+        const formVersionId = versionResult.rows.length > 0 ? versionResult.rows[0].version_id : null;
+
+        // Get client IP and user agent for audit trail
+        const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress;
+        const userAgent = req.headers['user-agent'];
+
         // Check if a submission already exists
         const existingResult = await client.query(
           `SELECT id FROM form_submissions
@@ -227,33 +242,54 @@ module.exports = (pool, logger) => {
         );
 
         let result;
+        const submissionStatus = status || 'submitted';
+        const submittedAt = submissionStatus === 'submitted' ? 'NOW()' : 'submitted_at';
+
         if (existingResult.rows.length > 0) {
           // Update existing submission
           result = await client.query(
             `UPDATE form_submissions
-             SET submission_data = $1, updated_at = NOW(), user_id = $2
-             WHERE participant_id = $3 AND organization_id = $4 AND form_type = $5
+             SET submission_data = $1,
+                 updated_at = NOW(),
+                 user_id = $2,
+                 form_version_id = COALESCE($3, form_version_id),
+                 status = $4,
+                 submitted_at = CASE WHEN $4 = 'submitted' AND submitted_at IS NULL THEN NOW() ELSE submitted_at END,
+                 ip_address = $5,
+                 user_agent = $6
+             WHERE participant_id = $7 AND organization_id = $8 AND form_type = $9
              RETURNING *`,
-            [JSON.stringify(submission_data), decoded.user_id, participant_id, organizationId, form_type]
+            [JSON.stringify(submission_data), decoded.user_id, formVersionId, submissionStatus,
+             ipAddress, userAgent, participant_id, organizationId, form_type]
           );
         } else {
           // Insert new submission
           result = await client.query(
             `INSERT INTO form_submissions
-             (participant_id, organization_id, form_type, submission_data, user_id)
-             VALUES ($1, $2, $3, $4, $5)
+             (participant_id, organization_id, form_type, submission_data, user_id,
+              form_version_id, status, submitted_at, ip_address, user_agent)
+             VALUES ($1, $2, $3, $4, $5, $6, $7,
+                     CASE WHEN $7 = 'submitted' THEN NOW() ELSE NULL END, $8, $9)
              RETURNING *`,
-            [participant_id, organizationId, form_type, JSON.stringify(submission_data), decoded.user_id]
+            [participant_id, organizationId, form_type, JSON.stringify(submission_data),
+             decoded.user_id, formVersionId, submissionStatus, ipAddress, userAgent]
           );
         }
 
         await client.query('COMMIT');
-        console.log(`[form] Form ${form_type} saved for participant ${participant_id}`);
-        res.json({ success: true, data: result.rows[0], message: 'Form saved successfully' });
+        logger.info(`Form ${form_type} saved for participant ${participant_id} (status: ${submissionStatus})`);
+
+        // Include cache invalidation hint in response
+        res.json({
+          success: true,
+          data: result.rows[0],
+          message: 'Form saved successfully',
+          cache: { invalidate: ['forms', 'form-submissions', form_type] }
+        });
       } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
         await client.query('ROLLBACK');
         throw error;
       } finally {
@@ -935,6 +971,253 @@ module.exports = (pool, logger) => {
       res.status(500).json({ success: false, message: 'Error saving health form: ' + error.message });
     } finally {
       client.release();
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-submission-history/{submissionId}:
+   *   get:
+   *     summary: Get audit trail for a form submission
+   *     description: Retrieve the complete history of changes for a form submission
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: submissionId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Submission history retrieved
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Access denied
+   */
+  router.get('/form-submission-history/:submissionId', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const submissionId = parseInt(req.params.submissionId, 10);
+
+      // Verify user belongs to this organization
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Verify the submission belongs to this organization
+      const submissionCheck = await pool.query(
+        'SELECT organization_id FROM form_submissions WHERE id = $1',
+        [submissionId]
+      );
+
+      if (submissionCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Submission not found' });
+      }
+
+      if (submissionCheck.rows[0].organization_id !== organizationId) {
+        return res.status(403).json({ success: false, message: 'Access denied to this submission' });
+      }
+
+      // Get the history
+      const result = await pool.query(
+        `SELECT
+           fsh.id,
+           fsh.submission_data,
+           fsh.status,
+           fsh.edited_at,
+           fsh.change_reason,
+           fsh.changes_summary,
+           u.full_name as edited_by_name,
+           u.email as edited_by_email
+         FROM form_submission_history fsh
+         LEFT JOIN users u ON fsh.edited_by = u.id
+         WHERE fsh.form_submission_id = $1
+         ORDER BY fsh.edited_at DESC`,
+        [submissionId]
+      );
+
+      res.json({ success: true, data: result.rows });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error fetching submission history:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-submission-status:
+   *   put:
+   *     summary: Update form submission status
+   *     description: Approve, reject, or change status of a form submission
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - submission_id
+   *               - status
+   *             properties:
+   *               submission_id:
+   *                 type: integer
+   *               status:
+   *                 type: string
+   *                 enum: [draft, submitted, reviewed, approved, rejected]
+   *               review_notes:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Status updated successfully
+   *       401:
+   *         description: Unauthorized
+   */
+  router.put('/form-submission-status', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      // Verify user belongs to this organization
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      const { submission_id, status, review_notes } = req.body;
+
+      if (!submission_id || !status) {
+        return res.status(400).json({ success: false, message: 'submission_id and status are required' });
+      }
+
+      // Validate status
+      const validStatuses = ['draft', 'submitted', 'reviewed', 'approved', 'rejected'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Invalid status value' });
+      }
+
+      const result = await pool.query(
+        `UPDATE form_submissions
+         SET status = $1,
+             reviewed_by = $2,
+             reviewed_at = NOW(),
+             review_notes = COALESCE($3, review_notes),
+             updated_at = NOW()
+         WHERE id = $4 AND organization_id = $5
+         RETURNING *`,
+        [status, decoded.user_id, review_notes, submission_id, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Submission not found' });
+      }
+
+      logger.info(`Form submission ${submission_id} status changed to ${status} by ${decoded.user_id}`);
+
+      res.json({
+        success: true,
+        data: result.rows[0],
+        message: 'Status updated successfully',
+        cache: { invalidate: ['form-submissions'] }
+      });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error updating submission status:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-versions/{formType}:
+   *   get:
+   *     summary: Get all versions of a form
+   *     description: Retrieve version history for a specific form type
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: formType
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Form versions retrieved
+   *       401:
+   *         description: Unauthorized
+   */
+  router.get('/form-versions/:formType', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const formType = req.params.formType;
+
+      // Verify user belongs to this organization
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      const result = await pool.query(
+        `SELECT
+           ffv.id,
+           ffv.version_number,
+           ffv.form_structure,
+           ffv.display_name,
+           ffv.change_description,
+           ffv.is_active,
+           ffv.created_at,
+           u.full_name as created_by_name,
+           u.email as created_by_email,
+           (SELECT COUNT(*) FROM form_submissions fs
+            WHERE fs.form_version_id = ffv.id) as submission_count
+         FROM form_format_versions ffv
+         JOIN organization_form_formats off ON ffv.form_format_id = off.id
+         LEFT JOIN users u ON ffv.created_by = u.id
+         WHERE off.organization_id = $1 AND off.form_type = $2
+         ORDER BY ffv.version_number DESC`,
+        [organizationId, formType]
+      );
+
+      res.json({ success: true, data: result.rows });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error fetching form versions:', error);
+      res.status(500).json({ success: false, message: error.message });
     }
   });
 

@@ -582,5 +582,272 @@ module.exports = (pool, logger) => {
     }
   });
 
+  /**
+   * @swagger
+   * /api/form-formats/{id}/versions:
+   *   post:
+   *     summary: Create new version of a form format
+   *     description: Create a new version while preserving the old one (admin only)
+   *     tags: [Form Builder]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - form_structure
+   *             properties:
+   *               form_structure:
+   *                 type: object
+   *               display_name:
+   *                 type: string
+   *               change_description:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: New version created successfully
+   *       404:
+   *         description: Form format not found
+   */
+  router.post('/form-formats/:id/versions', authenticate, authorize('admin'), async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const organizationId = req.user.organizationId;
+      const userId = req.user.id;
+      const formFormatId = parseInt(req.params.id, 10);
+      const { form_structure, display_name, change_description } = req.body;
+
+      // Validate form_structure
+      if (!form_structure || !form_structure.fields || !Array.isArray(form_structure.fields)) {
+        return errorResponse(res, 'form_structure with fields array is required', 400);
+      }
+
+      await client.query('BEGIN');
+
+      // Verify form exists and belongs to organization
+      const formCheck = await client.query(
+        'SELECT id, form_type FROM organization_form_formats WHERE id = $1 AND organization_id = $2',
+        [formFormatId, organizationId]
+      );
+
+      if (formCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'Form format not found', 404);
+      }
+
+      const formType = formCheck.rows[0].form_type;
+
+      // Create new version using the helper function
+      const versionResult = await client.query(
+        'SELECT create_new_form_version($1, $2, $3, $4, $5) as version_id',
+        [formFormatId, JSON.stringify(form_structure), display_name, change_description, userId]
+      );
+
+      const newVersionId = versionResult.rows[0].version_id;
+
+      // Get the created version details
+      const versionDetails = await client.query(
+        `SELECT ffv.*, u.full_name as created_by_name
+         FROM form_format_versions ffv
+         LEFT JOIN users u ON ffv.created_by = u.id
+         WHERE ffv.id = $1`,
+        [newVersionId]
+      );
+
+      await client.query('COMMIT');
+
+      logger.info(`New version created for form ${formType} (ID: ${formFormatId}) by user ${userId}`);
+
+      return success(res, versionDetails.rows[0], 'New version created successfully', 201);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Error creating form version:', error);
+      return errorResponse(res, 'Failed to create form version', 500);
+    } finally {
+      client.release();
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-versions/{versionId}/publish:
+   *   post:
+   *     summary: Publish a form version
+   *     description: Make a specific version the active version (admin only)
+   *     tags: [Form Builder]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: versionId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Version published successfully
+   *       404:
+   *         description: Version not found
+   */
+  router.post('/form-versions/:versionId/publish', authenticate, authorize('admin'), async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const organizationId = req.user.organizationId;
+      const versionId = parseInt(req.params.versionId, 10);
+
+      await client.query('BEGIN');
+
+      // Verify version exists and belongs to user's organization
+      const versionCheck = await client.query(
+        `SELECT ffv.id, ffv.form_format_id, off.form_type
+         FROM form_format_versions ffv
+         JOIN organization_form_formats off ON ffv.form_format_id = off.id
+         WHERE ffv.id = $1 AND off.organization_id = $2`,
+        [versionId, organizationId]
+      );
+
+      if (versionCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return errorResponse(res, 'Version not found', 404);
+      }
+
+      const formType = versionCheck.rows[0].form_type;
+
+      // Publish the version using helper function
+      await client.query('SELECT publish_form_version($1)', [versionId]);
+
+      await client.query('COMMIT');
+
+      logger.info(`Form version ${versionId} published for form type ${formType}`);
+
+      return success(res, { version_id: versionId, form_type: formType }, 'Version published successfully');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      logger.error('Error publishing form version:', error);
+      return errorResponse(res, 'Failed to publish form version', 500);
+    } finally {
+      client.release();
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-formats/{id}/archive:
+   *   post:
+   *     summary: Archive a form format
+   *     description: Mark a form as archived (admin only)
+   *     tags: [Form Builder]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Form archived successfully
+   *       404:
+   *         description: Form format not found
+   */
+  router.post('/form-formats/:id/archive', authenticate, authorize('admin'), async (req, res) => {
+    try {
+      const organizationId = req.user.organizationId;
+      const formFormatId = parseInt(req.params.id, 10);
+
+      const result = await pool.query(
+        `UPDATE organization_form_formats
+         SET status = 'archived',
+             archived_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1 AND organization_id = $2
+         RETURNING id, form_type, status, archived_at`,
+        [formFormatId, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return errorResponse(res, 'Form format not found', 404);
+      }
+
+      logger.info(`Form format ${formFormatId} archived`);
+      return success(res, result.rows[0], 'Form archived successfully');
+    } catch (error) {
+      logger.error('Error archiving form format:', error);
+      return errorResponse(res, 'Failed to archive form format', 500);
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-formats/{id}/versions:
+   *   get:
+   *     summary: Get all versions of a form format
+   *     description: Retrieve all versions for a specific form (admin only)
+   *     tags: [Form Builder]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Versions retrieved successfully
+   *       404:
+   *         description: Form format not found
+   */
+  router.get('/form-formats/:id/versions', authenticate, authorize('admin'), async (req, res) => {
+    try {
+      const organizationId = req.user.organizationId;
+      const formFormatId = parseInt(req.params.id, 10);
+
+      // Verify form exists and belongs to organization
+      const formCheck = await pool.query(
+        'SELECT id FROM organization_form_formats WHERE id = $1 AND organization_id = $2',
+        [formFormatId, organizationId]
+      );
+
+      if (formCheck.rows.length === 0) {
+        return errorResponse(res, 'Form format not found', 404);
+      }
+
+      const result = await pool.query(
+        `SELECT
+           ffv.id,
+           ffv.version_number,
+           ffv.display_name,
+           ffv.change_description,
+           ffv.is_active,
+           ffv.created_at,
+           u.full_name as created_by_name,
+           u.email as created_by_email,
+           (SELECT COUNT(*) FROM form_submissions fs
+            WHERE fs.form_version_id = ffv.id) as submission_count
+         FROM form_format_versions ffv
+         LEFT JOIN users u ON ffv.created_by = u.id
+         WHERE ffv.form_format_id = $1
+         ORDER BY ffv.version_number DESC`,
+        [formFormatId]
+      );
+
+      return success(res, result.rows);
+    } catch (error) {
+      logger.error('Error fetching form versions:', error);
+      return errorResponse(res, 'Failed to fetch form versions', 500);
+    }
+  });
+
   return router;
 };

@@ -588,6 +588,103 @@ export async function clearCarpoolRelatedCaches(activityId = null) {
   }
 }
 
+/**
+ * Clear form-related caches
+ * Call this after creating, updating, or deleting form formats or submissions
+ * @param {string} formType - Optional form type to clear specific form caches
+ * @param {number} organizationId - Optional organization ID to clear org-specific caches
+ */
+export async function clearFormRelatedCaches(formType = null, organizationId = null) {
+  const keysToDelete = [
+    "v1/form-types",
+    "v1/organization-form-formats",
+    "v1/form-formats",
+  ];
+
+  // If formType is provided, clear form-specific caches
+  if (formType) {
+    keysToDelete.push(`v1/form-structure?form_type=${formType}`);
+    keysToDelete.push(`v1/form-submissions?form_type=${formType}`);
+    keysToDelete.push(`v1/form-submissions-list?form_type=${formType}`);
+  } else {
+    // Clear all form caches
+    const db = await openDB();
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const allKeys = await new Promise((resolve, reject) => {
+      const request = store.getAllKeys();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    // Find and clear all form-specific caches
+    allKeys.forEach((key) => {
+      if (
+        typeof key === "string" &&
+        (key.startsWith("v1/form-") ||
+          key.includes("form_type=") ||
+          key.includes("organization-form-formats"))
+      ) {
+        keysToDelete.push(key);
+      }
+    });
+  }
+
+  debugLog("Clearing form-related caches:", keysToDelete);
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
+/**
+ * Clear participant-related form caches
+ * Call this after updating a specific participant's form submission
+ * @param {number} participantId - Participant ID
+ * @param {string} formType - Optional form type
+ */
+export async function clearParticipantFormCaches(participantId, formType = null) {
+  const keysToDelete = [];
+
+  if (formType) {
+    keysToDelete.push(`v1/form-submission?participant_id=${participantId}&form_type=${formType}`);
+  }
+
+  // Clear all form submissions for this participant
+  const db = await openDB();
+  const transaction = db.transaction(STORE_NAME, "readonly");
+  const store = transaction.objectStore(STORE_NAME);
+  const allKeys = await new Promise((resolve, reject) => {
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  // Find and clear participant-specific form caches
+  allKeys.forEach((key) => {
+    if (
+      typeof key === "string" &&
+      key.includes(`participant_id=${participantId}`)
+    ) {
+      keysToDelete.push(key);
+    }
+  });
+
+  debugLog("Clearing participant form caches:", keysToDelete);
+
+  for (const key of keysToDelete) {
+    try {
+      await deleteCachedData(key);
+    } catch (error) {
+      debugWarn(`Failed to delete cache for ${key}:`, error);
+    }
+  }
+}
+
 // Function to sync offline data with retry mechanism
 export async function syncOfflineData() {
   if (!navigator.onLine) {
