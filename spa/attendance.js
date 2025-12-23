@@ -14,6 +14,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { canViewAttendance } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
+import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
 
 
 export class Attendance {
@@ -31,6 +32,8 @@ export class Attendance {
     this.freshContent=``;
     this.isInitialized = false;
       this.isLoading = true;
+    // Optimistic update manager for instant attendance updates
+    this.optimisticManager = new OptimisticUpdateManager();
   }
 
   async init() {
@@ -538,19 +541,23 @@ debugLog(groupHeader, participantRow);
 
   async updateIndividualStatus(participantId, newStatus) {
     const previousStatus = this.attendanceData[participantId] || 'present'; // Default to present if no status
-    const row = document.querySelector(`.participant-row[data-participant-id="${participantId}"]`);
-    const statusSpan = row.querySelector(".participant-status");
 
-    // Optimistically update UI immediately
-    this.attendanceData[participantId] = newStatus;
-    this.updateAttendanceDisplay(participantId, newStatus, previousStatus);
+    await this.optimisticManager.execute(`attendance-${participantId}-${this.currentDate}`, {
+      optimisticFn: () => {
+        // Update data and UI immediately
+        this.attendanceData[participantId] = newStatus;
+        this.updateAttendanceDisplay(participantId, newStatus, previousStatus);
 
-    try {
-      // Call the server to update attendance - pass single ID, not array
-      const result = await updateAttendance(participantId, newStatus, this.currentDate, previousStatus);
+        return { previousStatus };
+      },
 
-      if (result.success) {
-        // Success: Keep the optimistic update
+      apiFn: async () => {
+        // Make actual API call in background
+        return await updateAttendance(participantId, newStatus, this.currentDate, previousStatus);
+      },
+
+      successFn: async (result) => {
+        // Success: Update cache with new data
         this.app.showMessage(translate("attendance_updated"), "success");
         // Clear API-level cache to ensure fresh data on next fetch
         await deleteCachedData(`attendance_api_${this.currentDate}`);
@@ -560,20 +567,17 @@ debugLog(groupHeader, participantRow);
           attendanceData: this.attendanceData,
           guests: this.guests,
           groups: this.groups
-        },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
-      } else {
-        // Failure: Rollback the UI change
+        }, CONFIG.CACHE_DURATION.SHORT);
+      },
+
+      rollbackFn: ({ previousStatus }, error) => {
+        // Rollback to original state on error
         this.attendanceData[participantId] = previousStatus;
         this.updateAttendanceDisplay(participantId, previousStatus, newStatus);
-        this.app.showMessage(result.message || translate("error_updating_attendance"), "error");
+        debugError("Error updating attendance:", error);
+        this.app.showMessage(error.message || translate("error_updating_attendance"), "error");
       }
-    } catch (error) {
-      // Error: Rollback the UI change
-      debugError("Error updating attendance:", error);
-      this.attendanceData[participantId] = previousStatus;
-      this.updateAttendanceDisplay(participantId, previousStatus, newStatus);
-      this.app.showMessage(translate("error_updating_attendance"), "error");
-    }
+    });
   }
 
 
