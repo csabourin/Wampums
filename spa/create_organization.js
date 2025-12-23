@@ -1,7 +1,7 @@
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
 import { translate } from "./app.js";
 import {
-        fetchFromApi,
+        createOrganization,
         getCurrentOrganizationId,
         getOrganizationFormFormats,
 } from "./ajax-functions.js";
@@ -19,18 +19,8 @@ export class CreateOrganization {
                                                 return;
                                 }
 
-                                this.organizationId =
-                                        getCurrentOrganizationId() ||
-                                        this.app.organizationId ||
-                                        null;
-
-                                if (!this.organizationId) {
-                                                this.app.showMessage(
-                                                                translate("error_loading_data"),
-                                                                "error",
-                                                );
-                                                return;
-                                }
+                                // Use organization_id=0 to get template form formats
+                                this.templateOrganizationId = 0;
 
                                 await this.render();
                                 await this.initializeForm();
@@ -39,18 +29,19 @@ export class CreateOrganization {
 
 		async render() {
 				const content = `
-						<h1>${translate("create_new_organization")}</h1>
+						<h1>${translate("create_new_unit")}</h1>
 						<div id="organization-form-container"></div>
-						<button id="submit-organization">${translate("create_organization")}</button>
+						<button id="submit-organization">${translate("create_unit")}</button>
 						<p><a href="/admin">${translate("back_to_admin")}</a></p>
 				`;
 				document.getElementById("app").innerHTML = content;
 		}
 
         async initializeForm() {
+                        // Load form formats from template organization (id=0)
                         const formFormats =
                                 await getOrganizationFormFormats(
-                                        this.organizationId,
+                                        this.templateOrganizationId,
                                 );
 
                         if (!formFormats || !formFormats.organization_info) {
@@ -72,7 +63,7 @@ export class CreateOrganization {
                                 false,
                                 null,
                                 null,
-                                this.organizationId,
+                                this.templateOrganizationId,
                         );
                 }
 
@@ -83,12 +74,12 @@ export class CreateOrganization {
 		async handleSubmit() {
 				const formData = this.formHandler.getFormData();
 				try {
-						const response = await fetchFromApi('create_organization', 'POST', formData);
+						const response = await createOrganization(formData);
 						if (response.success) {
-								this.app.showMessage(translate("organization_created_successfully"), "success");
+								this.app.showMessage(translate("unit_created_successfully"), "success");
 								setTimeout(() => this.app.router.navigate("/admin"), 2000);
 						} else {
-								throw new Error(response.message || translate("error_creating_organization"));
+								throw new Error(response.message || translate("error_creating_unit"));
 						}
 				} catch (error) {
 						this.app.showMessage(error.message, "error");

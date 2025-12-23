@@ -149,7 +149,7 @@ export class Admin {
                         <div id="message"></div>
 
                         <div class="admin-quick-actions" style="margin: 1rem 0; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                ${this.permissions.canCreateOrg ? `<button id="create-organization-btn">${translate("create_new_organization")}</button>` : ""}
+                                ${this.permissions.canCreateOrg ? `<button id="create-organization-btn">${translate("create_new_unit")}</button>` : ""}
                                 <a href="/form-builder" class="button-link" style="display: inline-block; padding: 0.5rem 1rem; background: #007bff; color: white; text-decoration: none; border-radius: 4px;">
                                         ${translate("form_builder_title")}
                                 </a>

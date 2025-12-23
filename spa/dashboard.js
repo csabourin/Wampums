@@ -335,7 +335,7 @@ export class Dashboard {
     }
 
     if (showOrgCreation) {
-      administrationLinks.push(`<a href="/create-organization"><i class="fa-solid fa-building"></i><span>${translate("create_organization") || "Create Organization"}</span></a>`);
+      administrationLinks.push(`<a href="/create-organization"><i class="fa-solid fa-building"></i><span>${translate("create_unit") || "Create Unit"}</span></a>`);
     }
 
     if (showAdminPanel) {
