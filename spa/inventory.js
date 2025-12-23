@@ -193,7 +193,7 @@ export class Inventory {
     }
 
     container.innerHTML = `
-      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page inventory-page">
         <div class="card">
           <h1>${escapeHTML(translate("inventory_title"))}</h1>

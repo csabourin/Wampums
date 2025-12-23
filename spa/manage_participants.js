@@ -111,7 +111,7 @@ export class ManageParticipants {
 
   render() {
     const content = `
-      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <h1>${translate("manage_participants")}</h1>
       <div class="participants-table-container">
         <table class="participants-table">

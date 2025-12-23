@@ -287,7 +287,7 @@ export class Expenses {
     container.innerHTML = `
       <div class="page-container expenses-page">
         <div class="page-header">
-          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("expense_tracking")}</h1>
             <div class="fiscal-year-display">
@@ -310,7 +310,7 @@ export class Expenses {
     container.innerHTML = `
       <div class="page-container expenses-page">
         <div class="page-header">
-          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("expense_tracking")}</h1>
             <div class="fiscal-year-display">

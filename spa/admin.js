@@ -144,7 +144,7 @@ export class Admin {
                 const showNotifications = this.permissions.canSendCommunications;
                 const showUserManagement = this.permissions.canManageUsers || this.permissions.canViewUsers;
                 const content = `
-                        <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+                        <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                         <h1>${this.app.translate("admin_panel")}</h1>
                         <div id="message"></div>
 

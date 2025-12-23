@@ -39,15 +39,10 @@ export class CarpoolLanding {
       <section class="page carpool-page carpool-landing">
         <header class="page__header">
           <div class="page__header-top">
-            <a href="/dashboard" class="icon-button" aria-label="${translate("back_to_home")}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>
-              </svg>
+            <a href="/dashboard" class="button button--ghost">
+              ← ${translate("back")}
             </a>
-            <div class="page__title-block">
-              <p class="page__eyebrow">${translate("carpool_landing_eyebrow")}</p>
-              <h1>${translate("carpool_coordination")}</h1>
-            </div>
+            <h1>${translate("carpool_coordination")}</h1>
           </div>
           <p class="page__subtitle">${translate("carpool_landing_intro")}</p>
         </header>

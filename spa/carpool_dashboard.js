@@ -15,6 +15,7 @@ import {
   getUnassignedParticipants
 } from './api/api-carpools.js';
 import { canManageCarpools, canViewCarpools, isParent } from './utils/PermissionUtils.js';
+import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -27,6 +28,8 @@ export class CarpoolDashboard {
     this.isParentUser = isParent();
     this.isStaff = !this.isParentUser && canManageCarpools();
     this.hasCarpoolAccess = canViewCarpools() || canManageCarpools();
+    // Optimistic update manager for instant UI feedback
+    this.optimisticManager = new OptimisticUpdateManager();
   }
 
   async init() {
@@ -729,17 +732,80 @@ export class CarpoolDashboard {
 
     this.showModal(modalId, modalHTML, async (formData) => {
       const data = Object.fromEntries(formData.entries());
+      const participantId = parseInt(data.participant_id);
+      const offerId = parseInt(data.carpool_offer_id);
+      const tripDirection = data.trip_direction;
 
-      try {
-        await assignParticipantToCarpool(data);
-        this.app.showMessage(translate('participant_assigned_success'), 'success');
-        await this.loadData();
-        this.render();
-        this.attachEventListeners();
-      } catch (error) {
-        console.error('Error assigning participant:', error);
-        throw error;
-      }
+      await this.optimisticManager.execute(`assign-${participantId}-${offerId}`, {
+        optimisticFn: () => {
+          // Save original state for rollback
+          const originalOffers = JSON.parse(JSON.stringify(this.carpoolOffers));
+
+          // Find participant and offer
+          const participant = this.participants.find(p => p.id === participantId);
+          const offer = this.carpoolOffers.find(o => o.id === offerId);
+
+          if (!participant || !offer) {
+            return { originalOffers };
+          }
+
+          // Create optimistic assignment
+          const optimisticAssignment = {
+            assignment_id: generateOptimisticId('assignment'),
+            participant_id: participantId,
+            participant_name: `${participant.first_name} ${participant.last_name}`,
+            carpool_offer_id: offerId,
+            trip_direction: tripDirection,
+            assigned_by: localStorage.getItem('userId'),
+            _optimistic: true
+          };
+
+          // Update carpool offers optimistically
+          this.carpoolOffers = this.carpoolOffers.map(o => {
+            if (o.id === offerId) {
+              const seatsToUseGoing = ['both', 'to_activity'].includes(tripDirection) ? 1 : 0;
+              const seatsToUseReturn = ['both', 'from_activity'].includes(tripDirection) ? 1 : 0;
+
+              return {
+                ...o,
+                assignments: [...(o.assignments || []), optimisticAssignment],
+                seats_used_going: (o.seats_used_going || 0) + seatsToUseGoing,
+                seats_used_return: (o.seats_used_return || 0) + seatsToUseReturn
+              };
+            }
+            return o;
+          });
+
+          // Re-render immediately with optimistic state
+          this.render();
+          this.attachEventListeners();
+
+          return { originalOffers };
+        },
+
+        apiFn: async () => {
+          // Make actual API call in background
+          return await assignParticipantToCarpool(data);
+        },
+
+        successFn: (result) => {
+          // Reload fresh data from server to replace optimistic data
+          this.loadData().then(() => {
+            this.render();
+            this.attachEventListeners();
+          });
+          this.app.showMessage(translate('participant_assigned_success'), 'success');
+        },
+
+        rollbackFn: ({ originalOffers }, error) => {
+          // Rollback to original state on error
+          this.carpoolOffers = originalOffers;
+          this.render();
+          this.attachEventListeners();
+          console.error('Error assigning participant:', error);
+          throw error; // Re-throw to show error message
+        }
+      });
     });
 
     // Pre-select if IDs provided
@@ -790,16 +856,44 @@ export class CarpoolDashboard {
 
     if (!confirmed) return;
 
-    try {
-      await cancelCarpoolOffer(offerId, reason);
-      this.app.showMessage(translate('ride_cancelled_success'), 'success');
-      await this.loadData();
-      this.render();
-      this.attachEventListeners();
-    } catch (error) {
-      console.error('Error cancelling ride:', error);
-      this.app.showMessage(error.message || translate('error_cancelling_ride'), 'error');
-    }
+    await this.optimisticManager.execute(`cancel-offer-${offerId}`, {
+      optimisticFn: () => {
+        // Save original state for rollback
+        const originalOffers = JSON.parse(JSON.stringify(this.carpoolOffers));
+
+        // Remove offer optimistically
+        this.carpoolOffers = this.carpoolOffers.filter(o => o.id !== offerId);
+
+        // Re-render immediately with optimistic state
+        this.render();
+        this.attachEventListeners();
+
+        return { originalOffers };
+      },
+
+      apiFn: async () => {
+        // Make actual API call in background
+        return await cancelCarpoolOffer(offerId, reason);
+      },
+
+      successFn: (result) => {
+        // Reload fresh data from server
+        this.loadData().then(() => {
+          this.render();
+          this.attachEventListeners();
+        });
+        this.app.showMessage(translate('ride_cancelled_success'), 'success');
+      },
+
+      rollbackFn: ({ originalOffers }, error) => {
+        // Rollback to original state on error
+        this.carpoolOffers = originalOffers;
+        this.render();
+        this.attachEventListeners();
+        console.error('Error cancelling ride:', error);
+        this.app.showMessage(error.message || translate('error_cancelling_ride'), 'error');
+      }
+    });
   }
 
   async handleRemoveAssignment(assignmentId) {
@@ -807,16 +901,62 @@ export class CarpoolDashboard {
       return;
     }
 
-    try {
-      await removeAssignment(assignmentId);
-      this.app.showMessage(translate('assignment_removed_success'), 'success');
-      await this.loadData();
-      this.render();
-      this.attachEventListeners();
-    } catch (error) {
-      console.error('Error removing assignment:', error);
-      this.app.showMessage(error.message || translate('error_removing_assignment'), 'error');
-    }
+    await this.optimisticManager.execute(`remove-assignment-${assignmentId}`, {
+      optimisticFn: () => {
+        // Save original state for rollback
+        const originalOffers = JSON.parse(JSON.stringify(this.carpoolOffers));
+
+        // Remove assignment optimistically
+        this.carpoolOffers = this.carpoolOffers.map(offer => {
+          if (offer.assignments && offer.assignments.length > 0) {
+            const updatedAssignments = offer.assignments.filter(a => a.assignment_id !== assignmentId);
+
+            // Find the removed assignment to update seat counts
+            const removedAssignment = offer.assignments.find(a => a.assignment_id === assignmentId);
+            if (removedAssignment) {
+              const seatsToFree = ['both', 'to_activity'].includes(removedAssignment.trip_direction) ? 1 : 0;
+              const seatsToFreeReturn = ['both', 'from_activity'].includes(removedAssignment.trip_direction) ? 1 : 0;
+
+              return {
+                ...offer,
+                assignments: updatedAssignments,
+                seats_used_going: (offer.seats_used_going || 0) - seatsToFree,
+                seats_used_return: (offer.seats_used_return || 0) - seatsToFreeReturn
+              };
+            }
+          }
+          return offer;
+        });
+
+        // Re-render immediately with optimistic state
+        this.render();
+        this.attachEventListeners();
+
+        return { originalOffers };
+      },
+
+      apiFn: async () => {
+        // Make actual API call in background
+        return await removeAssignment(assignmentId);
+      },
+
+      successFn: (result) => {
+        // Reload fresh data from server to ensure consistency
+        this.loadData().then(() => {
+          this.render();
+          this.attachEventListeners();
+        });
+        this.app.showMessage(translate('assignment_removed_success'), 'success');
+      },
+
+      rollbackFn: ({ originalOffers }, error) => {
+        // Rollback to original state on error
+        this.carpoolOffers = originalOffers;
+        this.render();
+        this.attachEventListeners();
+        this.app.showMessage(error.message || translate('error_removing_assignment'), 'error');
+      }
+    });
   }
 
   showModal(modalId, modalHTML, onSubmit) {

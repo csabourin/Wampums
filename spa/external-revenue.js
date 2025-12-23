@@ -237,7 +237,7 @@ export class ExternalRevenue {
     container.innerHTML = `
       <div class="page-container external-revenue-page">
         <div class="page-header">
-          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("external_revenue")}</h1>
             <div class="fiscal-year-display">
@@ -260,7 +260,7 @@ export class ExternalRevenue {
     container.innerHTML = `
       <div class="page-container external-revenue-page">
         <div class="page-header">
-          <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("external_revenue")}</h1>
             <div class="fiscal-year-display">

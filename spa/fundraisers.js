@@ -46,7 +46,7 @@ export class Fundraisers {
 	render() {
 		const content = `
 			<div class="fundraisers-header">
-				<a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}" title="${translate("back_to_dashboard")}">🏠</a>
+				<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
 				<h1>${translate("fundraisers")}</h1>
 			</div>
 

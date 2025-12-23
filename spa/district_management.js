@@ -399,7 +399,7 @@ export class DistrictManagement {
       <section class="district-management" aria-labelledby="district-management-title">
         <header class="dm-header">
           <div>
-            <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+            <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
             <h1 id="district-management-title">${translate("district_management_title")}</h1>
             <p class="dm-subtitle">${translate("district_management_subtitle")}</p>
           </div>

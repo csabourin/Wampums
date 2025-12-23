@@ -13,8 +13,9 @@ import {
   setCachedData,
   clearBadgeRelatedCaches,
 } from "./indexedDB.js";
-import { debugError } from "./utils/DebugUtils.js";
+import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { canApproveBadges, canManageBadges, canViewBadges } from "./utils/PermissionUtils.js";
+import { OptimisticUpdateManager, generateOptimisticId } from "./utils/OptimisticUpdateManager.js";
 
 export class BadgeDashboard {
   constructor(app) {
@@ -31,6 +32,7 @@ export class BadgeDashboard {
     this.sortKey = "group";
     this.sortDirection = "asc";
     this.modalContainerId = "badge-dashboard-modal";
+    this.optimisticManager = new OptimisticUpdateManager();
   }
 
   async init() {
@@ -291,7 +293,7 @@ export class BadgeDashboard {
 
   render() {
     const content = `
-      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="badge-dashboard" aria-labelledby="badge-dashboard-title">
         <header class="badge-dashboard__header">
           <div>
@@ -897,24 +899,76 @@ export class BadgeDashboard {
         const newStatus = form.querySelector("#badge-status").value;
         if (newStatus) payload.status = newStatus;
 
-        try {
-          const result = await updateBadgeProgress(entryId, payload);
-          if (!result?.success)
-            throw new Error(result?.message || "Unknown error");
+        // Use OptimisticUpdateManager for instant feedback
+        await this.optimisticManager.execute(`edit-badge-${entryId}`, {
+          optimisticFn: () => {
+            // Save original state for rollback
+            const rollbackState = {
+              badgeEntries: JSON.parse(JSON.stringify(this.badgeEntries)),
+              records: JSON.parse(JSON.stringify(this.records)),
+            };
 
-          // Clear IndexedDB cache to ensure fresh data on next load
-          await clearBadgeRelatedCaches();
+            // Find and update the entry optimistically
+            const entryIndex = this.badgeEntries.findIndex(
+              (entry) => entry.id === entryId
+            );
+            if (entryIndex >= 0) {
+              this.badgeEntries[entryIndex] = {
+                ...this.badgeEntries[entryIndex],
+                ...payload,
+                _optimistic: true,
+              };
+            }
 
-          this.replaceBadgeEntry(result.data);
-          this.buildRecords();
-          this.updateRows();
-          feedback.textContent = translate("badge_update_success");
-          feedback.className = "feedback-success";
-        } catch (error) {
-          debugError("Error updating badge entry", error);
-          feedback.textContent = translate("badge_update_error");
-          feedback.className = "feedback-error";
-        }
+            // Rebuild and update UI
+            this.buildRecords();
+            this.updateRows();
+
+            // Show optimistic success
+            feedback.textContent = translate("badge_update_success");
+            feedback.className = "feedback-success";
+
+            return rollbackState;
+          },
+
+          apiFn: async () => {
+            const result = await updateBadgeProgress(entryId, payload);
+            if (!result?.success)
+              throw new Error(result?.message || "Unknown error");
+
+            // Clear IndexedDB cache to ensure fresh data on next load
+            await clearBadgeRelatedCaches();
+
+            return result;
+          },
+
+          successFn: (result) => {
+            // Replace optimistic data with real server data
+            this.replaceBadgeEntry(result.data);
+            this.buildRecords();
+            this.updateRows();
+
+            debugLog("Badge entry updated successfully:", result.data);
+          },
+
+          rollbackFn: (rollbackState, error) => {
+            // Revert to original state
+            this.badgeEntries = rollbackState.badgeEntries;
+            this.records = rollbackState.records;
+
+            // Re-render to show original data
+            this.buildRecords();
+            this.updateRows();
+
+            // Show error message
+            feedback.textContent = translate("badge_update_error");
+            feedback.className = "feedback-error";
+          },
+
+          onError: (error) => {
+            debugError("Error updating badge entry", error);
+          }
+        });
       });
 
     // Add form handler
@@ -939,37 +993,94 @@ export class BadgeDashboard {
           description: form.description.value?.trim() || null,
         };
 
-        try {
-          const result = await saveBadgeProgress(payload);
-          if (!result?.success)
-            throw new Error(result?.message || "Unknown error");
+        // Use OptimisticUpdateManager for instant feedback
+        await this.optimisticManager.execute(`add-badge-${participantId}-${templateId}`, {
+          optimisticFn: () => {
+            // Save original state for rollback
+            const rollbackState = {
+              badgeEntries: JSON.parse(JSON.stringify(this.badgeEntries)),
+              records: JSON.parse(JSON.stringify(this.records)),
+            };
 
-          await clearBadgeRelatedCaches();
-          if (result.data) {
-            this.badgeEntries.push(result.data);
+            // Create optimistic entry
+            const optimisticEntry = {
+              id: generateOptimisticId('badge'),
+              ...payload,
+              status: 'pending',
+              etoiles: 1, // Default to level 1 for new entries
+              _optimistic: true,
+            };
+
+            // Add optimistic entry
+            this.badgeEntries.push(optimisticEntry);
             this.buildRecords();
             this.resetVisibleCount();
             this.updateRows();
-          }
 
-          feedback.textContent = translate("badge_add_success");
-          feedback.className = "feedback-success";
-          setTimeout(() => {
-            // Reopen modal in edit mode with the newly added badge
-            const addedBadgeTemplateId = payload.badge_template_id;
-            this.openBadgeModal(
-              participantId,
-              addedBadgeTemplateId,
-              false,
-              null,
-              false,
+            // Show optimistic success
+            feedback.textContent = translate("badge_add_success");
+            feedback.className = "feedback-success";
+
+            return rollbackState;
+          },
+
+          apiFn: async () => {
+            const result = await saveBadgeProgress(payload);
+            if (!result?.success)
+              throw new Error(result?.message || "Unknown error");
+
+            await clearBadgeRelatedCaches();
+
+            return result;
+          },
+
+          successFn: (result) => {
+            // Remove optimistic entry and add real data
+            this.badgeEntries = this.badgeEntries.filter(
+              (entry) => !entry._optimistic
             );
-          }, 500);
-        } catch (error) {
-          debugError("Error creating badge entry", error);
-          feedback.textContent = translate("badge_add_error");
-          feedback.className = "feedback-error";
-        }
+
+            if (result.data) {
+              this.badgeEntries.push(result.data);
+              this.buildRecords();
+              this.resetVisibleCount();
+              this.updateRows();
+            }
+
+            debugLog("Badge entry created successfully:", result.data);
+
+            // Reopen modal in edit mode with the newly added badge
+            setTimeout(() => {
+              const addedBadgeTemplateId = payload.badge_template_id;
+              this.openBadgeModal(
+                participantId,
+                addedBadgeTemplateId,
+                false,
+                null,
+                false,
+              );
+            }, 500);
+          },
+
+          rollbackFn: (rollbackState, error) => {
+            // Revert to original state
+            this.badgeEntries = rollbackState.badgeEntries;
+            this.records = rollbackState.records;
+
+            // Re-render to remove optimistic entry
+            this.buildRecords();
+            this.resetVisibleCount();
+            this.updateRows();
+
+            // Show error message
+            feedback.textContent = translate("badge_add_error");
+            feedback.className = "feedback-error";
+          },
+
+          onError: (error) => {
+            debugError("Error creating badge entry", error);
+          }
+        });
       });
 
     if (defaultEntry?.id && entrySelect) {

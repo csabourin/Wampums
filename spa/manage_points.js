@@ -20,6 +20,7 @@ import {
 } from "./indexedDB.js";
 import { canViewPoints } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
+import { OptimisticUpdateManager, generateOptimisticId } from "./utils/OptimisticUpdateManager.js";
 
 export class ManagePoints {
   constructor(app) {
@@ -29,6 +30,7 @@ export class ManagePoints {
     this.updateTimeout = null;
     this.currentSort = { key: "group", order: "asc" };
     this.currentFilter = "";
+    this.optimisticManager = new OptimisticUpdateManager();
   }
 
   async init() {
@@ -177,7 +179,7 @@ export class ManagePoints {
 
   render() {
     const content = `
-      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <h1>${translate("manage_points")}</h1>
       <div class="controls-container">
         <div class="sort-options">
@@ -397,9 +399,7 @@ export class ManagePoints {
       return;
     }
 
-    // Provide immediate visual feedback
-    this.updatePointsUI(type, id, points);
-
+    const updateKey = `points-${type}-${id}-${Date.now()}`;
     const updateData = {
       type,
       id,
@@ -407,18 +407,62 @@ export class ManagePoints {
       timestamp: new Date().toISOString(),
     };
 
-    // Add to pending updates
-    this.pendingUpdates.push(updateData);
+    // Use OptimisticUpdateManager for instant feedback with rollback capability
+    await this.optimisticManager.execute(updateKey, {
+      optimisticFn: () => {
+        // Save current state for rollback
+        const rollbackState = {
+          participants: JSON.parse(JSON.stringify(this.participants)),
+          groups: JSON.parse(JSON.stringify(this.groups)),
+        };
 
-    // Process updates - sendBatchUpdate will update the UI from the API response
-    try {
-      await this.sendBatchUpdate();
-      // Note: sendBatchUpdate already updates the UI with server response via
-      // updateGroupPoints/updateIndividualPoints, so no need to re-fetch and overwrite
-    } catch (error) {
-      debugError("Error updating points:", error);
-      this.app.showMessage(translate("error_updating_points"), "error");
-    }
+        // Provide immediate visual feedback
+        this.updatePointsUI(type, id, points);
+
+        // Add to pending updates
+        this.pendingUpdates.push(updateData);
+
+        return rollbackState;
+      },
+
+      apiFn: async () => {
+        // Send batch update to server
+        return await this.sendBatchUpdate();
+      },
+
+      successFn: (result) => {
+        // Server response already applied by sendBatchUpdate
+        // which calls updateGroupPoints/updateIndividualPoints
+        debugLog("Points update successful:", result);
+      },
+
+      rollbackFn: (rollbackState, error) => {
+        // Revert to previous state
+        this.participants = rollbackState.participants;
+        this.groups = rollbackState.groups;
+
+        // Remove the failed update from pending updates
+        const index = this.pendingUpdates.findIndex(
+          (u) => u.type === type && u.id === id && u.points === points
+        );
+        if (index !== -1) {
+          this.pendingUpdates.splice(index, 1);
+        }
+
+        // Re-render to show original values
+        this.sortByGroup();
+
+        // Show error message
+        this.app.showMessage(
+          `${translate("error_updating_points")}: ${error.message}`,
+          "error"
+        );
+      },
+
+      onError: (error) => {
+        debugError("Error updating points:", error);
+      }
+    });
   }
 
   async sendBatchUpdate() {

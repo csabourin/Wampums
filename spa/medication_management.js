@@ -778,7 +778,7 @@ export class MedicationManagement {
       : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
 
     container.innerHTML = `
-      <a href="/dashboard" class="home-icon" aria-label="${escapeHTML(translate("back_to_dashboard"))}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page medication-page">
         <div class="card">
           <h1>${escapeHTML(pageTitle)}</h1>

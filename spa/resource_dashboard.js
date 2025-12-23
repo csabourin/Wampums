@@ -52,7 +52,7 @@ export class ResourceDashboard {
     const reservationSummary = this.dashboardSummary?.reservations || [];
 
     container.innerHTML = `
-      <a href="/dashboard" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page resource-dashboard">
         <div class="card">
           <h1>${escapeHTML(translate("resource_dashboard_title"))}</h1>
