@@ -5,6 +5,15 @@ import { debugLog, debugError, debugWarn, debugInfo } from "../utils/DebugUtils.
 import { CONFIG } from "../config.js";
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { handleResponse } from "./api-core.js";
+import {
+    clearGroupRelatedCaches,
+    clearBudgetCaches,
+    clearFinanceRelatedCaches,
+    clearExternalRevenueCaches,
+    clearFundraiserRelatedCaches,
+    clearBadgeRelatedCaches,
+    clearPointsRelatedCaches
+} from "../indexedDB.js";
 
 function buildCacheKey(base, params = {}) {
     const searchParams = new URLSearchParams();
@@ -979,14 +988,18 @@ export async function getGroups() {
  * Add new group
  */
 export async function addGroup(groupName) {
-    return API.post('v1/groups', { name: groupName });
+    const result = await API.post('v1/groups', { name: groupName });
+    await clearGroupRelatedCaches();
+    return result;
 }
 
 /**
  * Remove group
  */
 export async function removeGroup(groupId) {
-    return API.delete(`v1/groups/${groupId}`);
+    const result = await API.delete(`v1/groups/${groupId}`);
+    await clearGroupRelatedCaches();
+    return result;
 }
 
 /**
@@ -999,7 +1012,9 @@ export async function updateGroupName(groupId, newName) {
         payload.name = newName;
     }
 
-    return API.put(`v1/groups/${groupId}`, payload);
+    const result = await API.put(`v1/groups/${groupId}`, payload);
+    await clearGroupRelatedCaches();
+    return result;
 }
 
 /**
@@ -1012,19 +1027,23 @@ export async function updateParticipantGroup(
     secondLeader = false,
     roles = null
 ) {
-    return API.patch(`v1/participants/${participantId}/group-membership`, {
+    const result = await API.patch(`v1/participants/${participantId}/group-membership`, {
         group_id: groupId,
         first_leader: firstLeader,
         second_leader: secondLeader,
         roles
     });
+    await clearGroupRelatedCaches();
+    return result;
 }
 
 /**
  * Update points for participants/groups
  */
 export async function updatePoints(updates) {
-    return API.post('update-points', updates);
+    const result = await API.post('update-points', updates);
+    await clearPointsRelatedCaches();
+    return result;
 }
 
 /**
@@ -1269,7 +1288,9 @@ export async function getBadgeProgress(participantId) {
  * Save badge progress
  */
 export async function saveBadgeProgress(progressData) {
-    return API.post('save-badge-progress', progressData);
+    const result = await API.post('save-badge-progress', progressData);
+    await clearBadgeRelatedCaches();
+    return result;
 }
 
 /**
@@ -1294,14 +1315,18 @@ export async function getCurrentStars(participantId, badgeTemplateId) {
  * Approve badge
  */
 export async function approveBadge(badgeId) {
-    return API.post('approve-badge', { badge_id: badgeId });
+    const result = await API.post('approve-badge', { badge_id: badgeId });
+    await clearBadgeRelatedCaches();
+    return result;
 }
 
 /**
  * Reject badge
  */
 export async function rejectBadge(badgeId) {
-    return API.post('reject-badge', { badge_id: badgeId });
+    const result = await API.post('reject-badge', { badge_id: badgeId });
+    await clearBadgeRelatedCaches();
+    return result;
 }
 
 /**
@@ -1563,21 +1588,27 @@ export async function getFundraiser(fundraiserId) {
  * Create a new fundraiser
  */
 export async function createFundraiser(data) {
-    return API.post('fundraisers', data);
+    const result = await API.post('fundraisers', data);
+    await clearFundraiserRelatedCaches();
+    return result;
 }
 
 /**
  * Update fundraiser
  */
 export async function updateFundraiser(fundraiserId, data) {
-    return API.put(`fundraisers/${fundraiserId}`, data);
+    const result = await API.put(`fundraisers/${fundraiserId}`, data);
+    await clearFundraiserRelatedCaches(fundraiserId);
+    return result;
 }
 
 /**
  * Archive/unarchive a fundraiser
  */
 export async function archiveFundraiser(fundraiserId, archived) {
-    return API.put(`fundraisers/${fundraiserId}/archive`, { archived });
+    const result = await API.put(`fundraisers/${fundraiserId}/archive`, { archived });
+    await clearFundraiserRelatedCaches(fundraiserId);
+    return result;
 }
 
 /**
@@ -1596,14 +1627,18 @@ export async function getCalendarsForFundraiser(fundraiserId) {
  * Update calendar entry
  */
 export async function updateCalendarEntry(calendarId, data) {
-    return API.put(`calendars/${calendarId}`, data);
+    const result = await API.put(`calendars/${calendarId}`, data);
+    await clearFundraiserRelatedCaches();
+    return result;
 }
 
 /**
  * Update calendar payment
  */
 export async function updateCalendarPayment(calendarId, amountPaid) {
-    return API.put(`calendars/${calendarId}/payment`, { amount_paid: amountPaid });
+    const result = await API.put(`calendars/${calendarId}/payment`, { amount_paid: amountPaid });
+    await clearFundraiserRelatedCaches();
+    return result;
 }
 
 // ============================================================================
@@ -1895,21 +1930,27 @@ export async function getFeeDefinitions() {
  * Create a fee definition
  */
 export async function createFeeDefinition(payload) {
-    return API.post('v1/finance/fee-definitions', payload);
+    const result = await API.post('v1/finance/fee-definitions', payload);
+    await clearFinanceRelatedCaches();
+    return result;
 }
 
 /**
  * Update a fee definition
  */
 export async function updateFeeDefinition(id, payload) {
-    return API.put(`v1/finance/fee-definitions/${id}`, payload);
+    const result = await API.put(`v1/finance/fee-definitions/${id}`, payload);
+    await clearFinanceRelatedCaches();
+    return result;
 }
 
 /**
  * Delete a fee definition
  */
 export async function deleteFeeDefinition(id) {
-    return API.delete(`v1/finance/fee-definitions/${id}`);
+    const result = await API.delete(`v1/finance/fee-definitions/${id}`);
+    await clearFinanceRelatedCaches();
+    return result;
 }
 
 /**
@@ -1926,14 +1967,18 @@ export async function getParticipantFees() {
  * Create participant fee
  */
 export async function createParticipantFee(payload) {
-    return API.post('v1/finance/participant-fees', payload);
+    const result = await API.post('v1/finance/participant-fees', payload);
+    await clearFinanceRelatedCaches();
+    return result;
 }
 
 /**
  * Update participant fee
  */
 export async function updateParticipantFee(id, payload) {
-    return API.put(`v1/finance/participant-fees/${id}`, payload);
+    const result = await API.put(`v1/finance/participant-fees/${id}`, payload);
+    await clearFinanceRelatedCaches(id);
+    return result;
 }
 
 /**
@@ -1950,14 +1995,18 @@ export async function getParticipantPayments(participantFeeId) {
  * Create a payment for a participant fee
  */
 export async function createParticipantPayment(participantFeeId, payload) {
-    return API.post(`v1/finance/participant-fees/${participantFeeId}/payments`, payload);
+    const result = await API.post(`v1/finance/participant-fees/${participantFeeId}/payments`, payload);
+    await clearFinanceRelatedCaches(participantFeeId);
+    return result;
 }
 
 /**
  * Update an existing payment
  */
 export async function updatePayment(paymentId, payload) {
-    return API.put(`v1/finance/payments/${paymentId}`, payload);
+    const result = await API.put(`v1/finance/payments/${paymentId}`, payload);
+    await clearFinanceRelatedCaches();
+    return result;
 }
 
 /**
@@ -2048,21 +2097,27 @@ export async function getBudgetCategories(params = {}, cacheOptions = {}) {
  * Create a budget category
  */
 export async function createBudgetCategory(payload) {
-    return API.post('v1/budget/categories', payload);
+    const result = await API.post('v1/budget/categories', payload);
+    await clearBudgetCaches();
+    return result;
 }
 
 /**
  * Update a budget category
  */
 export async function updateBudgetCategory(id, payload) {
-    return API.put(`v1/budget/categories/${id}`, payload);
+    const result = await API.put(`v1/budget/categories/${id}`, payload);
+    await clearBudgetCaches();
+    return result;
 }
 
 /**
  * Delete a budget category (soft delete)
  */
 export async function deleteBudgetCategory(id) {
-    return API.delete(`v1/budget/categories/${id}`);
+    const result = await API.delete(`v1/budget/categories/${id}`);
+    await clearBudgetCaches();
+    return result;
 }
 
 /**
@@ -2081,21 +2136,27 @@ export async function getBudgetItems(categoryId = null, cacheOptions = {}) {
  * Create a budget item
  */
 export async function createBudgetItem(payload) {
-    return API.post('v1/budget/items', payload);
+    const result = await API.post('v1/budget/items', payload);
+    await clearBudgetCaches({ categoryId: payload.category_id });
+    return result;
 }
 
 /**
  * Update a budget item
  */
 export async function updateBudgetItem(id, payload) {
-    return API.put(`v1/budget/items/${id}`, payload);
+    const result = await API.put(`v1/budget/items/${id}`, payload);
+    await clearBudgetCaches({ categoryId: payload.category_id });
+    return result;
 }
 
 /**
  * Delete a budget item (soft delete)
  */
 export async function deleteBudgetItem(id) {
-    return API.delete(`v1/budget/items/${id}`);
+    const result = await API.delete(`v1/budget/items/${id}`);
+    await clearBudgetCaches();
+    return result;
 }
 
 /**
@@ -2113,21 +2174,27 @@ export async function getBudgetExpenses(filters = {}, cacheOptions = {}) {
  * Create a budget expense
  */
 export async function createBudgetExpense(payload) {
-    return API.post('v1/budget/expenses', payload);
+    const result = await API.post('v1/budget/expenses', payload);
+    await clearBudgetCaches();
+    return result;
 }
 
 /**
  * Update a budget expense
  */
 export async function updateBudgetExpense(id, payload) {
-    return API.put(`v1/budget/expenses/${id}`, payload);
+    const result = await API.put(`v1/budget/expenses/${id}`, payload);
+    await clearBudgetCaches();
+    return result;
 }
 
 /**
  * Delete a budget expense
  */
 export async function deleteBudgetExpense(id) {
-    return API.delete(`v1/budget/expenses/${id}`);
+    const result = await API.delete(`v1/budget/expenses/${id}`);
+    await clearBudgetCaches();
+    return result;
 }
 
 /**
@@ -2281,21 +2348,27 @@ export async function getExternalRevenue(filters = {}, cacheOptions = {}) {
  * Create external revenue entry
  */
 export async function createExternalRevenue(payload) {
-    return API.post('v1/revenue/external', payload);
+    const result = await API.post('v1/revenue/external', payload);
+    await clearExternalRevenueCaches();
+    return result;
 }
 
 /**
  * Update external revenue entry
  */
 export async function updateExternalRevenue(id, payload) {
-    return API.put(`v1/revenue/external/${id}`, payload);
+    const result = await API.put(`v1/revenue/external/${id}`, payload);
+    await clearExternalRevenueCaches();
+    return result;
 }
 
 /**
  * Delete external revenue entry
  */
 export async function deleteExternalRevenue(id) {
-    return API.delete(`v1/revenue/external/${id}`);
+    const result = await API.delete(`v1/revenue/external/${id}`);
+    await clearExternalRevenueCaches();
+    return result;
 }
 
 /**

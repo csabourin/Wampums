@@ -150,8 +150,11 @@ export async function makeApiRequest(endpoint, options = {}) {
     throw new Error(`Failed to complete API request after ${retries + 1} attempts: ${lastError.message}`);
 }
 
+// Request deduplication: Track in-flight requests to prevent duplicate API calls
+const pendingRequests = new Map();
+
 /**
- * Make API request with caching support
+ * Make API request with caching support and request deduplication
  */
 export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptions = {}) {
     const {
@@ -159,6 +162,15 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
         cacheDuration = CONFIG.CACHE_DURATION.MEDIUM,
         forceRefresh = false
     } = cacheOptions;
+
+    // Create a unique request key for deduplication
+    const requestKey = `${endpoint}-${JSON.stringify(options)}`;
+
+    // Check for in-flight request (deduplication)
+    if (pendingRequests.has(requestKey)) {
+        debugLog('Reusing in-flight request:', requestKey);
+        return pendingRequests.get(requestKey);
+    }
 
     // Try cache first (unless force refresh)
     if (!forceRefresh) {
@@ -173,20 +185,33 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
         }
     }
 
-    // Make API request
-    const result = await makeApiRequest(endpoint, options);
-
-    // Cache successful results
-    if (result.success) {
+    // Create the request promise
+    const requestPromise = (async () => {
         try {
-            await setCachedData(cacheKey, result, cacheDuration);
-            debugLog('Data cached for:', cacheKey);
-        } catch (cacheError) {
-            debugError('Failed to cache data:', cacheError);
-        }
-    }
+            // Make API request
+            const result = await makeApiRequest(endpoint, options);
 
-    return result;
+            // Cache successful results
+            if (result.success) {
+                try {
+                    await setCachedData(cacheKey, result, cacheDuration);
+                    debugLog('Data cached for:', cacheKey);
+                } catch (cacheError) {
+                    debugError('Failed to cache data:', cacheError);
+                }
+            }
+
+            return result;
+        } finally {
+            // Remove from pending requests after completion
+            pendingRequests.delete(requestKey);
+        }
+    })();
+
+    // Store the promise to enable deduplication
+    pendingRequests.set(requestKey, requestPromise);
+
+    return requestPromise;
 }
 
 /**
