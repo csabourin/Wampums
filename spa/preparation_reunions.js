@@ -69,6 +69,7 @@ export class PreparationReunions {
                         this.attachEventListeners();
                 } catch (error) {
                         debugError("Error initializing preparation reunions:", error);
+                        this.renderError();
                         this.app.showMessage(translate("error_loading_preparation_reunions"), "error");
                 }
         }
@@ -361,6 +362,20 @@ export class PreparationReunions {
 
                 document.getElementById("app").innerHTML = content;
                 this.activityManager.renderActivitiesTable();
+        }
+
+        renderError() {
+                const content = `
+                        <div class="preparation-reunions">
+                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+                                <h1>${translate("preparation_reunions")}</h1>
+                                <div class="error-message">
+                                        <p>${translate("error_loading_preparation_reunions")}</p>
+                                        <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+                                </div>
+                        </div>
+                `;
+                document.getElementById("app").innerHTML = content;
         }
 
         attachEventListeners() {

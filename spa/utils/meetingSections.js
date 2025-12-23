@@ -1,4 +1,4 @@
-import defaultMeetingSections from "../../config/meeting_sections.json";
+import defaultMeetingSections from "../../config/meeting_sections.json" assert { type: "json" };
 
 /**
  * Merge custom meeting section configuration with defaults.

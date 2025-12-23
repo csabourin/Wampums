@@ -21,6 +21,7 @@ export class UpcomingMeeting {
                                                 this.render();
                                 } catch (error) {
                                                 debugError("Error initializing upcoming meeting:", error);
+                                                this.renderError();
                                                 this.app.showMessage(translate("error_loading_upcoming_meeting"), "error");
                                 }
                 }
@@ -155,7 +156,19 @@ export class UpcomingMeeting {
 
                 render() {
                                 if (!this.closestMeeting) {
-                                                document.getElementById("app").innerHTML = `<p>${translate("no_upcoming_meeting")}</p>`;
+                                                document.getElementById("app").innerHTML = `
+                                                                <div class="upcoming-meeting">
+                                                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+                                                                                <h1>${translate("upcoming_meeting")}</h1>
+                                                                                <p>${translate("no_upcoming_meeting")}</p>
+                                                                                <div class="manage-items">
+                                                                                                <a href="/dashboard" aria-label="${translate("back_to_dashboard")}">
+                                                                                                                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                                                                                                                <span>${translate("back_to_dashboard")}</span>
+                                                                                                </a>
+                                                                                </div>
+                                                                </div>
+                                                `;
                                                 return;
                                 }
 
@@ -190,6 +203,20 @@ export class UpcomingMeeting {
                                                 </div>
                                 `;
 
+                                document.getElementById("app").innerHTML = content;
+                }
+
+                renderError() {
+                                const content = `
+                                                <div class="upcoming-meeting">
+                                                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+                                                                <h1>${translate("upcoming_meeting")}</h1>
+                                                                <div class="error-message">
+                                                                                <p>${translate("error_loading_upcoming_meeting")}</p>
+                                                                                <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+                                                                </div>
+                                                </div>
+                                `;
                                 document.getElementById("app").innerHTML = content;
                 }
 }
