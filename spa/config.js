@@ -57,12 +57,12 @@ export const CONFIG = {
     /**
      * Application Version
      */
-    VERSION: "2.6.1",
+    VERSION: "2.6.2",
 
     /**
      * Application Name
      */
-    APP_NAME: "Wampums Scout Management",
+    APP_NAME: "Wampums",
 
     /**
      * Default Language
