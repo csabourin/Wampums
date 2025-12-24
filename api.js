@@ -1186,10 +1186,19 @@ async function legacyApiHandler(req, res, next) {
             [newOrganizationId, JSON.stringify(meetingSectionDefaults)],
           );
 
+          // Get admin role ID
+          const adminRoleResult = await client.query(
+            `SELECT id FROM roles WHERE role_name = 'admin'`
+          );
+          if (adminRoleResult.rows.length === 0) {
+            throw new Error("Admin role not found in roles table");
+          }
+          const adminRoleId = adminRoleResult.rows[0].id;
+
           await client.query(
-            `INSERT INTO user_organizations (user_id, organization_id, role)
-         VALUES ($1, $2, 'admin')`,
-            [userIdForOrg, newOrganizationId],
+            `INSERT INTO user_organizations (user_id, organization_id, role_ids)
+         VALUES ($1, $2, $3)`,
+            [userIdForOrg, newOrganizationId, JSON.stringify([adminRoleId])],
           );
 
           await client.query("COMMIT");
@@ -1689,10 +1698,20 @@ async function legacyApiHandler(req, res, next) {
         if (registration_password !== correctPassword) {
           jsonResponse(res, false, null, "Invalid registration password");
         } else {
+          // Get role ID from roles table
+          const roleResult = await client.query(
+            `SELECT id FROM roles WHERE role_name = $1`,
+            [role]
+          );
+          if (roleResult.rows.length === 0) {
+            throw new Error(`Role '${role}' not found in roles table`);
+          }
+          const roleId = roleResult.rows[0].id;
+
           await client.query(
-            `INSERT INTO user_organizations (user_id, organization_id, role)
+            `INSERT INTO user_organizations (user_id, organization_id, role_ids)
              VALUES ($1, $2, $3)`,
-            [userId, getCurrentOrganizationId(), role],
+            [userId, getCurrentOrganizationId(), JSON.stringify([roleId])],
           );
 
           if (link_children && link_children.length > 0) {

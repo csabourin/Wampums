@@ -46,9 +46,11 @@ module.exports = (pool, logger) => {
 
       // Build email list by user role (admin/animation/etc.)
       const usersEmailsResult = await pool.query(
-        `SELECT LOWER(u.email) AS email, uo.role
+        `SELECT LOWER(u.email) AS email, r.role_name as role
          FROM user_organizations uo
          JOIN users u ON u.id = uo.user_id
+         CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+         LEFT JOIN roles r ON r.id = role_id_text::integer
          WHERE uo.organization_id = $1
          AND u.email IS NOT NULL
          AND u.email != ''`,
@@ -59,7 +61,9 @@ module.exports = (pool, logger) => {
         if (!acc[user.role]) {
           acc[user.role] = [];
         }
-        acc[user.role].push(user.email);
+        if (!acc[user.role].includes(user.email)) {
+          acc[user.role].push(user.email);
+        }
         return acc;
       }, {});
 

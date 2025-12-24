@@ -219,11 +219,20 @@ module.exports = function(pool, logger) {
               stats.animationUsersUpdated++;
             }
 
+            // Get animation role ID
+            const animationRoleResult = await client.query(
+              `SELECT id FROM roles WHERE role_name = 'animation'`
+            );
+            if (animationRoleResult.rows.length === 0) {
+              throw new Error("Animation role not found in roles table");
+            }
+            const animationRoleId = animationRoleResult.rows[0].id;
+
             await client.query(
-              `INSERT INTO user_organizations (user_id, organization_id, role)
-               VALUES ($1, $2, 'animation')
-               ON CONFLICT (user_id, organization_id) DO UPDATE SET role = 'animation'`,
-              [userId, organizationId]
+              `INSERT INTO user_organizations (user_id, organization_id, role_ids)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (user_id, organization_id) DO UPDATE SET role_ids = $3`,
+              [userId, organizationId, JSON.stringify([animationRoleId])]
             );
 
             continue;
@@ -406,12 +415,21 @@ module.exports = function(pool, logger) {
               if (wasInserted) {
                 stats.usersCreated++;
               }
-              
+
+              // Get parent role ID
+              const parentRoleResult = await client.query(
+                `SELECT id FROM roles WHERE role_name = 'parent'`
+              );
+              if (parentRoleResult.rows.length === 0) {
+                throw new Error("Parent role not found in roles table");
+              }
+              const parentRoleId = parentRoleResult.rows[0].id;
+
               // Always ensure user is linked to organization
               await client.query(
-                `INSERT INTO user_organizations (user_id, organization_id, role)
-                 VALUES ($1, $2, 'parent') ON CONFLICT DO NOTHING`,
-                [userId, organizationId]
+                `INSERT INTO user_organizations (user_id, organization_id, role_ids)
+                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+                [userId, organizationId, JSON.stringify([parentRoleId])]
               );
 
               await client.query(

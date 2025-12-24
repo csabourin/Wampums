@@ -324,10 +324,14 @@ module.exports = (pool, logger) => {
       const userId = req.user.id;
 
       const result = await pool.query(
-        `SELECT DISTINCT o.id, o.name, uo.role
+        `SELECT DISTINCT o.id, o.name,
+                jsonb_agg(DISTINCT r.role_name) as roles
          FROM organizations o
          INNER JOIN user_organizations uo ON o.id = uo.organization_id
+         CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+         LEFT JOIN roles r ON r.id = role_id_text::integer
          WHERE uo.user_id = $1
+         GROUP BY o.id, o.name
          ORDER BY o.name`,
         [userId]
       );
