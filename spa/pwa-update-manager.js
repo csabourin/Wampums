@@ -7,6 +7,7 @@
 
 import { CONFIG } from './config.js';
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import { deleteIndexedDB } from './indexedDB.js';
 
 class PWAUpdateManager {
     constructor() {
@@ -87,7 +88,8 @@ class PWAUpdateManager {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             // Only reload if we expected an update
             if (this.updateAccepted) {
-                window.location.reload();
+                // Hard reload to bypass browser cache completely
+                window.location.reload(true);
             }
         });
     }
@@ -443,10 +445,49 @@ class PWAUpdateManager {
     }
 
     /**
+     * Clear all caches (IndexedDB + Service Worker caches)
+     * This ensures a complete refresh when updating to a new version
+     */
+    async clearAllCaches() {
+        try {
+            debugLog('Clearing all caches for version update...');
+
+            // 1. Clear IndexedDB completely
+            try {
+                await deleteIndexedDB();
+                debugLog('IndexedDB cleared successfully');
+            } catch (error) {
+                debugWarn('Failed to clear IndexedDB:', error);
+            }
+
+            // 2. Clear all Service Worker caches
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                    debugLog('Service Worker caches cleared:', cacheNames);
+                } catch (error) {
+                    debugWarn('Failed to clear Service Worker caches:', error);
+                }
+            }
+
+            debugLog('All caches cleared successfully');
+        } catch (error) {
+            debugError('Error clearing caches:', error);
+            // Don't throw - we still want to proceed with the update
+        }
+    }
+
+    /**
      * Apply the update
      */
-    applyUpdate() {
+    async applyUpdate() {
         this.updateAccepted = true;
+
+        // Clear all caches before updating
+        await this.clearAllCaches();
 
         if (this.newWorker) {
             // Tell the new service worker to skip waiting
@@ -491,7 +532,8 @@ class PWAUpdateManager {
         setTimeout(() => {
             const loaderElement = document.getElementById('pwa-update-loader');
             if (loaderElement) {
-                window.location.reload();
+                // Hard reload to bypass browser cache completely
+                window.location.reload(true);
             }
         }, 5000);
     }
