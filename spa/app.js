@@ -242,14 +242,9 @@ export const app = {
         // Organization ID and translations are already loaded in init() - these are lower priority tasks
         async initializeBackgroundTasks() {
                 try {
-                        // Skip expensive background tasks on public routes (login, register, etc.)
-                        const currentPath = window.location.pathname;
-                        const publicRoutes = ['/login', '/register', '/reset-password', '/permission-slip'];
-                        const isPublicRoute = publicRoutes.some(route => currentPath.startsWith(route));
-
                         // Ensure JWT token exists (in background)
                         const token = getStorage('jwtToken');
-                        if (!token && this.organizationId && !isPublicRoute) {
+                        if (!token && this.organizationId) {
                                 try {
                                         debugLog("Fetching organization JWT...");
                                         const data = await fetchOrganizationJwt(this.organizationId);
@@ -262,15 +257,11 @@ export const app = {
                                 }
                         }
 
-                        // Fetch organization settings only when needed (skip on login/register pages)
-                        if (!isPublicRoute) {
-                                this.fetchOrganizationSettings().catch(error => {
-                                        debugError("Failed to fetch organization settings:", error);
-                                        this.organizationSettings = { name: 'Scouts' };
-                                });
-                        } else {
-                                debugLog("Skipping organization settings fetch on public route:", currentPath);
-                        }
+                        // Fetch organization settings (in background, with caching)
+                        this.fetchOrganizationSettings().catch(error => {
+                                debugError("Failed to fetch organization settings:", error);
+                                this.organizationSettings = { name: 'Scouts' };
+                        });
 
                         // Handle post-login actions if logged in
                         if (this.isLoggedIn) {
