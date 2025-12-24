@@ -201,7 +201,17 @@ export const app = {
                                 debugLog("Using stored organization ID:", storedOrgId);
                         }
 
-                        // Initialize router IMMEDIATELY (now that we have org ID)
+                        // CRITICAL: Load current language translations BEFORE routing to prevent flicker
+                        const currentLang = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
+                        const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(currentLang) ? currentLang : CONFIG.DEFAULT_LANG;
+                        this.lang = normalizedLang;
+                        this.language = normalizedLang;
+                        document.documentElement.lang = normalizedLang;
+                        debugLog(`Loading translations for ${normalizedLang} before routing...`);
+                        await this.loadTranslation(normalizedLang);
+                        debugLog(`Translations loaded for ${normalizedLang}`);
+
+                        // Initialize router IMMEDIATELY (now that we have org ID and translations)
                         debugLog("Initializing router...");
                         this.router = initRouter(this);
 
@@ -229,7 +239,7 @@ export const app = {
         },
 
         // Background initialization tasks (non-blocking)
-        // Organization ID is already loaded in init() - these are lower priority tasks
+        // Organization ID and translations are already loaded in init() - these are lower priority tasks
         async initializeBackgroundTasks() {
                 try {
                         // Ensure JWT token exists (in background)
@@ -246,10 +256,6 @@ export const app = {
                                         debugError("Error getting organization JWT:", error);
                                 }
                         }
-
-                        // Load only the current language (lazy load others on demand)
-                        const currentLang = this.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
-                        await this.loadTranslation(currentLang);
 
                         // Fetch organization settings (in background, with caching)
                         this.fetchOrganizationSettings().catch(error => {
@@ -538,10 +544,9 @@ export const app = {
                         });
                 });
 
-                // Set initial language
+                // Set initial active button (language is already loaded in init())
                 const savedLang = getStorage('lang', false, CONFIG.DEFAULT_LANG);
                 const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(savedLang) ? savedLang : CONFIG.DEFAULT_LANG;
-                this.setLanguage(normalizedLang);
                 // Remove active class from all buttons first to avoid duplicates
                 toggleButtons.forEach(b => b.classList.remove('active'));
                 const activeBtn = document.querySelector(`.lang-btn[data-lang="${normalizedLang}"]`);
