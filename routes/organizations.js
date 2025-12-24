@@ -31,14 +31,32 @@ const PUBLIC_ORGANIZATION_SETTING_KEYS = [
   'equipment_categories'
 ];
 
+// PERFORMANCE OPTIMIZATION: In-memory cache for organization settings
+// Settings rarely change, so caching them significantly improves response time
+const orgSettingsCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
 /**
  * Load and parse organization settings from the database, ensuring program sections are hydrated.
+ * PERFORMANCE OPTIMIZATION: Now includes in-memory caching with 5-minute TTL
  *
  * @param {Object} pool - PostgreSQL connection pool
  * @param {number} organizationId - Organization identifier
+ * @param {boolean} skipCache - If true, bypass cache and fetch fresh data
  * @returns {Promise<Object>} Parsed organization settings object
  */
-async function loadOrganizationSettings(pool, organizationId) {
+async function loadOrganizationSettings(pool, organizationId, skipCache = false) {
+  // Check cache first
+  const cacheKey = `org_${organizationId}`;
+  if (!skipCache && orgSettingsCache.has(cacheKey)) {
+    const cached = orgSettingsCache.get(cacheKey);
+    if (Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.settings;
+    }
+    // Cache expired, remove it
+    orgSettingsCache.delete(cacheKey);
+  }
+
   const result = await pool.query(
     `SELECT setting_key, setting_value
      FROM organization_settings
@@ -79,6 +97,12 @@ async function loadOrganizationSettings(pool, organizationId) {
     memberships: localGroupMemberships.rows,
     available: allLocalGroups.rows
   };
+
+  // Cache the result
+  orgSettingsCache.set(cacheKey, {
+    settings,
+    timestamp: Date.now()
+  });
 
   return settings;
 }
