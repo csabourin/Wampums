@@ -295,7 +295,18 @@ export const app = {
                 try {
                         debugLog("Fetching organization settings ...", this.organizationId);
 
-                        const response = await getOrganizationSettings(this.organizationId);
+                        // PERFORMANCE OPTIMIZATION: Reuse early fetch if available
+                        // This prevents duplicate API calls and improves performance
+                        let response;
+                        if (window.earlyOrgSettingsFetch) {
+                                debugLog("Reusing early organization settings fetch");
+                                response = await window.earlyOrgSettingsFetch;
+                                window.earlyOrgSettingsFetch = null; // Clear it after use
+                        }
+
+                        if (!response) {
+                                response = await getOrganizationSettings(this.organizationId);
+                        }
                         if (response && response.organization_info || response.data) {
                                 debugLog("Got organization settings: ", JSON.stringify(response));
                                 // The fix is here - use response.data directly as the settings
@@ -669,6 +680,18 @@ if (!navigator.onLine) {
         app.showOfflineNotification("offline");
 } else {
         app.showOfflineNotification("online");
+}
+
+// PERFORMANCE OPTIMIZATION: Start fetching organization settings as early as possible
+// This allows the fetch to run in parallel with app initialization instead of sequentially
+// The fetch starts immediately when this module loads, before app.init() completes
+const storedOrgId = getStorage('currentOrganizationId') || getStorage('organizationId');
+if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith('{')) {
+        debugLog("Starting early organization settings fetch for better performance");
+        window.earlyOrgSettingsFetch = getOrganizationSettings(storedOrgId).catch(error => {
+                debugError("Early org settings fetch failed, will retry later:", error);
+                return null;
+        });
 }
 
 app.init();
