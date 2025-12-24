@@ -5,7 +5,7 @@ import {
 } from "./indexedDB.js";
 import { initRouter, Router } from "./router.js";
 import { Login } from "./login.js";
-import { getOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
+import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
 import { CONFIG } from "./config.js";
 import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
@@ -688,10 +688,21 @@ if (!navigator.onLine) {
 const storedOrgId = getStorage('currentOrganizationId') || getStorage('organizationId');
 if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith('{')) {
         debugLog("Starting early organization settings fetch for better performance");
-        window.earlyOrgSettingsFetch = getOrganizationSettings(storedOrgId).catch(error => {
-                debugError("Early org settings fetch failed, will retry later:", error);
-                return null;
-        });
+
+        // Check if user is logged in to determine which endpoint to use
+        const jwtToken = getStorage('jwtToken');
+        const isLoggedIn = !!jwtToken;
+
+        // Use public endpoint for unauthenticated users to avoid 401 errors
+        window.earlyOrgSettingsFetch = isLoggedIn
+                ? getOrganizationSettings(storedOrgId).catch(error => {
+                        debugError("Early org settings fetch failed, will retry later:", error);
+                        return null;
+                })
+                : getPublicOrganizationSettings().catch(error => {
+                        debugError("Early public org settings fetch failed, will retry later:", error);
+                        return null;
+                });
 }
 
 app.init();
