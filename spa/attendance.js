@@ -4,18 +4,22 @@ import {
   updateAttendance,
   getAttendanceDates,
   saveGuest,
-  getGuestsByDate
+  getGuestsByDate,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData, deleteCachedData } from "./indexedDB.js";
-import { getTodayISO, formatDate, isValidDate, isoToDateString } from "./utils/DateUtils.js";
+import {
+  getTodayISO,
+  formatDate,
+  isValidDate,
+  isoToDateString,
+} from "./utils/DateUtils.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { canViewAttendance } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
-
 
 export class Attendance {
   constructor(app) {
@@ -29,9 +33,9 @@ export class Attendance {
     this.saveGuest = saveGuest;
     this.getGuestsByDate = getGuestsByDate;
     this.groups = [];
-    this.freshContent=``;
+    this.freshContent = ``;
     this.isInitialized = false;
-      this.isLoading = true;
+    this.isLoading = true;
     // Optimistic update manager for instant attendance updates
     this.optimisticManager = new OptimisticUpdateManager();
   }
@@ -44,19 +48,20 @@ export class Attendance {
     }
 
     try {
-      this.renderSkeleton();  this.isLoading = true;
+      this.renderSkeleton();
+      this.isLoading = true;
 
       // Load all required data
       await Promise.all([
         this.fetchAttendanceDates(),
-        this.preloadAttendanceData()
+        this.preloadAttendanceData(),
       ]);
 
       // Mark as initialized and not loading
       this.isInitialized = true;
       this.isLoading = false;
       // Only render if we're still on the attendance page
-      if (document.querySelector('.attendance-container')) {
+      if (document.querySelector(".attendance-container")) {
         this.render();
         this.attachEventListeners();
       }
@@ -92,15 +97,17 @@ export class Attendance {
         debugLog("Raw dates from API:", response.data);
         // Convert ISO dates to YYYY-MM-DD format and filter out invalid dates
         this.availableDates = response.data
-          .map(date => isoToDateString(date)) // Convert ISO to YYYY-MM-DD
-          .filter(date => {
+          .map((date) => isoToDateString(date)) // Convert ISO to YYYY-MM-DD
+          .filter((date) => {
             const valid = isValidDate(date);
-            debugLog(`Date ${date} is ${valid ? 'valid' : 'invalid'}`);
+            debugLog(`Date ${date} is ${valid ? "valid" : "invalid"}`);
             return valid;
           });
         debugLog("Available dates after filtering:", this.availableDates);
       } else {
-        throw new Error("Failed to fetch attendance dates or no dates available.");
+        throw new Error(
+          "Failed to fetch attendance dates or no dates available.",
+        );
       }
 
       this.availableDates.sort((a, b) => new Date(b) - new Date(a));
@@ -130,14 +137,16 @@ export class Attendance {
       }
 
       // Fetch the data if not cached
-      const [participantsResponse, attendanceResponse, guestsResponse] = await Promise.all([
-        getParticipants(),
-        getAttendance(this.currentDate),
-        this.getGuestsByDate(this.currentDate)
-      ]);
+      const [participantsResponse, attendanceResponse, guestsResponse] =
+        await Promise.all([
+          getParticipants(),
+          getAttendance(this.currentDate),
+          this.getGuestsByDate(this.currentDate),
+        ]);
 
       // Support both new format (data) and old format (participants)
-      const participantsList = participantsResponse.data || participantsResponse.participants;
+      const participantsList =
+        participantsResponse.data || participantsResponse.participants;
       if (participantsResponse.success && Array.isArray(participantsList)) {
         this.participants = normalizeParticipantList(participantsList);
       } else {
@@ -147,20 +156,22 @@ export class Attendance {
       // Transform attendance response into a map of participant_id -> status
       // Handle multiple API formats
       this.attendanceData = {};
-      if (attendanceResponse && typeof attendanceResponse === 'object') {
+      if (attendanceResponse && typeof attendanceResponse === "object") {
         const attendanceData = attendanceResponse.data || attendanceResponse;
-        
+
         if (Array.isArray(attendanceData)) {
           // RESTful API format: {success: true, data: [{participant_id, status, ...}, ...]}
-          attendanceData.forEach(record => {
+          attendanceData.forEach((record) => {
             if (record.participant_id && record.status) {
               this.attendanceData[record.participant_id] = record.status;
             }
           });
-          debugLog(`Parsed ${Object.keys(this.attendanceData).length} attendance records`);
+          debugLog(
+            `Parsed ${Object.keys(this.attendanceData).length} attendance records`,
+          );
         } else if (Array.isArray(attendanceData.participants)) {
           // Legacy Node.js format: {success: true, data: {participants: [{participant_id, attendance_status}, ...]}}
-          attendanceData.participants.forEach(p => {
+          attendanceData.participants.forEach((p) => {
             if (p.attendance_status) {
               this.attendanceData[p.participant_id] = p.attendance_status;
             }
@@ -173,7 +184,9 @@ export class Attendance {
       debugLog("Final attendanceData:", this.attendanceData);
 
       // Handle both array response and object response with guests property
-      this.guests = Array.isArray(guestsResponse) ? guestsResponse : (guestsResponse?.guests || []);
+      this.guests = Array.isArray(guestsResponse)
+        ? guestsResponse
+        : guestsResponse?.guests || [];
 
       // Group participants
       this.groups = this.participants.reduce((acc, participant) => {
@@ -181,7 +194,7 @@ export class Attendance {
           acc[participant.group_id] = {
             id: participant.group_id,
             name: participant.group_name,
-            participants: []
+            participants: [],
           };
         }
         acc[participant.group_id].participants.push(participant);
@@ -189,7 +202,7 @@ export class Attendance {
       }, {});
 
       // Sort participants in each group by leader, second leader, and then alphabetically
-      Object.values(this.groups).forEach(group => {
+      Object.values(this.groups).forEach((group) => {
         group.participants.sort((a, b) => {
           // Sort leaders first
           if (a.first_leader && !b.first_leader) return -1;
@@ -205,25 +218,30 @@ export class Attendance {
       });
 
       // Sort groups alphabetically by group name, put participants without a group last
-      this.groups = Object.entries(this.groups).map(([id, group]) => ({ id, ...group })).sort((a, b) => {
-        if (!a.name) return 1; // Move groups without a name to the end
-        if (!b.name) return -1;
-        return a.name.localeCompare(b.name);
-      });
+      this.groups = Object.entries(this.groups)
+        .map(([id, group]) => ({ id, ...group }))
+        .sort((a, b) => {
+          if (!a.name) return 1; // Move groups without a name to the end
+          if (!b.name) return -1;
+          return a.name.localeCompare(b.name);
+        });
 
       // Cache the fetched data for 5 minues
-      await setCachedData(`attendance_${this.currentDate}`, {
-        participants: this.participants,
-        attendanceData: this.attendanceData,
-        guests: this.guests,
-        groups: this.groups
-      },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
+      await setCachedData(
+        `attendance_${this.currentDate}`,
+        {
+          participants: this.participants,
+          attendanceData: this.attendanceData,
+          guests: this.guests,
+          groups: this.groups,
+        },
+        CONFIG.CACHE_DURATION.SHORT,
+      ); // Cache for 5 minute
     } catch (error) {
       debugError("Error fetching attendance data:", error);
       throw error;
     }
   }
-
 
   renderSkeleton() {
     const content = `
@@ -255,7 +273,6 @@ export class Attendance {
     document.getElementById("app").innerHTML = content;
   }
 
-
   renderSkeletonGroups() {
     // Mock structure of group and participant rows
     return `
@@ -282,17 +299,16 @@ export class Attendance {
     `;
   }
 
-
   render() {
-  // Safety check to prevent rendering if we've navigated away
-  if (!document.querySelector('.attendance-container')) {
-    return;
-  }
+    // Safety check to prevent rendering if we've navigated away
+    if (!document.querySelector(".attendance-container")) {
+      return;
+    }
 
-  // Don't render if we're still loading
-  if (this.isLoading) {
-    return;
-  }
+    // Don't render if we're still loading
+    if (this.isLoading) {
+      return;
+    }
     this.freshContent = `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <div class="attendance-container">
@@ -322,7 +338,7 @@ export class Attendance {
       </div>
     `;
 
-   const appElement = document.querySelector("#app");
+    const appElement = document.querySelector("#app");
     if (appElement) {
       appElement.innerHTML = this.freshContent;
       const attendanceList = document.getElementById("attendance-list");
@@ -338,7 +354,7 @@ export class Attendance {
     debugLog("Current date:", this.currentDate);
     debugLog("App language:", this.app.lang);
     const options = this.availableDates
-      .map(date => {
+      .map((date) => {
         const formatted = formatDate(date, this.app.lang);
         debugLog(`Date ${date} formatted as: ${formatted}`);
         return `<option value="${date}" ${date === this.currentDate ? "selected" : ""}>
@@ -353,28 +369,31 @@ export class Attendance {
   renderGroupsAndNames() {
     const fragment = document.createDocumentFragment();
 
-    Object.values(this.groups).forEach(group => {
-      let groupDiv = document.createElement('div');
-      groupDiv.classList.add('group-card');
+    Object.values(this.groups).forEach((group) => {
+      let groupDiv = document.createElement("div");
+      groupDiv.classList.add("group-card");
 
       // Create group header with proper class and data attribute
-      let groupHeader = document.createElement('h3');
-      groupHeader.classList.add('group-header'); // Make sure this class is added
+      let groupHeader = document.createElement("h3");
+      groupHeader.classList.add("group-header"); // Make sure this class is added
       groupHeader.dataset.groupId = group.id;
       groupHeader.textContent = group.name;
       groupDiv.appendChild(groupHeader);
 
-      group.participants.forEach(participant => {
+      group.participants.forEach((participant) => {
         const status = this.attendanceData[participant.id] || "present";
-        const statusClass = status === "present" && !this.attendanceData[participant.id] ? "" : status;
-        const participantRow = document.createElement('div');
-        participantRow.classList.add('participant-row');
+        const statusClass =
+          status === "present" && !this.attendanceData[participant.id]
+            ? ""
+            : status;
+        const participantRow = document.createElement("div");
+        participantRow.classList.add("participant-row");
         participantRow.dataset.participantId = participant.id;
         participantRow.dataset.groupId = group.id;
         participantRow.innerHTML = `
           <span class="participant-name">${participant.first_name} ${participant.last_name}    
-            ${participant.first_leader ? `<span class="badge leader">${translate("leader")}</span>` : ''}
-            ${participant.second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ''}
+            ${participant.first_leader ? `<span class="badge leader">${translate("first_leader")}</span>` : ""}
+            ${participant.second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ""}
           </span>      
           <span class="participant-status ${statusClass}">${translate(status)}</span>
         `;
@@ -388,15 +407,18 @@ export class Attendance {
     return fragment;
   }
 
-
   renderGuests() {
-    return this.guests.map(guest => `
+    return this.guests
+      .map(
+        (guest) => `
       <div class="guest-row">
         <span class="guest-name">${escapeHTML(guest.name)}</span>
         <span class="guest-email">${escapeHTML(guest.email || translate("no_email"))}</span>
         <span class="guest-date">${formatDate(guest.attendance_date, this.app.lang)}</span>
       </div>
-    `).join("");
+    `,
+      )
+      .join("");
   }
 
   attachEventListeners() {
@@ -404,16 +426,18 @@ export class Attendance {
     if (dateSelect) {
       const newDateSelect = dateSelect.cloneNode(true);
       dateSelect.parentNode.replaceChild(newDateSelect, dateSelect);
-      newDateSelect.addEventListener("change", (e) => this.changeDate(e.target.value));
+      newDateSelect.addEventListener("change", (e) =>
+        this.changeDate(e.target.value),
+      );
     }
 
     // Use event delegation with a more specific target check
     const attendanceList = document.getElementById("attendance-list");
     if (attendanceList) {
       attendanceList.addEventListener("click", (e) => {
-        const groupHeader = e.target.closest('.group-header');
-        const participantRow = e.target.closest('.participant-row');
-debugLog(groupHeader, participantRow);
+        const groupHeader = e.target.closest(".group-header");
+        const participantRow = e.target.closest(".participant-row");
+        debugLog(groupHeader, participantRow);
         if (groupHeader) {
           this.toggleGroupSelection(groupHeader);
         } else if (participantRow) {
@@ -422,8 +446,10 @@ debugLog(groupHeader, participantRow);
       });
     }
 
-    document.querySelectorAll('.status-btn').forEach(button => {
-      button.addEventListener('click', (e) => this.updateStatus(e.target.dataset.status));
+    document.querySelectorAll(".status-btn").forEach((button) => {
+      button.addEventListener("click", (e) =>
+        this.updateStatus(e.target.dataset.status),
+      );
     });
 
     const addGuestButton = document.getElementById("addGuestButton");
@@ -432,7 +458,6 @@ debugLog(groupHeader, participantRow);
     }
   }
 
-
   async handleStatusChange(newStatus) {
     if (!this.selectedParticipant) {
       this.app.showMessage(translate("select_participant"), "error");
@@ -440,11 +465,18 @@ debugLog(groupHeader, participantRow);
     }
 
     const participantId = this.selectedParticipant.dataset.id;
-    const statusSpan = this.selectedParticipant.querySelector(".participant-status");
+    const statusSpan = this.selectedParticipant.querySelector(
+      ".participant-status",
+    );
     const previousStatus = statusSpan.classList[1];
 
     try {
-      const result = await updateAttendance(participantId, newStatus, this.currentDate, previousStatus);
+      const result = await updateAttendance(
+        participantId,
+        newStatus,
+        this.currentDate,
+        previousStatus,
+      );
       if (result.success) {
         // Proceed with updating the UI
         statusSpan.classList.remove(previousStatus);
@@ -452,80 +484,101 @@ debugLog(groupHeader, participantRow);
         statusSpan.textContent = translate(newStatus);
 
         this.attendanceData[participantId] = newStatus;
-        this.app.showMessage(translate("attendance_updated_successfully"), "success");
+        this.app.showMessage(
+          translate("attendance_updated_successfully"),
+          "success",
+        );
         // Cache the fetched data for 5 minues
-        await setCachedData(`attendance_${this.currentDate}`, {
-          participants: this.participants,
-          attendanceData: this.attendanceData,
-          guests: this.guests,
-          groups: this.groups
-        },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
+        await setCachedData(
+          `attendance_${this.currentDate}`,
+          {
+            participants: this.participants,
+            attendanceData: this.attendanceData,
+            guests: this.guests,
+            groups: this.groups,
+          },
+          CONFIG.CACHE_DURATION.SHORT,
+        ); // Cache for 5 minute
       } else {
         throw new Error(result.message || "Unknown error occurred");
       }
-
     } catch (error) {
       debugError("Error:", error);
-      this.app.showMessage(`${translate("error_updating_attendance")}: ${error.message}`, "error");
+      this.app.showMessage(
+        `${translate("error_updating_attendance")}: ${error.message}`,
+        "error",
+      );
     }
   }
 
-    // Fix the selection toggle methods
-    toggleGroupSelection(header) {
-      const groupId = header.dataset.groupId;
+  // Fix the selection toggle methods
+  toggleGroupSelection(header) {
+    const groupId = header.dataset.groupId;
 
-      // Remove any existing participant selection
-      if (this.selectedParticipant) {
-        this.selectedParticipant.classList.remove('selected');
-        this.selectedParticipant = null;
-      }
-
-      // Handle group selection
-      if (this.selectedGroup === groupId) {
-        // Deselect current group
-        this.selectedGroup = null;
-        header.classList.remove('selected');
-        document.querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
-          .forEach(row => row.classList.remove('highlighted'));
-      } else {
-        // Deselect previous group if exists
-        if (this.selectedGroup) {
-          const previousHeader = document.querySelector(`.group-header[data-group-id="${this.selectedGroup}"]`);
-          if (previousHeader) previousHeader.classList.remove('selected');
-          document.querySelectorAll(`.participant-row[data-group-id="${this.selectedGroup}"]`)
-            .forEach(row => row.classList.remove('highlighted'));
-        }
-
-        // Select new group
-        this.selectedGroup = groupId;
-        header.classList.add('selected');
-        document.querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
-          .forEach(row => row.classList.add('highlighted'));
-      }
+    // Remove any existing participant selection
+    if (this.selectedParticipant) {
+      this.selectedParticipant.classList.remove("selected");
+      this.selectedParticipant = null;
     }
 
-    toggleIndividualSelection(row) {
-      // Remove any existing group selection
+    // Handle group selection
+    if (this.selectedGroup === groupId) {
+      // Deselect current group
+      this.selectedGroup = null;
+      header.classList.remove("selected");
+      document
+        .querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
+        .forEach((row) => row.classList.remove("highlighted"));
+    } else {
+      // Deselect previous group if exists
       if (this.selectedGroup) {
-        const groupHeader = document.querySelector(`.group-header[data-group-id="${this.selectedGroup}"]`);
-        if (groupHeader) groupHeader.classList.remove('selected');
-        document.querySelectorAll(`.participant-row[data-group-id="${this.selectedGroup}"]`)
-          .forEach(r => r.classList.remove('highlighted'));
-        this.selectedGroup = null;
+        const previousHeader = document.querySelector(
+          `.group-header[data-group-id="${this.selectedGroup}"]`,
+        );
+        if (previousHeader) previousHeader.classList.remove("selected");
+        document
+          .querySelectorAll(
+            `.participant-row[data-group-id="${this.selectedGroup}"]`,
+          )
+          .forEach((row) => row.classList.remove("highlighted"));
       }
 
-      // Handle participant selection
-      if (this.selectedParticipant === row) {
-        this.selectedParticipant = null;
-        row.classList.remove('selected');
-      } else {
-        if (this.selectedParticipant) {
-          this.selectedParticipant.classList.remove('selected');
-        }
-        this.selectedParticipant = row;
-        row.classList.add('selected');
-      }
+      // Select new group
+      this.selectedGroup = groupId;
+      header.classList.add("selected");
+      document
+        .querySelectorAll(`.participant-row[data-group-id="${groupId}"]`)
+        .forEach((row) => row.classList.add("highlighted"));
     }
+  }
+
+  toggleIndividualSelection(row) {
+    // Remove any existing group selection
+    if (this.selectedGroup) {
+      const groupHeader = document.querySelector(
+        `.group-header[data-group-id="${this.selectedGroup}"]`,
+      );
+      if (groupHeader) groupHeader.classList.remove("selected");
+      document
+        .querySelectorAll(
+          `.participant-row[data-group-id="${this.selectedGroup}"]`,
+        )
+        .forEach((r) => r.classList.remove("highlighted"));
+      this.selectedGroup = null;
+    }
+
+    // Handle participant selection
+    if (this.selectedParticipant === row) {
+      this.selectedParticipant = null;
+      row.classList.remove("selected");
+    } else {
+      if (this.selectedParticipant) {
+        this.selectedParticipant.classList.remove("selected");
+      }
+      this.selectedParticipant = row;
+      row.classList.add("selected");
+    }
+  }
 
   async updateStatus(newStatus) {
     if (this.selectedParticipant) {
@@ -538,62 +591,85 @@ debugLog(groupHeader, participantRow);
     }
   }
 
-
   async updateIndividualStatus(participantId, newStatus) {
-    const previousStatus = this.attendanceData[participantId] || 'present'; // Default to present if no status
+    const previousStatus = this.attendanceData[participantId] || "present"; // Default to present if no status
 
-    await this.optimisticManager.execute(`attendance-${participantId}-${this.currentDate}`, {
-      optimisticFn: () => {
-        // Update data and UI immediately
-        this.attendanceData[participantId] = newStatus;
-        this.updateAttendanceDisplay(participantId, newStatus, previousStatus);
+    await this.optimisticManager.execute(
+      `attendance-${participantId}-${this.currentDate}`,
+      {
+        optimisticFn: () => {
+          // Update data and UI immediately
+          this.attendanceData[participantId] = newStatus;
+          this.updateAttendanceDisplay(
+            participantId,
+            newStatus,
+            previousStatus,
+          );
 
-        return { previousStatus };
+          return { previousStatus };
+        },
+
+        apiFn: async () => {
+          // Make actual API call in background
+          return await updateAttendance(
+            participantId,
+            newStatus,
+            this.currentDate,
+            previousStatus,
+          );
+        },
+
+        successFn: async (result) => {
+          // Success: Update cache with new data
+          this.app.showMessage(translate("attendance_updated"), "success");
+          // Clear API-level cache to ensure fresh data on next fetch
+          await deleteCachedData(`attendance_api_${this.currentDate}`);
+          // Update UI-level cache with current data
+          await setCachedData(
+            `attendance_${this.currentDate}`,
+            {
+              participants: this.participants,
+              attendanceData: this.attendanceData,
+              guests: this.guests,
+              groups: this.groups,
+            },
+            CONFIG.CACHE_DURATION.SHORT,
+          );
+        },
+
+        rollbackFn: ({ previousStatus }, error) => {
+          // Rollback to original state on error
+          this.attendanceData[participantId] = previousStatus;
+          this.updateAttendanceDisplay(
+            participantId,
+            previousStatus,
+            newStatus,
+          );
+          debugError("Error updating attendance:", error);
+          this.app.showMessage(
+            error.message || translate("error_updating_attendance"),
+            "error",
+          );
+        },
       },
-
-      apiFn: async () => {
-        // Make actual API call in background
-        return await updateAttendance(participantId, newStatus, this.currentDate, previousStatus);
-      },
-
-      successFn: async (result) => {
-        // Success: Update cache with new data
-        this.app.showMessage(translate("attendance_updated"), "success");
-        // Clear API-level cache to ensure fresh data on next fetch
-        await deleteCachedData(`attendance_api_${this.currentDate}`);
-        // Update UI-level cache with current data
-        await setCachedData(`attendance_${this.currentDate}`, {
-          participants: this.participants,
-          attendanceData: this.attendanceData,
-          guests: this.guests,
-          groups: this.groups
-        }, CONFIG.CACHE_DURATION.SHORT);
-      },
-
-      rollbackFn: ({ previousStatus }, error) => {
-        // Rollback to original state on error
-        this.attendanceData[participantId] = previousStatus;
-        this.updateAttendanceDisplay(participantId, previousStatus, newStatus);
-        debugError("Error updating attendance:", error);
-        this.app.showMessage(error.message || translate("error_updating_attendance"), "error");
-      }
-    });
+    );
   }
 
-
   async updateGroupStatus(groupId, newStatus) {
-    const participantsToUpdate = this.participants.filter(p => p.group_id == groupId);
+    const participantsToUpdate = this.participants.filter(
+      (p) => p.group_id == groupId,
+    );
 
-    const participantIds = participantsToUpdate.map(p => p.id);
+    const participantIds = participantsToUpdate.map((p) => p.id);
 
     // Save previous statuses for rollback if necessary
     const previousStatuses = participantIds.reduce((acc, id) => {
-      acc[id] = this.attendanceData[id] || 'present';
+      acc[id] = this.attendanceData[id] || "present";
       return acc;
     }, {});
 
     // Optimistically update the UI
-    participantIds.forEach(id => {
+    participantIds.forEach((id) => {
       this.attendanceData[id] = newStatus;
       this.updateAttendanceDisplay(id, newStatus, previousStatuses[id]);
     });
@@ -601,25 +677,34 @@ debugLog(groupHeader, participantRow);
     try {
       // Call the API for each participant individually
       const results = await Promise.all(
-        participantIds.map(id => 
-          updateAttendance(id, newStatus, this.currentDate, previousStatuses[id])
-        )
+        participantIds.map((id) =>
+          updateAttendance(
+            id,
+            newStatus,
+            this.currentDate,
+            previousStatuses[id],
+          ),
+        ),
       );
 
       // Check if all updates succeeded
-      const allSucceeded = results.every(result => result.success);
+      const allSucceeded = results.every((result) => result.success);
 
       if (allSucceeded) {
         this.app.showMessage(translate("group_attendance_updated"), "success");
         // Clear API-level cache to ensure fresh data on next fetch
         await deleteCachedData(`attendance_api_${this.currentDate}`);
         // Update UI-level cache with current data
-        await setCachedData(`attendance_${this.currentDate}`, {
-          participants: this.participants,
-          attendanceData: this.attendanceData,
-          guests: this.guests,
-          groups: this.groups
-        },  CONFIG.CACHE_DURATION.SHORT); // Cache for 5 minute
+        await setCachedData(
+          `attendance_${this.currentDate}`,
+          {
+            participants: this.participants,
+            attendanceData: this.attendanceData,
+            guests: this.guests,
+            groups: this.groups,
+          },
+          CONFIG.CACHE_DURATION.SHORT,
+        ); // Cache for 5 minute
       } else {
         // Rollback failed updates
         results.forEach((result, index) => {
@@ -629,22 +714,29 @@ debugLog(groupHeader, participantRow);
             this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
           }
         });
-        this.app.showMessage(translate("error_updating_group_attendance"), "error");
+        this.app.showMessage(
+          translate("error_updating_group_attendance"),
+          "error",
+        );
       }
     } catch (error) {
       // Rollback on error
       debugError("Error updating group attendance:", error);
-      participantIds.forEach(id => {
+      participantIds.forEach((id) => {
         this.attendanceData[id] = previousStatuses[id];
         this.updateAttendanceDisplay(id, previousStatuses[id], newStatus);
       });
-      this.app.showMessage(translate("error_updating_group_attendance"), "error");
+      this.app.showMessage(
+        translate("error_updating_group_attendance"),
+        "error",
+      );
     }
   }
 
-
   updateAttendanceDisplay(participantId, newStatus, previousStatus) {
-    const row = document.querySelector(`.participant-row[data-participant-id="${participantId}"]`);
+    const row = document.querySelector(
+      `.participant-row[data-participant-id="${participantId}"]`,
+    );
     if (row) {
       const statusSpan = row.querySelector(".participant-status");
       statusSpan.classList.remove(`${previousStatus}`);
@@ -652,8 +744,6 @@ debugLog(groupHeader, participantRow);
       statusSpan.textContent = translate(newStatus);
     }
   }
-
-  
 
   async changeDate(newDate) {
     this.currentDate = newDate;
@@ -685,14 +775,15 @@ debugLog(groupHeader, participantRow);
     }
   }
 
-  
-
   updateAttendanceUIForDate() {
     document.querySelectorAll(".participant-row").forEach((row) => {
       const participantId = row.dataset.participantId;
       const statusSpan = row.querySelector(".participant-status");
       const status = this.attendanceData[participantId] || "present";
-      const statusClass = status === "present" && !this.attendanceData[participantId] ? "" : status;
+      const statusClass =
+        status === "present" && !this.attendanceData[participantId]
+          ? ""
+          : status;
 
       statusSpan.className = `participant-status ${statusClass}`;
       statusSpan.textContent = translate(status);
@@ -720,7 +811,7 @@ debugLog(groupHeader, participantRow);
     const guest = {
       name: guestName,
       email: guestEmail,
-      attendance_date: this.currentDate
+      attendance_date: this.currentDate,
     };
 
     try {
