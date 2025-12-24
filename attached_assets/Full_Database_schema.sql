@@ -295,6 +295,48 @@ CREATE TABLE public.fee_definitions (
   CONSTRAINT fee_definitions_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
   CONSTRAINT fee_definitions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+CREATE TABLE public.form_format_versions (
+  id integer NOT NULL DEFAULT nextval('form_format_versions_id_seq'::regclass),
+  form_format_id integer NOT NULL,
+  version_number integer NOT NULL,
+  form_structure jsonb NOT NULL,
+  display_name character varying,
+  change_description text,
+  created_by uuid,
+  created_at timestamp without time zone DEFAULT now(),
+  is_active boolean DEFAULT false,
+  CONSTRAINT form_format_versions_pkey PRIMARY KEY (id),
+  CONSTRAINT form_format_versions_form_format_id_fkey FOREIGN KEY (form_format_id) REFERENCES public.organization_form_formats(id),
+  CONSTRAINT form_format_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.form_permissions (
+  id integer NOT NULL DEFAULT nextval('form_permissions_id_seq'::regclass),
+  form_format_id integer NOT NULL,
+  role_id integer,
+  can_view boolean DEFAULT false,
+  can_submit boolean DEFAULT false,
+  can_edit boolean DEFAULT false,
+  can_approve boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT form_permissions_pkey PRIMARY KEY (id),
+  CONSTRAINT form_permissions_form_format_id_fkey FOREIGN KEY (form_format_id) REFERENCES public.organization_form_formats(id),
+  CONSTRAINT form_permissions_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id)
+);
+CREATE TABLE public.form_submission_history (
+  id integer NOT NULL DEFAULT nextval('form_submission_history_id_seq'::regclass),
+  form_submission_id integer NOT NULL,
+  submission_data jsonb NOT NULL,
+  status character varying,
+  edited_by uuid,
+  edited_at timestamp without time zone DEFAULT now(),
+  change_reason text,
+  ip_address character varying,
+  user_agent text,
+  changes_summary jsonb,
+  CONSTRAINT form_submission_history_pkey PRIMARY KEY (id),
+  CONSTRAINT form_submission_history_form_submission_id_fkey FOREIGN KEY (form_submission_id) REFERENCES public.form_submissions(id),
+  CONSTRAINT form_submission_history_edited_by_fkey FOREIGN KEY (edited_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.form_submissions (
   id integer NOT NULL DEFAULT nextval('form_submissions_id_seq'::regclass),
   organization_id integer NOT NULL,
@@ -304,10 +346,20 @@ CREATE TABLE public.form_submissions (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   user_id uuid,
+  form_version_id integer,
+  status character varying DEFAULT 'submitted'::character varying CHECK (status::text = ANY (ARRAY['draft'::character varying, 'submitted'::character varying, 'reviewed'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])),
+  reviewed_by uuid,
+  reviewed_at timestamp without time zone,
+  review_notes text,
+  submitted_at timestamp without time zone,
+  ip_address character varying,
+  user_agent text,
   CONSTRAINT form_submissions_pkey PRIMARY KEY (id),
   CONSTRAINT form_submissions_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
   CONSTRAINT form_submissions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT form_submissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+  CONSTRAINT form_submissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT form_submissions_form_version_id_fkey FOREIGN KEY (form_version_id) REFERENCES public.form_format_versions(id),
+  CONSTRAINT form_submissions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.fundraiser_entries (
   participant_id integer,
@@ -512,8 +564,25 @@ CREATE TABLE public.organization_form_formats (
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   display_type text,
+  display_name character varying,
+  description text,
+  instructions text,
+  category character varying,
+  status character varying DEFAULT 'draft'::character varying CHECK (status::text = ANY (ARRAY['draft'::character varying, 'published'::character varying, 'archived'::character varying]::text[])),
+  published_at timestamp without time zone,
+  archived_at timestamp without time zone,
+  valid_from timestamp without time zone,
+  valid_until timestamp without time zone,
+  max_submissions_per_participant integer,
+  is_required boolean DEFAULT false,
+  display_order integer DEFAULT 0,
+  tags ARRAY,
+  created_by uuid,
+  current_version_id integer,
   CONSTRAINT organization_form_formats_pkey PRIMARY KEY (id),
-  CONSTRAINT organization_form_formats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+  CONSTRAINT organization_form_formats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT organization_form_formats_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT fk_current_version FOREIGN KEY (current_version_id) REFERENCES public.form_format_versions(id)
 );
 CREATE TABLE public.organization_local_groups (
   organization_id integer NOT NULL,
