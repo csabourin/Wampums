@@ -155,7 +155,7 @@ module.exports = (pool, logger) => {
         const trimmedPassword = password.trim();
 
         const userResult = await pool.query(
-          `SELECT u.id, u.email, u.password, u.is_verified, u.full_name, uo.role
+          `SELECT u.id, u.email, u.password, u.is_verified, u.full_name
            FROM users u
            JOIN user_organizations uo ON u.id = uo.user_id
            WHERE u.email = $1 AND uo.organization_id = $2`,
@@ -351,7 +351,7 @@ module.exports = (pool, logger) => {
 
         // Fetch user
         const userResult = await pool.query(
-          `SELECT u.id, u.email, u.full_name, uo.role
+          `SELECT u.id, u.email, u.full_name
            FROM users u
            JOIN user_organizations uo ON u.id = uo.user_id
            WHERE u.email = $1 AND uo.organization_id = $2`,
@@ -528,11 +528,23 @@ module.exports = (pool, logger) => {
 
         const userId = result.rows[0].id;
 
+        // Get role ID from roles table
+        const roleResult = await client.query(
+          `SELECT id FROM roles WHERE role_name = $1`,
+          [role]
+        );
+
+        if (roleResult.rows.length === 0) {
+          throw new Error(`Role '${role}' not found in roles table`);
+        }
+
+        const roleId = roleResult.rows[0].id;
+
         // Link user to organization with the requested role (parent by default)
         await client.query(
-          `INSERT INTO user_organizations (user_id, organization_id, role)
+          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
            VALUES ($1, $2, $3)`,
-          [userId, organizationId, role]
+          [userId, organizationId, JSON.stringify([roleId])]
         );
 
         await client.query('COMMIT');
@@ -616,11 +628,23 @@ module.exports = (pool, logger) => {
 
         const userId = result.rows[0].id;
 
+        // Get role ID from roles table
+        const roleResult = await client.query(
+          `SELECT id FROM roles WHERE role_name = $1`,
+          [role]
+        );
+
+        if (roleResult.rows.length === 0) {
+          throw new Error(`Role '${role}' not found in roles table`);
+        }
+
+        const roleId = roleResult.rows[0].id;
+
         // Link user to organization with the requested role (parent by default)
         await client.query(
-          `INSERT INTO user_organizations (user_id, organization_id, role)
+          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
            VALUES ($1, $2, $3)`,
-          [userId, organizationId, role]
+          [userId, organizationId, JSON.stringify([roleId])]
         );
 
         await client.query('COMMIT');
