@@ -410,8 +410,8 @@ module.exports = (pool, logger) => {
 
       // Link current user to the new organization with district-level permissions
       await client.query(
-        `INSERT INTO user_organizations (user_id, organization_id, role, role_ids, created_at)
-         VALUES ($1, $2, 'district', jsonb_build_array($3), NOW())`,
+        `INSERT INTO user_organizations (user_id, organization_id, role_ids, created_at)
+         VALUES ($1, $2, jsonb_build_array($3), NOW())`,
         [userId, newOrganizationId, districtRoleId]
       );
 
@@ -482,12 +482,23 @@ module.exports = (pool, logger) => {
       try {
         await client.query('BEGIN');
 
+        // Get role ID from roles table
+        const roleName = role || 'parent';
+        const roleResult = await client.query(
+          `SELECT id FROM roles WHERE role_name = $1`,
+          [roleName]
+        );
+        if (roleResult.rows.length === 0) {
+          throw new Error(`Role '${roleName}' not found in roles table`);
+        }
+        const roleId = roleResult.rows[0].id;
+
         // Add user to organization
         await client.query(
-          `INSERT INTO user_organizations (user_id, organization_id, role)
+          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
            VALUES ($1, $2, $3)
            ON CONFLICT (user_id, organization_id) DO NOTHING`,
-          [req.user.id, organizationId, role || 'parent']
+          [req.user.id, organizationId, JSON.stringify([roleId])]
         );
 
         // Link children if provided
