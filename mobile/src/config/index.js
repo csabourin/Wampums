@@ -11,20 +11,24 @@
 import Constants from 'expo-constants';
 
 // Environment-based configuration
+// Note: Expo supports .env files - variables are available as process.env.VARIABLE_NAME
 const ENV = {
   dev: {
-    apiUrl: 'http://localhost:3000/api',
-    apiVersion: 'v1',
-    enableDebugLogging: true,
+    // Default to Android emulator address (10.0.2.2 reaches host machine)
+    // For iOS simulator, use localhost
+    // For physical device, set API_URL in .env to your computer's IP
+    apiUrl: process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000/api',
+    apiVersion: process.env.EXPO_PUBLIC_API_VERSION || 'v1',
+    enableDebugLogging: process.env.EXPO_PUBLIC_ENABLE_DEBUG_LOGGING !== 'false',
   },
   staging: {
-    apiUrl: 'https://staging.wampums.ca/api',
-    apiVersion: 'v1',
-    enableDebugLogging: true,
+    apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://staging.wampums.ca/api',
+    apiVersion: process.env.EXPO_PUBLIC_API_VERSION || 'v1',
+    enableDebugLogging: process.env.EXPO_PUBLIC_ENABLE_DEBUG_LOGGING !== 'false',
   },
   production: {
-    apiUrl: 'https://wampums.ca/api',
-    apiVersion: 'v1',
+    apiUrl: process.env.EXPO_PUBLIC_API_URL || 'https://wampums.ca/api',
+    apiVersion: process.env.EXPO_PUBLIC_API_VERSION || 'v1',
     enableDebugLogging: false,
   },
 };

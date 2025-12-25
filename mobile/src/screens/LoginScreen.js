@@ -25,8 +25,8 @@ import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
 import CONFIG from '../config';
 
-const LoginScreen = ({ navigation }) => {
-  const [username, setUsername] = useState('');
+const LoginScreen = ({ navigation, onLogin }) => {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [trustDevice, setTrustDevice] = useState(false);
@@ -54,15 +54,21 @@ const LoginScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const response = await login(username, password, organizationId);
+      const response = await login(email, password, organizationId);
 
       if (response.success) {
-        if (response.data.requires2FA) {
+        // Check for 2FA requirement (backend uses snake_case)
+        if (response.requires_2fa || response.data?.requires_2fa) {
           setRequires2FA(true);
         } else {
           // Login successful, store session data
-          await storeSessionData(response.data);
-          navigation.replace('Dashboard');
+          // Response is at top level, not nested in data
+          await storeSessionData(response);
+
+          // Notify parent that login succeeded
+          if (onLogin) {
+            await onLogin();
+          }
         }
       } else {
         setError(response.message || t('auth.loginFailed'));
@@ -79,18 +85,24 @@ const LoginScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const response = await verify2FA(username, twoFactorCode, trustDevice);
+      const response = await verify2FA(email, twoFactorCode, trustDevice);
 
       if (response.success) {
-        // 2FA successful, store session data
-        await storeSessionData(response.data);
+        // 2FA successful, store session data (response at top level)
+        await storeSessionData(response);
 
-        // Store device token if trust device was selected
-        if (trustDevice && response.data.deviceToken) {
-          await StorageUtils.setItem(CONFIG.STORAGE_KEYS.DEVICE_TOKEN, response.data.deviceToken);
+        // Store device token if trust device was selected (backend uses snake_case)
+        if (trustDevice && (response.device_token || response.deviceToken)) {
+          await StorageUtils.setItem(
+            CONFIG.STORAGE_KEYS.DEVICE_TOKEN,
+            response.device_token || response.deviceToken
+          );
         }
 
-        navigation.replace('Dashboard');
+        // Notify parent that login succeeded
+        if (onLogin) {
+          await onLogin();
+        }
       } else {
         setError(response.message || t('auth.invalidCode'));
       }
@@ -103,21 +115,23 @@ const LoginScreen = ({ navigation }) => {
 
   const storeSessionData = async (data) => {
     // Store session data similar to spa/login.js
+    // Backend returns snake_case (user_id, user_role, etc.)
     await StorageUtils.setStorageMultiple({
       [CONFIG.STORAGE_KEYS.JWT_TOKEN]: data.token,
-      [CONFIG.STORAGE_KEYS.USER_ID]: data.userId,
-      [CONFIG.STORAGE_KEYS.USER_ROLE]: data.userRole,
-      [CONFIG.STORAGE_KEYS.USER_ROLES]: data.userRoles,
-      [CONFIG.STORAGE_KEYS.USER_PERMISSIONS]: data.userPermissions,
-      [CONFIG.STORAGE_KEYS.USER_FULL_NAME]: data.userFullName,
-      [CONFIG.STORAGE_KEYS.ORGANIZATION_ID]: organizationId,
-      [CONFIG.STORAGE_KEYS.CURRENT_ORGANIZATION_ID]: organizationId,
+      [CONFIG.STORAGE_KEYS.USER_ID]: data.user_id || data.userId,
+      [CONFIG.STORAGE_KEYS.USER_ROLE]: data.user_role || data.userRole,
+      [CONFIG.STORAGE_KEYS.USER_ROLES]: data.user_roles || data.userRoles,
+      [CONFIG.STORAGE_KEYS.USER_PERMISSIONS]: data.user_permissions || data.userPermissions,
+      [CONFIG.STORAGE_KEYS.USER_FULL_NAME]: data.user_full_name || data.userFullName,
+      [CONFIG.STORAGE_KEYS.ORGANIZATION_ID]: data.organization_id || organizationId,
+      [CONFIG.STORAGE_KEYS.CURRENT_ORGANIZATION_ID]: data.organization_id || organizationId,
     });
 
-    if (data.guardianParticipants) {
+    // Backend uses snake_case
+    if (data.guardian_participants || data.guardianParticipants) {
       await StorageUtils.setItem(
         CONFIG.STORAGE_KEYS.GUARDIAN_PARTICIPANTS,
-        data.guardianParticipants
+        data.guardian_participants || data.guardianParticipants
       );
     }
   };
@@ -186,11 +200,12 @@ const LoginScreen = ({ navigation }) => {
 
         <TextInput
           style={styles.input}
-          placeholder={t('auth.username')}
-          value={username}
-          onChangeText={setUsername}
+          placeholder={t('auth.email')}
+          value={email}
+          onChangeText={setEmail}
           autoCapitalize="none"
           autoCorrect={false}
+          keyboardType="email-address"
         />
 
         <TextInput
@@ -205,7 +220,7 @@ const LoginScreen = ({ navigation }) => {
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleLogin}
-          disabled={loading || !username || !password}
+          disabled={loading || !email || !password}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
