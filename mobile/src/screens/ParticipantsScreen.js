@@ -99,7 +99,7 @@ const ParticipantsScreen = ({ navigation }) => {
   };
 
   const renderParticipant = ({ item }) => (
-    <Card onPress={() => navigation.navigate('ParticipantDetail', { id: item.id })}>
+    <Card onPress={() => navigation.navigate('ParticipantDetail', { participantId: item.id })}>
       <View style={styles.participantRow}>
         <View style={styles.participantInfo}>
           <Text style={styles.participantName}>
