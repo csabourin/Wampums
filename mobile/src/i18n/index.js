@@ -29,20 +29,23 @@ let currentLanguage = CONFIG.LOCALE.DEFAULT_LANGUAGE;
 
 /**
  * Load static translations from bundled JSON files
- * In a real app, you would import these from lang/en.json and lang/fr.json
  */
 const loadStaticTranslations = async (lang) => {
   try {
-    // For now, we'll return an empty object
-    // In production, you would:
-    // 1. Copy lang/en.json and lang/fr.json to mobile/assets/lang/
-    // 2. Import them using require() or fetch()
-    // Example:
-    // const translations = require(`../../assets/lang/${lang}.json`);
-    // return translations;
+    let translations = {};
 
-    console.log(`Loading static translations for ${lang}...`);
-    return {};
+    // Load the appropriate translation file
+    if (lang === 'en') {
+      translations = require('../../assets/lang/en.json');
+    } else if (lang === 'fr') {
+      translations = require('../../assets/lang/fr.json');
+    }
+
+    if (CONFIG.FEATURES.DEBUG_LOGGING) {
+      console.log(`Loaded ${Object.keys(translations).length} static translations for ${lang}`);
+    }
+
+    return translations;
   } catch (error) {
     console.error(`Error loading static translations for ${lang}:`, error);
     return {};

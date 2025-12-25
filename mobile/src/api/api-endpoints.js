@@ -18,11 +18,11 @@ import CONFIG from '../config';
  */
 
 /**
- * Login with username and password
+ * Login with email and password
  */
-export const login = async (username, password, organizationId) => {
+export const login = async (email, password, organizationId) => {
   return API.public(CONFIG.ENDPOINTS.LOGIN, {
-    username,
+    email,
     password,
     organizationId,
   }, 'POST');
@@ -31,9 +31,9 @@ export const login = async (username, password, organizationId) => {
 /**
  * Verify 2FA code
  */
-export const verify2FA = async (username, code, trustDevice = false) => {
+export const verify2FA = async (email, code, trustDevice = false) => {
   return API.public(CONFIG.ENDPOINTS.VERIFY_2FA, {
-    username,
+    email,
     code,
     trustDevice,
   }, 'POST');
