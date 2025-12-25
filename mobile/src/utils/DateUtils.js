@@ -293,6 +293,18 @@ export const endOfDay = (date) => {
   return dateObj;
 };
 
+/**
+ * Validate date string or Date object
+ * @param {string|Date} date - Date to validate
+ * @returns {boolean} True if valid date
+ */
+export const isValidDate = (date) => {
+  if (!date) return false;
+
+  const dateObj = date instanceof Date ? date : new Date(date);
+  return !isNaN(dateObj.getTime());
+};
+
 export default {
   formatDate,
   formatTime,
@@ -308,4 +320,5 @@ export default {
   calculateAge,
   startOfDay,
   endOfDay,
+  isValidDate,
 };

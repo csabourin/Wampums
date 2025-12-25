@@ -13,6 +13,7 @@
 import axios from 'axios';
 import CONFIG, { getApiUrl } from '../config';
 import StorageUtils from '../utils/StorageUtils';
+import CacheManager from '../utils/CacheManager';
 
 // Create axios instance with default config
 const axiosInstance = axios.create({
@@ -117,15 +118,58 @@ const handleApiError = async (error, originalRequest) => {
 };
 
 /**
- * Make HTTP request with retry logic
+ * Make HTTP request with retry logic and offline support
  */
 const makeRequest = async (method, endpoint, data = null, options = {}) => {
   const {
     headers: customHeaders = {},
     retries = CONFIG.API.RETRY_ATTEMPTS,
     currentAttempt = 0,
+    useCache = true, // Enable cache by default for GET requests
+    forceRefresh = false, // Skip cache and fetch fresh data
+    cacheDuration, // Optional custom cache duration
     ...axiosOptions
   } = options;
+
+  // GET requests: Check cache first (unless forceRefresh)
+  if (method === 'GET' && useCache && !forceRefresh) {
+    const cachedData = await CacheManager.getCachedData(endpoint);
+    if (cachedData) {
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        console.log(`[API] Cache hit: ${endpoint}`);
+      }
+      return cachedData;
+    }
+  }
+
+  // Check network state for mutations (POST/PUT/DELETE)
+  const isOnline = await CacheManager.getNetworkState();
+  const isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method);
+
+  // If offline and it's a mutation, queue it
+  if (!isOnline && isMutation) {
+    if (CONFIG.FEATURES.DEBUG_LOGGING) {
+      console.log(`[API] Offline - queuing mutation: ${method} ${endpoint}`);
+    }
+
+    const url = getApiUrl(endpoint);
+    const headers = await buildHeaders(customHeaders);
+
+    await CacheManager.queueMutation({
+      method,
+      url,
+      data,
+      headers,
+    });
+
+    // Return optimistic response
+    return {
+      success: true,
+      message: 'Request queued for sync when online',
+      queued: true,
+      data: data,
+    };
+  }
 
   try {
     const url = getApiUrl(endpoint);
@@ -150,22 +194,45 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
 
     // Normalize response to match backend format
     // { success: true, message: '...', data: {...}, timestamp: ... }
+    let normalizedResponse;
     if (response.data && typeof response.data === 'object') {
       // If response already has success/message/data structure, return as-is
       if ('success' in response.data) {
-        return response.data;
+        normalizedResponse = response.data;
+      } else {
+        // Otherwise, wrap the response
+        normalizedResponse = {
+          success: true,
+          data: response.data,
+          timestamp: new Date().toISOString(),
+        };
       }
-
-      // Otherwise, wrap the response
-      return {
-        success: true,
-        data: response.data,
-        timestamp: new Date().toISOString(),
-      };
+    } else {
+      normalizedResponse = response.data;
     }
 
-    return response.data;
+    // Cache successful GET responses
+    if (method === 'GET' && useCache && normalizedResponse.success !== false) {
+      await CacheManager.cacheData(endpoint, normalizedResponse, cacheDuration);
+    }
+
+    return normalizedResponse;
   } catch (error) {
+    // If offline and it's a GET request, try to return cached data
+    if (!isOnline && method === 'GET' && useCache) {
+      const cachedData = await CacheManager.getCachedData(endpoint);
+      if (cachedData) {
+        if (CONFIG.FEATURES.DEBUG_LOGGING) {
+          console.log(`[API] Offline - returning cached: ${endpoint}`);
+        }
+        return {
+          ...cachedData,
+          fromCache: true,
+          offline: true,
+        };
+      }
+    }
+
     // Check if we should retry
     if (
       currentAttempt < retries &&

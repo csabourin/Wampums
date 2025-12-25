@@ -293,6 +293,21 @@ export const deepSanitize = (obj) => {
   return obj;
 };
 
+/**
+ * Validate email format
+ * @param {string} email - Email address to validate
+ * @returns {boolean} True if valid email format
+ */
+export const isValidEmail = (email) => {
+  if (!email || typeof email !== 'string') {
+    return false;
+  }
+
+  // RFC 5322 compliant email regex (simplified)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
+};
+
 export default {
   sanitizeInput,
   escapeHtml,
@@ -306,4 +321,5 @@ export default {
   removeControlCharacters,
   truncateText,
   deepSanitize,
+  isValidEmail,
 };
