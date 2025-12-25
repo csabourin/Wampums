@@ -15,13 +15,15 @@ import StorageUtils from '../utils/StorageUtils';
 import { getTranslations as fetchTranslationsFromAPI } from '../api/api-endpoints';
 import CONFIG from '../config';
 
-// Create i18n instance
-const i18n = new I18n();
-
-// Default locale
-i18n.defaultLocale = CONFIG.LOCALE.DEFAULT_LANGUAGE;
-i18n.locale = CONFIG.LOCALE.DEFAULT_LANGUAGE;
-i18n.enableFallback = true;
+// Create i18n instance with proper v4 configuration
+const i18n = new I18n(
+  {}, // Initial translations (will be loaded dynamically)
+  {
+    defaultLocale: CONFIG.LOCALE.DEFAULT_LANGUAGE,
+    locale: CONFIG.LOCALE.DEFAULT_LANGUAGE,
+    enableFallback: true,
+  }
+);
 
 // Translation cache
 let translationsLoaded = false;
@@ -109,7 +111,9 @@ export const initI18n = async () => {
 
     // If no stored language, use device locale
     if (!storedLang) {
-      const deviceLocale = Localization.locale.split('-')[0]; // Get 'en' from 'en-US'
+      // expo-localization v17+ uses getLocales() instead of .locale
+      const locales = Localization.getLocales();
+      const deviceLocale = locales[0]?.languageCode || CONFIG.LOCALE.DEFAULT_LANGUAGE;
       storedLang = CONFIG.LOCALE.SUPPORTED_LANGUAGES.includes(deviceLocale)
         ? deviceLocale
         : CONFIG.LOCALE.DEFAULT_LANGUAGE;
