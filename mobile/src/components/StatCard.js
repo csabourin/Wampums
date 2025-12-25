@@ -11,11 +11,15 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 const StatCard = ({ label, value, icon, color = '#007AFF', onPress, loading = false }) => {
   const Container = onPress ? TouchableOpacity : View;
 
+  // Props for touchable container
+  const containerProps = onPress
+    ? { onPress, activeOpacity: 0.7 }
+    : {};
+
   return (
     <Container
       style={[styles.container, { borderLeftColor: color }]}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
+      {...containerProps}
     >
       {loading ? (
         <Text style={styles.loadingText}>...</Text>
