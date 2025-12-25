@@ -1,61 +1,43 @@
 /**
  * Dashboard Screen
  *
- * Mirrors spa/dashboard.js functionality
- * Role-based dashboard with different views for different user types
+ * Router for role-based dashboards
+ * Directs users to the appropriate dashboard based on their role
+ *
+ * Role-based routing:
+ * - parent -> ParentDashboardScreen
+ * - leader -> LeaderDashboardScreen
+ * - admin -> DistrictDashboardScreen
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
-import { getInitialData } from '../api/api-endpoints';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
 import CONFIG from '../config';
 
-const DashboardScreen = ({ navigation }) => {
+// Import role-specific dashboards
+import ParentDashboardScreen from './ParentDashboardScreen';
+import LeaderDashboardScreen from './LeaderDashboardScreen';
+import DistrictDashboardScreen from './DistrictDashboardScreen';
+
+const DashboardScreen = () => {
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [userData, setUserData] = useState(null);
-  const [error, setError] = useState('');
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
-    loadDashboardData();
+    loadUserRole();
   }, []);
 
-  const loadDashboardData = async () => {
+  const loadUserRole = async () => {
     try {
-      // Get user data from storage
-      const userRole = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
-      const userFullName = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_FULL_NAME);
-      const userId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID);
-
-      setUserData({ userRole, userFullName, userId });
-
-      // Load initial data from API
-      const response = await getInitialData();
-
-      if (response.success) {
-        // Process initial data
-        // TODO: Store relevant data in state or context
-      }
+      const role = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
+      setUserRole(role);
     } catch (err) {
-      setError(err.message || t('common.errorLoadingData'));
+      console.error('Error loading user role:', err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboardData();
-    setRefreshing(false);
   };
 
   if (loading) {
@@ -67,40 +49,21 @@ const DashboardScreen = ({ navigation }) => {
     );
   }
 
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
+  // Route to appropriate dashboard based on role
+  switch (userRole) {
+    case 'parent':
+      return <ParentDashboardScreen />;
+
+    case 'leader':
+      return <LeaderDashboardScreen />;
+
+    case 'admin':
+      return <DistrictDashboardScreen />;
+
+    default:
+      // Fallback to parent dashboard if role is unknown
+      return <ParentDashboardScreen />;
   }
-
-  return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.header}>
-        <Text style={styles.greeting}>
-          {t('dashboard.welcome')}, {userData?.userFullName}!
-        </Text>
-        <Text style={styles.role}>{userData?.userRole}</Text>
-      </View>
-
-      <View style={styles.content}>
-        <Text style={styles.placeholder}>
-          {t('dashboard.contentPlaceholder')}
-        </Text>
-
-        {/* TODO: Add role-specific dashboard content */}
-        {/* - Parent users: participant info, upcoming activities, fees */}
-        {/* - Admin users: quick stats, recent activity, shortcuts */}
-        {/* - Leader users: group info, attendance, activities */}
-      </View>
-    </ScrollView>
-  );
 };
 
 const styles = StyleSheet.create({

@@ -10,6 +10,8 @@ export { default as LoginScreen } from './LoginScreen';
 // Main screens
 export { default as DashboardScreen } from './DashboardScreen';
 export { default as ParentDashboardScreen } from './ParentDashboardScreen';
+export { default as LeaderDashboardScreen } from './LeaderDashboardScreen';
+export { default as DistrictDashboardScreen } from './DistrictDashboardScreen';
 export { default as ParticipantsScreen } from './ParticipantsScreen';
 export { default as ActivitiesScreen } from './ActivitiesScreen';
 export { default as SettingsScreen } from './SettingsScreen';
