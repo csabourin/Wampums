@@ -16,6 +16,12 @@ const StatCard = ({ label, value, icon, color = '#007AFF', onPress, loading = fa
     ? { onPress, activeOpacity: 0.7 }
     : {};
 
+  // Ensure value is always a string for React Native Text component
+  // Android requires Text children to be strings, not numbers or booleans
+  const displayValue = value !== null && value !== undefined
+    ? String(value)
+    : '0';
+
   return (
     <Container
       style={[styles.container, { borderLeftColor: color }]}
@@ -25,7 +31,7 @@ const StatCard = ({ label, value, icon, color = '#007AFF', onPress, loading = fa
         <Text style={styles.loadingText}>...</Text>
       ) : (
         <>
-          <Text style={[styles.value, { color }]}>{value}</Text>
+          <Text style={[styles.value, { color }]}>{displayValue}</Text>
           <Text style={styles.label}>{label}</Text>
         </>
       )}
