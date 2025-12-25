@@ -18,8 +18,8 @@ ON CONFLICT DO NOTHING;
 -- Some participants have an $80 discount (applied to total_registration_fee)
 -- Status is determined by amount paid vs total amount
 
-INSERT INTO participant_fees (participant_id, organization_id, fee_definition_id, total_registration_fee, total_membership_fee, total_amount, status, notes, created_at)
-SELECT participant_id, organization_id, fee_def_id, registration_fee, membership_fee, (registration_fee + membership_fee),
+INSERT INTO participant_fees (participant_id, organization_id, fee_definition_id, total_registration_fee, total_membership_fee, status, notes, created_at)
+SELECT participant_id, organization_id, fee_def_id, registration_fee, membership_fee,
        CASE
          WHEN amount_paid = 0 THEN 'unpaid'
          WHEN amount_paid >= (registration_fee + membership_fee) THEN 'paid'
