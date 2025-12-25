@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AuthNavigator from './AuthNavigator';
 import AppNavigator from './AppNavigator';
 import StorageUtils from '../utils/StorageUtils';
@@ -64,25 +65,27 @@ const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isAuthenticated ? (
-          <Stack.Screen name="App">
-            {() => (
-              <AppNavigator
-                userRole={userRole}
-                userPermissions={userPermissions}
-                onLogout={handleLogout}
-              />
-            )}
-          </Stack.Screen>
-        ) : (
-          <Stack.Screen name="Auth">
-            {() => <AuthNavigator onLogin={handleLogin} />}
-          </Stack.Screen>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {isAuthenticated ? (
+            <Stack.Screen name="App">
+              {() => (
+                <AppNavigator
+                  userRole={userRole}
+                  userPermissions={userPermissions}
+                  onLogout={handleLogout}
+                />
+              )}
+            </Stack.Screen>
+          ) : (
+            <Stack.Screen name="Auth">
+              {() => <AuthNavigator onLogin={handleLogin} />}
+            </Stack.Screen>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 };
 
