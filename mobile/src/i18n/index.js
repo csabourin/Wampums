@@ -57,16 +57,23 @@ const loadStaticTranslations = async (lang) => {
 /**
  * Load dynamic translations from API
  * Mirrors spa/api/api-offline-wrapper.js translation caching
+ * Non-blocking - returns empty object if API is unavailable
  */
 const loadDynamicTranslations = async (lang) => {
   try {
     const response = await fetchTranslationsFromAPI(lang);
     if (response.success && response.data) {
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        console.log(`Loaded ${Object.keys(response.data).length} dynamic translations for ${lang}`);
+      }
       return response.data;
     }
     return {};
   } catch (error) {
-    console.error(`Error loading dynamic translations for ${lang}:`, error);
+    // API not available - this is expected when offline or backend not running
+    if (CONFIG.FEATURES.DEBUG_LOGGING) {
+      console.log(`API translations unavailable for ${lang}, using static translations only`);
+    }
     return {};
   }
 };
@@ -76,26 +83,33 @@ const loadDynamicTranslations = async (lang) => {
  */
 export const loadTranslation = async (lang) => {
   try {
-    // Load static and dynamic translations in parallel
-    const [staticTranslations, dynamicTranslations] = await Promise.all([
-      loadStaticTranslations(lang),
-      loadDynamicTranslations(lang),
-    ]);
+    // Load static translations first (always available)
+    const staticTranslations = await loadStaticTranslations(lang);
 
-    // Merge translations (dynamic overrides static)
-    const translations = {
-      ...staticTranslations,
-      ...dynamicTranslations,
-    };
-
-    // Set translations for this locale
+    // Set static translations immediately so app can render
     i18n.store({
-      [lang]: translations,
+      [lang]: staticTranslations,
     });
 
-    return translations;
+    // Try to load dynamic translations (non-blocking)
+    const dynamicTranslations = await loadDynamicTranslations(lang);
+
+    // Merge with dynamic if available
+    if (dynamicTranslations && Object.keys(dynamicTranslations).length > 0) {
+      const translations = {
+        ...staticTranslations,
+        ...dynamicTranslations,
+      };
+      i18n.store({
+        [lang]: translations,
+      });
+      return translations;
+    }
+
+    return staticTranslations;
   } catch (error) {
     console.error(`Error loading translations for ${lang}:`, error);
+    // Return empty object - i18n will fall back to keys
     return {};
   }
 };
