@@ -20,7 +20,8 @@ import {
 } from 'react-native';
 import StorageUtils from '../utils/StorageUtils';
 import { translate as t, changeLanguage, getCurrentLanguage } from '../i18n';
-import { logout } from '../api/api-endpoints';
+import { logout, switchOrganization } from '../api/api-endpoints';
+import CacheManager from '../utils/CacheManager';
 import CONFIG from '../config';
 import { Card } from '../components';
 import theme, { commonStyles } from '../theme';
@@ -28,8 +29,10 @@ import theme, { commonStyles } from '../theme';
 const SettingsScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
+  const [organizationUrl, setOrganizationUrl] = useState('');
   const [currentLanguage, setCurrentLanguage] = useState('fr');
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [switchingOrg, setSwitchingOrg] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -39,9 +42,11 @@ const SettingsScreen = ({ navigation }) => {
     // Load user data
     const name = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_FULL_NAME);
     const role = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
+    const orgUrl = await StorageUtils.getItem('organizationUrl');
 
     setUserName(name || '');
     setUserRole(role || '');
+    setOrganizationUrl(orgUrl || t('organization.not_set'));
     setCurrentLanguage(getCurrentLanguage());
 
     // TODO: Load push notification preference when implemented
@@ -65,6 +70,74 @@ const SettingsScreen = ({ navigation }) => {
           },
         ]
       );
+    }
+  };
+
+  /**
+   * Handle switching to a different organization
+   * This will navigate back to OrganizationSelectScreen
+   * and clear org-specific cached data
+   */
+  const handleSwitchOrganization = async () => {
+    Alert.alert(
+      t('organization.switch_organization'),
+      t('Are you sure you want to switch to a different organization? You will need to log in again.'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('organization.continue'),
+          style: 'default',
+          onPress: async () => {
+            setSwitchingOrg(true);
+            try {
+              // Clear organization-specific cache
+              await clearOrganizationCaches();
+
+              // Clear user session data but keep device token and language
+              await StorageUtils.clearUserData();
+
+              // Clear organization URL to force re-selection
+              await StorageUtils.removeItem('organizationUrl');
+              await StorageUtils.removeItem('organizationHostname');
+              await StorageUtils.removeItem('dynamicApiBaseUrl');
+              await StorageUtils.removeItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
+              await StorageUtils.removeItem(CONFIG.STORAGE_KEYS.CURRENT_ORGANIZATION_ID);
+
+              // Navigation will automatically switch to OrganizationSelectScreen
+            } catch (error) {
+              console.error('Switch organization error:', error);
+              Alert.alert(
+                t('Error'),
+                t('organization.switch_error'),
+                [{ text: t('OK') }]
+              );
+            } finally {
+              setSwitchingOrg(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  /**
+   * Clear organization-specific caches
+   * Called when switching organizations
+   */
+  const clearOrganizationCaches = async () => {
+    try {
+      // Clear all organization-specific cached data
+      // This ensures fresh data when user switches to a new org
+      await CacheManager.clearAllCaches();
+
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        console.log('[SettingsScreen] Cleared organization caches');
+      }
+    } catch (error) {
+      console.error('Error clearing organization caches:', error);
     }
   };
 
@@ -106,6 +179,33 @@ const SettingsScreen = ({ navigation }) => {
           <Text style={styles.profileName}>{userName}</Text>
           <Text style={styles.profileRole}>{userRole}</Text>
         </Card>
+      </View>
+
+      {/* Organization Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('organization.current')}</Text>
+        <Card>
+          <View style={styles.settingRow}>
+            <View style={styles.orgInfo}>
+              <Text style={styles.settingLabel}>{t('Organization')}</Text>
+              <Text style={styles.orgUrl}>{organizationUrl}</Text>
+            </View>
+          </View>
+          <View style={styles.separator} />
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={handleSwitchOrganization}
+            disabled={switchingOrg}
+          >
+            <Text style={[styles.settingLabel, styles.switchOrgText]}>
+              {switchingOrg ? t('organization.switching') : t('organization.switch_organization')}
+            </Text>
+            {!switchingOrg && <Text style={styles.chevron}>›</Text>}
+          </TouchableOpacity>
+        </Card>
+        <Text style={styles.settingHelp}>
+          {t('Switching organizations will log you out and require you to log in again')}
+        </Text>
       </View>
 
       {/* Language Section */}
@@ -246,6 +346,22 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.textMuted,
+  },
+  orgInfo: {
+    flex: 1,
+  },
+  orgUrl: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xs,
+  },
+  switchOrgText: {
+    color: theme.colors.primary,
+  },
+  chevron: {
+    fontSize: theme.fontSize.xl,
+    color: theme.colors.textMuted,
+    fontWeight: theme.fontWeight.normal,
   },
 });
 

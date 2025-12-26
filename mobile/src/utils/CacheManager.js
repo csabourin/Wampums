@@ -447,6 +447,18 @@ class CacheManager {
     await this.deleteCachedDataByPattern('v1/attendance');
     await this.deleteCachedDataByPattern('guests-by-date');
   }
+
+  /**
+   * Clear ALL caches and queued mutations
+   * Use when: switching organizations or resetting app state
+   * WARNING: This clears all cached data and offline queue
+   */
+  async clearAllCaches() {
+    console.log('[Cache] Clearing all caches and mutation queue...');
+    await this.clearAllCache(); // Clear all cached API responses
+    await this.clearMutationQueue(); // Clear offline mutation queue
+    console.log('[Cache] All caches and queue cleared');
+  }
 }
 
 // Export singleton instance
