@@ -5,8 +5,7 @@
  * Directs users to the appropriate dashboard based on their permissions
  *
  * Permission-based routing:
- * - Admin permissions (users.assign_roles, org.view, etc.) -> DistrictDashboardScreen
- * - Staff permissions (participants.view, attendance.manage, etc.) -> LeaderDashboardScreen
+ * - Non-parent permissions -> LeaderDashboardScreen
  * - Parent permissions (limited access) -> ParentDashboardScreen
  */
 
@@ -21,7 +20,6 @@ import theme, { commonStyles } from '../theme';
 // Import permission-based dashboards
 import ParentDashboardScreen from './ParentDashboardScreen';
 import LeaderDashboardScreen from './LeaderDashboardScreen';
-import DistrictDashboardScreen from './DistrictDashboardScreen';
 
 const DashboardScreen = () => {
   const [loading, setLoading] = useState(true);
@@ -59,9 +57,6 @@ const DashboardScreen = () => {
 
   // Route to appropriate dashboard based on permissions
   switch (dashboardType) {
-    case 'district':
-      return <DistrictDashboardScreen />;
-
     case 'leader':
       return <LeaderDashboardScreen />;
 

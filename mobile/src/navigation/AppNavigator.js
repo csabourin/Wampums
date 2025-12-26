@@ -26,7 +26,7 @@ import {
 
 const Stack = createStackNavigator();
 
-const AppNavigator = ({ userRole, userPermissions }) => {
+const AppNavigator = ({ userPermissions }) => {
   return (
     <Stack.Navigator
       screenOptions={{
@@ -35,7 +35,7 @@ const AppNavigator = ({ userRole, userPermissions }) => {
     >
       {/* Main tab navigation */}
       <Stack.Screen name="MainTabs">
-        {() => <MainTabNavigator userRole={userRole} userPermissions={userPermissions} />}
+        {() => <MainTabNavigator userPermissions={userPermissions} />}
       </Stack.Screen>
 
       {/* Detail screens */}

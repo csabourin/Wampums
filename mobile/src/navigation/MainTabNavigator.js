@@ -9,6 +9,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DashboardScreen, SettingsScreen } from '../screens';
 import { translate as t } from '../i18n';
+import { getDashboardType, hasAnyPermission } from '../utils/PermissionUtils';
 
 // Import future screens
 // import ParticipantsScreen from '../screens/ParticipantsScreen';
@@ -17,10 +18,14 @@ import { translate as t } from '../i18n';
 
 const Tab = createBottomTabNavigator();
 
-const MainTabNavigator = ({ userRole, userPermissions }) => {
-  // Determine which tabs to show based on role
-  const isParent = userRole === 'parent';
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+const MainTabNavigator = ({ userPermissions }) => {
+  // Determine which tabs to show based on permissions
+  const dashboardType = getDashboardType(userPermissions);
+  const isParent = dashboardType === 'parent';
+  const canViewFinance = hasAnyPermission(
+    ['finance.view', 'finance.manage', 'finance.approve'],
+    userPermissions
+  );
 
   return (
     <Tab.Navigator
@@ -72,7 +77,7 @@ const MainTabNavigator = ({ userRole, userPermissions }) => {
       )}
 
       {/* Finance - for admins */}
-      {isAdmin && (
+      {canViewFinance && (
         <Tab.Screen
           name="FinanceTab"
           component={DashboardScreen} // Placeholder - replace with FinanceScreen

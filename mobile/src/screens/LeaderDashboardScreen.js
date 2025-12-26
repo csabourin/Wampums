@@ -31,10 +31,11 @@ import { translate as t } from '../i18n';
 import StorageUtils from '../utils/StorageUtils';
 import CacheManager from '../utils/CacheManager';
 import SecurityUtils from '../utils/SecurityUtils';
-import { hasPermission, hasAnyPermission } from '../utils/PermissionUtils';
+import { hasPermission, hasAnyPermission, isAdmin } from '../utils/PermissionUtils';
 import theme, { commonStyles } from '../theme';
 import CONFIG from '../config';
 import { debugError } from '../utils/DebugUtils';
+import DistrictDashboardSection from '../components/DistrictDashboardSection';
 
 // Components
 import { LoadingSpinner, ErrorMessage } from '../components';
@@ -560,6 +561,8 @@ const LeaderDashboardScreen = () => {
     }))
     .filter((section) => section.items.length > 0);
 
+  const showDistrictDashboard = isAdmin(userPermissions);
+
   const logoSource = organizationLogo
     ? { uri: organizationLogo }
     : FALLBACK_ORG_LOGO;
@@ -588,6 +591,12 @@ const LeaderDashboardScreen = () => {
         </View>
 
         {renderActionGrid(manageItems, 'primary')}
+
+        {showDistrictDashboard && (
+          <View style={styles.districtDashboardSection}>
+            <DistrictDashboardSection variant="embedded" />
+          </View>
+        )}
 
         <View style={styles.logoContainer}>
           {/* TODO: Replace hardcoded fallback logo with a mobile-specific S3 asset. */}
@@ -712,6 +721,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.lg,
+  },
+  districtDashboardSection: {
+    marginTop: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
   },
   logo: {
     width: '100%',

@@ -21,7 +21,6 @@ const RootNavigator = () => {
   console.log('🔵 [RootNavigator] Component rendering');
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState(null);
   const [userPermissions, setUserPermissions] = useState([]);
 
   useEffect(() => {
@@ -38,11 +37,8 @@ const RootNavigator = () => {
 
       if (token && !StorageUtils.isJWTExpired(token)) {
         // Load user data
-        const role = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
         const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
 
-        console.log('🔵 [RootNavigator] User role:', role);
-        setUserRole(role);
         setUserPermissions(permissions || []);
         setIsAuthenticated(true);
       } else {
@@ -68,7 +64,6 @@ const RootNavigator = () => {
     console.log('🔵 [RootNavigator] handleLogout called');
     await StorageUtils.clearUserData();
     setIsAuthenticated(false);
-    setUserRole(null);
     setUserPermissions([]);
   };
 
@@ -91,7 +86,6 @@ const RootNavigator = () => {
                   console.log('🔵 [RootNavigator] Rendering AppNavigator');
                   return (
                     <AppNavigator
-                      userRole={userRole}
                       userPermissions={userPermissions}
                       onLogout={handleLogout}
                     />
