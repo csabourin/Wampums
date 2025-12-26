@@ -23,6 +23,7 @@ import { translate as t, changeLanguage, getCurrentLanguage } from '../i18n';
 import { logout } from '../api/api-endpoints';
 import CONFIG from '../config';
 import { Card } from '../components';
+import theme, { commonStyles } from '../theme';
 
 const SettingsScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
@@ -181,79 +182,70 @@ const SettingsScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
+    ...commonStyles.container,
   },
   section: {
-    padding: 16,
+    ...commonStyles.section,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#8E8E93',
-    marginBottom: 8,
-    textTransform: 'uppercase',
+    ...commonStyles.sectionTitle,
   },
   profileName: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
   profileRole: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textLight,
     textTransform: 'capitalize',
   },
   settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
+    ...commonStyles.row,
   },
   settingLabel: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: theme.fontSize.base,
+    color: theme.colors.text,
   },
   settingValue: {
-    fontSize: 16,
-    color: '#8E8E93',
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textMuted,
   },
   checkmark: {
-    fontSize: 20,
-    color: '#007AFF',
-    fontWeight: 'bold',
+    fontSize: theme.fontSize.xl,
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.bold,
   },
   separator: {
-    height: 1,
-    backgroundColor: '#E5E5EA',
+    ...commonStyles.separator,
   },
   settingHelp: {
-    fontSize: 13,
-    color: '#8E8E93',
-    marginTop: 8,
-    marginHorizontal: 16,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.sm,
+    marginHorizontal: theme.spacing.md,
   },
   logoutButton: {
-    backgroundColor: '#FF3B30',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: theme.colors.error,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
     alignItems: 'center',
-    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
+    minHeight: theme.touchTarget.min,
     justifyContent: 'center',
   },
   logoutButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
   },
   footer: {
-    padding: 32,
+    padding: theme.spacing.xl,
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
   },
 });
 
