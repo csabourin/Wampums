@@ -182,10 +182,35 @@ const CONFIG = {
 };
 
 // Helper function to get full API URL
+/**
+ * Build a full API URL, normalizing /api prefixes for different base URLs.
+ * Ensures:
+ * - /public endpoints always resolve at the root domain.
+ * - /api endpoints do not double-prefix when the base already ends in /api.
+ * - Versioned/legacy endpoints get /api when the base does not include it.
+ *
+ * @param {string} endpoint - API endpoint path.
+ * @returns {string} Full URL for the request.
+ */
 export const getApiUrl = (endpoint) => {
-  const baseUrl = CONFIG.API.BASE_URL;
+  const baseUrl = CONFIG.API.BASE_URL.replace(/\/+$/, '');
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `${baseUrl}${cleanEndpoint}`;
+  const baseHasApi = baseUrl.endsWith('/api');
+  const isPublicEndpoint = cleanEndpoint.startsWith('/public/');
+  const hasApiPrefix = cleanEndpoint.startsWith('/api/');
+
+  let normalizedBase = baseUrl;
+  let normalizedEndpoint = cleanEndpoint;
+
+  if (isPublicEndpoint && baseHasApi) {
+    normalizedBase = baseUrl.replace(/\/api$/, '');
+  } else if (hasApiPrefix && baseHasApi) {
+    normalizedEndpoint = cleanEndpoint.replace(/^\/api/, '');
+  } else if (!hasApiPrefix && !isPublicEndpoint && !baseHasApi) {
+    normalizedEndpoint = `/api${cleanEndpoint}`;
+  }
+
+  return `${normalizedBase}${normalizedEndpoint}`;
 };
 
 // Helper function to get versioned API URL
