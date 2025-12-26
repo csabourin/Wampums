@@ -267,7 +267,7 @@ const ParticipantDetailScreen = () => {
     if (!canEdit) {
       Alert.alert(
         t('Permission denied'),
-        t('You don'\''t have permission to edit')
+        t("You don't have permission to edit")
       );
       return;
     }
