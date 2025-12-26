@@ -203,6 +203,9 @@ const AttendanceScreen = () => {
       setError('');
       debugLog(`Loading attendance for date: ${date}`);
 
+      // Clear cache before loading to ensure fresh data
+      await CacheManager.clearAttendanceRelatedCaches();
+
       const [attendanceResponse, guestsResponse] = await Promise.all([
         getAttendance(date),
         getGuestsByDate(date),
