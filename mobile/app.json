@@ -28,6 +28,10 @@
         "projectId": "b8c9d86d-7eab-4c33-95c6-9ed6c9c14ddd"
       }
     },
-    "owner": "wampums"
+    "owner": "wampums",
+    "plugins": [
+      "expo-localization",
+      "expo-secure-store"
+    ]
   }
 }
