@@ -59,7 +59,9 @@ const RootNavigator = () => {
   const handleLogin = async () => {
     console.log('🔵 [RootNavigator] handleLogin called');
     // Reload user data after login
+    setIsLoading(true);
     await checkAuthState();
+    console.log('🔵 [RootNavigator] handleLogin complete, authentication state updated');
   };
 
   const handleLogout = async () => {

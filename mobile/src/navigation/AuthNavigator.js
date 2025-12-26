@@ -13,8 +13,8 @@ import { LoginScreen } from '../screens';
 
 const Stack = createStackNavigator();
 
-const AuthNavigator = () => {
-  console.log('🟣 [AuthNavigator] Rendering');
+const AuthNavigator = ({ onLogin }) => {
+  console.log('🟣 [AuthNavigator] Rendering with onLogin callback');
   try {
     console.log('🟣 [AuthNavigator] Creating Stack.Navigator');
     return (
@@ -25,7 +25,9 @@ const AuthNavigator = () => {
         }}
       >
         {console.log('🟣 [AuthNavigator] Adding LoginScreen to stack')}
-        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Login">
+          {(props) => <LoginScreen {...props} onLogin={onLogin} />}
+        </Stack.Screen>
         {/* Future auth screens */}
         {/* <Stack.Screen name="Register" component={RegisterScreen} /> */}
         {/* <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> */}
