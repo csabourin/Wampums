@@ -24,6 +24,7 @@ import { login, verify2FA, getOrganizationId } from '../api/api-endpoints';
 import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
 import CONFIG from '../config';
+import theme, { commonStyles } from '../theme';
 
 const LoginScreen = ({ navigation, onLogin }) => {
   console.log('🟠 [LoginScreen] Component initializing');
@@ -258,94 +259,77 @@ const LoginScreen = ({ navigation, onLogin }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
     justifyContent: 'center',
   },
   form: {
-    padding: 20,
-    backgroundColor: '#fff',
-    margin: 20,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+    margin: theme.spacing.lg,
+    borderRadius: theme.borderRadius.lg,
+    ...theme.shadows.md,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    ...commonStyles.heading2,
+    marginBottom: theme.spacing.sm,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textLight,
+    marginBottom: theme.spacing.lg,
     textAlign: 'center',
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 16,
-    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
+    ...commonStyles.input,
+    marginBottom: theme.spacing.md,
   },
   button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 12,
-    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
-    justifyContent: 'center',
+    ...commonStyles.button,
+    marginBottom: theme.spacing.md,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    ...commonStyles.buttonText,
   },
   link: {
-    color: '#007AFF',
+    color: theme.colors.primary,
     textAlign: 'center',
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.sm,
   },
   error: {
-    color: '#FF3B30',
-    marginBottom: 16,
+    color: theme.colors.error,
+    marginBottom: theme.spacing.md,
     textAlign: 'center',
   },
   checkbox: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   checkboxBox: {
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: '#007AFF',
-    borderRadius: 4,
-    marginRight: 8,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.sm,
+    marginRight: theme.spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
   },
   checkboxCheck: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.bold,
   },
   checkboxLabel: {
-    fontSize: 14,
+    fontSize: theme.fontSize.sm,
   },
 });
 

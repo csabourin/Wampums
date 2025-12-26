@@ -66,11 +66,11 @@ const CONFIG = {
     // Auth endpoints (non-versioned)
     LOGIN: '/public/login',
     VERIFY_2FA: '/public/verify-2fa',
-    LOGOUT: '/auth/logout',
-    REGISTER: '/auth/register',
-    RESET_PASSWORD: '/auth/reset-password',
-    REQUEST_RESET: '/auth/request-reset',
-    VERIFY_SESSION: '/auth/verify-session',
+    LOGOUT: '/api/auth/logout',
+    REGISTER: '/api/auth/register',
+    RESET_PASSWORD: '/api/auth/reset-password',
+    REQUEST_RESET: '/api/auth/request-reset',
+    VERIFY_SESSION: '/api/auth/verify-session',
     REFRESH_TOKEN: '/refresh-token',
 
     // Organization

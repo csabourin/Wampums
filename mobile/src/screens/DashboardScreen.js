@@ -15,6 +15,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
 import CONFIG from '../config';
+import theme, { commonStyles } from '../theme';
 
 // Import role-specific dashboards
 import ParentDashboardScreen from './ParentDashboardScreen';
@@ -43,7 +44,7 @@ const DashboardScreen = () => {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>{t('loading')}</Text>
       </View>
     );
@@ -68,50 +69,49 @@ const DashboardScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
+    ...commonStyles.container,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textLight,
   },
   errorText: {
-    color: '#FF3B30',
-    fontSize: 16,
+    color: theme.colors.error,
+    fontSize: theme.fontSize.base,
     textAlign: 'center',
-    padding: 20,
+    padding: theme.spacing.lg,
   },
   header: {
-    backgroundColor: '#007AFF',
-    padding: 20,
-    paddingTop: 40,
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.lg,
+    paddingTop: theme.spacing.xxl,
   },
   greeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
+    fontSize: theme.fontSize.xxl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.surface,
+    marginBottom: theme.spacing.xs,
   },
   role: {
-    fontSize: 14,
-    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.surface,
     opacity: 0.9,
   },
   content: {
-    padding: 20,
+    padding: theme.spacing.lg,
   },
   placeholder: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textLight,
     textAlign: 'center',
-    marginTop: 40,
+    marginTop: theme.spacing.xxl,
   },
 });
 
