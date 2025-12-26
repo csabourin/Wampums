@@ -7,14 +7,13 @@
 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { DashboardScreen } from '../screens';
+import { DashboardScreen, SettingsScreen } from '../screens';
 import { translate as t } from '../i18n';
 
 // Import future screens
 // import ParticipantsScreen from '../screens/ParticipantsScreen';
 // import ActivitiesScreen from '../screens/ActivitiesScreen';
 // import FinanceScreen from '../screens/FinanceScreen';
-// import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -87,7 +86,7 @@ const MainTabNavigator = ({ userRole, userPermissions }) => {
       {/* Settings - available to all users */}
       <Tab.Screen
         name="SettingsTab"
-        component={DashboardScreen} // Placeholder - replace with SettingsScreen
+        component={SettingsScreen}
         options={{
           title: t('settings'),
           tabBarIcon: () => null,
