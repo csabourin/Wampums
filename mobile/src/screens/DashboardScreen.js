@@ -5,9 +5,9 @@
  * Directs users to the appropriate dashboard based on their role
  *
  * Role-based routing:
- * - parent -> ParentDashboardScreen
- * - leader -> LeaderDashboardScreen
- * - admin -> DistrictDashboardScreen
+ * - parent, demoparent -> ParentDashboardScreen
+ * - leader, finance, equipment, administration -> LeaderDashboardScreen
+ * - admin, district, unitadmin, demoadmin -> DistrictDashboardScreen
  */
 
 import React, { useState, useEffect } from 'react';
@@ -53,12 +53,19 @@ const DashboardScreen = () => {
   // Route to appropriate dashboard based on role
   switch (userRole) {
     case 'parent':
+    case 'demoparent':
       return <ParentDashboardScreen />;
 
     case 'leader':
+    case 'finance':
+    case 'equipment':
+    case 'administration':
       return <LeaderDashboardScreen />;
 
     case 'admin':
+    case 'district':
+    case 'unitadmin':
+    case 'demoadmin':
       return <DistrictDashboardScreen />;
 
     default:
