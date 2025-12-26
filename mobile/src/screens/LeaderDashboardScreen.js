@@ -2,17 +2,16 @@
  * LeaderDashboardScreen
  *
  * Dashboard for scout leaders/group leaders
- * Shows key information and quick actions for managing their troop/group
+ * Mirrors the web dashboard layout in spa/dashboard.js
  *
  * Features:
- * - Upcoming activities
- * - Participant statistics
- * - Quick actions (attendance, activities, carpools)
- * - Permission slips status
- * - Offline support with caching
+ * - Organization overview and branding
+ * - Quick access to core leader tasks
+ * - Sectioned navigation for daily operations
+ * - Offline support with caching indicators
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,59 +20,58 @@ import {
   RefreshControl,
   Alert,
   TouchableOpacity,
+  Image,
+  useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 // API and utilities
-import {
-  getActivities,
-  getParticipants,
-  getGroups,
-} from '../api/api-endpoints';
+import { getOrganizationSettings } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import StorageUtils from '../utils/StorageUtils';
-import DateUtils from '../utils/DateUtils';
 import CacheManager from '../utils/CacheManager';
+import SecurityUtils from '../utils/SecurityUtils';
+import { hasPermission, hasAnyPermission } from '../utils/PermissionUtils';
 import theme, { commonStyles } from '../theme';
+import CONFIG from '../config';
 import { debugError } from '../utils/DebugUtils';
 
 // Components
-import {
-  LoadingSpinner,
-  ErrorMessage,
-  StatCard,
-  DashboardSection,
-  Card,
-} from '../components';
+import { LoadingSpinner, ErrorMessage } from '../components';
+
+const FALLBACK_ORG_LOGO = require('../../assets/icon.png');
+const ORGANIZATION_SETTINGS_KEY = 'organizationSettings';
 
 /**
  * LeaderDashboardScreen Component
  */
 const LeaderDashboardScreen = () => {
   const navigation = useNavigation();
+  const { width: windowWidth } = useWindowDimensions();
 
   // State
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationLogo, setOrganizationLogo] = useState('');
+  const [userPermissions, setUserPermissions] = useState([]);
 
-  // Data state
-  const [statistics, setStatistics] = useState({
-    totalParticipants: 0,
-    upcomingActivities: 0,
-    activeGroups: 0,
-    pendingPermissionSlips: 0,
-  });
-
-  const [upcomingActivities, setUpcomingActivities] = useState([]);
-  const [userGroup, setUserGroup] = useState(null);
+  const gridColumns = 2;
+  const gridGap = theme.spacing.sm;
+  const gridHorizontalPadding = theme.spacing.lg;
+  const gridItemWidth = useMemo(() => {
+    const availableWidth =
+      windowWidth - gridHorizontalPadding * 2 - gridGap * (gridColumns - 1);
+    return Math.max(0, availableWidth / gridColumns);
+  }, [windowWidth, gridGap, gridHorizontalPadding]);
 
   /**
    * Initialize screen
    */
   useEffect(() => {
-    loadUserGroup();
+    loadUserPermissions();
 
     // Listen for network state changes
     const networkListener = (online) => {
@@ -92,89 +90,65 @@ const LeaderDashboardScreen = () => {
    */
   useFocusEffect(
     React.useCallback(() => {
-      if (userGroup) {
-        loadDashboardData();
-      }
-    }, [userGroup])
+      loadDashboardContext();
+    }, [])
   );
 
   /**
-   * Load user's group information
+   * Load user permissions from storage
    */
-  const loadUserGroup = async () => {
+  const loadUserPermissions = async () => {
     try {
-      const groupId = await StorageUtils.getItem('userGroupId');
-      const groupName = await StorageUtils.getItem('userGroupName');
-
-      setUserGroup({ id: groupId, name: groupName });
-    } catch (error) {
-      debugError('Error loading user group:', error);
+      const storedPermissions = await StorageUtils.getItem(
+        CONFIG.STORAGE_KEYS.USER_PERMISSIONS
+      );
+      if (Array.isArray(storedPermissions)) {
+        setUserPermissions(storedPermissions);
+      }
+    } catch (err) {
+      debugError('Error loading user permissions:', err);
     }
   };
 
   /**
-   * Load all dashboard data
+   * Load organization branding data for the dashboard
    */
-  const loadDashboardData = async () => {
+  const loadDashboardContext = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Load data in parallel
-      const [activitiesRes, participantsRes, groupsRes] = await Promise.all([
-        getActivities(),
-        getParticipants(),
-        getGroups(),
-      ]);
+      const cachedSettings = await StorageUtils.getItem(
+        ORGANIZATION_SETTINGS_KEY
+      );
+      const cachedOrg = cachedSettings?.organization_info;
 
-      // Process activities
-      if (activitiesRes.success && activitiesRes.data) {
-        const activities = Array.isArray(activitiesRes.data)
-          ? activitiesRes.data
-          : [];
-
-        // Filter upcoming activities
-        const upcoming = activities.filter((activity) =>
-          DateUtils.isFuture(activity.date)
+      if (cachedOrg) {
+        setOrganizationName(
+          SecurityUtils.sanitizeInput(cachedOrg.name || '')
         );
-
-        setUpcomingActivities(upcoming.slice(0, 5)); // Show max 5
-
-        // Update statistics
-        setStatistics((prev) => ({
-          ...prev,
-          upcomingActivities: upcoming.length,
-        }));
+        setOrganizationLogo(SecurityUtils.sanitizeUrl(cachedOrg.logo || ''));
       }
 
-      // Process participants
-      if (participantsRes.success && participantsRes.data) {
-        const participants = Array.isArray(participantsRes.data)
-          ? participantsRes.data
-          : [];
+      const settingsResponse = await getOrganizationSettings();
+      if (settingsResponse.success && settingsResponse.data) {
+        const orgInfo = settingsResponse.data.organization_info || {};
+        const sanitizedName = SecurityUtils.sanitizeInput(orgInfo.name || '');
+        const sanitizedLogo = SecurityUtils.sanitizeUrl(orgInfo.logo || '');
 
-        setStatistics((prev) => ({
-          ...prev,
-          totalParticipants: participants.length,
-        }));
+        setOrganizationName(sanitizedName);
+        setOrganizationLogo(sanitizedLogo);
+        await StorageUtils.setItem(
+          ORGANIZATION_SETTINGS_KEY,
+          settingsResponse.data
+        );
       }
 
-      // Process groups
-      if (groupsRes.success && groupsRes.data) {
-        const groups = Array.isArray(groupsRes.data) ? groupsRes.data : [];
-
-        setStatistics((prev) => ({
-          ...prev,
-          activeGroups: groups.length,
-        }));
-      }
-
-      // Check if data is from cache
-      if (activitiesRes.fromCache || participantsRes.fromCache) {
+      if (settingsResponse.fromCache) {
         setIsOffline(true);
       }
     } catch (err) {
-      debugError('Error loading dashboard data:', err);
+      debugError('Error loading dashboard context:', err);
       setError(t('error_loading_dashboard'));
     } finally {
       setLoading(false);
@@ -186,40 +160,101 @@ const LeaderDashboardScreen = () => {
    */
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadDashboardData();
+    await loadDashboardContext();
     setRefreshing(false);
   };
 
   /**
-   * Navigate to participants
+   * Determine if a user can access an action
+   *
+   * @param {Object} action - Action definition
+   * @returns {boolean} True when action should be visible
    */
-  const handleViewParticipants = () => {
-    navigation.navigate('Participants');
+  const canAccessAction = (action) => {
+    if (!action) return false;
+    if (!action.permission && !action.permissions) return true;
+
+    if (action.permission) {
+      return hasPermission(action.permission, userPermissions);
+    }
+
+    if (action.permissions) {
+      return hasAnyPermission(action.permissions, userPermissions);
+    }
+
+    return true;
   };
 
   /**
-   * Navigate to activities
+   * Handle dashboard action selection
+   *
+   * @param {Object} action - Action definition
    */
-  const handleViewActivities = () => {
-    navigation.navigate('Activities');
+  const handleActionPress = (action) => {
+    if (!action) return;
+
+    if (action.screen) {
+      navigation.navigate(action.screen);
+      return;
+    }
+
+    if (typeof action.onPress === 'function') {
+      action.onPress();
+      return;
+    }
+
+    Alert.alert(action.label, t('Coming soon'), [{ text: t('OK') }]);
   };
 
   /**
-   * Navigate to activity detail
+   * Render grid of action buttons
+   *
+   * @param {Array<Object>} actions - Action definitions
+   * @param {string} variant - Visual variant for cards
+   * @returns {React.ReactElement|null}
    */
-  const handleViewActivity = (activity) => {
-    Alert.alert(
-      activity.name,
-      t('Activity details coming soon'),
-      [{ text: t('OK') }]
+  const renderActionGrid = (actions, variant) => {
+    if (!actions.length) return null;
+
+    return (
+      <View style={styles.actionGrid}>
+        {actions.map((action) => (
+          <TouchableOpacity
+            key={action.key}
+            style={[
+              styles.actionCard,
+              variant === 'primary'
+                ? styles.actionCardPrimary
+                : styles.actionCardSecondary,
+              { width: gridItemWidth },
+            ]}
+            onPress={() => handleActionPress(action)}
+            activeOpacity={0.85}
+          >
+            <Text
+              style={
+                variant === 'primary'
+                  ? styles.actionIconPrimary
+                  : styles.actionIconSecondary
+              }
+            >
+              {action.icon}
+            </Text>
+            <Text
+              style={
+                variant === 'primary'
+                  ? styles.actionLabelPrimary
+                  : styles.actionLabelSecondary
+              }
+            >
+              {action.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     );
-    // TODO: Navigate to activity detail
-    // navigation.navigate('ActivityDetail', { activityId: activity.id });
   };
 
-  /**
-   * Render loading state
-   */
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -229,9 +264,6 @@ const LeaderDashboardScreen = () => {
     );
   }
 
-  /**
-   * Render error state
-   */
   if (error && !refreshing) {
     return (
       <View style={styles.centerContainer}>
@@ -240,18 +272,301 @@ const LeaderDashboardScreen = () => {
     );
   }
 
-  const leaderTiles = [
-    { key: 'attendance', label: t('attendance'), screen: 'Attendance' },
-    { key: 'points', label: t('manage_points'), screen: 'ManagePoints' },
-    { key: 'honors', label: t('youth_of_honor'), screen: 'Honors' },
-    { key: 'meetingPrep', label: t('preparation_reunions'), screen: 'MeetingPreparation' },
-    { key: 'nextMeeting', label: t('next_meeting'), screen: 'NextMeeting' },
-    { key: 'medication', label: t('medication_management_title'), screen: 'Medication' },
-  ];
+  const manageItems = [
+    {
+      key: 'managePoints',
+      label: t('manage_points'),
+      icon: '🪙',
+      screen: 'ManagePoints',
+      permission: 'points.manage',
+    },
+    {
+      key: 'manageHonors',
+      label: t('manage_honors'),
+      icon: '🏅',
+      screen: 'Honors',
+      permission: 'honors.manage',
+    },
+    {
+      key: 'attendance',
+      label: t('attendance'),
+      icon: '✅',
+      screen: 'Attendance',
+      permission: 'attendance.manage',
+    },
+    {
+      key: 'upcomingMeeting',
+      label: t('upcoming_meeting'),
+      icon: '📅',
+      screen: 'NextMeeting',
+      permission: 'activities.view',
+    },
+  ].filter(canAccessAction);
+
+  const dashboardSections = [
+    {
+      key: 'dayToDay',
+      title: t('dashboard_day_to_day_section'),
+      items: [
+        {
+          key: 'approveBadges',
+          label: t('approve_badges'),
+          icon: '🎖️',
+          permissions: ['badges.approve', 'badges.view'],
+        },
+        {
+          key: 'badgeDashboard',
+          label: t('badge_dashboard_link'),
+          icon: '📊',
+          permissions: ['badges.view', 'badges.manage'],
+        },
+        {
+          key: 'parentContact',
+          label: t('parent_contact_list'),
+          icon: '📒',
+          permissions: ['participants.view', 'users.view'],
+        },
+        {
+          key: 'medicationDispensing',
+          label: t('medication_dispensing_link'),
+          icon: '💊',
+          screen: 'Medication',
+          permissions: ['medication.manage', 'medication.view'],
+        },
+        {
+          key: 'parentDashboard',
+          label: t('vue_parents'),
+          icon: '👨‍👩‍👧',
+          permissions: ['participants.view', 'communications.send'],
+        },
+      ],
+    },
+    {
+      key: 'preparation',
+      title: t('dashboard_preparation_section'),
+      items: [
+        {
+          key: 'activitiesCalendar',
+          label: t('activities_calendar'),
+          icon: '🗓️',
+          permissions: ['activities.view', 'activities.manage'],
+        },
+        {
+          key: 'carpoolCoordination',
+          label: t('carpool_coordination'),
+          icon: '🚗',
+          permissions: ['carpools.view', 'carpools.manage'],
+        },
+        {
+          key: 'meetingPrep',
+          label: t('preparation_reunions'),
+          icon: '📝',
+          screen: 'MeetingPreparation',
+          permissions: ['activities.manage', 'attendance.manage'],
+        },
+        {
+          key: 'participantDocuments',
+          label: t('view_participant_documents'),
+          icon: '📄',
+          permissions: ['participants.view', 'participants.edit'],
+        },
+        {
+          key: 'inventory',
+          label: t('inventory_link'),
+          icon: '📦',
+          permissions: ['resources.view', 'resources.manage'],
+        },
+        {
+          key: 'materialManagement',
+          label: t('material_management_link'),
+          icon: '🧰',
+          permissions: ['resources.view', 'resources.manage'],
+        },
+        {
+          key: 'medicationPlanning',
+          label: t('medication_planning_link'),
+          icon: '🧪',
+          permissions: ['medication.manage', 'medication.view'],
+        },
+        {
+          key: 'permissionSlips',
+          label: t('manage_permission_slips'),
+          icon: '📑',
+          permissions: ['permission_slips.view', 'permission_slips.manage'],
+        },
+      ],
+    },
+    {
+      key: 'operations',
+      title: t('dashboard_operations_section'),
+      items: [
+        {
+          key: 'resources',
+          label: t('resource_dashboard_link'),
+          icon: '🗂️',
+          permissions: ['resources.view', 'resources.manage'],
+        },
+        {
+          key: 'permissionSlipDashboard',
+          label: t('permission_slip_dashboard_link'),
+          icon: '🛡️',
+          permissions: ['permission_slips.view', 'permission_slips.manage'],
+        },
+      ],
+    },
+    {
+      key: 'finance',
+      title: t('dashboard_finance_section'),
+      items: [
+        {
+          key: 'financeMemberships',
+          label: t('finance_memberships_tab'),
+          icon: '💰',
+          permissions: ['finance.view', 'finance.manage'],
+        },
+        {
+          key: 'financeDefinitions',
+          label: t('finance_definitions_tab'),
+          icon: '🧾',
+          permissions: ['finance.view', 'finance.manage'],
+        },
+        {
+          key: 'financialReport',
+          label: t('financial_report'),
+          icon: '📈',
+          permissions: ['finance.view', 'finance.manage'],
+        },
+        {
+          key: 'expenseTracking',
+          label: t('expense_tracking'),
+          icon: '👛',
+          permissions: ['finance.view', 'finance.manage'],
+        },
+        {
+          key: 'externalRevenue',
+          label: t('external_revenue'),
+          icon: '🤝',
+          permissions: ['finance.view', 'fundraisers.view'],
+        },
+      ],
+    },
+    {
+      key: 'admin',
+      title: t('dashboard_admin_section'),
+      items: [
+        {
+          key: 'manageParticipants',
+          label: t('manage_names'),
+          icon: '🪪',
+          permissions: ['participants.view', 'participants.edit'],
+        },
+        {
+          key: 'manageGroups',
+          label: t('manage_groups'),
+          icon: '👥',
+          permissions: ['groups.view', 'groups.manage'],
+        },
+        {
+          key: 'manageUsers',
+          label: t('manage_users_participants'),
+          icon: '⚙️',
+          permissions: ['users.view', 'users.edit'],
+        },
+        {
+          key: 'accountInfo',
+          label: t('account_info'),
+          icon: '👤',
+          permissions: ['users.view', 'users.edit'],
+        },
+        {
+          key: 'mailingList',
+          label: t('mailing_list'),
+          icon: '✉️',
+          permissions: ['communications.send'],
+        },
+        {
+          key: 'fundraisers',
+          label: t('fundraisers'),
+          icon: '❤️',
+          permissions: ['fundraisers.view', 'fundraisers.manage'],
+        },
+        {
+          key: 'revenueDashboard',
+          label: t('revenue_dashboard'),
+          icon: '📊',
+          permissions: ['finance.view', 'fundraisers.view'],
+        },
+        {
+          key: 'budgetManagement',
+          label: t('budget_management'),
+          icon: '💵',
+          permissions: ['budget.view', 'budget.manage'],
+        },
+        {
+          key: 'reports',
+          label: t('reports'),
+          icon: '📑',
+          permissions: ['reports.view', 'reports.manage'],
+        },
+        {
+          key: 'groupParticipantReport',
+          label: t('feuille_participants'),
+          icon: '📋',
+          permissions: ['reports.view', 'reports.manage'],
+        },
+      ],
+    },
+    {
+      key: 'systemAdministration',
+      title: t('system_administration') || 'System Administration',
+      items: [
+        {
+          key: 'roleManagement',
+          label: t('role_management') || 'Role Management',
+          icon: '🔐',
+          permissions: ['roles.manage', 'roles.view'],
+        },
+        {
+          key: 'districtManagement',
+          label: t('district_management_title') || 'District Management',
+          icon: '🧭',
+          permissions: ['roles.manage', 'roles.view'],
+        },
+        {
+          key: 'createOrganization',
+          label: t('create_unit') || 'Create Unit',
+          icon: '🏠',
+          permissions: ['org.create'],
+        },
+        {
+          key: 'administration',
+          label: t('administration'),
+          icon: '🛡️',
+          permissions: [
+            'users.view',
+            'users.edit',
+            'roles.manage',
+            'roles.view',
+            'org.create',
+            'communications.send',
+          ],
+        },
+      ],
+    },
+  ]
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(canAccessAction),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  const logoSource = organizationLogo
+    ? { uri: organizationLogo }
+    : FALLBACK_ORG_LOGO;
+  const displayName = organizationName || t('groups');
 
   return (
     <View style={styles.container}>
-      {/* Offline indicator */}
       {isOffline && (
         <View style={styles.offlineIndicator}>
           <Text style={styles.offlineText}>
@@ -262,117 +577,35 @@ const LeaderDashboardScreen = () => {
 
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>
-            {t('dashboard_title')}
-          </Text>
-          {userGroup && (
-            <Text style={styles.groupName}>
-              {t('group')}: {userGroup.name || t('groups')}
-            </Text>
-          )}
+          <Text style={styles.title}>{t('dashboard_title')}</Text>
+          <Text style={styles.organizationName}>{displayName}</Text>
         </View>
 
-        {/* Statistics Cards */}
-        <DashboardSection title={t('overview')}>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCol}>
-              <StatCard
-                label={t('participants')}
-                value={statistics.totalParticipants}
-                icon="👥"
-                color="#007AFF"
-                onPress={handleViewParticipants}
-              />
-            </View>
-            <View style={styles.statCol}>
-              <StatCard
-                label={t('Upcoming Activities')}
-                value={statistics.upcomingActivities}
-                icon="📅"
-                color="#34C759"
-                onPress={handleViewActivities}
-              />
-            </View>
+        {renderActionGrid(manageItems, 'primary')}
+
+        <View style={styles.logoContainer}>
+          {/* TODO: Replace hardcoded fallback logo with a mobile-specific S3 asset. */}
+          <Image
+            source={logoSource}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel={t('dashboard_title')}
+          />
+        </View>
+
+        {dashboardSections.map((section) => (
+          <View key={section.key} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            {renderActionGrid(section.items, 'secondary')}
           </View>
+        ))}
 
-          <View style={styles.statsGrid}>
-            <View style={styles.statCol}>
-              <StatCard
-                label={t('groups')}
-                value={statistics.activeGroups}
-                icon="⚜️"
-                color="#FF9500"
-              />
-            </View>
-            <View style={styles.statCol}>
-              <StatCard
-                label={t('Permission Slips')}
-                value={statistics.pendingPermissionSlips}
-                icon="📝"
-                color="#FF3B30"
-              />
-            </View>
-          </View>
-        </DashboardSection>
-
-        <DashboardSection title={t('dashboard_day_to_day_section')}>
-          <View style={styles.tileGrid}>
-            {leaderTiles.map((tile) => (
-              <TouchableOpacity
-                key={tile.key}
-                style={styles.tile}
-                onPress={() => navigation.navigate(tile.screen)}
-              >
-                <Text style={styles.tileLabel}>{tile.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </DashboardSection>
-
-        {/* Upcoming Activities */}
-        <DashboardSection
-          title={t('Upcoming Activities')}
-          actionLabel={t('View all')}
-          onActionPress={handleViewActivities}
-        >
-          {upcomingActivities.length > 0 ? (
-            upcomingActivities.map((activity) => (
-              <Card
-                key={activity.id}
-                style={styles.activityCard}
-                onPress={() => handleViewActivity(activity)}
-              >
-                <View style={styles.activityHeader}>
-                  <Text style={styles.activityName}>{activity.name}</Text>
-                  <Text style={styles.activityDate}>
-                    {DateUtils.formatDate(activity.date)}
-                  </Text>
-                </View>
-                <Text style={styles.activityLocation}>
-                  📍 {activity.location || t('No location')}
-                </Text>
-                <Text style={styles.activityParticipants}>
-                  👥 {activity.participantCount || 0}{' '}
-                  {t('Registered')}
-                </Text>
-              </Card>
-            ))
-          ) : (
-            <Card style={styles.emptyCard}>
-              <Text style={styles.emptyText}>
-                {t('dashboard.noUpcomingActivities')}
-              </Text>
-            </Card>
-          )}
-        </DashboardSection>
-
-        {/* Bottom spacing */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
     </View>
@@ -397,7 +630,8 @@ const styles = StyleSheet.create({
   },
   offlineIndicator: {
     backgroundColor: theme.colors.warning,
-    padding: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
     alignItems: 'center',
   },
   offlineText: {
@@ -408,94 +642,94 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: theme.spacing.xl,
+  },
   header: {
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxxl,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  groupName: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.textLight,
-    fontWeight: theme.fontWeight.medium,
-  },
-  statsGrid: {
-    flexDirection: 'row',
     paddingHorizontal: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  statCol: {
-    flex: 1,
-  },
-  activityCard: {
-    marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.sm,
-    padding: theme.spacing.md,
-  },
-  activityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: theme.spacing.sm,
-  },
-  activityName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.text,
-    flex: 1,
-    marginRight: theme.spacing.sm,
-  },
-  activityDate: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.primary,
-    fontWeight: theme.fontWeight.medium,
-  },
-  activityLocation: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
-    marginBottom: theme.spacing.xs,
-  },
-  activityParticipants: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textLight,
-  },
-  emptyCard: {
-    marginHorizontal: theme.spacing.lg,
-    padding: theme.spacing.xl,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
     alignItems: 'center',
   },
-  emptyText: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.textMuted,
+  title: {
+    ...commonStyles.heading1,
+    color: theme.colors.text,
     textAlign: 'center',
   },
-  bottomSpacing: {
-    height: theme.spacing.xl,
+  organizationName: {
+    ...commonStyles.heading3,
+    color: theme.colors.primary,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
   },
-  tileGrid: {
+  actionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
   },
-  tile: {
-    flexBasis: '48%',
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    minHeight: theme.touchTarget.min,
-    justifyContent: 'center',
+  actionCard: {
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    minHeight: theme.touchTarget.min * 2,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.sm,
     ...theme.shadows.sm,
   },
-  tileLabel: {
-    ...commonStyles.bodyText,
+  actionCardPrimary: {
+    backgroundColor: theme.colors.primary,
+  },
+  actionCardSecondary: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.borderLight,
+  },
+  actionIconPrimary: {
+    fontSize: theme.fontSize.xl,
+    marginBottom: theme.spacing.xs,
+    color: theme.colors.surface,
+  },
+  actionIconSecondary: {
+    fontSize: theme.fontSize.xl,
+    marginBottom: theme.spacing.xs,
+    color: theme.colors.primary,
+  },
+  actionLabelPrimary: {
+    fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.surface,
     textAlign: 'center',
+  },
+  actionLabelSecondary: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+    textAlign: 'center',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.lg,
+  },
+  logo: {
+    width: '100%',
+    maxWidth: theme.spacing.xxxl * 5,
+    height: theme.spacing.xxxl * 4,
+  },
+  section: {
+    marginTop: theme.spacing.lg,
+  },
+  sectionTitle: {
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
+  },
+  bottomSpacing: {
+    height: theme.spacing.xl,
   },
 });
 
