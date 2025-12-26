@@ -251,10 +251,198 @@ export const getCurrentLanguage = () => {
 };
 
 /**
+ * Key mapping from nested dot notation to flat underscore notation
+ * Maps mobile app's nested keys (e.g., 'auth.loginTitle') to lang.json flat keys (e.g., 'login')
+ */
+const keyMapping = {
+  // Auth keys
+  'auth.loginTitle': 'login',
+  'auth.email': 'email',
+  'auth.password': 'password',
+  'auth.login': 'login',
+  'auth.createAccount': 'create_account',
+  'auth.forgotPassword': 'forgot_password',
+  'auth.loginFailed': 'invalid_email_or_password',
+  'auth.twoFactorTitle': 'two_factor_email_heading',
+  'auth.enterCode': 'two_factor_message',
+  'auth.verificationCode': 'verification_code_sent',
+  'auth.trustDevice': 'Trust this device', // Fallback text
+  'auth.verify': 'verify',
+  'auth.backToLogin': 'back_to_login',
+  'auth.invalidCode': 'Invalid verification code', // Fallback text
+  'auth.verificationFailed': 'Verification failed', // Fallback text
+
+  // Common keys
+  'common.loading': 'loading',
+  'common.save': 'save',
+  'common.cancel': 'cancel',
+  'common.ok': 'OK',
+  'common.error': 'error',
+  'common.success': 'success',
+  'common.errorLoadingData': 'error_loading_data',
+  'common.years': 'years',
+  'common.notProvided': 'Not provided', // Fallback text
+  'common.offline': 'Offline',
+  'common.viewingCachedData': 'Viewing cached data', // Fallback text
+  'common.comingSoon': 'Coming soon', // Fallback text
+  'common.edit': 'edit',
+  'common.retry': 'retry',
+  'common.permissionDenied': 'Permission denied', // Fallback text
+  'common.queued': 'Queued', // Fallback text
+  'common.willSyncWhenOnline': 'Will sync when online', // Fallback text
+  'common.viewAll': 'View all', // Fallback text
+  'common.noLocation': 'No location', // Fallback text
+
+  // Dashboard keys
+  'dashboard.welcomeLeader': 'Welcome, Leader!', // Fallback text
+  'dashboard.welcomeAdmin': 'Welcome, Admin!', // Fallback text
+  'dashboard.yourGroup': 'Your Group', // Fallback text
+  'dashboard.overview': 'overview',
+  'dashboard.participants': 'participants',
+  'dashboard.upcomingActivities': 'Upcoming Activities', // Fallback text
+  'dashboard.groups': 'groups',
+  'dashboard.permissionSlips': 'Permission Slips', // Fallback text
+  'dashboard.quickActions': 'Quick Actions', // Fallback text
+  'dashboard.takeAttendance': 'Take Attendance', // Fallback text
+  'dashboard.createActivity': 'Create Activity', // Fallback text
+  'dashboard.carpools': 'Carpools', // Fallback text
+  'dashboard.adminActions': 'dashboard_admin_section',
+  'dashboard.errorLoading': 'error_loading_dashboard',
+  'dashboard.recentActivities': 'Recent Activities', // Fallback text
+  'dashboard.noRecentActivities': 'No recent activities', // Fallback text
+  'dashboard.noGroupsFound': 'No groups found', // Fallback text
+  'dashboard.registered': 'Registered', // Fallback text
+  'dashboard.districtOverview': 'District Overview', // Fallback text
+  'dashboard.districtStatistics': 'District Statistics', // Fallback text
+  'dashboard.totalParticipants': 'Total Participants', // Fallback text
+  'dashboard.totalGroups': 'Total Groups', // Fallback text
+  'dashboard.activeLeaders': 'Active Leaders', // Fallback text
+  'dashboard.totalActivities': 'Total Activities', // Fallback text
+  'dashboard.revenue': 'Revenue', // Fallback text
+  'dashboard.reports': 'Reports', // Fallback text
+  'dashboard.finance': 'finance',
+  'dashboard.manageGroups': 'Manage Groups', // Fallback text
+  'dashboard.settings': 'settings',
+  'dashboard.leaders': 'Leaders', // Fallback text
+  'dashboard.activityDetailComingSoon': 'Activity details coming soon', // Fallback text
+
+  // Participants keys
+  'participants.age': 'age',
+  'participants.group': 'group',
+  'participants.searchPlaceholder': 'Search participants', // Fallback text
+  'participants.allGroups': 'all_groups',
+  'participants.noParticipants': 'no_participants',
+  'participants.errorLoading': 'error_loading_manage_participants',
+  'participants.firstName': 'first_name',
+  'participants.lastName': 'last_name',
+  'participants.enterFirstName': 'Enter first name', // Fallback text
+  'participants.enterLastName': 'Enter last name', // Fallback text
+  'participants.birthdate': 'date_naissance',
+  'participants.email': 'email',
+  'participants.phone': 'Phone', // Fallback text (phone key likely exists)
+  'participants.enterEmail': 'Enter email', // Fallback text
+  'participants.enterPhone': 'Enter phone', // Fallback text
+  'participants.address': 'Address', // Fallback text (address key likely exists)
+  'participants.streetAddress': 'Street Address', // Fallback text
+  'participants.city': 'City', // Fallback text
+  'participants.province': 'Province', // Fallback text
+  'participants.postalCode': 'postal_code',
+  'participants.enterAddress': 'Enter address', // Fallback text
+  'participants.enterCity': 'Enter city', // Fallback text
+  'participants.enterProvince': 'Enter province', // Fallback text
+  'participants.enterPostalCode': 'Enter postal code', // Fallback text
+  'participants.basicInformation': 'Basic Information', // Fallback text
+  'participants.healthInformation': 'Health Information', // Fallback text
+  'participants.guardianContacts': 'Guardian Contacts', // Fallback text
+  'participants.badgeProgress': 'badge_progress', // Use existing key
+  'participants.financialStatus': 'Financial Status', // Fallback text
+  'participants.errorFirstNameRequired': 'First name is required', // Fallback text
+  'participants.errorLastNameRequired': 'Last name is required', // Fallback text
+  'participants.errorInvalidEmail': 'account_info_email_invalid',
+  'participants.errorInvalidBirthdate': 'Invalid birthdate', // Fallback text
+  'participants.savedSuccessfully': 'data_saved',
+  'participants.errorSaving': 'error_saving_participant',
+  'participants.noEditPermission': 'You don\'t have permission to edit', // Fallback text
+  'participants.yearsOld': 'years', // Use existing 'years' key
+
+  // Settings keys
+  'settings.profile': 'profile',
+  'settings.language': 'language',
+  'settings.languageChanged': 'Language changed', // Fallback text
+  'settings.restartRequired': 'App restart required', // Fallback text
+  'settings.confirmLogout': 'Confirm Logout', // Fallback text
+  'settings.confirmLogoutMessage': 'Are you sure you want to logout?', // Fallback text
+  'settings.logout': 'logout',
+  'settings.notifications': 'Notifications', // Fallback text
+  'settings.pushNotifications': 'Push Notifications', // Fallback text
+  'settings.pushNotificationsHelp': 'Receive notifications about activities', // Fallback text
+  'settings.appInfo': 'App Info', // Fallback text
+  'settings.version': 'Version', // Fallback text
+  'settings.build': 'Build', // Fallback text
+  'settings.madeWith': 'Made with', // Fallback text
+  'settings.forScouts': 'for Scouts', // Fallback text
+
+  // Navigation keys
+  'nav.dashboard': 'dashboard_title',
+  'nav.participants': 'participants',
+  'nav.activities': 'Activities',
+  'nav.finance': 'finance',
+  'nav.settings': 'settings',
+
+  // Activities keys
+  'activities.upcoming': 'Upcoming',
+  'activities.past': 'Past',
+  'activities.all': 'All',
+  'activities.today': 'Today',
+  'activities.participants': 'participants',
+  'activities.noActivities': 'No activities', // Fallback text
+
+  // Parent Dashboard keys
+  'parentDashboard.title': 'Parent Dashboard', // Fallback text
+  'parentDashboard.myChildren': 'My Children', // Fallback text
+  'parentDashboard.noChildren': 'no_participants',
+  'parentDashboard.age': 'age',
+  'parentDashboard.group': 'group',
+  'parentDashboard.upcomingActivities': 'Upcoming Activities', // Fallback text
+  'parentDashboard.noActivities': 'No upcoming activities', // Fallback text
+  'parentDashboard.carpoolAssignments': 'Carpool Assignments', // Fallback text
+  'parentDashboard.driver': 'Driver', // Fallback text
+  'parentDashboard.spots': 'Spots', // Fallback text
+  'parentDashboard.quickActions': 'Quick Actions', // Fallback text
+  'parentDashboard.viewFees': 'View Fees', // Fallback text
+  'parentDashboard.permissionSlips': 'Permission Slips', // Fallback text
+};
+
+/**
+ * Convert nested dot notation key to flat key using mapping
+ * Falls back to original key if no mapping exists
+ *
+ * @param {string} key - Translation key (nested or flat)
+ * @returns {string} Flat key
+ */
+const convertKey = (key) => {
+  // If key exists in mapping, use the mapped value
+  if (keyMapping[key]) {
+    return keyMapping[key];
+  }
+
+  // If key contains dots, try to convert to underscore notation
+  // e.g., 'auth.login' -> 'auth_login'
+  if (key.includes('.')) {
+    const underscoreKey = key.replace(/\./g, '_');
+    return underscoreKey;
+  }
+
+  // Return original key as fallback
+  return key;
+};
+
+/**
  * Translate a key
  * Mirrors spa/app.js translate()
+ * Converts nested dot notation keys to flat keys using mapping
  *
- * @param {string} key - Translation key
+ * @param {string} key - Translation key (nested or flat)
  * @param {object} options - Interpolation options
  * @returns {string} Translated text
  */
@@ -264,7 +452,13 @@ export const translate = (key, options = {}) => {
     return key;
   }
 
-  return i18n.t(key, options);
+  // Convert nested key to flat key
+  const flatKey = convertKey(key);
+
+  // Try to get translation
+  const translation = i18n.t(flatKey, { ...options, defaultValue: flatKey });
+
+  return translation;
 };
 
 /**
