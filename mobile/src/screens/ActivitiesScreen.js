@@ -52,7 +52,7 @@ const ActivitiesScreen = ({ navigation }) => {
         setActivities(sorted);
       }
     } catch (err) {
-      setError(err.message || t('common.errorLoadingData'));
+      setError(err.message || t('error_loading_data'));
     } finally {
       setLoading(false);
     }
@@ -88,12 +88,12 @@ const ActivitiesScreen = ({ navigation }) => {
 
   const getActivityStatus = (activity) => {
     if (DateUtils.isToday(activity.date)) {
-      return { text: t('activities.today'), color: '#34C759' };
+      return { text: t('Today'), color: '#34C759' };
     }
     if (DateUtils.isFuture(activity.date)) {
-      return { text: t('activities.upcoming'), color: '#007AFF' };
+      return { text: t('Upcoming'), color: '#007AFF' };
     }
-    return { text: t('activities.past'), color: '#8E8E93' };
+    return { text: t('Past'), color: '#8E8E93' };
   };
 
   const renderActivity = ({ item }) => {
@@ -127,7 +127,7 @@ const ActivitiesScreen = ({ navigation }) => {
 
         {item.participantCount !== undefined && (
           <Text style={styles.activityDetail}>
-            👥 {item.participantCount} {t('activities.participants')}
+            👥 {item.participantCount} {t('participants')}
           </Text>
         )}
       </Card>
@@ -135,7 +135,7 @@ const ActivitiesScreen = ({ navigation }) => {
   };
 
   if (loading) {
-    return <LoadingSpinner message={t('common.loading')} />;
+    return <LoadingSpinner message={t('loading')} />;
   }
 
   if (error) {
@@ -149,9 +149,9 @@ const ActivitiesScreen = ({ navigation }) => {
         {Platform.OS === 'ios' ? (
           <SegmentedControlIOS
             values={[
-              t('activities.upcoming'),
-              t('activities.past'),
-              t('activities.all'),
+              t('Upcoming'),
+              t('Past'),
+              t('All'),
             ]}
             selectedIndex={
               filter === 'upcoming' ? 0 : filter === 'past' ? 1 : 2
@@ -177,7 +177,7 @@ const ActivitiesScreen = ({ navigation }) => {
                   filter === 'upcoming' && styles.androidTabTextActive,
                 ]}
               >
-                {t('activities.upcoming')}
+                {t('Upcoming')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -190,7 +190,7 @@ const ActivitiesScreen = ({ navigation }) => {
                   filter === 'past' && styles.androidTabTextActive,
                 ]}
               >
-                {t('activities.past')}
+                {t('Past')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -203,7 +203,7 @@ const ActivitiesScreen = ({ navigation }) => {
                   filter === 'all' && styles.androidTabTextActive,
                 ]}
               >
-                {t('activities.all')}
+                {t('All')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -221,7 +221,7 @@ const ActivitiesScreen = ({ navigation }) => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{t('activities.noActivities')}</Text>
+            <Text style={styles.emptyText}>{t('No activities')}</Text>
           </View>
         }
       />

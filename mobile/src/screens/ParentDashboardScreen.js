@@ -75,7 +75,7 @@ const ParentDashboardScreen = ({ navigation }) => {
         setCarpoolAssignments(carpoolResponse.data);
       }
     } catch (err) {
-      setError(err.message || t('common.errorLoadingData'));
+      setError(err.message || t('error_loading_data'));
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ const ParentDashboardScreen = ({ navigation }) => {
   };
 
   if (loading) {
-    return <LoadingSpinner message={t('common.loading')} />;
+    return <LoadingSpinner message={t('loading')} />;
   }
 
   if (error) {
@@ -101,15 +101,15 @@ const ParentDashboardScreen = ({ navigation }) => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('parentDashboard.title')}</Text>
+        <Text style={styles.headerTitle}>{t('Parent Dashboard')}</Text>
       </View>
 
       {/* My Children Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('parentDashboard.myChildren')}</Text>
+        <Text style={styles.sectionTitle}>{t('My Children')}</Text>
         {children.length === 0 ? (
           <Card>
-            <Text style={styles.emptyText}>{t('parentDashboard.noChildren')}</Text>
+            <Text style={styles.emptyText}>{t('no_participants')}</Text>
           </Card>
         ) : (
           children.map((child) => (
@@ -121,12 +121,12 @@ const ParentDashboardScreen = ({ navigation }) => {
                 {child.firstName} {child.lastName}
               </Text>
               <Text style={styles.childDetail}>
-                {t('parentDashboard.age')}: {DateUtils.calculateAge(child.birthdate)}{' '}
-                {t('common.years')}
+                {t('age')}: {DateUtils.calculateAge(child.birthdate)}{' '}
+                {t('years')}
               </Text>
               {child.group && (
                 <Text style={styles.childDetail}>
-                  {t('parentDashboard.group')}: {child.group}
+                  {t('group')}: {child.group}
                 </Text>
               )}
             </Card>
@@ -136,10 +136,10 @@ const ParentDashboardScreen = ({ navigation }) => {
 
       {/* Upcoming Activities Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('parentDashboard.upcomingActivities')}</Text>
+        <Text style={styles.sectionTitle}>{t('Upcoming Activities')}</Text>
         {upcomingActivities.length === 0 ? (
           <Card>
-            <Text style={styles.emptyText}>{t('parentDashboard.noActivities')}</Text>
+            <Text style={styles.emptyText}>{t('No upcoming activities')}</Text>
           </Card>
         ) : (
           upcomingActivities.map((activity) => (
@@ -162,15 +162,15 @@ const ParentDashboardScreen = ({ navigation }) => {
       {/* Carpool Assignments Section */}
       {carpoolAssignments.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('parentDashboard.carpoolAssignments')}</Text>
+          <Text style={styles.sectionTitle}>{t('Carpool Assignments')}</Text>
           {carpoolAssignments.map((assignment, index) => (
             <Card key={index}>
               <Text style={styles.carpoolActivity}>{assignment.activityName}</Text>
               <Text style={styles.carpoolDetail}>
-                🚗 {t('parentDashboard.driver')}: {assignment.driverName}
+                🚗 {t('Driver')}: {assignment.driverName}
               </Text>
               <Text style={styles.carpoolDetail}>
-                👥 {t('parentDashboard.spots')}: {assignment.occupiedSpots}/
+                👥 {t('Spots')}: {assignment.occupiedSpots}/
                 {assignment.totalSpots}
               </Text>
             </Card>
@@ -180,19 +180,19 @@ const ParentDashboardScreen = ({ navigation }) => {
 
       {/* Quick Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('parentDashboard.quickActions')}</Text>
+        <Text style={styles.sectionTitle}>{t('Quick Actions')}</Text>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.navigate('FinanceTab')}
         >
-          <Text style={styles.actionButtonText}>💰 {t('parentDashboard.viewFees')}</Text>
+          <Text style={styles.actionButtonText}>💰 {t('View Fees')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.navigate('PermissionSlips')}
         >
           <Text style={styles.actionButtonText}>
-            📄 {t('parentDashboard.permissionSlips')}
+            📄 {t('Permission Slips')}
           </Text>
         </TouchableOpacity>
       </View>

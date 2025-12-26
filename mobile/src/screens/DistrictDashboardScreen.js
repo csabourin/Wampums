@@ -170,7 +170,7 @@ const DistrictDashboardScreen = () => {
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
-      setError(t('dashboard.errorLoading'));
+      setError(t('error_loading_dashboard'));
     } finally {
       setLoading(false);
     }
@@ -190,9 +190,9 @@ const DistrictDashboardScreen = () => {
    */
   const handleViewReports = () => {
     Alert.alert(
-      t('dashboard.reports'),
-      t('common.comingSoon'),
-      [{ text: t('common.ok') }]
+      t('Reports'),
+      t('Coming soon'),
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to reports screen
   };
@@ -202,9 +202,9 @@ const DistrictDashboardScreen = () => {
    */
   const handleViewFinance = () => {
     Alert.alert(
-      t('dashboard.finance'),
-      t('common.comingSoon'),
-      [{ text: t('common.ok') }]
+      t('finance'),
+      t('Coming soon'),
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to finance screen
   };
@@ -214,9 +214,9 @@ const DistrictDashboardScreen = () => {
    */
   const handleManageGroups = () => {
     Alert.alert(
-      t('dashboard.manageGroups'),
-      t('common.comingSoon'),
-      [{ text: t('common.ok') }]
+      t('Manage Groups'),
+      t('Coming soon'),
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to groups screen
   };
@@ -248,8 +248,8 @@ const DistrictDashboardScreen = () => {
   const handleViewActivity = (activity) => {
     Alert.alert(
       activity.name,
-      t('dashboard.activityDetailComingSoon'),
-      [{ text: t('common.ok') }]
+      t('Activity details coming soon'),
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to activity detail
   };
@@ -261,7 +261,7 @@ const DistrictDashboardScreen = () => {
     return (
       <View style={styles.centerContainer}>
         <LoadingSpinner />
-        <Text style={styles.loadingText}>{t('common.loading')}</Text>
+        <Text style={styles.loadingText}>{t('loading')}</Text>
       </View>
     );
   }
@@ -283,7 +283,7 @@ const DistrictDashboardScreen = () => {
       {isOffline && (
         <View style={styles.offlineIndicator}>
           <Text style={styles.offlineText}>
-            📡 {t('common.offline')} - {t('common.viewingCachedData')}
+            📡 {t('Offline')} - {t('Viewing cached data')}
           </Text>
         </View>
       )}
@@ -297,19 +297,19 @@ const DistrictDashboardScreen = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>
-            {t('dashboard.welcomeAdmin')}
+            {t('Welcome, Admin!')}
           </Text>
           <Text style={styles.subtitle}>
-            {t('dashboard.districtOverview')}
+            {t('District Overview')}
           </Text>
         </View>
 
         {/* Statistics Cards - District-Wide */}
-        <DashboardSection title={t('dashboard.districtStatistics')}>
+        <DashboardSection title={t('District Statistics')}>
           <View style={styles.statsGrid}>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.totalParticipants')}
+                label={t('Total Participants')}
                 value={statistics.totalParticipants}
                 icon="👥"
                 color="#007AFF"
@@ -318,7 +318,7 @@ const DistrictDashboardScreen = () => {
             </View>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.totalGroups')}
+                label={t('Total Groups')}
                 value={statistics.totalGroups}
                 icon="⚜️"
                 color="#34C759"
@@ -330,7 +330,7 @@ const DistrictDashboardScreen = () => {
           <View style={styles.statsGrid}>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.upcomingActivities')}
+                label={t('Upcoming Activities')}
                 value={statistics.upcomingActivities}
                 icon="📅"
                 color="#FF9500"
@@ -339,7 +339,7 @@ const DistrictDashboardScreen = () => {
             </View>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.activeLeaders')}
+                label={t('Active Leaders')}
                 value={statistics.activeLeaders}
                 icon="🎖️"
                 color="#5856D6"
@@ -350,7 +350,7 @@ const DistrictDashboardScreen = () => {
           <View style={styles.statsGrid}>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.totalActivities')}
+                label={t('Total Activities')}
                 value={statistics.totalActivities}
                 icon="📊"
                 color="#FF3B30"
@@ -359,7 +359,7 @@ const DistrictDashboardScreen = () => {
             </View>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.revenue')}
+                label={t('Revenue')}
                 value={NumberUtils.formatCurrency(statistics.totalRevenue)}
                 icon="💰"
                 color="#AF52DE"
@@ -370,12 +370,12 @@ const DistrictDashboardScreen = () => {
         </DashboardSection>
 
         {/* Admin Quick Actions */}
-        <DashboardSection title={t('dashboard.adminActions')}>
+        <DashboardSection title={t('dashboard_admin_section')}>
           <View style={styles.actionsGrid}>
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="📊"
-                label={t('dashboard.reports')}
+                label={t('Reports')}
                 onPress={handleViewReports}
                 color="#007AFF"
               />
@@ -383,7 +383,7 @@ const DistrictDashboardScreen = () => {
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="💰"
-                label={t('dashboard.finance')}
+                label={t('finance')}
                 onPress={handleViewFinance}
                 color="#34C759"
               />
@@ -394,7 +394,7 @@ const DistrictDashboardScreen = () => {
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="⚜️"
-                label={t('dashboard.manageGroups')}
+                label={t('Manage Groups')}
                 onPress={handleManageGroups}
                 color="#FF9500"
               />
@@ -402,7 +402,7 @@ const DistrictDashboardScreen = () => {
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="⚙️"
-                label={t('dashboard.settings')}
+                label={t('settings')}
                 onPress={handleSettings}
                 color="#5856D6"
               />
@@ -412,8 +412,8 @@ const DistrictDashboardScreen = () => {
 
         {/* Groups Overview */}
         <DashboardSection
-          title={t('dashboard.groups')}
-          actionLabel={t('common.viewAll')}
+          title={t('groups')}
+          actionLabel={t('View all')}
           onActionPress={handleManageGroups}
         >
           {groups.length > 0 ? (
@@ -429,17 +429,17 @@ const DistrictDashboardScreen = () => {
                 </View>
                 <Text style={styles.groupDetail}>
                   👥 {group.participantCount || 0}{' '}
-                  {t('dashboard.participants')}
+                  {t('participants')}
                 </Text>
                 <Text style={styles.groupDetail}>
-                  🎖️ {group.leaderCount || 0} {t('dashboard.leaders')}
+                  🎖️ {group.leaderCount || 0} {t('Leaders')}
                 </Text>
               </Card>
             ))
           ) : (
             <Card style={styles.emptyCard}>
               <Text style={styles.emptyText}>
-                {t('dashboard.noGroupsFound')}
+                {t('No groups found')}
               </Text>
             </Card>
           )}
@@ -447,8 +447,8 @@ const DistrictDashboardScreen = () => {
 
         {/* Recent Activities */}
         <DashboardSection
-          title={t('dashboard.recentActivities')}
-          actionLabel={t('common.viewAll')}
+          title={t('Recent Activities')}
+          actionLabel={t('View all')}
           onActionPress={handleViewActivities}
         >
           {recentActivities.length > 0 ? (
@@ -470,18 +470,18 @@ const DistrictDashboardScreen = () => {
                   </Text>
                 )}
                 <Text style={styles.activityLocation}>
-                  📍 {activity.location || t('common.noLocation')}
+                  📍 {activity.location || t('No location')}
                 </Text>
                 <Text style={styles.activityParticipants}>
                   👥 {activity.participantCount || 0}{' '}
-                  {t('dashboard.registered')}
+                  {t('Registered')}
                 </Text>
               </Card>
             ))
           ) : (
             <Card style={styles.emptyCard}>
               <Text style={styles.emptyText}>
-                {t('dashboard.noRecentActivities')}
+                {t('No recent activities')}
               </Text>
             </Card>
           )}

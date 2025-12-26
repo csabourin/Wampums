@@ -133,11 +133,11 @@ const ParticipantDetailScreen = () => {
           setIsOffline(true);
         }
       } else {
-        setError(response.message || t('common.error'));
+        setError(response.message || t('error'));
       }
     } catch (err) {
       console.error('Error loading participant:', err);
-      setError(t('participants.errorLoading'));
+      setError(t('error_loading_manage_participants'));
     } finally {
       setIsLoading(false);
     }
@@ -178,20 +178,20 @@ const ParticipantDetailScreen = () => {
 
     // Required fields
     if (!formData.firstName.trim()) {
-      errors.push(t('participants.errorFirstNameRequired'));
+      errors.push(t('First name is required'));
     }
     if (!formData.lastName.trim()) {
-      errors.push(t('participants.errorLastNameRequired'));
+      errors.push(t('Last name is required'));
     }
 
     // Email validation (if provided)
     if (formData.email && !SecurityUtils.isValidEmail(formData.email)) {
-      errors.push(t('participants.errorInvalidEmail'));
+      errors.push(t('account_info_email_invalid'));
     }
 
     // Birthdate validation (if provided)
     if (formData.birthdate && !DateUtils.isValidDate(formData.birthdate)) {
-      errors.push(t('participants.errorInvalidBirthdate'));
+      errors.push(t('Invalid birthdate'));
     }
 
     return errors;
@@ -204,7 +204,7 @@ const ParticipantDetailScreen = () => {
     // Validate form
     const errors = validateForm();
     if (errors.length > 0) {
-      Alert.alert(t('common.error'), errors.join('\n'));
+      Alert.alert(t('error'), errors.join('\n'));
       return;
     }
 
@@ -229,23 +229,23 @@ const ParticipantDetailScreen = () => {
         // Show success message
         if (response.queued) {
           Alert.alert(
-            t('common.queued'),
-            t('common.willSyncWhenOnline'),
-            [{ text: t('common.ok') }]
+            t('Queued'),
+            t('Will sync when online'),
+            [{ text: t('OK') }]
           );
         } else {
           Alert.alert(
-            t('common.success'),
-            t('participants.savedSuccessfully'),
-            [{ text: t('common.ok') }]
+            t('success'),
+            t('data_saved'),
+            [{ text: t('OK') }]
           );
         }
       } else {
-        setError(response.message || t('participants.errorSaving'));
+        setError(response.message || t('error_saving_participant'));
       }
     } catch (err) {
       console.error('Error saving participant:', err);
-      setError(t('participants.errorSaving'));
+      setError(t('error_saving_participant'));
     } finally {
       setIsSaving(false);
     }
@@ -266,8 +266,8 @@ const ParticipantDetailScreen = () => {
   const handleEdit = () => {
     if (!canEdit) {
       Alert.alert(
-        t('common.permissionDenied'),
-        t('participants.noEditPermission')
+        t('Permission denied'),
+        t('You don'\''t have permission to edit')
       );
       return;
     }
@@ -289,7 +289,7 @@ const ParticipantDetailScreen = () => {
     return (
       <View style={styles.centerContainer}>
         <LoadingSpinner />
-        <Text style={styles.loadingText}>{t('common.loading')}</Text>
+        <Text style={styles.loadingText}>{t('loading')}</Text>
       </View>
     );
   }
@@ -302,7 +302,7 @@ const ParticipantDetailScreen = () => {
       <View style={styles.centerContainer}>
         <ErrorMessage message={error} />
         <TouchableOpacity style={styles.retryButton} onPress={loadParticipant}>
-          <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
+          <Text style={styles.retryButtonText}>{t('retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -334,7 +334,7 @@ const ParticipantDetailScreen = () => {
           />
         ) : (
           <Text style={styles.fieldValue}>
-            {formData[field] || t('common.notProvided')}
+            {formData[field] || t('Not provided')}
           </Text>
         )}
       </View>
@@ -351,7 +351,7 @@ const ParticipantDetailScreen = () => {
         {isOffline && (
           <View style={styles.offlineIndicator}>
             <Text style={styles.offlineText}>
-              {t('common.offline')} - {t('common.viewingCachedData')}
+              {t('Offline')} - {t('Viewing cached data')}
             </Text>
           </View>
         )}
@@ -374,7 +374,7 @@ const ParticipantDetailScreen = () => {
               </Text>
               {getAge() && (
                 <Text style={styles.ageText}>
-                  {getAge()} {t('participants.yearsOld')}
+                  {getAge()} {t('years')}
                 </Text>
               )}
             </View>
@@ -384,75 +384,75 @@ const ParticipantDetailScreen = () => {
         {/* Basic Information Card */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>
-            {t('participants.basicInformation')}
+            {t('Basic Information')}
           </Text>
 
-          {renderField(t('participants.firstName'), 'firstName', {
-            placeholder: t('participants.enterFirstName'),
+          {renderField(t('first_name'), 'firstName', {
+            placeholder: t('Enter first name'),
           })}
 
-          {renderField(t('participants.lastName'), 'lastName', {
-            placeholder: t('participants.enterLastName'),
+          {renderField(t('last_name'), 'lastName', {
+            placeholder: t('Enter last name'),
           })}
 
-          {renderField(t('participants.birthdate'), 'birthdate', {
+          {renderField(t('date_naissance'), 'birthdate', {
             placeholder: 'YYYY-MM-DD',
           })}
 
-          {renderField(t('participants.email'), 'email', {
-            placeholder: t('participants.enterEmail'),
+          {renderField(t('email'), 'email', {
+            placeholder: t('Enter email'),
             keyboardType: 'email-address',
           })}
 
-          {renderField(t('participants.phone'), 'phone', {
-            placeholder: t('participants.enterPhone'),
+          {renderField(t('Phone'), 'phone', {
+            placeholder: t('Enter phone'),
             keyboardType: 'phone-pad',
           })}
         </Card>
 
         {/* Address Card */}
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>{t('participants.address')}</Text>
+          <Text style={styles.sectionTitle}>{t('Address')}</Text>
 
-          {renderField(t('participants.streetAddress'), 'address', {
-            placeholder: t('participants.enterAddress'),
+          {renderField(t('Street Address'), 'address', {
+            placeholder: t('Enter address'),
           })}
 
-          {renderField(t('participants.city'), 'city', {
-            placeholder: t('participants.enterCity'),
+          {renderField(t('City'), 'city', {
+            placeholder: t('Enter city'),
           })}
 
-          {renderField(t('participants.province'), 'province', {
-            placeholder: t('participants.enterProvince'),
+          {renderField(t('Province'), 'province', {
+            placeholder: t('Enter province'),
           })}
 
-          {renderField(t('participants.postalCode'), 'postalCode', {
-            placeholder: t('participants.enterPostalCode'),
+          {renderField(t('postal_code'), 'postalCode', {
+            placeholder: t('Enter postal code'),
           })}
         </Card>
 
         {/* Placeholder cards for future features */}
         <Card style={styles.placeholderCard}>
           <Text style={styles.placeholderText}>
-            {t('participants.healthInformation')} - {t('common.comingSoon')}
+            {t('Health Information')} - {t('Coming soon')}
           </Text>
         </Card>
 
         <Card style={styles.placeholderCard}>
           <Text style={styles.placeholderText}>
-            {t('participants.guardianContacts')} - {t('common.comingSoon')}
+            {t('Guardian Contacts')} - {t('Coming soon')}
           </Text>
         </Card>
 
         <Card style={styles.placeholderCard}>
           <Text style={styles.placeholderText}>
-            {t('participants.badgeProgress')} - {t('common.comingSoon')}
+            {t('badge_progress')} - {t('Coming soon')}
           </Text>
         </Card>
 
         <Card style={styles.placeholderCard}>
           <Text style={styles.placeholderText}>
-            {t('participants.financialStatus')} - {t('common.comingSoon')}
+            {t('Financial Status')} - {t('Coming soon')}
           </Text>
         </Card>
 
@@ -469,7 +469,7 @@ const ParticipantDetailScreen = () => {
               onPress={handleCancel}
               disabled={isSaving}
             >
-              <Text style={styles.buttonText}>{t('common.cancel')}</Text>
+              <Text style={styles.buttonText}>{t('cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.saveButton, isSaving && styles.disabledButton]}
@@ -480,7 +480,7 @@ const ParticipantDetailScreen = () => {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={[styles.buttonText, styles.saveButtonText]}>
-                  {t('common.save')}
+                  {t('save')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -492,7 +492,7 @@ const ParticipantDetailScreen = () => {
               onPress={handleEdit}
             >
               <Text style={[styles.buttonText, styles.editButtonText]}>
-                {t('common.edit')}
+                {t('edit')}
               </Text>
             </TouchableOpacity>
           )
