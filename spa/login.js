@@ -150,7 +150,7 @@ handleLoginSuccess(result) {
   debugLog("result.user_id:", result.user_id);
   debugLog("result.user_role:", result.user_role);
   debugLog("result.user_full_name:", result.user_full_name);
-  
+
   // Check if data is nested
   if (result.data) {
     debugLog("Data is nested under result.data:");
@@ -169,12 +169,14 @@ handleLoginSuccess(result) {
   const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
   const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
+  // Try to find the appropriate status element (could be login-message or verify-message)
+  const statusElement = document.getElementById("verify-message") || document.getElementById("login-message");
+
   // Validate required fields
   if (!token) {
     debugError("ERROR: No JWT token received in login response");
-    const statusElement = document.getElementById("login-message");
     if (statusElement) {
-      statusElement.textContent = translate("login_error_no_token");
+      statusElement.textContent = translate("login_error_no_token") || "Login error: No authentication token received";
       statusElement.className = "status-message error";
     }
     return;
@@ -182,9 +184,8 @@ handleLoginSuccess(result) {
 
   if (!userId) {
     debugError("ERROR: No user ID received in login response");
-    const statusElement = document.getElementById("login-message");
     if (statusElement) {
-      statusElement.textContent = translate("login_error_no_user_id");
+      statusElement.textContent = translate("login_error_no_user_id") || "Login error: No user ID received";
       statusElement.className = "status-message error";
     }
     return;
@@ -234,17 +235,22 @@ handleLoginSuccess(result) {
   debugLog("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
   debugLog("userId:", getStorage("userId"));
   debugLog("userRole:", getStorage("userRole"));
+  debugLog("userRoles:", getStorage("userRoles"));
+  debugLog("userPermissions:", getStorage("userPermissions"));
   debugLog("currentOrganizationId:", getStorage("currentOrganizationId"));
   debugLog("organizationId:", getStorage("organizationId"));
 
   // Redirect based on user role
-  if (isParent()) {
-    debugLog("Redirecting to parent dashboard");
-    this.app.router.route("/parent-dashboard");
-  } else {
-    debugLog("Redirecting to main dashboard");
-    this.app.router.route("/dashboard");
-  }
+  const targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
+  debugLog(`Redirecting to ${targetPath}`);
+
+  // Update the URL in browser history
+  history.pushState(null, "", targetPath);
+
+  // Navigate using the router - it will now find the session data in localStorage
+  setTimeout(() => {
+    this.app.router.route(targetPath);
+  }, 100);
 }
 
   /**
