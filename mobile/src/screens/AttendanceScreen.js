@@ -50,6 +50,31 @@ const normalizeParticipant = (participant) => {
   };
 };
 
+/**
+ * Format a YYYY-MM-DD date string for display without timezone conversion issues.
+ * @param {string} dateString - Date in YYYY-MM-DD format
+ * @returns {string} Formatted date string
+ */
+const formatDateForDisplay = (dateString) => {
+  if (!dateString) return '';
+
+  // Parse the date string manually to avoid timezone issues
+  const parts = dateString.split('-');
+  if (parts.length !== 3) return dateString;
+
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // 0-indexed
+  const day = parseInt(parts[2], 10);
+
+  // Create date at noon local time to avoid timezone issues
+  const date = new Date(year, month, day, 12, 0, 0);
+
+  if (isNaN(date.getTime())) return dateString;
+
+  // Use DateUtils for proper locale formatting
+  return DateUtils.formatDate(date);
+};
+
 const AttendanceScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -405,16 +430,13 @@ const AttendanceScreen = () => {
               }}
               style={styles.picker}
             >
-              {availableDates.map((date) => {
-                const formattedDate = DateUtils.formatDate(new Date(date));
-                return (
-                  <Picker.Item
-                    key={date}
-                    label={formattedDate}
-                    value={date}
-                  />
-                );
-              })}
+              {availableDates.map((date) => (
+                <Picker.Item
+                  key={date}
+                  label={formatDateForDisplay(date)}
+                  value={date}
+                />
+              ))}
             </Picker>
           </View>
         </View>
