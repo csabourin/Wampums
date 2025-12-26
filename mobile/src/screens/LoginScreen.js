@@ -73,10 +73,10 @@ const LoginScreen = ({ navigation, onLogin }) => {
           }
         }
       } else {
-        setError(response.message || t('auth.loginFailed'));
+        setError(response.message || t('invalid_email_or_password'));
       }
     } catch (err) {
-      setError(err.message || t('auth.loginFailed'));
+      setError(err.message || t('invalid_email_or_password'));
     } finally {
       setLoading(false);
     }
@@ -106,10 +106,10 @@ const LoginScreen = ({ navigation, onLogin }) => {
           await onLogin();
         }
       } else {
-        setError(response.message || t('auth.invalidCode'));
+        setError(response.message || t('Invalid verification code'));
       }
     } catch (err) {
-      setError(err.message || t('auth.verificationFailed'));
+      setError(err.message || t('Verification failed'));
     } finally {
       setLoading(false);
     }
@@ -146,14 +146,14 @@ const LoginScreen = ({ navigation, onLogin }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.form}>
-          <Text style={styles.title}>{t('auth.twoFactorTitle')}</Text>
-          <Text style={styles.subtitle}>{t('auth.enterCode')}</Text>
+          <Text style={styles.title}>{t('two_factor_email_heading')}</Text>
+          <Text style={styles.subtitle}>{t('two_factor_message')}</Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <TextInput
             style={styles.input}
-            placeholder={t('auth.verificationCode')}
+            placeholder={t('verification_code_sent')}
             value={twoFactorCode}
             onChangeText={setTwoFactorCode}
             keyboardType="number-pad"
@@ -168,7 +168,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
             <View style={[styles.checkboxBox, trustDevice && styles.checkboxChecked]}>
               {trustDevice && <Text style={styles.checkboxCheck}>✓</Text>}
             </View>
-            <Text style={styles.checkboxLabel}>{t('auth.trustDevice')}</Text>
+            <Text style={styles.checkboxLabel}>{t('Trust this device')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -179,12 +179,12 @@ const LoginScreen = ({ navigation, onLogin }) => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>{t('auth.verify')}</Text>
+              <Text style={styles.buttonText}>{t('verify')}</Text>
             )}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setRequires2FA(false)}>
-            <Text style={styles.link}>{t('auth.backToLogin')}</Text>
+            <Text style={styles.link}>{t('back_to_login')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -203,13 +203,13 @@ const LoginScreen = ({ navigation, onLogin }) => {
         {console.log('🟠 [LoginScreen] Inside KeyboardAvoidingView')}
         <View style={styles.form}>
           {console.log('🟠 [LoginScreen] Inside form View')}
-          <Text style={styles.title}>{t('auth.loginTitle')}</Text>
+          <Text style={styles.title}>{t('login')}</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <TextInput
           style={styles.input}
-          placeholder={t('auth.email')}
+          placeholder={t('email')}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -219,7 +219,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
 
         <TextInput
           style={styles.input}
-          placeholder={t('auth.password')}
+          placeholder={t('password')}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -234,16 +234,16 @@ const LoginScreen = ({ navigation, onLogin }) => {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>{t('auth.login')}</Text>
+            <Text style={styles.buttonText}>{t('login')}</Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-          <Text style={styles.link}>{t('auth.createAccount')}</Text>
+          <Text style={styles.link}>{t('create_account')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('ResetPassword')}>
-          <Text style={styles.link}>{t('auth.forgotPassword')}</Text>
+          <Text style={styles.link}>{t('forgot_password')}</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

@@ -44,7 +44,7 @@ const DashboardScreen = () => {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>{t('common.loading')}</Text>
+        <Text style={styles.loadingText}>{t('loading')}</Text>
       </View>
     );
   }

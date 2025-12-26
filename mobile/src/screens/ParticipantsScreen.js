@@ -58,7 +58,7 @@ const ParticipantsScreen = ({ navigation }) => {
         setGroups(groupsResponse.data);
       }
     } catch (err) {
-      setError(err.message || t('common.errorLoadingData'));
+      setError(err.message || t('error_loading_data'));
     } finally {
       setLoading(false);
     }
@@ -106,12 +106,12 @@ const ParticipantsScreen = ({ navigation }) => {
             {item.firstName} {item.lastName}
           </Text>
           <Text style={styles.participantDetail}>
-            {t('participants.age')}: {DateUtils.calculateAge(item.birthdate)}{' '}
-            {t('common.years')}
+            {t('age')}: {DateUtils.calculateAge(item.birthdate)}{' '}
+            {t('years')}
           </Text>
           {item.group && (
             <Text style={styles.participantDetail}>
-              {t('participants.group')}: {item.group}
+              {t('group')}: {item.group}
             </Text>
           )}
         </View>
@@ -121,7 +121,7 @@ const ParticipantsScreen = ({ navigation }) => {
   );
 
   if (loading) {
-    return <LoadingSpinner message={t('common.loading')} />;
+    return <LoadingSpinner message={t('loading')} />;
   }
 
   if (error) {
@@ -134,7 +134,7 @@ const ParticipantsScreen = ({ navigation }) => {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder={t('participants.searchPlaceholder')}
+          placeholder={t('Search participants')}
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCapitalize="none"
@@ -154,7 +154,7 @@ const ParticipantsScreen = ({ navigation }) => {
               selectedGroup === 'all' && styles.filterButtonTextActive,
             ]}
           >
-            {t('participants.allGroups')}
+            {t('all_groups')}
           </Text>
         </TouchableOpacity>
         {groups.map((group) => (
@@ -187,7 +187,7 @@ const ParticipantsScreen = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{t('participants.noParticipants')}</Text>
+            <Text style={styles.emptyText}>{t('no_participants')}</Text>
           </View>
         }
       />

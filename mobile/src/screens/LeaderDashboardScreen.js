@@ -173,7 +173,7 @@ const LeaderDashboardScreen = () => {
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
-      setError(t('dashboard.errorLoading'));
+      setError(t('error_loading_dashboard'));
     } finally {
       setLoading(false);
     }
@@ -193,9 +193,9 @@ const LeaderDashboardScreen = () => {
    */
   const handleTakeAttendance = () => {
     Alert.alert(
-      t('dashboard.takeAttendance'),
+      t('Take Attendance'),
       t('dashboard.selectActivity'),
-      [{ text: t('common.ok') }]
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to attendance screen
   };
@@ -205,9 +205,9 @@ const LeaderDashboardScreen = () => {
    */
   const handleCreateActivity = () => {
     Alert.alert(
-      t('dashboard.createActivity'),
-      t('common.comingSoon'),
-      [{ text: t('common.ok') }]
+      t('Create Activity'),
+      t('Coming soon'),
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to create activity screen
   };
@@ -217,9 +217,9 @@ const LeaderDashboardScreen = () => {
    */
   const handleViewCarpools = () => {
     Alert.alert(
-      t('dashboard.carpools'),
-      t('common.comingSoon'),
-      [{ text: t('common.ok') }]
+      t('Carpools'),
+      t('Coming soon'),
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to carpools screen
   };
@@ -244,8 +244,8 @@ const LeaderDashboardScreen = () => {
   const handleViewActivity = (activity) => {
     Alert.alert(
       activity.name,
-      t('dashboard.activityDetailComingSoon'),
-      [{ text: t('common.ok') }]
+      t('Activity details coming soon'),
+      [{ text: t('OK') }]
     );
     // TODO: Navigate to activity detail
     // navigation.navigate('ActivityDetail', { activityId: activity.id });
@@ -258,7 +258,7 @@ const LeaderDashboardScreen = () => {
     return (
       <View style={styles.centerContainer}>
         <LoadingSpinner />
-        <Text style={styles.loadingText}>{t('common.loading')}</Text>
+        <Text style={styles.loadingText}>{t('loading')}</Text>
       </View>
     );
   }
@@ -280,7 +280,7 @@ const LeaderDashboardScreen = () => {
       {isOffline && (
         <View style={styles.offlineIndicator}>
           <Text style={styles.offlineText}>
-            📡 {t('common.offline')} - {t('common.viewingCachedData')}
+            📡 {t('Offline')} - {t('Viewing cached data')}
           </Text>
         </View>
       )}
@@ -294,21 +294,21 @@ const LeaderDashboardScreen = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>
-            {t('dashboard.welcomeLeader')}
+            {t('Welcome, Leader!')}
           </Text>
           {userGroup && (
             <Text style={styles.groupName}>
-              {userGroup.name || t('dashboard.yourGroup')}
+              {userGroup.name || t('Your Group')}
             </Text>
           )}
         </View>
 
         {/* Statistics Cards */}
-        <DashboardSection title={t('dashboard.overview')}>
+        <DashboardSection title={t('overview')}>
           <View style={styles.statsGrid}>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.participants')}
+                label={t('participants')}
                 value={statistics.totalParticipants}
                 icon="👥"
                 color="#007AFF"
@@ -317,7 +317,7 @@ const LeaderDashboardScreen = () => {
             </View>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.upcomingActivities')}
+                label={t('Upcoming Activities')}
                 value={statistics.upcomingActivities}
                 icon="📅"
                 color="#34C759"
@@ -329,7 +329,7 @@ const LeaderDashboardScreen = () => {
           <View style={styles.statsGrid}>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.groups')}
+                label={t('groups')}
                 value={statistics.activeGroups}
                 icon="⚜️"
                 color="#FF9500"
@@ -337,7 +337,7 @@ const LeaderDashboardScreen = () => {
             </View>
             <View style={styles.statCol}>
               <StatCard
-                label={t('dashboard.permissionSlips')}
+                label={t('Permission Slips')}
                 value={statistics.pendingPermissionSlips}
                 icon="📝"
                 color="#FF3B30"
@@ -347,12 +347,12 @@ const LeaderDashboardScreen = () => {
         </DashboardSection>
 
         {/* Quick Actions */}
-        <DashboardSection title={t('dashboard.quickActions')}>
+        <DashboardSection title={t('Quick Actions')}>
           <View style={styles.actionsGrid}>
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="✓"
-                label={t('dashboard.takeAttendance')}
+                label={t('Take Attendance')}
                 onPress={handleTakeAttendance}
                 color="#34C759"
               />
@@ -360,7 +360,7 @@ const LeaderDashboardScreen = () => {
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="+"
-                label={t('dashboard.createActivity')}
+                label={t('Create Activity')}
                 onPress={handleCreateActivity}
                 color="#007AFF"
               />
@@ -371,7 +371,7 @@ const LeaderDashboardScreen = () => {
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="🚗"
-                label={t('dashboard.carpools')}
+                label={t('Carpools')}
                 onPress={handleViewCarpools}
                 color="#FF9500"
               />
@@ -379,7 +379,7 @@ const LeaderDashboardScreen = () => {
             <View style={styles.actionCol}>
               <QuickActionButton
                 icon="👥"
-                label={t('dashboard.participants')}
+                label={t('participants')}
                 onPress={handleViewParticipants}
                 color="#5856D6"
               />
@@ -389,8 +389,8 @@ const LeaderDashboardScreen = () => {
 
         {/* Upcoming Activities */}
         <DashboardSection
-          title={t('dashboard.upcomingActivities')}
-          actionLabel={t('common.viewAll')}
+          title={t('Upcoming Activities')}
+          actionLabel={t('View all')}
           onActionPress={handleViewActivities}
         >
           {upcomingActivities.length > 0 ? (
@@ -407,11 +407,11 @@ const LeaderDashboardScreen = () => {
                   </Text>
                 </View>
                 <Text style={styles.activityLocation}>
-                  📍 {activity.location || t('common.noLocation')}
+                  📍 {activity.location || t('No location')}
                 </Text>
                 <Text style={styles.activityParticipants}>
                   👥 {activity.participantCount || 0}{' '}
-                  {t('dashboard.registered')}
+                  {t('Registered')}
                 </Text>
               </Card>
             ))
