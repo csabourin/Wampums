@@ -120,24 +120,22 @@ export function isStaff(userPermissions) {
 
 /**
  * Determine which dashboard type to show based on permissions
+ * Roles are linked to permissions via the role_permissions table, so any
+ * assigned permission indicates a non-parent dashboard context.
  *
  * @param {Array<string>} userPermissions - Array of user permissions from storage
- * @returns {'district'|'leader'|'parent'} Dashboard type to display
+ * @returns {'leader'|'parent'} Dashboard type to display
  *
  * @example
  * const dashboardType = getDashboardType(userPermissions);
- * // Returns 'district', 'leader', or 'parent'
+ * // Returns 'leader' or 'parent'
  */
 export function getDashboardType(userPermissions) {
-  if (isAdmin(userPermissions)) {
-    return 'district';
-  }
+  const hasPermissions = Array.isArray(userPermissions)
+    ? userPermissions.length > 0
+    : false;
 
-  if (isStaff(userPermissions)) {
-    return 'leader';
-  }
-
-  return 'parent';
+  return hasPermissions ? 'leader' : 'parent';
 }
 
 export default {
