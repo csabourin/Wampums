@@ -3,28 +3,35 @@
  *
  * Mirrors spa/utils/StorageUtils.js functionality
  * Uses:
- * - SecureStore for sensitive data (JWT tokens)
- * - AsyncStorage for non-sensitive data
+ * - SecureStore for small sensitive data (device tokens) on native platforms
+ * - AsyncStorage for web platform, large tokens (JWT), and non-sensitive data
  */
 
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import CONFIG from '../config';
 
-// Keys that should be stored securely
+// Keys that should be stored securely (on native platforms only)
+// Note: JWT tokens are excluded because they often exceed SecureStore's 2048-byte limit
+// and are already cryptographically signed (tamper-proof). Device tokens are small enough.
 const SECURE_KEYS = [
-  CONFIG.STORAGE_KEYS.JWT_TOKEN,
   CONFIG.STORAGE_KEYS.DEVICE_TOKEN,
 ];
 
+// Check if we should use SecureStore (only on native platforms)
+const shouldUseSecureStore = (key) => {
+  return Platform.OS !== 'web' && SECURE_KEYS.includes(key);
+};
+
 /**
- * Store a value securely or in async storage based on key sensitivity
+ * Store a value securely or in async storage based on key sensitivity and platform
  */
 export const setItem = async (key, value) => {
   try {
     const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
 
-    if (SECURE_KEYS.includes(key)) {
+    if (shouldUseSecureStore(key)) {
       await SecureStore.setItemAsync(key, stringValue);
     } else {
       await AsyncStorage.setItem(key, stringValue);
@@ -43,7 +50,7 @@ export const getItem = async (key) => {
   try {
     let value;
 
-    if (SECURE_KEYS.includes(key)) {
+    if (shouldUseSecureStore(key)) {
       value = await SecureStore.getItemAsync(key);
     } else {
       value = await AsyncStorage.getItem(key);
@@ -68,7 +75,7 @@ export const getItem = async (key) => {
  */
 export const removeItem = async (key) => {
   try {
-    if (SECURE_KEYS.includes(key)) {
+    if (shouldUseSecureStore(key)) {
       await SecureStore.deleteItemAsync(key);
     } else {
       await AsyncStorage.removeItem(key);
@@ -136,8 +143,8 @@ export const clearUserData = async () => {
     // Remove keys from AsyncStorage
     await AsyncStorage.multiRemove(keysToRemove);
 
-    // Remove JWT token from SecureStore (but preserve device_token)
-    await SecureStore.deleteItemAsync(CONFIG.STORAGE_KEYS.JWT_TOKEN);
+    // Remove JWT token from storage (but preserve device_token)
+    await removeItem(CONFIG.STORAGE_KEYS.JWT_TOKEN);
 
     return true;
   } catch (error) {
@@ -152,10 +159,10 @@ export const clearUserData = async () => {
 export const clearAllStorage = async () => {
   try {
     await AsyncStorage.clear();
-    // Clear secure store items
+    // Clear secure store items (only on native platforms)
     for (const key of SECURE_KEYS) {
       try {
-        await SecureStore.deleteItemAsync(key);
+        await removeItem(key);
       } catch (error) {
         // Key might not exist, ignore error
       }
