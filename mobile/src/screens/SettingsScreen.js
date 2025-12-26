@@ -52,11 +52,11 @@ const SettingsScreen = ({ navigation }) => {
       setCurrentLanguage(lang);
       // Show alert that app will reload
       Alert.alert(
-        t('settings.languageChanged'),
-        t('settings.restartRequired'),
+        t('Language changed'),
+        t('App restart required'),
         [
           {
-            text: t('common.ok'),
+            text: t('OK'),
             onPress: () => {
               // TODO: Force app reload/navigation reset
               // For now, just update the state
@@ -69,15 +69,15 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleLogout = async () => {
     Alert.alert(
-      t('settings.confirmLogout'),
-      t('settings.confirmLogoutMessage'),
+      t('Confirm Logout'),
+      t('Are you sure you want to logout?'),
       [
         {
-          text: t('common.cancel'),
+          text: t('cancel'),
           style: 'cancel',
         },
         {
-          text: t('settings.logout'),
+          text: t('logout'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -100,7 +100,7 @@ const SettingsScreen = ({ navigation }) => {
     <ScrollView style={styles.container}>
       {/* User Profile Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
+        <Text style={styles.sectionTitle}>{t('profile')}</Text>
         <Card>
           <Text style={styles.profileName}>{userName}</Text>
           <Text style={styles.profileRole}>{userRole}</Text>
@@ -109,7 +109,7 @@ const SettingsScreen = ({ navigation }) => {
 
       {/* Language Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.language')}</Text>
+        <Text style={styles.sectionTitle}>{t('language')}</Text>
         <Card>
           <TouchableOpacity
             style={styles.settingRow}
@@ -131,10 +131,10 @@ const SettingsScreen = ({ navigation }) => {
 
       {/* Notifications Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
+        <Text style={styles.sectionTitle}>{t('Notifications')}</Text>
         <Card>
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>{t('settings.pushNotifications')}</Text>
+            <Text style={styles.settingLabel}>{t('Push Notifications')}</Text>
             <Switch
               value={pushEnabled}
               onValueChange={setPushEnabled}
@@ -143,21 +143,21 @@ const SettingsScreen = ({ navigation }) => {
           </View>
         </Card>
         <Text style={styles.settingHelp}>
-          {t('settings.pushNotificationsHelp')}
+          {t('Receive notifications about activities')}
         </Text>
       </View>
 
       {/* App Info Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('settings.appInfo')}</Text>
+        <Text style={styles.sectionTitle}>{t('App Info')}</Text>
         <Card>
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>{t('settings.version')}</Text>
+            <Text style={styles.settingLabel}>{t('Version')}</Text>
             <Text style={styles.settingValue}>{CONFIG.APP.VERSION}</Text>
           </View>
           <View style={styles.separator} />
           <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>{t('settings.build')}</Text>
+            <Text style={styles.settingLabel}>{t('Build')}</Text>
             <Text style={styles.settingValue}>{CONFIG.APP.BUILD_NUMBER}</Text>
           </View>
         </Card>
@@ -166,13 +166,13 @@ const SettingsScreen = ({ navigation }) => {
       {/* Account Actions */}
       <View style={styles.section}>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>{t('settings.logout')}</Text>
+          <Text style={styles.logoutButtonText}>{t('logout')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          {t('settings.madeWith')} ❤️ {t('settings.forScouts')}
+          {t('Made with')} ❤️ {t('for Scouts')}
         </Text>
       </View>
     </ScrollView>

@@ -254,7 +254,10 @@ export const getCurrentLanguage = () => {
  * Translate a key
  * Mirrors spa/app.js translate()
  *
- * @param {string} key - Translation key
+ * All mobile screens now use flat translation keys that match lang.json format.
+ * This allows direct access to the 1960+ existing translation keys.
+ *
+ * @param {string} key - Translation key (flat format matching lang.json)
  * @param {object} options - Interpolation options
  * @returns {string} Translated text
  */
@@ -264,7 +267,10 @@ export const translate = (key, options = {}) => {
     return key;
   }
 
-  return i18n.t(key, options);
+  // Get translation, using key as default if translation doesn't exist
+  const translation = i18n.t(key, { ...options, defaultValue: key });
+
+  return translation;
 };
 
 /**

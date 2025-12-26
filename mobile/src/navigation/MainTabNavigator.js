@@ -43,7 +43,7 @@ const MainTabNavigator = ({ userRole, userPermissions }) => {
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          title: t('nav.dashboard'),
+          title: t('dashboard_title'),
           tabBarIcon: () => null, // Add icon when react-native-vector-icons is installed
         }}
       />
@@ -54,7 +54,7 @@ const MainTabNavigator = ({ userRole, userPermissions }) => {
           name="ParticipantsTab"
           component={DashboardScreen} // Placeholder - replace with ParticipantsScreen
           options={{
-            title: t('nav.participants'),
+            title: t('participants'),
             tabBarIcon: () => null,
           }}
         />
@@ -66,7 +66,7 @@ const MainTabNavigator = ({ userRole, userPermissions }) => {
           name="ActivitiesTab"
           component={DashboardScreen} // Placeholder - replace with ActivitiesScreen
           options={{
-            title: t('nav.activities'),
+            title: t('Activities'),
             tabBarIcon: () => null,
           }}
         />
@@ -78,7 +78,7 @@ const MainTabNavigator = ({ userRole, userPermissions }) => {
           name="FinanceTab"
           component={DashboardScreen} // Placeholder - replace with FinanceScreen
           options={{
-            title: t('nav.finance'),
+            title: t('finance'),
             tabBarIcon: () => null,
           }}
         />
@@ -89,7 +89,7 @@ const MainTabNavigator = ({ userRole, userPermissions }) => {
         name="SettingsTab"
         component={DashboardScreen} // Placeholder - replace with SettingsScreen
         options={{
-          title: t('nav.settings'),
+          title: t('settings'),
           tabBarIcon: () => null,
         }}
       />
