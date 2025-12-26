@@ -103,11 +103,23 @@ const CONFIG = {
     TRANSLATIONS: '/translations',
     PARTICIPANTS_LEGACY: '/participants',
     POINTS_DATA: '/points-data',
+    UPDATE_POINTS: '/update-points',
+    POINTS_REPORT: '/points-report',
+    POINTS_LEADERBOARD: '/points-leaderboard',
     BADGE_SUMMARY: '/badge-summary',
     HONORS: '/honors',
+    AWARD_HONOR: '/award-honor',
+    HONORS_REPORT: '/honors-report',
+    HONORS_HISTORY: '/honors-history',
     FUNDRAISERS: '/fundraisers',
     CALENDARS: '/calendars',
     FORMS: '/form-formats',
+    REUNION_PREPARATION: '/reunion-preparation',
+    SAVE_REUNION_PREPARATION: '/save-reunion-preparation',
+    REUNION_DATES: '/reunion-dates',
+    MEETING_ACTIVITIES: '/activites-rencontre',
+    NEXT_MEETING_INFO: '/next-meeting-info',
+    ANIMATEURS: '/animateurs',
   },
 
   // Storage keys (mirrors spa CONFIG.STORAGE_KEYS)
@@ -147,6 +159,8 @@ const CONFIG = {
     TOUCH_TARGET_SIZE: 44, // Minimum touch target size for accessibility
     ANIMATION_DURATION: 300,
     DEBOUNCE_DELAY: 300,
+    POINTS_QUICK_ACTIONS: [-5, -1, 1, 5],
+    ATTENDANCE_STATUSES: ['present', 'late', 'absent', 'excused'],
   },
 
   // Feature flags

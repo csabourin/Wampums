@@ -10,3 +10,4 @@ export { default as DateUtils } from './DateUtils';
 export { default as NumberUtils } from './NumberUtils';
 export { default as CacheManager } from './CacheManager';
 export { default as PermissionUtils } from './PermissionUtils';
+export { default as DebugUtils } from './DebugUtils';
