@@ -283,6 +283,20 @@ export const getAttendanceDates = async () => {
 };
 
 /**
+ * Save guest for attendance
+ */
+export const saveGuest = async (guestData) => {
+  return API.post('/save-guest', guestData);
+};
+
+/**
+ * Get guests by date
+ */
+export const getGuestsByDate = async (date) => {
+  return API.get('/guests-by-date', { date });
+};
+
+/**
  * ============================================================================
  * GROUPS (V1)
  * ============================================================================
@@ -756,6 +770,8 @@ export default {
   createAttendance,
   updateAttendance,
   getAttendanceDates,
+  saveGuest,
+  getGuestsByDate,
   // Groups
   getGroups,
   createGroup,
