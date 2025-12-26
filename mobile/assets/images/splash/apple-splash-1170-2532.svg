@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1170" height="2532" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <rect width="1170" height="2532" fill="#4c65ae"/>
+  <g transform="translate(585, 1266)">
+    <circle r="175.5" fill="white" opacity="0.9"/>
+    <text x="0" y="70.2"
+          text-anchor="middle"
+          font-family="system-ui, -apple-system, sans-serif"
+          font-size="93.60000000000001"
+          font-weight="bold"
+          fill="#4c65ae">W</text>
+  </g>
+</svg>
