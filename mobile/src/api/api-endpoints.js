@@ -119,10 +119,14 @@ export const getOrganizationId = async (hostname, organizationUrl = null) => {
       });
 
       // Normalize response to match our API format
-      if (response.data) {
+      // Backend returns: { success: true, organizationId: 123 }
+      // We need: { success: true, data: { organization_id: 123 } }
+      if (response.data && response.data.organizationId) {
         return {
           success: true,
-          data: response.data,
+          data: {
+            organization_id: response.data.organizationId,
+          },
           message: 'Organization resolved',
         };
       }
