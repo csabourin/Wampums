@@ -147,7 +147,7 @@ const AttendanceScreen = () => {
 
       const [participantsResponse, attendanceResponse, datesResponse, guestsResponse] = await Promise.all([
         getParticipants(),
-        getAttendance({ date: today }),
+        getAttendance(today),
         getAttendanceDates(),
         getGuestsByDate(today),
       ]);
@@ -165,6 +165,13 @@ const AttendanceScreen = () => {
       const guestRows = guestsResponse.success
         ? guestsResponse.guests || []
         : [];
+
+      debugLog('Initial data loaded:', {
+        participants: participantRows.length,
+        attendanceRows: attendanceRows.length,
+        dates: dateRows.length,
+        guests: guestRows.length,
+      });
 
       const map = attendanceRows.reduce((acc, record) => {
         acc[record.participant_id] = record.status;
@@ -196,7 +203,7 @@ const AttendanceScreen = () => {
       debugLog(`Loading attendance for date: ${date}`);
 
       const [attendanceResponse, guestsResponse] = await Promise.all([
-        getAttendance({ date }),
+        getAttendance(date),
         getGuestsByDate(date),
       ]);
 
@@ -207,6 +214,12 @@ const AttendanceScreen = () => {
       const guestRows = guestsResponse.success
         ? guestsResponse.guests || []
         : [];
+
+      debugLog('Attendance API response for', date, ':', {
+        success: attendanceResponse.success,
+        dataLength: attendanceRows.length,
+        sampleRecord: attendanceRows[0] || 'none',
+      });
 
       const map = attendanceRows.reduce((acc, record) => {
         acc[record.participant_id] = record.status;

@@ -256,8 +256,11 @@ export const getMyChildrenAssignments = async () => {
 
 /**
  * Get attendance records
+ * @param {string|null} date - Optional date to filter by (YYYY-MM-DD format)
+ * @returns {Promise} Attendance records
  */
-export const getAttendance = async (params) => {
+export const getAttendance = async (date = null) => {
+  const params = date ? { date } : {};
   return API.get(CONFIG.ENDPOINTS.ATTENDANCE, params);
 };
 
