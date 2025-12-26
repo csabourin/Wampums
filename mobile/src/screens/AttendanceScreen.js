@@ -147,7 +147,7 @@ const AttendanceScreen = () => {
 
       const [participantsResponse, attendanceResponse, datesResponse, guestsResponse] = await Promise.all([
         getParticipants(),
-        getAttendance({ date: today }),
+        getAttendance(today),
         getAttendanceDates(),
         getGuestsByDate(today),
       ]);
@@ -196,7 +196,7 @@ const AttendanceScreen = () => {
       debugLog(`Loading attendance for date: ${date}`);
 
       const [attendanceResponse, guestsResponse] = await Promise.all([
-        getAttendance({ date }),
+        getAttendance(date),
         getGuestsByDate(date),
       ]);
 
