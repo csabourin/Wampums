@@ -57,7 +57,8 @@ const AttendanceScreen = () => {
   const [participants, setParticipants] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({});
   const [availableDates, setAvailableDates] = useState([]);
-  const [selectedDate, setSelectedDate] = useState('');
+  // Initialize with today's date in local timezone
+  const [selectedDate, setSelectedDate] = useState(DateUtils.formatDate(new Date()));
   const [savingId, setSavingId] = useState(null);
 
   // Selection states
@@ -110,18 +111,20 @@ const AttendanceScreen = () => {
   }, [participants]);
 
   /**
-   * Load attendance data for the selected date.
+   * Load initial data (participants, dates, and today's attendance).
    */
-  const loadAttendanceData = async (dateOverride = null) => {
+  const loadInitialData = async () => {
     try {
       setError('');
-      const targetDate = dateOverride || selectedDate;
+      setLoading(true);
+
+      const today = DateUtils.formatDate(new Date());
 
       const [participantsResponse, attendanceResponse, datesResponse, guestsResponse] = await Promise.all([
         getParticipants(),
-        getAttendance(targetDate ? { date: targetDate } : undefined),
+        getAttendance({ date: today }),
         getAttendanceDates(),
-        getGuestsByDate(targetDate),
+        getGuestsByDate(today),
       ]);
 
       const participantRows = participantsResponse.success
@@ -147,35 +150,73 @@ const AttendanceScreen = () => {
       setAttendanceMap(map);
       setGuests(guestRows);
 
+      // Ensure today is first in the list
       const dates = dateRows.length > 0 ? dateRows : [];
-      const today = DateUtils.formatDate(new Date());
       const uniqueDates = Array.from(new Set([today, ...dates]));
       setAvailableDates(uniqueDates);
-
-      if (!targetDate) {
-        setSelectedDate(uniqueDates[0]);
-      }
     } catch (err) {
-      debugError('Error loading attendance data:', err);
+      debugError('Error loading initial data:', err);
       setError(err.message || t('error_loading_attendance'));
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Load attendance data for a specific date.
+   */
+  const loadAttendanceForDate = async (date) => {
+    try {
+      setError('');
+      debugLog(`Loading attendance for date: ${date}`);
+
+      const [attendanceResponse, guestsResponse] = await Promise.all([
+        getAttendance({ date }),
+        getGuestsByDate(date),
+      ]);
+
+      const attendanceRows = attendanceResponse.success
+        ? attendanceResponse.data || []
+        : [];
+
+      const guestRows = guestsResponse.success
+        ? guestsResponse.guests || []
+        : [];
+
+      const map = attendanceRows.reduce((acc, record) => {
+        acc[record.participant_id] = record.status;
+        return acc;
+      }, {});
+
+      debugLog(`Loaded ${Object.keys(map).length} attendance records and ${guestRows.length} guests for ${date}`);
+
+      setAttendanceMap(map);
+      setGuests(guestRows);
+
+      // Clear any selections when changing dates
+      setSelectedGroup(null);
+      setSelectedParticipant(null);
+    } catch (err) {
+      debugError('Error loading attendance for date:', err);
+      setError(err.message || t('error_loading_attendance'));
+    }
+  };
+
+  // Load initial data on mount
   useEffect(() => {
-    loadAttendanceData();
+    loadInitialData();
   }, []);
 
+  // Load attendance when date changes (but skip initial mount)
   useEffect(() => {
-    if (selectedDate) {
-      loadAttendanceData(selectedDate);
+    if (!loading && selectedDate) {
+      loadAttendanceForDate(selectedDate);
     }
   }, [selectedDate]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadAttendanceData(selectedDate);
+    await loadAttendanceForDate(selectedDate);
     setRefreshing(false);
   };
 
@@ -343,7 +384,7 @@ const AttendanceScreen = () => {
   }
 
   if (error) {
-    return <ErrorMessage message={error} onRetry={loadAttendanceData} />;
+    return <ErrorMessage message={error} onRetry={loadInitialData} />;
   }
 
   return (
@@ -358,16 +399,22 @@ const AttendanceScreen = () => {
           <View style={styles.pickerContainer}>
             <Picker
               selectedValue={selectedDate}
-              onValueChange={(itemValue) => setSelectedDate(itemValue)}
+              onValueChange={(itemValue) => {
+                debugLog(`Date changed from ${selectedDate} to ${itemValue}`);
+                setSelectedDate(itemValue);
+              }}
               style={styles.picker}
             >
-              {availableDates.map((date) => (
-                <Picker.Item
-                  key={date}
-                  label={DateUtils.formatDate(date)}
-                  value={date}
-                />
-              ))}
+              {availableDates.map((date) => {
+                const formattedDate = DateUtils.formatDate(new Date(date));
+                return (
+                  <Picker.Item
+                    key={date}
+                    label={formattedDate}
+                    value={date}
+                  />
+                );
+              })}
             </Picker>
           </View>
         </View>
