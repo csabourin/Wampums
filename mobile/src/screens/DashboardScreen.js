@@ -1,41 +1,48 @@
 /**
  * Dashboard Screen
  *
- * Router for role-based dashboards
- * Directs users to the appropriate dashboard based on their role
+ * Router for permission-based dashboards
+ * Directs users to the appropriate dashboard based on their permissions
  *
- * Role-based routing:
- * - parent, demoparent -> ParentDashboardScreen
- * - leader, finance, equipment, administration -> LeaderDashboardScreen
- * - admin, district, unitadmin, demoadmin -> DistrictDashboardScreen
+ * Permission-based routing:
+ * - Admin permissions (users.assign_roles, org.view, etc.) -> DistrictDashboardScreen
+ * - Staff permissions (participants.view, attendance.manage, etc.) -> LeaderDashboardScreen
+ * - Parent permissions (limited access) -> ParentDashboardScreen
  */
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import StorageUtils from '../utils/StorageUtils';
+import { getDashboardType } from '../utils/PermissionUtils';
 import { translate as t } from '../i18n';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 
-// Import role-specific dashboards
+// Import permission-based dashboards
 import ParentDashboardScreen from './ParentDashboardScreen';
 import LeaderDashboardScreen from './LeaderDashboardScreen';
 import DistrictDashboardScreen from './DistrictDashboardScreen';
 
 const DashboardScreen = () => {
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState(null);
+  const [dashboardType, setDashboardType] = useState(null);
 
   useEffect(() => {
-    loadUserRole();
+    loadUserPermissions();
   }, []);
 
-  const loadUserRole = async () => {
+  const loadUserPermissions = async () => {
     try {
-      const role = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
-      setUserRole(role);
+      // Get user permissions from storage (already parsed by StorageUtils)
+      const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+
+      // Determine which dashboard to show based on permissions
+      const type = getDashboardType(permissions || []);
+      setDashboardType(type);
     } catch (err) {
-      console.error('Error loading user role:', err);
+      console.error('Error loading user permissions:', err);
+      // Fallback to parent dashboard on error
+      setDashboardType('parent');
     } finally {
       setLoading(false);
     }
@@ -50,26 +57,16 @@ const DashboardScreen = () => {
     );
   }
 
-  // Route to appropriate dashboard based on role
-  switch (userRole) {
-    case 'parent':
-    case 'demoparent':
-      return <ParentDashboardScreen />;
-
-    case 'leader':
-    case 'finance':
-    case 'equipment':
-    case 'administration':
-      return <LeaderDashboardScreen />;
-
-    case 'admin':
+  // Route to appropriate dashboard based on permissions
+  switch (dashboardType) {
     case 'district':
-    case 'unitadmin':
-    case 'demoadmin':
       return <DistrictDashboardScreen />;
 
+    case 'leader':
+      return <LeaderDashboardScreen />;
+
+    case 'parent':
     default:
-      // Fallback to parent dashboard if role is unknown
       return <ParentDashboardScreen />;
   }
 };
