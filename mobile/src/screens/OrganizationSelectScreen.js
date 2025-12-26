@@ -115,7 +115,8 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
       const { fullUrl, hostname } = validation;
 
       // Call API to resolve organization ID using hostname
-      const response = await getOrganizationId(hostname);
+      // Pass fullUrl to query the organization's own server
+      const response = await getOrganizationId(hostname, fullUrl);
 
       if (response.success && response.data?.organization_id) {
         const orgId = response.data.organization_id;

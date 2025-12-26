@@ -92,8 +92,55 @@ export const refreshToken = async () => {
 
 /**
  * Get organization ID by hostname or slug
+ *
+ * IMPORTANT: This function must use the organization's URL directly,
+ * not the default API base URL, because we're resolving the org BEFORE
+ * we know which organization it is.
+ *
+ * @param {string} hostname - The organization's hostname (e.g., "meute6a.app")
+ * @param {string} organizationUrl - The full organization URL to query (e.g., "https://meute6a.app")
+ * @returns {Promise<Object>} Response with organization_id
  */
-export const getOrganizationId = async (hostname) => {
+export const getOrganizationId = async (hostname, organizationUrl = null) => {
+  // If organizationUrl is provided, make a direct request to that URL
+  // This is necessary because we don't know the org ID yet
+  if (organizationUrl) {
+    const axios = require('axios');
+    const { getApiUrl } = require('../config');
+
+    try {
+      // Build the full URL using the organization's base URL
+      const endpoint = CONFIG.ENDPOINTS.GET_ORGANIZATION_ID;
+      const url = getApiUrl(endpoint, organizationUrl);
+
+      const response = await axios.get(url, {
+        params: { hostname },
+        timeout: CONFIG.API.TIMEOUT,
+      });
+
+      // Normalize response to match our API format
+      if (response.data) {
+        return {
+          success: true,
+          data: response.data,
+          message: 'Organization resolved',
+        };
+      }
+
+      return {
+        success: false,
+        message: 'Organization not found',
+      };
+    } catch (error) {
+      console.error('[getOrganizationId] Error resolving organization:', error);
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Failed to resolve organization',
+      };
+    }
+  }
+
+  // Fallback to default API (for backward compatibility)
   return API.public(CONFIG.ENDPOINTS.GET_ORGANIZATION_ID, { hostname });
 };
 
