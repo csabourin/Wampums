@@ -10,6 +10,7 @@ import { View, Text } from 'react-native';
 import { initI18n } from './src/i18n';
 import { RootNavigator } from './src/navigation';
 import { LoadingSpinner } from './src/components';
+import { logConfigValues } from './src/utils/DebugConfig';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -61,6 +62,10 @@ export default function App() {
   const initializeApp = async () => {
     try {
       console.log('🟢 [App] Starting initialization');
+
+      // Debug: Log all CONFIG values to check for type issues
+      logConfigValues();
+
       // Initialize i18n system (loads translations and sets locale)
       await initI18n();
       console.log('🟢 [App] i18n initialized successfully');
