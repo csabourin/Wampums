@@ -26,6 +26,7 @@ import { translate as t } from '../i18n';
 import CONFIG from '../config';
 
 const LoginScreen = ({ navigation, onLogin }) => {
+  console.log('🟠 [LoginScreen] Component initializing');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -36,6 +37,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
   const [requires2FA, setRequires2FA] = useState(false);
 
   useEffect(() => {
+    console.log('🟠 [LoginScreen] useEffect - loading organization ID');
     // Load organization ID or prompt user
     loadOrganizationId();
   }, []);
@@ -137,6 +139,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
   };
 
   if (requires2FA) {
+    console.log('🟠 [LoginScreen] Rendering 2FA view');
     return (
       <KeyboardAvoidingView
         style={styles.container}
@@ -188,13 +191,19 @@ const LoginScreen = ({ navigation, onLogin }) => {
     );
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.form}>
-        <Text style={styles.title}>{t('auth.loginTitle')}</Text>
+  console.log('🟠 [LoginScreen] Rendering main login view');
+  console.log('🟠 [LoginScreen] About to render KeyboardAvoidingView');
+
+  try {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {console.log('🟠 [LoginScreen] Inside KeyboardAvoidingView')}
+        <View style={styles.form}>
+          {console.log('🟠 [LoginScreen] Inside form View')}
+          <Text style={styles.title}>{t('auth.loginTitle')}</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -238,7 +247,12 @@ const LoginScreen = ({ navigation, onLogin }) => {
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
-  );
+    );
+  } catch (error) {
+    console.error('🔴 [LoginScreen] Error during render:', error);
+    console.error('🔴 [LoginScreen] Error stack:', error.stack);
+    throw error;
+  }
 };
 
 const styles = StyleSheet.create({

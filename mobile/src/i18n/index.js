@@ -28,6 +28,10 @@ const i18n = new I18n(
 // Translation cache
 let translationsLoaded = false;
 let currentLanguage = CONFIG.LOCALE.DEFAULT_LANGUAGE;
+let initPromise = null; // Guard against multiple initialization calls
+
+// Request deduplication - prevent multiple simultaneous requests for same language
+const pendingRequests = new Map();
 
 /**
  * Load static translations from bundled JSON files
@@ -58,24 +62,49 @@ const loadStaticTranslations = async (lang) => {
  * Load dynamic translations from API
  * Mirrors spa/api/api-offline-wrapper.js translation caching
  * Non-blocking - returns empty object if API is unavailable
+ *
+ * Uses request deduplication to prevent multiple simultaneous requests for the same language
  */
 const loadDynamicTranslations = async (lang) => {
-  try {
-    const response = await fetchTranslationsFromAPI(lang);
-    if (response.success && response.data) {
-      if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        console.log(`Loaded ${Object.keys(response.data).length} dynamic translations for ${lang}`);
-      }
-      return response.data;
-    }
-    return {};
-  } catch (error) {
-    // API not available - this is expected when offline or backend not running
+  // Check if there's already a pending request for this language
+  if (pendingRequests.has(lang)) {
     if (CONFIG.FEATURES.DEBUG_LOGGING) {
-      console.log(`API translations unavailable for ${lang}, using static translations only`);
+      console.log(`Deduplicating translation request for ${lang}`);
     }
-    return {};
+    return pendingRequests.get(lang);
   }
+
+  // Create the request promise
+  const requestPromise = (async () => {
+    try {
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        console.log(`Fetching dynamic translations for ${lang}`);
+      }
+
+      const response = await fetchTranslationsFromAPI(lang);
+      if (response.success && response.data) {
+        if (CONFIG.FEATURES.DEBUG_LOGGING) {
+          console.log(`Loaded ${Object.keys(response.data).length} dynamic translations for ${lang}`);
+        }
+        return response.data;
+      }
+      return {};
+    } catch (error) {
+      // API not available - this is expected when offline or backend not running
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        console.log(`API translations unavailable for ${lang}, using static translations only`);
+      }
+      return {};
+    } finally {
+      // Remove from pending requests when done
+      pendingRequests.delete(lang);
+    }
+  })();
+
+  // Store the pending request
+  pendingRequests.set(lang, requestPromise);
+
+  return requestPromise;
 };
 
 /**
@@ -117,37 +146,71 @@ export const loadTranslation = async (lang) => {
 /**
  * Initialize i18n system
  * Mirrors spa/app.js init() translation setup
+ *
+ * Prevents multiple simultaneous initializations
  */
 export const initI18n = async () => {
-  try {
-    // Get stored language preference
-    let storedLang = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.LANGUAGE);
-
-    // If no stored language, use device locale
-    if (!storedLang) {
-      // expo-localization v17+ uses getLocales() instead of .locale
-      const locales = Localization.getLocales();
-      const deviceLocale = locales[0]?.languageCode || CONFIG.LOCALE.DEFAULT_LANGUAGE;
-      storedLang = CONFIG.LOCALE.SUPPORTED_LANGUAGES.includes(deviceLocale)
-        ? deviceLocale
-        : CONFIG.LOCALE.DEFAULT_LANGUAGE;
+  // If already initializing, return the existing promise
+  if (initPromise) {
+    if (CONFIG.FEATURES.DEBUG_LOGGING) {
+      console.log('i18n already initializing, waiting for existing initialization');
     }
-
-    // Load translations for the preferred language
-    await loadTranslation(storedLang);
-
-    // Set current locale
-    i18n.locale = storedLang;
-    currentLanguage = storedLang;
-    translationsLoaded = true;
-
-    return storedLang;
-  } catch (error) {
-    console.error('Error initializing i18n:', error);
-    i18n.locale = CONFIG.LOCALE.DEFAULT_LANGUAGE;
-    currentLanguage = CONFIG.LOCALE.DEFAULT_LANGUAGE;
-    return CONFIG.LOCALE.DEFAULT_LANGUAGE;
+    return initPromise;
   }
+
+  // If already loaded, return current language
+  if (translationsLoaded) {
+    if (CONFIG.FEATURES.DEBUG_LOGGING) {
+      console.log('i18n already initialized, returning current language:', currentLanguage);
+    }
+    return currentLanguage;
+  }
+
+  // Create initialization promise
+  initPromise = (async () => {
+    try {
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        console.log('Initializing i18n system');
+      }
+
+      // Get stored language preference
+      let storedLang = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.LANGUAGE);
+
+      // If no stored language, use device locale
+      if (!storedLang) {
+        // expo-localization v17+ uses getLocales() instead of .locale
+        const locales = Localization.getLocales();
+        const deviceLocale = locales[0]?.languageCode || CONFIG.LOCALE.DEFAULT_LANGUAGE;
+        storedLang = CONFIG.LOCALE.SUPPORTED_LANGUAGES.includes(deviceLocale)
+          ? deviceLocale
+          : CONFIG.LOCALE.DEFAULT_LANGUAGE;
+      }
+
+      // Load translations for the preferred language
+      await loadTranslation(storedLang);
+
+      // Set current locale
+      i18n.locale = storedLang;
+      currentLanguage = storedLang;
+      translationsLoaded = true;
+
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        console.log('i18n initialization complete for language:', storedLang);
+      }
+
+      return storedLang;
+    } catch (error) {
+      console.error('Error initializing i18n:', error);
+      i18n.locale = CONFIG.LOCALE.DEFAULT_LANGUAGE;
+      currentLanguage = CONFIG.LOCALE.DEFAULT_LANGUAGE;
+      return CONFIG.LOCALE.DEFAULT_LANGUAGE;
+    } finally {
+      // Clear the init promise after completion
+      initPromise = null;
+    }
+  })();
+
+  return initPromise;
 };
 
 /**

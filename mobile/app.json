@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -19,8 +18,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -30,6 +28,10 @@
         "projectId": "b8c9d86d-7eab-4c33-95c6-9ed6c9c14ddd"
       }
     },
-    "owner": "wampums"
+    "owner": "wampums",
+    "plugins": [
+      "expo-localization",
+      "expo-secure-store"
+    ]
   }
 }
