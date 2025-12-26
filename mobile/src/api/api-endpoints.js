@@ -355,6 +355,120 @@ export const getFinanceSummary = async () => {
 
 /**
  * ============================================================================
+ * POINTS (Legacy)
+ * ============================================================================
+ */
+
+/**
+ * Update points for participants or groups
+ */
+export const updatePoints = async (updates) => {
+  return API.post(CONFIG.ENDPOINTS.UPDATE_POINTS, updates);
+};
+
+/**
+ * Get points report
+ */
+export const getPointsReport = async () => {
+  return API.get(CONFIG.ENDPOINTS.POINTS_REPORT);
+};
+
+/**
+ * Get points leaderboard
+ */
+export const getPointsLeaderboard = async (type = 'individuals', limit = 10) => {
+  return API.get(CONFIG.ENDPOINTS.POINTS_LEADERBOARD, { type, limit });
+};
+
+/**
+ * ============================================================================
+ * HONORS (Legacy)
+ * ============================================================================
+ */
+
+/**
+ * Get honors and participants for a date
+ */
+export const getHonors = async (date = null) => {
+  const params = date ? { date } : {};
+  return API.get(CONFIG.ENDPOINTS.HONORS, params);
+};
+
+/**
+ * Award honor to participant(s)
+ */
+export const awardHonor = async (honorData) => {
+  return API.post(CONFIG.ENDPOINTS.AWARD_HONOR, honorData);
+};
+
+/**
+ * Get honors report
+ */
+export const getHonorsReport = async () => {
+  return API.get(CONFIG.ENDPOINTS.HONORS_REPORT);
+};
+
+/**
+ * Get honors history
+ */
+export const getHonorsHistory = async (options = {}) => {
+  const params = {};
+  if (options.startDate) params.start_date = options.startDate;
+  if (options.endDate) params.end_date = options.endDate;
+  if (options.participantId) params.participant_id = options.participantId;
+  return API.get(CONFIG.ENDPOINTS.HONORS_HISTORY, params);
+};
+
+/**
+ * ============================================================================
+ * MEETINGS / REUNIONS (Legacy)
+ * ============================================================================
+ */
+
+/**
+ * Get meeting preparation for a date
+ */
+export const getReunionPreparation = async (date) => {
+  return API.get(CONFIG.ENDPOINTS.REUNION_PREPARATION, { date });
+};
+
+/**
+ * Save meeting preparation
+ */
+export const saveReunionPreparation = async (payload) => {
+  return API.post(CONFIG.ENDPOINTS.SAVE_REUNION_PREPARATION, payload);
+};
+
+/**
+ * Get meeting dates
+ */
+export const getReunionDates = async () => {
+  return API.get(CONFIG.ENDPOINTS.REUNION_DATES);
+};
+
+/**
+ * Get next meeting information
+ */
+export const getNextMeetingInfo = async () => {
+  return API.get(CONFIG.ENDPOINTS.NEXT_MEETING_INFO);
+};
+
+/**
+ * Get meeting activities templates
+ */
+export const getMeetingActivities = async () => {
+  return API.get(CONFIG.ENDPOINTS.MEETING_ACTIVITIES);
+};
+
+/**
+ * Get animators
+ */
+export const getAnimateurs = async () => {
+  return API.get(CONFIG.ENDPOINTS.ANIMATEURS);
+};
+
+/**
+ * ============================================================================
  * BUDGET (V1)
  * ============================================================================
  */
@@ -439,6 +553,38 @@ export const getParticipantMedications = async (participantId) => {
  */
 export const getMedicationDistributions = async (params) => {
   return API.get(`${CONFIG.ENDPOINTS.MEDICATION}/distributions`, params);
+};
+
+/**
+ * Get medication suggestions from fiche_sante submissions
+ */
+export const getFicheMedications = async () => {
+  return API.get(`${CONFIG.ENDPOINTS.MEDICATION}/fiche-medications`);
+};
+
+/**
+ * Create or update medication requirement
+ */
+export const saveMedicationRequirement = async (payload) => {
+  if (payload?.id) {
+    return API.put(`${CONFIG.ENDPOINTS.MEDICATION}/requirements/${payload.id}`, payload);
+  }
+
+  return API.post(`${CONFIG.ENDPOINTS.MEDICATION}/requirements`, payload);
+};
+
+/**
+ * Record medication distributions
+ */
+export const recordMedicationDistribution = async (payload) => {
+  return API.post(`${CONFIG.ENDPOINTS.MEDICATION}/distributions`, payload);
+};
+
+/**
+ * Mark medication distribution as given
+ */
+export const markMedicationDistributionAsGiven = async (distributionId, payload) => {
+  return API.patch(`${CONFIG.ENDPOINTS.MEDICATION}/distributions/${distributionId}`, payload);
 };
 
 /**
@@ -620,6 +766,22 @@ export default {
   createFeeDefinition,
   getParticipantFees,
   getFinanceSummary,
+  // Points
+  updatePoints,
+  getPointsReport,
+  getPointsLeaderboard,
+  // Honors
+  getHonors,
+  awardHonor,
+  getHonorsReport,
+  getHonorsHistory,
+  // Meetings
+  getReunionPreparation,
+  saveReunionPreparation,
+  getReunionDates,
+  getNextMeetingInfo,
+  getMeetingActivities,
+  getAnimateurs,
   // Budget
   getBudgetCategories,
   getBudgetItems,
@@ -633,6 +795,10 @@ export default {
   getMedicationRequirements,
   getParticipantMedications,
   getMedicationDistributions,
+  getFicheMedications,
+  saveMedicationRequirement,
+  recordMedicationDistribution,
+  markMedicationDistributionAsGiven,
   // Resources
   getEquipment,
   getEquipmentReservations,

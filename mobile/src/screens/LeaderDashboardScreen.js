@@ -20,6 +20,7 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -33,13 +34,14 @@ import { translate as t } from '../i18n';
 import StorageUtils from '../utils/StorageUtils';
 import DateUtils from '../utils/DateUtils';
 import CacheManager from '../utils/CacheManager';
+import theme, { commonStyles } from '../theme';
+import { debugError } from '../utils/DebugUtils';
 
 // Components
 import {
   LoadingSpinner,
   ErrorMessage,
   StatCard,
-  QuickActionButton,
   DashboardSection,
   Card,
 } from '../components';
@@ -106,7 +108,7 @@ const LeaderDashboardScreen = () => {
 
       setUserGroup({ id: groupId, name: groupName });
     } catch (error) {
-      console.error('Error loading user group:', error);
+      debugError('Error loading user group:', error);
     }
   };
 
@@ -172,7 +174,7 @@ const LeaderDashboardScreen = () => {
         setIsOffline(true);
       }
     } catch (err) {
-      console.error('Error loading dashboard data:', err);
+      debugError('Error loading dashboard data:', err);
       setError(t('error_loading_dashboard'));
     } finally {
       setLoading(false);
@@ -186,42 +188,6 @@ const LeaderDashboardScreen = () => {
     setRefreshing(true);
     await loadDashboardData();
     setRefreshing(false);
-  };
-
-  /**
-   * Navigate to take attendance
-   */
-  const handleTakeAttendance = () => {
-    Alert.alert(
-      t('Take Attendance'),
-      t('dashboard.selectActivity'),
-      [{ text: t('OK') }]
-    );
-    // TODO: Navigate to attendance screen
-  };
-
-  /**
-   * Navigate to create activity
-   */
-  const handleCreateActivity = () => {
-    Alert.alert(
-      t('Create Activity'),
-      t('Coming soon'),
-      [{ text: t('OK') }]
-    );
-    // TODO: Navigate to create activity screen
-  };
-
-  /**
-   * Navigate to carpools
-   */
-  const handleViewCarpools = () => {
-    Alert.alert(
-      t('Carpools'),
-      t('Coming soon'),
-      [{ text: t('OK') }]
-    );
-    // TODO: Navigate to carpools screen
   };
 
   /**
@@ -274,6 +240,15 @@ const LeaderDashboardScreen = () => {
     );
   }
 
+  const leaderTiles = [
+    { key: 'attendance', label: t('attendance'), screen: 'Attendance' },
+    { key: 'points', label: t('manage_points'), screen: 'ManagePoints' },
+    { key: 'honors', label: t('youth_of_honor'), screen: 'Honors' },
+    { key: 'meetingPrep', label: t('preparation_reunions'), screen: 'MeetingPreparation' },
+    { key: 'nextMeeting', label: t('next_meeting'), screen: 'NextMeeting' },
+    { key: 'medication', label: t('medication_management_title'), screen: 'Medication' },
+  ];
+
   return (
     <View style={styles.container}>
       {/* Offline indicator */}
@@ -294,11 +269,11 @@ const LeaderDashboardScreen = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>
-            {t('Welcome, Leader!')}
+            {t('dashboard_title')}
           </Text>
           {userGroup && (
             <Text style={styles.groupName}>
-              {userGroup.name || t('Your Group')}
+              {t('group')}: {userGroup.name || t('groups')}
             </Text>
           )}
         </View>
@@ -346,44 +321,17 @@ const LeaderDashboardScreen = () => {
           </View>
         </DashboardSection>
 
-        {/* Quick Actions */}
-        <DashboardSection title={t('Quick Actions')}>
-          <View style={styles.actionsGrid}>
-            <View style={styles.actionCol}>
-              <QuickActionButton
-                icon="✓"
-                label={t('Take Attendance')}
-                onPress={handleTakeAttendance}
-                color="#34C759"
-              />
-            </View>
-            <View style={styles.actionCol}>
-              <QuickActionButton
-                icon="+"
-                label={t('Create Activity')}
-                onPress={handleCreateActivity}
-                color="#007AFF"
-              />
-            </View>
-          </View>
-
-          <View style={styles.actionsGrid}>
-            <View style={styles.actionCol}>
-              <QuickActionButton
-                icon="🚗"
-                label={t('Carpools')}
-                onPress={handleViewCarpools}
-                color="#FF9500"
-              />
-            </View>
-            <View style={styles.actionCol}>
-              <QuickActionButton
-                icon="👥"
-                label={t('participants')}
-                onPress={handleViewParticipants}
-                color="#5856D6"
-              />
-            </View>
+        <DashboardSection title={t('dashboard_day_to_day_section')}>
+          <View style={styles.tileGrid}>
+            {leaderTiles.map((tile) => (
+              <TouchableOpacity
+                key={tile.key}
+                style={styles.tile}
+                onPress={() => navigation.navigate(tile.screen)}
+              >
+                <Text style={styles.tileLabel}>{tile.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </DashboardSection>
 
@@ -433,109 +381,121 @@ const LeaderDashboardScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
+    ...commonStyles.container,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.background,
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
+    marginTop: theme.spacing.sm,
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textLight,
   },
   offlineIndicator: {
-    backgroundColor: '#FFA500',
-    padding: 12,
+    backgroundColor: theme.colors.warning,
+    padding: theme.spacing.md,
     alignItems: 'center',
   },
   offlineText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    padding: 20,
-    paddingBottom: 10,
+    padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: theme.fontSize.xxxl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
   groupName: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textLight,
+    fontWeight: theme.fontWeight.medium,
   },
   statsGrid: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: theme.spacing.lg,
+    gap: theme.spacing.sm,
   },
   statCol: {
     flex: 1,
   },
-  actionsGrid: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  actionCol: {
-    flex: 1,
-  },
   activityCard: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 16,
+    marginHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+    padding: theme.spacing.md,
   },
   activityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
   activityName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
     flex: 1,
-    marginRight: 12,
+    marginRight: theme.spacing.sm,
   },
   activityDate: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.medium,
   },
   activityLocation: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textLight,
+    marginBottom: theme.spacing.xs,
   },
   activityParticipants: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textLight,
   },
   emptyCard: {
-    marginHorizontal: 20,
-    padding: 30,
+    marginHorizontal: theme.spacing.lg,
+    padding: theme.spacing.xl,
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 16,
-    color: '#999',
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textMuted,
     textAlign: 'center',
   },
   bottomSpacing: {
-    height: 30,
+    height: theme.spacing.xl,
+  },
+  tileGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  tile: {
+    flexBasis: '48%',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    minHeight: theme.touchTarget.min,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.sm,
+  },
+  tileLabel: {
+    ...commonStyles.bodyText,
+    fontWeight: theme.fontWeight.semibold,
+    textAlign: 'center',
   },
 });
 
