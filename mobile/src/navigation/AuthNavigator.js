@@ -1,12 +1,17 @@
 /**
  * Auth Navigator
  *
- * Handles authentication-related screens (login, register, password reset)
+ * Handles authentication-related screens:
+ * 1. OrganizationSelect - Pre-login org URL selection
+ * 2. Login - Username/password + 2FA
+ * 3. Register - Future: Account creation
+ * 4. ResetPassword - Future: Password recovery
  */
 
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { LoginScreen } from '../screens';
+import OrganizationSelectScreen from '../screens/OrganizationSelectScreen';
 // Import future auth screens
 // import RegisterScreen from '../screens/RegisterScreen';
 // import ResetPasswordScreen from '../screens/ResetPasswordScreen';
@@ -19,15 +24,25 @@ const AuthNavigator = ({ onLogin }) => {
     console.log('🟣 [AuthNavigator] Creating Stack.Navigator');
     return (
       <Stack.Navigator
+        initialRouteName="OrganizationSelect"
         screenOptions={{
           headerShown: false,
           cardStyle: { backgroundColor: '#f5f5f5' },
         }}
       >
-        {console.log('🟣 [AuthNavigator] Adding LoginScreen to stack')}
+        {console.log('🟣 [AuthNavigator] Adding OrganizationSelect and Login screens to stack')}
+
+        {/* Step 1: Organization URL Selection (pre-login) */}
+        <Stack.Screen
+          name="OrganizationSelect"
+          component={OrganizationSelectScreen}
+        />
+
+        {/* Step 2: Login (after organization is selected) */}
         <Stack.Screen name="Login">
           {(props) => <LoginScreen {...props} onLogin={onLogin} />}
         </Stack.Screen>
+
         {/* Future auth screens */}
         {/* <Stack.Screen name="Register" component={RegisterScreen} /> */}
         {/* <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> */}

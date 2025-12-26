@@ -5,6 +5,7 @@
  */
 
 // Auth screens
+export { default as OrganizationSelectScreen } from './OrganizationSelectScreen';
 export { default as LoginScreen } from './LoginScreen';
 
 // Main screens
