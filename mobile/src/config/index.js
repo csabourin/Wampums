@@ -188,12 +188,17 @@ const CONFIG = {
  * - /public endpoints always resolve at the root domain.
  * - /api endpoints do not double-prefix when the base already ends in /api.
  * - Versioned/legacy endpoints get /api when the base does not include it.
+ * - Supports dynamic base URL override from organization selection.
+ *
+ * NOTE: For runtime dynamic URL support, use getDynamicApiUrl() which checks storage.
  *
  * @param {string} endpoint - API endpoint path.
+ * @param {string} [dynamicBaseUrl] - Optional override base URL (from organization selection).
  * @returns {string} Full URL for the request.
  */
-export const getApiUrl = (endpoint) => {
-  const baseUrl = CONFIG.API.BASE_URL.replace(/\/+$/, '');
+export const getApiUrl = (endpoint, dynamicBaseUrl = null) => {
+  // Use dynamic base URL if provided, otherwise use default from CONFIG
+  const baseUrl = (dynamicBaseUrl || CONFIG.API.BASE_URL).replace(/\/+$/, '');
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const baseHasApi = baseUrl.endsWith('/api');
   const isPublicEndpoint = cleanEndpoint.startsWith('/public/');
@@ -211,6 +216,35 @@ export const getApiUrl = (endpoint) => {
   }
 
   return `${normalizedBase}${normalizedEndpoint}`;
+};
+
+/**
+ * Get the dynamic API base URL from storage (if set via organization selection).
+ * This allows the app to use organization-specific URLs after org selection.
+ *
+ * @returns {Promise<string|null>} The stored dynamic base URL, or null if not set.
+ */
+export const getDynamicApiBaseUrl = async () => {
+  try {
+    // Import StorageUtils dynamically to avoid circular dependency
+    const StorageUtils = require('../utils/StorageUtils').default;
+    return await StorageUtils.getItem('dynamicApiBaseUrl');
+  } catch (err) {
+    console.error('Error getting dynamic API base URL:', err);
+    return null;
+  }
+};
+
+/**
+ * Get full API URL with runtime check for dynamic base URL from storage.
+ * Use this in api-core.js for runtime URL resolution.
+ *
+ * @param {string} endpoint - API endpoint path.
+ * @returns {Promise<string>} Full URL for the request.
+ */
+export const getDynamicApiUrl = async (endpoint) => {
+  const dynamicBaseUrl = await getDynamicApiBaseUrl();
+  return getApiUrl(endpoint, dynamicBaseUrl);
 };
 
 // Helper function to get versioned API URL

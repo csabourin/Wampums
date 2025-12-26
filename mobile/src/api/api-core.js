@@ -11,7 +11,7 @@
  */
 
 import axios from 'axios';
-import CONFIG, { getApiUrl } from '../config';
+import CONFIG, { getApiUrl, getDynamicApiUrl } from '../config';
 import StorageUtils from '../utils/StorageUtils';
 import CacheManager from '../utils/CacheManager';
 
@@ -152,7 +152,7 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
       console.log(`[API] Offline - queuing mutation: ${method} ${endpoint}`);
     }
 
-    const url = getApiUrl(endpoint);
+    const url = await getDynamicApiUrl(endpoint);
     const headers = await buildHeaders(customHeaders);
 
     await CacheManager.queueMutation({
@@ -172,7 +172,7 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
   }
 
   try {
-    const url = getApiUrl(endpoint);
+    const url = await getDynamicApiUrl(endpoint);
     const headers = await buildHeaders(customHeaders);
 
     const config = {
@@ -300,7 +300,7 @@ const API = {
    */
   public: async (endpoint, data = null, method = 'GET', options = {}) => {
     try {
-      const url = getApiUrl(endpoint);
+      const url = await getDynamicApiUrl(endpoint);
       const orgHeaders = await getOrganizationHeaders();
       const deviceHeaders = await getDeviceHeaders();
 
