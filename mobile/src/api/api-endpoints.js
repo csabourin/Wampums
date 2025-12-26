@@ -113,10 +113,16 @@ export const getOrganizationId = async (hostname, organizationUrl = null) => {
       const endpoint = CONFIG.ENDPOINTS.GET_ORGANIZATION_ID;
       const url = getApiUrl(endpoint, organizationUrl);
 
+      console.log('[getOrganizationId] Requesting URL:', url);
+      console.log('[getOrganizationId] With params:', { hostname });
+      console.log('[getOrganizationId] Organization URL:', organizationUrl);
+
       const response = await axios.get(url, {
         params: { hostname },
         timeout: CONFIG.API.TIMEOUT,
       });
+
+      console.log('[getOrganizationId] Response received:', response.data);
 
       // Normalize response to match our API format
       // Backend returns: { success: true, organizationId: 123 }
@@ -137,6 +143,16 @@ export const getOrganizationId = async (hostname, organizationUrl = null) => {
       };
     } catch (error) {
       console.error('[getOrganizationId] Error resolving organization:', error);
+      console.error('[getOrganizationId] Error details:', {
+        message: error.message,
+        code: error.code,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          params: error.config?.params,
+        },
+        response: error.response?.data,
+      });
       return {
         success: false,
         message: error.response?.data?.message || error.message || 'Failed to resolve organization',
