@@ -32,6 +32,7 @@ import { Button, ErrorMessage, LoadingSpinner } from '../components';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 import { debugError, debugLog } from '../utils/DebugUtils';
+import CacheManager from '../utils/CacheManager';
 
 /**
  * Normalize participant names to handle API variations.
@@ -321,6 +322,9 @@ const AttendanceScreen = () => {
         throw new Error(response.message || t('error_loading_attendance'));
       }
 
+      // Clear attendance cache to ensure fresh data on next load
+      await CacheManager.clearAttendanceRelatedCaches();
+
       setAttendanceMap((prev) => ({ ...prev, [participantId]: status }));
     } catch (err) {
       debugError('Error updating attendance:', err);
@@ -372,6 +376,9 @@ const AttendanceScreen = () => {
         setAttendanceMap(rollbackMap);
         throw new Error(t('error_updating_group_attendance'));
       }
+
+      // Clear attendance cache to ensure fresh data on next load
+      await CacheManager.clearAttendanceRelatedCaches();
     } catch (err) {
       debugError('Error updating group attendance:', err);
       Alert.alert(t('error'), err.message || t('error_updating_group_attendance'));
@@ -406,6 +413,9 @@ const AttendanceScreen = () => {
       if (!response.success) {
         throw new Error(response.message || t('error_saving_guest'));
       }
+
+      // Clear attendance cache to ensure fresh data on next load
+      await CacheManager.clearAttendanceRelatedCaches();
 
       setGuests([...guests, { name: sanitizedName, email: sanitizedEmail, attendance_date: selectedDate }]);
       setGuestName('');

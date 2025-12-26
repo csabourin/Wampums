@@ -437,6 +437,16 @@ class CacheManager {
     console.log('[Cache] Invalidating resource caches...');
     await this.deleteCachedDataByPattern('v1/resources/equipment');
   }
+
+  /**
+   * Clear attendance-related caches
+   * Use after: creating/updating attendance records or guests
+   */
+  async clearAttendanceRelatedCaches() {
+    console.log('[Cache] Invalidating attendance caches...');
+    await this.deleteCachedDataByPattern('v1/attendance');
+    await this.deleteCachedDataByPattern('guests-by-date');
+  }
 }
 
 // Export singleton instance
