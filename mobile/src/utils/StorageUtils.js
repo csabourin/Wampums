@@ -3,8 +3,8 @@
  *
  * Mirrors spa/utils/StorageUtils.js functionality
  * Uses:
- * - SecureStore for sensitive data (JWT tokens) on native platforms
- * - AsyncStorage for web platform and non-sensitive data
+ * - SecureStore for small sensitive data (device tokens) on native platforms
+ * - AsyncStorage for web platform, large tokens (JWT), and non-sensitive data
  */
 
 import * as SecureStore from 'expo-secure-store';
@@ -13,8 +13,9 @@ import { Platform } from 'react-native';
 import CONFIG from '../config';
 
 // Keys that should be stored securely (on native platforms only)
+// Note: JWT tokens are excluded because they often exceed SecureStore's 2048-byte limit
+// and are already cryptographically signed (tamper-proof). Device tokens are small enough.
 const SECURE_KEYS = [
-  CONFIG.STORAGE_KEYS.JWT_TOKEN,
   CONFIG.STORAGE_KEYS.DEVICE_TOKEN,
 ];
 
