@@ -10,6 +10,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -205,7 +206,7 @@ export class RevenueDashboard {
     const container = document.getElementById("app");
     if (!container) return;
 
-    container.innerHTML = `
+    setContent(container, `
       <div class="page-container revenue-dashboard-page">
         <div class="page-header">
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
@@ -221,14 +222,14 @@ export class RevenueDashboard {
           <p>${translate("loading")}...</p>
         </div>
       </div>
-    `;
+    `);
   }
 
   async render() {
     const container = document.getElementById("app");
     if (!container) return;
 
-    container.innerHTML = `
+    setContent(container, `
       <div class="page-container revenue-dashboard-page">
         <div class="page-header">
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
@@ -262,7 +263,7 @@ export class RevenueDashboard {
           ${this.renderTabContent()}
         </div>
       </div>
-    `;
+    `);
   }
 
   renderDateRangeSelector() {

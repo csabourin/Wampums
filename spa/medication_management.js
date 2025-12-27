@@ -3,6 +3,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import { deleteCachedData } from "./indexedDB.js";
+import { setContent } from "./utils/DOMUtils.js";
 import {
   getParticipants,
   getMedicationRequirements,
@@ -734,7 +735,7 @@ export class MedicationManagement {
   updateScheduleFrequencyHelper() {
     const helper = document.getElementById("scheduleFrequencyHelper");
     if (helper) {
-      helper.innerHTML = this.renderScheduleFrequencyHelper();
+      setContent(helper, this.renderScheduleFrequencyHelper());
     }
   }
 
@@ -777,7 +778,7 @@ export class MedicationManagement {
       ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
       : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
 
-    container.innerHTML = `
+    setContent(container, `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page medication-page">
         <div class="card">
@@ -791,8 +792,7 @@ export class MedicationManagement {
           ? this.renderPlanningSection({ medicationSuggestions, participantOptions })
           : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
       </section>
-    `;
-
+    `);
     if (this.view === "dispensing") {
       this.renderAlertArea();
       this.updateScheduleFrequencyHelper();
@@ -1041,7 +1041,7 @@ export class MedicationManagement {
   updateUpcomingTable() {
     const tableBody = document.getElementById("medication-upcoming-table-body");
     if (tableBody) {
-      tableBody.innerHTML = this.renderUpcomingRows();
+      setContent(tableBody, this.renderUpcomingRows());
     }
   }
 
@@ -1097,12 +1097,12 @@ export class MedicationManagement {
     const alerts = this.getAggregatedAlerts();
 
     if (!alerts.length) {
-      container.innerHTML = `<p>${escapeHTML(translate("medication_alerts_empty"))}</p>`;
+      setContent(container, `<p>${escapeHTML(translate("medication_alerts_empty"))}</p>`);
       return;
     }
 
-    container.innerHTML = alerts.map((alert) => {
-      const timeLabel = alert.time.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
+    setContent(container, alerts.map((alert) => {
+      const timeLabel = alert.time.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" }));
       const dateLabel = formatDate(alert.time.toISOString(), this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
       const dueLabel = alert.minutesUntil <= 5 ? translate("medication_due_now") : translate("medication_due_in_minutes").replace("{minutes}", alert.minutesUntil);
 
@@ -1201,7 +1201,7 @@ export class MedicationManagement {
     frequencyPresetSelect?.addEventListener("change", (event) => {
       const container = document.getElementById("frequencyPresetFields");
       if (container) {
-        container.innerHTML = this.getFrequencyPresetFieldsMarkup(event.target.value);
+        setContent(container, this.getFrequencyPresetFieldsMarkup(event.target.value));
       }
     });
 
@@ -1573,7 +1573,7 @@ export class MedicationManagement {
     }
     details += `<div><strong>${escapeHTML(translate("time"))}:</strong> ${new Date().toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" })}</div>`;
 
-    detailsDiv.innerHTML = details;
+    setContent(detailsDiv, details);
     modal.style.display = "flex";
 
     // Focus witness field
@@ -1641,7 +1641,7 @@ export class MedicationManagement {
       // Re-render cards
       const cardsContainer = document.getElementById("participant-medication-cards");
       if (cardsContainer) {
-        cardsContainer.innerHTML = this.renderParticipantMedicationCards();
+        setContent(cardsContainer, this.renderParticipantMedicationCards());
       }
 
       this.renderAlertArea();

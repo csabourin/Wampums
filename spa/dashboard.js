@@ -874,7 +874,7 @@ ${administrationLinks.length > 0 ? `
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    modal.innerHTML = `
+    setContent(modal, `
       <div style="background: white; border-radius: 12px; max-width: 500px; width: 90%; padding: 2rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
           <h2 style="margin: 0;">${translate('quick_create_activity')}</h2>
@@ -965,7 +965,7 @@ ${administrationLinks.length > 0 ? `
           </div>
         </form>
       </div>
-    `;
+    `);
 
     document.body.appendChild(modal);
 
@@ -1053,9 +1053,9 @@ ${administrationLinks.length > 0 ? `
   }
 
   renderError() {
-    document.getElementById("app").innerHTML = `
+    setContent(document.getElementById("app"), `
       <h1>${translate("error")}</h1>
       <p>${translate("error_loading_dashboard")}</p>
-    `;
+    `);
   }
 }

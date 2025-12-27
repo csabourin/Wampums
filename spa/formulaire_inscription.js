@@ -1,18 +1,19 @@
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { app, translate} from "./app.js";
+import { app, translate } from "./app.js";
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
+import { setContent } from "./utils/DOMUtils.js";
 import {
-    getAuthHeader,
+  getAuthHeader,
   fetchParticipant,
   saveFormSubmission,
   getOrganizationFormFormats,
   saveParticipant,
-    getGuardiansForParticipant,
-      saveGuardian,
-      linkGuardianToParticipant,
-      linkUserParticipants,
-    getCurrentOrganizationId,
-    fetchFromApi
+  getGuardiansForParticipant,
+  saveGuardian,
+  linkGuardianToParticipant,
+  linkUserParticipants,
+  getCurrentOrganizationId,
+  fetchFromApi
 } from "./ajax-functions.js";
 
 export class FormulaireInscription {
@@ -142,7 +143,7 @@ export class FormulaireInscription {
           <div id="error-message" class="error hidden"></div>
             <div id="success-message" class="success hidden"></div>
         `;
-        document.getElementById("app").innerHTML = content;
+        setContent(document.getElementById("app"), content);
       }
 
 
@@ -154,7 +155,7 @@ export class FormulaireInscription {
             debugError("Guardians container not found");
             return;
         }
-        container.innerHTML = '';  // Clear the container
+        setContent(container, '');  // Clear the container
 
         this.guardianFormHandlers = [];  // Reset handlers to avoid duplicate form handling
 

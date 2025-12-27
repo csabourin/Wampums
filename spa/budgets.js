@@ -26,6 +26,7 @@ import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
 import { canViewBudget } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -197,7 +198,7 @@ export class Budgets {
     const container = document.getElementById("app");
     if (!container) return;
 
-    container.innerHTML = `
+    setContent(container, `
       <div class="page-container budget-page">
         <div class="page-header">
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
@@ -213,7 +214,7 @@ export class Budgets {
           <p>${translate("loading")}...</p>
         </div>
       </div>
-    `;
+    `);
   }
 
   async render() {
@@ -222,7 +223,7 @@ export class Budgets {
 
     const tabContent = await this.renderTabContent();
 
-    container.innerHTML = `
+    setContent(container, `
       <div class="page-container budgets-page">
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
         <div class="page-header">
@@ -267,7 +268,7 @@ export class Budgets {
           ${tabContent}
         </div>
       </div>
-    `;
+    `);
   }
 
   /**
@@ -1213,8 +1214,7 @@ export class Budgets {
     await this.loadRevenueBreakdown();
 
     const reportsHTML = await this.renderReports();
-    tabContent.innerHTML = reportsHTML;
-
+    setContent(tabContent, reportsHTML);
     // Re-attach event listeners for the reports tab
     const applyFiltersBtn = document.getElementById(
       "apply-revenue-filters-btn",

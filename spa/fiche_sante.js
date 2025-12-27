@@ -1,6 +1,7 @@
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { DynamicFormHandler } from "./dynamicFormHandler.js";
+import { setContent } from "./utils/DOMUtils.js";
 import {
   fetchParticipant,
   fetchParents,
@@ -95,8 +96,7 @@ export class FicheSante {
       <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
     `;
 
-    document.getElementById("app").innerHTML = content;
-
+    setContent(document.getElementById("app"), content);
     // Re-initialize the form handler after the container is in the DOM
     if (this.formHandler) {
       this.formHandler.container = document.getElementById('fiche-sante-container');
@@ -173,6 +173,6 @@ export class FicheSante {
       <p>${message}</p>
       <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
     `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

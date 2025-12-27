@@ -13,6 +13,7 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canViewParticipants } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ManageParticipants {
   constructor(app) {
@@ -199,7 +200,7 @@ export class ManageParticipants {
         }
       </style>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderParticipantRows() {
@@ -465,6 +466,6 @@ export class ManageParticipants {
       <h1>${translate("error")}</h1>
       <p>${translate("error_loading_manage_participants")}</p>
     `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

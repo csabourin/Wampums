@@ -9,6 +9,7 @@ import {
 } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { CONFIG } from "./config.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 const LOCATION_TYPES = [
   { value: 'local_scout_hall', labelKey: 'location_type_local_scout_hall' },
@@ -111,7 +112,7 @@ export class MaterialManagement {
     const dateFrom = document.getElementById('reservationDateFrom')?.value || getTodayISO();
     const dateTo = document.getElementById('reservationDateTo')?.value || getTodayISO();
 
-    container.innerHTML = `
+    setContent(container, `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page material-management-page">
         <div class="card">
@@ -125,11 +126,11 @@ export class MaterialManagement {
             <div class="grid grid-2" style="margin-bottom: 1.5rem;">
               <label class="stacked">
                 <span>${escapeHTML(translate("date_from"))}</span>
-                <input type="date" id="reservationDateFrom" value="${dateFrom}" required />
+                <input type="date" id="reservationDateFrom" value="${escapeHTML(dateFrom)}" required />
               </label>
               <label class="stacked">
                 <span>${escapeHTML(translate("date_to"))}</span>
-                <input type="date" id="reservationDateTo" value="${dateTo}" required />
+                <input type="date" id="reservationDateTo" value="${escapeHTML(dateTo)}" required />
               </label>
             </div>
             <label class="stacked">
@@ -253,7 +254,7 @@ export class MaterialManagement {
           </div>
         </div>
       </section>
-    `;
+    `);
   }
 
   attachEventHandlers() {
@@ -406,12 +407,12 @@ export class MaterialManagement {
 
     const listContainer = document.querySelector('.selected-items-list');
     if (listContainer && selectedItemsList.length > 0) {
-      listContainer.innerHTML = selectedItemsList.map(item => `
+      setContent(listContainer, selectedItemsList.map(item => `
         <li>
           <strong>${escapeHTML(item.name)}</strong> - 
           ${escapeHTML(translate("reserved_quantity"))}: ${item.selectedQuantity}
         </li>
-      `).join('');
+      `).join(''));
     }
   }
 }

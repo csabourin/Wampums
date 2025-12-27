@@ -8,6 +8,7 @@ import {
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canViewUsers } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ManageUsersParticipants {
   constructor(app) {
@@ -167,7 +168,7 @@ export class ManageUsersParticipants {
       </table>
       <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderParticipantRows() {
@@ -293,7 +294,7 @@ export class ManageUsersParticipants {
       <h1>${translate("error")}</h1>
       <p>${translate("error_loading_manage_users_participants")}</p>
     `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 
   /**

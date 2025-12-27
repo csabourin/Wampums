@@ -12,6 +12,7 @@ import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
 import { getStorage } from './utils/StorageUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
+import { setContent } from "./utils/DOMUtils.js";
 import {
   clearActivityRelatedCaches,
   clearParticipantRelatedCaches,
@@ -160,24 +161,24 @@ export class RoleManagement {
 
   renderAccessDenied() {
     const appContainer = document.getElementById('app');
-    appContainer.innerHTML = `
+    setContent(appContainer, `
       <div class="role-management-container">
         <h1>${translate('access_denied') || 'Access Denied'}</h1>
         <p>${translate('no_permission_role_management') || 'You do not have permission to manage roles.'}</p>
         <a href="/dashboard" class="btn-primary">${translate('back_to_dashboard') || 'Back to Dashboard'}</a>
       </div>
-    `;
+    `);
   }
 
   renderError(message) {
     const appContainer = document.getElementById('app');
-    appContainer.innerHTML = `
+    setContent(appContainer, `
       <div class="role-management-container">
         <h1>${translate('error') || 'Error'}</h1>
         <p class="error-message">${message}</p>
         <a href="/dashboard" class="btn-primary">${translate('back_to_dashboard') || 'Back to Dashboard'}</a>
       </div>
-    `;
+    `);
   }
 
   render() {
@@ -216,8 +217,7 @@ export class RoleManagement {
     `;
 
     const appContainer = document.getElementById('app');
-    appContainer.innerHTML = content;
-
+    setContent(appContainer, content);
     // Attach event listeners
     this.attachEventListeners();
   }
@@ -494,10 +494,10 @@ export class RoleManagement {
       if (container) {
         try {
           const permissions = await this.fetchRolePermissions(roleId);
-          container.innerHTML = this.renderPermissionsList(permissions);
+          setContent(container, this.renderPermissionsList(permissions));
         } catch (error) {
           debugError('Error loading role permissions:', error);
-          container.innerHTML = `<p class="error-message">${escapeHTML(error.message)}</p>`;
+          setContent(container, `<p class="error-message">${escapeHTML(error.message)}</p>`);
         }
       }
     }
@@ -540,11 +540,9 @@ export class RoleManagement {
     this.selectedUserId = userId;
 
     const assignmentContent = document.getElementById('user-assignment-content');
-    assignmentContent.innerHTML = '<div class="loading-spinner">Loading...</div>';
-
+    setContent(assignmentContent, '<div class="loading-spinner">Loading...</div>');
     const html = await this.renderUserAssignment(userId);
-    assignmentContent.innerHTML = html;
-
+    setContent(assignmentContent, html);
     // Attach form listener
     this.attachAssignmentFormListeners();
   }
@@ -557,8 +555,7 @@ export class RoleManagement {
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => {
         this.selectedUserId = null;
-        document.getElementById('user-assignment-content').innerHTML = this.renderUserAssignmentPlaceholder();
-
+        setContent(document.getElementById('user-assignment-content'), this.renderUserAssignmentPlaceholder());
         // Remove selected state from users
         document.querySelectorAll('.user-item').forEach(item => {
           item.classList.remove('selected');
@@ -584,7 +581,7 @@ export class RoleManagement {
 
         // Refresh user list
         await this.fetchUsers();
-        document.getElementById('user-list').innerHTML = this.renderUserList();
+        setContent(document.getElementById('user-list'), this.renderUserList());
         this.attachUsersTabListeners();
       } catch (error) {
         debugError('Error updating roles:', error);

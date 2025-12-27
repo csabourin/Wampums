@@ -7,6 +7,7 @@
  */
 
 import { debugLog } from '../utils/DebugUtils.js';
+import { setContent } from "../utils/DOMUtils.js";
 
 /**
  * OfflineIndicator Component
@@ -191,15 +192,14 @@ export class OfflineIndicator {
         this.element.setAttribute('aria-live', 'polite');
         this.element.setAttribute('aria-atomic', 'true');
 
-        this.element.innerHTML = `
+        setContent(this.element, `
             <span class="offline-indicator-icon" aria-hidden="true">⚠️</span>
             <div class="offline-indicator-text">
                 <span class="offline-indicator-status"></span>
                 <span class="offline-indicator-count"></span>
             </div>
             <span class="offline-indicator-badge"></span>
-        `;
-
+        `);
         document.body.appendChild(this.element);
         debugLog('OfflineIndicator: Element created');
     }

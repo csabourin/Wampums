@@ -5,6 +5,7 @@ import { translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { API } from './api/api-core.js';
 import { CONFIG } from './config.js';
+import { setContent } from "./utils/DOMUtils.js";
 
 export class PermissionSlipSign {
   constructor(app, slipId) {
@@ -49,14 +50,14 @@ export class PermissionSlipSign {
     const appDiv = document.getElementById('app');
 
     if (!this.slip) {
-      appDiv.innerHTML = `
+      setContent(appDiv, `
         <div class="container mt-5">
           <div class="alert alert-danger">
             <h4>${translate('error')}</h4>
             <p>${translate('permission_slip_not_found')}</p>
           </div>
         </div>
-      `;
+      `);
       return;
     }
 
@@ -69,7 +70,7 @@ export class PermissionSlipSign {
     const isSigned = this.slip.status === 'signed';
     const canSign = this.slip.status === 'pending' && (!this.slip.deadline_date || new Date(this.slip.deadline_date) > new Date());
 
-    appDiv.innerHTML = `
+    setContent(appDiv, `
       <div class="container mt-5">
         <div class="card">
           <div class="card-header bg-primary text-white">
@@ -134,7 +135,7 @@ export class PermissionSlipSign {
           </div>
         </div>
       </div>
-    `;
+    `);
   }
 
   attachEventListeners() {
@@ -168,8 +169,7 @@ export class PermissionSlipSign {
     }
 
     signBtn.disabled = true;
-    signBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + translate('signing');
-
+    setContent(signBtn, '<span class="spinner-border spinner-border-sm"></span> ' + translate('signing'));
     try {
       const response = await API.patch(`v1/resources/permission-slips/${this.slipId}/sign`, {
         signed_by: guardianName,
@@ -187,19 +187,19 @@ export class PermissionSlipSign {
       debugError('Error signing permission slip:', error);
       alert(translate('error_signing_slip'));
       signBtn.disabled = false;
-      signBtn.innerHTML = '<i class="fas fa-signature"></i> ' + translate('sign_permission_slip');
+      setContent(signBtn, '<i class="fas fa-signature"></i> ' + translate('sign_permission_slip'));
     }
   }
 
   showError(message) {
     const appDiv = document.getElementById('app');
-    appDiv.innerHTML = `
+    setContent(appDiv, `
       <div class="container mt-5">
         <div class="alert alert-danger">
           <h4>${translate('error')}</h4>
           <p>${message}</p>
         </div>
       </div>
-    `;
+    `);
   }
 }

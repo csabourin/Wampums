@@ -18,6 +18,7 @@ import { canManageCarpools, canViewCarpools, isParent } from './utils/Permission
 import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError } from './utils/DebugUtils.js';
+import { setContent } from "./utils/DOMUtils.js";
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -75,22 +76,22 @@ export class CarpoolDashboard {
 
     // Show loading skeleton while data is being fetched
     if (this.isLoading) {
-      container.innerHTML = skeletonCarpoolDashboard();
+      setContent(container, skeletonCarpoolDashboard());
       return;
     }
 
     if (!this.activity) {
-      container.innerHTML = `
+      setContent(container, `
         <section class="page">
           <div class="error-state">${translate('activity_not_found')}</div>
         </section>
-      `;
+      `);
       return;
     }
 
     const activityDate = new Date(this.activity.activity_date);
 
-    container.innerHTML = `
+    setContent(container, `
       <section class="page carpool-page">
         <header class="page__header">
           <div class="page__header-top">
@@ -158,7 +159,7 @@ export class CarpoolDashboard {
           ${this.renderAssignments()}
         </section>
       </section>
-    `;
+    `);
   }
 
   renderLookForRideButton() {
@@ -651,7 +652,7 @@ export class CarpoolDashboard {
       modalContainer.className = 'modal-container';
       document.body.appendChild(modalContainer);
     }
-    modalContainer.innerHTML = modalHTML;
+    setContent(modalContainer, modalHTML);
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {
@@ -996,7 +997,7 @@ export class CarpoolDashboard {
       modalContainer.className = 'modal-container';
       document.body.appendChild(modalContainer);
     }
-    modalContainer.innerHTML = modalHTML;
+    setContent(modalContainer, modalHTML);
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {

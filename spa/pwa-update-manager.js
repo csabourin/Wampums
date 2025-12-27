@@ -8,6 +8,7 @@
 import { CONFIG } from './config.js';
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { deleteIndexedDB } from './indexedDB.js';
+import { setContent } from "./utils/DOMUtils.js";
 
 class PWAUpdateManager {
     constructor() {
@@ -248,7 +249,7 @@ class PWAUpdateManager {
 
         const msg = messages[lang] || messages[CONFIG.DEFAULT_LANG] || messages.fr;
 
-        prompt.innerHTML = `
+        setContent(prompt, `
             <div class="pwa-update-content">
                 <div class="pwa-update-icon">🔄</div>
                 <div class="pwa-update-text">
@@ -264,8 +265,7 @@ class PWAUpdateManager {
                     </button>
                 </div>
             </div>
-        `;
-
+        `);
         // Add event listeners
         prompt.querySelector('#pwa-update-now').addEventListener('click', () => {
             this.applyUpdate();
@@ -509,9 +509,9 @@ class PWAUpdateManager {
     showLoadingIndicator() {
         const loader = document.createElement('div');
         loader.id = 'pwa-update-loader';
-        loader.innerHTML = `
+        setContent(loader, `
             <div style="
-                position: fixed;
+                position: fixed);
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);

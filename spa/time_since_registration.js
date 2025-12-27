@@ -5,6 +5,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class TimeSinceRegistration {
   constructor(app) {
@@ -60,7 +61,7 @@ export class TimeSinceRegistration {
       </div>
       <div id="registration-list" class="registration-list"></div>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
     this.renderList();
   }
 
@@ -68,7 +69,7 @@ export class TimeSinceRegistration {
     const list = document.getElementById("registration-list");
 
     if (!this.participants || this.participants.length === 0) {
-      list.innerHTML = `<p class="no-data">${translate("no_participants_found")}</p>`;
+      setContent(list, `<p class="no-data">${translate("no_participants_found")}</p>`);
       return;
     }
 
@@ -134,7 +135,7 @@ export class TimeSinceRegistration {
       </table>
     `;
 
-    list.innerHTML = html;
+    setContent(list, html);
   }
 
   getSortedParticipants() {
@@ -209,6 +210,6 @@ export class TimeSinceRegistration {
         <p>${translate("error_loading_data")}</p>
       </div>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 }

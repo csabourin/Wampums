@@ -2,6 +2,7 @@ import { getHonorsAndParticipants, awardHonor } from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ManageHonors {
   constructor(app) {
@@ -122,7 +123,7 @@ export class ManageHonors {
             }>${translate("award_honor")}</button>
         </div>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderHonorsList() {
@@ -182,7 +183,7 @@ export class ManageHonors {
   }
 
   updateHonorsListUI() {
-    document.getElementById("honors-list").innerHTML = this.renderHonorsList();
+    setContent(document.getElementById("honors-list"), this.renderHonorsList());
     document.getElementById("awardHonorButton").disabled = this.isPastDate();
 
     // Attach event listeners to list items only
@@ -265,8 +266,7 @@ export class ManageHonors {
     });
 
     // Directly update the UI without reattaching event listeners
-    document.getElementById("honors-list").innerHTML = this.renderHonorsList();
-
+    setContent(document.getElementById("honors-list"), this.renderHonorsList());
     // Only reattach event listeners for the updated list items
     this.attachEventListenersToListItems();
   }
@@ -282,6 +282,6 @@ export class ManageHonors {
       <h1>${translate("error")}</h1>
       <p>${translate("error_loading_honors")}</p>
     `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

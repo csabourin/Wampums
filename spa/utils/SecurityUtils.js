@@ -294,7 +294,6 @@ export function safeAppendHTML(element, html, options = {}) {
 
   const temp = document.createElement('div');
   temp.innerHTML = sanitizeHTML(html, options);
-
   while (temp.firstChild) {
     element.appendChild(temp.firstChild);
   }

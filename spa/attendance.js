@@ -20,6 +20,7 @@ import { CONFIG } from "./config.js";
 import { canViewAttendance } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class Attendance {
   constructor(app) {
@@ -270,7 +271,7 @@ export class Attendance {
         </div>
       </div>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderSkeletonGroups() {
@@ -340,10 +341,10 @@ export class Attendance {
 
     const appElement = document.querySelector("#app");
     if (appElement) {
-      appElement.innerHTML = this.freshContent;
+      setContent(appElement, this.freshContent);
       const attendanceList = document.getElementById("attendance-list");
       if (attendanceList) {
-        attendanceList.innerHTML = "";
+        setContent(attendanceList, "");
         attendanceList.appendChild(this.renderGroupsAndNames());
       }
     }
@@ -390,14 +391,13 @@ export class Attendance {
         participantRow.classList.add("participant-row");
         participantRow.dataset.participantId = participant.id;
         participantRow.dataset.groupId = group.id;
-        participantRow.innerHTML = `
+        setContent(participantRow, `
           <span class="participant-name">${participant.first_name} ${participant.last_name}    
             ${participant.first_leader ? `<span class="badge leader">${translate("first_leader")}</span>` : ""}
             ${participant.second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ""}
           </span>      
           <span class="participant-status ${statusClass}">${translate(status)}</span>
-        `;
-
+        `);
         groupDiv.appendChild(participantRow);
       });
 
@@ -789,7 +789,7 @@ export class Attendance {
       statusSpan.textContent = translate(status);
     });
 
-    document.getElementById("guestList").innerHTML = this.renderGuests();
+    setContent(document.getElementById("guestList"), this.renderGuests());
   }
 
   renderError() {
@@ -797,7 +797,7 @@ export class Attendance {
       <h1>${translate("error")}</h1>
       <p>${translate("error_loading_attendance")}</p>
     `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 
   async addGuest() {
@@ -817,7 +817,7 @@ export class Attendance {
     try {
       await this.saveGuest(guest);
       this.guests.push(guest);
-      document.getElementById("guestList").innerHTML = this.renderGuests();
+      setContent(document.getElementById("guestList"), this.renderGuests());
       document.getElementById("guestName").value = "";
       document.getElementById("guestEmail").value = "";
       this.app.showMessage(translate("guest_added_successfully"), "success");
