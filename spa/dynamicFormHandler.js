@@ -2,11 +2,13 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
-import { 
-    getOrganizationFormFormats, 
-    getFormSubmission, 
+import {
+    getOrganizationFormFormats,
+    getFormSubmission,
     saveFormSubmission,
 } from "./ajax-functions.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class DynamicFormHandler {
     constructor(app, customSaveHandler = null, useUniqueIds = false, formIndex = null) {
@@ -194,7 +196,7 @@ export class DynamicFormHandler {
                     ${formContent}
                 </fieldset>`;
 
-          this.container.innerHTML = content;
+          setContent(this.container, content);
 
         // Attach event listeners for dependent fields
         this.attachDependencyListeners();

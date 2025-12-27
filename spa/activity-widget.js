@@ -3,6 +3,8 @@ import {translate} from "./app.js";
 import { getReunionPreparation } from "./ajax-functions.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { canManageActivities, canManageAttendance, canViewActivities } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ActivityWidget {
 	constructor(app) {
@@ -105,7 +107,7 @@ export class ActivityWidget {
 		widgetContainer.style.display = 'none';  // Initially hidden
 		widgetContainer.classList.add('activity-widget');
 
-		widgetContainer.innerHTML = `
+		setContent(widgetContainer, `
 			<div class="current-activity">
 				<h3 id="current-activity-title">${translate('current_activity')}</h3>
 				<p id="time-until-next"></p>

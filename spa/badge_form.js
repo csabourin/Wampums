@@ -5,6 +5,8 @@ import {
   debugInfo,
 } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 import {
   getBadgeProgress,
   saveBadgeProgress,
@@ -205,7 +207,7 @@ export class BadgeForm {
             <p><a href="/parent-dashboard">${translate("back_to_dashboard")}</a></p>
         `;
 
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderPrintView() {
@@ -531,8 +533,8 @@ export class BadgeForm {
   renderError() {
     const errorMessage = `
             <h1>${translate("error")}</h1>
-            <p>${translate("error_loading_badge_form")}</p>
+            <p>${escapeHTML(translate("error_loading_badge_form"))}</p>
         `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

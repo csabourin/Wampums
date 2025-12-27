@@ -3,6 +3,8 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { clearBadgeRelatedCaches } from "./indexedDB.js";
 import { canApproveBadges } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ApproveBadges {
   constructor(app) {
@@ -48,7 +50,7 @@ export class ApproveBadges {
             ${this.renderPendingBadges()}
             <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
         `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderPendingBadges() {
@@ -135,6 +137,6 @@ export class ApproveBadges {
             <h1>${translate("error")}</h1>
             <p>${translate("error_loading_approve_badges")}</p>
         `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }
