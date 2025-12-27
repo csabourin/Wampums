@@ -55,13 +55,13 @@ const ManagePointsScreen = () => {
   const [selectedType, setSelectedType] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [sortBy, setSortBy] = useState(SORT_TYPES.GROUP);
-  const [filterGroupId, setFilterGroupId] = useState('');
+  const [filterGroupId, setFilterGroupId] = useState('all');
 
   /**
    * Debug filter changes
    */
   useEffect(() => {
-    debugLog('filterGroupId changed:', filterGroupId, 'isEmpty:', filterGroupId === '', 'groups count:', groups.length);
+    debugLog('filterGroupId changed:', filterGroupId, 'isAll:', filterGroupId === 'all', 'groups count:', groups.length);
   }, [filterGroupId]);
 
   /**
@@ -75,7 +75,7 @@ const ManagePointsScreen = () => {
       participantsCount: participants.length,
     });
     // Filter groups if a specific group is selected
-    let filteredGroups = filterGroupId && filterGroupId !== ''
+    let filteredGroups = filterGroupId !== 'all'
       ? groups.filter((g) => g.id === parseInt(filterGroupId))
       : groups;
 
@@ -328,7 +328,7 @@ const ManagePointsScreen = () => {
               }}
               style={styles.picker}
             >
-              <Picker.Item label={t('all_groups')} value="" />
+              <Picker.Item label={t('all_groups')} value="all" />
               {groups.map((group) => (
                 <Picker.Item key={group.id} label={group.name} value={String(group.id)} />
               ))}
