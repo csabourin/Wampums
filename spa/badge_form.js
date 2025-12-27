@@ -320,7 +320,7 @@ export class BadgeForm {
 
         return `
                 <div class="badge-item">
-                    ${imageName ? `<img src="/images/${imageName}" alt="${this.getTemplateLabel(template)}">` : ""}
+                    ${imageName ? `<img src="/images/${imageName}" alt="${this.getTemplateLabel(template)}" class="badge-image">` : ""}
                     <h3>${this.getTemplateLabel(template)}</h3>
                     <div class="stars">
                         ${this.renderStars(approvedLevels, pendingLevels, levelCount)}

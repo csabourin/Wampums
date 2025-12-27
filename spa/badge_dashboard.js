@@ -189,6 +189,7 @@ export class BadgeDashboard {
           section: template?.section || entry.badge_section || participant.section,
           levelCount,
           levels: Array.isArray(templateLevels) ? templateLevels : [],
+          image: template?.image || entry.image,
           statuses: new Set(),
           entries: [],
         });
@@ -420,7 +421,7 @@ export class BadgeDashboard {
       .join("");
 
     const stars = this.renderBadgeStars(participantId, badge);
-    const badgeImage = this.getBadgeImage(badge.name);
+    const badgeImage = this.getBadgeImage(badge.name, badge);
 
     return `
       <div class="badge-chip-compact" data-participant-id="${participantId}" data-badge-name="${badge.name}" data-template-id="${badge.id || ""}">
@@ -1094,15 +1095,21 @@ export class BadgeDashboard {
     this.openBadgeModal(participantId, null, false, null, true);
   }
 
-  getBadgeImage(badgeName) {
-    if (!this.badgeSettings?.territoires) return null;
+  getBadgeImage(badgeName, badge = null) {
+    // First try to get image from the badge template (new system)
+    if (badge?.image) {
+      return `/images/${badge.image}`;
+    }
 
-    const territoire = this.badgeSettings.territoires.find(
-      (t) => t.name.toLowerCase() === badgeName.toLowerCase(),
-    );
+    // Fallback to old system (territoires in badgeSettings)
+    if (this.badgeSettings?.territoires) {
+      const territoire = this.badgeSettings.territoires.find(
+        (t) => t.name.toLowerCase() === badgeName.toLowerCase(),
+      );
 
-    if (territoire && territoire.image) {
-      return `/images/${territoire.image}`;
+      if (territoire && territoire.image) {
+        return `/images/${territoire.image}`;
+      }
     }
 
     return null;
