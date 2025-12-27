@@ -19,6 +19,10 @@ import {
   MedicationScreen,
 } from '../screens';
 
+// Import medication screens
+import MedicationPlanningScreen from '../screens/MedicationPlanningScreen';
+import MedicationDistributionScreen from '../screens/MedicationDistributionScreen';
+
 // Import future modal/detail screens
 // import ActivityDetailScreen from '../screens/ActivityDetailScreen';
 // import CarpoolScreen from '../screens/CarpoolScreen';
@@ -93,6 +97,23 @@ const AppNavigator = ({ userPermissions }) => {
         component={MedicationScreen}
         options={{
           headerShown: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="MedicationPlanning"
+        component={MedicationPlanningScreen}
+        options={{
+          headerShown: true,
+          title: 'Medication Planning',
+        }}
+      />
+
+      <Stack.Screen
+        name="MedicationDistribution"
+        component={MedicationDistributionScreen}
+        options={{
+          headerShown: false,
         }}
       />
 
