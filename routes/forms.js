@@ -243,8 +243,8 @@ module.exports = (pool, logger) => {
         const formVersionId = versionResult.rows.length > 0 ? versionResult.rows[0].version_id : null;
 
         // Get client IP and user agent for audit trail
-        const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress;
-        const userAgent = req.headers['user-agent'];
+        const ipAddress = req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress || null;
+        const userAgent = req.headers['user-agent'] || null;
 
         // Check if a submission already exists
         const existingResult = await client.query(
@@ -255,18 +255,17 @@ module.exports = (pool, logger) => {
 
         let result;
         const submissionStatus = status || 'submitted';
-        const submittedAt = submissionStatus === 'submitted' ? 'NOW()' : 'submitted_at';
 
         if (existingResult.rows.length > 0) {
           // Update existing submission
           result = await client.query(
             `UPDATE form_submissions
-             SET submission_data = $1,
+             SET submission_data = $1::jsonb,
                  updated_at = NOW(),
-                 user_id = $2,
-                 form_version_id = COALESCE($3, form_version_id),
-                 status = $4,
-                 submitted_at = CASE WHEN $4 = 'submitted' AND submitted_at IS NULL THEN NOW() ELSE submitted_at END,
+                 user_id = $2::uuid,
+                 form_version_id = COALESCE($3::integer, form_version_id),
+                 status = $4::varchar,
+                 submitted_at = CASE WHEN $4::varchar = 'submitted' AND submitted_at IS NULL THEN NOW() ELSE submitted_at END,
                  ip_address = $5,
                  user_agent = $6
              WHERE participant_id = $7 AND organization_id = $8 AND form_type = $9
@@ -280,8 +279,8 @@ module.exports = (pool, logger) => {
             `INSERT INTO form_submissions
              (participant_id, organization_id, form_type, submission_data, user_id,
               form_version_id, status, submitted_at, ip_address, user_agent)
-             VALUES ($1, $2, $3, $4, $5, $6, $7,
-                     CASE WHEN $7 = 'submitted' THEN NOW() ELSE NULL END, $8, $9)
+             VALUES ($1, $2, $3, $4::jsonb, $5::uuid, $6::integer, $7::varchar,
+                     CASE WHEN $7::varchar = 'submitted' THEN NOW() ELSE NULL END, $8, $9)
              RETURNING *`,
             [participant_id, organizationId, form_type, JSON.stringify(submission_data),
              decoded.user_id, formVersionId, submissionStatus, ipAddress, userAgent]
