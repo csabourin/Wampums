@@ -35,7 +35,24 @@ export class JSONFormRenderer {
 
 	renderField(field, formOrigin, index) {
 			const { type = 'text', name, label, required, infoText, options, dependsOn } = field;
-			const value = this.formData[name] || '';
+			let value = this.formData[name] || '';
+
+			// Convert date values from ISO format to YYYY-MM-DD for HTML5 date inputs
+			if (type === 'date' && value) {
+				try {
+					// Handle both ISO format dates and already formatted dates
+					if (value.includes('T') || value.includes(':')) {
+						const date = new Date(value);
+						if (!isNaN(date.getTime())) {
+							// Format as YYYY-MM-DD
+							value = date.toISOString().split('T')[0];
+						}
+					}
+				} catch (e) {
+					debugWarn('Error formatting date value:', value, e);
+				}
+			}
+
 			const requiredAttr = required ? 'required' : '';
 
 			// If the field has a dependsOn attribute, include it as a data-depends-on attribute in the HTML
