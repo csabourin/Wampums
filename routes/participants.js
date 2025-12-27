@@ -985,11 +985,14 @@ module.exports = (pool) => {
 
     let params = [id, organizationId];
 
+    // Staff roles (admin, animation, district, unitadmin, demoadmin) can see all participants
     // Parent roles can only see participants they're linked to via user_participants table
-    // All other roles with participants.view permission can see all participants in their organization
-    const isParentRole = hasAnyRole(req, 'parent', 'demoparent');
+    // Check for staff roles FIRST - if user has any staff role, grant full access
+    const staffRoles = ['admin', 'animation', 'district', 'unitadmin', 'demoadmin'];
+    const hasStaffRole = req.userRoles && req.userRoles.some(role => staffRoles.includes(role));
 
-    if (isParentRole) {
+    // Only restrict if user has NO staff roles (i.e., they're only a parent)
+    if (!hasStaffRole) {
       // For parent/demoparent roles, verify they have access to this participant via user_participants
       query += ` AND EXISTS (
         SELECT 1 FROM user_participants up
