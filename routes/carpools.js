@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { ROLE_GROUPS } = require('../config/role-constants');
 
 module.exports = (pool) => {
   /**
@@ -173,7 +174,9 @@ module.exports = (pool) => {
 
     // Check permission: owner or animation/admin
     const isOwner = offerCheck.rows[0].user_id === userId;
-    const isStaff = ['animation', 'admin'].includes(userRole);
+    // Use centralized role constants for carpool management
+    const userRoles = req.userRoles || (userRole ? [userRole] : []);
+    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
 
     if (!isOwner && !isStaff) {
       return error(res, 'You do not have permission to update this carpool offer', 403);
@@ -244,7 +247,9 @@ module.exports = (pool) => {
 
     // Check permission: owner or animation/admin
     const isOwner = offerCheck.rows[0].user_id === userId;
-    const isStaff = ['animation', 'admin'].includes(userRole);
+    // Use centralized role constants for carpool management
+    const userRoles = req.userRoles || (userRole ? [userRole] : []);
+    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
 
     if (!isOwner && !isStaff) {
       return error(res, 'You do not have permission to cancel this carpool offer', 403);
@@ -340,7 +345,9 @@ module.exports = (pool) => {
     const offer = offerCheck.rows[0];
 
     // Check permission: parent can only assign own children, animation/admin can assign any
-    const isStaff = ['animation', 'admin'].includes(userRole);
+    // Use centralized role constants for carpool management
+    const userRoles = req.userRoles || (userRole ? [userRole] : []);
+    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
     if (!isStaff) {
       const guardianCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',
@@ -433,7 +440,9 @@ module.exports = (pool) => {
     const assignment = assignmentCheck.rows[0];
 
     // Check permission: parent can only remove own children, animation/admin can remove any
-    const isStaff = ['animation', 'admin'].includes(userRole);
+    // Use centralized role constants for carpool management
+    const userRoles = req.userRoles || (userRole ? [userRole] : []);
+    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
     if (!isStaff) {
       const guardianCheck = await pool.query(
         'SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2',

@@ -17,6 +17,7 @@ const { validationResult } = require('express-validator');
 
 // Import middleware
 const { authenticate } = require('../middleware/auth');
+const { ROLE_PRIORITY } = require('../config/role-constants');
   const {
     validateEmail,
     validatePassword,
@@ -247,7 +248,8 @@ module.exports = (pool, logger) => {
 
         // Determine primary role for backward compatibility
         // Priority: district > unitadmin > leader > finance > equipment > administration > parent
-        const rolePriority = ['district', 'unitadmin', 'leader', 'finance', 'equipment', 'administration', 'parent', 'demoadmin', 'demoparent'];
+        // Use centralized role priority from config
+        const rolePriority = ROLE_PRIORITY;
         const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
 
         const token = jwt.sign(
@@ -406,7 +408,8 @@ module.exports = (pool, logger) => {
         const permissions = permissionsResult.rows.map(p => p.permission_key);
 
         // Determine primary role for backward compatibility
-        const rolePriority = ['district', 'unitadmin', 'leader', 'finance', 'equipment', 'administration', 'parent', 'demoadmin', 'demoparent'];
+        // Use centralized role priority from config
+        const rolePriority = ROLE_PRIORITY;
         const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
 
         const token = jwt.sign(
