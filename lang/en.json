@@ -548,6 +548,7 @@
   "forbidden_admin_required": "Forbidden: District access required",
   "forgot_password": "Forgot Password?",
   "form_not_found": "Form not found",
+  "form_permissions": "Form Permissions",
   "form_saved_success": "Form saved successfully",
   "form_saved_successfully": "Form saved successfully",
   "form_structure_not_found": "Form structure not found",

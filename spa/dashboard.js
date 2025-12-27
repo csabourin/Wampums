@@ -25,6 +25,7 @@ import {
   canCreateOrganization,
   canManageRoles,
   canViewRoles,
+  canManageForms,
 } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 
@@ -325,6 +326,7 @@ export class Dashboard {
     const showOrgCreation = canCreateOrganization();
     const showReports = hasAnyPermission('reports.view', 'reports.export');
     const showAdminPanel = canAccessAdminPanel(); // Old admin panel (legacy)
+    const showFormPermissions = canManageForms();
 
     // Build administration section links
     const administrationLinks = [];
@@ -332,6 +334,10 @@ export class Dashboard {
     if (showRoleManagement) {
       administrationLinks.push(`<a href="/role-management"><i class="fa-solid fa-user-tag"></i><span>${translate("role_management") || "Role Management"}</span></a>`);
       administrationLinks.push(`<a href="/district-management"><i class="fa-solid fa-sitemap"></i><span>${translate("district_management_title") || "District Management"}</span></a>`);
+    }
+
+    if (showFormPermissions) {
+      administrationLinks.push(`<a href="/form-permissions"><i class="fa-solid fa-clipboard-check"></i><span>${translate("form_permissions") || "Form Permissions"}</span></a>`);
     }
 
     if (showOrgCreation) {

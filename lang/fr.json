@@ -556,6 +556,7 @@
   "forbidden_admin_required": "Interdit : accès réservé au district",
   "forgot_password": "Mot de passe oublié ?",
   "form_not_found": "Formulaire introuvable",
+  "form_permissions": "Permissions des formulaires",
   "form_saved_success": "Formulaire enregistré avec succès",
   "form_saved_successfully": "Formulaire enregistré avec succès",
   "form_structure_not_found": "Structure de formulaire non trouvée",
