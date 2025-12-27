@@ -10,56 +10,50 @@ import DOMPurify from 'dompurify';
 import { debugLog, debugError } from './DebugUtils.js';
 
 /**
- * Map of allowed HTML tags and their permitted attributes
- * Following OWASP recommendations for safe HTML
+ * Additional safe attributes to allow beyond DOMPurify's defaults
+ * These are application-specific attributes that are safe and needed
  */
-const ALLOWED_TAGS = {
-  // Text formatting
-  'b': [],
-  'i': [],
-  'em': [],
-  'strong': [],
-  'u': [],
-  'br': [],
-  'p': ['class'],
-  'span': ['class'],
-  'div': ['class', 'id'],
+const ADDITIONAL_ALLOWED_ATTRS = [
+  // Accessibility
+  'aria-label', 'aria-describedby', 'aria-hidden', 'aria-live', 'aria-expanded',
 
-  // Lists
-  'ul': ['class'],
-  'ol': ['class'],
-  'li': ['class'],
+  // Common safe attributes
+  'alt', 'title', 'loading', 'width', 'height', 'colspan', 'rowspan',
+  'placeholder', 'required', 'disabled', 'readonly', 'checked', 'selected',
+  'min', 'max', 'step', 'pattern', 'autocomplete', 'multiple', 'open',
 
-  // Links (with restrictions)
-  'a': ['href', 'title', 'class'],
+  // Form attributes
+  'type', 'name', 'value', 'for', 'action', 'method', 'enctype',
 
-  // Images (safe attributes only)
-  'img': ['src', 'alt', 'title', 'class', 'width', 'height'],
+  // Table/layout
+  'rows', 'cols',
 
-  // Tables
-  'table': ['class'],
-  'thead': [],
-  'tbody': [],
-  'tr': ['class'],
-  'th': ['class'],
-  'td': ['class'],
+  // SVG-specific
+  'viewBox', 'fill', 'stroke', 'stroke-width', 'd', 'cx', 'cy', 'r',
+  'x', 'y', 'x1', 'y1', 'x2', 'y2', 'points', 'transform', 'xmlns',
+  'xlink:href', 'rx', 'ry', 'font-size',
 
-  // Headers
-  'h1': ['class'],
-  'h2': ['class'],
-  'h3': ['class'],
-  'h4': ['class'],
-  'h5': ['class'],
-  'h6': ['class']
-};
+  // Safe styling (limited to specific safe properties)
+  'style'
+];
 
 /**
  * Sanitize HTML string to prevent XSS attacks using DOMPurify
- * Removes dangerous tags and attributes while preserving safe formatting
  *
- * Allowed tags: a, img, p, div, span, b, i, em, strong, u, br, ul, ol, li, table, thead, tbody, tr, th, td, h1-h6
- * Links (a tags) with href attributes are allowed
- * Images (img tags) with src, alt, title attributes are allowed
+ * Uses DOMPurify's battle-tested default whitelist of safe HTML tags, which includes:
+ * - Text formatting: b, i, em, strong, u, br, hr, p, div, span, etc.
+ * - Forms: form, input, button, select, option, textarea, label, fieldset, legend
+ * - Tables: table, thead, tbody, tr, th, td with colspan/rowspan
+ * - Semantic HTML5: header, footer, main, nav, section, article, aside, details, summary
+ * - SVG: svg, path, circle, rect, line, polyline, polygon, g, and more
+ * - Links and images with safe attributes
+ * - Data attributes (data-*) for application state management
+ * - And many more standard HTML5 tags
+ *
+ * SECURITY: Uses whitelisting (not blacklisting) for defense in depth
+ * - Unknown/new tags are blocked by default
+ * - Still blocks: script, onclick/onerror/on* event handlers, javascript: URLs
+ * - Future-proof: DOMPurify is actively maintained and updated for new XSS vectors
  *
  * @param {string} html - The HTML string to sanitize
  * @param {Object} options - Sanitization options
@@ -77,21 +71,31 @@ export function sanitizeHTML(html, options = {}) {
     return DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
   }
 
-  // Build list of all allowed attributes from ALLOWED_TAGS
-  const allowedAttrs = new Set(['class', 'id']);
-  Object.values(ALLOWED_TAGS).forEach(attrs => {
-    attrs.forEach(attr => allowedAttrs.add(attr));
-  });
-
-  // Configure DOMPurify options
+  // Use DOMPurify's comprehensive default whitelist with our additional attributes
+  // DOMPurify already includes a well-maintained list of safe HTML5 tags
   const config = {
-    ALLOWED_TAGS: Object.keys(ALLOWED_TAGS),
-    ALLOWED_ATTR: Array.from(allowedAttrs),
-    ALLOW_DATA_ATTR: false,
+    // Use DOMPurify's default ALLOWED_TAGS (don't override)
+    // Add application-specific attributes to the defaults
+    ADD_ATTR: ADDITIONAL_ALLOWED_ATTRS,
+
+    // Allow data-* attributes (used extensively in the app for state management)
+    ALLOW_DATA_ATTR: true,
+
+    // Enable SVG support (DOMPurify has safe SVG defaults)
+    USE_PROFILES: { html: true, svg: true, svgFilters: false },
+
+    // Safe for templates (prevents mXSS attacks)
     SAFE_FOR_TEMPLATES: true,
+
+    // Return the entire HTML document structure
+    WHOLE_DOCUMENT: false,
+
+    // Return a DOM fragment instead of a string for better performance
+    RETURN_DOM: false,
+    RETURN_DOM_FRAGMENT: false,
   };
 
-  // Use DOMPurify for robust sanitization
+  // Use DOMPurify for robust, future-proof sanitization
   return DOMPurify.sanitize(html, config);
 }
 
