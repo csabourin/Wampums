@@ -1,7 +1,7 @@
 // RESTful routes for participants
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
@@ -985,8 +985,12 @@ module.exports = (pool) => {
 
     let params = [id, organizationId];
 
-    // For parent role, verify they have access to this participant
-    if (userRole !== 'admin' && userRole !== 'animation') {
+    // Parent roles can only see participants they're linked to via user_participants table
+    // All other roles with participants.view permission can see all participants in their organization
+    const isParentRole = hasAnyRole(req, 'parent', 'demoparent');
+
+    if (isParentRole) {
+      // For parent/demoparent roles, verify they have access to this participant via user_participants
       query += ` AND EXISTS (
         SELECT 1 FROM user_participants up
         WHERE up.participant_id = p.id AND up.user_id = $3
