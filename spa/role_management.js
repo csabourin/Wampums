@@ -11,6 +11,7 @@ import { getApiUrl } from './ajax-functions.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
 import { getStorage } from './utils/StorageUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
 import {
   clearActivityRelatedCaches,
   clearParticipantRelatedCaches,
@@ -496,7 +497,7 @@ export class RoleManagement {
           container.innerHTML = this.renderPermissionsList(permissions);
         } catch (error) {
           debugError('Error loading role permissions:', error);
-          container.innerHTML = `<p class="error-message">${error.message}</p>`;
+          container.innerHTML = `<p class="error-message">${escapeHTML(error.message)}</p>`;
         }
       }
     }
