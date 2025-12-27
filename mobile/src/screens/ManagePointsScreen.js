@@ -11,10 +11,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { getParticipants, getGroups, updatePoints } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import { Card, LoadingSpinner, ErrorMessage, Button } from '../components';
@@ -23,9 +23,10 @@ import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 import { debugError, debugLog } from '../utils/DebugUtils';
 
-const VIEW_MODES = {
-  PARTICIPANTS: 'participants',
-  GROUPS: 'groups',
+const SORT_TYPES = {
+  NAME: 'name',
+  GROUP: 'group',
+  POINTS: 'points',
 };
 
 /**
@@ -50,27 +51,57 @@ const ManagePointsScreen = () => {
   const [error, setError] = useState('');
   const [participants, setParticipants] = useState([]);
   const [groups, setGroups] = useState([]);
-  const [viewMode, setViewMode] = useState(VIEW_MODES.PARTICIPANTS);
-  const [customPoints, setCustomPoints] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sortBy, setSortBy] = useState(SORT_TYPES.GROUP);
+  const [filterGroupId, setFilterGroupId] = useState('');
 
-  const groupedParticipants = useMemo(
-    () => buildGroupedParticipants(participants),
-    [participants]
-  );
+  /**
+   * Get sorted and filtered groups with participant data
+   */
+  const sortedAndFilteredData = useMemo(() => {
+    // Filter groups if a specific group is selected
+    let filteredGroups = filterGroupId
+      ? groups.filter((g) => g.id === parseInt(filterGroupId))
+      : groups;
 
-  const groupTotals = useMemo(() => {
-    return groups.map((group) => {
-      const members = participants.filter((participant) => participant.group_id === group.id);
-      const totalPoints = members.reduce(
-        (sum, member) => sum + Number(member.total_points || 0),
-        0
-      );
-      return { ...group, totalPoints };
+    // Build group data with participants
+    let groupData = filteredGroups.map((group) => {
+      const groupParticipants = participants.filter((p) => p.group_id === group.id);
+      return {
+        group,
+        participants: groupParticipants,
+      };
     });
-  }, [groups, participants]);
+
+    // Apply sorting
+    if (sortBy === SORT_TYPES.NAME) {
+      // Sort by first participant's name in each group
+      groupData.forEach((item) => {
+        item.participants.sort((a, b) =>
+          (a.firstName || a.first_name || '').localeCompare(b.firstName || b.first_name || '')
+        );
+      });
+    } else if (sortBy === SORT_TYPES.POINTS) {
+      // Sort participants by points within each group
+      groupData.forEach((item) => {
+        item.participants.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
+      });
+      // Also sort groups by total points
+      groupData.sort((a, b) => (b.group.total_points || 0) - (a.group.total_points || 0));
+    } else {
+      // Default: sort by group (already grouped)
+      // Sort participants by name within each group
+      groupData.forEach((item) => {
+        item.participants.sort((a, b) =>
+          (a.firstName || a.first_name || '').localeCompare(b.firstName || b.first_name || '')
+        );
+      });
+    }
+
+    return groupData;
+  }, [groups, participants, sortBy, filterGroupId]);
 
   /**
    * Load participants and groups for points management.
@@ -134,76 +165,118 @@ const ManagePointsScreen = () => {
       }
 
       debugLog('Points updated:', response.data);
-      await loadPointsData();
-      setCustomPoints('');
+
+      // Update local state optimistically
+      if (selectedType === 'group') {
+        // Update group points
+        setGroups((prevGroups) =>
+          prevGroups.map((g) =>
+            g.id === selectedId
+              ? { ...g, total_points: (g.total_points || 0) + points }
+              : g
+          )
+        );
+        // Update all participants in the group
+        setParticipants((prevParticipants) =>
+          prevParticipants.map((p) =>
+            p.group_id === selectedId
+              ? { ...p, total_points: (p.total_points || 0) + points }
+              : p
+          )
+        );
+      } else {
+        // Update individual participant
+        setParticipants((prevParticipants) =>
+          prevParticipants.map((p) =>
+            p.id === selectedId
+              ? { ...p, total_points: (p.total_points || 0) + points }
+              : p
+          )
+        );
+      }
     } catch (err) {
       debugError('Error updating points:', err);
       setError(err.message || t('error_loading_manage_points'));
+      // Reload data on error to ensure consistency
+      await loadPointsData();
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleCustomPointsSubmit = () => {
-    const sanitized = SecurityUtils.sanitizeNumber(customPoints, true);
-    const parsed = Number(sanitized);
-
-    if (Number.isNaN(parsed) || parsed === 0) {
-      setError(t('error_loading_data'));
-      return;
-    }
-
-    handlePointsUpdate(parsed);
-  };
-
-  const renderParticipantCard = (participant) => {
-    const isSelected = selectedId === participant.id && selectedType === 'participant';
-    return (
-      <Card
-        key={participant.id}
-        onPress={() => {
-          setSelectedId(participant.id);
-          setSelectedType('participant');
-        }}
-        style={[styles.card, isSelected && styles.cardSelected]}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>
-            {participant.firstName || participant.first_name}{' '}
-            {participant.lastName || participant.last_name}
-          </Text>
-          <Text style={styles.pointsValue}>
-            {Number(participant.total_points || 0)} {t('points')}
-          </Text>
-        </View>
-        <Text style={styles.cardSubtitle}>
-          {participant.group_name || t('groups')}
-        </Text>
-      </Card>
-    );
-  };
-
-  const renderGroupCard = (group) => {
+  /**
+   * Render a group header
+   */
+  const renderGroupHeader = (group) => {
     const isSelected = selectedId === group.id && selectedType === 'group';
     return (
-      <Card
-        key={group.id}
+      <TouchableOpacity
+        key={`group-${group.id}`}
+        style={[styles.groupHeader, isSelected && styles.groupHeaderSelected]}
         onPress={() => {
           setSelectedId(group.id);
           setSelectedType('group');
         }}
-        style={[styles.card, isSelected && styles.cardSelected]}
       >
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{group.name}</Text>
-          <Text style={styles.pointsValue}>
-            {Number(group.totalPoints || 0)} {t('points')}
-          </Text>
-        </View>
-        <Text style={styles.cardSubtitle}>
-          {t('groups')}
+        <Text style={styles.groupHeaderText}>
+          {group.name} - {Number(group.total_points || 0)}
         </Text>
-      </Card>
+      </TouchableOpacity>
+    );
+  };
+
+  /**
+   * Render a participant item
+   */
+  const renderParticipant = (participant) => {
+    const isSelected = selectedId === participant.id && selectedType === 'participant';
+    return (
+      <TouchableOpacity
+        key={`participant-${participant.id}`}
+        style={[styles.participantItem, isSelected && styles.participantItemSelected]}
+        onPress={() => {
+          setSelectedId(participant.id);
+          setSelectedType('participant');
+        }}
+      >
+        <Text style={styles.participantName}>
+          {participant.firstName || participant.first_name}{' '}
+          {participant.lastName || participant.last_name}
+        </Text>
+        <Text style={styles.participantPoints}>
+          {Number(participant.total_points || 0)}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  /**
+   * Render a group with its participants
+   */
+  const renderGroupSection = ({ group, participants: groupParticipants }) => {
+    const totalGroupPoints = groupParticipants.reduce(
+      (sum, p) => sum + Number(p.total_points || 0),
+      0
+    );
+
+    return (
+      <View key={`section-${group.id}`} style={styles.groupSection}>
+        {renderGroupHeader(group)}
+        <View style={styles.groupContent}>
+          {groupParticipants.length > 0 ? (
+            <>
+              {groupParticipants.map(renderParticipant)}
+              <View style={styles.groupTotal}>
+                <Text style={styles.groupTotalText}>
+                  {t('total_points')}: {Number(group.total_points || 0)}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.emptyText}>{t('no_participants_in_group')}</Text>
+          )}
+        </View>
+      </View>
     );
   };
 
@@ -216,160 +289,231 @@ const ManagePointsScreen = () => {
   }
 
   return (
-    <ScrollView
-      style={commonStyles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('manage_points')}</Text>
-        <Text style={styles.subtitle}>{t('points')}</Text>
-      </View>
+    <View style={commonStyles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('manage_points')}</Text>
+        </View>
 
-      <View style={styles.toggleRow}>
-        <Button
-          title={t('participants')}
-          variant={viewMode === VIEW_MODES.PARTICIPANTS ? 'primary' : 'secondary'}
-          onPress={() => setViewMode(VIEW_MODES.PARTICIPANTS)}
-          style={styles.toggleButton}
-        />
-        <Button
-          title={t('groups')}
-          variant={viewMode === VIEW_MODES.GROUPS ? 'primary' : 'secondary'}
-          onPress={() => setViewMode(VIEW_MODES.GROUPS)}
-          style={styles.toggleButton}
-        />
-      </View>
-
-      <View style={styles.quickActions}>
-        <Text style={styles.sectionTitle}>{t('points')}</Text>
-        <View style={styles.actionRow}>
-          {CONFIG.UI.POINTS_QUICK_ACTIONS.map((value) => (
+        {/* Sort and Filter Controls */}
+        <View style={styles.controls}>
+          <View style={styles.sortButtons}>
             <Button
-              key={`points-${value}`}
-              title={`${value > 0 ? '+' : ''}${value}`}
-              onPress={() => handlePointsUpdate(value)}
-              disabled={submitting}
-              variant={value > 0 ? 'success' : 'danger'}
-              style={styles.quickButton}
+              title={t('sort_by_name')}
+              variant={sortBy === SORT_TYPES.NAME ? 'primary' : 'secondary'}
+              onPress={() => setSortBy(SORT_TYPES.NAME)}
+              style={styles.sortButton}
               size="small"
             />
-          ))}
-        </View>
-        <View style={styles.customRow}>
-          <TextInput
-            style={styles.input}
-            placeholder={t('points')}
-            keyboardType="numeric"
-            value={customPoints}
-            onChangeText={setCustomPoints}
-          />
-          <Button
-            title={t('update')}
-            onPress={handleCustomPointsSubmit}
-            disabled={submitting}
-            style={styles.updateButton}
-          />
-        </View>
-      </View>
+            <Button
+              title={t('sort_by_group')}
+              variant={sortBy === SORT_TYPES.GROUP ? 'primary' : 'secondary'}
+              onPress={() => setSortBy(SORT_TYPES.GROUP)}
+              style={styles.sortButton}
+              size="small"
+            />
+            <Button
+              title={t('sort_by_points')}
+              variant={sortBy === SORT_TYPES.POINTS ? 'primary' : 'secondary'}
+              onPress={() => setSortBy(SORT_TYPES.POINTS)}
+              style={styles.sortButton}
+              size="small"
+            />
+          </View>
 
-      <View style={styles.section}>
-        {viewMode === VIEW_MODES.PARTICIPANTS ? (
-          Object.entries(groupedParticipants).map(([groupName, members]) => (
-            <View key={groupName} style={styles.groupSection}>
-              <Text style={styles.groupTitle}>{groupName}</Text>
-              {members.map(renderParticipantCard)}
-            </View>
-          ))
-        ) : (
-          groupTotals.map(renderGroupCard)
-        )}
+          <View style={styles.filterContainer}>
+            <Text style={styles.filterLabel}>{t('filter_by_group')}:</Text>
+            <Picker
+              selectedValue={filterGroupId}
+              onValueChange={(value) => setFilterGroupId(value)}
+              style={styles.picker}
+            >
+              <Picker.Item label={t('all_groups')} value="" />
+              {groups.map((group) => (
+                <Picker.Item key={group.id} label={group.name} value={group.id.toString()} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Groups and Participants List */}
+        <View style={styles.listContainer}>
+          {sortedAndFilteredData.map(renderGroupSection)}
+        </View>
+      </ScrollView>
+
+      {/* Fixed Bottom Point Buttons */}
+      <View style={styles.fixedBottom}>
+        <Button
+          title="+1"
+          onPress={() => handlePointsUpdate(1)}
+          disabled={submitting}
+          variant="success"
+          style={styles.pointButton}
+        />
+        <Button
+          title="+3"
+          onPress={() => handlePointsUpdate(3)}
+          disabled={submitting}
+          variant="success"
+          style={styles.pointButton}
+        />
+        <Button
+          title="+5"
+          onPress={() => handlePointsUpdate(5)}
+          disabled={submitting}
+          variant="success"
+          style={styles.pointButton}
+        />
+        <Button
+          title="-1"
+          onPress={() => handlePointsUpdate(-1)}
+          disabled={submitting}
+          variant="danger"
+          style={styles.pointButton}
+        />
+        <Button
+          title="-3"
+          onPress={() => handlePointsUpdate(-3)}
+          disabled={submitting}
+          variant="danger"
+          style={styles.pointButton}
+        />
+        <Button
+          title="-5"
+          onPress={() => handlePointsUpdate(-5)}
+          disabled={submitting}
+          variant="danger"
+          style={styles.pointButton}
+        />
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 80, // Space for fixed bottom buttons
+  },
   header: {
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
   },
   title: {
     ...commonStyles.heading2,
+    textAlign: 'center',
   },
-  subtitle: {
-    ...commonStyles.caption,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
+  controls: {
     paddingHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
-  toggleButton: {
+  sortButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
+  },
+  sortButton: {
     flex: 1,
   },
-  quickActions: {
-    ...commonStyles.card,
-    marginHorizontal: theme.spacing.lg,
-  },
-  sectionTitle: {
-    ...commonStyles.sectionTitle,
+  filterContainer: {
     marginBottom: theme.spacing.sm,
   },
-  actionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+  filterLabel: {
+    ...commonStyles.bodyText,
+    marginBottom: theme.spacing.xs,
+    fontWeight: theme.fontWeight.semibold,
   },
-  quickButton: {
-    minWidth: theme.spacing.xxl,
+  picker: {
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.md,
   },
-  customRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    alignItems: 'center',
-  },
-  input: {
-    ...commonStyles.input,
-    flex: 1,
-  },
-  updateButton: {
-    minWidth: theme.spacing.xxl,
-  },
-  section: {
+  listContainer: {
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
   },
   groupSection: {
     marginBottom: theme.spacing.lg,
   },
-  groupTitle: {
-    ...commonStyles.sectionTitle,
-    marginBottom: theme.spacing.sm,
+  groupHeader: {
+    backgroundColor: theme.colors.lightGray,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.xs,
   },
-  card: {
-    marginBottom: theme.spacing.sm,
+  groupHeaderSelected: {
+    backgroundColor: theme.colors.primary,
   },
-  cardSelected: {
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
+  groupHeaderText: {
+    ...commonStyles.heading3,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
   },
-  cardHeader: {
+  groupContent: {
+    paddingLeft: theme.spacing.md,
+  },
+  participantItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  cardTitle: {
-    ...commonStyles.heading3,
+  participantItemSelected: {
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  participantName: {
+    ...commonStyles.bodyText,
     flex: 1,
   },
-  cardSubtitle: {
-    ...commonStyles.caption,
-  },
-  pointsValue: {
+  participantPoints: {
     ...commonStyles.bodyText,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.primary,
+  },
+  groupTotal: {
+    padding: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+  },
+  groupTotalText: {
+    ...commonStyles.caption,
     fontWeight: theme.fontWeight.semibold,
+    textAlign: 'right',
+  },
+  emptyText: {
+    ...commonStyles.caption,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    padding: theme.spacing.md,
+  },
+  fixedBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.white,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  pointButton: {
+    flex: 1,
+    marginHorizontal: theme.spacing.xs,
   },
 });
 
