@@ -75,12 +75,25 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
       }
 
-      // Role-based access control
-      const userRole = decoded.role || decoded.user_role;
+      // Get user's roles for access control
+      const rolesQuery = `
+        SELECT DISTINCT r.role_name
+        FROM user_organizations uo
+        CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+        JOIN roles r ON r.id = role_id_text::integer
+        WHERE uo.user_id = $1 AND uo.organization_id = $2
+      `;
+      const rolesResult = await pool.query(rolesQuery, [decoded.user_id, organizationId]);
+      const userRoles = rolesResult.rows.map(row => row.role_name);
 
-      // Verify access to this participant
-      if (userRole !== 'admin' && userRole !== 'animation') {
-        // For parents, check if they have access to this participant
+      // Staff roles can access all participants in their organization
+      // Parent roles can only access participants they're linked to
+      const staffRoles = ['admin', 'animation', 'district', 'unitadmin', 'demoadmin'];
+      const hasStaffRole = userRoles.some(role => staffRoles.includes(role));
+
+      // Only restrict access for non-staff users (parents)
+      if (!hasStaffRole) {
+        // For parent/demoparent roles, check if they have access to this participant
         const accessCheck = await pool.query(
           `SELECT 1 FROM user_participants
            WHERE user_id = $1 AND participant_id = $2`,
