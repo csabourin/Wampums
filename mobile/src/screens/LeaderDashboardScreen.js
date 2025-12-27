@@ -327,11 +327,11 @@ const LeaderDashboardScreen = () => {
           permissions: ['participants.view', 'users.view'],
         },
         {
-          key: 'medicationDispensing',
-          label: t('medication_dispensing_link'),
+          key: 'medicationDistribution',
+          label: t('medication_distribution_link'),
           icon: '💊',
-          screen: 'Medication',
-          permissions: ['medication.manage', 'medication.view'],
+          screen: 'MedicationDistribution',
+          permissions: ['medication.distribute', 'medication.manage', 'medication.view'],
         },
         {
           key: 'parentDashboard',
@@ -386,7 +386,8 @@ const LeaderDashboardScreen = () => {
           key: 'medicationPlanning',
           label: t('medication_planning_link'),
           icon: '🧪',
-          permissions: ['medication.manage', 'medication.view'],
+          screen: 'MedicationPlanning',
+          permissions: ['medication.manage'],
         },
         {
           key: 'permissionSlips',

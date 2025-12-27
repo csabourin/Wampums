@@ -658,6 +658,13 @@ export const saveMedicationRequirement = async (payload) => {
 };
 
 /**
+ * Delete medication requirement
+ */
+export const deleteMedicationRequirement = async (requirementId) => {
+  return API.delete(`${CONFIG.ENDPOINTS.MEDICATION}/requirements/${requirementId}`);
+};
+
+/**
  * Record medication distributions
  */
 export const recordMedicationDistribution = async (payload) => {
@@ -883,6 +890,7 @@ export default {
   getMedicationDistributions,
   getFicheMedications,
   saveMedicationRequirement,
+  deleteMedicationRequirement,
   recordMedicationDistribution,
   markMedicationDistributionAsGiven,
   // Resources
