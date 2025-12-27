@@ -8,7 +8,7 @@ import {
   saveEquipmentItem,
   getEquipmentReservations,
   saveEquipmentReservation,
-  getResourceDashboard
+  getResourceDashboard,
 } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 
@@ -28,20 +28,29 @@ export class ResourceDashboard {
       this.attachEventHandlers();
     } catch (error) {
       debugError("Error initializing resource dashboard:", error);
-      this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+      this.app.showMessage(
+        translate("resource_dashboard_error_loading"),
+        "error",
+      );
     }
   }
 
   async refreshData() {
-    const [equipmentResponse, reservationResponse, summaryResponse] = await Promise.all([
-      getEquipmentInventory(),
-      getEquipmentReservations({ meeting_date: this.meetingDate }),
-      getResourceDashboard({ meeting_date: this.meetingDate })
-    ]);
+    const [equipmentResponse, reservationResponse, summaryResponse] =
+      await Promise.all([
+        getEquipmentInventory(),
+        getEquipmentReservations({ meeting_date: this.meetingDate }),
+        getResourceDashboard({ meeting_date: this.meetingDate }),
+      ]);
 
-    this.equipment = equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
-    this.reservations = reservationResponse?.data?.reservations || reservationResponse?.reservations || [];
-    this.dashboardSummary = summaryResponse?.data || summaryResponse || { reservations: [] };
+    this.equipment =
+      equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
+    this.reservations =
+      reservationResponse?.data?.reservations ||
+      reservationResponse?.reservations ||
+      [];
+    this.dashboardSummary = summaryResponse?.data ||
+      summaryResponse || { reservations: [] };
   }
 
   render() {
@@ -52,7 +61,9 @@ export class ResourceDashboard {
 
     const reservationSummary = this.dashboardSummary?.reservations || [];
 
-    setContent(container, `
+    setContent(
+      container,
+      `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page resource-dashboard">
         <div class="card">
@@ -70,11 +81,16 @@ export class ResourceDashboard {
             <div class="summary-tile">
               <div class="summary-label">${escapeHTML(translate("equipment_reservations"))}</div>
               <ul class="summary-list">
-                ${reservationSummary.length === 0
-                  ? `<li>${escapeHTML(translate("no_data_available"))}</li>`
-                  : reservationSummary
-                      .map((row) => `<li>${escapeHTML(row.name)} (${escapeHTML(row.status)}): <strong>${row.reserved_quantity}</strong></li>`)
-                      .join('')}
+                ${
+                  reservationSummary.length === 0
+                    ? `<li>${escapeHTML(translate("no_data_available"))}</li>`
+                    : reservationSummary
+                        .map(
+                          (row) =>
+                            `<li>${escapeHTML(row.name)} (${escapeHTML(row.status)}): <strong>${row.reserved_quantity}</strong></li>`,
+                        )
+                        .join("")
+                }
               </ul>
             </div>
           </div>
@@ -125,19 +141,23 @@ export class ResourceDashboard {
                 </tr>
               </thead>
               <tbody>
-                ${this.equipment.length === 0
-                  ? `<tr><td colspan="5">${escapeHTML(translate("no_data_available"))}</td></tr>`
-                  : this.equipment
-                      .map((item) => `
+                ${
+                  this.equipment.length === 0
+                    ? `<tr><td colspan="5">${escapeHTML(translate("no_data_available"))}</td></tr>`
+                    : this.equipment
+                        .map(
+                          (item) => `
                         <tr>
                           <td>${escapeHTML(item.name)}</td>
-                          <td>${escapeHTML(item.category || '-')}</td>
+                          <td>${escapeHTML(item.category || "-")}</td>
                           <td>${escapeHTML(String(item.quantity_total ?? 0))}</td>
                           <td>${escapeHTML(String(item.reserved_quantity ?? 0))}</td>
-                          <td>${escapeHTML((item.shared_organizations || []).join(', ') || '-')}</td>
+                          <td>${escapeHTML((item.shared_organizations || []).join(", ") || "-")}</td>
                         </tr>
-                      `)
-                      .join('')}
+                      `,
+                        )
+                        .join("")
+                }
               </tbody>
             </table>
           </div>
@@ -151,8 +171,11 @@ export class ResourceDashboard {
               <select name="equipment_id" required>
                 <option value="">${escapeHTML(translate("reservation_equipment_placeholder"))}</option>
                 ${this.equipment
-                  .map((item) => `<option value="${item.id}">${escapeHTML(item.name)}</option>`)
-                  .join('')}
+                  .map(
+                    (item) =>
+                      `<option value="${item.id}">${escapeHTML(item.name)}</option>`,
+                  )
+                  .join("")}
               </select>
             </label>
             <div class="grid grid-2">
@@ -184,26 +207,31 @@ export class ResourceDashboard {
                 </tr>
               </thead>
               <tbody>
-                ${this.reservations.length === 0
-                  ? `<tr><td colspan="6">${escapeHTML(translate("no_data_available"))}</td></tr>`
-                  : this.reservations
-                      .map((reservation) => `
+                ${
+                  this.reservations.length === 0
+                    ? `<tr><td colspan="6">${escapeHTML(translate("no_data_available"))}</td></tr>`
+                    : this.reservations
+                        .map(
+                          (reservation) => `
                         <tr>
-                          <td>${escapeHTML(reservation.equipment_name || '')}</td>
-                          <td>${escapeHTML(formatDate(reservation.meeting_date, this.app.lang || 'en'))}</td>
+                          <td>${escapeHTML(reservation.equipment_name || "")}</td>
+                          <td>${escapeHTML(formatDate(reservation.meeting_date, this.app.lang || "en"))}</td>
                           <td>${escapeHTML(String(reservation.reserved_quantity || 0))}</td>
-                          <td>${escapeHTML(reservation.reserved_for || '-')}</td>
+                          <td>${escapeHTML(reservation.reserved_for || "-")}</td>
                           <td>${escapeHTML(reservation.status)}</td>
-                          <td>${escapeHTML(String(reservation.reservation_organization_id || '-'))}</td>
+                          <td>${escapeHTML(String(reservation.reservation_organization_id || "-"))}</td>
                         </tr>
-                      `)
-                      .join('')}
+                      `,
+                        )
+                        .join("")
+                }
               </tbody>
             </table>
           </div>
         </div>
       </section>
-    `;
+    `,
+    );
   }
 
   attachEventHandlers() {
@@ -223,22 +251,29 @@ export class ResourceDashboard {
         event.preventDefault();
         const formData = new FormData(equipmentForm);
         const payload = Object.fromEntries(formData.entries());
-        payload.quantity_total = payload.quantity_total ? parseInt(payload.quantity_total, 10) : 1;
-        payload.quantity_available = payload.quantity_available ? parseInt(payload.quantity_available, 10) : undefined;
+        payload.quantity_total = payload.quantity_total
+          ? parseInt(payload.quantity_total, 10)
+          : 1;
+        payload.quantity_available = payload.quantity_available
+          ? parseInt(payload.quantity_available, 10)
+          : undefined;
 
         try {
           await saveEquipmentItem(payload);
           this.app.showMessage(translate("inventory_saved"), "success");
 
           // Invalidate cache to ensure fresh data
-          await deleteCachedData('v1/resources/equipment');
+          await deleteCachedData("v1/resources/equipment");
 
           await this.refreshData();
           this.render();
           this.attachEventHandlers();
         } catch (error) {
           debugError("Error saving equipment", error);
-          this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
+          this.app.showMessage(
+            error.message || translate("resource_dashboard_error_loading"),
+            "error",
+          );
         }
       });
     }
@@ -251,11 +286,15 @@ export class ResourceDashboard {
         const payload = Object.fromEntries(formData.entries());
         payload.meeting_date = this.meetingDate;
         payload.equipment_id = parseInt(payload.equipment_id, 10);
-        payload.reserved_quantity = payload.reserved_quantity ? parseInt(payload.reserved_quantity, 10) : 1;
+        payload.reserved_quantity = payload.reserved_quantity
+          ? parseInt(payload.reserved_quantity, 10)
+          : 1;
 
         try {
           // Optimistic update: Add reservation to local state immediately
-          const equipment = this.equipment.find(e => e.id === payload.equipment_id);
+          const equipment = this.equipment.find(
+            (e) => e.id === payload.equipment_id,
+          );
           if (equipment) {
             const optimisticReservation = {
               id: `temp-${Date.now()}`,
@@ -264,16 +303,19 @@ export class ResourceDashboard {
               reserved_quantity: payload.reserved_quantity,
               reserved_for: payload.reserved_for,
               meeting_date: payload.meeting_date,
-              status: payload.status || 'reserved',
+              status: payload.status || "reserved",
               notes: payload.notes,
-              reservation_organization_id: localStorage.getItem('currentOrganizationId')
+              reservation_organization_id: localStorage.getItem(
+                "currentOrganizationId",
+              ),
             };
 
             // Add to local reservations array
             this.reservations = [optimisticReservation, ...this.reservations];
 
             // Update equipment reserved quantity optimistically
-            equipment.reserved_quantity = (equipment.reserved_quantity || 0) + payload.reserved_quantity;
+            equipment.reserved_quantity =
+              (equipment.reserved_quantity || 0) + payload.reserved_quantity;
 
             // Re-render with optimistic data
             this.render();
@@ -285,9 +327,9 @@ export class ResourceDashboard {
           this.app.showMessage(translate("reservation_saved"), "success");
 
           // Invalidate cache to ensure fresh data
-          await deleteCachedData('v1/resources/equipment');
-          await deleteCachedData('v1/resources/equipment/reservations');
-          await deleteCachedData('v1/resources/status/dashboard');
+          await deleteCachedData("v1/resources/equipment");
+          await deleteCachedData("v1/resources/equipment/reservations");
+          await deleteCachedData("v1/resources/status/dashboard");
 
           // Refresh from server to get actual IDs and updated quantities
           await this.refreshData();
@@ -295,7 +337,10 @@ export class ResourceDashboard {
           this.attachEventHandlers();
         } catch (error) {
           debugError("Error saving reservation", error);
-          this.app.showMessage(error.message || translate("resource_dashboard_error_loading"), "error");
+          this.app.showMessage(
+            error.message || translate("resource_dashboard_error_loading"),
+            "error",
+          );
 
           // Revert optimistic update on error
           await this.refreshData();
@@ -304,6 +349,5 @@ export class ResourceDashboard {
         }
       });
     }
-
   }
 }
