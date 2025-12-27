@@ -58,47 +58,70 @@ const ManagePointsScreen = () => {
   const [filterGroupId, setFilterGroupId] = useState('');
 
   /**
+   * Debug filter changes
+   */
+  useEffect(() => {
+    debugLog('filterGroupId changed:', filterGroupId, 'isEmpty:', filterGroupId === '', 'groups count:', groups.length);
+  }, [filterGroupId]);
+
+  /**
    * Get sorted and filtered groups with participant data
    */
   const sortedAndFilteredData = useMemo(() => {
+    debugLog('sortedAndFilteredData recomputing...', {
+      sortBy,
+      filterGroupId,
+      groupsCount: groups.length,
+      participantsCount: participants.length,
+    });
     // Filter groups if a specific group is selected
     let filteredGroups = filterGroupId && filterGroupId !== ''
       ? groups.filter((g) => g.id === parseInt(filterGroupId))
       : groups;
 
-    // Build group data with participants
+    debugLog('Filtered groups:', filteredGroups.length, 'out of', groups.length);
+
+    // For name and points sorting, return flat participant list
+    if (sortBy === SORT_TYPES.NAME || sortBy === SORT_TYPES.POINTS) {
+      // Get all participants from filtered groups
+      const allParticipants = filteredGroups.reduce((acc, group) => {
+        const groupParticipants = participants.filter((p) => p.group_id === group.id);
+        return [...acc, ...groupParticipants];
+      }, []);
+
+      // Sort participants
+      const sortedParticipants = [...allParticipants].sort((a, b) => {
+        if (sortBy === SORT_TYPES.NAME) {
+          const nameA = (a.firstName || a.first_name || '').toLowerCase();
+          const nameB = (b.firstName || b.first_name || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        } else {
+          // Sort by points (descending)
+          return (b.total_points || 0) - (a.total_points || 0);
+        }
+      });
+
+      // Return as single "group" for flat display
+      return [{
+        group: { id: 'all', name: sortBy === SORT_TYPES.NAME ? t('sort_by_name') : t('sort_by_points'), total_points: 0 },
+        participants: sortedParticipants,
+        isFlat: true,
+      }];
+    }
+
+    // Build group data with participants (for group sorting)
     let groupData = filteredGroups.map((group) => {
       const groupParticipants = participants.filter((p) => p.group_id === group.id);
+      // Sort participants by name within each group
+      const sortedParticipants = [...groupParticipants].sort((a, b) =>
+        (a.firstName || a.first_name || '').localeCompare(b.firstName || b.first_name || '')
+      );
       return {
         group,
-        participants: groupParticipants,
+        participants: sortedParticipants,
+        isFlat: false,
       };
     });
-
-    // Apply sorting
-    if (sortBy === SORT_TYPES.NAME) {
-      // Sort by first participant's name in each group
-      groupData.forEach((item) => {
-        item.participants.sort((a, b) =>
-          (a.firstName || a.first_name || '').localeCompare(b.firstName || b.first_name || '')
-        );
-      });
-    } else if (sortBy === SORT_TYPES.POINTS) {
-      // Sort participants by points within each group
-      groupData.forEach((item) => {
-        item.participants.sort((a, b) => (b.total_points || 0) - (a.total_points || 0));
-      });
-      // Also sort groups by total points
-      groupData.sort((a, b) => (b.group.total_points || 0) - (a.group.total_points || 0));
-    } else {
-      // Default: sort by group (already grouped)
-      // Sort participants by name within each group
-      groupData.forEach((item) => {
-        item.participants.sort((a, b) =>
-          (a.firstName || a.first_name || '').localeCompare(b.firstName || b.first_name || '')
-        );
-      });
-    }
 
     return groupData;
   }, [groups, participants, sortBy, filterGroupId]);
@@ -164,36 +187,12 @@ const ManagePointsScreen = () => {
         throw new Error(response.message || t('error_loading_data'));
       }
 
-      debugLog('Points updated:', response.data);
+      debugLog('Points updated successfully:', response.data);
 
-      // Update local state optimistically
-      if (selectedType === 'group') {
-        // Update group points
-        setGroups((prevGroups) =>
-          prevGroups.map((g) =>
-            g.id === selectedId
-              ? { ...g, total_points: (g.total_points || 0) + points }
-              : g
-          )
-        );
-        // Update all participants in the group
-        setParticipants((prevParticipants) =>
-          prevParticipants.map((p) =>
-            p.group_id === selectedId
-              ? { ...p, total_points: (p.total_points || 0) + points }
-              : p
-          )
-        );
-      } else {
-        // Update individual participant
-        setParticipants((prevParticipants) =>
-          prevParticipants.map((p) =>
-            p.id === selectedId
-              ? { ...p, total_points: (p.total_points || 0) + points }
-              : p
-          )
-        );
-      }
+      // Reload fresh data from API to ensure cache is updated
+      // This ensures when user leaves and returns, they see the updated points
+      await loadPointsData();
+
     } catch (err) {
       debugError('Error updating points:', err);
       setError(err.message || t('error_loading_manage_points'));
@@ -258,11 +257,12 @@ const ManagePointsScreen = () => {
   /**
    * Render a group with its participants
    */
-  const renderGroupSection = ({ group, participants: groupParticipants }) => {
+  const renderGroupSection = ({ group, participants: groupParticipants, isFlat }) => {
     return (
       <View key={`section-${group.id}`} style={styles.groupSection}>
-        {renderGroupHeader(group)}
-        <View style={styles.groupContent}>
+        {/* Only show group header if not in flat mode */}
+        {!isFlat && renderGroupHeader(group)}
+        <View style={isFlat ? styles.flatContent : styles.groupContent}>
           {groupParticipants.length > 0 ? (
             groupParticipants.map((participant, index) => renderParticipant(participant, index))
           ) : (
@@ -323,8 +323,8 @@ const ManagePointsScreen = () => {
             <Picker
               selectedValue={filterGroupId}
               onValueChange={(value) => {
-                debugLog('Filter changed to:', value);
-                setFilterGroupId(value === '' ? '' : value);
+                debugLog('Filter changed from', filterGroupId, 'to', value, 'type:', typeof value);
+                setFilterGroupId(value);
               }}
               style={styles.picker}
             >
@@ -452,6 +452,9 @@ const styles = StyleSheet.create({
   },
   groupContent: {
     paddingLeft: theme.spacing.md,
+  },
+  flatContent: {
+    // No left padding for flat list
   },
   participantItem: {
     flexDirection: 'row',
