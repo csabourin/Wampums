@@ -1102,7 +1102,7 @@ export class MedicationManagement {
     }
 
     setContent(container, alerts.map((alert) => {
-      const timeLabel = alert.time.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" }));
+      const timeLabel = alert.time.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
       const dateLabel = formatDate(alert.time.toISOString(), this.app.lang || "en", { year: "numeric", month: "short", day: "numeric" });
       const dueLabel = alert.minutesUntil <= 5 ? translate("medication_due_now") : translate("medication_due_in_minutes").replace("{minutes}", alert.minutesUntil);
 

@@ -131,11 +131,11 @@ export class Dashboard {
       // Prefetch all critical data in parallel for maximum performance
       await Promise.allSettled([
         // Attendance page data
-        getAttendanceDates().catch(error => {
+        getAttendanceDates().catch((error) => {
           debugLog("Prefetch attendance dates skipped:", error);
           return null;
         }),
-        getAttendance(today).catch(error => {
+        getAttendance(today).catch((error) => {
           debugLog("Prefetch today's attendance skipped:", error);
           return null;
         }),
@@ -147,11 +147,11 @@ export class Dashboard {
             debugLog("Groups already loaded, skipping prefetch");
             return null;
           }
-          return getGroups().catch(error => {
+          return getGroups().catch((error) => {
             debugLog("Prefetch groups skipped:", error);
             return null;
           });
-        })()
+        })(),
       ]);
 
       debugLog("Critical pages prefetch completed");
@@ -198,7 +198,7 @@ export class Dashboard {
             group_name: p.group_name,
             first_leader: p.first_leader ?? p.is_leader,
             second_leader: p.second_leader ?? p.is_second_leader,
-          }))
+          })),
         );
       }
 
@@ -216,8 +216,8 @@ export class Dashboard {
         );
 
         const mergedParticipants = this.participants.length
-          ? this.participants.map((participant) =>
-              freshById.get(participant.id) || participant,
+          ? this.participants.map(
+              (participant) => freshById.get(participant.id) || participant,
             )
           : freshParticipants;
 
@@ -271,18 +271,18 @@ export class Dashboard {
     const promises = [];
     if (fetchParticipants) {
       promises.push(
-        getParticipants().catch(error => {
+        getParticipants().catch((error) => {
           debugError("Error loading participants:", error);
           return { success: false, participants: [] };
-        })
+        }),
       );
     }
     if (fetchGroups) {
       promises.push(
-        getGroups().catch(error => {
+        getGroups().catch((error) => {
           debugError("Error loading groups:", error);
           return { success: false, data: [] };
-        })
+        }),
       );
     }
 
@@ -322,10 +322,10 @@ export class Dashboard {
     }
 
     // Permission-based visibility checks
-    const showFinanceSection = hasAnyPermission('finance.view', 'budget.view');
+    const showFinanceSection = hasAnyPermission("finance.view", "budget.view");
     const showRoleManagement = canViewRoles();
     const showOrgCreation = canCreateOrganization();
-    const showReports = hasAnyPermission('reports.view', 'reports.export');
+    const showReports = hasAnyPermission("reports.view", "reports.export");
     const showAdminPanel = canAccessAdminPanel(); // Old admin panel (legacy)
     const showFormPermissions = canManageForms();
 
@@ -333,20 +333,30 @@ export class Dashboard {
     const administrationLinks = [];
 
     if (showRoleManagement) {
-      administrationLinks.push(`<a href="/role-management"><i class="fa-solid fa-user-tag"></i><span>${translate("role_management") || "Role Management"}</span></a>`);
-      administrationLinks.push(`<a href="/district-management"><i class="fa-solid fa-sitemap"></i><span>${translate("district_management_title") || "District Management"}</span></a>`);
+      administrationLinks.push(
+        `<a href="/role-management"><i class="fa-solid fa-user-tag"></i><span>${translate("role_management") || "Role Management"}</span></a>`,
+      );
+      administrationLinks.push(
+        `<a href="/district-management"><i class="fa-solid fa-sitemap"></i><span>${translate("district_management_title") || "District Management"}</span></a>`,
+      );
     }
 
     if (showFormPermissions) {
-      administrationLinks.push(`<a href="/form-permissions"><i class="fa-solid fa-clipboard-check"></i><span>${translate("form_permissions") || "Form Permissions"}</span></a>`);
+      administrationLinks.push(
+        `<a href="/form-permissions"><i class="fa-solid fa-clipboard-check"></i><span>${translate("form_permissions") || "Form Permissions"}</span></a>`,
+      );
     }
 
     if (showOrgCreation) {
-      administrationLinks.push(`<a href="/create-organization"><i class="fa-solid fa-building"></i><span>${translate("create_unit") || "Create Unit"}</span></a>`);
+      administrationLinks.push(
+        `<a href="/create-organization"><i class="fa-solid fa-building"></i><span>${translate("create_unit") || "Create Unit"}</span></a>`,
+      );
     }
 
     if (showAdminPanel) {
-      administrationLinks.push(`<a href="/admin" id="admin-link"><i class="fa-solid fa-user-shield"></i><span>${translate("administration")}</span></a>`);
+      administrationLinks.push(
+        `<a href="/admin" id="admin-link"><i class="fa-solid fa-user-shield"></i><span>${translate("administration")}</span></a>`,
+      );
     }
 
     const content = `
@@ -399,46 +409,54 @@ export class Dashboard {
   </div>
 </section>
 
-${showFinanceSection ? `
+${
+  showFinanceSection
+    ? `
 <!-- FINANCE & BUDGET -->
 <section class="dashboard-section">
   <h3>${translate("dashboard_finance_section")}</h3>
   <div class="manage-items">
-    ${hasPermission('finance.view') ? `<a href="/finance"><i class="fa-solid fa-coins"></i><span>${translate("finance_memberships_tab")}</span></a>` : ''}
-    ${hasPermission('finance.view') ? `<a href="/finance?tab=definitions"><i class="fa-solid fa-file-invoice-dollar"></i><span>${translate("finance_definitions_tab")}</span></a>` : ''}
-    ${hasPermission('finance.view') ? `<a href="/finance?tab=reports"><i class="fa-solid fa-chart-pie"></i><span>${translate("financial_report")}</span></a>` : ''}
-    ${hasAnyPermission('finance.manage', 'finance.view') ? `<a href="/expenses"><i class="fa-solid fa-wallet"></i><span>${translate("expense_tracking")}</span></a>` : ''}
-    ${hasAnyPermission('finance.manage', 'finance.view') ? `<a href="/external-revenue"><i class="fa-solid fa-hand-holding-dollar"></i><span>${translate("external_revenue")}</span></a>` : ''}
+    ${hasPermission("finance.view") ? `<a href="/finance"><i class="fa-solid fa-coins"></i><span>${translate("finance_memberships_tab")}</span></a>` : ""}
+    ${hasPermission("finance.view") ? `<a href="/finance?tab=definitions"><i class="fa-solid fa-file-invoice-dollar"></i><span>${translate("finance_definitions_tab")}</span></a>` : ""}
+    ${hasPermission("finance.view") ? `<a href="/finance?tab=reports"><i class="fa-solid fa-chart-pie"></i><span>${translate("financial_report")}</span></a>` : ""}
+    ${hasAnyPermission("finance.manage", "finance.view") ? `<a href="/expenses"><i class="fa-solid fa-wallet"></i><span>${translate("expense_tracking")}</span></a>` : ""}
+    ${hasAnyPermission("finance.manage", "finance.view") ? `<a href="/external-revenue"><i class="fa-solid fa-hand-holding-dollar"></i><span>${translate("external_revenue")}</span></a>` : ""}
   </div>
 </section>
-` : ''}
+`
+    : ""
+}
 
 <!-- ADMIN -->
 <section class="dashboard-section">
   <h3>${translate("dashboard_admin_section")}</h3>
   <div class="manage-items">
-    ${hasPermission('participants.view') ? `<a href="/manage-participants"><i class="fa-solid fa-id-card"></i><span>${translate("manage_names")}</span></a>` : ''}
-    ${hasPermission('groups.view') ? `<a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>` : ''}
-    ${hasPermission('users.view') ? `<a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>` : ''}
+    ${hasPermission("participants.view") ? `<a href="/manage-participants"><i class="fa-solid fa-id-card"></i><span>${translate("manage_names")}</span></a>` : ""}
+    ${hasPermission("groups.view") ? `<a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>` : ""}
+    ${hasPermission("users.view") ? `<a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>` : ""}
     <a href="/account-info"><i class="fa-solid fa-user-circle"></i><span>${translate("account_info")}</span></a>
-    ${hasPermission('communications.send') ? `<a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>` : ''}
-    ${hasPermission('fundraisers.view') ? `<a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>` : ''}
-    ${hasAnyPermission('finance.view', 'fundraisers.view') ? `<a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>` : ''}
-    ${hasPermission('budget.view') ? `<a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>` : ''}
-    ${showReports ? `<a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>` : ''}
-    ${showReports ? `<a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>` : ''}
+    ${hasPermission("communications.send") ? `<a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>` : ""}
+    ${hasPermission("fundraisers.view") ? `<a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>` : ""}
+    ${hasAnyPermission("finance.view", "fundraisers.view") ? `<a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>` : ""}
+    ${hasPermission("budget.view") ? `<a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>` : ""}
+    ${showReports ? `<a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>` : ""}
+    ${showReports ? `<a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>` : ""}
   </div>
 </section>
 
-${administrationLinks.length > 0 ? `
+${
+  administrationLinks.length > 0
+    ? `
 <!-- ADMINISTRATION -->
 <section class="dashboard-section administration-section">
   <h3>${translate("system_administration") || "System Administration"}</h3>
   <div class="manage-items">
-    ${administrationLinks.join('\n    ')}
+    ${administrationLinks.join("\n    ")}
   </div>
 </section>
-` : ''}
+`
+    : ""
+}
 
 
 
@@ -472,9 +490,12 @@ ${administrationLinks.length > 0 ? `
     if (!list) return;
 
     list.classList.toggle("collapsed", this.pointsCollapsed);
-    setContent(list, this.pointsCollapsed
-      ? this.renderCollapsedPointsPlaceholder()
-      : this.renderPointsList());
+    setContent(
+      list,
+      this.pointsCollapsed
+        ? this.renderCollapsedPointsPlaceholder()
+        : this.renderPointsList(),
+    );
   }
 
   renderPointsList() {
@@ -757,32 +778,40 @@ ${administrationLinks.length > 0 ? `
     try {
       const activities = await getActivities();
       const now = new Date();
-      const upcomingActivities = activities.filter(a => new Date(a.activity_date) >= now);
+      const upcomingActivities = activities.filter(
+        (a) => new Date(a.activity_date) >= now,
+      );
 
-      const modal = document.createElement('div');
-      modal.className = 'modal-screen';
-      modal.style.position = 'fixed';
-      modal.style.top = '0';
-      modal.style.left = '0';
-      modal.style.width = '100%';
-      modal.style.height = '100%';
-      modal.style.background = 'rgba(0,0,0,0.5)';
-      modal.style.display = 'flex';
-      modal.style.alignItems = 'center';
-      modal.style.justifyContent = 'center';
-      modal.style.zIndex = '10000';
+      const modal = document.createElement("div");
+      modal.className = "modal-screen";
+      modal.style.position = "fixed";
+      modal.style.top = "0";
+      modal.style.left = "0";
+      modal.style.width = "100%";
+      modal.style.height = "100%";
+      modal.style.background = "rgba(0,0,0,0.5)";
+      modal.style.display = "flex";
+      modal.style.alignItems = "center";
+      modal.style.justifyContent = "center";
+      modal.style.zIndex = "10000";
 
-      setContent(modal, `
+      setContent(
+        modal,
+        `
         <div style="background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow: auto; padding: 2rem;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-            <h2 style="margin: 0;">${translate('carpool_coordination')}</h2>
+            <h2 style="margin: 0;">${translate("carpool_coordination")}</h2>
             <button type="button" id="close-carpool-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 0.5rem;">✕</button>
           </div>
 
-          ${upcomingActivities.length > 0 ? `
-            <p style="color: #666; margin-bottom: 1rem;">${translate('select_activity_for_carpool')}</p>
+          ${
+            upcomingActivities.length > 0
+              ? `
+            <p style="color: #666; margin-bottom: 1rem;">${translate("select_activity_for_carpool")}</p>
             <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
-              ${upcomingActivities.map(activity => `
+              ${upcomingActivities
+                .map(
+                  (activity) => `
                 <a href="/carpool/${activity.id}" style="padding: 1rem; border: 2px solid #e0e0e0; border-radius: 8px; text-decoration: none; color: inherit; display: block; transition: all 0.2s;">
                   <div style="display: flex; justify-content: space-between; gap: 1rem;">
                     <div style="flex: 1;">
@@ -796,104 +825,109 @@ ${administrationLinks.length > 0 ? `
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; font-size: 0.85rem;">
                       <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px;">
-                        ${activity.carpool_offer_count || 0} ${translate('vehicles')}
+                        ${activity.carpool_offer_count || 0} ${translate("vehicles")}
                       </span>
                       <span style="color: #666;">
-                        ${activity.assigned_participant_count || 0} ${translate('assigned')}
+                        ${activity.assigned_participant_count || 0} ${translate("assigned")}
                       </span>
                     </div>
                   </div>
                 </a>
-              `).join('')}
+              `,
+                )
+                .join("")}
             </div>
-          ` : `
+          `
+              : `
             <div style="text-align: center; padding: 2rem; color: #999;">
-              <p style="margin-bottom: 1rem;">${translate('no_upcoming_activities')}</p>
+              <p style="margin-bottom: 1rem;">${translate("no_upcoming_activities")}</p>
             </div>
-          `}
+          `
+          }
 
           <div style="border-top: 1px solid #e0e0e0; padding-top: 1.5rem; margin-top: 1.5rem;">
             <button type="button" id="quick-create-activity-btn" class="button" style="width: 100%; padding: 0.75rem; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 500;">
-              ➕ ${translate('quick_create_activity')}
+              ➕ ${translate("quick_create_activity")}
             </button>
           </div>
         </div>
-      `;
+      `);
 
       document.body.appendChild(modal);
 
       // Close handlers
-      const closeBtn = modal.querySelector('#close-carpool-modal');
-      closeBtn.addEventListener('click', () => modal.remove());
-      modal.addEventListener('click', (e) => {
+      const closeBtn = modal.querySelector("#close-carpool-modal");
+      closeBtn.addEventListener("click", () => modal.remove());
+      modal.addEventListener("click", (e) => {
         if (e.target === modal) modal.remove();
       });
 
       // Quick create activity button
-      const quickCreateBtn = modal.querySelector('#quick-create-activity-btn');
-      quickCreateBtn.addEventListener('click', () => {
+      const quickCreateBtn = modal.querySelector("#quick-create-activity-btn");
+      quickCreateBtn.addEventListener("click", () => {
         modal.remove();
         this.showQuickCreateActivityModal();
       });
 
       // Add hover effects
       const activityLinks = modal.querySelectorAll('a[href^="/carpool/"]');
-      activityLinks.forEach(link => {
-        link.addEventListener('mouseenter', (e) => {
-          e.currentTarget.style.borderColor = '#667eea';
-          e.currentTarget.style.boxShadow = '0 4px 12px rgba(102,126,234,0.15)';
+      activityLinks.forEach((link) => {
+        link.addEventListener("mouseenter", (e) => {
+          e.currentTarget.style.borderColor = "#667eea";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(102,126,234,0.15)";
         });
-        link.addEventListener('mouseleave', (e) => {
-          e.currentTarget.style.borderColor = '#e0e0e0';
-          e.currentTarget.style.boxShadow = 'none';
+        link.addEventListener("mouseleave", (e) => {
+          e.currentTarget.style.borderColor = "#e0e0e0";
+          e.currentTarget.style.boxShadow = "none";
         });
       });
-
     } catch (error) {
-      debugError('Error loading carpool activities:', error);
-      this.app.showToast(translate('error_loading_activities'), 'error');
+      debugError("Error loading carpool activities:", error);
+      this.app.showToast(translate("error_loading_activities"), "error");
     }
   }
 
   showQuickCreateActivityModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-screen';
-    modal.style.position = 'fixed';
-    modal.style.top = '0';
-    modal.style.left = '0';
-    modal.style.width = '100%';
-    modal.style.height = '100%';
-    modal.style.background = 'rgba(0,0,0,0.5)';
-    modal.style.display = 'flex';
-    modal.style.alignItems = 'center';
-    modal.style.justifyContent = 'center';
-    modal.style.zIndex = '10000';
+    const modal = document.createElement("div");
+    modal.className = "modal-screen";
+    modal.style.position = "fixed";
+    modal.style.top = "0";
+    modal.style.left = "0";
+    modal.style.width = "100%";
+    modal.style.height = "100%";
+    modal.style.background = "rgba(0,0,0,0.5)";
+    modal.style.display = "flex";
+    modal.style.alignItems = "center";
+    modal.style.justifyContent = "center";
+    modal.style.zIndex = "10000";
 
     // Get tomorrow's date as default
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
-    setContent(modal, `
+    setContent(
+      modal,
+      `
       <div style="background: white; border-radius: 12px; max-width: 500px; width: 90%; padding: 2rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-          <h2 style="margin: 0;">${translate('quick_create_activity')}</h2>
+          <h2 style="margin: 0;">${translate("quick_create_activity")}</h2>
           <button type="button" id="close-quick-create-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 0.5rem;">✕</button>
         </div>
 
         <form id="quick-create-activity-form">
           <div style="margin-bottom: 1rem;">
             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-              ${translate('activity_name')} <span style="color: #dc3545;">*</span>
+              ${translate("activity_name")} <span style="color: #dc3545;">*</span>
             </label>
             <input type="text" name="name" required
               style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
-              placeholder="${translate('activity_name')}">
+              placeholder="${translate("activity_name")}">
           </div>
 
           <div style="margin-bottom: 1rem;">
             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-              ${translate('activity_date')} <span style="color: #dc3545;">*</span>
+              ${translate("activity_date")} <span style="color: #dc3545;">*</span>
             </label>
             <input type="date" name="activity_date" required value="${tomorrowStr}"
               style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
@@ -901,24 +935,24 @@ ${administrationLinks.length > 0 ? `
 
           <div style="margin-bottom: 1rem;">
             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-              ${translate('meeting_location')} (${translate('going')}) <span style="color: #dc3545;">*</span>
+              ${translate("meeting_location")} (${translate("going")}) <span style="color: #dc3545;">*</span>
             </label>
             <input type="text" name="meeting_location_going" required
               style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
-              placeholder="${translate('meeting_location_placeholder')}">
+              placeholder="${translate("meeting_location_placeholder")}">
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
             <div>
               <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-                ${translate('meeting_time')} <span style="color: #dc3545;">*</span>
+                ${translate("meeting_time")} <span style="color: #dc3545;">*</span>
               </label>
               <input type="time" name="meeting_time_going" required value="09:00"
                 style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
             </div>
             <div>
               <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-                ${translate('departure_time')} <span style="color: #dc3545;">*</span>
+                ${translate("departure_time")} <span style="color: #dc3545;">*</span>
               </label>
               <input type="time" name="departure_time_going" required value="09:15"
                 style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
@@ -926,28 +960,28 @@ ${administrationLinks.length > 0 ? `
           </div>
 
           <div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 2px solid #e9ecef;">
-            <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #667eea;">${translate('returning_from_activity')}</h3>
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #667eea;">${translate("returning_from_activity")}</h3>
 
             <div style="margin-bottom: 1rem;">
               <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-                ${translate('meeting_location')}
+                ${translate("meeting_location")}
               </label>
               <input type="text" name="meeting_location_return"
                 style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
-                placeholder="${translate('meeting_location_placeholder')}">
+                placeholder="${translate("meeting_location_placeholder")}">
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-                  ${translate('meeting_time')}
+                  ${translate("meeting_time")}
                 </label>
                 <input type="time" name="meeting_time_return"
                   style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
               </div>
               <div>
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-                  ${translate('departure_time')}
+                  ${translate("departure_time")}
                 </label>
                 <input type="time" name="departure_time_return"
                   style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
@@ -957,30 +991,31 @@ ${administrationLinks.length > 0 ? `
 
           <div style="margin-top: 2rem; display: flex; gap: 1rem;">
             <button type="button" id="cancel-quick-create" style="flex: 1; padding: 0.75rem; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem;">
-              ${translate('cancel')}
+              ${translate("cancel")}
             </button>
             <button type="submit" style="flex: 1; padding: 0.75rem; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: 500;">
-              ${translate('create_activity')}
+              ${translate("create_activity")}
             </button>
           </div>
         </form>
       </div>
-    `);
+    `,
+    );
 
     document.body.appendChild(modal);
 
     // Close handlers
-    const closeBtn = modal.querySelector('#close-quick-create-modal');
-    const cancelBtn = modal.querySelector('#cancel-quick-create');
-    closeBtn.addEventListener('click', () => modal.remove());
-    cancelBtn.addEventListener('click', () => modal.remove());
-    modal.addEventListener('click', (e) => {
+    const closeBtn = modal.querySelector("#close-quick-create-modal");
+    const cancelBtn = modal.querySelector("#cancel-quick-create");
+    closeBtn.addEventListener("click", () => modal.remove());
+    cancelBtn.addEventListener("click", () => modal.remove());
+    modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.remove();
     });
 
     // Form submission
-    const form = modal.querySelector('#quick-create-activity-form');
-    form.addEventListener('submit', async (e) => {
+    const form = modal.querySelector("#quick-create-activity-form");
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
@@ -988,7 +1023,7 @@ ${administrationLinks.length > 0 ? `
       try {
         const submitBtn = form.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
-        submitBtn.textContent = translate('creating') + '...';
+        submitBtn.textContent = translate("creating") + "...";
 
         const newActivity = await createActivity(data);
 
@@ -996,18 +1031,21 @@ ${administrationLinks.length > 0 ? `
         await clearActivityRelatedCaches();
 
         modal.remove();
-        this.app.showToast(translate('activity_created_success'), 'success');
+        this.app.showToast(translate("activity_created_success"), "success");
 
         // Redirect to the carpool page for this new activity
         setTimeout(() => {
           window.location.hash = `/carpool/${newActivity.id}`;
         }, 500);
       } catch (error) {
-        debugError('Error creating activity:', error);
-        this.app.showToast(error.message || translate('error_saving_activity'), 'error');
+        debugError("Error creating activity:", error);
+        this.app.showToast(
+          error.message || translate("error_saving_activity"),
+          "error",
+        );
         const submitBtn = form.querySelector('button[type="submit"]');
         submitBtn.disabled = false;
-        submitBtn.textContent = translate('create_activity');
+        submitBtn.textContent = translate("create_activity");
       }
     });
   }
@@ -1053,9 +1091,12 @@ ${administrationLinks.length > 0 ? `
   }
 
   renderError() {
-    setContent(document.getElementById("app"), `
+    setContent(
+      document.getElementById("app"),
+      `
       <h1>${translate("error")}</h1>
       <p>${translate("error_loading_dashboard")}</p>
-    `);
+    `,
+    );
   }
 }

@@ -5,9 +5,14 @@
  * This module ensures users are notified of PWA updates and can easily refresh to get the latest version.
  */
 
-import { CONFIG } from './config.js';
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { deleteIndexedDB } from './indexedDB.js';
+import { CONFIG } from "./config.js";
+import {
+    debugLog,
+    debugError,
+    debugWarn,
+    debugInfo,
+} from "./utils/DebugUtils.js";
+import { deleteIndexedDB } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 
 class PWAUpdateManager {
@@ -17,7 +22,8 @@ class PWAUpdateManager {
         this.newWorker = null;
         this.updateCheckInterval = null;
         this.initialized = false;
-        this.lastPromptedVersion = localStorage.getItem('lastSwVersionPrompt') || null;
+        this.lastPromptedVersion =
+            localStorage.getItem("lastSwVersionPrompt") || null;
         this.pendingVersion = null;
         this.updateAccepted = false;
     }
@@ -28,8 +34,8 @@ class PWAUpdateManager {
     async init() {
         if (this.initialized) return;
 
-        if (!('serviceWorker' in navigator)) {
-            debugLog('Service Worker not supported');
+        if (!("serviceWorker" in navigator)) {
+            debugLog("Service Worker not supported");
             return;
         }
 
@@ -50,9 +56,9 @@ class PWAUpdateManager {
             await this.checkForUpdate();
 
             this.initialized = true;
-            debugLog('PWA Update Manager initialized');
+            debugLog("PWA Update Manager initialized");
         } catch (error) {
-            debugError('Failed to initialize PWA Update Manager:', error);
+            debugError("Failed to initialize PWA Update Manager:", error);
         }
     }
 
@@ -63,14 +69,18 @@ class PWAUpdateManager {
         if (!this.registration) return;
 
         // Listen for new service worker waiting
-        this.registration.addEventListener('updatefound', () => {
+        this.registration.addEventListener("updatefound", () => {
             const newWorker = this.registration.installing;
 
             if (newWorker) {
-                newWorker.addEventListener('statechange', async () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                newWorker.addEventListener("statechange", async () => {
+                    if (
+                        newWorker.state === "installed" &&
+                        navigator.serviceWorker.controller
+                    ) {
                         // Only prompt when the new worker is a different version
-                        const newVersion = await this.getServiceWorkerVersion(newWorker);
+                        const newVersion =
+                            await this.getServiceWorkerVersion(newWorker);
 
                         if (this.shouldNotifyVersion(newVersion)) {
                             this.newWorker = newWorker;
@@ -78,7 +88,9 @@ class PWAUpdateManager {
                             this.updateAvailable = true;
                             this.showUpdatePrompt();
                         } else {
-                            debugLog('Service worker updated without version change; skipping prompt');
+                            debugLog(
+                                "Service worker updated without version change; skipping prompt",
+                            );
                         }
                     }
                 });
@@ -86,7 +98,7 @@ class PWAUpdateManager {
         });
 
         // Listen for controller change (when new SW takes over)
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
             // Only reload if we expected an update
             if (this.updateAccepted) {
                 // Hard reload to bypass browser cache completely
@@ -99,9 +111,9 @@ class PWAUpdateManager {
      * Listen for messages from the service worker
      */
     listenForServiceWorkerMessages() {
-        navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data.type === 'UPDATE_AVAILABLE') {
-                debugLog('Update available:', event.data.version);
+        navigator.serviceWorker.addEventListener("message", (event) => {
+            if (event.data.type === "UPDATE_AVAILABLE") {
+                debugLog("Update available:", event.data.version);
                 if (this.shouldNotifyVersion(event.data.version)) {
                     this.pendingVersion = event.data.version;
                     this.updateAvailable = true;
@@ -122,14 +134,20 @@ class PWAUpdateManager {
 
             // Also check the version from service worker
             const version = await this.getServiceWorkerVersion();
-            if (version && version !== CONFIG.VERSION && this.shouldNotifyVersion(version)) {
-                debugLog(`Version mismatch: SW=${version}, APP=${CONFIG.VERSION}`);
+            if (
+                version &&
+                version !== CONFIG.VERSION &&
+                this.shouldNotifyVersion(version)
+            ) {
+                debugLog(
+                    `Version mismatch: SW=${version}, APP=${CONFIG.VERSION}`,
+                );
                 this.pendingVersion = version;
                 this.updateAvailable = true;
                 this.showUpdatePrompt();
             }
         } catch (error) {
-            debugError('Failed to check for updates:', error);
+            debugError("Failed to check for updates:", error);
         }
     }
 
@@ -140,24 +158,25 @@ class PWAUpdateManager {
      * Request the version reported by the specified service worker.
      * Defaults to the active controller when no worker is provided.
      */
-    async getServiceWorkerVersion(targetWorker = navigator.serviceWorker.controller) {
+    async getServiceWorkerVersion(
+        targetWorker = navigator.serviceWorker.controller,
+    ) {
         if (!targetWorker) return null;
 
         return new Promise((resolve) => {
             const messageChannel = new MessageChannel();
 
             messageChannel.port1.onmessage = (event) => {
-                if (event.data.type === 'VERSION_INFO') {
+                if (event.data.type === "VERSION_INFO") {
                     resolve(event.data.version);
                 } else {
                     resolve(null);
                 }
             };
 
-            targetWorker.postMessage(
-                { type: 'GET_VERSION' },
-                [messageChannel.port2]
-            );
+            targetWorker.postMessage({ type: "GET_VERSION" }, [
+                messageChannel.port2,
+            ]);
 
             // Timeout after 2 seconds
             setTimeout(() => resolve(null), 2000);
@@ -174,14 +193,14 @@ class PWAUpdateManager {
         }, 600000);
 
         // Also check when page becomes visible
-        document.addEventListener('visibilitychange', () => {
+        document.addEventListener("visibilitychange", () => {
             if (!document.hidden) {
                 this.checkForUpdate();
             }
         });
 
         // Check when online
-        window.addEventListener('online', () => {
+        window.addEventListener("online", () => {
             this.checkForUpdate();
         });
     }
@@ -201,7 +220,7 @@ class PWAUpdateManager {
      */
     showUpdatePrompt() {
         // Don't show multiple prompts
-        if (document.getElementById('pwa-update-prompt')) return;
+        if (document.getElementById("pwa-update-prompt")) return;
 
         if (this.pendingVersion) {
             this.markVersionPrompted(this.pendingVersion);
@@ -212,7 +231,7 @@ class PWAUpdateManager {
 
         // Auto-show the prompt
         setTimeout(() => {
-            prompt.classList.add('show');
+            prompt.classList.add("show");
         }, 100);
     }
 
@@ -220,36 +239,43 @@ class PWAUpdateManager {
      * Create the update prompt HTML element
      */
     createUpdatePromptElement() {
-        const prompt = document.createElement('div');
-        prompt.id = 'pwa-update-prompt';
-        prompt.className = 'pwa-update-prompt';
+        const prompt = document.createElement("div");
+        prompt.id = "pwa-update-prompt";
+        prompt.className = "pwa-update-prompt";
 
-        const lang = localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
+        const lang =
+            localStorage.getItem("lang") ||
+            localStorage.getItem("language") ||
+            CONFIG.DEFAULT_LANG;
 
         const messages = {
             fr: {
-                title: 'Nouvelle version disponible',
-                message: 'Une nouvelle version de l\'application est disponible.',
-                update: 'Mettre à jour',
-                later: 'Plus tard'
+                title: "Nouvelle version disponible",
+                message:
+                    "Une nouvelle version de l'application est disponible.",
+                update: "Mettre à jour",
+                later: "Plus tard",
             },
             en: {
-                title: 'New version available',
-                message: 'A new version of the application is available.',
-                update: 'Update',
-                later: 'Later'
+                title: "New version available",
+                message: "A new version of the application is available.",
+                update: "Update",
+                later: "Later",
             },
             uk: {
-                title: 'Доступна нова версія',
-                message: 'Доступна нова версія застосунку.',
-                update: 'Оновити',
-                later: 'Пізніше'
-            }
+                title: "Доступна нова версія",
+                message: "Доступна нова версія застосунку.",
+                update: "Оновити",
+                later: "Пізніше",
+            },
         };
 
-        const msg = messages[lang] || messages[CONFIG.DEFAULT_LANG] || messages.fr;
+        const msg =
+            messages[lang] || messages[CONFIG.DEFAULT_LANG] || messages.fr;
 
-        setContent(prompt, `
+        setContent(
+            prompt,
+            `
             <div class="pwa-update-content">
                 <div class="pwa-update-icon">🔄</div>
                 <div class="pwa-update-text">
@@ -265,18 +291,23 @@ class PWAUpdateManager {
                     </button>
                 </div>
             </div>
-        `);
+        `,
+        );
         // Add event listeners
-        prompt.querySelector('#pwa-update-now').addEventListener('click', () => {
-            this.applyUpdate();
-        });
+        prompt
+            .querySelector("#pwa-update-now")
+            .addEventListener("click", () => {
+                this.applyUpdate();
+            });
 
-        prompt.querySelector('#pwa-update-later').addEventListener('click', () => {
-            this.dismissPrompt();
-        });
+        prompt
+            .querySelector("#pwa-update-later")
+            .addEventListener("click", () => {
+                this.dismissPrompt();
+            });
 
         // Add styles if not already present
-        if (!document.getElementById('pwa-update-styles')) {
+        if (!document.getElementById("pwa-update-styles")) {
             this.addStyles();
         }
 
@@ -287,8 +318,8 @@ class PWAUpdateManager {
      * Add CSS styles for the update prompt
      */
     addStyles() {
-        const style = document.createElement('style');
-        style.id = 'pwa-update-styles';
+        const style = document.createElement("style");
+        style.id = "pwa-update-styles";
         style.textContent = `
             .pwa-update-prompt {
                 position: fixed;
@@ -441,7 +472,7 @@ class PWAUpdateManager {
      */
     markVersionPrompted(version) {
         this.lastPromptedVersion = version;
-        localStorage.setItem('lastSwVersionPrompt', version);
+        localStorage.setItem("lastSwVersionPrompt", version);
     }
 
     /**
@@ -450,32 +481,32 @@ class PWAUpdateManager {
      */
     async clearAllCaches() {
         try {
-            debugLog('Clearing all caches for version update...');
+            debugLog("Clearing all caches for version update...");
 
             // 1. Clear IndexedDB completely
             try {
                 await deleteIndexedDB();
-                debugLog('IndexedDB cleared successfully');
+                debugLog("IndexedDB cleared successfully");
             } catch (error) {
-                debugWarn('Failed to clear IndexedDB:', error);
+                debugWarn("Failed to clear IndexedDB:", error);
             }
 
             // 2. Clear all Service Worker caches
-            if ('caches' in window) {
+            if ("caches" in window) {
                 try {
                     const cacheNames = await caches.keys();
                     await Promise.all(
-                        cacheNames.map(cacheName => caches.delete(cacheName))
+                        cacheNames.map((cacheName) => caches.delete(cacheName)),
                     );
-                    debugLog('Service Worker caches cleared:', cacheNames);
+                    debugLog("Service Worker caches cleared:", cacheNames);
                 } catch (error) {
-                    debugWarn('Failed to clear Service Worker caches:', error);
+                    debugWarn("Failed to clear Service Worker caches:", error);
                 }
             }
 
-            debugLog('All caches cleared successfully');
+            debugLog("All caches cleared successfully");
         } catch (error) {
-            debugError('Error clearing caches:', error);
+            debugError("Error clearing caches:", error);
             // Don't throw - we still want to proceed with the update
         }
     }
@@ -491,10 +522,10 @@ class PWAUpdateManager {
 
         if (this.newWorker) {
             // Tell the new service worker to skip waiting
-            this.newWorker.postMessage({ type: 'SKIP_WAITING' });
+            this.newWorker.postMessage({ type: "SKIP_WAITING" });
         } else if (navigator.serviceWorker.controller) {
             // Fallback: tell current SW to skip waiting
-            navigator.serviceWorker.controller.postMessage('skipWaiting');
+            navigator.serviceWorker.controller.postMessage("skipWaiting");
         }
 
         this.dismissPrompt();
@@ -507,11 +538,13 @@ class PWAUpdateManager {
      * Show loading indicator during update
      */
     showLoadingIndicator() {
-        const loader = document.createElement('div');
-        loader.id = 'pwa-update-loader';
-        setContent(loader, `
+        const loader = document.createElement("div");
+        loader.id = "pwa-update-loader";
+        setContent(
+            loader,
+            `
             <div style="
-                position: fixed);
+                position: fixed;
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
@@ -525,12 +558,13 @@ class PWAUpdateManager {
                 <div style="font-size: 32px; margin-bottom: 12px;">⏳</div>
                 <div>Mise à jour en cours...</div>
             </div>
-        `;
+        `,
+        );
         document.body.appendChild(loader);
 
         // Safety timeout: if update doesn't complete in 5 seconds, reload anyway
         setTimeout(() => {
-            const loaderElement = document.getElementById('pwa-update-loader');
+            const loaderElement = document.getElementById("pwa-update-loader");
             if (loaderElement) {
                 // Hard reload to bypass browser cache completely
                 window.location.reload(true);
@@ -546,9 +580,9 @@ class PWAUpdateManager {
         this.updateAccepted = false;
         this.pendingVersion = null;
 
-        const prompt = document.getElementById('pwa-update-prompt');
+        const prompt = document.getElementById("pwa-update-prompt");
         if (prompt) {
-            prompt.classList.remove('show');
+            prompt.classList.remove("show");
             setTimeout(() => {
                 prompt.remove();
             }, 300);
@@ -569,8 +603,8 @@ const updateManager = new PWAUpdateManager();
 export default updateManager;
 
 // Auto-initialize when module is imported
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
         updateManager.init();
     });
 } else {

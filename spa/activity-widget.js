@@ -1,15 +1,19 @@
 // activity-widget.js
-import {translate} from "./app.js";
+import { translate } from "./app.js";
 import { getReunionPreparation } from "./ajax-functions.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
-import { canManageActivities, canManageAttendance, canViewActivities } from "./utils/PermissionUtils.js";
+import {
+	canManageActivities,
+	canManageAttendance,
+	canViewActivities,
+} from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class ActivityWidget {
 	constructor(app) {
-		debugLog('ActivityWidget constructor called');
-		debugLog('App object:', app);
+		debugLog("ActivityWidget constructor called");
+		debugLog("App object:", app);
 		this.app = app;
 		this.currentActivities = [];
 		this.init();
@@ -21,19 +25,21 @@ export class ActivityWidget {
 			clearInterval(this.updateInterval);
 		}
 
-		debugLog('ActivityWidget init called');
-		debugLog('Is logged in:', this.app.isLoggedIn);
-		debugLog('User role:', this.app.userRole);
+		debugLog("ActivityWidget init called");
+		debugLog("Is logged in:", this.app.isLoggedIn);
+		debugLog("User role:", this.app.userRole);
 
 		if (!this.app.isLoggedIn || !this.isAuthorized()) {
-			debugLog('User not logged in or not authorized, widget will not be displayed');
+			debugLog(
+				"User not logged in or not authorized, widget will not be displayed",
+			);
 			return;
 		}
 
 		await this.fetchCurrentActivities();
 
 		if (this.currentActivities.length === 0 || !this.isPreparationToday()) {
-			debugLog('No activities found for today, stopping widget.');
+			debugLog("No activities found for today, stopping widget.");
 			return;
 		}
 
@@ -46,36 +52,45 @@ export class ActivityWidget {
 		}, 300000);
 	}
 
-
-
 	isAuthorized() {
-		return canViewActivities() || canManageActivities() || canManageAttendance();
+		return (
+			canViewActivities() || canManageActivities() || canManageAttendance()
+		);
 	}
 
 	async fetchCurrentActivities() {
 		try {
-			const data = await getReunionPreparation(new Date().toISOString().split('T')[0]);
-			debugLog('Fetched reunion preparation data:', data);
+			const data = await getReunionPreparation(
+				new Date().toISOString().split("T")[0],
+			);
+			debugLog("Fetched reunion preparation data:", data);
 
-			if (data.success && data.preparation && data.preparation.activities && data.preparation.date) {
+			if (
+				data.success &&
+				data.preparation &&
+				data.preparation.activities &&
+				data.preparation.date
+			) {
 				this.currentActivities = data.preparation.activities;
 				debugLog("=== DATE PARSING DEBUG ===");
 				debugLog("Raw date value:", data.preparation.date);
 				debugLog("Date type:", typeof data.preparation.date);
 				debugLog("Date stringified:", JSON.stringify(data.preparation.date));
 				debugLog("Concatenated:", data.preparation.date + "T00:00:00");
-				this.preparationDate = new Date(data.preparation.date + 'T00:00:00');
-				debugLog('Current activities set:', this.currentActivities);
-				debugLog('Preparation date:', this.preparationDate);
+				this.preparationDate = new Date(data.preparation.date + "T00:00:00");
+				debugLog("Current activities set:", this.currentActivities);
+				debugLog("Preparation date:", this.preparationDate);
 
 				// Validate the parsed date
 				if (isNaN(this.preparationDate.getTime())) {
-					debugError('Invalid date format received:', data.preparation.date);
+					debugError("Invalid date format received:", data.preparation.date);
 					this.currentActivities = [];
 					this.preparationDate = null;
 				}
 			} else {
-				debugLog('No activities found in the fetched data or missing date field');
+				debugLog(
+					"No activities found in the fetched data or missing date field",
+				);
 				this.currentActivities = [];
 				this.preparationDate = null;
 			}
@@ -85,7 +100,6 @@ export class ActivityWidget {
 			this.preparationDate = null;
 		}
 	}
-
 
 	getStartOfWeek(date) {
 		const d = new Date(date);
@@ -102,98 +116,124 @@ export class ActivityWidget {
 	}
 
 	renderWidget() {
-		const widgetContainer = document.createElement('div');
-		widgetContainer.id = 'activity-widget';
-		widgetContainer.style.display = 'none';  // Initially hidden
-		widgetContainer.classList.add('activity-widget');
+		const widgetContainer = document.createElement("div");
+		widgetContainer.id = "activity-widget";
+		widgetContainer.style.display = "none"; // Initially hidden
+		widgetContainer.classList.add("activity-widget");
 
-		setContent(widgetContainer, `
+		setContent(
+			widgetContainer,
+			`
 			<div class="current-activity">
-				<h3 id="current-activity-title">${translate('current_activity')}</h3>
+				<h3 id="current-activity-title">${translate("current_activity")}</h3>
 				<p id="time-until-next"></p>
 			</div>
-		`;
+		`,
+		);
 
-		document.body.insertBefore(widgetContainer, document.body.firstChild);  // Place the widget at the top of the body
+		document.body.insertBefore(widgetContainer, document.body.firstChild); // Place the widget at the top of the body
 	}
 
 	updateActivityWidget() {
-		debugLog(translate('updating_activity_widget'));
-		debugLog(translate('current_activities'), this.currentActivities);
-		debugLog(translate('preparation_date'), this.preparationDate);
+		debugLog(translate("updating_activity_widget"));
+		debugLog(translate("current_activities"), this.currentActivities);
+		debugLog(translate("preparation_date"), this.preparationDate);
 		if (this.currentActivities.length === 0 || !this.preparationDate) {
-			debugLog(translate('no_activities_found_or_preparation_date_not_set'));
+			debugLog(translate("no_activities_found_or_preparation_date_not_set"));
 			return;
 		}
 		const currentTime = new Date();
-		debugLog(translate('current_time'), currentTime);
+		debugLog(translate("current_time"), currentTime);
 		let currentActivity = null;
 		let nextActivity = null;
 
 		this.currentActivities.forEach((activity, index) => {
-			const activityStartTime = this.combineDateTime(this.preparationDate, activity.time);
+			const activityStartTime = this.combineDateTime(
+				this.preparationDate,
+				activity.time,
+			);
 			const durationMinutes = parseInt(activity.duration);
-			const activityEndTime = this.addMinutes(activityStartTime, durationMinutes);
+			const activityEndTime = this.addMinutes(
+				activityStartTime,
+				durationMinutes,
+			);
 
-			debugLog(`${translate('activity')}: ${translate(activity.activity)}, ${translate('start')}: ${activityStartTime}, ${translate('end')}: ${activityEndTime}`);
+			debugLog(
+				`${translate("activity")}: ${translate(activity.activity)}, ${translate("start")}: ${activityStartTime}, ${translate("end")}: ${activityEndTime}`,
+			);
 
 			if (currentTime >= activityStartTime && currentTime < activityEndTime) {
 				currentActivity = activity;
-				nextActivity = this.currentActivities[index + 1] || null;  // Set next activity
+				nextActivity = this.currentActivities[index + 1] || null; // Set next activity
 			} else if (currentTime < activityStartTime && !nextActivity) {
 				nextActivity = activity;
 			}
 		});
 
-		const widget = document.getElementById('activity-widget');
+		const widget = document.getElementById("activity-widget");
 		if (!this.isPreparationToday()) {
-			debugLog(translate('preparation_not_today'));
-			widget.style.display = 'none';
+			debugLog(translate("preparation_not_today"));
+			widget.style.display = "none";
 			return;
 		}
 
 		if (currentActivity) {
-			debugLog(translate('current_activity_found'), currentActivity);
-			widget.style.display = 'block';
-			document.getElementById('current-activity-title').textContent = `${translate('current_activity')}: ${translate(currentActivity.activity)}`;
+			debugLog(translate("current_activity_found"), currentActivity);
+			widget.style.display = "block";
+			document.getElementById("current-activity-title").textContent =
+				`${translate("current_activity")}: ${translate(currentActivity.activity)}`;
 			const timeUntilNext = this.getTimeUntilNext(currentTime, nextActivity);
 
 			if (nextActivity) {
-				document.getElementById('time-until-next').textContent = `${translate('time_until_next')}: ${timeUntilNext} (${translate('next_activity')}: ${translate(nextActivity.activity)})`;
+				document.getElementById("time-until-next").textContent =
+					`${translate("time_until_next")}: ${timeUntilNext} (${translate("next_activity")}: ${translate(nextActivity.activity)})`;
 			} else {
-				document.getElementById('time-until-next').textContent = `${translate('time_until_next')}: ${timeUntilNext}`;
+				document.getElementById("time-until-next").textContent =
+					`${translate("time_until_next")}: ${timeUntilNext}`;
 			}
-
 		} else if (nextActivity) {
-			debugLog(translate('next_activity_found'), nextActivity);
-			widget.style.display = 'block';
-			document.getElementById('current-activity-title').textContent = `${translate('next_activity')}: ${translate(nextActivity.activity)}`;
-			document.getElementById('time-until-next').textContent = `${translate('starts_in')}: ${this.getTimeUntilNext(currentTime, nextActivity)}`;
+			debugLog(translate("next_activity_found"), nextActivity);
+			widget.style.display = "block";
+			document.getElementById("current-activity-title").textContent =
+				`${translate("next_activity")}: ${translate(nextActivity.activity)}`;
+			document.getElementById("time-until-next").textContent =
+				`${translate("starts_in")}: ${this.getTimeUntilNext(currentTime, nextActivity)}`;
 		} else {
-			debugLog(translate('no_current_or_upcoming_activities_found'));
-			widget.style.display = 'none';
+			debugLog(translate("no_current_or_upcoming_activities_found"));
+			widget.style.display = "none";
 		}
 	}
 
 	isPreparationToday() {
 		const today = new Date();
-		debugLog('=== IS PREPARATION TODAY CHECK ===');
-		debugLog('Today:', today);
-		debugLog('Today date parts:', today.getDate(), today.getMonth(), today.getFullYear());
-		debugLog('Preparation date:', this.preparationDate);
-		debugLog('Preparation date parts:', this.preparationDate.getDate(), this.preparationDate.getMonth(), this.preparationDate.getFullYear());
-		const isToday = this.preparationDate.getDate() === today.getDate() &&
-					 this.preparationDate.getMonth() === today.getMonth() &&
-					 this.preparationDate.getFullYear() === today.getFullYear();
-		debugLog('Is today?', isToday);
+		debugLog("=== IS PREPARATION TODAY CHECK ===");
+		debugLog("Today:", today);
+		debugLog(
+			"Today date parts:",
+			today.getDate(),
+			today.getMonth(),
+			today.getFullYear(),
+		);
+		debugLog("Preparation date:", this.preparationDate);
+		debugLog(
+			"Preparation date parts:",
+			this.preparationDate.getDate(),
+			this.preparationDate.getMonth(),
+			this.preparationDate.getFullYear(),
+		);
+		const isToday =
+			this.preparationDate.getDate() === today.getDate() &&
+			this.preparationDate.getMonth() === today.getMonth() &&
+			this.preparationDate.getFullYear() === today.getFullYear();
+		debugLog("Is today?", isToday);
 		return isToday;
 	}
 
 	combineDateTime(date, timeString) {
-		const [hours, minutes] = timeString.split(':').map(Number);
+		const [hours, minutes] = timeString.split(":").map(Number);
 
 		if (isNaN(hours) || isNaN(minutes)) {
-			debugError('Invalid time string:', timeString);
+			debugError("Invalid time string:", timeString);
 			return new Date(NaN); // Return invalid date to trigger error handling
 		}
 
@@ -201,7 +241,7 @@ export class ActivityWidget {
 		combinedDate.setHours(hours, minutes, 0, 0);
 
 		if (isNaN(combinedDate.getTime())) {
-			debugError('Invalid combined date for', timeString, combinedDate);
+			debugError("Invalid combined date for", timeString, combinedDate);
 			return new Date(NaN); // Return invalid date to trigger error handling
 		}
 
@@ -209,15 +249,17 @@ export class ActivityWidget {
 		return combinedDate;
 	}
 
-
 	getTimeUntilNext(currentTime, nextActivity) {
-		if (!nextActivity) return translate('no_next_activity');
+		if (!nextActivity) return translate("no_next_activity");
 
-		const nextActivityStart = this.combineDateTime(this.preparationDate, nextActivity.time);
+		const nextActivityStart = this.combineDateTime(
+			this.preparationDate,
+			nextActivity.time,
+		);
 
 		// Check if nextActivityStart is valid
 		if (isNaN(nextActivityStart.getTime())) {
-			return translate('invalid_next_activity_time');
+			return translate("invalid_next_activity_time");
 		}
 
 		const timeDiff = (nextActivityStart - currentTime) / 1000;
@@ -227,17 +269,16 @@ export class ActivityWidget {
 		const seconds = Math.floor(timeDiff % 60);
 
 		if (days > 0) {
-			return `${days}${translate('d')} ${hours}${translate('h')} ${minutes}${translate('m')}`;
+			return `${days}${translate("d")} ${hours}${translate("h")} ${minutes}${translate("m")}`;
 		} else if (hours > 0) {
-			return `${hours}${translate('h')} ${minutes}${translate('m')} ${seconds}${translate('s')}`;
+			return `${hours}${translate("h")} ${minutes}${translate("m")} ${seconds}${translate("s")}`;
 		} else {
-			return `${minutes}${translate('m')} ${seconds}${translate('s')}`;
+			return `${minutes}${translate("m")} ${seconds}${translate("s")}`;
 		}
 	}
 
-
 	getTimeFromString(timeString) {
-		const [hours, minutes] = timeString.split(':').map(Number);
+		const [hours, minutes] = timeString.split(":").map(Number);
 		const date = new Date();
 		date.setHours(hours, minutes, 0, 0);
 		debugLog(`Parsed time for ${timeString}:`, date);
