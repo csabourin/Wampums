@@ -5,6 +5,7 @@
 
 import { translate } from "../app.js";
 import { escapeHTML } from "./SecurityUtils.js";
+import { setContent } from "./DOMUtils.js";
 
 export class SimpleWYSIWYG {
   constructor(container, options = {}) {
@@ -23,7 +24,7 @@ export class SimpleWYSIWYG {
 
   init() {
     // Clear container
-    this.container.innerHTML = "";
+    setContent(this.container, "");
     this.container.classList.add("wysiwyg-container");
 
     // Create toolbar
@@ -51,7 +52,7 @@ export class SimpleWYSIWYG {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "wysiwyg-btn";
-      button.innerHTML = icon;
+      setContent(button, icon);
       button.title = title;
       button.setAttribute("data-command", command);
       this.toolbar.appendChild(button);
@@ -69,7 +70,7 @@ export class SimpleWYSIWYG {
     this.editor.setAttribute("aria-label", this.options.placeholder);
 
     if (this.options.initialContent) {
-      this.editor.innerHTML = this.options.initialContent;
+      setContent(this.editor, this.options.initialContent);
     } else {
       this.editor.setAttribute("data-placeholder", this.options.placeholder);
     }
@@ -173,12 +174,12 @@ export class SimpleWYSIWYG {
   }
 
   setHTML(html) {
-    this.editor.innerHTML = html;
+    setContent(this.editor, html);
     this.updatePlaceholder();
   }
 
   clear() {
-    this.editor.innerHTML = "";
+    setContent(this.editor, "");
     this.updatePlaceholder();
   }
 
@@ -187,7 +188,7 @@ export class SimpleWYSIWYG {
   }
 
   destroy() {
-    this.container.innerHTML = "";
+    setContent(this.container, "");
   }
 }
 

@@ -1,5 +1,6 @@
 import { translate } from "../app.js";
 import { getSectionActivityTemplates } from "../utils/meetingSections.js";
+import { setContent } from "../utils/DOMUtils.js";
 
 /**
  * ActivityManager - Handles all activity-related operations
@@ -82,7 +83,7 @@ export class ActivityManager {
                         return this.renderActivityRow(activity, index);
                 }).join('');
 
-                document.querySelector('#activities-table tbody').innerHTML = activitiesHtml;
+                setContent(document.querySelector('#activities-table tbody'), activitiesHtml);
                 this.addDurationListeners();
         }
 

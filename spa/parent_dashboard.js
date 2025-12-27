@@ -849,6 +849,6 @@ renderFormButtons(participant) {
                                 <h1>${translate("error")}</h1>
                                 <p>${translate("error_loading_parent_dashboard")}</p>
                         `;
-                        document.getElementById("app").innerHTML = errorMessage;
+                        setContent(document.getElementById("app"), errorMessage);
                 }
         }

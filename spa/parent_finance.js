@@ -12,6 +12,7 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ParentFinance {
   constructor(app) {
@@ -237,7 +238,7 @@ export class ParentFinance {
       </div>
     `;
 
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   render() {
@@ -264,7 +265,7 @@ export class ParentFinance {
       </section>
     `;
 
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderConsolidatedSummary() {

@@ -61,7 +61,7 @@ export class Fundraisers {
 
 			${this.renderModal()}
 		`;
-		document.getElementById('app').innerHTML = content;
+		setContent(document.getElementById('app'), content);
 	}
 
 	renderAddButton() {

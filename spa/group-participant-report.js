@@ -2,6 +2,7 @@ import { getParticipants, getGroups } from "./ajax-functions.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class PrintableGroupParticipantReport {
 		constructor(app) {
@@ -66,8 +67,7 @@ export class PrintableGroupParticipantReport {
 								<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
 						</div>
 				`;
-				document.getElementById("app").innerHTML = content;
-
+				setContent(document.getElementById("app"), content);
 				const style = `
 						<style>
 								@media print {
@@ -139,6 +139,6 @@ export class PrintableGroupParticipantReport {
 						<p>${translate("error_loading_group_participant_report")}</p>
 						<p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
 				`;
-				document.getElementById("app").innerHTML = errorMessage;
+				setContent(document.getElementById("app"), errorMessage);
 		}
 }

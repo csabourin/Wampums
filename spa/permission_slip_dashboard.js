@@ -14,6 +14,7 @@ import {
 import { getGroups } from "./api/api-endpoints.js";
 import { getParticipants } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class PermissionSlipDashboard {
   constructor(app) {
@@ -68,7 +69,7 @@ export class PermissionSlipDashboard {
     const signedCount = permissionSummary.find(s => s.status === 'signed')?.count || 0;
     const pendingCount = permissionSummary.find(s => s.status === 'pending')?.count || 0;
 
-    container.innerHTML = `
+    setContent(container, `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page permission-slip-dashboard">
         <div class="card">
@@ -111,7 +112,7 @@ export class PermissionSlipDashboard {
           ${this.renderPermissionSlipsTable()}
         </div>
       </section>
-    `;
+    `);
 
   }
 
@@ -416,17 +417,17 @@ export class PermissionSlipDashboard {
     const filteredParticipants = this.filterParticipantsByAudience(this.selectedAudience);
 
     if (filteredParticipants.length === 0) {
-      participantsList.innerHTML = `<p>${escapeHTML(translate("no_participants_in_selection"))}</p>`;
+      setContent(participantsList, `<p>${escapeHTML(translate("no_participants_in_selection"))}</p>`);
       participantsSection.style.display = 'block';
       return;
     }
 
-    participantsList.innerHTML = filteredParticipants.map(p => `
+    setContent(participantsList, filteredParticipants.map(p => `
       <label style="display: block; padding: 8px; cursor: pointer; border-bottom: 1px solid #eee;">
         <input type="checkbox" class="participant-checkbox" value="${p.id}" checked />
         ${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}
       </label>
-    `).join('');
+    `).join(''));
 
     participantsSection.style.display = 'block';
 

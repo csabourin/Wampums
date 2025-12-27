@@ -13,6 +13,7 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 /**
  * FormBuilder class - Main form builder component
@@ -73,7 +74,7 @@ export class FormBuilder {
      */
     render() {
         const container = document.getElementById("app");
-        container.innerHTML = `
+        setContent(container, `
             <div class="form-builder">
                 <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                 <h1>${translate("form_builder_title")}</h1>
@@ -128,7 +129,7 @@ export class FormBuilder {
                     </div>
                 </div>
             </div>
-        `;
+        `);
     }
 
     /**
@@ -169,7 +170,7 @@ export class FormBuilder {
 
         const editor = document.getElementById("form-editor");
         editor.style.display = "block";
-        editor.innerHTML = `
+        setContent(editor, `
             <div class="editor-header">
                 <h2>${translate("editing_form")}: ${escapeHTML(this.currentFormat.form_type)}</h2>
                 <div class="editor-actions">
@@ -191,7 +192,7 @@ export class FormBuilder {
                     </div>
                 </div>
             </div>
-        `;
+        `);
     }
 
     /**
@@ -266,7 +267,7 @@ export class FormBuilder {
             ['radio', 'checkbox'].includes(f.type) && f.name
         );
 
-        content.innerHTML = `
+        setContent(content, `
             <form id="field-editor-form" class="field-editor-form">
                 <div class="form-group">
                     <label for="field-type">${translate("field_type")} *</label>
@@ -357,7 +358,7 @@ export class FormBuilder {
 
                 <input type="hidden" id="field-index" value="${fieldIndex !== null ? fieldIndex : ''}">
             </form>
-        `;
+        `);
 
         modal.style.display = "block";
         this.updateFieldEditorVisibility(field.type);
@@ -732,7 +733,7 @@ export class FormBuilder {
         const modal = document.getElementById("translation-modal");
         const content = document.getElementById("translation-content");
 
-        content.innerHTML = `
+        setContent(content, `
             <form id="translation-form">
                 <div class="form-group">
                     <label>${translate("translation_key")}</label>
@@ -751,8 +752,7 @@ export class FormBuilder {
                     <button type="button" class="btn btn-secondary" id="cancel-translation">${translate("cancel")}</button>
                 </div>
             </form>
-        `;
-
+        `);
         modal.style.display = "block";
 
         // Attach listeners
@@ -855,7 +855,7 @@ export class FormBuilder {
     updateFieldsList() {
         const container = document.getElementById("fields-container");
         if (container) {
-            container.innerHTML = this.renderFieldsList();
+            setContent(container, this.renderFieldsList());
             this.attachFieldActionListeners();
             this.attachDragDropListeners();
         }
@@ -908,7 +908,7 @@ export class FormBuilder {
         
         document.querySelector("#translation-modal h2").textContent = translate("create_new_form_format");
 
-        content.innerHTML = `
+        setContent(content, `
             <form id="create-format-form">
                 <div class="form-group">
                     <label for="new-form-type">${translate("form_type_name")} *</label>
@@ -923,8 +923,7 @@ export class FormBuilder {
                     <button type="button" class="btn btn-secondary" id="cancel-create">${translate("cancel")}</button>
                 </div>
             </form>
-        `;
-
+        `);
         modal.style.display = "block";
 
         // Attach listeners
@@ -1006,7 +1005,7 @@ export class FormBuilder {
                 await this.loadData();
                 const formatsList = document.getElementById("formats-list");
                 if (formatsList) {
-                    formatsList.innerHTML = this.renderFormatsList();
+                    setContent(formatsList, this.renderFormatsList());
                     this.attachEventListeners();
                 }
             } else {
@@ -1063,7 +1062,7 @@ export class FormBuilder {
             this.currentFormat.form_type
         );
 
-        content.innerHTML = renderer.render();
+        setContent(content, renderer.render());
         modal.style.display = "block";
     }
 
@@ -1082,7 +1081,7 @@ export class FormBuilder {
         
         document.querySelector("#translation-modal h2").textContent = translate("copy_to_org");
 
-        content.innerHTML = `
+        setContent(content, `
             <form id="copy-format-form">
                 <div class="form-group">
                     <label for="target-org">${translate("select_target_organization")} *</label>
@@ -1098,8 +1097,7 @@ export class FormBuilder {
                     <button type="button" class="btn btn-secondary" id="cancel-copy">${translate("cancel")}</button>
                 </div>
             </form>
-        `;
-
+        `);
         modal.style.display = "block";
 
         // Attach listeners

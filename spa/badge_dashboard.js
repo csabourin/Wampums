@@ -19,6 +19,7 @@ import {
   canManageBadges,
   canViewBadges,
 } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 import {
   OptimisticUpdateManager,
   generateOptimisticId,
@@ -330,7 +331,7 @@ export class BadgeDashboard {
       <div id="${this.modalContainerId}" class="badge-dashboard__modal hidden"></div>
     `;
 
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderControls() {
@@ -632,7 +633,7 @@ export class BadgeDashboard {
   updateRows() {
     const body = document.getElementById("badge-table-body");
     if (!body) return;
-    body.innerHTML = this.renderRows();
+    setContent(body, this.renderRows());
   }
 
   openBadgeModal(
@@ -688,7 +689,7 @@ export class BadgeDashboard {
       )
       .join("");
 
-    modal.innerHTML = `
+    setContent(modal, `
       <div class="modal__backdrop" role="presentation"></div>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="badge-modal-title">
         <header class="modal__header">
@@ -832,13 +833,12 @@ export class BadgeDashboard {
           </div>
         </section>
       </div>
-    `;
-
+    `);
     modal.classList.remove("hidden");
 
     const close = () => {
       modal.classList.add("hidden");
-      modal.innerHTML = "";
+      setContent(modal, "");
     };
 
     modal.querySelector("#close-badge-modal")?.addEventListener("click", close);
@@ -1229,24 +1229,23 @@ export class BadgeDashboard {
   }
 
   renderNotAuthorized() {
-    document.getElementById("app").innerHTML = `
+    setContent(document.getElementById("app"), `
       <section class="badge-dashboard">
         <h1>${translate("not_authorized")}</h1>
         <p>${translate("badge_dashboard_no_access")}</p>
         <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
       </section>
-    `;
+    `);
   }
 
   renderError() {
-    document.getElementById("app").innerHTML = `
+    setContent(document.getElementById("app"), `
       <section class="badge-dashboard">
         <h1>${translate("error")}</h1>
         <p>${translate("badge_dashboard_error")}</p>
         <p><button class="ghost-button" id="badge-refresh">${translate("retry")}</button></p>
       </section>
-    `;
-
+    `);
     document
       .getElementById("badge-refresh")
       ?.addEventListener("click", () => this.refreshFromNetwork());

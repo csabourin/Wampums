@@ -24,6 +24,7 @@ import { clearFinanceRelatedCaches } from "./indexedDB.js";
 import { LoadingStateManager, CacheWithTTL, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -254,7 +255,7 @@ export class Finance {
       </section>
     `;
 
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   render() {
@@ -283,7 +284,7 @@ export class Finance {
       ${this.renderPlanModal()}
     `;
 
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderTabButton(tab, label) {
@@ -652,7 +653,7 @@ export class Finance {
   resetPaymentRows() {
     const container = document.getElementById('payment-rows');
     if (container) {
-      container.innerHTML = this.renderPaymentRow(0);
+      setContent(container, this.renderPaymentRow(0));
     }
   }
 
@@ -1107,7 +1108,7 @@ export class Finance {
         this.paymentsCache.set(feeId, payments?.data || payments?.payments || []);
       }
       const payments = this.paymentsCache.get(feeId);
-      historyContainer.innerHTML = payments.length
+      setContent(historyContainer, payments.length
         ? payments
             .map(
               (payment) => `
@@ -1124,10 +1125,10 @@ export class Finance {
               `
             )
             .join("")
-        : `<p class="finance-helper">${translate("no_payments")}</p>`;
+        : `<p class="finance-helper">${translate("no_payments")}</p>`);
     } catch (error) {
       debugError('Error loading payments', error);
-      historyContainer.innerHTML = `<p class="finance-helper">${translate("error_loading_data")}</p>`;
+      setContent(historyContainer, `<p class="finance-helper">${translate("error_loading_data")}</p>`);
     }
   }
 
@@ -1287,7 +1288,7 @@ export class Finance {
       }
       const plans = this.paymentPlanCache.get(feeId);
       const plan = plans[0];
-      planContainer.innerHTML = plans.length
+      setContent(planContainer, plans.length
         ? `
             <div class="finance-list__row">
               <div>
@@ -1300,8 +1301,7 @@ export class Finance {
               </div>
             </div>
           `
-        : `<p class="finance-helper">${translate("no_payment_plan")}</p>`;
-
+        : `<p class="finance-helper">${translate("no_payment_plan")}</p>`);
       const form = document.getElementById('plan-form');
       if (form) {
         if (plan) {
@@ -1318,7 +1318,7 @@ export class Finance {
       }
     } catch (error) {
       debugError('Error loading payment plan', error);
-      planContainer.innerHTML = `<p class="finance-helper">${translate("error_loading_data")}</p>`;
+      setContent(planContainer, `<p class="finance-helper">${translate("error_loading_data")}</p>`);
     }
   }
 

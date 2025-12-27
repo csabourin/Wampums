@@ -2,6 +2,7 @@ import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { getReunionDates, getReunionPreparation } from "./ajax-functions.js";
 import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class UpcomingMeeting {
                 constructor(app) {
@@ -156,7 +157,7 @@ export class UpcomingMeeting {
 
                 render() {
                                 if (!this.closestMeeting) {
-                                                document.getElementById("app").innerHTML = `
+                                                setContent(document.getElementById("app"), `
                                                                 <div class="upcoming-meeting">
                                                                                 <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                                                                                 <h1>${translate("upcoming_meeting")}</h1>
@@ -168,7 +169,7 @@ export class UpcomingMeeting {
                                                                                                 </a>
                                                                                 </div>
                                                                 </div>
-                                                `;
+                                                `);
                                                 return;
                                 }
 
@@ -203,7 +204,7 @@ export class UpcomingMeeting {
                                                 </div>
                                 `;
 
-                                document.getElementById("app").innerHTML = content;
+                                setContent(document.getElementById("app"), content);
                 }
 
                 renderError() {
@@ -217,6 +218,6 @@ export class UpcomingMeeting {
                                                                 </div>
                                                 </div>
                                 `;
-                                document.getElementById("app").innerHTML = content;
+                                setContent(document.getElementById("app"), content);
                 }
 }

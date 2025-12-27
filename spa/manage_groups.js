@@ -10,6 +10,7 @@ import { clearGroupRelatedCaches } from "./indexedDB.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canViewGroups } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ManageGroups {
   constructor(app) {
@@ -66,7 +67,7 @@ export class ManageGroups {
                 </tbody>
             </table>
         `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderGroupRows() {
@@ -209,6 +210,6 @@ export class ManageGroups {
             <h1>${translate("error")}</h1>
             <p>${translate("error_loading_manage_groups")}</p>
         `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

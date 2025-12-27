@@ -13,6 +13,7 @@ import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { WhatsAppConnectionModule } from "./whatsapp-connection.js";
 import { canSendCommunications, isParent } from "../utils/PermissionUtils.js";
+import { setContent } from "../utils/DOMUtils.js";
 
 /**
  * Account Information Management Class
@@ -384,7 +385,7 @@ export class AccountInfoModule {
 
     const appContainer = document.getElementById("app");
     if (appContainer) {
-      appContainer.innerHTML = content;
+      setContent(appContainer, content);
     } else {
       debugError("App container not found");
     }
@@ -406,7 +407,7 @@ export class AccountInfoModule {
 
     const appContainer = document.getElementById("app");
     if (appContainer) {
-      appContainer.innerHTML = content;
+      setContent(appContainer, content);
     }
   }
 

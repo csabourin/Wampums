@@ -451,8 +451,7 @@ export const app = {
                 const icon = document.createElement('span');
                 icon.className = 'toast-icon';
                 icon.setAttribute('aria-hidden', 'true');
-                icon.innerHTML = type === 'error' ? '⚠' : '✓';
-
+                setContent(icon, type === 'error' ? '⚠' : '✓');
                 // Create message text
                 const messageText = document.createElement('span');
                 messageText.className = 'toast-message';
@@ -462,7 +461,7 @@ export const app = {
                 const dismissBtn = document.createElement('button');
                 dismissBtn.className = 'toast-dismiss';
                 dismissBtn.setAttribute('aria-label', translate('close'));
-                dismissBtn.innerHTML = '×';
+                setContent(dismissBtn, '×');
                 dismissBtn.onclick = () => this.dismissToast();
 
                 // Assemble toast

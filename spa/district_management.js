@@ -27,6 +27,7 @@ import {
   getLocalGroupEligibleRoles,
 } from "./utils/RoleValidationUtils.js";
 import { setStorageMultiple } from "./utils/StorageUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 const CACHE_KEY = "district_management_state";
 const CACHE_DURATION = CONFIG.CACHE_DURATION.SHORT;
@@ -329,7 +330,7 @@ export class DistrictManagement {
         <a class="btn btn--primary" href="/dashboard">${translate("back_to_dashboard")}</a>
       </section>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderAndBind() {
@@ -435,7 +436,7 @@ export class DistrictManagement {
       ${this.renderAssignmentModal()}
     `;
 
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   getActiveOrganizationName() {

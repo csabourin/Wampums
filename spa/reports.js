@@ -27,6 +27,7 @@ import {
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
 import { canViewReports } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 const REPORT_CURRENCY = "CAD";
 
@@ -203,7 +204,7 @@ export class Reports {
                                 </div>
                         </div>
                 `;
-		document.getElementById("app").innerHTML = content;
+		setContent(document.getElementById("app"), content);
 	}
 
 	attachEventListeners() {
@@ -271,7 +272,7 @@ export class Reports {
 			const selectElement = document.getElementById("form-type-select");
 
 			if (!response || !response.data || response.data.length === 0) {
-				selectElement.innerHTML = `<option value="">${translate("no_form_types_available")}</option>`;
+				setContent(selectElement, `<option value="">${translate("no_form_types_available")}</option>`);
 				return;
 			}
 
@@ -291,8 +292,7 @@ export class Reports {
 			});
 		} catch (error) {
 			debugError("Error loading form types:", error);
-			document.getElementById("form-type-container").innerHTML =
-				`<p>${translate("error_loading_form_types")}</p>`;
+			setContent(document.getElementById("form-type-container"), `<p>${translate("error_loading_form_types")}</p>`);
 		}
 	}
 
@@ -391,15 +391,15 @@ export class Reports {
 					reportContent = "<p>Invalid report type</p>";
 			}
 
-			document.getElementById("report-content").innerHTML = reportContent;
+			setContent(document.getElementById("report-content"), reportContent);
 			if (reportType === "participant-progress") {
 				this.attachParticipantProgressListeners();
 			}
 		} catch (error) {
 			debugError(`Error loading ${reportType} report:`, error);
-			document.getElementById("report-content").innerHTML = `
-				<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>
-			`;
+			setContent(document.getElementById("report-content"), `
+				<p class="error-message">${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>
+			`);
 		}
 	}
 
@@ -435,7 +435,7 @@ export class Reports {
 			return reportContent; // Return the generated reportContent
 		} catch (error) {
 			debugError("Error fetching and rendering health report:", error);
-			return `<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>`;
+			return `<p class="error-message">${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>`;
 		}
 	}
 
@@ -539,7 +539,7 @@ export class Reports {
 			return missingFieldsReport;
 		} catch (error) {
 			debugError("Error fetching or rendering missing fields report:", error);
-			return `<p>${translate("error_loading_report")}: ${error.message}</p>`;
+			return `<p>${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>`;
 		}
 	}
 
@@ -1416,7 +1416,7 @@ export class Reports {
 			select.addEventListener("change", async (event) => {
 				this.selectedParticipantId = event.target.value || null;
 				const content = await this.fetchAndRenderParticipantProgress();
-				document.getElementById("report-content").innerHTML = content;
+				setContent(document.getElementById("report-content"), content);
 				this.attachParticipantProgressListeners();
 			});
 		}
@@ -1455,7 +1455,7 @@ export class Reports {
 					return this.renderParticipantProgressReport(cached.progress, true);
 				}
 			}
-			return `<p class="error-message">${translate("error_loading_report")}: ${error.message}</p>`;
+			return `<p class="error-message">${translate("error_loading_report")}: ${escapeHTML(error.message)}</p>`;
 		}
 	}
 

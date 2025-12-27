@@ -608,8 +608,7 @@ ${showNotifications ? `
                                 document.getElementById(
                                         "notification-body",
                                 ).value;
-                        resultContainer.innerHTML = translate("sending");
-
+                        setContent(resultContainer, translate("sending"));
                         // Get selected subscribers
                         const selectedSubscribers = Array.from(
                                 document.querySelectorAll(
@@ -620,8 +619,7 @@ ${showNotifications ? `
                         // Retrieve the JWT token from localStorage
                         const token = localStorage.getItem("jwtToken");
                         if (!token) {
-                                resultContainer.innerHTML =
-                                        translate("error_no_token");
+                                setContent(resultContainer, translate("error_no_token"));
                                 return;
                         }
 
@@ -645,15 +643,15 @@ ${showNotifications ? `
                                 );
                                 const result = await response.json();
                                 if (response.ok) {
-                                        resultContainer.innerHTML = translate(
+                                        setContent(resultContainer, translate(
                                                 "notification_sent_successfully",
-                                        );
+                                        ));
                                         notificationForm.reset();
                                 } else {
-                                        resultContainer.innerHTML = `${translate("failed_to_send_notification")}: ${result.error}`;
+                                        setContent(resultContainer, `${translate("failed_to_send_notification")}: ${escapeHTML(result.error)}`);
                                 }
                         } catch (error) {
-                                resultContainer.innerHTML = `${translate("error")}: ${error.message}`;
+                                setContent(resultContainer, `${translate("error")}: ${escapeHTML(error.message)}`);
                         }
                 });
         }

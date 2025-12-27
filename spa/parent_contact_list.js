@@ -3,6 +3,7 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { canSendCommunications, canViewParticipants } from "./utils/PermissionUtils.js";
 import { debounce } from "./utils/PerformanceUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ParentContactList {
   constructor(app) {
@@ -108,7 +109,7 @@ export class ParentContactList {
                 ${this.renderChildrenByFirstName()}
             </div>
         `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
     this.attachEventListeners();
   }
 
@@ -261,7 +262,7 @@ export class ParentContactList {
   updateContactList() {
     const contactList = document.getElementById("contact-list");
     if (contactList) {
-      contactList.innerHTML = this.renderChildrenByFirstName();
+      setContent(contactList, this.renderChildrenByFirstName());
     }
   }
 
@@ -276,6 +277,6 @@ export class ParentContactList {
             <h1>${translate("error")}</h1>
             <p>${translate("error_loading_parent_contact_list")}</p>
         `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

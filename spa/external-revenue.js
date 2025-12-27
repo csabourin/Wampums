@@ -22,6 +22,7 @@ import {
   validateRequired,
 } from "./utils/ValidationUtils.js";
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -234,7 +235,7 @@ export class ExternalRevenue {
     const container = document.getElementById("app");
     if (!container) return;
 
-    container.innerHTML = `
+    setContent(container, `
       <div class="page-container external-revenue-page">
         <div class="page-header">
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
@@ -250,14 +251,14 @@ export class ExternalRevenue {
           <p>${translate("loading")}...</p>
         </div>
       </div>
-    `;
+    `);
   }
 
   async render() {
     const container = document.getElementById("app");
     if (!container) return;
 
-    container.innerHTML = `
+    setContent(container, `
       <div class="page-container external-revenue-page">
         <div class="page-header">
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
@@ -274,7 +275,7 @@ export class ExternalRevenue {
         ${this.renderActionButtons()}
         ${this.renderRevenueList()}
       </div>
-    `;
+    `);
   }
 
   renderSummaryCards() {

@@ -21,6 +21,7 @@ import {
 import { canViewPoints } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { OptimisticUpdateManager, generateOptimisticId } from "./utils/OptimisticUpdateManager.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ManagePoints {
   constructor(app) {
@@ -210,8 +211,7 @@ export class ManagePoints {
         <button class="point-btn remove" data-points="-5">-5</button>
       </div>
     `;
-    document.getElementById("app").innerHTML = content;
-
+    setContent(document.getElementById("app"), content);
     // Render points list sorted by group initially
     this.sortByGroup(); // Call the sort by group function here
 
@@ -553,7 +553,7 @@ export class ManagePoints {
 
       // Update the main group header display
       const pointsDisplay = `${groupName} - ${totalPoints} `;
-      groupElement.innerHTML = pointsDisplay;
+      setContent(groupElement, pointsDisplay);
       groupElement.dataset.points = totalPoints;
       this.addHighlightEffect(groupElement);
 
@@ -758,8 +758,7 @@ export class ManagePoints {
       });
 
       // Clear the list and render only participants
-      list.innerHTML = items.map((item) => item.outerHTML).join("");
-
+      setContent(list, items.map((item) => item.outerHTML).join(""));
       debugLog(`Sorted by ${key}, order: ${this.currentSort.order}`);
     }
   }
@@ -797,7 +796,7 @@ export class ManagePoints {
     const unassignedHTML = this.renderUnassignedParticipants();
 
     // Combine group content and unassigned participants into one HTML
-    pointsList.innerHTML = groupContent + unassignedHTML;
+    setContent(pointsList, groupContent + unassignedHTML);
   }
 
   filterByGroup(groupId) {
@@ -966,7 +965,7 @@ export class ManagePoints {
 
         // Update group points display
         const pointsDisplay = `${group.name} - ${totalPoints} `;
-        groupElement.innerHTML = pointsDisplay;
+        setContent(groupElement, pointsDisplay);
         groupElement.dataset.points = totalPoints;
 
         // Update the group points total if it exists
@@ -996,6 +995,6 @@ export class ManagePoints {
         <h1>${translate("error")}</h1>
         <p>${translate("error_loading_manage_points")}</p>
     `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

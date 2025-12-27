@@ -3,6 +3,7 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { canViewParticipants } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class ViewParticipantDocuments {
   constructor(app) {
@@ -92,7 +93,7 @@ export class ViewParticipantDocuments {
         </div>
       </div>
     `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   renderParticipantList() {
@@ -159,7 +160,7 @@ export class ViewParticipantDocuments {
 
       // Pass submission_data to render
       const formContent = this.formRenderers[formType].render(submissionData);
-      document.getElementById('form-content').innerHTML = formContent;
+      setContent(document.getElementById('form-content'), formContent);
       document.getElementById('form-view-modal').style.display = "block";
     } catch (error) {
       debugError(`Error fetching form data for ${formType}:`, error);
@@ -173,6 +174,6 @@ export class ViewParticipantDocuments {
       <p>${message || translate("error_loading_participant_documents")}</p>
       <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
     `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 }

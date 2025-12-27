@@ -1,5 +1,6 @@
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
+import { setContent } from "../utils/DOMUtils.js";
 
 /**
  * FormManager - Handles form population, validation, and data extraction
@@ -55,11 +56,11 @@ export class FormManager {
                 const honorList = document.getElementById("youth-of-honor");
                 const honorData = meetingData.youth_of_honor ?? meetingData.louveteau_dhonneur;
                 if (Array.isArray(honorData)) {
-                        honorList.innerHTML = honorData.map(honor => `<li>${escapeHTML(honor)}</li>`).join('');
+                        setContent(honorList, honorData.map(honor => `<li>${escapeHTML(honor)}</li>`).join(''));
                 } else if (typeof honorData === 'string') {
-                        honorList.innerHTML = `<li>${escapeHTML(honorData)}</li>`;
+                        setContent(honorList, `<li>${escapeHTML(honorData)}</li>`);
                 } else {
-                        honorList.innerHTML = this.recentHonors.map(h => `<li>${escapeHTML(`${h.first_name} ${h.last_name}`)}</li>`).join('');
+                        setContent(honorList, this.recentHonors.map(h => `<li>${escapeHTML(`${h.first_name} ${h.last_name}`)}</li>`).join(''));
                 }
 
                 document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';
@@ -108,7 +109,7 @@ export class FormManager {
         resetForm(currentDate) {
                 document.getElementById("animateur-responsable").value = '';
                 document.getElementById("date").value = this.formatDateForInput(currentDate);
-                document.getElementById("youth-of-honor").innerHTML = '';
+                setContent(document.getElementById("youth-of-honor"), '');
                 document.getElementById("endroit").value = this.organizationSettings.organization_info?.endroit || '';
                 document.getElementById("notes").value = '';
 
