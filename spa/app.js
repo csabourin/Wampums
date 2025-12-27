@@ -18,8 +18,7 @@ const debugMode = isDebugMode();
 if ("serviceWorker" in navigator) {
         navigator.serviceWorker
                 .register("/service-worker.js", { updateViaCache: "none" })
-                .then(function (registration) { })
-                .catch(function (error) {
+                .catch((error) => {
                         debugError("Service Worker registration failed:", error);
                 });
 }
@@ -405,11 +404,10 @@ export const app = {
                         if (Notification.permission === 'granted') {
                                 registerPushSubscription();
                         } else if (Notification.permission === 'default') {
-                                Notification.requestPermission().then((permission) => {
-                                        if (permission === 'granted') {
-                                                registerPushSubscription();
-                                        }
-                                });
+                                const permission = await Notification.requestPermission();
+                                if (permission === 'granted') {
+                                        registerPushSubscription();
+                                }
                         }
                 } else {
                         debugError('This browser does not support notifications.');
@@ -568,18 +566,16 @@ export const app = {
 
         async registerServiceWorker() {
                 if ("serviceWorker" in navigator) {
-                        window.addEventListener("load", () => {
-                                navigator.serviceWorker
-                                        .register("/service-worker.js")
-                                        .then((registration) => {
-                                                debugLog(
-                                                        "Service Worker registered with scope:",
-                                                        registration.scope
-                                                );
-                                        })
-                                        .catch((error) => {
-                                                debugError("Service Worker registration failed:", error);
-                                        });
+                        window.addEventListener("load", async () => {
+                                try {
+                                        const registration = await navigator.serviceWorker.register("/service-worker.js");
+                                        debugLog(
+                                                "Service Worker registered with scope:",
+                                                registration.scope
+                                        );
+                                } catch (error) {
+                                        debugError("Service Worker registration failed:", error);
+                                }
                         });
                 }
         },
