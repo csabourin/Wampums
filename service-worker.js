@@ -227,14 +227,14 @@ async function handleImageRequest(request) {
     // If response is not OK (4xx, 5xx), return fallback
     debugError("Image fetch returned non-OK status:", networkResponse.status);
     return (
-      (await caches.match("/images/fallback.png")) ||
+      (await caches.match("/assets/images/fallback.png")) ||
       new Response("Image not available", { status: 404 })
     );
   } catch (error) {
     debugError("Error fetching image:", error);
     // Return a fallback image if available
     return (
-      (await caches.match("/images/fallback.png")) ||
+      (await caches.match("/assets/images/fallback.png")) ||
       new Response("Image not available", { status: 404 })
     );
   }
@@ -275,8 +275,8 @@ self.addEventListener("push", function (event) {
   const title = data.title || "New Notification";
   const options = {
     body: data.body || "You have a new message.",
-    icon: data.icon || "/images/icon-192x192.png", // Optional: Add an icon for the notification
-    badge: "/images/badge-128x128.png", // Optional: Add a badge image for Android
+    icon: data.icon || "/assets/images/icon-192x192.png", // Optional: Add an icon for the notification
+    badge: "/assets/images/badge-128x128.png", // Optional: Add a badge image for Android
     tag: data.tag || "general", // Optional: Unique tag for the notification (e.g., for stacking)
   };
 

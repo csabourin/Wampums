@@ -34,7 +34,7 @@
 		/>
 		<meta
 			property="og:image"
-			content="https://wampums.app/images/og-wampums-1200x630.jpg"
+			content="https://wampums.app/assets/images/og-wampums-1200x630.jpg"
 		/>
 		<meta property="og:image:width" content="1200" />
 		<meta property="og:image:height" content="630" />
@@ -48,569 +48,638 @@
 		/>
 		<meta
 			name="twitter:image"
-			content="https://wampums.app/images/og-wampums-1200x630.jpg"
+			content="https://wampums.app/assets/images/og-wampums-1200x630.jpg"
 		/>
 
-                <!-- PWA -->
-                <meta name="theme-color" content="#0f7a5a" />
-                <link rel="manifest" href="/manifest.json" />
+		<!-- PWA -->
+		<meta name="theme-color" content="#0f7a5a" />
+		<link rel="manifest" href="/manifest.json" />
 
 		<!-- Favicons (recommended) -->
-		<link rel="icon" type="image/png" sizes="32x32" href="/images/icon-32.png" />
-		<link rel="apple-touch-icon" href="/images/icon-192x192.png" />
+		<link
+			rel="icon"
+			type="image/png"
+			sizes="32x32"
+			href="/assets/images/icon-32.png"
+		/>
+		<link rel="apple-touch-icon" href="/assets/images/icon-192x192.png" />
 
 		<link rel="stylesheet" href="/landing.css" />
 
 		<!-- Structured data (FR) -->
 		<script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "Organization",
-            "name": "Wampums",
-            "url": "https://wampums.app/",
-            "email": "mailto:rama@meute6a.app"
-          },
-          {
-            "@type": "SoftwareApplication",
-            "name": "Wampums",
-            "applicationCategory": "BusinessApplication",
-            "operatingSystem": "Web",
-            "url": "https://wampums.app/fr/",
-            "inLanguage": ["fr-CA", "en-CA"],
-            "description": "Application web bilingue pour la gestion des unités scoutes : planification des réunions, présences, badges, communications, documents et matériel."
-          },
-          {
-            "@type": "FAQPage",
-            "mainEntity": [
-              {
-                "@type": "Question",
-                "name": "Mes données sont-elles sécurisées?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "Nous utilisons le chiffrement TLS (HTTPS), des sauvegardes et des contrôles d’accès par rôles."
-                }
-              },
-              {
-                "@type": "Question",
-                "name": "Peut-on travailler en français et en anglais?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptés aux réalités locales."
-                }
-              },
-              {
-                "@type": "Question",
-                "name": "Comment l’équipe reste-t-elle alignée chaque semaine?",
-                "acceptedAnswer": {
-                  "@type": "Answer",
-                  "text": "Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés."
-                }
-              }
-            ]
-          }
-        ]
-      }
-    </script>
+			{
+				"@context": "https://schema.org",
+				"@graph": [
+					{
+						"@type": "Organization",
+						"name": "Wampums",
+						"url": "https://wampums.app/",
+						"email": "mailto:rama@meute6a.app"
+					},
+					{
+						"@type": "SoftwareApplication",
+						"name": "Wampums",
+						"applicationCategory": "BusinessApplication",
+						"operatingSystem": "Web",
+						"url": "https://wampums.app/fr/",
+						"inLanguage": ["fr-CA", "en-CA"],
+						"description": "Application web bilingue pour la gestion des unités scoutes : planification des réunions, présences, badges, communications, documents et matériel."
+					},
+					{
+						"@type": "FAQPage",
+						"mainEntity": [
+							{
+								"@type": "Question",
+								"name": "Mes données sont-elles sécurisées?",
+								"acceptedAnswer": {
+									"@type": "Answer",
+									"text": "Nous utilisons le chiffrement TLS (HTTPS), des sauvegardes et des contrôles d’accès par rôles."
+								}
+							},
+							{
+								"@type": "Question",
+								"name": "Peut-on travailler en français et en anglais?",
+								"acceptedAnswer": {
+									"@type": "Answer",
+									"text": "Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptés aux réalités locales."
+								}
+							},
+							{
+								"@type": "Question",
+								"name": "Comment l’équipe reste-t-elle alignée chaque semaine?",
+								"acceptedAnswer": {
+									"@type": "Answer",
+									"text": "Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés."
+								}
+							}
+						]
+					}
+				]
+			}
+		</script>
 	</head>
 
-		<body>
-			<a class="skip-link" href="#main" data-i18n="skip_link"
-				>Passer au contenu principal</a
-			>
-			<header>
-				<div class="shell">
-					<div class="top-bar">
-						<a class="brand" href="/" aria-label="Wampums">
-							<span class="brand-mark" aria-hidden="true">W</span>
-							<span>Wampums</span>
-						</a>
-						<nav class="lang-toggle" aria-label="Changer de langue">
-							<a class="lang-link" href="/fr/" lang="fr-CA" aria-current="page">Français</a>
-							<a class="lang-link" href="/en/" lang="en-CA">English</a>
-						</nav>
-
-					</div>
-					<div class="hero" role="banner">
-						<div>
-							<p class="pill" data-i18n="tagline">
-								Application web bilingue pour les scouts
-							</p>
-							<h1 data-i18n="hero_title">
-								Orchestrez vos réunions hebdomadaires, vos parents et vos équipes
-								en toute sérénité.
-							</h1>
-							<p data-i18n="hero_body">
-								Wampums centralise l'organisation des groupes scouts : agenda des
-								rencontres, présence, progression, communications et documents,
-								pour que chaque réunion soit prête et sécuritaire.
-							</p>
-							<div class="badge-row">
-								<span class="pill" data-i18n="badge1"
-									>Planification mobile-first</span
-								>
-								<span class="pill" data-i18n="badge2"
-									>Suivi badges et présences</span
-								>
-								<span class="pill" data-i18n="badge3">Parents connectés</span>
-							</div>
-                                                        <div class="actions">
-                                                                <button class="btn-primary" type="button" data-open-demo-modal data-i18n="cta_primary">
-                                                                        Voir une démo
-                                                                </button>
-                                                                <a
-                                                                        class="btn-secondary"
-                                                                        href="#features"
-                                                                        data-i18n="cta_secondary"
-                                                                        >Découvrir les fonctions</a
-                                                                >
-                                                        </div>
-						</div>
-						<div
-							class="card"
-							aria-label="Aperçu des fonctionnalités"
-							tabindex="0"
+	<body>
+		<a class="skip-link" href="#main" data-i18n="skip_link"
+			>Passer au contenu principal</a
+		>
+		<header>
+			<div class="shell">
+				<div class="top-bar">
+					<a class="brand" href="/" aria-label="Wampums">
+						<span class="brand-mark" aria-hidden="true">W</span>
+						<span>Wampums</span>
+					</a>
+					<nav class="lang-toggle" aria-label="Changer de langue">
+						<a class="lang-link" href="/fr/" lang="fr-CA" aria-current="page"
+							>Français</a
 						>
-							<h3 data-i18n="card_title">Tout-en-un pour votre groupe</h3>
-							<p class="meta" data-i18n="card_subtitle">
-								Suivi des membres, activités, badges, documents et sécurité.
-							</p>
-							<div class="stats" aria-label="Indicateurs clés">
-								<div class="stat">
-									<span data-i18n="stat1_label">Réunions prêtes</span>
-									<span aria-hidden="true">✅</span>
-								</div>
-								<div class="stat">
-									<span data-i18n="stat2_label">Présences tracées</span>
-									<span aria-hidden="true">📊</span>
-								</div>
-								<div class="stat">
-									<span data-i18n="stat3_label">Parents informés</span>
-									<span aria-hidden="true">📢</span>
-								</div>
-							</div>
-						</div>
-					</div>
+						<a class="lang-link" href="/en/" lang="en-CA">English</a>
+					</nav>
 				</div>
-			</header>
-
-			<main id="main">
-				<!-- Solutions Section -->
-                                <section class="section section-center" id="solutions">
-                                        <h2 data-i18n="solutions_title">Une trousse complète pour vos opérations</h2>
-                                        <p data-i18n="solutions_body">
-                                                Préparez, animez et suivez vos rencontres avec des tableaux de bord clairs pour l’équipe et les parents.
-                                        </p>
-
-                                        <div class="solutions-grid">
-                                                <article class="solution-card">
-                                                        <div class="solution-header">
-                                                                <h3 data-i18n="solution1_title">Préparation hebdomadaire</h3>
-                                                                <p class="solution-note" data-i18n="solution1_note">Planification, équipes et rappels en quelques minutes.</p>
-                                                        </div>
-                                                        <ul class="solution-features">
-                                                                <li data-i18n="solution1_feature1">Agenda partagé des réunions</li>
-                                                                <li data-i18n="solution1_feature2">Activités, objectifs et matériel</li>
-                                                                <li data-i18n="solution1_feature3">Assignations par groupe ou rôle</li>
-                                                                <li data-i18n="solution1_feature4">Rappels automatiques aux parents</li>
-                                                                <li data-i18n="solution1_feature5">Récupération des autorisations</li>
-                                                        </ul>
-                                                        <div class="solution-cta">
-                                                                <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
-                                                                        Voir la démo
-                                                                </button>
-                                                        </div>
-                                                </article>
-
-                                                <article class="solution-card featured">
-                                                        <div class="solution-header">
-                                                                <h3 data-i18n="solution2_title">Suivi terrain</h3>
-                                                                <p class="solution-note" data-i18n="solution2_note">Présences, progrès et ressources synchronisés sur mobile.</p>
-                                                        </div>
-                                                        <ul class="solution-features">
-                                                                <li data-i18n="solution2_feature1">Badges, honneurs et points</li>
-                                                                <li data-i18n="solution2_feature2">Présences et observations en direct</li>
-                                                                <li data-i18n="solution2_feature3">Tableaux de bord ressources et réservations</li>
-                                                                <li data-i18n="solution2_feature4">Notifications et annonces ciblées</li>
-                                                                <li data-i18n="solution2_feature5">Documents et fiches santé centralisés</li>
-                                                        </ul>
-                                                        <div class="solution-cta">
-                                                                <button type="button" class="btn-primary" data-open-demo-modal data-i18n="solution_cta">
-                                                                        Voir la démo
-                                                                </button>
-                                                        </div>
-                                                </article>
-
-                                                <article class="solution-card">
-                                                        <div class="solution-header">
-                                                                <h3 data-i18n="solution3_title">Vue direction</h3>
-                                                                <p class="solution-note" data-i18n="solution3_note">Indicateurs, budgets et conformité pour chaque organisation.</p>
-                                                        </div>
-                                                        <ul class="solution-features">
-                                                                <li data-i18n="solution3_feature1">Rapports consolidés par groupe</li>
-                                                                <li data-i18n="solution3_feature2">Gestion des budgets et dépenses</li>
-                                                                <li data-i18n="solution3_feature3">Journal des communications et alertes</li>
-                                                                <li data-i18n="solution3_feature4">Exports sécurisés pour les conseils</li>
-                                                                <li data-i18n="solution3_feature5">Accès API et domaine personnalisé</li>
-                                                        </ul>
-                                                        <div class="solution-cta">
-                                                                <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
-                                                                        Voir la démo
-                                                                </button>
-                                                        </div>
-                                                </article>
-                                        </div>
-                                </section>
-<!-- Features Section -->
-				<section class="section" id="features">
-					<h2 data-i18n="features_title">
-						Fonctions concues pour les unites scoutes
-					</h2>
-					<p data-i18n="features_body">
-						Chaque module est pense pour les realites des equipes de responsables et du district :
-						preparation rapide, suivi clair et collaboration avec les parents.
-					</p>
-					<div class="grid" role="list">
-						<article class="card" role="listitem">
-							<h3 data-i18n="feature1_title">Planification des rencontres</h3>
-							<p class="meta" data-i18n="feature1_body">
-								Planifiez les activites hebdomadaires, materiaux et
-								responsabilites, avec un calendrier partage.
-							</p>
-						</article>
-						<article class="card" role="listitem">
-							<h3 data-i18n="feature2_title">Presences et progression</h3>
-							<p class="meta" data-i18n="feature2_body">
-								Consignez les presences, les points et l'avancement des badges ou
-								honneurs.
-							</p>
-						</article>
-						<article class="card" role="listitem">
-							<h3 data-i18n="feature3_title">Communication aux parents</h3>
-							<p class="meta" data-i18n="feature3_body">
-								Envoyez des nouvelles, rappels et documents pour que les familles
-								restent alignees.
-							</p>
-						</article>
-						<article class="card" role="listitem">
-							<h3 data-i18n="feature4_title">Gestion des roles</h3>
-							<p class="meta" data-i18n="feature4_body">
-								Attribuez les roles (district, responsables, parents) et securisez
-								l'acces aux donnees.
-							</p>
-						</article>
-						<article class="card" role="listitem">
-							<h3 data-i18n="feature5_title">Documents et consentements</h3>
-							<p class="meta" data-i18n="feature5_body">
-								Stockez fiches sante, autorisations et rapports pour des activites
-								conformes.
-							</p>
-						</article>
-						<article class="card" role="listitem">
-							<h3 data-i18n="feature6_title">Rapports et export</h3>
-							<p class="meta" data-i18n="feature6_body">
-								Generez des rapports sur la participation, la progression et les
-								ventes de calendriers.
-							</p>
-						</article>
-					</div>
-				</section>
-
-				<!-- Weekly Flow Section -->
-				<section class="section" id="weekly">
-					<h2 data-i18n="weekly_title">Pret pour chaque reunion hebdomadaire</h2>
-					<p data-i18n="weekly_body">
-						Un fil conducteur clair pour preparer, tenir et archiver vos
-						rencontres avec fiabilite.
-					</p>
-					<div class="grid">
-						<article class="card">
-							<h3 data-i18n="weekly_step1_title">Avant la reunion</h3>
-							<ul class="list">
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step1_item1"
-										>Ajoutez l'activite, l'objectif d'apprentissage et les
-										ressources necessaires.</span
-									>
-								</li>
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step1_item2"
-										>Assignez les responsables et partagez la liste avec
-										l'equipe.</span
-									>
-								</li>
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step1_item3"
-										>Envoyez un rappel aux parents avec les details
-										logistiques.</span
-									>
-								</li>
-							</ul>
-						</article>
-						<article class="card">
-							<h3 data-i18n="weekly_step2_title">Pendant la reunion</h3>
-							<ul class="list">
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step2_item1"
-										>Enregistrez les presences et les points en direct sur
-										mobile.</span
-									>
-								</li>
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step2_item2"
-										>Notez les progres de badges ou tout besoin de suivi.</span
-									>
-								</li>
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step2_item3"
-										>Consignez les observations pour le rapport de fin de
-										rencontre.</span
-									>
-								</li>
-							</ul>
-						</article>
-						<article class="card">
-							<h3 data-i18n="weekly_step3_title">Apres la reunion</h3>
-							<ul class="list">
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step3_item1"
-										>Envoyez un compte rendu aux parents et a l'equipe.</span
-									>
-								</li>
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step3_item2"
-										>Mettez a jour les inventaires, les budgets et les
-										documents.</span
-									>
-								</li>
-								<li>
-									<span class="dot" aria-hidden="true"></span
-									><span data-i18n="weekly_step3_item3"
-										>Planifiez la prochaine rencontre a partir du modele
-										existant.</span
-									>
-								</li>
-							</ul>
-						</article>
-					</div>
-				</section>
-
-				<!-- Benefits Section -->
-				<section class="section" id="benefits">
-					<h2 data-i18n="benefits_title">
-						Pourquoi Wampums aide votre communaute
-					</h2>
-					<div class="grid">
-						<article class="card">
-							<h3 data-i18n="benefit1_title">Leadership efficace</h3>
-							<p class="meta" data-i18n="benefit1_body">
-								Moins de gestion de district, plus de temps sur le terrain grace a des
-								modeles et rappels prets a l'emploi.
-							</p>
-						</article>
-						<article class="card">
-							<h3 data-i18n="benefit2_title">Parents rassures</h3>
-							<p class="meta" data-i18n="benefit2_body">
-								Informations claires, notifications rapides et documents
-								centralises pour suivre l'avancement.
-							</p>
-						</article>
-						<article class="card">
-							<h3 data-i18n="benefit3_title">Securite et conformite</h3>
-							<p class="meta" data-i18n="benefit3_body">
-								Gestion des autorisations, des roles et des dossiers pour des
-								activites securitaires.
-							</p>
-						</article>
-					</div>
-				</section>
-
-				<!-- FAQ Section -->
-				<section class="section" id="faq">
-					<h2 data-i18n="faq_title">Questions frequentes</h2>
-					<div class="faq-grid">
-                                                <div class="faq-item">
-                                                        <h4 data-i18n="faq4_question">
-                                                                Mes donnees sont-elles securisees?
-                                                        </h4>
-                                                        <p data-i18n="faq4_answer">
-                                                                Absolument. Nous utilisons le chiffrement SSL, des sauvegardes
-                                                                automatiques et respectons les normes de confidentialite
-                                                                canadiennes.
-                                                        </p>
-                                                </div>
-                                                <div class="faq-item">
-                                                        <h4 data-i18n="faq2_question">Peut-on travailler en francais et en anglais?</h4>
-                                                        <p data-i18n="faq2_answer">
-                                                                Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptes aux realites locales.
-                                                        </p>
-                                                </div>
-                                                <div class="faq-item">
-                                                        <h4 data-i18n="faq3_question">
-                                                                Comment l’equipe reste-t-elle alignee chaque semaine?
-                                                        </h4>
-                                                        <p data-i18n="faq3_answer">
-                                                                Les preparations de reunions, rappels et tableaux de bord ressources gardent activites, materiel et autorisations synchronises.
-                                                        </p>
-                                                </div>
-					</div>
-				</section>
-
-				<!-- CTA Section -->
-				<section class="section">
-					<div class="cta-section">
-						<h2 data-i18n="cta_title">
-							Prêt à simplifier la gestion de votre groupe?
-						</h2>
-						<p data-i18n="cta_body">
-							Rejoignez des centaines de groupes scouts qui font confiance à
-							Wampums pour leurs réunions hebdomadaires.
+				<div class="hero" role="banner">
+					<div>
+						<p class="pill" data-i18n="tagline">
+							Application web bilingue pour les scouts
 						</p>
-						<button
-							type="button"
-							class="btn-primary"
-							data-open-demo-modal
-							data-i18n="cta_button"
-						>
-							Demander une démo
-						</button>
-					</div>
-				</section>
-			</main>
-
-			<footer>
-				<p data-i18n="footer_note">
-					Conçu pour les groupes scouts qui se rencontrent chaque semaine —
-					simple, bilingue et prêt à l'emploi.
-				</p>
-				<p>Contact: <a href="mailto:rama@meute6a.app">rama@meute6a.app</a></p>
-			</footer>
-
-			<!-- Demo Request Modal -->
-			<div
-				id="demoModal"
-				class="modal"
-				role="dialog"
-				aria-labelledby="modalTitle"
-				aria-hidden="true"
-			>
-				<div class="modal-content">
-					<div class="modal-header">
-						<h2 id="modalTitle" data-i18n="demo_modal_title">
-							Demander une démo
-						</h2>
-						<button
-							type="button"
-							class="modal-close"
-							aria-label="Fermer"
-							data-close-modal
-						>
-							&times;
-						</button>
-					</div>
-
-					<div class="form-success" id="formSuccess">
-						<p data-i18n="demo_form_success">
-							Merci! Votre demande a été soumise avec succès. Vous serez redirigé
-							vers la démo...
+						<h1 data-i18n="hero_title">
+							Orchestrez vos réunions hebdomadaires, vos parents et vos équipes
+							en toute sérénité.
+						</h1>
+						<p data-i18n="hero_body">
+							Wampums centralise l'organisation des groupes scouts : agenda des
+							rencontres, présence, progression, communications et documents,
+							pour que chaque réunion soit prête et sécuritaire.
 						</p>
+						<div class="badge-row">
+							<span class="pill" data-i18n="badge1"
+								>Planification mobile-first</span
+							>
+							<span class="pill" data-i18n="badge2"
+								>Suivi badges et présences</span
+							>
+							<span class="pill" data-i18n="badge3">Parents connectés</span>
+						</div>
+						<div class="actions">
+							<button
+								class="btn-primary"
+								type="button"
+								data-open-demo-modal
+								data-i18n="cta_primary"
+							>
+								Voir une démo
+							</button>
+							<a
+								class="btn-secondary"
+								href="#features"
+								data-i18n="cta_secondary"
+								>Découvrir les fonctions</a
+							>
+						</div>
 					</div>
-
-					<form id="demoForm">
-						<div class="form-group">
-							<label for="name" data-i18n="demo_form_name"
-								>Nom <span aria-label="requis">*</span></label
-							>
-							<input
-								type="text"
-								id="name"
-								name="name"
-								required
-								aria-required="true"
-							/>
-							<span class="form-error" data-i18n="demo_form_name_error"
-								>Le nom est requis</span
-							>
+					<div
+						class="card"
+						aria-label="Aperçu des fonctionnalités"
+						tabindex="0"
+					>
+						<h3 data-i18n="card_title">Tout-en-un pour votre groupe</h3>
+						<p class="meta" data-i18n="card_subtitle">
+							Suivi des membres, activités, badges, documents et sécurité.
+						</p>
+						<div class="stats" aria-label="Indicateurs clés">
+							<div class="stat">
+								<span data-i18n="stat1_label">Réunions prêtes</span>
+								<span aria-hidden="true">✅</span>
+							</div>
+							<div class="stat">
+								<span data-i18n="stat2_label">Présences tracées</span>
+								<span aria-hidden="true">📊</span>
+							</div>
+							<div class="stat">
+								<span data-i18n="stat3_label">Parents informés</span>
+								<span aria-hidden="true">📢</span>
+							</div>
 						</div>
-
-						<div class="form-group">
-							<label for="email" data-i18n="demo_form_email"
-								>Courriel <span aria-label="requis">*</span></label
-							>
-							<input
-								type="email"
-								id="email"
-								name="email"
-								required
-								aria-required="true"
-							/>
-							<span class="form-error" data-i18n="demo_form_email_error"
-								>Courriel invalide</span
-							>
-						</div>
-
-						<div class="form-group">
-							<label for="organization" data-i18n="demo_form_organization"
-								>Organisation</label
-							>
-							<input type="text" id="organization" name="organization" />
-						</div>
-
-						<div class="form-group">
-							<label for="phone" data-i18n="demo_form_phone">Téléphone</label>
-							<input type="tel" id="phone" name="phone" />
-						</div>
-
-						<div class="form-group">
-							<label for="message" data-i18n="demo_form_message"
-								>Message <span aria-label="requis">*</span></label
-							>
-							<textarea
-								id="message"
-								name="message"
-								required
-								aria-required="true"
-							></textarea>
-							<small data-i18n="demo_form_message_help"
-								>Parlez-nous de vos besoins</small
-							>
-							<span class="form-error" data-i18n="demo_form_message_error"
-								>Le message est requis</span
-							>
-						</div>
-
-						<!-- Honeypot field for spam prevention -->
-						<div class="honeypot" aria-hidden="true">
-							<label for="honeypot">Leave this field empty</label>
-							<input
-								type="text"
-								id="honeypot"
-								name="honeypot"
-								tabindex="-1"
-								autocomplete="off"
-							/>
-						</div>
-
-						<button type="submit" class="btn-submit" data-i18n="demo_form_submit">
-							Envoyer la demande
-						</button>
-					</form>
+					</div>
 				</div>
 			</div>
+		</header>
 
-			<!-- Hidden form for demo redirect -->
-			<form id="demoRedirectForm" style="display: none">
-				<!-- This form is now handled by JavaScript -->
-			</form>
+		<main id="main">
+			<!-- Solutions Section -->
+			<section class="section section-center" id="solutions">
+				<h2 data-i18n="solutions_title">
+					Une trousse complète pour vos opérations
+				</h2>
+				<p data-i18n="solutions_body">
+					Préparez, animez et suivez vos rencontres avec des tableaux de bord
+					clairs pour l’équipe et les parents.
+				</p>
+
+				<div class="solutions-grid">
+					<article class="solution-card">
+						<div class="solution-header">
+							<h3 data-i18n="solution1_title">Préparation hebdomadaire</h3>
+							<p class="solution-note" data-i18n="solution1_note">
+								Planification, équipes et rappels en quelques minutes.
+							</p>
+						</div>
+						<ul class="solution-features">
+							<li data-i18n="solution1_feature1">
+								Agenda partagé des réunions
+							</li>
+							<li data-i18n="solution1_feature2">
+								Activités, objectifs et matériel
+							</li>
+							<li data-i18n="solution1_feature3">
+								Assignations par groupe ou rôle
+							</li>
+							<li data-i18n="solution1_feature4">
+								Rappels automatiques aux parents
+							</li>
+							<li data-i18n="solution1_feature5">
+								Récupération des autorisations
+							</li>
+						</ul>
+						<div class="solution-cta">
+							<button
+								type="button"
+								class="btn-secondary"
+								data-open-demo-modal
+								data-i18n="solution_cta"
+							>
+								Voir la démo
+							</button>
+						</div>
+					</article>
+
+					<article class="solution-card featured">
+						<div class="solution-header">
+							<h3 data-i18n="solution2_title">Suivi terrain</h3>
+							<p class="solution-note" data-i18n="solution2_note">
+								Présences, progrès et ressources synchronisés sur mobile.
+							</p>
+						</div>
+						<ul class="solution-features">
+							<li data-i18n="solution2_feature1">Badges, honneurs et points</li>
+							<li data-i18n="solution2_feature2">
+								Présences et observations en direct
+							</li>
+							<li data-i18n="solution2_feature3">
+								Tableaux de bord ressources et réservations
+							</li>
+							<li data-i18n="solution2_feature4">
+								Notifications et annonces ciblées
+							</li>
+							<li data-i18n="solution2_feature5">
+								Documents et fiches santé centralisés
+							</li>
+						</ul>
+						<div class="solution-cta">
+							<button
+								type="button"
+								class="btn-primary"
+								data-open-demo-modal
+								data-i18n="solution_cta"
+							>
+								Voir la démo
+							</button>
+						</div>
+					</article>
+
+					<article class="solution-card">
+						<div class="solution-header">
+							<h3 data-i18n="solution3_title">Vue direction</h3>
+							<p class="solution-note" data-i18n="solution3_note">
+								Indicateurs, budgets et conformité pour chaque organisation.
+							</p>
+						</div>
+						<ul class="solution-features">
+							<li data-i18n="solution3_feature1">
+								Rapports consolidés par groupe
+							</li>
+							<li data-i18n="solution3_feature2">
+								Gestion des budgets et dépenses
+							</li>
+							<li data-i18n="solution3_feature3">
+								Journal des communications et alertes
+							</li>
+							<li data-i18n="solution3_feature4">
+								Exports sécurisés pour les conseils
+							</li>
+							<li data-i18n="solution3_feature5">
+								Accès API et domaine personnalisé
+							</li>
+						</ul>
+						<div class="solution-cta">
+							<button
+								type="button"
+								class="btn-secondary"
+								data-open-demo-modal
+								data-i18n="solution_cta"
+							>
+								Voir la démo
+							</button>
+						</div>
+					</article>
+				</div>
+			</section>
+			<!-- Features Section -->
+			<section class="section" id="features">
+				<h2 data-i18n="features_title">
+					Fonctions concues pour les unites scoutes
+				</h2>
+				<p data-i18n="features_body">
+					Chaque module est pense pour les realites des equipes de responsables
+					et du district : preparation rapide, suivi clair et collaboration avec
+					les parents.
+				</p>
+				<div class="grid" role="list">
+					<article class="card" role="listitem">
+						<h3 data-i18n="feature1_title">Planification des rencontres</h3>
+						<p class="meta" data-i18n="feature1_body">
+							Planifiez les activites hebdomadaires, materiaux et
+							responsabilites, avec un calendrier partage.
+						</p>
+					</article>
+					<article class="card" role="listitem">
+						<h3 data-i18n="feature2_title">Presences et progression</h3>
+						<p class="meta" data-i18n="feature2_body">
+							Consignez les presences, les points et l'avancement des badges ou
+							honneurs.
+						</p>
+					</article>
+					<article class="card" role="listitem">
+						<h3 data-i18n="feature3_title">Communication aux parents</h3>
+						<p class="meta" data-i18n="feature3_body">
+							Envoyez des nouvelles, rappels et documents pour que les familles
+							restent alignees.
+						</p>
+					</article>
+					<article class="card" role="listitem">
+						<h3 data-i18n="feature4_title">Gestion des roles</h3>
+						<p class="meta" data-i18n="feature4_body">
+							Attribuez les roles (district, responsables, parents) et securisez
+							l'acces aux donnees.
+						</p>
+					</article>
+					<article class="card" role="listitem">
+						<h3 data-i18n="feature5_title">Documents et consentements</h3>
+						<p class="meta" data-i18n="feature5_body">
+							Stockez fiches sante, autorisations et rapports pour des activites
+							conformes.
+						</p>
+					</article>
+					<article class="card" role="listitem">
+						<h3 data-i18n="feature6_title">Rapports et export</h3>
+						<p class="meta" data-i18n="feature6_body">
+							Generez des rapports sur la participation, la progression et les
+							ventes de calendriers.
+						</p>
+					</article>
+				</div>
+			</section>
+
+			<!-- Weekly Flow Section -->
+			<section class="section" id="weekly">
+				<h2 data-i18n="weekly_title">Pret pour chaque reunion hebdomadaire</h2>
+				<p data-i18n="weekly_body">
+					Un fil conducteur clair pour preparer, tenir et archiver vos
+					rencontres avec fiabilite.
+				</p>
+				<div class="grid">
+					<article class="card">
+						<h3 data-i18n="weekly_step1_title">Avant la reunion</h3>
+						<ul class="list">
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step1_item1"
+									>Ajoutez l'activite, l'objectif d'apprentissage et les
+									ressources necessaires.</span
+								>
+							</li>
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step1_item2"
+									>Assignez les responsables et partagez la liste avec
+									l'equipe.</span
+								>
+							</li>
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step1_item3"
+									>Envoyez un rappel aux parents avec les details
+									logistiques.</span
+								>
+							</li>
+						</ul>
+					</article>
+					<article class="card">
+						<h3 data-i18n="weekly_step2_title">Pendant la reunion</h3>
+						<ul class="list">
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step2_item1"
+									>Enregistrez les presences et les points en direct sur
+									mobile.</span
+								>
+							</li>
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step2_item2"
+									>Notez les progres de badges ou tout besoin de suivi.</span
+								>
+							</li>
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step2_item3"
+									>Consignez les observations pour le rapport de fin de
+									rencontre.</span
+								>
+							</li>
+						</ul>
+					</article>
+					<article class="card">
+						<h3 data-i18n="weekly_step3_title">Apres la reunion</h3>
+						<ul class="list">
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step3_item1"
+									>Envoyez un compte rendu aux parents et a l'equipe.</span
+								>
+							</li>
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step3_item2"
+									>Mettez a jour les inventaires, les budgets et les
+									documents.</span
+								>
+							</li>
+							<li>
+								<span class="dot" aria-hidden="true"></span
+								><span data-i18n="weekly_step3_item3"
+									>Planifiez la prochaine rencontre a partir du modele
+									existant.</span
+								>
+							</li>
+						</ul>
+					</article>
+				</div>
+			</section>
+
+			<!-- Benefits Section -->
+			<section class="section" id="benefits">
+				<h2 data-i18n="benefits_title">
+					Pourquoi Wampums aide votre communaute
+				</h2>
+				<div class="grid">
+					<article class="card">
+						<h3 data-i18n="benefit1_title">Leadership efficace</h3>
+						<p class="meta" data-i18n="benefit1_body">
+							Moins de gestion de district, plus de temps sur le terrain grace a
+							des modeles et rappels prets a l'emploi.
+						</p>
+					</article>
+					<article class="card">
+						<h3 data-i18n="benefit2_title">Parents rassures</h3>
+						<p class="meta" data-i18n="benefit2_body">
+							Informations claires, notifications rapides et documents
+							centralises pour suivre l'avancement.
+						</p>
+					</article>
+					<article class="card">
+						<h3 data-i18n="benefit3_title">Securite et conformite</h3>
+						<p class="meta" data-i18n="benefit3_body">
+							Gestion des autorisations, des roles et des dossiers pour des
+							activites securitaires.
+						</p>
+					</article>
+				</div>
+			</section>
+
+			<!-- FAQ Section -->
+			<section class="section" id="faq">
+				<h2 data-i18n="faq_title">Questions frequentes</h2>
+				<div class="faq-grid">
+					<div class="faq-item">
+						<h4 data-i18n="faq4_question">
+							Mes donnees sont-elles securisees?
+						</h4>
+						<p data-i18n="faq4_answer">
+							Absolument. Nous utilisons le chiffrement SSL, des sauvegardes
+							automatiques et respectons les normes de confidentialite
+							canadiennes.
+						</p>
+					</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq2_question">
+							Peut-on travailler en francais et en anglais?
+						</h4>
+						<p data-i18n="faq2_answer">
+							Oui. Les communications, formulaires et tableaux de bord sont
+							bilingues et adaptes aux realites locales.
+						</p>
+					</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq3_question">
+							Comment l’equipe reste-t-elle alignee chaque semaine?
+						</h4>
+						<p data-i18n="faq3_answer">
+							Les preparations de reunions, rappels et tableaux de bord
+							ressources gardent activites, materiel et autorisations
+							synchronises.
+						</p>
+					</div>
+				</div>
+			</section>
+
+			<!-- CTA Section -->
+			<section class="section">
+				<div class="cta-section">
+					<h2 data-i18n="cta_title">
+						Prêt à simplifier la gestion de votre groupe?
+					</h2>
+					<p data-i18n="cta_body">
+						Rejoignez des centaines de groupes scouts qui font confiance à
+						Wampums pour leurs réunions hebdomadaires.
+					</p>
+					<button
+						type="button"
+						class="btn-primary"
+						data-open-demo-modal
+						data-i18n="cta_button"
+					>
+						Demander une démo
+					</button>
+				</div>
+			</section>
+		</main>
+
+		<footer>
+			<p data-i18n="footer_note">
+				Conçu pour les groupes scouts qui se rencontrent chaque semaine —
+				simple, bilingue et prêt à l'emploi.
+			</p>
+			<p>Contact: <a href="mailto:rama@meute6a.app">rama@meute6a.app</a></p>
+		</footer>
+
+		<!-- Demo Request Modal -->
+		<div
+			id="demoModal"
+			class="modal"
+			role="dialog"
+			aria-labelledby="modalTitle"
+			aria-hidden="true"
+		>
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2 id="modalTitle" data-i18n="demo_modal_title">
+						Demander une démo
+					</h2>
+					<button
+						type="button"
+						class="modal-close"
+						aria-label="Fermer"
+						data-close-modal
+					>
+						&times;
+					</button>
+				</div>
+
+				<div class="form-success" id="formSuccess">
+					<p data-i18n="demo_form_success">
+						Merci! Votre demande a été soumise avec succès. Vous serez redirigé
+						vers la démo...
+					</p>
+				</div>
+
+				<form id="demoForm">
+					<div class="form-group">
+						<label for="name" data-i18n="demo_form_name"
+							>Nom <span aria-label="requis">*</span></label
+						>
+						<input
+							type="text"
+							id="name"
+							name="name"
+							required
+							aria-required="true"
+						/>
+						<span class="form-error" data-i18n="demo_form_name_error"
+							>Le nom est requis</span
+						>
+					</div>
+
+					<div class="form-group">
+						<label for="email" data-i18n="demo_form_email"
+							>Courriel <span aria-label="requis">*</span></label
+						>
+						<input
+							type="email"
+							id="email"
+							name="email"
+							required
+							aria-required="true"
+						/>
+						<span class="form-error" data-i18n="demo_form_email_error"
+							>Courriel invalide</span
+						>
+					</div>
+
+					<div class="form-group">
+						<label for="organization" data-i18n="demo_form_organization"
+							>Organisation</label
+						>
+						<input type="text" id="organization" name="organization" />
+					</div>
+
+					<div class="form-group">
+						<label for="phone" data-i18n="demo_form_phone">Téléphone</label>
+						<input type="tel" id="phone" name="phone" />
+					</div>
+
+					<div class="form-group">
+						<label for="message" data-i18n="demo_form_message"
+							>Message <span aria-label="requis">*</span></label
+						>
+						<textarea
+							id="message"
+							name="message"
+							required
+							aria-required="true"
+						></textarea>
+						<small data-i18n="demo_form_message_help"
+							>Parlez-nous de vos besoins</small
+						>
+						<span class="form-error" data-i18n="demo_form_message_error"
+							>Le message est requis</span
+						>
+					</div>
+
+					<!-- Honeypot field for spam prevention -->
+					<div class="honeypot" aria-hidden="true">
+						<label for="honeypot">Leave this field empty</label>
+						<input
+							type="text"
+							id="honeypot"
+							name="honeypot"
+							tabindex="-1"
+							autocomplete="off"
+						/>
+					</div>
+
+					<button type="submit" class="btn-submit" data-i18n="demo_form_submit">
+						Envoyer la demande
+					</button>
+				</form>
+			</div>
+		</div>
+
+		<!-- Hidden form for demo redirect -->
+		<form id="demoRedirectForm" style="display: none">
+			<!-- This form is now handled by JavaScript -->
+		</form>
 		<script src="/landing.js" defer></script>
 	</body>
 </html>
