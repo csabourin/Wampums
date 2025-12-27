@@ -3,6 +3,8 @@ import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { clearFundraiserRelatedCaches } from './indexedDB.js';
 import { canManageFundraisers, canViewFundraisers } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class Fundraisers {
         constructor(app) {
