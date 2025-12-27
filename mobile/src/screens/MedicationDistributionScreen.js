@@ -7,7 +7,7 @@
  * Features:
  * - View upcoming medication alerts
  * - See participants ready for medication
- * - Record medication administration with witness tracking
+ * - One-click medication administration with witness modal
  * - View upcoming distributions
  * - Toggle options for grouping and planning
  */
@@ -20,8 +20,9 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  Alert,
   Switch,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
@@ -63,6 +64,12 @@ const MedicationDistributionScreen = () => {
   // Toggle options
   const [groupParticipantsBySameTime, setGroupParticipantsBySameTime] = useState(false);
   const [goToPlanning, setGoToPlanning] = useState(false);
+
+  // Modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [selectedDistribution, setSelectedDistribution] = useState(null);
+  const [witnessName, setWitnessName] = useState('');
+  const [optionalNotes, setOptionalNotes] = useState('');
 
   /**
    * Load all distribution data
@@ -185,48 +192,51 @@ const MedicationDistributionScreen = () => {
     if (isToday) return t('today') || 'Aujourd\'hui';
     if (isTomorrow) return t('tomorrow') || 'Demain';
 
-    return DateUtils.formatDate(scheduledFor, 'fr'); // Use locale from user settings
+    return DateUtils.formatDate(scheduledFor, 'fr');
   };
 
   /**
-   * Handle marking medication as given
+   * Open confirmation modal for medication administration
    */
-  const handleMarkAsGiven = (distribution) => {
-    Alert.alert(
-      t('confirm_distribution') || 'Confirmer la distribution',
-      t('confirm_give_medication') || 'Marquer ce médicament comme donné ?',
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('confirm') || 'Confirmer',
-          onPress: async () => {
-            setProcessing(true);
-            try {
-              const response = await markMedicationDistributionAsGiven(distribution.id, {
-                status: 'given',
-                administered_at: new Date().toISOString(),
-                witness_name: '', // Can be extended to collect witness name
-              });
+  const openConfirmModal = (distribution) => {
+    setSelectedDistribution(distribution);
+    setWitnessName(''); // Could pre-fill with current user name
+    setOptionalNotes('');
+    setShowConfirmModal(true);
+  };
 
-              if (!response.success) {
-                throw new Error(response.message || t('error_marking_given'));
-              }
+  /**
+   * Confirm medication administration
+   */
+  const handleConfirmAdministration = async () => {
+    if (!selectedDistribution) return;
 
-              Alert.alert(
-                t('success'),
-                t('medication_marked_given') || 'Médicament marqué comme donné',
-                [{ text: t('ok'), onPress: loadData }]
-              );
-            } catch (err) {
-              debugError('Error marking medication as given:', err);
-              Alert.alert(t('error'), err.message || t('error_marking_given'));
-            } finally {
-              setProcessing(false);
-            }
-          },
-        },
-      ]
-    );
+    setProcessing(true);
+    try {
+      const response = await markMedicationDistributionAsGiven(selectedDistribution.id, {
+        status: 'given',
+        administered_at: new Date().toISOString(),
+        witness_name: SecurityUtils.sanitizeInput(witnessName),
+        notes: SecurityUtils.sanitizeInput(optionalNotes),
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || t('error_marking_given'));
+      }
+
+      // Close modal and reload data
+      setShowConfirmModal(false);
+      setSelectedDistribution(null);
+      setWitnessName('');
+      setOptionalNotes('');
+
+      await loadData();
+    } catch (err) {
+      debugError('Error marking medication as given:', err);
+      setError(err.message || t('error_marking_given'));
+    } finally {
+      setProcessing(false);
+    }
   };
 
   /**
@@ -289,7 +299,7 @@ const MedicationDistributionScreen = () => {
       );
     }
 
-    // Group by participant if needed
+    // Group by participant
     const groupedByParticipant = {};
     participantsReady.forEach((dist) => {
       const participantId = dist.participant_id;
@@ -314,32 +324,37 @@ const MedicationDistributionScreen = () => {
               </View>
 
               {distributions.map((dist) => (
-                <View key={dist.id} style={styles.medicationItem}>
+                <TouchableOpacity
+                  key={dist.id}
+                  style={styles.medicationItem}
+                  onPress={() => openConfirmModal(dist)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.medicationInfo}>
                     <Text style={styles.medicationName}>
                       {dist.medication_name || t('unknown_medication')}
                     </Text>
                     {dist.dose_amount && (
                       <Text style={styles.medicationDose}>
-                        {dist.dose_amount}{dist.dose_unit ? ` ${dist.dose_unit}` : ''} - {dist.route || t('oral')}
+                        {dist.dose_amount}{dist.dose_unit ? ` ${dist.dose_unit}` : ''} - {dist.route || t('oral') || 'Orale'}
                       </Text>
                     )}
-                    {dist.scheduled_for && (
+                    <View style={styles.medicationTimeRow}>
+                      <Text style={styles.medicationTimeLabel}>
+                        ⏰ {t('administration_time') || 'Heures d\'administration'}:
+                      </Text>
                       <Text style={styles.medicationTime}>
-                        ⏰ {t('administration_time') || 'Heures d\'administration'}:{' '}
-                        {formatScheduledTime(dist.scheduled_for)} ({formatDayLabel(dist.scheduled_for)})
+                        {formatScheduledTime(dist.scheduled_for)} ({t('breakfast') || 'Déjeuner'})
                       </Text>
-                    )}
+                    </View>
                   </View>
 
-                  <Button
-                    title={t('give_now') || 'Donner maintenant'}
-                    onPress={() => handleMarkAsGiven(dist)}
-                    variant="success"
-                    size="small"
-                    disabled={processing}
-                  />
-                </View>
+                  <View style={styles.giveNowButton}>
+                    <Text style={styles.giveNowText}>
+                      {t('give_now') || 'Donner maintenant'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               ))}
             </Card>
           );
@@ -406,6 +421,135 @@ const MedicationDistributionScreen = () => {
           </View>
         ))}
       </View>
+    );
+  };
+
+  /**
+   * Render confirmation modal
+   */
+  const renderConfirmModal = () => {
+    if (!selectedDistribution) return null;
+
+    const participantName = getParticipantName(selectedDistribution.participant_id);
+
+    return (
+      <Modal
+        visible={showConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {t('confirm_distribution') || 'Confirmer la distribution du médicament'}
+            </Text>
+
+            {/* Participant */}
+            <View style={styles.modalField}>
+              <Text style={styles.modalFieldLabel}>{participantName}</Text>
+            </View>
+
+            {/* Medication */}
+            <View style={styles.modalField}>
+              <Text style={styles.modalFieldLabelBold}>
+                {t('medications') || 'Médicaments'}:
+              </Text>
+              <Text style={styles.modalFieldValue}>
+                {selectedDistribution.medication_name}
+              </Text>
+            </View>
+
+            {/* Dosage */}
+            {selectedDistribution.dose_amount && (
+              <View style={styles.modalField}>
+                <Text style={styles.modalFieldLabelBold}>
+                  {t('dosage_instructions') || 'Instructions de dosage'}:
+                </Text>
+                <Text style={styles.modalFieldValue}>
+                  {selectedDistribution.dose_amount}{selectedDistribution.dose_unit || ''}
+                </Text>
+              </View>
+            )}
+
+            {/* Route */}
+            {selectedDistribution.route && (
+              <View style={styles.modalField}>
+                <Text style={styles.modalFieldLabelBold}>
+                  {t('route_of_administration') || 'Voie d\'administration'}:
+                </Text>
+                <Text style={styles.modalFieldValue}>
+                  {selectedDistribution.route}
+                </Text>
+              </View>
+            )}
+
+            {/* Time */}
+            <View style={styles.modalField}>
+              <Text style={styles.modalFieldLabelBold}>
+                {t('time') || 'time'}:
+              </Text>
+              <Text style={styles.modalFieldValue}>
+                {formatScheduledTime(selectedDistribution.scheduled_for)}
+              </Text>
+            </View>
+
+            {/* Witness */}
+            <View style={styles.modalInputField}>
+              <Text style={styles.modalInputLabel}>
+                {t('medication_witness_label') || 'Témoin'}
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={witnessName}
+                onChangeText={setWitnessName}
+                placeholder="Christian Sabourin"
+                autoFocus
+              />
+            </View>
+
+            {/* Optional Notes */}
+            <View style={styles.modalInputField}>
+              <Text style={styles.modalInputLabel}>
+                {t('medication_optional_notes') || 'Notes (facultatif)'}
+              </Text>
+              <TextInput
+                style={[styles.modalInput, styles.modalInputMultiline]}
+                value={optionalNotes}
+                onChangeText={setOptionalNotes}
+                placeholder=""
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowConfirmModal(false)}
+                disabled={processing}
+              >
+                <Text style={styles.modalButtonTextCancel}>
+                  {t('cancel') || 'Annuler'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleConfirmAdministration}
+                disabled={processing}
+              >
+                <Text style={styles.modalButtonTextConfirm}>
+                  {processing
+                    ? t('loading') || 'Chargement...'
+                    : t('medication_confirm_given') || 'Confirmer la distribution'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     );
   };
 
@@ -506,6 +650,9 @@ const MedicationDistributionScreen = () => {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Confirmation Modal */}
+      {renderConfirmModal()}
     </View>
   );
 };
@@ -647,11 +794,34 @@ const styles = StyleSheet.create({
     color: theme.colors.textLight,
     marginTop: theme.spacing.xs,
   },
+  medicationTimeRow: {
+    flexDirection: 'row',
+    marginTop: theme.spacing.xs,
+  },
+  medicationTimeLabel: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.error,
+    fontWeight: theme.fontWeight.medium,
+  },
   medicationTime: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.error,
-    marginTop: theme.spacing.xs,
     fontWeight: theme.fontWeight.medium,
+    marginLeft: theme.spacing.xs,
+  },
+  giveNowButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    minHeight: theme.touchTarget.min,
+    justifyContent: 'center',
+  },
+  giveNowText: {
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
   },
   tableContainer: {
     marginTop: theme.spacing.md,
@@ -709,6 +879,94 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: theme.spacing.xl,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    width: '100%',
+    maxWidth: 500,
+    ...theme.shadows.lg,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.lg,
+  },
+  modalField: {
+    marginBottom: theme.spacing.sm,
+  },
+  modalFieldLabel: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  modalFieldLabelBold: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.text,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  modalFieldValue: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.text,
+    marginTop: theme.spacing.xs,
+  },
+  modalInputField: {
+    marginTop: theme.spacing.md,
+  },
+  modalInputLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
+  },
+  modalInput: {
+    ...commonStyles.input,
+    marginBottom: 0,
+  },
+  modalInputMultiline: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.lg,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    minHeight: theme.touchTarget.min,
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  modalButtonConfirm: {
+    backgroundColor: theme.colors.primary,
+  },
+  modalButtonTextCancel: {
+    color: theme.colors.text,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  modalButtonTextConfirm: {
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
   },
 });
 
