@@ -322,12 +322,15 @@ const ManagePointsScreen = () => {
             <Text style={styles.filterLabel}>{t('filter_by_group')}:</Text>
             <Picker
               selectedValue={filterGroupId}
-              onValueChange={(value) => setFilterGroupId(value)}
+              onValueChange={(value) => {
+                debugLog('Filter changed to:', value);
+                setFilterGroupId(value === '' ? '' : value);
+              }}
               style={styles.picker}
             >
               <Picker.Item label={t('all_groups')} value="" />
               {groups.map((group) => (
-                <Picker.Item key={group.id} label={group.name} value={group.id.toString()} />
+                <Picker.Item key={group.id} label={group.name} value={String(group.id)} />
               ))}
             </Picker>
           </View>
