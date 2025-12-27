@@ -159,7 +159,7 @@ const CONFIG = {
     TOUCH_TARGET_SIZE: 44, // Minimum touch target size for accessibility
     ANIMATION_DURATION: 300,
     DEBOUNCE_DELAY: 300,
-    POINTS_QUICK_ACTIONS: [-5, -1, 1, 5],
+    POINTS_QUICK_ACTIONS: [1, 3, 5, -1, -3, -5],
     ATTENDANCE_STATUSES: ['present', 'late', 'absent', 'excused'],
   },
 
