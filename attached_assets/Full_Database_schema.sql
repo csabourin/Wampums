@@ -105,6 +105,7 @@ CREATE TABLE public.badge_templates (
   levels jsonb NOT NULL DEFAULT '[]'::jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  image character varying,
   CONSTRAINT badge_templates_pkey PRIMARY KEY (id),
   CONSTRAINT badge_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
@@ -579,6 +580,7 @@ CREATE TABLE public.organization_form_formats (
   tags ARRAY,
   created_by uuid,
   current_version_id integer,
+  display_context ARRAY DEFAULT ARRAY['participant'::text] CHECK (display_context <@ ARRAY['participant'::text, 'organization'::text, 'admin_panel'::text, 'public'::text, 'form_builder'::text]),
   CONSTRAINT organization_form_formats_pkey PRIMARY KEY (id),
   CONSTRAINT organization_form_formats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT organization_form_formats_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
