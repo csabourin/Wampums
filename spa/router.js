@@ -837,8 +837,10 @@ export function initRouter(app) {
 
     // Handle navigation
     document.addEventListener("click", (e) => {
-        if (e.target.matches("a")) {
-            const url = e.target.getAttribute("href");
+        // Find the closest anchor tag (handles clicks on child elements)
+        const anchor = e.target.closest("a");
+        if (anchor) {
+            const url = anchor.getAttribute("href");
             // Only handle valid internal URLs
             if (url && url !== '#' && url !== '' && !url.startsWith('javascript:')) {
                 e.preventDefault();
