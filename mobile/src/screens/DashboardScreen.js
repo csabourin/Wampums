@@ -20,6 +20,7 @@ import theme, { commonStyles } from '../theme';
 // Import permission-based dashboards
 import ParentDashboardScreen from './ParentDashboardScreen';
 import LeaderDashboardScreen from './LeaderDashboardScreen';
+import { debugError } from '../utils/DebugUtils.js';
 
 const DashboardScreen = () => {
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ const DashboardScreen = () => {
       const type = getDashboardType(permissions || []);
       setDashboardType(type);
     } catch (err) {
-      console.error('Error loading user permissions:', err);
+      debugError('Error loading user permissions:', err);
       // Fallback to parent dashboard on error
       setDashboardType('parent');
     } finally {

@@ -6,6 +6,7 @@
  */
 
 import { getCurrentLanguage } from '../i18n';
+import { debugError } from './DebugUtils.js';
 
 /**
  * Format number according to locale
@@ -27,7 +28,7 @@ export const formatNumber = (value, decimals = 2, locale = null) => {
       maximumFractionDigits: decimals,
     }).format(value);
   } catch (error) {
-    console.error('Error formatting number:', error);
+    debugError('Error formatting number:', error);
     return value.toFixed(decimals);
   }
 };
@@ -52,7 +53,7 @@ export const formatCurrency = (value, currency = 'CAD', locale = null) => {
       currency: currency,
     }).format(value);
   } catch (error) {
-    console.error('Error formatting currency:', error);
+    debugError('Error formatting currency:', error);
     return `$${value.toFixed(2)}`;
   }
 };
@@ -78,7 +79,7 @@ export const formatPercentage = (value, decimals = 0, locale = null) => {
       maximumFractionDigits: decimals,
     }).format(value);
   } catch (error) {
-    console.error('Error formatting percentage:', error);
+    debugError('Error formatting percentage:', error);
     return `${(value * 100).toFixed(decimals)}%`;
   }
 };
@@ -173,7 +174,7 @@ export const formatCompactNumber = (value, locale = null) => {
       compactDisplay: 'short',
     }).format(value);
   } catch (error) {
-    console.error('Error formatting compact number:', error);
+    debugError('Error formatting compact number:', error);
 
     // Fallback formatting
     const absValue = Math.abs(value);

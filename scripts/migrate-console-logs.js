@@ -36,16 +36,36 @@ function alreadyUsesDebugUtils(content) {
  * Determine relative path to DebugUtils based on file location
  */
 function getDebugUtilsPath(filePath) {
-  const relativePath = path.relative(path.dirname(filePath), path.join(path.dirname(filePath), 'utils'));
-  const depth = filePath.split(path.sep).length - filePath.split(path.sep).indexOf('spa') - 2;
+  const parts = filePath.split(path.sep);
 
+  // Handle SPA files
   if (filePath.includes('spa/utils')) {
     return './DebugUtils.js';
-  } else if (depth === 0) {
-    return './utils/DebugUtils.js';
-  } else {
-    return '../'.repeat(depth) + 'utils/DebugUtils.js';
+  } else if (filePath.includes('spa/')) {
+    const spaIndex = parts.indexOf('spa');
+    const depth = parts.length - spaIndex - 2;
+    if (depth === 0) {
+      return './utils/DebugUtils.js';
+    } else {
+      return '../'.repeat(depth) + 'utils/DebugUtils.js';
+    }
   }
+
+  // Handle mobile files
+  if (filePath.includes('mobile/src/utils')) {
+    return './DebugUtils.js';
+  } else if (filePath.includes('mobile/src/')) {
+    const srcIndex = parts.indexOf('src');
+    const depth = parts.length - srcIndex - 2;
+    if (depth === 0) {
+      return './utils/DebugUtils.js';
+    } else {
+      return '../'.repeat(depth) + 'utils/DebugUtils.js';
+    }
+  }
+
+  // Default fallback
+  return './utils/DebugUtils.js';
 }
 
 /**

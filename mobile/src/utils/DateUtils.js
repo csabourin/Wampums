@@ -7,6 +7,7 @@
 
 import { getCurrentLanguage } from '../i18n';
 import CONFIG from '../config';
+import { debugError } from './DebugUtils.js';
 
 /**
  * Format date according to locale
@@ -41,7 +42,7 @@ export const formatDate = (date, format = null, locale = null) => {
 
     return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-CA' : 'en-CA', options).format(dateObj);
   } catch (error) {
-    console.error('Error formatting date:', error);
+    debugError('Error formatting date:', error);
     return dateObj.toLocaleDateString();
   }
 };
@@ -78,7 +79,7 @@ export const formatTime = (time, format = null, locale = null) => {
 
     return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-CA' : 'en-CA', options).format(dateObj);
   } catch (error) {
-    console.error('Error formatting time:', error);
+    debugError('Error formatting time:', error);
     return dateObj.toLocaleTimeString();
   }
 };
@@ -116,7 +117,7 @@ export const formatDateTime = (datetime, format = null, locale = null) => {
 
     return new Intl.DateTimeFormat(lang === 'fr' ? 'fr-CA' : 'en-CA', options).format(dateObj);
   } catch (error) {
-    console.error('Error formatting datetime:', error);
+    debugError('Error formatting datetime:', error);
     return dateObj.toLocaleString();
   }
 };
@@ -154,7 +155,7 @@ export const formatRelativeDate = (date, locale = null) => {
     }
     return rtf.format(diffSecs, 'second');
   } catch (error) {
-    console.error('Error formatting relative date:', error);
+    debugError('Error formatting relative date:', error);
     return formatDateTime(dateObj);
   }
 };
