@@ -5,7 +5,6 @@
  */
 
 import CONFIG from '../config';
-import { debugLog, debugError, debugWarn } from './DebugUtils.js';
 
 /**
  * Log debug information when debug logging is enabled.
@@ -14,7 +13,7 @@ import { debugLog, debugError, debugWarn } from './DebugUtils.js';
 export const debugLog = (...args) => {
   if (CONFIG.FEATURES.DEBUG_LOGGING) {
     // eslint-disable-next-line no-console
-    debugLog('[Debug]', ...args);
+    console.log('[Debug]', ...args);
   }
 };
 
@@ -25,7 +24,7 @@ export const debugLog = (...args) => {
 export const debugWarn = (...args) => {
   if (CONFIG.FEATURES.DEBUG_LOGGING) {
     // eslint-disable-next-line no-console
-    debugWarn('[Debug]', ...args);
+    console.warn('[Debug]', ...args);
   }
 };
 
@@ -36,7 +35,7 @@ export const debugWarn = (...args) => {
 export const debugError = (...args) => {
   if (CONFIG.FEATURES.DEBUG_LOGGING) {
     // eslint-disable-next-line no-console
-    debugError('[Debug]', ...args);
+    console.error('[Debug]', ...args);
   }
 };
 

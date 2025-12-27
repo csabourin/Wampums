@@ -31,8 +31,6 @@ const AuthNavigator = ({ onLogin }) => {
           cardStyle: { backgroundColor: '#f5f5f5' },
         }}
       >
-        {debugLog('🟣 [AuthNavigator] Adding OrganizationSelect and Login screens to stack')}
-
         {/* Step 1: Organization URL Selection (pre-login) */}
         <Stack.Screen
           name="OrganizationSelect"

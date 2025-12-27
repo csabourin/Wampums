@@ -202,9 +202,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {debugLog('🟠 [LoginScreen] Inside KeyboardAvoidingView')}
         <View style={styles.form}>
-          {debugLog('🟠 [LoginScreen] Inside form View')}
           <Text style={styles.title}>{t('login')}</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}

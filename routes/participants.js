@@ -1,7 +1,7 @@
 // RESTful routes for participants
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole, getUserDataScope } = require('../middleware/auth');
+const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, getUserDataScope } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
