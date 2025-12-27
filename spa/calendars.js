@@ -2,6 +2,8 @@ import { getCalendarsForFundraiser, getFundraiser, updateCalendarEntry, updateCa
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { clearFundraiserRelatedCaches } from './indexedDB.js';
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class Calendars {
 	constructor(app) {
@@ -115,7 +117,7 @@ export class Calendars {
 
 			<button id="print-view-btn" class="secondary-btn">${translate('print_view')}</button>
 		`;
-		document.getElementById('app').innerHTML = content;
+		setContent(document.getElementById('app'), content);
 	}
 
 	renderCalendarsTable() {
@@ -240,7 +242,7 @@ export class Calendars {
 	updateTableOnly() {
 		const container = document.getElementById('calendars-table-container');
 		if (container) {
-			container.innerHTML = this.renderCalendarsTable();
+			setContent(container, this.renderCalendarsTable());
 		}
 
 		// Update sort button states

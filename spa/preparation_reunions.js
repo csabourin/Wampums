@@ -1,5 +1,7 @@
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 import {
         getActivitesRencontre,
         getAnimateurs,
@@ -360,7 +362,7 @@ export class PreparationReunions {
                         </div>
                 `;
 
-                document.getElementById("app").innerHTML = content;
+                setContent(document.getElementById("app"), content);
                 this.activityManager.renderActivitiesTable();
         }
 
@@ -375,7 +377,7 @@ export class PreparationReunions {
                                 </div>
                         </div>
                 `;
-                document.getElementById("app").innerHTML = content;
+                setContent(document.getElementById("app"), content);
         }
 
         attachEventListeners() {
