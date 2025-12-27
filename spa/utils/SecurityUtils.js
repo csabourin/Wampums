@@ -11,7 +11,8 @@ import { debugLog, debugError } from './DebugUtils.js';
 
 /**
  * Map of allowed HTML tags and their permitted attributes
- * Following OWASP recommendations for safe HTML
+ * Comprehensive list based on actual codebase usage
+ * Following OWASP recommendations while supporting full application functionality
  */
 const ALLOWED_TAGS = {
   // Text formatting
@@ -21,45 +22,93 @@ const ALLOWED_TAGS = {
   'strong': [],
   'u': [],
   'br': [],
-  'p': ['class'],
-  'span': ['class'],
-  'div': ['class', 'id'],
+  'hr': [],
+  'small': [],
+  'code': [],
+  'pre': [],
+  'blockquote': [],
+  'p': ['class', 'id'],
+  'span': ['class', 'id', 'style'],
+  'div': ['class', 'id', 'style'],
 
   // Lists
-  'ul': ['class'],
-  'ol': ['class'],
-  'li': ['class'],
+  'ul': ['class', 'id'],
+  'ol': ['class', 'id'],
+  'li': ['class', 'id'],
 
-  // Links (with restrictions)
-  'a': ['href', 'title', 'class'],
-
-  // Images (safe attributes only)
-  'img': ['src', 'alt', 'title', 'class', 'width', 'height'],
+  // Links & Images
+  'a': ['href', 'title', 'class', 'id', 'target', 'rel', 'aria-label'],
+  'img': ['src', 'alt', 'title', 'class', 'id', 'width', 'height', 'loading'],
 
   // Tables
-  'table': ['class'],
-  'thead': [],
-  'tbody': [],
-  'tr': ['class'],
-  'th': ['class'],
-  'td': ['class'],
+  'table': ['class', 'id'],
+  'thead': ['class'],
+  'tbody': ['class'],
+  'tfoot': ['class'],
+  'tr': ['class', 'id'],
+  'th': ['class', 'id', 'colspan', 'rowspan'],
+  'td': ['class', 'id', 'colspan', 'rowspan'],
+  'caption': ['class'],
 
   // Headers
-  'h1': ['class'],
-  'h2': ['class'],
-  'h3': ['class'],
-  'h4': ['class'],
-  'h5': ['class'],
-  'h6': ['class']
+  'h1': ['class', 'id'],
+  'h2': ['class', 'id'],
+  'h3': ['class', 'id'],
+  'h4': ['class', 'id'],
+  'h5': ['class', 'id'],
+  'h6': ['class', 'id'],
+
+  // Form elements
+  'form': ['class', 'id', 'action', 'method', 'enctype'],
+  'input': ['type', 'name', 'id', 'class', 'value', 'placeholder', 'required', 'disabled', 'readonly', 'checked', 'min', 'max', 'step', 'pattern', 'autocomplete', 'aria-label'],
+  'button': ['type', 'class', 'id', 'disabled', 'aria-label'],
+  'select': ['name', 'id', 'class', 'required', 'disabled', 'multiple'],
+  'option': ['value', 'selected', 'disabled'],
+  'textarea': ['name', 'id', 'class', 'placeholder', 'required', 'disabled', 'readonly', 'rows', 'cols'],
+  'label': ['for', 'class', 'id'],
+  'fieldset': ['class', 'id', 'disabled'],
+  'legend': ['class', 'id'],
+
+  // Semantic HTML5
+  'header': ['class', 'id'],
+  'footer': ['class', 'id'],
+  'main': ['class', 'id'],
+  'nav': ['class', 'id'],
+  'section': ['class', 'id'],
+  'article': ['class', 'id'],
+  'aside': ['class', 'id'],
+  'details': ['class', 'id', 'open'],
+  'summary': ['class', 'id'],
+
+  // SVG elements
+  'svg': ['class', 'id', 'width', 'height', 'viewBox', 'fill', 'stroke', 'stroke-width', 'xmlns'],
+  'path': ['d', 'fill', 'stroke', 'stroke-width', 'class'],
+  'circle': ['cx', 'cy', 'r', 'fill', 'stroke', 'stroke-width', 'class'],
+  'rect': ['x', 'y', 'width', 'height', 'fill', 'stroke', 'stroke-width', 'rx', 'ry', 'class'],
+  'line': ['x1', 'y1', 'x2', 'y2', 'stroke', 'stroke-width', 'class'],
+  'polyline': ['points', 'fill', 'stroke', 'stroke-width', 'class'],
+  'polygon': ['points', 'fill', 'stroke', 'stroke-width', 'class'],
+  'g': ['class', 'id', 'transform', 'fill', 'stroke'],
+  'defs': [],
+  'use': ['href', 'xlink:href', 'x', 'y'],
+  'text': ['x', 'y', 'class', 'fill', 'font-size'],
+  'tspan': ['x', 'y', 'class']
 };
 
 /**
  * Sanitize HTML string to prevent XSS attacks using DOMPurify
  * Removes dangerous tags and attributes while preserving safe formatting
  *
- * Allowed tags: a, img, p, div, span, b, i, em, strong, u, br, ul, ol, li, table, thead, tbody, tr, th, td, h1-h6
- * Links (a tags) with href attributes are allowed
- * Images (img tags) with src, alt, title attributes are allowed
+ * Allows comprehensive HTML including:
+ * - Text formatting: b, i, em, strong, u, br, hr, p, div, span, etc.
+ * - Forms: form, input, button, select, option, textarea, label, fieldset, legend
+ * - Tables: table, thead, tbody, tr, th, td with colspan/rowspan
+ * - Semantic HTML5: header, footer, main, nav, section, article, aside, details, summary
+ * - SVG: svg, path, circle, rect, line, polyline, polygon, g, defs, use, text
+ * - Links and images with safe attributes
+ * - Data attributes (data-*) for application state management
+ *
+ * Still blocks: script, onclick/onerror/on* event handlers, javascript: URLs, and other XSS vectors
  *
  * @param {string} html - The HTML string to sanitize
  * @param {Object} options - Sanitization options
@@ -87,7 +136,7 @@ export function sanitizeHTML(html, options = {}) {
   const config = {
     ALLOWED_TAGS: Object.keys(ALLOWED_TAGS),
     ALLOWED_ATTR: Array.from(allowedAttrs),
-    ALLOW_DATA_ATTR: false,
+    ALLOW_DATA_ATTR: true, // Allow data-* attributes (used extensively in the app)
     SAFE_FOR_TEMPLATES: true,
   };
 
