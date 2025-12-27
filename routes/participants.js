@@ -985,8 +985,13 @@ module.exports = (pool) => {
 
     let params = [id, organizationId];
 
-    // For parent role, verify they have access to this participant
-    if (userRole !== 'admin' && userRole !== 'animation') {
+    // Staff roles (admin, animation, district, unitadmin, demoadmin) can see all participants
+    // Parent and demoparent roles can only see participants they're linked to
+    const staffRoles = ['admin', 'animation', 'district', 'unitadmin', 'demoadmin'];
+    const isStaff = staffRoles.includes(userRole);
+
+    if (!isStaff) {
+      // For parent/demoparent roles, verify they have access to this participant
       query += ` AND EXISTS (
         SELECT 1 FROM user_participants up
         WHERE up.participant_id = p.id AND up.user_id = $3
