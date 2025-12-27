@@ -3,6 +3,7 @@ import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { registerForOrganization, getUserChildren } from "./ajax-functions.js";
 import { isParent } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class RegisterOrganization {
 	constructor(app) {
@@ -36,7 +37,7 @@ export class RegisterOrganization {
 				<button type="submit">${translate("register")}</button>
 			</form>
 		`;
-		document.getElementById("app").innerHTML = content;
+		setContent(document.getElementById("app"), content);
 	}
 
 	renderChildrenOptions() {

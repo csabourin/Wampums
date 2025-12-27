@@ -1,6 +1,7 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import * as ajaxFunctions from "./ajax-functions.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class Register {
   constructor(app) {
@@ -46,7 +47,7 @@ export class Register {
             </form>
             <p><a href="/login">${translate("already_have_account")}</a></p>
         `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
     this.attachEventListeners();
   }
 

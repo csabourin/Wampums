@@ -15,6 +15,7 @@ import {
   sanitizeHTML,
   sanitizeURL,
 } from "./utils/SecurityUtils.js";
+import { setContent, clearElement } from "./utils/DOMUtils.js";
 import { getActivities, createActivity } from "./api/api-activities.js";
 import { clearActivityRelatedCaches } from "./indexedDB.js";
 import { skeletonDashboard } from "./utils/SkeletonUtils.js";
@@ -316,7 +317,7 @@ export class Dashboard {
 
     // Show loading skeleton while data is being fetched
     if (this.isLoading) {
-      container.innerHTML = skeletonDashboard();
+      setContent(container, skeletonDashboard());
       return;
     }
 
@@ -454,7 +455,7 @@ ${administrationLinks.length > 0 ? `
       <p><a href="/logout" id="logout-link">${translate("logout")}</a></p>
     `;
 
-    container.innerHTML = content;
+    setContent(container, content);
     this.updatePointsList();
     this.updateNewsSection();
   }
@@ -471,9 +472,9 @@ ${administrationLinks.length > 0 ? `
     if (!list) return;
 
     list.classList.toggle("collapsed", this.pointsCollapsed);
-    list.innerHTML = this.pointsCollapsed
+    setContent(list, this.pointsCollapsed
       ? this.renderCollapsedPointsPlaceholder()
-      : this.renderPointsList();
+      : this.renderPointsList());
   }
 
   renderPointsList() {
@@ -677,7 +678,7 @@ ${administrationLinks.length > 0 ? `
 
   updateNewsSection() {
     const container = document.getElementById("news-content");
-    if (container) container.innerHTML = this.renderNewsContent();
+    if (container) setContent(container, this.renderNewsContent());
 
     const btn = document.getElementById("refresh-news-btn");
     if (btn) btn.disabled = this.newsLoading;
@@ -771,7 +772,7 @@ ${administrationLinks.length > 0 ? `
       modal.style.justifyContent = 'center';
       modal.style.zIndex = '10000';
 
-      modal.innerHTML = `
+      setContent(modal, `
         <div style="background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow: auto; padding: 2rem;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
             <h2 style="margin: 0;">${translate('carpool_coordination')}</h2>

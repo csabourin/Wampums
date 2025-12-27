@@ -15,6 +15,7 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { setContent, clearElement } from "./utils/DOMUtils.js";
 import { canAccessAdminPanel, canCreateOrganization, canManageUsers, canSendCommunications, canViewUsers } from "./utils/PermissionUtils.js";
 
 export class Admin {
@@ -209,7 +210,7 @@ ${showNotifications ? `
 
                         <a href="/dashboard">${this.app.translate("back_to_dashboard")}</a>
                 `;
-                document.getElementById("app").innerHTML = content;
+                setContent(document.getElementById("app"), content);
         }
 
         getRoleOptions() {
@@ -514,7 +515,7 @@ ${showNotifications ? `
 
                         importBtn.disabled = true;
                         progressDiv.style.display = "block";
-                        resultDiv.innerHTML = "";
+                        clearElement(resultDiv);
 
                         try {
                                 const reader = new FileReader();
@@ -538,7 +539,7 @@ ${showNotifications ? `
 
                                                 if (result.success) {
                                                         const stats = result.stats;
-                                                        resultDiv.innerHTML = `
+                                                        setContent(resultDiv, `
                                                                 <div class="success-message">
                                                                         <h4>${translate("import_successful")}</h4>
                                                                         <ul>
@@ -565,27 +566,27 @@ ${showNotifications ? `
                                                                                 </ul>
                                                                         ` : ""}
                                                                 </div>
-                                                        `;
+                                                        `);
                                                 } else {
-                                                        resultDiv.innerHTML = `<div class="error-message">${translate("import_failed")}: ${escapeHTML(result.message)}</div>`;
+                                                        setContent(resultDiv, `<div class="error-message">${translate("import_failed")}: ${escapeHTML(result.message)}</div>`);
                                                 }
                                         } catch (error) {
                                                 progressDiv.style.display = "none";
-                                                resultDiv.innerHTML = `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`;
+                                                setContent(resultDiv, `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`);
                                         }
                                         importBtn.disabled = false;
                                 };
 
                                 reader.onerror = () => {
                                         progressDiv.style.display = "none";
-                                        resultDiv.innerHTML = `<div class="error-message">${translate("file_read_error")}</div>`;
+                                        setContent(resultDiv, `<div class="error-message">${translate("file_read_error")}</div>`);
                                         importBtn.disabled = false;
                                 };
 
                                 reader.readAsArrayBuffer(selectedFile);
                         } catch (error) {
                                 progressDiv.style.display = "none";
-                                resultDiv.innerHTML = `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`;
+                                setContent(resultDiv, `<div class="error-message">${translate("import_failed")}: ${escapeHTML(error.message)}</div>`);
                                 importBtn.disabled = false;
                         }
                 });
