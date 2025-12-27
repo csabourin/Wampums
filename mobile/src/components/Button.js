@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import CONFIG from '../config';
+import theme from '../theme';
 
 const Button = ({
   title,
@@ -49,7 +50,7 @@ const Button = ({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? '#fff' : '#007AFF'}
+          color={variant === 'primary' || variant === 'danger' || variant === 'success' ? theme.colors.surface : theme.colors.primary}
           size="small"
         />
       ) : (
@@ -61,25 +62,25 @@ const Button = ({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
   },
   // Variants
   primary: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.colors.primary,
   },
   secondary: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.secondary,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: theme.colors.primary,
   },
   danger: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: theme.colors.error,
   },
   success: {
-    backgroundColor: '#34C759',
+    backgroundColor: theme.colors.success,
   },
   disabled: {
     opacity: 0.5,
@@ -102,16 +103,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   text_primary: {
-    color: '#fff',
+    color: theme.colors.surface,
   },
   text_secondary: {
-    color: '#007AFF',
+    color: theme.colors.primary,
   },
   text_danger: {
-    color: '#fff',
+    color: theme.colors.surface,
   },
   text_success: {
-    color: '#fff',
+    color: theme.colors.surface,
   },
   text_small: {
     fontSize: 14,

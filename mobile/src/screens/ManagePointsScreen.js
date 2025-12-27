@@ -62,7 +62,7 @@ const ManagePointsScreen = () => {
    */
   const sortedAndFilteredData = useMemo(() => {
     // Filter groups if a specific group is selected
-    let filteredGroups = filterGroupId
+    let filteredGroups = filterGroupId && filterGroupId !== ''
       ? groups.filter((g) => g.id === parseInt(filterGroupId))
       : groups;
 
@@ -228,12 +228,17 @@ const ManagePointsScreen = () => {
   /**
    * Render a participant item
    */
-  const renderParticipant = (participant) => {
+  const renderParticipant = (participant, index) => {
     const isSelected = selectedId === participant.id && selectedType === 'participant';
+    const isEven = index % 2 === 0;
     return (
       <TouchableOpacity
         key={`participant-${participant.id}`}
-        style={[styles.participantItem, isSelected && styles.participantItemSelected]}
+        style={[
+          styles.participantItem,
+          isEven ? styles.participantItemEven : styles.participantItemOdd,
+          isSelected && styles.participantItemSelected
+        ]}
         onPress={() => {
           setSelectedId(participant.id);
           setSelectedType('participant');
@@ -254,24 +259,12 @@ const ManagePointsScreen = () => {
    * Render a group with its participants
    */
   const renderGroupSection = ({ group, participants: groupParticipants }) => {
-    const totalGroupPoints = groupParticipants.reduce(
-      (sum, p) => sum + Number(p.total_points || 0),
-      0
-    );
-
     return (
       <View key={`section-${group.id}`} style={styles.groupSection}>
         {renderGroupHeader(group)}
         <View style={styles.groupContent}>
           {groupParticipants.length > 0 ? (
-            <>
-              {groupParticipants.map(renderParticipant)}
-              <View style={styles.groupTotal}>
-                <Text style={styles.groupTotalText}>
-                  {t('total_points')}: {Number(group.total_points || 0)}
-                </Text>
-              </View>
-            </>
+            groupParticipants.map((participant, index) => renderParticipant(participant, index))
           ) : (
             <Text style={styles.emptyText}>{t('no_participants_in_group')}</Text>
           )}
@@ -441,7 +434,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   groupHeader: {
-    backgroundColor: theme.colors.lightGray,
+    backgroundColor: '#d3e3dc',
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.sm,
     marginBottom: theme.spacing.xs,
@@ -462,11 +455,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: theme.spacing.md,
-    backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.sm,
     marginBottom: theme.spacing.xs,
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  participantItemEven: {
+    backgroundColor: '#f8fbf9', // Very light mint green
+  },
+  participantItemOdd: {
+    backgroundColor: '#e7f2ee', // Light green
   },
   participantItemSelected: {
     borderColor: theme.colors.primary,
@@ -481,17 +479,6 @@ const styles = StyleSheet.create({
     ...commonStyles.bodyText,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.primary,
-  },
-  groupTotal: {
-    padding: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  groupTotalText: {
-    ...commonStyles.caption,
-    fontWeight: theme.fontWeight.semibold,
-    textAlign: 'right',
   },
   emptyText: {
     ...commonStyles.caption,
