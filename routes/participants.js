@@ -1,7 +1,7 @@
 // RESTful routes for participants
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
+const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole, getUserDataScope } = require('../middleware/auth');
 const { success, error, paginated, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
@@ -65,27 +65,16 @@ module.exports = (pool) => {
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
     const groupId = req.query.group_id;
-    const userRole = req.user.role;
     const userId = req.user.id;
-    const parentOnlyRoles = ['parent', 'demoparent'];
-    const staffParticipantRoles = ['district', 'unitadmin', 'leader', 'admin', 'animation', 'demoadmin'];
-    const userRoles = Array.isArray(req.userRoles) && req.userRoles.length > 0
-      ? req.userRoles
-      : (userRole ? [userRole] : []);
-    const hasStaffRole = userRoles.some(role => staffParticipantRoles.includes(role));
-    const isParentOnly = userRoles.every(role => parentOnlyRoles.includes(role));
 
-    if (!hasStaffRole && !isParentOnly) {
-      return res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions for participant access'
-      });
-    }
+    // Use data scope instead of hardcoded role checks
+    // This eliminates technical debt of hardcoding role names
+    const dataScope = await getUserDataScope(req, pool);
 
     let query, params, countQuery, countParams;
 
-    // If user has any non-parent role, show ALL participants
-    if (hasStaffRole) {
+    // Organization-scoped users (staff): show ALL participants
+    if (dataScope === 'organization') {
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
@@ -125,7 +114,7 @@ module.exports = (pool) => {
       `;
       countParams = groupId ? [organizationId, groupId] : [organizationId];
     } else {
-      // For parents, only show participants linked to them
+      // Linked-scoped users (parents): only show participants linked to them
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
@@ -960,8 +949,10 @@ module.exports = (pool) => {
       return error(res, 'Invalid participant id', 400);
     }
     const organizationId = await getOrganizationId(req, pool);
-    const userRole = req.user.role;
     const userId = req.user.id;
+
+    // Use data scope instead of hardcoded role checks
+    const dataScope = await getUserDataScope(req, pool);
 
     // Base query to get participant data
     let query = `
@@ -985,21 +976,15 @@ module.exports = (pool) => {
 
     let params = [id, organizationId];
 
-    // Staff roles (admin, animation, district, unitadmin, demoadmin) can see all participants
-    // Parent roles can only see participants they're linked to via user_participants table
-    // Check for staff roles FIRST - if user has any staff role, grant full access
-    const staffRoles = ['admin', 'animation', 'district', 'unitadmin', 'demoadmin'];
-    const hasStaffRole = req.userRoles && req.userRoles.some(role => staffRoles.includes(role));
-
-    // Only restrict if user has NO staff roles (i.e., they're only a parent)
-    if (!hasStaffRole) {
-      // For parent/demoparent roles, verify they have access to this participant via user_participants
+    // Linked-scoped users (parents): verify they have access to this specific participant
+    if (dataScope === 'linked') {
       query += ` AND EXISTS (
         SELECT 1 FROM user_participants up
         WHERE up.participant_id = p.id AND up.user_id = $3
       )`;
       params.push(userId);
     }
+    // Organization-scoped users (staff): can see all participants, no additional filter needed
 
     const result = await pool.query(query, params);
 

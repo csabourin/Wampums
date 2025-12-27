@@ -13,6 +13,7 @@ const jwt = require('jsonwebtoken');
 
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { hasStaffRole, isParentOnly } = require('../config/role-constants');
 
 // Load JWT secret key - fail fast if not configured
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -197,13 +198,13 @@ document.addEventListener("DOMContentLoaded", function() {
       const roleNames = Array.isArray(decoded.roleNames) ? decoded.roleNames : [];
       const permissions = Array.isArray(decoded.permissions) ? decoded.permissions : [];
       const userRoles = roleNames.length > 0 ? roleNames : (decoded.user_role ? [decoded.user_role] : []);
-      const parentOnlyRoles = ['parent', 'demoparent'];
-      const staffParticipantRoles = ['district', 'unitadmin', 'leader', 'admin', 'animation', 'demoadmin'];
-      const hasStaffRole = userRoles.some(role => staffParticipantRoles.includes(role));
-      const isParentOnly = userRoles.every(role => parentOnlyRoles.includes(role));
-      const canViewAllParticipants = hasStaffRole && permissions.includes('participants.view');
 
-      if (!hasStaffRole && !isParentOnly) {
+      // Use centralized role constants instead of hardcoded arrays
+      const hasStaffAccess = hasStaffRole(userRoles);
+      const isParentOnlyAccess = isParentOnly(userRoles);
+      const canViewAllParticipants = hasStaffAccess && permissions.includes('participants.view');
+
+      if (!hasStaffAccess && !isParentOnlyAccess) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
 

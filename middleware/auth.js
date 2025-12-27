@@ -59,11 +59,30 @@ exports.authenticate = (req, res, next) => {
 };
 
 /**
+ * @deprecated Use requirePermission() instead
+ *
  * Check if user has required role(s)
+ *
+ * **DEPRECATED:** This middleware is deprecated and will be removed in a future version.
+ * Use the permission-based `requirePermission()` middleware instead.
+ *
+ * **Why deprecated:**
+ * - Only checks `req.user.role` (single role), doesn't support multi-role users
+ * - Role-based checks are less flexible than permission-based checks
+ * - Hardcodes authorization logic instead of using database-driven permissions
+ *
+ * **Migration guide:**
+ * - `authorize('admin')` → `requirePermission('forms.manage')` or appropriate permission
+ * - See config/roles.js for permission mappings
+ *
  * @param {Array|String} roles - Required role(s)
+ * @returns {Function} Express middleware
  */
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    // Log deprecation warning
+    logger.warn(`DEPRECATED: authorize() middleware used in ${req.method} ${req.path}. Migrate to requirePermission().`);
+
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -452,4 +471,58 @@ exports.hasAnyRole = (req, ...roles) => {
     return false;
   }
   return roles.some(role => req.userRoles.includes(role));
+};
+
+/**
+ * Get user's data scope based on their roles
+ *
+ * Data scope determines what data users can access:
+ * - 'organization': User can see ALL data in the organization (staff roles)
+ * - 'linked': User can only see data they're explicitly linked to (parent roles)
+ *
+ * If user has ANY role with 'organization' scope, they get organization-wide access.
+ * This is critical for multi-role users (e.g., parent who is also a leader).
+ *
+ * @param {Object} req - Express request object with authenticated user
+ * @param {Object} pool - Database connection pool
+ * @returns {Promise<string>} 'organization' or 'linked'
+ *
+ * @example
+ * // In a route handler:
+ * const dataScope = await getUserDataScope(req, pool);
+ * if (dataScope === 'organization') {
+ *   // Query all participants in organization
+ * } else {
+ *   // Query only participants linked to this user
+ * }
+ */
+exports.getUserDataScope = async (req, pool) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return 'linked'; // Default to most restrictive
+    }
+
+    const organizationId = await exports.getOrganizationId(req, pool);
+
+    // Query user's roles and get their data scopes
+    // Order by data_scope ASC so 'linked' comes before 'organization'
+    // This way we can take the LAST (most permissive) scope
+    const result = await pool.query(`
+      SELECT DISTINCT r.data_scope
+      FROM user_organizations uo
+      CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+      JOIN roles r ON r.id = role_id_text::integer
+      WHERE uo.user_id = $1 AND uo.organization_id = $2
+      ORDER BY r.data_scope DESC
+    `, [req.user.id, organizationId]);
+
+    // If user has ANY organization-scoped role, they get organization access
+    // Otherwise, they get linked access
+    // DESC order means 'organization' comes first if it exists
+    return result.rows[0]?.data_scope || 'linked';
+
+  } catch (error) {
+    logger.error('Error getting user data scope:', error);
+    return 'linked'; // Fail safely to most restrictive
+  }
 };

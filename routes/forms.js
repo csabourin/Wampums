@@ -12,6 +12,7 @@ const router = express.Router();
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getFormPermissionsForRoles, checkFormPermission } = require('../utils/api-helpers');
+const { hasStaffRole } = require('../config/role-constants');
 
 /**
  * Export route factory function
@@ -88,11 +89,11 @@ module.exports = (pool, logger) => {
 
       // Staff roles can access all participants in their organization
       // Parent roles can only access participants they're linked to
-      const staffRoles = ['admin', 'animation', 'district', 'unitadmin', 'demoadmin'];
-      const hasStaffRole = userRoles.some(role => staffRoles.includes(role));
+      // Use centralized role constants instead of hardcoded arrays
+      const hasStaffAccess = hasStaffRole(userRoles);
 
       // Only restrict access for non-staff users (parents)
-      if (!hasStaffRole) {
+      if (!hasStaffAccess) {
         // For parent/demoparent roles, check if they have access to this participant
         const accessCheck = await pool.query(
           `SELECT 1 FROM user_participants
