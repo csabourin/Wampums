@@ -46,9 +46,9 @@ const staticAssets = [
 ];
 
 const staticImages = [
-  "/images/icon-192x192.png",
-  "/images/icon-512x512.png",
-  "/images/6eASt-Paul.png",
+  "/assets/images/icon-192x192.png",
+  "/assets/images/icon-512x512.png",
+  "/assets/images/6eASt-Paul.png",
 ];
 
 // Requests that should never be cached to avoid stale metadata breaking updates
