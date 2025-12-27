@@ -422,14 +422,9 @@ export class ParentDashboard {
 renderFormButtons(participant) {
     debugLog("Forms type: ", this.formFormats);
 
+    // The backend now filters forms based on user permissions
+    // We no longer need to hardcode exclusions here
     return Object.keys(this.formFormats)
-        .filter(formType => {
-            // Exclude 'participant_registration' and 'parent_guardian' for all users
-            if (formType === 'participant_registration' || formType === 'parent_guardian') {
-                return false; // Hide these forms
-            }
-            return true; // Show all other forms
-        })
         .map(formType => {
             const formLabel = translate(formType);
             const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
@@ -443,12 +438,12 @@ renderFormButtons(participant) {
                 </a>
             `;
         })
-                        .join("") + `
-                                <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
-                                        <span class="form-btn__icon">🏅</span>
-                                        <span class="form-btn__label">${translate('manage_badge_progress')}</span>
-                                </a>
-                        `;
+        .join("") + `
+                <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
+                        <span class="form-btn__icon">🏅</span>
+                        <span class="form-btn__label">${translate('manage_badge_progress')}</span>
+                </a>
+        `;
 }
 
         renderPermissionSlipSection(participant) {

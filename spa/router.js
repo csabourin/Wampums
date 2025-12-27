@@ -86,7 +86,8 @@ const lazyModules = {
   CarpoolLanding: () => import('./carpool.js').then(m => m.CarpoolLanding),
   CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
   RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement),
-  DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement)
+  DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement),
+  FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions)
 };
 
 // Cache for loaded modules
@@ -152,7 +153,8 @@ const routes = {
   "/carpool": "carpoolLanding",
   "/carpool/:id": "carpool",
   "/role-management": "roleManagement",
-  "/district-management": "districtManagement"
+  "/district-management": "districtManagement",
+  "/form-permissions": "formPermissions"
 
 };
 
@@ -530,6 +532,14 @@ export class Router {
           const DistrictManagement = await this.loadModule('DistrictManagement');
           const districtManagement = new DistrictManagement(this.app);
           await districtManagement.init();
+          break;
+        case "formPermissions":
+          // Only accessible by district and unitadmin
+          if (!guard(canAccessAdminPanel())) {
+            break;
+          }
+          const initFormPermissions = await this.loadModule('FormPermissions');
+          await initFormPermissions(this.app);
           break;
         case "register":
           if (this.app.isLoggedIn) {
