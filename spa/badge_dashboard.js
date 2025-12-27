@@ -14,8 +14,15 @@ import {
   clearBadgeRelatedCaches,
 } from "./indexedDB.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
-import { canApproveBadges, canManageBadges, canViewBadges } from "./utils/PermissionUtils.js";
-import { OptimisticUpdateManager, generateOptimisticId } from "./utils/OptimisticUpdateManager.js";
+import {
+  canApproveBadges,
+  canManageBadges,
+  canViewBadges,
+} from "./utils/PermissionUtils.js";
+import {
+  OptimisticUpdateManager,
+  generateOptimisticId,
+} from "./utils/OptimisticUpdateManager.js";
 
 export class BadgeDashboard {
   constructor(app) {
@@ -186,7 +193,8 @@ export class BadgeDashboard {
           id: entry.badge_template_id,
           name: badgeName,
           translationKey: template?.translation_key || entry.translation_key,
-          section: template?.section || entry.badge_section || participant.section,
+          section:
+            template?.section || entry.badge_section || participant.section,
           levelCount,
           levels: Array.isArray(templateLevels) ? templateLevels : [],
           image: template?.image || entry.image,
@@ -223,7 +231,10 @@ export class BadgeDashboard {
         };
       });
 
-      const totalStars = badges.reduce((sum, badge) => sum + (badge.stars || 0), 0);
+      const totalStars = badges.reduce(
+        (sum, badge) => sum + (badge.stars || 0),
+        0,
+      );
 
       return {
         ...record,
@@ -246,7 +257,8 @@ export class BadgeDashboard {
     const normalizedSection = section || "general";
     return this.templates.filter(
       (template) =>
-        template.section === normalizedSection || template.section === "general",
+        template.section === normalizedSection ||
+        template.section === "general",
     );
   }
 
@@ -259,7 +271,11 @@ export class BadgeDashboard {
         translate("badge_unknown_label")
       );
     }
-    return translate(template.translation_key) || template.name || translate("badge_unknown_label");
+    return (
+      translate(template.translation_key) ||
+      template.name ||
+      translate("badge_unknown_label")
+    );
   }
 
   getObtainableStars(badgeName, currentStars = 0, templateId = null) {
@@ -440,7 +456,8 @@ export class BadgeDashboard {
 
   renderBadgeStars(participantId, badge) {
     const starTotal = badge.obtainable || badge.levelCount || 3;
-    const levelLabel = translate("badge_level_label") || translate("badge_star_label");
+    const levelLabel =
+      translate("badge_level_label") || translate("badge_star_label");
     return Array.from({ length: starTotal }, (_, index) => {
       const starIndex = index + 1;
       const starMapping = badge.starMap?.find(
@@ -652,7 +669,10 @@ export class BadgeDashboard {
     const formattedDefaultDate = this.formatDateInput(
       defaultEntry?.date_obtention,
     );
-    const levelLabel = translate("badge_level_label") || translate("badge_star_label") || "Level";
+    const levelLabel =
+      translate("badge_level_label") ||
+      translate("badge_star_label") ||
+      "Level";
 
     const badgeOptions = record.badges
       .map(
@@ -681,7 +701,7 @@ export class BadgeDashboard {
 
         ${
           hasExistingBadges
-              ? `
+            ? `
         <nav class="modal__tabs">
           <button type="button" class="tab-button ${!showAddForm ? "active" : ""}" data-tab="edit">
             ${translate("badge_edit_tab") || "Edit"}
@@ -849,7 +869,8 @@ export class BadgeDashboard {
     const badgeSelect = modal.querySelector("#badge-select");
 
     badgeSelect?.addEventListener("change", (event) => {
-      const nextBadgeId = parseInt(event.target.value, 10) || event.target.value;
+      const nextBadgeId =
+        parseInt(event.target.value, 10) || event.target.value;
       const currentTab = modal
         .querySelector(".tab-button.active")
         ?.getAttribute("data-tab");
@@ -911,7 +932,7 @@ export class BadgeDashboard {
 
             // Find and update the entry optimistically
             const entryIndex = this.badgeEntries.findIndex(
-              (entry) => entry.id === entryId
+              (entry) => entry.id === entryId,
             );
             if (entryIndex >= 0) {
               this.badgeEntries[entryIndex] = {
@@ -968,7 +989,7 @@ export class BadgeDashboard {
 
           onError: (error) => {
             debugError("Error updating badge entry", error);
-          }
+          },
         });
       });
 
@@ -995,93 +1016,96 @@ export class BadgeDashboard {
         };
 
         // Use OptimisticUpdateManager for instant feedback
-        await this.optimisticManager.execute(`add-badge-${participantId}-${templateId}`, {
-          optimisticFn: () => {
-            // Save original state for rollback
-            const rollbackState = {
-              badgeEntries: JSON.parse(JSON.stringify(this.badgeEntries)),
-              records: JSON.parse(JSON.stringify(this.records)),
-            };
+        await this.optimisticManager.execute(
+          `add-badge-${participantId}-${templateId}`,
+          {
+            optimisticFn: () => {
+              // Save original state for rollback
+              const rollbackState = {
+                badgeEntries: JSON.parse(JSON.stringify(this.badgeEntries)),
+                records: JSON.parse(JSON.stringify(this.records)),
+              };
 
-            // Create optimistic entry
-            const optimisticEntry = {
-              id: generateOptimisticId('badge'),
-              ...payload,
-              status: 'pending',
-              etoiles: 1, // Default to level 1 for new entries
-              _optimistic: true,
-            };
+              // Create optimistic entry
+              const optimisticEntry = {
+                id: generateOptimisticId("badge"),
+                ...payload,
+                status: "pending",
+                etoiles: 1, // Default to level 1 for new entries
+                _optimistic: true,
+              };
 
-            // Add optimistic entry
-            this.badgeEntries.push(optimisticEntry);
-            this.buildRecords();
-            this.resetVisibleCount();
-            this.updateRows();
-
-            // Show optimistic success
-            feedback.textContent = translate("badge_add_success");
-            feedback.className = "feedback-success";
-
-            return rollbackState;
-          },
-
-          apiFn: async () => {
-            const result = await saveBadgeProgress(payload);
-            if (!result?.success)
-              throw new Error(result?.message || "Unknown error");
-
-            await clearBadgeRelatedCaches();
-
-            return result;
-          },
-
-          successFn: (result) => {
-            // Remove optimistic entry and add real data
-            this.badgeEntries = this.badgeEntries.filter(
-              (entry) => !entry._optimistic
-            );
-
-            if (result.data) {
-              this.badgeEntries.push(result.data);
+              // Add optimistic entry
+              this.badgeEntries.push(optimisticEntry);
               this.buildRecords();
               this.resetVisibleCount();
               this.updateRows();
-            }
 
-            debugLog("Badge entry created successfully:", result.data);
+              // Show optimistic success
+              feedback.textContent = translate("badge_add_success");
+              feedback.className = "feedback-success";
 
-            // Reopen modal in edit mode with the newly added badge
-            setTimeout(() => {
-              const addedBadgeTemplateId = payload.badge_template_id;
-              this.openBadgeModal(
-                participantId,
-                addedBadgeTemplateId,
-                false,
-                null,
-                false,
+              return rollbackState;
+            },
+
+            apiFn: async () => {
+              const result = await saveBadgeProgress(payload);
+              if (!result?.success)
+                throw new Error(result?.message || "Unknown error");
+
+              await clearBadgeRelatedCaches();
+
+              return result;
+            },
+
+            successFn: (result) => {
+              // Remove optimistic entry and add real data
+              this.badgeEntries = this.badgeEntries.filter(
+                (entry) => !entry._optimistic,
               );
-            }, 500);
+
+              if (result.data) {
+                this.badgeEntries.push(result.data);
+                this.buildRecords();
+                this.resetVisibleCount();
+                this.updateRows();
+              }
+
+              debugLog("Badge entry created successfully:", result.data);
+
+              // Reopen modal in edit mode with the newly added badge
+              setTimeout(() => {
+                const addedBadgeTemplateId = payload.badge_template_id;
+                this.openBadgeModal(
+                  participantId,
+                  addedBadgeTemplateId,
+                  false,
+                  null,
+                  false,
+                );
+              }, 500);
+            },
+
+            rollbackFn: (rollbackState, error) => {
+              // Revert to original state
+              this.badgeEntries = rollbackState.badgeEntries;
+              this.records = rollbackState.records;
+
+              // Re-render to remove optimistic entry
+              this.buildRecords();
+              this.resetVisibleCount();
+              this.updateRows();
+
+              // Show error message
+              feedback.textContent = translate("badge_add_error");
+              feedback.className = "feedback-error";
+            },
+
+            onError: (error) => {
+              debugError("Error creating badge entry", error);
+            },
           },
-
-          rollbackFn: (rollbackState, error) => {
-            // Revert to original state
-            this.badgeEntries = rollbackState.badgeEntries;
-            this.records = rollbackState.records;
-
-            // Re-render to remove optimistic entry
-            this.buildRecords();
-            this.resetVisibleCount();
-            this.updateRows();
-
-            // Show error message
-            feedback.textContent = translate("badge_add_error");
-            feedback.className = "feedback-error";
-          },
-
-          onError: (error) => {
-            debugError("Error creating badge entry", error);
-          }
-        });
+        );
       });
 
     if (defaultEntry?.id && entrySelect) {
@@ -1098,7 +1122,7 @@ export class BadgeDashboard {
   getBadgeImage(badgeName, badge = null) {
     // First try to get image from the badge template (new system)
     if (badge?.image) {
-      return `/images/${badge.image}`;
+      return `/assets/images/${badge.image}`;
     }
 
     // Fallback to old system (territoires in badgeSettings)
@@ -1108,7 +1132,7 @@ export class BadgeDashboard {
       );
 
       if (territoire && territoire.image) {
-        return `/images/${territoire.image}`;
+        return `/assets/images/${territoire.image}`;
       }
     }
 

@@ -129,7 +129,7 @@ The system maintains backward compatibility:
 ## Questions?
 
 If you encounter issues:
-- Check that the images exist in `/images/` directory
+- Check that the images exist in `/assets/images/` directory
 - Verify the migration ran successfully (check the database)
 - Check browser console for any image loading errors
 - Ensure API responses include the `image` field
