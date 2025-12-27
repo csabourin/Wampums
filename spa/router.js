@@ -172,10 +172,18 @@ export class Router {
 
   async route(path) {
     debugLog("Routing to:", path);
+
+    // Guard against null, undefined, or empty paths
+    if (!path || typeof path !== 'string') {
+      debugLog("Invalid path received, ignoring route:", path);
+      return;
+    }
+
     // Check if the path ends with .html
     if (path.endsWith('.html')) {
       // Do nothing, let the server handle this request
-      return;}
+      return;
+    }
     const [routeName, param] = this.getRouteNameAndParam(path);
     const dynamicFormMatch = path.match(/^\/dynamic-form\/([^\/]+)\/(\d+)$/);
       if (dynamicFormMatch) {
@@ -830,10 +838,13 @@ export function initRouter(app) {
     // Handle navigation
     document.addEventListener("click", (e) => {
         if (e.target.matches("a")) {
-            e.preventDefault();
             const url = e.target.getAttribute("href");
-            history.pushState(null, "", url);
-            router.route(url);
+            // Only handle valid internal URLs
+            if (url && url !== '#' && url !== '' && !url.startsWith('javascript:')) {
+                e.preventDefault();
+                history.pushState(null, "", url);
+                router.route(url);
+            }
         }
     });
 
