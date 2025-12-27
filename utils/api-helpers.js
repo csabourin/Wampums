@@ -385,6 +385,113 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
+/**
+ * Get form permissions for a user's roles
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization ID
+ * @param {Array<string>} userRoles - Array of user role names
+ * @returns {Promise<Object>} Map of form_type to permissions
+ *
+ * @example
+ * const formPermissions = await getFormPermissionsForRoles(pool, orgId, ['parent']);
+ * // Returns: { 'risk_acceptance': { can_view: true, can_submit: true, ... }, ... }
+ */
+async function getFormPermissionsForRoles(pool, organizationId, userRoles) {
+  try {
+    // Get all form permissions for the user's roles
+    const result = await pool.query(
+      `SELECT
+         off.form_type,
+         MAX(CASE WHEN fp.can_view THEN 1 ELSE 0 END)::boolean AS can_view,
+         MAX(CASE WHEN fp.can_submit THEN 1 ELSE 0 END)::boolean AS can_submit,
+         MAX(CASE WHEN fp.can_edit THEN 1 ELSE 0 END)::boolean AS can_edit,
+         MAX(CASE WHEN fp.can_approve THEN 1 ELSE 0 END)::boolean AS can_approve
+       FROM organization_form_formats off
+       JOIN form_permissions fp ON fp.form_format_id = off.id
+       JOIN roles r ON r.id = fp.role_id
+       WHERE off.organization_id = $1
+         AND r.role_name = ANY($2)
+       GROUP BY off.form_type`,
+      [organizationId, userRoles]
+    );
+
+    // Convert to a map for easy lookup
+    const permissionsMap = {};
+    result.rows.forEach(row => {
+      permissionsMap[row.form_type] = {
+        can_view: row.can_view,
+        can_submit: row.can_submit,
+        can_edit: row.can_edit,
+        can_approve: row.can_approve
+      };
+    });
+
+    return permissionsMap;
+  } catch (error) {
+    logger.error('Error getting form permissions for roles:', error);
+    return {};
+  }
+}
+
+/**
+ * Check if a user has specific permission for a form type
+ *
+ * @param {Object} pool - Database pool
+ * @param {number} organizationId - Organization ID
+ * @param {Array<string>} userRoles - Array of user role names
+ * @param {string} formType - Form type to check
+ * @param {string} permission - Permission to check ('view', 'submit', 'edit', 'approve')
+ * @returns {Promise<boolean>} Whether user has the permission
+ *
+ * @example
+ * const canView = await checkFormPermission(pool, orgId, ['parent'], 'organization_info', 'view');
+ * // Returns: false (parents can't view organization_info)
+ */
+async function checkFormPermission(pool, organizationId, userRoles, formType, permission = 'view') {
+  try {
+    const permissionColumn = `can_${permission}`;
+
+    const result = await pool.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM organization_form_formats off
+         JOIN form_permissions fp ON fp.form_format_id = off.id
+         JOIN roles r ON r.id = fp.role_id
+         WHERE off.organization_id = $1
+           AND off.form_type = $2
+           AND r.role_name = ANY($3)
+           AND fp.${permissionColumn} = true
+       ) AS has_permission`,
+      [organizationId, formType, userRoles]
+    );
+
+    return result.rows[0]?.has_permission || false;
+  } catch (error) {
+    logger.error('Error checking form permission:', error);
+    return false;
+  }
+}
+
+/**
+ * Filter form formats based on user permissions
+ *
+ * @param {Array} formFormats - Array of form format objects
+ * @param {Object} permissionsMap - Map of form_type to permissions (from getFormPermissionsForRoles)
+ * @returns {Array} Filtered form formats that user can view
+ *
+ * @example
+ * const formFormats = await getOrganizationFormFormats(pool, orgId);
+ * const permissions = await getFormPermissionsForRoles(pool, orgId, userRoles);
+ * const visibleForms = filterFormsByPermissions(formFormats, permissions);
+ */
+function filterFormsByPermissions(formFormats, permissionsMap) {
+  return formFormats.filter(form => {
+    const permissions = permissionsMap[form.form_type];
+    return permissions && permissions.can_view;
+  });
+}
+
 // Export all helper functions
 module.exports = {
   getCurrentOrganizationId,
@@ -398,5 +505,8 @@ module.exports = {
   jsonResponse,
   handleError,
   verifyOrganizationMembership,
-  escapeHtml
+  escapeHtml,
+  getFormPermissionsForRoles,
+  checkFormPermission,
+  filterFormsByPermissions
 };

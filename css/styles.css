@@ -7499,3 +7499,198 @@ details p {
 /* ================================================
    Stripe Payment Modal Styles (end)
    ================================================ */
+
+/* ================================================
+   Form Permissions Management Styles
+   ================================================ */
+
+.form-permissions-manager {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+.permissions-container {
+  margin-top: var(--space-xl);
+}
+
+.permissions-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.form-section {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-base);
+}
+
+.form-section__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--color-border-light);
+}
+
+.permissions-table-wrapper {
+  overflow-x: auto;
+  margin-top: var(--space-md);
+}
+
+.permissions-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+}
+
+.permissions-table thead {
+  background: var(--color-secondary);
+}
+
+.permissions-table th {
+  padding: var(--space-md);
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  border-bottom: 2px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.permissions-table td {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.permissions-table tbody tr:hover {
+  background: var(--color-background);
+  transition: background var(--transition-fast);
+}
+
+.permissions-table .role-name {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.permission-checkbox {
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-primary);
+  margin: 0;
+}
+
+.permission-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Responsive adjustments for permissions table */
+@media (max-width: 768px) {
+  .form-permissions-manager {
+    padding: var(--space-md);
+  }
+
+  .permissions-table {
+    font-size: var(--font-size-sm);
+  }
+
+  .permissions-table th,
+  .permissions-table td {
+    padding: var(--space-sm);
+  }
+
+  .form-section {
+    padding: var(--space-md);
+  }
+}
+
+/* Accessibility - Focus states */
+.permission-checkbox:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Display Context Section */
+.display-context-section {
+  background: var(--color-background);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+}
+
+.display-context-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.display-context-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-md);
+}
+
+.context-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.context-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.context-checkbox-label:hover {
+  border-color: var(--color-primary);
+  background: var(--color-secondary);
+}
+
+.context-checkbox-label input[type="checkbox"]:checked + span {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.context-checkbox {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+}
+
+.permissions-subtitle {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+/* Responsive adjustments for display context */
+@media (max-width: 768px) {
+  .context-checkboxes {
+    flex-direction: column;
+  }
+
+  .context-checkbox-label {
+    width: 100%;
+  }
+}
+
+/* ================================================
+   Form Permissions Management Styles (end)
+   ================================================ */

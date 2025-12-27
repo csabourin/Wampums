@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 
 // Import utilities
-const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
+const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership, getFormPermissionsForRoles, checkFormPermission } = require('../utils/api-helpers');
 
 /**
  * Export route factory function
@@ -203,7 +203,7 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      // Verify user belongs to this organization
+      // Verify user belongs to this organization and get their roles
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
@@ -213,6 +213,18 @@ module.exports = (pool, logger) => {
 
       if (!participant_id || !form_type || !submission_data) {
         return res.status(400).json({ success: false, message: 'Participant ID, form_type, and submission_data are required' });
+      }
+
+      // Check if user has permission to submit/edit this form type
+      const userRoles = authCheck.roles || [];
+      const canSubmit = await checkFormPermission(pool, organizationId, userRoles, form_type, 'submit');
+      const canEdit = await checkFormPermission(pool, organizationId, userRoles, form_type, 'edit');
+
+      if (!canSubmit && !canEdit) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to submit or edit this form type'
+        });
       }
 
       const client = await pool.connect();
@@ -309,13 +321,20 @@ module.exports = (pool, logger) => {
    * /api/organization-form-formats:
    *   get:
    *     summary: Get organization form formats
-   *     description: Retrieve all form formats configured for the organization
+   *     description: Retrieve form formats configured for the organization that the user has permission to view, optionally filtered by display context
    *     tags: [Forms]
    *     security:
    *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: context
+   *         schema:
+   *           type: string
+   *           enum: [participant, organization, admin_panel, public, form_builder]
+   *         description: Filter forms by display context
    *     responses:
    *       200:
-   *         description: Form formats retrieved successfully
+   *         description: Form formats retrieved successfully (filtered by permissions and context)
    *       401:
    *         description: Unauthorized
    */
@@ -330,27 +349,50 @@ module.exports = (pool, logger) => {
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      // Verify user belongs to this organization
+      // Verify user belongs to this organization and get their roles
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
-      const result = await pool.query(
-        `SELECT * FROM organization_form_formats
-         WHERE organization_id = $1`,
-        [organizationId]
-      );
+      // Get context filter from query parameter
+      const { context } = req.query;
 
-      // Transform the data into an object keyed by form_type for easier lookup
+      // Build query with optional context filter
+      let query = `SELECT * FROM organization_form_formats WHERE organization_id = $1`;
+      const params = [organizationId];
+
+      if (context) {
+        // Filter by display context using PostgreSQL array containment
+        query += ` AND $2 = ANY(display_context)`;
+        params.push(context);
+      }
+
+      // Get form formats for the organization (optionally filtered by context)
+      const result = await pool.query(query, params);
+
+      // Get form permissions for user's roles
+      const userRoles = authCheck.roles || [];
+      const formPermissions = await getFormPermissionsForRoles(pool, organizationId, userRoles);
+
+      // Transform and filter the data based on permissions
       const formatsObject = {};
       result.rows.forEach(row => {
-        formatsObject[row.form_type] = {
-          ...row,
-          form_structure: typeof row.form_structure === 'string'
-            ? JSON.parse(row.form_structure)
-            : row.form_structure
-        };
+        const permissions = formPermissions[row.form_type];
+
+        // Only include forms the user can view
+        if (permissions && permissions.can_view) {
+          formatsObject[row.form_type] = {
+            ...row,
+            form_structure: typeof row.form_structure === 'string'
+              ? JSON.parse(row.form_structure)
+              : row.form_structure,
+            // Include the user's permissions for this form
+            permissions: permissions,
+            // Include display_context for frontend use
+            display_context: row.display_context || []
+          };
+        }
       });
 
       res.json({ success: true, data: formatsObject });
@@ -1217,6 +1259,318 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form versions:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-permissions:
+   *   get:
+   *     summary: Get form permissions for all roles
+   *     description: Retrieve form permissions matrix showing which roles can view/submit/edit/approve each form
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Form permissions retrieved successfully
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Insufficient permissions (requires district or unitadmin role)
+   */
+  router.get('/form-permissions', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      // Verify user belongs to this organization and has admin access
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Only district and unitadmin can manage form permissions
+      const userRoles = authCheck.roles || [];
+      if (!userRoles.includes('district') && !userRoles.includes('unitadmin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only district and unit administrators can manage form permissions'
+        });
+      }
+
+      // Get all form permissions for this organization (including display_context)
+      const result = await pool.query(
+        `SELECT
+           off.id AS form_format_id,
+           off.form_type,
+           off.display_name,
+           off.display_context,
+           r.id AS role_id,
+           r.role_name,
+           r.display_name AS role_display_name,
+           COALESCE(fp.can_view, false) AS can_view,
+           COALESCE(fp.can_submit, false) AS can_submit,
+           COALESCE(fp.can_edit, false) AS can_edit,
+           COALESCE(fp.can_approve, false) AS can_approve,
+           fp.id AS permission_id
+         FROM organization_form_formats off
+         CROSS JOIN roles r
+         LEFT JOIN form_permissions fp ON fp.form_format_id = off.id AND fp.role_id = r.id
+         WHERE off.organization_id = $1
+         ORDER BY off.form_type, r.role_name`,
+        [organizationId]
+      );
+
+      res.json({ success: true, data: result.rows });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error fetching form permissions:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-display-context:
+   *   put:
+   *     summary: Update form display context
+   *     description: Update the display contexts where a form should appear (admin only)
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - form_format_id
+   *               - display_context
+   *             properties:
+   *               form_format_id:
+   *                 type: integer
+   *               display_context:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *                   enum: [participant, organization, admin_panel, public, form_builder]
+   *     responses:
+   *       200:
+   *         description: Display context updated successfully
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.put('/form-display-context', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      // Verify user belongs to this organization and has admin access
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Only district and unitadmin can manage form display contexts
+      const userRoles = authCheck.roles || [];
+      if (!userRoles.includes('district') && !userRoles.includes('unitadmin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only district and unit administrators can manage form display contexts'
+        });
+      }
+
+      const { form_format_id, display_context } = req.body;
+
+      if (!form_format_id || !Array.isArray(display_context)) {
+        return res.status(400).json({
+          success: false,
+          message: 'form_format_id and display_context array are required'
+        });
+      }
+
+      // Validate display_context values
+      const validContexts = ['participant', 'organization', 'admin_panel', 'public', 'form_builder'];
+      const invalidContexts = display_context.filter(ctx => !validContexts.includes(ctx));
+      if (invalidContexts.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid context values: ${invalidContexts.join(', ')}`
+        });
+      }
+
+      // Verify the form belongs to this organization
+      const formCheck = await pool.query(
+        'SELECT organization_id, form_type FROM organization_form_formats WHERE id = $1',
+        [form_format_id]
+      );
+
+      if (formCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Form not found' });
+      }
+
+      if (formCheck.rows[0].organization_id !== organizationId) {
+        return res.status(403).json({ success: false, message: 'Access denied to this form' });
+      }
+
+      // Update the display_context
+      const result = await pool.query(
+        `UPDATE organization_form_formats
+         SET display_context = $1
+         WHERE id = $2
+         RETURNING *`,
+        [display_context, form_format_id]
+      );
+
+      logger.info(`User ${decoded.user_id} updated display context for form ${formCheck.rows[0].form_type}`);
+
+      res.json({
+        success: true,
+        data: result.rows[0],
+        message: 'Display context updated successfully'
+      });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error updating form display context:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-permissions:
+   *   put:
+   *     summary: Update form permissions
+   *     description: Update permissions for a specific form and role combination
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - form_format_id
+   *               - role_id
+   *             properties:
+   *               form_format_id:
+   *                 type: integer
+   *               role_id:
+   *                 type: integer
+   *               can_view:
+   *                 type: boolean
+   *               can_submit:
+   *                 type: boolean
+   *               can_edit:
+   *                 type: boolean
+   *               can_approve:
+   *                 type: boolean
+   *     responses:
+   *       200:
+   *         description: Permissions updated successfully
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.put('/form-permissions', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      // Verify user belongs to this organization and has admin access
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Only district and unitadmin can manage form permissions
+      const userRoles = authCheck.roles || [];
+      if (!userRoles.includes('district') && !userRoles.includes('unitadmin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only district and unit administrators can manage form permissions'
+        });
+      }
+
+      const { form_format_id, role_id, can_view, can_submit, can_edit, can_approve } = req.body;
+
+      if (!form_format_id || !role_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'form_format_id and role_id are required'
+        });
+      }
+
+      // Verify the form belongs to this organization
+      const formCheck = await pool.query(
+        'SELECT organization_id FROM organization_form_formats WHERE id = $1',
+        [form_format_id]
+      );
+
+      if (formCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Form not found' });
+      }
+
+      if (formCheck.rows[0].organization_id !== organizationId) {
+        return res.status(403).json({ success: false, message: 'Access denied to this form' });
+      }
+
+      // Upsert the permission
+      const result = await pool.query(
+        `INSERT INTO form_permissions (form_format_id, role_id, can_view, can_submit, can_edit, can_approve)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (form_format_id, role_id)
+         DO UPDATE SET
+           can_view = EXCLUDED.can_view,
+           can_submit = EXCLUDED.can_submit,
+           can_edit = EXCLUDED.can_edit,
+           can_approve = EXCLUDED.can_approve
+         RETURNING *`,
+        [form_format_id, role_id, can_view || false, can_submit || false, can_edit || false, can_approve || false]
+      );
+
+      logger.info(`User ${decoded.user_id} updated form permissions for form ${form_format_id} and role ${role_id}`);
+
+      res.json({
+        success: true,
+        data: result.rows[0],
+        message: 'Permissions updated successfully'
+      });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error updating form permissions:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });

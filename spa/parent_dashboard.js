@@ -209,9 +209,15 @@ export class ParentDashboard {
 
         async fetchFormFormats() {
                 try {
-                        const response = await getOrganizationFormFormats();
+                        // Request only participant-context forms (excludes organization_info, etc.)
+                        const response = await getOrganizationFormFormats(null, 'participant');
+                        debugLog("Form formats response:", response);
+                        debugLog("Form formats response type:", typeof response);
+                        debugLog("Form formats response keys:", response ? Object.keys(response) : 'null');
+
                         if (response && typeof response === 'object') {
                                 this.formFormats = response;
+                                debugLog("Stored form formats:", this.formFormats);
                         } else {
                                 debugError("Invalid form formats response:", response);
                         }
@@ -420,21 +426,20 @@ export class ParentDashboard {
         }
 
 renderFormButtons(participant) {
-    debugLog("Forms type: ", this.formFormats);
+    debugLog("renderFormButtons called for participant:", participant.id);
+    debugLog("this.formFormats:", this.formFormats);
+    debugLog("Form format keys:", Object.keys(this.formFormats));
 
-    return Object.keys(this.formFormats)
-        .filter(formType => {
-            // Exclude 'participant_registration' and 'parent_guardian' for all users
-            if (formType === 'participant_registration' || formType === 'parent_guardian') {
-                return false; // Hide these forms
-            }
-            return true; // Show all other forms
-        })
+    // The backend now filters forms based on user permissions
+    // We no longer need to hardcode exclusions here
+    const formButtons = Object.keys(this.formFormats)
         .map(formType => {
             const formLabel = translate(formType);
             const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
             const statusClass = isCompleted ? "form-btn--completed" : "form-btn--incomplete";
             const statusIcon = isCompleted ? "✅" : "❌";
+
+            debugLog(`Rendering form button for: ${formType}, label: ${formLabel}`);
 
             return `
                 <a href="/dynamic-form/${formType}/${participant.id}" class="form-btn ${statusClass}">
@@ -443,12 +448,18 @@ renderFormButtons(participant) {
                 </a>
             `;
         })
-                        .join("") + `
-                                <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
-                                        <span class="form-btn__icon">🏅</span>
-                                        <span class="form-btn__label">${translate('manage_badge_progress')}</span>
-                                </a>
-                        `;
+        .join("");
+
+    const badgeButton = `
+                <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
+                        <span class="form-btn__icon">🏅</span>
+                        <span class="form-btn__label">${translate('manage_badge_progress')}</span>
+                </a>
+        `;
+
+    debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge: ${(formButtons + badgeButton).length}`);
+
+    return formButtons + badgeButton;
 }
 
         renderPermissionSlipSection(participant) {
