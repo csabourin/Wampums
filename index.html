@@ -1,132 +1,220 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
 
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#0f7a5a">
-    <meta name="description" content="Scouts at your fingertips">
+        <!-- PWA Meta Tags -->
+        <meta name="theme-color" content="#0f7a5a" />
+        <meta name="description" content="Scouts at your fingertips" />
 
-    <!-- PWA Capability -->
-    <meta name="mobile-web-app-capable" content="yes">
+        <!-- PWA Capability -->
+        <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- iOS PWA Support -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Wampums">
+        <!-- iOS PWA Support -->
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="Wampums" />
 
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="">
-    <meta property="og:title" content="Scouts at your fingertips">
-    <meta property="og:description" content="Scouts at your fingertips">
-    <meta property="og:image" content="/images/android-chrome-512x512.png">
-    <meta property="fb:app_id" content="2012826655814548">
+        <!-- Open Graph Meta Tags -->
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="" />
+        <meta property="og:title" content="Scouts at your fingertips" />
+        <meta property="og:description" content="Scouts at your fingertips" />
+        <meta
+            property="og:image"
+            content="/assets/images/android-chrome-512x512.png"
+        />
+        <meta property="fb:app_id" content="2012826655814548" />
 
-    <title>Scouts at your fingertips - Wampums</title>
+        <title>Scouts au bout des doigts - Wampums</title>
 
-    <!-- Performance optimization: Preconnect to API for faster organization settings -->
-    <link rel="preconnect" href="/public" crossorigin>
-    <link rel="dns-prefetch" href="/public">
+        <!-- Performance optimization: Preconnect to API for faster organization settings -->
+        <link rel="preconnect" href="/public" crossorigin />
+        <link rel="dns-prefetch" href="/public" />
 
-    <!-- Favicons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/icon-192x192.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/images/icon-192x192.png">
-
-    <!-- Apple Touch Icons -->
-    <link rel="apple-touch-icon" href="/images/icon-192x192.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="/images/icon-192x192.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/images/icon-192x192.png">
-    <link rel="apple-touch-icon" sizes="167x167" href="/images/icon-192x192.png">
-
-    <!-- iOS Splash Screens -->
-    <!-- iPhone X, XS, 11 Pro, 12 mini, 13 mini -->
-    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" href="/images/splash/apple-splash-1125-2436.svg">
-    <!-- iPhone XS Max, XR, 11, 11 Pro Max, 12, 12 Pro, 13, 13 Pro, 14 -->
-    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="/images/splash/apple-splash-1170-2532.svg">
-    <!-- iPhone 14 Plus, 15 Plus -->
-    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" href="/images/splash/apple-splash-1242-2688.svg">
-    <!-- iPhone 14 Pro -->
-    <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="/images/splash/apple-splash-1179-2556.svg">
-    <!-- iPhone 14 Pro Max, 15 Pro Max -->
-    <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="/images/splash/apple-splash-1290-2796.svg">
-    <!-- iPad Mini, Air -->
-    <link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" href="/images/splash/apple-splash-1536-2048.svg">
-    <!-- iPad Pro 10.5" -->
-    <link rel="apple-touch-startup-image" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2)" href="/images/splash/apple-splash-1668-2224.svg">
-    <!-- iPad Pro 11" -->
-    <link rel="apple-touch-startup-image" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)" href="/images/splash/apple-splash-1668-2388.svg">
-    <!-- iPad Pro 12.9" -->
-    <link rel="apple-touch-startup-image" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" href="/images/splash/apple-splash-2048-2732.svg">
-
-    <!-- Manifest -->
-    <link rel="manifest" href="/manifest.json">
-    <link rel="alternate" type="application/rss+xml" href="/rss.xml" title="Wampums">
-
-    <!-- Stylesheets - optimized for performance -->
-    <!-- Critical CSS loaded first (main styles) -->
-    <link rel="stylesheet" href="/css/styles.css">
-    <!-- Non-critical CSS loaded with low priority -->
-    <link rel="preload" href="/css/carpool.css" as="style" onload="this.rel='stylesheet'">
-    <link rel="preload" href="/css/account-info.css" as="style" onload="this.rel='stylesheet'">
-    <link rel="preload" href="/css/role-management.css" as="style" onload="this.rel='stylesheet'">
-    <noscript>
-        <link rel="stylesheet" href="/css/carpool.css">
-        <link rel="stylesheet" href="/css/account-info.css">
-        <link rel="stylesheet" href="/css/role-management.css">
-    </noscript>
-    <!-- FontAwesome loaded asynchronously -->
-    <link
-        rel="preload"
-        as="style"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-        crossorigin="anonymous"
-        referrerpolicy="no-referrer"
-        onload="this.rel='stylesheet'"
-    >
-    <noscript>
+        <!-- Favicons -->
         <link
-            rel="stylesheet"
+            rel="icon"
+            type="image/png"
+            sizes="32x32"
+            href="/assets/images/icon-192x192.png"
+        />
+        <link
+            rel="icon"
+            type="image/png"
+            sizes="16x16"
+            href="/assets/images/icon-192x192.png"
+        />
+
+        <!-- Apple Touch Icons -->
+        <link rel="apple-touch-icon" href="/images/icon-192x192.png" />
+        <link
+            rel="apple-touch-icon"
+            sizes="152x152"
+            href="/assets/images/icon-192x192.png"
+        />
+        <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href="/assets/images/icon-192x192.png"
+        />
+        <link
+            rel="apple-touch-icon"
+            sizes="167x167"
+            href="/assets/images/icon-192x192.png"
+        />
+
+        <!-- iOS Splash Screens -->
+        <!-- iPhone X, XS, 11 Pro, 12 mini, 13 mini -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)"
+            href="/assets/images/splash/apple-splash-1125-2436.svg"
+        />
+        <!-- iPhone XS Max, XR, 11, 11 Pro Max, 12, 12 Pro, 13, 13 Pro, 14 -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
+            href="/assets/images/splash/apple-splash-1170-2532.svg"
+        />
+        <!-- iPhone 14 Plus, 15 Plus -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)"
+            href="/assets/images/splash/apple-splash-1242-2688.svg"
+        />
+        <!-- iPhone 14 Pro -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)"
+            href="/assets/images/splash/apple-splash-1179-2556.svg"
+        />
+        <!-- iPhone 14 Pro Max, 15 Pro Max -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)"
+            href="/assets/images/splash/apple-splash-1290-2796.svg"
+        />
+        <!-- iPad Mini, Air -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)"
+            href="/assets/images/splash/apple-splash-1536-2048.svg"
+        />
+        <!-- iPad Pro 10.5" -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2)"
+            href="/assets/images/splash/apple-splash-1668-2224.svg"
+        />
+        <!-- iPad Pro 11" -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)"
+            href="/assets/images/splash/apple-splash-1668-2388.svg"
+        />
+        <!-- iPad Pro 12.9" -->
+        <link
+            rel="apple-touch-startup-image"
+            media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)"
+            href="/assets/images/splash/apple-splash-2048-2732.svg"
+        />
+
+        <!-- Manifest -->
+        <link rel="manifest" href="/manifest.json" />
+        <link
+            rel="alternate"
+            type="application/rss+xml"
+            href="/rss.xml"
+            title="Wampums"
+        />
+
+        <!-- Stylesheets - optimized for performance -->
+        <!-- Critical CSS loaded first (main styles) -->
+        <link rel="stylesheet" href="/css/styles.css" />
+        <!-- Non-critical CSS loaded with low priority -->
+        <link
+            rel="preload"
+            href="/css/carpool.css"
+            as="style"
+            onload="this.rel='stylesheet'"
+        />
+        <link
+            rel="preload"
+            href="/css/account-info.css"
+            as="style"
+            onload="this.rel='stylesheet'"
+        />
+        <link
+            rel="preload"
+            href="/css/role-management.css"
+            as="style"
+            onload="this.rel='stylesheet'"
+        />
+        <noscript>
+            <link rel="stylesheet" href="/css/carpool.css" />
+            <link rel="stylesheet" href="/css/account-info.css" />
+            <link rel="stylesheet" href="/css/role-management.css" />
+        </noscript>
+        <!-- FontAwesome loaded asynchronously -->
+        <link
+            rel="preload"
+            as="style"
             href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
             crossorigin="anonymous"
             referrerpolicy="no-referrer"
-        >
-    </noscript>
+            onload="this.rel='stylesheet'"
+        />
+        <noscript>
+            <link
+                rel="stylesheet"
+                href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+                crossorigin="anonymous"
+                referrerpolicy="no-referrer"
+            />
+        </noscript>
 
-    <!-- Import Map for ES Modules -->
-    <script type="importmap">
-    {
-        "imports": {
-            "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.3.0/dist/purify.es.mjs"
-        }
-    }
-    </script>
-</head>
-<body>
-    <div id="app"></div>
+        <!-- Import Map for ES Modules -->
+        <script type="importmap">
+            {
+                "imports": {
+                    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.3.0/dist/purify.es.mjs"
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <div id="app"></div>
 
-    <div id="language-toggle" class="language-toggle">
-        <button id="lang-fr" class="lang-btn" data-lang="fr">FR</button>
-        <button id="lang-en" class="lang-btn" data-lang="en">EN</button>
-        <button id="lang-uk" class="lang-btn" data-lang="uk">UK</button>
-        <button id="lang-it" class="lang-btn" data-lang="it">IT</button>
-    </div>
-
-    <div id="news-widget">
-        <div class="news-accordion-header">
-            <h2></h2>
+        <div id="language-toggle" class="language-toggle">
+            <button id="lang-fr" class="lang-btn" data-lang="fr">FR</button>
+            <button id="lang-en" class="lang-btn" data-lang="en">EN</button>
+            <button id="lang-uk" class="lang-btn" data-lang="uk">UK</button>
+            <button id="lang-it" class="lang-btn" data-lang="it">IT</button>
         </div>
-    </div>
 
-    <div id="offline-indicator">
-        You are offline
-    </div>
+        <div id="news-widget">
+            <div class="news-accordion-header">
+                <h2></h2>
+            </div>
+        </div>
 
-    <!-- App will load initial data via API call -->
-    <script type="module" defer src="/spa/app.js"></script>
-    <a href="/politique-de-confidentialite.html" target="_blank" class="privacy-policy-link">Politique de confidentialité</a>
-    <div id="loading-indicator" class="hidden">
-        Loading...
-    </div>
-</body>
+        <div id="offline-indicator">You are offline</div>
+
+        <!-- App will load initial data via API call -->
+        <script type="module" defer src="/spa/app.js"></script>
+        <a
+            href="/politique-de-confidentialite.html"
+            target="_blank"
+            class="privacy-policy-link"
+            >Politique de confidentialité</a
+        >
+        <div id="loading-indicator" class="hidden">Loading...</div>
+    </body>
 </html>
