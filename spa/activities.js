@@ -100,7 +100,7 @@ export class Activities {
           ` : ''}
         </div>
       </section>
-    `;
+    `);
   }
 
   renderActivityCard(activity) {

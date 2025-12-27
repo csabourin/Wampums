@@ -79,7 +79,7 @@ export class CarpoolLanding {
           ${this.renderSkeletonCard(translate("current_assignments"), 2)}
         </div>
       </section>
-    `;
+    `);
   }
 
   /**

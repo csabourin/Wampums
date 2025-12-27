@@ -726,7 +726,7 @@ renderFormButtons(participant) {
                                 </div>
                                 <div class="statement-lines">${feeLines}</div>
                         </div>
-                `;
+                `);
 
                 document.body.appendChild(modal);
 
@@ -790,7 +790,7 @@ renderFormButtons(participant) {
                                                 </div>
                                         </div>
                                 </div>
-                        `;
+                        `);
 
                         document.body.appendChild(modal);
 

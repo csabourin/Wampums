@@ -943,7 +943,7 @@ export class Inventory {
           }
         }
       </style>
-    `;
+    `);
   }
 
   renderGalleryView() {

@@ -1130,7 +1130,7 @@ export class MedicationManagement {
           </div>
         </div>
       `;
-    }).join("");
+    }).join(""));
   }
 
   /**

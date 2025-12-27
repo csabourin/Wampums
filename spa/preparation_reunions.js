@@ -17,7 +17,6 @@ import { FormManager } from "./modules/FormManager.js";
 import { DateManager } from "./modules/DateManager.js";
 import { PrintManager } from "./modules/PrintManager.js";
 import { getActiveSectionConfig, getHonorLabel } from "./utils/meetingSections.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class PreparationReunions {
         constructor(app) {
