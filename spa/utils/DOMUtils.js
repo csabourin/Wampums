@@ -8,6 +8,7 @@
  */
 
 import { sanitizeHTML } from './SecurityUtils.js';
+import { debugError } from './DebugUtils.js';
 
 /**
  * Safely set HTML content (auto-sanitizes)
@@ -26,7 +27,7 @@ import { sanitizeHTML } from './SecurityUtils.js';
  */
 export function setContent(element, content) {
   if (!element) {
-    console.error('setContent: element is null or undefined');
+    debugError('setContent: element is null or undefined');
     return null;
   }
 
@@ -50,7 +51,7 @@ export function setContent(element, content) {
  */
 export function setText(element, text) {
   if (!element) {
-    console.error('setText: element is null or undefined');
+    debugError('setText: element is null or undefined');
     return null;
   }
 
@@ -153,7 +154,7 @@ export function createElement(tag, options = {}) {
  */
 export function appendChildren(parent, ...children) {
   if (!parent) {
-    console.error('appendChildren: parent is null or undefined');
+    debugError('appendChildren: parent is null or undefined');
     return null;
   }
 
@@ -180,7 +181,7 @@ export function appendChildren(parent, ...children) {
  */
 export function clearElement(element) {
   if (!element) {
-    console.error('clearElement: element is null or undefined');
+    debugError('clearElement: element is null or undefined');
     return null;
   }
 
@@ -244,13 +245,13 @@ export function createFragment(html) {
  */
 export function insertHTML(element, position, html) {
   if (!element) {
-    console.error('insertHTML: element is null or undefined');
+    debugError('insertHTML: element is null or undefined');
     return;
   }
 
   const validPositions = ['beforebegin', 'afterbegin', 'beforeend', 'afterend'];
   if (!validPositions.includes(position)) {
-    console.error(`insertHTML: invalid position '${position}'. Must be one of: ${validPositions.join(', ')}`);
+    debugError(`insertHTML: invalid position '${position}'. Must be one of: ${validPositions.join(', ')}`);
     return;
   }
 
@@ -299,7 +300,7 @@ export function isInViewport(element) {
  */
 export function scrollToElement(element, options = {}) {
   if (!element) {
-    console.error('scrollToElement: element is null or undefined');
+    debugError('scrollToElement: element is null or undefined');
     return;
   }
 

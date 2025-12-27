@@ -6,8 +6,10 @@
  *
  * Usage:
  *   import { CONFIG } from './config.js';
- *   console.log(CONFIG.API_BASE_URL);
+ *   debugLog(CONFIG.API_BASE_URL);
  */
+import { debugLog } from './utils/DebugUtils.js';
+
 
 /**
  * Determine if debug mode is enabled
@@ -291,15 +293,15 @@ export const CONFIG = {
  * This is the only acceptable use of console.log in the codebase
  */
 if (CONFIG.debugMode) {
-    console.log("=== Wampums Configuration ===");
-    console.log("API Base URL:", CONFIG.API_BASE_URL);
-    console.log("Debug Mode:", CONFIG.debugMode);
-    console.log("Version:", CONFIG.VERSION);
-    console.log("Environment:", import.meta.env?.MODE || "production");
-    console.log("============================");
+    debugLog("=== Wampums Configuration ===");
+    debugLog("API Base URL:", CONFIG.API_BASE_URL);
+    debugLog("Debug Mode:", CONFIG.debugMode);
+    debugLog("Version:", CONFIG.VERSION);
+    debugLog("Environment:", import.meta.env?.MODE || "production");
+    debugLog("============================");
 } else {
     // In production, at least show the version for troubleshooting
-    console.log(`Wampums v${CONFIG.VERSION} - Production Mode`);
+    debugLog(`Wampums v${CONFIG.VERSION} - Production Mode`);
 }
 
 /**

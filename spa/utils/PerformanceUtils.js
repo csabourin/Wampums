@@ -1,6 +1,8 @@
 /**
  * Performance and State Management Utilities
  */
+import { debugLog } from './DebugUtils.js';
+
 
 /**
  * Debounce function to limit how often a function can fire
@@ -240,7 +242,7 @@ export class PerformanceMonitor {
    */
   static logAPICall(endpoint, duration, cacheHit) {
     const source = cacheHit ? 'CACHE HIT' : 'NETWORK';
-    console.log(`[API] ${endpoint} - ${duration}ms - ${source}`);
+    debugLog(`[API] ${endpoint} - ${duration}ms - ${source}`);
 
     // Track cache statistics
     if (cacheHit) {
@@ -256,7 +258,7 @@ export class PerformanceMonitor {
    * @param {number} duration - Duration in milliseconds
    */
   static logPageLoad(page, duration) {
-    console.log(`[PAGE] ${page} - ${duration}ms`);
+    debugLog(`[PAGE] ${page} - ${duration}ms`);
   }
 
   /**
@@ -270,11 +272,11 @@ export class PerformanceMonitor {
     try {
       const result = await asyncFn();
       const duration = performance.now() - startTime;
-      console.log(`[PERF] ${label} - ${duration.toFixed(2)}ms`);
+      debugLog(`[PERF] ${label} - ${duration.toFixed(2)}ms`);
       return result;
     } catch (error) {
       const duration = performance.now() - startTime;
-      console.log(`[PERF] ${label} - ${duration.toFixed(2)}ms (FAILED)`);
+      debugLog(`[PERF] ${label} - ${duration.toFixed(2)}ms (FAILED)`);
       throw error;
     }
   }
@@ -289,7 +291,7 @@ export class PerformanceMonitor {
     return {
       end: () => {
         const duration = performance.now() - startTime;
-        console.log(`[PERF] ${label} - ${duration.toFixed(2)}ms`);
+        debugLog(`[PERF] ${label} - ${duration.toFixed(2)}ms`);
         return duration;
       }
     };
@@ -300,7 +302,7 @@ export class PerformanceMonitor {
    */
   static logCacheStats() {
     const stats = getCacheStats();
-    console.log(`[CACHE] Hits: ${stats.hits}, Misses: ${stats.misses}, Hit Rate: ${stats.hitRate}%`);
+    debugLog(`[CACHE] Hits: ${stats.hits}, Misses: ${stats.misses}, Hit Rate: ${stats.hitRate}%`);
   }
 
   /**
@@ -326,7 +328,7 @@ export class PerformanceMonitor {
       const measures = performance.getEntriesByName(name);
       if (measures.length > 0) {
         const duration = measures[0].duration;
-        console.log(`[PERF] ${name} - ${duration.toFixed(2)}ms`);
+        debugLog(`[PERF] ${name} - ${duration.toFixed(2)}ms`);
         return duration;
       }
     }

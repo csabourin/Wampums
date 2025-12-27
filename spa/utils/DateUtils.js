@@ -7,6 +7,8 @@
  * Usage:
  *   import { formatDate, parseDate, getTodayISO } from './utils/DateUtils.js';
  */
+import { debugError } from './DebugUtils.js';
+
 
 /**
  * Get today's date in ISO format (YYYY-MM-DD)
@@ -48,7 +50,7 @@ export function formatDate(dateString, lang = 'en', options = null) {
 
         return date.toLocaleDateString(lang, options || defaultOptions);
     } catch (error) {
-        console.error('Error formatting date:', error);
+        debugError('Error formatting date:', error);
         return dateString;
     }
 }
@@ -72,7 +74,7 @@ export function formatDateShort(dateString, lang = 'en') {
             day: 'numeric'
         });
     } catch (error) {
-        console.error('Error formatting date short:', error);
+        debugError('Error formatting date short:', error);
         return dateString;
     }
 }
@@ -89,7 +91,7 @@ export function parseDate(dateString) {
         const [year, month, day] = dateString.split('-').map(Number);
         return new Date(year, month - 1, day);
     } catch (error) {
-        console.error('Error parsing date:', error);
+        debugError('Error parsing date:', error);
         return null;
     }
 }
@@ -123,7 +125,7 @@ export function isoToDateString(isoString) {
         }
         return isoString;
     } catch (error) {
-        console.error('Error converting ISO to date string:', error);
+        debugError('Error converting ISO to date string:', error);
         return isoString;
     }
 }
@@ -161,7 +163,7 @@ export function parseTime(timeString) {
         const [hours, minutes] = timeString.split(':').map(Number);
         return { hours: hours || 0, minutes: minutes || 0 };
     } catch (error) {
-        console.error('Error parsing time:', error);
+        debugError('Error parsing time:', error);
         return { hours: 0, minutes: 0 };
     }
 }
@@ -313,7 +315,7 @@ export function formatTimestamp(timestamp, lang = 'en') {
             minute: '2-digit'
         });
     } catch (error) {
-        console.error('Error formatting timestamp:', error);
+        debugError('Error formatting timestamp:', error);
         return String(timestamp);
     }
 }
@@ -350,7 +352,7 @@ export function getRelativeTime(date, lang = 'en') {
             return rtf.format(diffSecs, 'second');
         }
     } catch (error) {
-        console.error('Error getting relative time:', error);
+        debugError('Error getting relative time:', error);
         return formatDate(target.toLocaleDateString("en-CA"), lang);
     }
 }

@@ -11,6 +11,7 @@ import {
 import { clearActivityRelatedCaches } from './indexedDB.js';
 import { canViewActivities } from './utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from './utils/SkeletonUtils.js';
+import { debugError } from './utils/DebugUtils.js';
 
 export class Activities {
   constructor(app) {
@@ -43,7 +44,7 @@ export class Activities {
     try {
       this.activities = await getActivities();
     } catch (error) {
-      console.error('Error loading activities:', error);
+      debugError('Error loading activities:', error);
       this.app.showToast(translate('error_loading_activities'), 'error');
       this.activities = [];
     }
@@ -375,7 +376,7 @@ export class Activities {
         this.render();
         this.attachEventListeners();
       } catch (error) {
-        console.error('Error saving activity:', error);
+        debugError('Error saving activity:', error);
         this.app.showMessage(error.message || translate('error_saving_activity'), 'error');
       } finally {
         setButtonLoading(submitButton, false);
@@ -395,7 +396,7 @@ export class Activities {
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      console.error('Error deleting activity:', error);
+      debugError('Error deleting activity:', error);
       this.app.showMessage(error.message || translate('error_deleting_activity'), 'error');
     }
   }

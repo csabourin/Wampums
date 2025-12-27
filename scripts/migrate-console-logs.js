@@ -28,11 +28,8 @@ let stats = {
  * Check if file already uses DebugUtils
  */
 function alreadyUsesDebugUtils(content) {
-  return content.includes('from \'./utils/DebugUtils.js\'') ||
-         content.includes('from "../utils/DebugUtils.js"') ||
-         content.includes('from \'../../utils/DebugUtils.js\'') ||
-         content.includes('require(\'./utils/DebugUtils') ||
-         content.includes('require("./utils/DebugUtils');
+  return content.includes('DebugUtils.js') &&
+         (content.includes('import') || content.includes('require'));
 }
 
 /**
@@ -107,9 +104,15 @@ function migrateFile(filePath) {
       const insertPosition = content.indexOf('\n', lastImportIndex) + 1;
       content = content.slice(0, insertPosition) + importStatement + content.slice(insertPosition);
     } else {
-      // Insert at beginning (after any file header comments)
-      const firstCodeLine = content.match(/^[^/\s]/m);
-      const insertPosition = firstCodeLine ? content.indexOf(firstCodeLine[0]) : 0;
+      // Insert at beginning (after JSDoc comment block if present)
+      let insertPosition = 0;
+
+      // Look for end of JSDoc comment block
+      const jsdocEndMatch = content.match(/\*\/\n/);
+      if (jsdocEndMatch) {
+        insertPosition = content.indexOf(jsdocEndMatch[0]) + jsdocEndMatch[0].length;
+      }
+
       content = content.slice(0, insertPosition) + importStatement + '\n' + content.slice(insertPosition);
     }
 
