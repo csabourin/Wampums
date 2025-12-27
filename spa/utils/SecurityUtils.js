@@ -33,6 +33,9 @@ const ALLOWED_TAGS = {
   // Links (with restrictions)
   'a': ['href', 'title', 'class'],
 
+  // Images (safe attributes only)
+  'img': ['src', 'alt', 'title', 'class', 'width', 'height'],
+
   // Tables
   'table': ['class'],
   'thead': [],
@@ -54,9 +57,12 @@ const ALLOWED_TAGS = {
  * Sanitize HTML string to prevent XSS attacks using DOMPurify
  * Removes dangerous tags and attributes while preserving safe formatting
  *
+ * Allowed tags: a, img, p, div, span, b, i, em, strong, u, br, ul, ol, li, table, thead, tbody, tr, th, td, h1-h6
+ * Links (a tags) with href attributes are allowed
+ * Images (img tags) with src, alt, title attributes are allowed
+ *
  * @param {string} html - The HTML string to sanitize
  * @param {Object} options - Sanitization options
- * @param {boolean} options.allowLinks - Allow anchor tags (default: false)
  * @param {boolean} options.stripAll - Strip all HTML tags (default: false)
  * @returns {string} Sanitized HTML string
  */
@@ -71,12 +77,16 @@ export function sanitizeHTML(html, options = {}) {
     return DOMPurify.sanitize(html, { ALLOWED_TAGS: [] });
   }
 
+  // Build list of all allowed attributes from ALLOWED_TAGS
+  const allowedAttrs = new Set(['class', 'id']);
+  Object.values(ALLOWED_TAGS).forEach(attrs => {
+    attrs.forEach(attr => allowedAttrs.add(attr));
+  });
+
   // Configure DOMPurify options
   const config = {
     ALLOWED_TAGS: Object.keys(ALLOWED_TAGS),
-    ALLOWED_ATTR: options.allowLinks
-      ? ['href', 'title', 'class', 'id']
-      : ['class', 'id'],
+    ALLOWED_ATTR: Array.from(allowedAttrs),
     ALLOW_DATA_ATTR: false,
     SAFE_FOR_TEMPLATES: true,
   };
