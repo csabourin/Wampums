@@ -209,7 +209,8 @@ export class ParentDashboard {
 
         async fetchFormFormats() {
                 try {
-                        const response = await getOrganizationFormFormats();
+                        // Request only participant-context forms (excludes organization_info, etc.)
+                        const response = await getOrganizationFormFormats(null, 'participant');
                         if (response && typeof response === 'object') {
                                 this.formFormats = response;
                         } else {

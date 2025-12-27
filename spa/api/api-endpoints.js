@@ -1163,11 +1163,26 @@ export async function saveFormSubmission(formTypeOrData, participantId, submissi
 
 /**
  * Get organization form formats
+ *
+ * @param {number|null} organizationId - Optional organization ID
+ * @param {string|null} context - Optional display context filter (participant, organization, admin_panel, public, form_builder)
+ * @returns {Promise<Object>} Form formats object
  */
-export async function getOrganizationFormFormats(organizationId = null) {
-    const params = organizationId ? { organization_id: organizationId } : {};
+export async function getOrganizationFormFormats(organizationId = null, context = null) {
+    const params = {};
+
+    if (organizationId) {
+        params.organization_id = organizationId;
+    }
+
+    if (context) {
+        params.context = context;
+    }
+
+    const cacheKey = `org_form_formats_${organizationId || 'current'}_${context || 'all'}`;
+
     const response = await API.get('organization-form-formats', params, {
-        cacheKey: `org_form_formats_${organizationId || 'current'}`,
+        cacheKey: cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
 

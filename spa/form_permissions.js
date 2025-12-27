@@ -101,6 +101,33 @@ export class FormPermissionsManager {
   }
 
   /**
+   * Update display context for a form
+   */
+  async updateDisplayContext(formFormatId, displayContext) {
+    try {
+      const response = await ajax({
+        url: `${CONFIG.API_BASE_URL}/api/form-display-context`,
+        method: 'PUT',
+        body: JSON.stringify({
+          form_format_id: formFormatId,
+          display_context: displayContext
+        })
+      });
+
+      if (response.success) {
+        this.app.showMessage(translate('display_context_updated'), 'success');
+        return true;
+      } else {
+        throw new Error(response.message || 'Failed to update display context');
+      }
+    } catch (error) {
+      debugError('Error updating display context:', error);
+      this.app.showMessage(translate('error_updating_display_context'), 'error');
+      return false;
+    }
+  }
+
+  /**
    * Render the form permissions management UI
    */
   render() {
@@ -145,10 +172,35 @@ export class FormPermissionsManager {
   renderFormSection(formType, rolesArray) {
     const formPerms = this.permissions.filter(p => p.form_type === formType);
     const formDisplayName = formPerms[0]?.display_name || formType;
+    const formFormatId = formPerms[0]?.form_format_id;
+    const displayContext = formPerms[0]?.display_context || [];
 
     return `
       <div class="form-section">
         <h2 class="form-section__title">${translate(formType) || formDisplayName}</h2>
+
+        <!-- Display Context Section -->
+        <div class="display-context-section">
+          <h3 class="display-context-title">${translate('display_contexts')}</h3>
+          <p class="display-context-description">${translate('display_contexts_description')}</p>
+          <div class="context-checkboxes">
+            ${['participant', 'organization', 'admin_panel', 'public', 'form_builder'].map(ctx => `
+              <label class="context-checkbox-label">
+                <input
+                  type="checkbox"
+                  class="context-checkbox"
+                  data-form-format-id="${formFormatId}"
+                  data-context="${ctx}"
+                  ${displayContext.includes(ctx) ? 'checked' : ''}
+                />
+                <span>${translate(`context_${ctx}`)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Role Permissions Section -->
+        <h3 class="permissions-subtitle">${translate('role_permissions')}</h3>
         <div class="permissions-table-wrapper">
           <table class="permissions-table">
             <thead>
@@ -222,7 +274,7 @@ export class FormPermissionsManager {
    * Attach event listeners
    */
   attachEventListeners() {
-    // Listen for checkbox changes
+    // Listen for permission checkbox changes
     document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
       checkbox.addEventListener('change', async (event) => {
         const formFormatId = parseInt(event.target.dataset.formFormatId, 10);
@@ -246,6 +298,34 @@ export class FormPermissionsManager {
 
         // Update on the server
         const success = await this.updatePermission(formFormatId, roleId, permissions);
+
+        // If update failed, revert the checkbox
+        if (!success) {
+          event.target.checked = !isChecked;
+        }
+      });
+    });
+
+    // Listen for display context checkbox changes
+    document.querySelectorAll('.context-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', async (event) => {
+        const formFormatId = parseInt(event.target.dataset.formFormatId, 10);
+        const changedContext = event.target.dataset.context;
+        const isChecked = event.target.checked;
+
+        // Get all current display contexts for this form
+        const section = event.target.closest('.form-section');
+        const contextCheckboxes = section.querySelectorAll('.context-checkbox');
+        const displayContext = [];
+
+        contextCheckboxes.forEach(cb => {
+          if (cb.checked) {
+            displayContext.push(cb.dataset.context);
+          }
+        });
+
+        // Update on the server
+        const success = await this.updateDisplayContext(formFormatId, displayContext);
 
         // If update failed, revert the checkbox
         if (!success) {

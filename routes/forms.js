@@ -321,13 +321,20 @@ module.exports = (pool, logger) => {
    * /api/organization-form-formats:
    *   get:
    *     summary: Get organization form formats
-   *     description: Retrieve form formats configured for the organization that the user has permission to view
+   *     description: Retrieve form formats configured for the organization that the user has permission to view, optionally filtered by display context
    *     tags: [Forms]
    *     security:
    *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: context
+   *         schema:
+   *           type: string
+   *           enum: [participant, organization, admin_panel, public, form_builder]
+   *         description: Filter forms by display context
    *     responses:
    *       200:
-   *         description: Form formats retrieved successfully (filtered by permissions)
+   *         description: Form formats retrieved successfully (filtered by permissions and context)
    *       401:
    *         description: Unauthorized
    */
@@ -348,12 +355,21 @@ module.exports = (pool, logger) => {
         return res.status(403).json({ success: false, message: authCheck.message });
       }
 
-      // Get all form formats for the organization
-      const result = await pool.query(
-        `SELECT * FROM organization_form_formats
-         WHERE organization_id = $1`,
-        [organizationId]
-      );
+      // Get context filter from query parameter
+      const { context } = req.query;
+
+      // Build query with optional context filter
+      let query = `SELECT * FROM organization_form_formats WHERE organization_id = $1`;
+      const params = [organizationId];
+
+      if (context) {
+        // Filter by display context using PostgreSQL array containment
+        query += ` AND $2 = ANY(display_context)`;
+        params.push(context);
+      }
+
+      // Get form formats for the organization (optionally filtered by context)
+      const result = await pool.query(query, params);
 
       // Get form permissions for user's roles
       const userRoles = authCheck.roles || [];
@@ -372,7 +388,9 @@ module.exports = (pool, logger) => {
               ? JSON.parse(row.form_structure)
               : row.form_structure,
             // Include the user's permissions for this form
-            permissions: permissions
+            permissions: permissions,
+            // Include display_context for frontend use
+            display_context: row.display_context || []
           };
         }
       });
@@ -1288,12 +1306,13 @@ module.exports = (pool, logger) => {
         });
       }
 
-      // Get all form permissions for this organization
+      // Get all form permissions for this organization (including display_context)
       const result = await pool.query(
         `SELECT
            off.id AS form_format_id,
            off.form_type,
            off.display_name,
+           off.display_context,
            r.id AS role_id,
            r.role_name,
            r.display_name AS role_display_name,
@@ -1316,6 +1335,124 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form permissions:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
+   * /api/form-display-context:
+   *   put:
+   *     summary: Update form display context
+   *     description: Update the display contexts where a form should appear (admin only)
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - form_format_id
+   *               - display_context
+   *             properties:
+   *               form_format_id:
+   *                 type: integer
+   *               display_context:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *                   enum: [participant, organization, admin_panel, public, form_builder]
+   *     responses:
+   *       200:
+   *         description: Display context updated successfully
+   *       401:
+   *         description: Unauthorized
+   *       403:
+   *         description: Insufficient permissions
+   */
+  router.put('/form-display-context', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      // Verify user belongs to this organization and has admin access
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Only district and unitadmin can manage form display contexts
+      const userRoles = authCheck.roles || [];
+      if (!userRoles.includes('district') && !userRoles.includes('unitadmin')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only district and unit administrators can manage form display contexts'
+        });
+      }
+
+      const { form_format_id, display_context } = req.body;
+
+      if (!form_format_id || !Array.isArray(display_context)) {
+        return res.status(400).json({
+          success: false,
+          message: 'form_format_id and display_context array are required'
+        });
+      }
+
+      // Validate display_context values
+      const validContexts = ['participant', 'organization', 'admin_panel', 'public', 'form_builder'];
+      const invalidContexts = display_context.filter(ctx => !validContexts.includes(ctx));
+      if (invalidContexts.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid context values: ${invalidContexts.join(', ')}`
+        });
+      }
+
+      // Verify the form belongs to this organization
+      const formCheck = await pool.query(
+        'SELECT organization_id, form_type FROM organization_form_formats WHERE id = $1',
+        [form_format_id]
+      );
+
+      if (formCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Form not found' });
+      }
+
+      if (formCheck.rows[0].organization_id !== organizationId) {
+        return res.status(403).json({ success: false, message: 'Access denied to this form' });
+      }
+
+      // Update the display_context
+      const result = await pool.query(
+        `UPDATE organization_form_formats
+         SET display_context = $1
+         WHERE id = $2
+         RETURNING *`,
+        [display_context, form_format_id]
+      );
+
+      logger.info(`User ${decoded.user_id} updated display context for form ${formCheck.rows[0].form_type}`);
+
+      res.json({
+        success: true,
+        data: result.rows[0],
+        message: 'Display context updated successfully'
+      });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error updating form display context:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
