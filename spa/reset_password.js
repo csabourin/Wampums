@@ -1,6 +1,7 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { getApiUrl } from "./ajax-functions.js";
+import { setContent } from "./utils/DOMUtils.js";
 export class ResetPassword {
 				constructor(app) {
 								this.app = app;
@@ -15,7 +16,7 @@ export class ResetPassword {
 												<div id="message"></div>
 												<p><a href="/login">${translate("back_to_login")}</a></p>
 								`;
-								document.getElementById("app").innerHTML = content;
+								setContent(document.getElementById("app"), content);
 								this.attachEventListeners();
 				}
 

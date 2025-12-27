@@ -1,5 +1,7 @@
 import { translate } from "./app.js";
 import { debugError } from "./utils/DebugUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 /**
  * Landing view for the /carpool route.
@@ -35,7 +37,7 @@ export class CarpoolLanding {
       return;
     }
 
-    container.innerHTML = `
+    setContent(container, `
       <section class="page carpool-page carpool-landing">
         <header class="page__header">
           <div class="page__header-top">

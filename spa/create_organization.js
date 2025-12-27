@@ -6,6 +6,7 @@ import {
         getOrganizationFormFormats,
 } from "./ajax-functions.js";
 import { canCreateOrganization, hasRole } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class CreateOrganization {
 		constructor(app) {
@@ -34,7 +35,7 @@ export class CreateOrganization {
 						<button id="submit-organization">${translate("create_unit")}</button>
 						<p><a href="/admin">${translate("back_to_admin")}</a></p>
 				`;
-				document.getElementById("app").innerHTML = content;
+				setContent(document.getElementById("app"), content);
 		}
 
         async initializeForm() {

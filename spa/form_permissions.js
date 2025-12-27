@@ -12,6 +12,8 @@ import { debugLog, debugError } from './utils/DebugUtils.js';
 import { CONFIG } from './config.js';
 import { translate } from './app.js';
 import { isAdmin, isDistrictAdmin } from './utils/PermissionUtils.js';
+import { setContent } from './utils/DOMUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
 
 export class FormPermissionsManager {
   constructor(app) {
@@ -145,7 +147,7 @@ export class FormPermissionsManager {
       </div>
     `;
 
-    document.getElementById('app').innerHTML = content;
+    setContent(document.getElementById('app'), content);
   }
 
   /**

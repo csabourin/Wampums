@@ -5,6 +5,8 @@ import {
   fetchAcceptationRisque,
   saveAcceptationRisque,
 } from "./ajax-functions.js";
+import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class AcceptationRisque {
   constructor(app) {
@@ -43,9 +45,9 @@ export class AcceptationRisque {
             <h1>${translate("formulaire_acceptation_risque")}</h1>
             <form id="acceptation-risque-form">
                 <h2>${translate("informations_participant")}</h2>
-                <p>${translate("nom_participant")}: ${
+                <p>${translate("nom_participant")}: ${escapeHTML(
       this.participant.first_name
-    } ${this.participant.last_name}</p>
+    )} ${escapeHTML(this.participant.last_name)}</p>
                 <p>${translate("age_participant")}: ${this.calculateAge(
       this.participant.date_naissance
     )}</p>
@@ -53,9 +55,9 @@ export class AcceptationRisque {
                 <label for="groupe_district">${translate(
                   "groupe_district"
                 )}:</label>
-                <input type="text" id="groupe_district" name="groupe_district" value="${
+                <input type="text" id="groupe_district" name="groupe_district" value="${escapeHTML(
                   this.acceptationRisque?.groupe_district || ""
-                }" required>
+                )}" required>
 
                 <h2>${translate("risques_inherents")}</h2>
                 <p>${translate("paragraphe_acceptation_risque")}</p>
@@ -128,17 +130,17 @@ export class AcceptationRisque {
                 <label for="nom_parent_tuteur">${translate(
                   "nom_parent_tuteur"
                 )}:</label>
-                <input type="text" id="nom_parent_tuteur" name="nom_parent_tuteur" value="${
+                <input type="text" id="nom_parent_tuteur" name="nom_parent_tuteur" value="${escapeHTML(
                   this.acceptationRisque?.nom_parent_tuteur || ""
-                }" required>
+                )}" required>
 
                 <label for="date_signature">${translate(
                   "date_signature"
                 )}:</label>
-                <input type="date" id="date_signature" name="date_signature" value="${
+                <input type="date" id="date_signature" name="date_signature" value="${escapeHTML(
                   this.acceptationRisque?.date_signature ||
                   new Date().toISOString().split("T")[0]
-                }" required>
+                )}" required>
 
                 <input type="submit" value="${translate(
                   "soumettre_acceptation_risque"
@@ -146,7 +148,7 @@ export class AcceptationRisque {
             </form>
             <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
         `;
-    document.getElementById("app").innerHTML = content;
+    setContent(document.getElementById("app"), content);
   }
 
   attachEventListeners() {
@@ -184,10 +186,10 @@ export class AcceptationRisque {
   renderError(message) {
     const errorMessage = `
             <h1>${translate("error")}</h1>
-            <p>${message}</p>
+            <p>${escapeHTML(message)}</p>
             <p><a href="/dashboard">${translate("retour_tableau_bord")}</a></p>
         `;
-    document.getElementById("app").innerHTML = errorMessage;
+    setContent(document.getElementById("app"), errorMessage);
   }
 
   calculateAge(dateOfBirth) {

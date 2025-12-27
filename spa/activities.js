@@ -12,6 +12,8 @@ import { clearActivityRelatedCaches } from './indexedDB.js';
 import { canViewActivities } from './utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError } from './utils/DebugUtils.js';
+import { setContent } from './utils/DOMUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
 
 export class Activities {
   constructor(app) {
@@ -55,14 +57,14 @@ export class Activities {
 
     // Show loading skeleton while data is being fetched
     if (this.isLoading) {
-      container.innerHTML = skeletonActivityList();
+      setContent(container, skeletonActivityList());
       return;
     }
 
     const upcomingActivities = this.activities.filter(a => new Date(a.activity_date) >= new Date());
     const pastActivities = this.activities.filter(a => new Date(a.activity_date) < new Date());
 
-    container.innerHTML = `
+    setContent(container, `
       <section class="page activities-page">
         <header class="page__header">
           <div class="page__header-top">
@@ -108,20 +110,20 @@ export class Activities {
     return `
       <div class="activity-card ${isPast ? 'activity-card--past' : ''}" data-activity-id="${activity.id}">
         <div class="activity-card__header">
-          <h3 class="activity-card__title">${activity.name}</h3>
+          <h3 class="activity-card__title">${escapeHTML(activity.name)}</h3>
           <span class="activity-card__date">${activityDate.toLocaleDateString()}</span>
         </div>
 
         ${activity.description ? `
-          <p class="activity-card__description">${activity.description}</p>
+          <p class="activity-card__description">${escapeHTML(activity.description)}</p>
         ` : ''}
 
         <div class="activity-card__details">
           <div class="activity-detail">
             <strong>${translate('going')}:</strong>
             <div class="activity-detail__content">
-              <span>${translate('meeting')}: ${activity.meeting_time_going} @ ${activity.meeting_location_going}</span>
-              <span>${translate('departure')}: ${activity.departure_time_going}</span>
+              <span>${translate('meeting')}: ${escapeHTML(activity.meeting_time_going)} @ ${escapeHTML(activity.meeting_location_going)}</span>
+              <span>${translate('departure')}: ${escapeHTML(activity.departure_time_going)}</span>
             </div>
           </div>
 
@@ -129,8 +131,8 @@ export class Activities {
             <div class="activity-detail">
               <strong>${translate('returning')}:</strong>
               <div class="activity-detail__content">
-                <span>${translate('meeting')}: ${activity.meeting_time_return} @ ${activity.meeting_location_return}</span>
-                <span>${translate('departure')}: ${activity.departure_time_return}</span>
+                <span>${translate('meeting')}: ${escapeHTML(activity.meeting_time_return)} @ ${escapeHTML(activity.meeting_location_return)}</span>
+                <span>${translate('departure')}: ${escapeHTML(activity.departure_time_return)}</span>
               </div>
             </div>
           ` : ''}
@@ -232,20 +234,20 @@ export class Activities {
           <div class="form-group">
             <label for="activity-name">${translate('activity_name')} <span class="required">*</span></label>
             <input type="text" id="activity-name" name="name"
-                   value="${activity?.name || ''}" required
+                   value="${escapeHTML(activity?.name || '')}" required
                    class="form-control" maxlength="255">
           </div>
 
           <div class="form-group">
             <label for="activity-description">${translate('description')}</label>
             <textarea id="activity-description" name="description"
-                      class="form-control" rows="3">${activity?.description || ''}</textarea>
+                      class="form-control" rows="3">${escapeHTML(activity?.description || '')}</textarea>
           </div>
 
           <div class="form-group">
             <label for="activity-date">${translate('activity_date')} <span class="required">*</span></label>
             <input type="date" id="activity-date" name="activity_date"
-                   value="${activity?.activity_date || ''}" required
+                   value="${escapeHTML(activity?.activity_date || '')}" required
                    class="form-control">
           </div>
 
@@ -255,7 +257,7 @@ export class Activities {
             <div class="form-group">
               <label for="meeting-location-going">${translate('meeting_location')} <span class="required">*</span></label>
               <input type="text" id="meeting-location-going" name="meeting_location_going"
-                     value="${activity?.meeting_location_going || ''}" required
+                     value="${escapeHTML(activity?.meeting_location_going || '')}" required
                      class="form-control" placeholder="${translate('meeting_location_placeholder')}">
             </div>
 
@@ -263,14 +265,14 @@ export class Activities {
               <div class="form-group">
                 <label for="meeting-time-going">${translate('meeting_time')} <span class="required">*</span></label>
                 <input type="time" id="meeting-time-going" name="meeting_time_going"
-                       value="${activity?.meeting_time_going || ''}" required
+                       value="${escapeHTML(activity?.meeting_time_going || '')}" required
                        class="form-control">
               </div>
 
               <div class="form-group">
                 <label for="departure-time-going">${translate('departure_time')} <span class="required">*</span></label>
                 <input type="time" id="departure-time-going" name="departure_time_going"
-                       value="${activity?.departure_time_going || ''}" required
+                       value="${escapeHTML(activity?.departure_time_going || '')}" required
                        class="form-control">
               </div>
             </div>
@@ -282,7 +284,7 @@ export class Activities {
             <div class="form-group">
               <label for="meeting-location-return">${translate('meeting_location')}</label>
               <input type="text" id="meeting-location-return" name="meeting_location_return"
-                     value="${activity?.meeting_location_return || ''}"
+                     value="${escapeHTML(activity?.meeting_location_return || '')}"
                      class="form-control" placeholder="${translate('meeting_location_placeholder')}">
             </div>
 
@@ -290,14 +292,14 @@ export class Activities {
               <div class="form-group">
                 <label for="meeting-time-return">${translate('meeting_time')}</label>
                 <input type="time" id="meeting-time-return" name="meeting_time_return"
-                       value="${activity?.meeting_time_return || ''}"
+                       value="${escapeHTML(activity?.meeting_time_return || '')}"
                        class="form-control">
               </div>
 
               <div class="form-group">
                 <label for="departure-time-return">${translate('departure_time')}</label>
                 <input type="time" id="departure-time-return" name="departure_time_return"
-                       value="${activity?.departure_time_return || ''}"
+                       value="${escapeHTML(activity?.departure_time_return || '')}"
                        class="form-control">
               </div>
             </div>
@@ -332,7 +334,7 @@ export class Activities {
       modalContainer.style.zIndex = '10000';
       document.body.appendChild(modalContainer);
     }
-    modalContainer.innerHTML = modalHTML;
+    setContent(modalContainer, modalHTML);
     modalContainer.classList.add('modal-container--visible');
 
     // Attach modal event listeners

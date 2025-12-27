@@ -12,6 +12,8 @@ import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils
 import { urlBase64ToUint8Array } from "./functions.js";
 import updateManager from "./pwa-update-manager.js";
 import { initOfflineSupport } from "./offline-init.js";
+import { setContent, clearElement } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 const debugMode = isDebugMode();
 
@@ -227,13 +229,13 @@ export const app = {
 
                 } catch (error) {
                         debugError("Initialization error:", error);
-                        document.getElementById("app").innerHTML = `
+                        setContent(document.getElementById("app"), `
                                 <div class="error-container">
                                         <h1>${this.translate('application_error') || 'Application Error'}</h1>
                                         <p>${this.translate('error_loading_application') || 'Error loading application'}</p>
                                         <button onclick="window.location.reload()">${this.translate('reload') || 'Reload'}</button>
                                 </div>
-                        `;
+                        `);
                 }
         },
 
@@ -436,7 +438,7 @@ export const app = {
                 const container = document.getElementById('toast-container');
 
                 // Clear any existing toast
-                container.innerHTML = '';
+                clearElement(container);
 
                 // Create toast element
                 const toast = document.createElement('div');
@@ -498,7 +500,7 @@ export const app = {
                 setTimeout(() => {
                         // Remove from queue and DOM
                         this.toastQueue.shift();
-                        container.innerHTML = '';
+                        clearElement(container);
 
                         // Show next toast if any
                         if (this.toastQueue.length > 0) {
@@ -599,13 +601,13 @@ export const app = {
                 const errorContent = `
                         <div class="error-container">
                                 <h1>${this.translate("error")}</h1>
-                                <p>${message}</p>
+                                <p>${escapeHTML(message)}</p>
                                 <p><a href="/">${this.translate("back_to_home")}</a></p>
                         </div>
                 `;
                 const appContainer = document.getElementById("app");
                 if (appContainer) {
-                        appContainer.innerHTML = errorContent;
+                        setContent(appContainer, errorContent);
                 } else {
                         debugError("App container not found");
                 }

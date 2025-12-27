@@ -4,6 +4,7 @@ import {login, verify2FA, getApiUrl, getCurrentOrganizationId} from "./ajax-func
 import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 
 export class Login {
   constructor(app) {
@@ -66,7 +67,7 @@ export class Login {
 
     const appContainer = document.getElementById("app");
     if (appContainer) {
-      appContainer.innerHTML = content;
+      setContent(appContainer, content);
       this.attachLoginFormListener();
       debugLog("Login form rendered successfully");
     } else {
@@ -296,7 +297,7 @@ handleLoginSuccess(result) {
       </div>
     `;
 
-    appContainer.innerHTML = content;
+    setContent(appContainer, content);
     this.attach2FAFormListener(email);
   }
 

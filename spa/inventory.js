@@ -1,6 +1,7 @@
 import { translate } from "./app.js";
 import { debugError, debugLog, debugWarn } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 import { CONFIG } from "./config.js";
 import {
   getEquipmentInventory,
@@ -192,7 +193,7 @@ export class Inventory {
       return;
     }
 
-    container.innerHTML = `
+    setContent(container, `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page inventory-page">
         <div class="card">

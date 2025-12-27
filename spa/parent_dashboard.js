@@ -13,6 +13,7 @@ import { translate } from "./app.js";
 import { hexStringToUint8Array, base64UrlEncode } from './functions.js';
 import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
 
 export class ParentDashboard {
@@ -98,7 +99,7 @@ export class ParentDashboard {
                         `;
 
                         const dialog = document.createElement('div');
-                        dialog.innerHTML = dialogContent;
+                        setContent(dialog, dialogContent);
                         dialog.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
                         document.body.appendChild(dialog);
 
@@ -333,7 +334,7 @@ export class ParentDashboard {
                                 </footer>
                         </div>
                 `;
-                document.getElementById("app").innerHTML = content;
+                setContent(document.getElementById("app"), content);
                 this.bindStatementHandlers();
                 this.bindPermissionSlipHandlers();
         }
@@ -521,7 +522,7 @@ renderFormButtons(participant) {
                         return;
                 }
 
-                container.innerHTML = this.renderPermissionSlipItems(participantId);
+                setContent(container, this.renderPermissionSlipItems(participantId));
         }
 
         getPermissionSlipStatusLabel(status) {
@@ -700,7 +701,7 @@ renderFormButtons(participant) {
 
                 const modal = document.createElement('div');
                 modal.className = 'modal-screen';
-                modal.innerHTML = `
+                setContent(modal, `
                         <div class="modal">
                                 <div class="modal__header">
                                         <div>
@@ -754,7 +755,7 @@ renderFormButtons(participant) {
 
                         const modal = document.createElement('div');
                         modal.className = 'modal-screen';
-                        modal.innerHTML = `
+                        setContent(modal, `
                                 <div class="modal">
                                         <div class="modal__header">
                                                 <h3>${translate('carpool_coordination')}</h3>

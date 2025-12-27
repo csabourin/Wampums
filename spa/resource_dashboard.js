@@ -1,6 +1,7 @@
 import { translate } from "./app.js";
 import { debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { setContent } from "./utils/DOMUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import {
   getEquipmentInventory,
@@ -51,7 +52,7 @@ export class ResourceDashboard {
 
     const reservationSummary = this.dashboardSummary?.reservations || [];
 
-    container.innerHTML = `
+    setContent(container, `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
       <section class="page resource-dashboard">
         <div class="card">
