@@ -837,7 +837,12 @@ export function initRouter(app) {
 
     // Handle navigation
     document.addEventListener("click", (e) => {
-        // Find the closest anchor tag (handles clicks on child elements)
+        // Don't intercept button clicks - they handle their own navigation
+        if (e.target.matches("button") || e.target.closest("button")) {
+            return;
+        }
+
+        // Find the closest anchor tag (handles clicks on child elements like icons/spans)
         const anchor = e.target.closest("a");
         if (anchor) {
             const url = anchor.getAttribute("href");
