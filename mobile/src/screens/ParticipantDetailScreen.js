@@ -37,6 +37,7 @@ import CacheManager from '../utils/CacheManager';
 
 // Components
 import { Card, LoadingSpinner, ErrorMessage } from '../components';
+import { debugError } from '../utils/DebugUtils.js';
 
 /**
  * ParticipantDetailScreen Component
@@ -110,7 +111,7 @@ const ParticipantDetailScreen = () => {
       const canEditParticipant = role === 'admin' || role === 'leader';
       setCanEdit(canEditParticipant);
     } catch (error) {
-      console.error('Error loading user role:', error);
+      debugError('Error loading user role:', error);
     }
   };
 
@@ -136,7 +137,7 @@ const ParticipantDetailScreen = () => {
         setError(response.message || t('error'));
       }
     } catch (err) {
-      console.error('Error loading participant:', err);
+      debugError('Error loading participant:', err);
       setError(t('error_loading_manage_participants'));
     } finally {
       setIsLoading(false);
@@ -244,7 +245,7 @@ const ParticipantDetailScreen = () => {
         setError(response.message || t('error_saving_participant'));
       }
     } catch (err) {
-      console.error('Error saving participant:', err);
+      debugError('Error saving participant:', err);
       setError(t('error_saving_participant'));
     } finally {
       setIsSaving(false);

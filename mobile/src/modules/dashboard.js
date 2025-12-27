@@ -23,6 +23,7 @@ import CacheManager from '../utils/CacheManager';
 import DateUtils from '../utils/DateUtils';
 import StorageUtils from '../utils/StorageUtils';
 import CONFIG from '../config';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
 
 /**
  * Dashboard data manager class
@@ -67,7 +68,7 @@ export class DashboardManager {
 
       return { success: true };
     } catch (error) {
-      console.error('Error initializing dashboard:', error);
+      debugError('Error initializing dashboard:', error);
       this.isLoading = false;
       return { success: false, error };
     }
@@ -88,7 +89,7 @@ export class DashboardManager {
         this.organizationName = 'Scouts';
       }
     } catch (error) {
-      console.error('Error fetching organization info:', error);
+      debugError('Error fetching organization info:', error);
       this.organizationName = 'Scouts';
     }
   }
@@ -121,15 +122,15 @@ export class DashboardManager {
       const [participantsResponse, groupsResponse, activitiesResponse] =
         await Promise.all([
           getParticipants().catch((err) => {
-            console.error('Error loading participants:', err);
+            debugError('Error loading participants:', err);
             return { success: false, data: [] };
           }),
           getGroups().catch((err) => {
-            console.error('Error loading groups:', err);
+            debugError('Error loading groups:', err);
             return { success: false, data: [] };
           }),
           getActivities().catch((err) => {
-            console.error('Error loading activities:', err);
+            debugError('Error loading activities:', err);
             return { success: false, data: [] };
           }),
         ]);
@@ -189,7 +190,7 @@ export class DashboardManager {
       // Calculate statistics
       this.calculateStatistics();
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      debugError('Error loading dashboard data:', error);
       throw error;
     }
   }
@@ -240,7 +241,7 @@ export class DashboardManager {
   async prefetchCriticalPages() {
     try {
       // This runs in background, errors are non-blocking
-      console.log('Prefetching critical pages data...');
+      debugLog('Prefetching critical pages data...');
 
       // Add any critical page prefetching here
       // For mobile, we might prefetch:
@@ -248,10 +249,10 @@ export class DashboardManager {
       // - Recent activities
       // - etc.
 
-      console.log('Critical pages prefetch completed');
+      debugLog('Critical pages prefetch completed');
     } catch (error) {
       // Non-blocking: errors shouldn't affect dashboard
-      console.log('Critical pages prefetch error (non-blocking):', error);
+      debugLog('Critical pages prefetch error (non-blocking):', error);
     }
   }
 
@@ -285,7 +286,7 @@ export class DashboardManager {
         CONFIG.CACHE_DURATION?.SHORT || 5 * 60 * 1000
       );
     } catch (error) {
-      console.error('Error loading news:', error);
+      debugError('Error loading news:', error);
       this.newsLoading = false;
       this.newsError = 'Failed to load news';
     }

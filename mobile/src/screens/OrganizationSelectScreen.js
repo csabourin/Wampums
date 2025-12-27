@@ -31,6 +31,7 @@ import { translate as t } from '../i18n';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 import { getOrganizationId } from '../api/api-endpoints';
+import { debugError } from '../utils/DebugUtils.js';
 
 const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
   const [organizationUrl, setOrganizationUrl] = useState('');
@@ -144,7 +145,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
         setError(response.message || t('organization.not_found'));
       }
     } catch (err) {
-      console.error('Organization selection error:', err);
+      debugError('Organization selection error:', err);
       setError(err.message || t('organization.resolution_failed'));
     } finally {
       setLoading(false);

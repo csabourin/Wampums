@@ -12,6 +12,7 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { LoginScreen } from '../screens';
 import OrganizationSelectScreen from '../screens/OrganizationSelectScreen';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
 // Import future auth screens
 // import RegisterScreen from '../screens/RegisterScreen';
 // import ResetPasswordScreen from '../screens/ResetPasswordScreen';
@@ -19,9 +20,9 @@ import OrganizationSelectScreen from '../screens/OrganizationSelectScreen';
 const Stack = createStackNavigator();
 
 const AuthNavigator = ({ onLogin }) => {
-  console.log('🟣 [AuthNavigator] Rendering with onLogin callback');
+  debugLog('🟣 [AuthNavigator] Rendering with onLogin callback');
   try {
-    console.log('🟣 [AuthNavigator] Creating Stack.Navigator');
+    debugLog('🟣 [AuthNavigator] Creating Stack.Navigator');
     return (
       <Stack.Navigator
         initialRouteName="OrganizationSelect"
@@ -30,7 +31,7 @@ const AuthNavigator = ({ onLogin }) => {
           cardStyle: { backgroundColor: '#f5f5f5' },
         }}
       >
-        {console.log('🟣 [AuthNavigator] Adding OrganizationSelect and Login screens to stack')}
+        {debugLog('🟣 [AuthNavigator] Adding OrganizationSelect and Login screens to stack')}
 
         {/* Step 1: Organization URL Selection (pre-login) */}
         <Stack.Screen
@@ -49,8 +50,8 @@ const AuthNavigator = ({ onLogin }) => {
       </Stack.Navigator>
     );
   } catch (error) {
-    console.error('🔴 [AuthNavigator] Error during render:', error);
-    console.error('🔴 [AuthNavigator] Error stack:', error.stack);
+    debugError('🔴 [AuthNavigator] Error during render:', error);
+    debugError('🔴 [AuthNavigator] Error stack:', error.stack);
     throw error;
   }
 };

@@ -11,6 +11,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import CONFIG from '../config';
+import { debugError } from './DebugUtils.js';
 
 // Keys that should be stored securely (on native platforms only)
 // Note: JWT tokens are excluded because they often exceed SecureStore's 2048-byte limit
@@ -38,7 +39,7 @@ export const setItem = async (key, value) => {
     }
     return true;
   } catch (error) {
-    console.error(`Error storing ${key}:`, error);
+    debugError(`Error storing ${key}:`, error);
     return false;
   }
 };
@@ -65,7 +66,7 @@ export const getItem = async (key) => {
       return value;
     }
   } catch (error) {
-    console.error(`Error retrieving ${key}:`, error);
+    debugError(`Error retrieving ${key}:`, error);
     return null;
   }
 };
@@ -82,7 +83,7 @@ export const removeItem = async (key) => {
     }
     return true;
   } catch (error) {
-    console.error(`Error removing ${key}:`, error);
+    debugError(`Error removing ${key}:`, error);
     return false;
   }
 };
@@ -99,7 +100,7 @@ export const setStorageMultiple = async (items) => {
     await Promise.all(promises);
     return true;
   } catch (error) {
-    console.error('Error storing multiple items:', error);
+    debugError('Error storing multiple items:', error);
     return false;
   }
 };
@@ -116,7 +117,7 @@ export const getStorageMultiple = async (keys) => {
     const results = await Promise.all(promises);
     return Object.fromEntries(results);
   } catch (error) {
-    console.error('Error retrieving multiple items:', error);
+    debugError('Error retrieving multiple items:', error);
     return {};
   }
 };
@@ -148,7 +149,7 @@ export const clearUserData = async () => {
 
     return true;
   } catch (error) {
-    console.error('Error clearing user data:', error);
+    debugError('Error clearing user data:', error);
     return false;
   }
 };
@@ -169,7 +170,7 @@ export const clearAllStorage = async () => {
     }
     return true;
   } catch (error) {
-    console.error('Error clearing all storage:', error);
+    debugError('Error clearing all storage:', error);
     return false;
   }
 };
@@ -212,7 +213,7 @@ export const decodeJWT = (token) => {
 
     return decoded;
   } catch (error) {
-    console.error('Error decoding JWT:', error);
+    debugError('Error decoding JWT:', error);
     return null;
   }
 };
@@ -239,7 +240,7 @@ export const getCurrentUserFromJWT = async () => {
     const decoded = decodeJWT(token);
     return decoded;
   } catch (error) {
-    console.error('Error getting current user from JWT:', error);
+    debugError('Error getting current user from JWT:', error);
     return null;
   }
 };

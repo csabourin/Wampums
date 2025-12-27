@@ -16,6 +16,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { debugLog, debugError } from './DebugUtils.js';
 
 // Cache configuration (matches web app settings)
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes default
@@ -101,9 +102,9 @@ class CacheManager {
         JSON.stringify(cacheEntry)
       );
 
-      console.log(`[Cache] Cached: ${key}`);
+      debugLog(`[Cache] Cached: ${key}`);
     } catch (error) {
-      console.error(`[Cache] Error caching ${key}:`, error);
+      debugError(`[Cache] Error caching ${key}:`, error);
     }
   }
 
@@ -124,15 +125,15 @@ class CacheManager {
 
       // Check if expired
       if (Date.now() > cacheEntry.expiration) {
-        console.log(`[Cache] Expired: ${key}`);
+        debugLog(`[Cache] Expired: ${key}`);
         await this.deleteCachedData(key);
         return null;
       }
 
-      console.log(`[Cache] Hit: ${key}`);
+      debugLog(`[Cache] Hit: ${key}`);
       return cacheEntry.data;
     } catch (error) {
-      console.error(`[Cache] Error retrieving ${key}:`, error);
+      debugError(`[Cache] Error retrieving ${key}:`, error);
       return null;
     }
   }
@@ -144,9 +145,9 @@ class CacheManager {
   async deleteCachedData(key) {
     try {
       await AsyncStorage.removeItem(`${CACHE_PREFIX}${key}`);
-      console.log(`[Cache] Deleted: ${key}`);
+      debugLog(`[Cache] Deleted: ${key}`);
     } catch (error) {
-      console.error(`[Cache] Error deleting ${key}:`, error);
+      debugError(`[Cache] Error deleting ${key}:`, error);
     }
   }
 
@@ -163,10 +164,10 @@ class CacheManager {
 
       if (cacheKeys.length > 0) {
         await AsyncStorage.multiRemove(cacheKeys);
-        console.log(`[Cache] Deleted ${cacheKeys.length} entries matching: ${pattern}`);
+        debugLog(`[Cache] Deleted ${cacheKeys.length} entries matching: ${pattern}`);
       }
     } catch (error) {
-      console.error(`[Cache] Error deleting pattern ${pattern}:`, error);
+      debugError(`[Cache] Error deleting pattern ${pattern}:`, error);
     }
   }
 
@@ -180,10 +181,10 @@ class CacheManager {
 
       if (cacheKeys.length > 0) {
         await AsyncStorage.multiRemove(cacheKeys);
-        console.log(`[Cache] Cleared all cache (${cacheKeys.length} entries)`);
+        debugLog(`[Cache] Cleared all cache (${cacheKeys.length} entries)`);
       }
     } catch (error) {
-      console.error('[Cache] Error clearing all cache:', error);
+      debugError('[Cache] Error clearing all cache:', error);
     }
   }
 
@@ -208,11 +209,11 @@ class CacheManager {
       queue.push(queueEntry);
 
       await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-      console.log(`[Queue] Queued mutation: ${mutation.method} ${mutation.url}`);
+      debugLog(`[Queue] Queued mutation: ${mutation.method} ${mutation.url}`);
 
       return queueEntry.id;
     } catch (error) {
-      console.error('[Queue] Error queuing mutation:', error);
+      debugError('[Queue] Error queuing mutation:', error);
       throw error;
     }
   }
@@ -226,7 +227,7 @@ class CacheManager {
       const queue = await AsyncStorage.getItem(QUEUE_KEY);
       return queue ? JSON.parse(queue) : [];
     } catch (error) {
-      console.error('[Queue] Error getting queue:', error);
+      debugError('[Queue] Error getting queue:', error);
       return [];
     }
   }
@@ -239,7 +240,7 @@ class CacheManager {
    */
   async syncQueuedMutations(apiClient) {
     if (!this.isOnline) {
-      console.log('[Sync] Offline, skipping sync');
+      debugLog('[Sync] Offline, skipping sync');
       return { success: 0, failed: 0 };
     }
 
@@ -247,11 +248,11 @@ class CacheManager {
       const queue = await this.getMutationQueue();
 
       if (queue.length === 0) {
-        console.log('[Sync] Queue empty, nothing to sync');
+        debugLog('[Sync] Queue empty, nothing to sync');
         return { success: 0, failed: 0 };
       }
 
-      console.log(`[Sync] Syncing ${queue.length} queued mutations...`);
+      debugLog(`[Sync] Syncing ${queue.length} queued mutations...`);
 
       let successCount = 0;
       let failedCount = 0;
@@ -270,10 +271,10 @@ class CacheManager {
           }
 
           successCount++;
-          console.log(`[Sync] ✓ ${mutation.method} ${mutation.url}`);
+          debugLog(`[Sync] ✓ ${mutation.method} ${mutation.url}`);
         } catch (error) {
           failedCount++;
-          console.error(`[Sync] ✗ ${mutation.method} ${mutation.url}:`, error);
+          debugError(`[Sync] ✗ ${mutation.method} ${mutation.url}:`, error);
 
           // Re-queue failed mutations (unless they're 400 errors)
           if (!error.response || error.response.status >= 500) {
@@ -285,11 +286,11 @@ class CacheManager {
       // Update queue with remaining mutations
       await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(remainingQueue));
 
-      console.log(`[Sync] Complete: ${successCount} success, ${failedCount} failed`);
+      debugLog(`[Sync] Complete: ${successCount} success, ${failedCount} failed`);
 
       return { success: successCount, failed: failedCount };
     } catch (error) {
-      console.error('[Sync] Error during sync:', error);
+      debugError('[Sync] Error during sync:', error);
       return { success: 0, failed: 0 };
     }
   }
@@ -300,9 +301,9 @@ class CacheManager {
   async clearMutationQueue() {
     try {
       await AsyncStorage.removeItem(QUEUE_KEY);
-      console.log('[Queue] Cleared mutation queue');
+      debugLog('[Queue] Cleared mutation queue');
     } catch (error) {
-      console.error('[Queue] Error clearing queue:', error);
+      debugError('[Queue] Error clearing queue:', error);
     }
   }
 
@@ -317,7 +318,7 @@ class CacheManager {
    * Use after: creating/updating/deleting participants
    */
   async clearParticipantRelatedCaches() {
-    console.log('[Cache] Invalidating participant caches...');
+    debugLog('[Cache] Invalidating participant caches...');
     await this.deleteCachedDataByPattern('v1/participants');
     await this.deleteCachedDataByPattern('v1/activities');
     await this.deleteCachedDataByPattern('v1/groups');
@@ -328,7 +329,7 @@ class CacheManager {
    * Use after: creating/updating/deleting activities
    */
   async clearActivityRelatedCaches() {
-    console.log('[Cache] Invalidating activity caches...');
+    debugLog('[Cache] Invalidating activity caches...');
     await this.deleteCachedDataByPattern('v1/activities');
     await this.deleteCachedDataByPattern('v1/participants');
     await this.deleteCachedDataByPattern('v1/carpools');
@@ -341,7 +342,7 @@ class CacheManager {
    * @param {string|number} activityId - Optional activity ID to clear specific activity caches
    */
   async clearCarpoolRelatedCaches(activityId = null) {
-    console.log('[Cache] Invalidating carpool caches...');
+    debugLog('[Cache] Invalidating carpool caches...');
 
     if (activityId) {
       await this.deleteCachedData(`v1/carpools/activity/${activityId}`);
@@ -359,7 +360,7 @@ class CacheManager {
    * Use after: creating/updating/deleting groups
    */
   async clearGroupRelatedCaches() {
-    console.log('[Cache] Invalidating group caches...');
+    debugLog('[Cache] Invalidating group caches...');
     await this.deleteCachedDataByPattern('v1/groups');
     await this.deleteCachedDataByPattern('v1/participants');
   }
@@ -369,7 +370,7 @@ class CacheManager {
    * Use after: submitting/approving/rejecting badges, awarding honors
    */
   async clearBadgeRelatedCaches() {
-    console.log('[Cache] Invalidating badge caches...');
+    debugLog('[Cache] Invalidating badge caches...');
     await this.deleteCachedDataByPattern('badge-dashboard');
     await this.deleteCachedDataByPattern('badge-progress');
     await this.deleteCachedDataByPattern('badge-history');
@@ -383,7 +384,7 @@ class CacheManager {
    * @param {string|number} fundraiserId - Optional fundraiser ID
    */
   async clearFundraiserRelatedCaches(fundraiserId = null) {
-    console.log('[Cache] Invalidating fundraiser caches...');
+    debugLog('[Cache] Invalidating fundraiser caches...');
 
     if (fundraiserId) {
       await this.deleteCachedData(`fundraisers/${fundraiserId}`);
@@ -400,7 +401,7 @@ class CacheManager {
    * @param {string|number} participantFeeId - Optional participant fee ID
    */
   async clearFinanceRelatedCaches(participantFeeId = null) {
-    console.log('[Cache] Invalidating finance caches...');
+    debugLog('[Cache] Invalidating finance caches...');
 
     if (participantFeeId) {
       await this.deleteCachedData(`v1/finance/participant-fees/${participantFeeId}`);
@@ -416,7 +417,7 @@ class CacheManager {
    * Use after: creating/sending/signing permission slips
    */
   async clearPermissionSlipRelatedCaches() {
-    console.log('[Cache] Invalidating permission slip caches...');
+    debugLog('[Cache] Invalidating permission slip caches...');
     await this.deleteCachedDataByPattern('v1/resources/permission-slips');
   }
 
@@ -425,7 +426,7 @@ class CacheManager {
    * Use after: updating medication requirements, recording distributions
    */
   async clearMedicationRelatedCaches() {
-    console.log('[Cache] Invalidating medication caches...');
+    debugLog('[Cache] Invalidating medication caches...');
     await this.deleteCachedDataByPattern('v1/medication');
   }
 
@@ -434,7 +435,7 @@ class CacheManager {
    * Use after: creating/updating reservations
    */
   async clearResourceRelatedCaches() {
-    console.log('[Cache] Invalidating resource caches...');
+    debugLog('[Cache] Invalidating resource caches...');
     await this.deleteCachedDataByPattern('v1/resources/equipment');
   }
 
@@ -443,7 +444,7 @@ class CacheManager {
    * Use after: creating/updating attendance records or guests
    */
   async clearAttendanceRelatedCaches() {
-    console.log('[Cache] Invalidating attendance caches...');
+    debugLog('[Cache] Invalidating attendance caches...');
     await this.deleteCachedDataByPattern('v1/attendance');
     await this.deleteCachedDataByPattern('guests-by-date');
   }
@@ -454,10 +455,10 @@ class CacheManager {
    * WARNING: This clears all cached data and offline queue
    */
   async clearAllCaches() {
-    console.log('[Cache] Clearing all caches and mutation queue...');
+    debugLog('[Cache] Clearing all caches and mutation queue...');
     await this.clearAllCache(); // Clear all cached API responses
     await this.clearMutationQueue(); // Clear offline mutation queue
-    console.log('[Cache] All caches and queue cleared');
+    debugLog('[Cache] All caches and queue cleared');
   }
 }
 

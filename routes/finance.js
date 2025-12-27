@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { ROLE_GROUPS } = require('../config/role-constants');
 
 function toNumeric(value) {
   const numeric = Number(value);
@@ -713,8 +714,8 @@ module.exports = (pool, logger) => {
       return error(res, 'Participant not found in this organization', 404);
     }
 
-    const staffRoles = ['district', 'unitadmin', 'leader', 'finance', 'administration', 'demoadmin'];
-    const isStaff = hasAnyRole(req, ...staffRoles);
+    // Use centralized role constants for finance access
+    const isStaff = hasAnyRole(req, ...ROLE_GROUPS.FINANCE_ACCESS);
 
     if (!isStaff) {
       const guardianLink = await pool.query(

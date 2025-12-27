@@ -14,26 +14,27 @@ import AppNavigator from './AppNavigator';
 import StorageUtils from '../utils/StorageUtils';
 import CONFIG from '../config';
 import { LoadingSpinner } from '../components';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
 
 const Stack = createStackNavigator();
 
 const RootNavigator = () => {
-  console.log('🔵 [RootNavigator] Component rendering');
+  debugLog('🔵 [RootNavigator] Component rendering');
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
 
   useEffect(() => {
-    console.log('🔵 [RootNavigator] useEffect - calling checkAuthState');
+    debugLog('🔵 [RootNavigator] useEffect - calling checkAuthState');
     checkAuthState();
   }, []);
 
   const checkAuthState = async () => {
     try {
-      console.log('🔵 [RootNavigator] checkAuthState - starting');
+      debugLog('🔵 [RootNavigator] checkAuthState - starting');
       // Check if user is authenticated
       const token = await StorageUtils.getJWT();
-      console.log('🔵 [RootNavigator] JWT token:', token ? 'exists' : 'null');
+      debugLog('🔵 [RootNavigator] JWT token:', token ? 'exists' : 'null');
 
       if (token && !StorageUtils.isJWTExpired(token)) {
         // Load user data
@@ -42,40 +43,40 @@ const RootNavigator = () => {
         setUserPermissions(permissions || []);
         setIsAuthenticated(true);
       } else {
-        console.log('🔵 [RootNavigator] No valid token, user not authenticated');
+        debugLog('🔵 [RootNavigator] No valid token, user not authenticated');
       }
     } catch (error) {
-      console.error('🔴 [RootNavigator] Error checking auth state:', error);
+      debugError('🔴 [RootNavigator] Error checking auth state:', error);
     } finally {
-      console.log('🔵 [RootNavigator] Setting isLoading to false');
+      debugLog('🔵 [RootNavigator] Setting isLoading to false');
       setIsLoading(false);
     }
   };
 
   const handleLogin = async () => {
-    console.log('🔵 [RootNavigator] handleLogin called');
+    debugLog('🔵 [RootNavigator] handleLogin called');
     // Reload user data after login
     setIsLoading(true);
     await checkAuthState();
-    console.log('🔵 [RootNavigator] handleLogin complete, authentication state updated');
+    debugLog('🔵 [RootNavigator] handleLogin complete, authentication state updated');
   };
 
   const handleLogout = async () => {
-    console.log('🔵 [RootNavigator] handleLogout called');
+    debugLog('🔵 [RootNavigator] handleLogout called');
     await StorageUtils.clearUserData();
     setIsAuthenticated(false);
     setUserPermissions([]);
   };
 
   if (isLoading) {
-    console.log('🟡 [RootNavigator] Still loading, showing LoadingSpinner');
+    debugLog('🟡 [RootNavigator] Still loading, showing LoadingSpinner');
     return <LoadingSpinner message="Loading Wampums..." />;
   }
 
-  console.log('🔵 [RootNavigator] Rendering navigation, isAuthenticated:', isAuthenticated);
+  debugLog('🔵 [RootNavigator] Rendering navigation, isAuthenticated:', isAuthenticated);
 
   try {
-    console.log('🔵 [RootNavigator] Creating SafeAreaProvider');
+    debugLog('🔵 [RootNavigator] Creating SafeAreaProvider');
     return (
       <SafeAreaProvider>
         <NavigationContainer>
@@ -83,7 +84,7 @@ const RootNavigator = () => {
             {isAuthenticated ? (
               <Stack.Screen name="App">
                 {() => {
-                  console.log('🔵 [RootNavigator] Rendering AppNavigator');
+                  debugLog('🔵 [RootNavigator] Rendering AppNavigator');
                   return (
                     <AppNavigator
                       userPermissions={userPermissions}
@@ -95,7 +96,7 @@ const RootNavigator = () => {
             ) : (
               <Stack.Screen name="Auth">
                 {() => {
-                  console.log('🔵 [RootNavigator] Rendering AuthNavigator');
+                  debugLog('🔵 [RootNavigator] Rendering AuthNavigator');
                   return <AuthNavigator onLogin={handleLogin} />;
                 }}
               </Stack.Screen>
@@ -105,8 +106,8 @@ const RootNavigator = () => {
       </SafeAreaProvider>
     );
   } catch (error) {
-    console.error('🔴 [RootNavigator] Error during render:', error);
-    console.error('🔴 [RootNavigator] Error stack:', error.stack);
+    debugError('🔴 [RootNavigator] Error during render:', error);
+    debugError('🔴 [RootNavigator] Error stack:', error.stack);
     throw error;
   }
 };

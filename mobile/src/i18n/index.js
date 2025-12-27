@@ -14,6 +14,7 @@ import * as Localization from 'expo-localization';
 import StorageUtils from '../utils/StorageUtils';
 import { getTranslations as fetchTranslationsFromAPI } from '../api/api-endpoints';
 import CONFIG from '../config';
+import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 
 // Create i18n instance with proper v4 configuration
 const i18n = new I18n(
@@ -48,12 +49,12 @@ const loadStaticTranslations = async (lang) => {
     }
 
     if (CONFIG.FEATURES.DEBUG_LOGGING) {
-      console.log(`Loaded ${Object.keys(translations).length} static translations for ${lang}`);
+      debugLog(`Loaded ${Object.keys(translations).length} static translations for ${lang}`);
     }
 
     return translations;
   } catch (error) {
-    console.error(`Error loading static translations for ${lang}:`, error);
+    debugError(`Error loading static translations for ${lang}:`, error);
     return {};
   }
 };
@@ -69,7 +70,7 @@ const loadDynamicTranslations = async (lang) => {
   // Check if there's already a pending request for this language
   if (pendingRequests.has(lang)) {
     if (CONFIG.FEATURES.DEBUG_LOGGING) {
-      console.log(`Deduplicating translation request for ${lang}`);
+      debugLog(`Deduplicating translation request for ${lang}`);
     }
     return pendingRequests.get(lang);
   }
@@ -78,13 +79,13 @@ const loadDynamicTranslations = async (lang) => {
   const requestPromise = (async () => {
     try {
       if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        console.log(`Fetching dynamic translations for ${lang}`);
+        debugLog(`Fetching dynamic translations for ${lang}`);
       }
 
       const response = await fetchTranslationsFromAPI(lang);
       if (response.success && response.data) {
         if (CONFIG.FEATURES.DEBUG_LOGGING) {
-          console.log(`Loaded ${Object.keys(response.data).length} dynamic translations for ${lang}`);
+          debugLog(`Loaded ${Object.keys(response.data).length} dynamic translations for ${lang}`);
         }
         return response.data;
       }
@@ -92,7 +93,7 @@ const loadDynamicTranslations = async (lang) => {
     } catch (error) {
       // API not available - this is expected when offline or backend not running
       if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        console.log(`API translations unavailable for ${lang}, using static translations only`);
+        debugLog(`API translations unavailable for ${lang}, using static translations only`);
       }
       return {};
     } finally {
@@ -137,7 +138,7 @@ export const loadTranslation = async (lang) => {
 
     return staticTranslations;
   } catch (error) {
-    console.error(`Error loading translations for ${lang}:`, error);
+    debugError(`Error loading translations for ${lang}:`, error);
     // Return empty object - i18n will fall back to keys
     return {};
   }
@@ -153,7 +154,7 @@ export const initI18n = async () => {
   // If already initializing, return the existing promise
   if (initPromise) {
     if (CONFIG.FEATURES.DEBUG_LOGGING) {
-      console.log('i18n already initializing, waiting for existing initialization');
+      debugLog('i18n already initializing, waiting for existing initialization');
     }
     return initPromise;
   }
@@ -161,7 +162,7 @@ export const initI18n = async () => {
   // If already loaded, return current language
   if (translationsLoaded) {
     if (CONFIG.FEATURES.DEBUG_LOGGING) {
-      console.log('i18n already initialized, returning current language:', currentLanguage);
+      debugLog('i18n already initialized, returning current language:', currentLanguage);
     }
     return currentLanguage;
   }
@@ -170,7 +171,7 @@ export const initI18n = async () => {
   initPromise = (async () => {
     try {
       if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        console.log('Initializing i18n system');
+        debugLog('Initializing i18n system');
       }
 
       // Get stored language preference
@@ -195,12 +196,12 @@ export const initI18n = async () => {
       translationsLoaded = true;
 
       if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        console.log('i18n initialization complete for language:', storedLang);
+        debugLog('i18n initialization complete for language:', storedLang);
       }
 
       return storedLang;
     } catch (error) {
-      console.error('Error initializing i18n:', error);
+      debugError('Error initializing i18n:', error);
       i18n.locale = CONFIG.LOCALE.DEFAULT_LANGUAGE;
       currentLanguage = CONFIG.LOCALE.DEFAULT_LANGUAGE;
       return CONFIG.LOCALE.DEFAULT_LANGUAGE;
@@ -221,7 +222,7 @@ export const changeLanguage = async (lang) => {
   try {
     // Validate language
     if (!CONFIG.LOCALE.SUPPORTED_LANGUAGES.includes(lang)) {
-      console.warn(`Unsupported language: ${lang}`);
+      debugWarn(`Unsupported language: ${lang}`);
       return false;
     }
 
@@ -238,7 +239,7 @@ export const changeLanguage = async (lang) => {
 
     return true;
   } catch (error) {
-    console.error(`Error changing language to ${lang}:`, error);
+    debugError(`Error changing language to ${lang}:`, error);
     return false;
   }
 };
@@ -263,7 +264,7 @@ export const getCurrentLanguage = () => {
  */
 export const translate = (key, options = {}) => {
   if (!translationsLoaded) {
-    console.warn('Translations not loaded yet');
+    debugWarn('Translations not loaded yet');
     return key;
   }
 

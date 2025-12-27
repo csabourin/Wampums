@@ -14,6 +14,7 @@ import axios from 'axios';
 import CONFIG, { getApiUrl, getDynamicApiUrl } from '../config';
 import StorageUtils from '../utils/StorageUtils';
 import CacheManager from '../utils/CacheManager';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
 
 // Create axios instance with default config
 const axiosInstance = axios.create({
@@ -88,7 +89,7 @@ const buildHeaders = async (customHeaders = {}) => {
  */
 const handleApiError = async (error, originalRequest) => {
   if (CONFIG.FEATURES.DEBUG_LOGGING) {
-    console.error('API Error:', error.response?.status, error.response?.data || error.message);
+    debugError('API Error:', error.response?.status, error.response?.data || error.message);
   }
 
   // Handle 401 - Unauthorized (invalid or expired token)
@@ -136,7 +137,7 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
     const cachedData = await CacheManager.getCachedData(endpoint);
     if (cachedData) {
       if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        console.log(`[API] Cache hit: ${endpoint}`);
+        debugLog(`[API] Cache hit: ${endpoint}`);
       }
       return cachedData;
     }
@@ -149,7 +150,7 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
   // If offline and it's a mutation, queue it
   if (!isOnline && isMutation) {
     if (CONFIG.FEATURES.DEBUG_LOGGING) {
-      console.log(`[API] Offline - queuing mutation: ${method} ${endpoint}`);
+      debugLog(`[API] Offline - queuing mutation: ${method} ${endpoint}`);
     }
 
     const url = await getDynamicApiUrl(endpoint);
@@ -223,7 +224,7 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
       const cachedData = await CacheManager.getCachedData(endpoint);
       if (cachedData) {
         if (CONFIG.FEATURES.DEBUG_LOGGING) {
-          console.log(`[API] Offline - returning cached: ${endpoint}`);
+          debugLog(`[API] Offline - returning cached: ${endpoint}`);
         }
         return {
           ...cachedData,

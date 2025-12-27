@@ -58,169 +58,169 @@ export function openDB() {
   });
 }
 
-export function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000) {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
+export async function setCachedData(key, data, expirationTime = 2 * 60 * 60 * 1000) {
+  const db = await openDB();
 
-      const record = {
-        key: key,
-        data: data,
-        type: "cache",
-        timestamp: Date.now(),
-        expiration: Date.now() + expirationTime,
-      };
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
 
-      const request = store.put(record);
+    const record = {
+      key: key,
+      data: data,
+      type: "cache",
+      timestamp: Date.now(),
+      expiration: Date.now() + expirationTime,
+    };
 
-      request.onerror = () => {
-        debugError("Error storing data:", request.error);
-        reject(request.error);
-      };
+    const request = store.put(record);
 
-      request.onsuccess = () => {
-        debugLog("Data stored successfully:", record);
-        resolve(request.result);
-      };
+    request.onerror = () => {
+      debugError("Error storing data:", request.error);
+      reject(request.error);
+    };
 
-      tx.oncomplete = () => {
-        db.close();
-      };
-    });
+    request.onsuccess = () => {
+      debugLog("Data stored successfully:", record);
+      resolve(request.result);
+    };
+
+    tx.oncomplete = () => {
+      db.close();
+    };
   });
 }
 
-export function getCachedData(key) {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const store = tx.objectStore(STORE_NAME);
+export async function getCachedData(key) {
+  const db = await openDB();
 
-      const request = store.get(key);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
 
-      request.onerror = () => {
-        debugError("Error retrieving data:", request.error);
-        reject(request.error);
-      };
+    const request = store.get(key);
 
-      request.onsuccess = () => {
-        const record = request.result;
-        debugLog(request, " Retrieved record:", record);
+    request.onerror = () => {
+      debugError("Error retrieving data:", request.error);
+      reject(request.error);
+    };
 
-        if (record && record.expiration > Date.now()) {
-          debugLog("Returning valid cached data:", record.data);
-          resolve(record.data);
+    request.onsuccess = () => {
+      const record = request.result;
+      debugLog(request, " Retrieved record:", record);
+
+      if (record && record.expiration > Date.now()) {
+        debugLog("Returning valid cached data:", record.data);
+        resolve(record.data);
+      } else {
+        if (!record) {
+          debugLog("No data found for key:", key);
         } else {
-          if (!record) {
-            debugLog("No data found for key:", key);
-          } else {
-            debugLog(
-              "Data expired for key:",
-              key,
-              Date.now(),
-              ` exp:`,
-              record.expiration,
-            );
-            const cleanupTx = db.transaction(STORE_NAME, "readwrite");
-            const cleanupStore = cleanupTx.objectStore(STORE_NAME);
-            cleanupStore.delete(key);
-          }
-          resolve(null);
+          debugLog(
+            "Data expired for key:",
+            key,
+            Date.now(),
+            ` exp:`,
+            record.expiration,
+          );
+          const cleanupTx = db.transaction(STORE_NAME, "readwrite");
+          const cleanupStore = cleanupTx.objectStore(STORE_NAME);
+          cleanupStore.delete(key);
         }
-      };
+        resolve(null);
+      }
+    };
 
-      tx.oncomplete = () => {
-        db.close();
-      };
-    });
+    tx.oncomplete = () => {
+      db.close();
+    };
   });
 }
 
 // Enhanced offline data handling
 export async function saveOfflineData(action, data) {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
+  const db = await openDB();
 
-      const record = {
-        key: `${action}`,
-        type: "offline",
-        action,
-        data,
-        timestamp: Date.now(),
-        retryCount: 0,
-      };
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
 
-      const request = store.put(record);
+    const record = {
+      key: `${action}`,
+      type: "offline",
+      action,
+      data,
+      timestamp: Date.now(),
+      retryCount: 0,
+    };
 
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
+    const request = store.put(record);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
   });
 }
 
 export async function getOfflineData() {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readonly");
-      const store = transaction.objectStore(STORE_NAME);
-      const index = store.index("type_idx");
-      const request = index.getAll("offline");
+  const db = await openDB();
 
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const offlineData = request.result || [];
-        debugLog("Retrieved offline data:", offlineData);
-        resolve(offlineData);
-      };
-    });
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const index = store.index("type_idx");
+    const request = index.getAll("offline");
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const offlineData = request.result || [];
+      debugLog("Retrieved offline data:", offlineData);
+      resolve(offlineData);
+    };
   });
 }
 
 export async function clearOfflineData() {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const index = store.index("type_idx");
-      const request = index.getAll("offline");
+  const db = await openDB();
 
-      request.onsuccess = () => {
-        const offlineRecords = request.result || [];
-        offlineRecords.forEach((record) => {
-          store.delete(record.key);
-        });
-        resolve();
-      };
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const index = store.index("type_idx");
+    const request = index.getAll("offline");
 
-      request.onerror = () => reject(request.error);
-    });
+    request.onsuccess = () => {
+      const offlineRecords = request.result || [];
+      offlineRecords.forEach((record) => {
+        store.delete(record.key);
+      });
+      resolve();
+    };
+
+    request.onerror = () => reject(request.error);
   });
 }
 
 export async function deleteCachedData(key) {
-  return openDB().then((db) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete(key);
+  const db = await openDB();
 
-      request.onerror = () => {
-        debugError("Error deleting cached data:", request.error);
-        reject(request.error);
-      };
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.delete(key);
 
-      request.onsuccess = () => {
-        debugLog("Cache deleted for key:", key);
-        resolve();
-      };
+    request.onerror = () => {
+      debugError("Error deleting cached data:", request.error);
+      reject(request.error);
+    };
 
-      transaction.oncomplete = () => {
-        db.close();
-      };
-    });
+    request.onsuccess = () => {
+      debugLog("Cache deleted for key:", key);
+      resolve();
+    };
+
+    transaction.oncomplete = () => {
+      db.close();
+    };
   });
 }
 
@@ -721,11 +721,10 @@ export async function syncOfflineData() {
         }
 
         // If successful, remove the item from offline storage
-        await openDB().then((db) => {
-          const tx = db.transaction(STORE_NAME, "readwrite");
-          const store = tx.objectStore(STORE_NAME);
-          return store.delete(item.key);
-        });
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(item.key);
       } catch (error) {
         debugError(
           `Error syncing offline data for action ${item.action}:`,
@@ -734,12 +733,11 @@ export async function syncOfflineData() {
 
         // Increment retry count and update the record
         if (item.retryCount < 3) {
-          await openDB().then((db) => {
-            const tx = db.transaction(STORE_NAME, "readwrite");
-            const store = tx.objectStore(STORE_NAME);
-            item.retryCount = (item.retryCount || 0) + 1;
-            return store.put(item);
-          });
+          const db = await openDB();
+          const tx = db.transaction(STORE_NAME, "readwrite");
+          const store = tx.objectStore(STORE_NAME);
+          item.retryCount = (item.retryCount || 0) + 1;
+          store.put(item);
         }
       }
     }

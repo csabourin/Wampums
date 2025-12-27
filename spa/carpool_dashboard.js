@@ -17,6 +17,7 @@ import {
 import { canManageCarpools, canViewCarpools, isParent } from './utils/PermissionUtils.js';
 import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
+import { debugError } from './utils/DebugUtils.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -64,7 +65,7 @@ export class CarpoolDashboard {
         this.unassignedParticipants = await getUnassignedParticipants(this.activityId);
       }
     } catch (error) {
-      console.error('Error loading carpool data:', error);
+      debugError('Error loading carpool data:', error);
       this.app.showMessage(translate('error_loading_carpool_data'), 'error');
     }
   }
@@ -578,7 +579,7 @@ export class CarpoolDashboard {
         this.render();
         this.attachEventListeners();
       } catch (error) {
-        console.error('Error saving ride offer:', error);
+        debugError('Error saving ride offer:', error);
         throw error;
       }
     });
@@ -830,7 +831,7 @@ export class CarpoolDashboard {
           this.carpoolOffers = originalOffers;
           this.render();
           this.attachEventListeners();
-          console.error('Error assigning participant:', error);
+          debugError('Error assigning participant:', error);
           throw error; // Re-throw to show error message
         }
       });
@@ -918,7 +919,7 @@ export class CarpoolDashboard {
         this.carpoolOffers = originalOffers;
         this.render();
         this.attachEventListeners();
-        console.error('Error cancelling ride:', error);
+        debugError('Error cancelling ride:', error);
         this.app.showMessage(error.message || translate('error_cancelling_ride'), 'error');
       }
     });

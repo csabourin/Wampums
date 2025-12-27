@@ -25,9 +25,10 @@ import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
 
 const LoginScreen = ({ navigation, onLogin }) => {
-  console.log('🟠 [LoginScreen] Component initializing');
+  debugLog('🟠 [LoginScreen] Component initializing');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -38,7 +39,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
   const [requires2FA, setRequires2FA] = useState(false);
 
   useEffect(() => {
-    console.log('🟠 [LoginScreen] useEffect - loading organization ID');
+    debugLog('🟠 [LoginScreen] useEffect - loading organization ID');
     // Load organization ID or prompt user
     loadOrganizationId();
   }, []);
@@ -140,7 +141,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
   };
 
   if (requires2FA) {
-    console.log('🟠 [LoginScreen] Rendering 2FA view');
+    debugLog('🟠 [LoginScreen] Rendering 2FA view');
     return (
       <KeyboardAvoidingView
         style={styles.container}
@@ -192,8 +193,8 @@ const LoginScreen = ({ navigation, onLogin }) => {
     );
   }
 
-  console.log('🟠 [LoginScreen] Rendering main login view');
-  console.log('🟠 [LoginScreen] About to render KeyboardAvoidingView');
+  debugLog('🟠 [LoginScreen] Rendering main login view');
+  debugLog('🟠 [LoginScreen] About to render KeyboardAvoidingView');
 
   try {
     return (
@@ -201,9 +202,9 @@ const LoginScreen = ({ navigation, onLogin }) => {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {console.log('🟠 [LoginScreen] Inside KeyboardAvoidingView')}
+        {debugLog('🟠 [LoginScreen] Inside KeyboardAvoidingView')}
         <View style={styles.form}>
-          {console.log('🟠 [LoginScreen] Inside form View')}
+          {debugLog('🟠 [LoginScreen] Inside form View')}
           <Text style={styles.title}>{t('login')}</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -250,8 +251,8 @@ const LoginScreen = ({ navigation, onLogin }) => {
     </KeyboardAvoidingView>
     );
   } catch (error) {
-    console.error('🔴 [LoginScreen] Error during render:', error);
-    console.error('🔴 [LoginScreen] Error stack:', error.stack);
+    debugError('🔴 [LoginScreen] Error during render:', error);
+    debugError('🔴 [LoginScreen] Error stack:', error.stack);
     throw error;
   }
 };

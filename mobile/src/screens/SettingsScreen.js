@@ -25,6 +25,7 @@ import CacheManager from '../utils/CacheManager';
 import CONFIG from '../config';
 import { Card } from '../components';
 import theme, { commonStyles } from '../theme';
+import { debugLog, debugError } from '../utils/DebugUtils.js';
 
 const SettingsScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
@@ -108,7 +109,7 @@ const SettingsScreen = ({ navigation }) => {
 
               // Navigation will automatically switch to OrganizationSelectScreen
             } catch (error) {
-              console.error('Switch organization error:', error);
+              debugError('Switch organization error:', error);
               Alert.alert(
                 t('Error'),
                 t('organization.switch_error'),
@@ -134,10 +135,10 @@ const SettingsScreen = ({ navigation }) => {
       await CacheManager.clearAllCaches();
 
       if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        console.log('[SettingsScreen] Cleared organization caches');
+        debugLog('[SettingsScreen] Cleared organization caches');
       }
     } catch (error) {
-      console.error('Error clearing organization caches:', error);
+      debugError('Error clearing organization caches:', error);
     }
   };
 
@@ -158,7 +159,7 @@ const SettingsScreen = ({ navigation }) => {
               // Call logout API
               await logout();
             } catch (error) {
-              console.error('Logout error:', error);
+              debugError('Logout error:', error);
             } finally {
               // Clear local storage regardless of API result
               await StorageUtils.clearUserData();
