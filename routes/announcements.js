@@ -395,10 +395,14 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   let listenClient = null;
   let reconnectTimeout = null;
   let isProcessing = false;
+  let reconnectAttempts = 0;
+  let fallbackInterval = null;
 
   /**
    * Setup PostgreSQL LISTEN connection for announcement notifications
    * Uses a dedicated client to avoid blocking the connection pool
+   *
+   * @returns {Promise<void>}
    */
   async function setupAnnouncementListener() {
     try {
@@ -410,6 +414,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       await listenClient.connect();
       logger.info('✓ Announcement listener client connected');
 
+      // Reset reconnect attempts on successful connection
+      reconnectAttempts = 0;
+
       // Listen for announcement_scheduled notifications
       await listenClient.query('LISTEN announcement_scheduled');
       logger.info('✓ Listening for announcement_scheduled notifications');
@@ -417,7 +424,18 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
       // Handle notifications from database triggers
       listenClient.on('notification', async (msg) => {
         if (msg.channel === 'announcement_scheduled') {
-          logger.info('📢 Received announcement notification:', msg.payload);
+          // Parse and validate notification payload
+          let payload = null;
+          try {
+            payload = msg.payload ? JSON.parse(msg.payload) : null;
+            logger.info('📢 Received announcement notification:', {
+              id: payload?.id,
+              organization_id: payload?.organization_id,
+              scheduled_at: payload?.scheduled_at,
+            });
+          } catch (parseError) {
+            logger.warn('Failed to parse announcement notification payload:', msg.payload, parseError);
+          }
 
           // Prevent concurrent processing
           if (!isProcessing) {
@@ -457,6 +475,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
   /**
    * Reconnect listener with exponential backoff
+   * Uses progressive delay: 5s, 10s, 20s, 40s, up to max 60s
+   *
+   * @returns {void}
    */
   function reconnectListener() {
     if (reconnectTimeout) {
@@ -465,18 +486,20 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
 
     // Clean up existing client
     if (listenClient) {
-      try {
-        listenClient.removeAllListeners();
-        listenClient.end();
-      } catch (err) {
+      listenClient.removeAllListeners();
+
+      // Properly await end() to ensure connection closes
+      listenClient.end().catch((err) => {
         logger.error('Error closing LISTEN client:', err);
-      }
+      });
+
       listenClient = null;
     }
 
-    // Reconnect after delay (exponential backoff: 5s, 10s, 20s, max 60s)
-    const delay = Math.min(5000 * Math.pow(2, Math.floor(Math.random() * 3)), 60000);
-    logger.info(`Reconnecting announcement listener in ${delay}ms...`);
+    // True exponential backoff: 5s * 2^attempts, capped at 60s
+    reconnectAttempts++;
+    const delay = Math.min(5000 * Math.pow(2, reconnectAttempts - 1), 60000);
+    logger.info(`Reconnecting announcement listener in ${delay}ms (attempt ${reconnectAttempts})...`);
 
     reconnectTimeout = setTimeout(() => {
       reconnectTimeout = null;
@@ -485,23 +508,37 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   }
 
   /**
-   * Graceful shutdown handler
+   * Graceful shutdown handler for announcement listener
+   * Cleans up database connection and clears timers
+   *
+   * @returns {Promise<void>}
    */
-  function shutdownListener() {
+  async function shutdownListener() {
     logger.info('Shutting down announcement listener...');
 
+    // Clear fallback interval
+    if (fallbackInterval) {
+      clearInterval(fallbackInterval);
+      fallbackInterval = null;
+    }
+
+    // Clear reconnect timeout
     if (reconnectTimeout) {
       clearTimeout(reconnectTimeout);
       reconnectTimeout = null;
     }
 
+    // Close LISTEN client
     if (listenClient) {
+      listenClient.removeAllListeners();
+
       try {
-        listenClient.removeAllListeners();
-        listenClient.end();
+        await listenClient.end();
+        logger.info('✓ Announcement listener client closed');
       } catch (err) {
         logger.error('Error during listener shutdown:', err);
       }
+
       listenClient = null;
     }
   }
@@ -509,13 +546,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   // Initialize the listener
   setupAnnouncementListener();
 
-  // Cleanup on process termination
-  process.on('SIGTERM', shutdownListener);
-  process.on('SIGINT', shutdownListener);
-
   // SAFETY NET: Periodic fallback check (once per hour) in case notifications are missed
   // This provides defense-in-depth while still reducing queries by 99.8% vs 1-minute polling
-  const fallbackInterval = setInterval(() => {
+  fallbackInterval = setInterval(() => {
     if (!isProcessing) {
       logger.info('Running hourly fallback check for scheduled announcements...');
       processScheduledAnnouncements(pool, logger, whatsappService, googleChatService).catch((error) =>
@@ -524,12 +557,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     }
   }, 60 * 60 * 1000).unref(); // 1 hour
 
-  // Clear fallback interval on shutdown
-  const originalShutdown = shutdownListener;
-  shutdownListener = function() {
-    clearInterval(fallbackInterval);
-    originalShutdown();
-  };
+  // Cleanup on process termination (use once to avoid duplicate listeners)
+  process.once('SIGTERM', shutdownListener);
+  process.once('SIGINT', shutdownListener);
 
   /**
    * Create a new announcement

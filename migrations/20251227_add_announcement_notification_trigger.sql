@@ -28,21 +28,34 @@ CREATE OR REPLACE FUNCTION notify_announcement_scheduled()
 RETURNS TRIGGER AS $$
 DECLARE
   payload JSON;
+  time_until_scheduled INTERVAL;
 BEGIN
   -- Only notify for scheduled announcements
   IF NEW.status = 'scheduled' THEN
-    -- Build JSON payload with announcement details
-    payload := json_build_object(
-      'id', NEW.id,
-      'organization_id', NEW.organization_id,
-      'scheduled_at', NEW.scheduled_at,
-      'subject', NEW.subject
-    );
+    -- Calculate time until announcement is scheduled
+    time_until_scheduled := NEW.scheduled_at - NOW();
 
-    -- Send notification on 'announcement_scheduled' channel
-    PERFORM pg_notify('announcement_scheduled', payload::text);
+    -- Only send notification if announcement is:
+    -- 1. Already due (scheduled_at <= NOW()), OR
+    -- 2. Due within the next hour (to allow immediate processing preparation)
+    -- This avoids unnecessary notifications for announcements scheduled far in the future
+    IF NEW.scheduled_at <= NOW() + INTERVAL '1 hour' THEN
+      -- Build JSON payload with announcement details
+      payload := json_build_object(
+        'id', NEW.id,
+        'organization_id', NEW.organization_id,
+        'scheduled_at', NEW.scheduled_at,
+        'subject', NEW.subject
+      );
 
-    RAISE NOTICE 'Announcement scheduled notification sent: %', payload;
+      -- Send notification on 'announcement_scheduled' channel
+      PERFORM pg_notify('announcement_scheduled', payload::text);
+
+      RAISE NOTICE 'Announcement scheduled notification sent: %', payload;
+    ELSE
+      -- Log that we're skipping notification for far-future announcement
+      RAISE NOTICE 'Announcement scheduled for %, skipping immediate notification (will be caught by hourly fallback)', NEW.scheduled_at;
+    END IF;
   END IF;
 
   RETURN NEW;
