@@ -837,6 +837,11 @@ export function initRouter(app) {
 
     // Handle navigation
     document.addEventListener("click", (e) => {
+        // Skip if the click target is a button or inside a button
+        if (e.target.closest("button")) {
+            return;
+        }
+
         // Find the closest anchor tag (handles clicks on child elements)
         const anchor = e.target.closest("a");
         if (anchor) {
