@@ -279,15 +279,23 @@ class WhatsAppBaileysService {
       // Error 401 (Connection Failure) means credentials are unauthorized - clear credentials
       const credentialRejection = statusCode === 401;
 
-      // Should reconnect for temporary errors (515), connection issues, but NOT for logout/bad session
+      // Error 440 (conflict/replaced) means another session has replaced this one
+      // Do NOT auto-reconnect - this creates an infinite reconnection loop
+      const isConflictError = statusCode === 440 || disconnectMessage.includes('conflict');
+
+      // Maximum reconnection attempts to prevent infinite loops
+      const MAX_RECONNECT_ATTEMPTS = 5;
+
+      // Should reconnect for temporary errors (515), connection issues, but NOT for logout/bad session/conflict
       const shouldReconnect = (statusCode !== DisconnectReason.loggedOut &&
         statusCode !== DisconnectReason.badSession &&
         statusCode !== undefined &&
         !handshakeFailure &&
-        !credentialRejection) || isTemporaryError;
+        !credentialRejection &&
+        !isConflictError) || isTemporaryError;
 
       logger.info(
-        `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}${isTemporaryError ? ' (temporary error - will reconnect)' : ''}${credentialRejection ? ' (credential rejection)' : ''}`,
+        `Connection closed for org ${organizationId}. Reconnect: ${shouldReconnect}. Status: ${statusCode}${isTemporaryError ? ' (temporary error - will reconnect)' : ''}${credentialRejection ? ' (credential rejection)' : ''}${isConflictError ? ' (conflict - session replaced, NOT reconnecting)' : ''}`,
         { lastDisconnect: util.inspect(lastDisconnect, { depth: 3 }) }
       );
 
@@ -306,12 +314,28 @@ class WhatsAppBaileysService {
         reconnectInfo.lastAttempt = now;
         this.reconnectAttempts.set(organizationId, reconnectInfo);
 
+        // Stop reconnecting after MAX_RECONNECT_ATTEMPTS to prevent resource exhaustion
+        if (reconnectInfo.count > MAX_RECONNECT_ATTEMPTS) {
+          logger.warn(`Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached for org ${organizationId}. Stopping auto-reconnect.`);
+          this.reconnectAttempts.delete(organizationId);
+          connectionObj.isConnected = false;
+          
+          // Emit event so UI can show manual reconnect option
+          if (this.io) {
+            this.io.to(`org-${organizationId}`).emit('whatsapp-disconnected', {
+              organizationId,
+              reason: 'max_reconnect_attempts',
+            });
+          }
+          return;
+        }
+
         // Exponential backoff: 3s, 6s, 12s, 24s, 48s (max)
         const baseDelay = 3000;
         const maxDelay = 48000;
         const backoffDelay = Math.min(baseDelay * Math.pow(2, reconnectInfo.count - 1), maxDelay);
 
-        logger.info(`Reconnecting org ${organizationId} (attempt ${reconnectInfo.count}) in ${backoffDelay}ms`);
+        logger.info(`Reconnecting org ${organizationId} (attempt ${reconnectInfo.count}/${MAX_RECONNECT_ATTEMPTS}) in ${backoffDelay}ms`);
 
         // Reconnect automatically with existing credentials (without deleting keys)
         setTimeout(() => {
@@ -323,8 +347,20 @@ class WhatsAppBaileysService {
       // Reset reconnect attempts on permanent disconnection
       this.reconnectAttempts.delete(organizationId);
 
-      // Logged out, bad session, handshake failure, or credential rejection - clean up and clear credentials
+      // Logged out, bad session, handshake failure, conflict, or credential rejection - clean up
       connectionObj.isConnected = false;
+
+      // For conflict errors, don't clear credentials - just stop reconnecting
+      if (isConflictError) {
+        logger.info(`Conflict detected for org ${organizationId}. Session replaced by another device. Not clearing credentials.`);
+        if (this.io) {
+          this.io.to(`org-${organizationId}`).emit('whatsapp-disconnected', {
+            organizationId,
+            reason: 'conflict_replaced',
+          });
+        }
+        return;
+      }
 
       try {
         await this.clearAuthState(organizationId);
