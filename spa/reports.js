@@ -1,5 +1,6 @@
 // reports.js
 import { translate } from "./app.js";
+import { sanitizeHTML } from "./utils/SecurityUtils.js";
 import {
 	debugLog,
 	debugError,
