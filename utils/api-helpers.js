@@ -94,6 +94,7 @@ async function getCurrentOrganizationId(req, pool, logger) {
 
   // Try to get from hostname/domain mapping
   const hostname = req.hostname;
+  const isProduction = process.env.NODE_ENV === 'production';
 
   try {
     const result = await pool.query(
@@ -105,11 +106,18 @@ async function getCurrentOrganizationId(req, pool, logger) {
       return result.rows[0].organization_id;
     }
   } catch (error) {
+    // Table might not exist or query failed
     if (logger) {
-      logger.error('Error getting organization ID:', error);
-    } else {
-      logger.error('Error getting organization ID:', error);
+      logger.warn('Error querying organization_domains:', error.message);
     }
+  }
+
+  // In development, fall back to default organization ID 1
+  if (!isProduction) {
+    if (logger) {
+      logger.info(`Development mode: using default organization ID 1 for hostname ${hostname}`);
+    }
+    return 1;
   }
 
   throw new OrganizationNotFoundError('Organization mapping not found for request');
