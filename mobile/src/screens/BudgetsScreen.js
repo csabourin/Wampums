@@ -18,12 +18,6 @@ import {
   getBudgetCategories,
   getBudgetItems,
   getBudgetExpenses,
-  getBudgetSummaryReport,
-  createBudgetCategory,
-  updateBudgetCategory,
-  createBudgetItem,
-  updateBudgetItem,
-  createBudgetExpense,
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -40,10 +34,11 @@ import {
   EmptyState,
 } from '../components';
 import { canViewBudget } from '../utils/PermissionUtils';
-import DateUtils from '../utils/DateUtils';
+import { getCurrentFiscalYear } from '../utils/DateUtils';
+import { formatCurrency } from '../utils/FormatUtils';
 import SecurityUtils from '../utils/SecurityUtils';
-
-const DEFAULT_CURRENCY = 'CAD';
+import API from '../api/api-core';
+import CONFIG from '../config';
 
 const BudgetsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -54,7 +49,7 @@ const BudgetsScreen = ({ navigation }) => {
   const [expenses, setExpenses] = useState([]);
   const [summaryReport, setSummaryReport] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [fiscalYear, setFiscalYear] = useState(getCurrentFiscalYear());
+  const fiscalYear = getCurrentFiscalYear();
 
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
@@ -73,7 +68,7 @@ const BudgetsScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    if (!canViewBudget()) {
+    if (typeof canViewBudget === 'function' && !canViewBudget()) {
       navigation.navigate('Dashboard');
       return;
     }
@@ -81,38 +76,21 @@ const BudgetsScreen = ({ navigation }) => {
     loadData();
   }, []);
 
-  function getCurrentFiscalYear() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-
-    if (month >= 8) {
-      return {
-        start: `${year}-09-01`,
-        end: `${year + 1}-08-31`,
-        label: `${year}-${year + 1}`,
-      };
-    } else {
-      return {
-        start: `${year - 1}-09-01`,
-        end: `${year}-08-31`,
-        label: `${year - 1}-${year}`,
-      };
-    }
-  }
-
   const loadData = async (forceRefresh = false) => {
     try {
       setError('');
 
       const [categoriesRes, itemsRes, expensesRes, summaryRes] = await Promise.all([
-        getBudgetCategories({}, { forceRefresh }),
-        getBudgetItems(null, { forceRefresh }),
-        getBudgetExpenses(
-          { start_date: fiscalYear.start, end_date: fiscalYear.end },
-          { forceRefresh }
-        ),
-        getBudgetSummaryReport(fiscalYear.start, fiscalYear.end, { forceRefresh }),
+        getBudgetCategories({ forceRefresh }),
+        getBudgetItems({ forceRefresh }),
+        getBudgetExpenses({
+          start_date: fiscalYear.start,
+          end_date: fiscalYear.end,
+        }),
+        API.get('/v1/finance/budget-summary', {
+          start_date: fiscalYear.start,
+          end_date: fiscalYear.end,
+        }),
       ]);
 
       setCategories(categoriesRes?.data || []);
@@ -130,15 +108,6 @@ const BudgetsScreen = ({ navigation }) => {
     setRefreshing(true);
     await loadData(true);
     setRefreshing(false);
-  };
-
-  const formatCurrency = (amount) => {
-    const value = Number(amount) || 0;
-    return new Intl.NumberFormat('en', {
-      style: 'currency',
-      currency: DEFAULT_CURRENCY,
-      maximumFractionDigits: 2,
-    }).format(value);
   };
 
   const handleAddCategory = () => {
@@ -163,9 +132,9 @@ const BudgetsScreen = ({ navigation }) => {
 
       let result;
       if (editingCategory) {
-        result = await updateBudgetCategory(editingCategory.id, payload);
+        result = await API.put(`/v1/finance/budget-categories/${editingCategory.id}`, payload);
       } else {
-        result = await createBudgetCategory(payload);
+        result = await API.post('/v1/finance/budget-categories', payload);
       }
 
       if (result.success) {
@@ -214,9 +183,9 @@ const BudgetsScreen = ({ navigation }) => {
 
       let result;
       if (editingItem) {
-        result = await updateBudgetItem(editingItem.id, payload);
+        result = await API.put(`/v1/finance/budget-items/${editingItem.id}`, payload);
       } else {
-        result = await createBudgetItem(payload);
+        result = await API.post('/v1/finance/budget-items', payload);
       }
 
       if (result.success) {
