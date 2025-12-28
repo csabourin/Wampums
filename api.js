@@ -38,6 +38,9 @@ const HOST = "0.0.0.0";
 // Determine if we're in production mode
 const isProduction = process.env.NODE_ENV === "production";
 
+// Debug logging helper - only logs in development mode
+const debugLog = isProduction ? null : (message) => console.log(message);
+
 // Configure logging before database and error handlers
 const logDirectory = path.join(process.cwd(), "logs");
 try {
