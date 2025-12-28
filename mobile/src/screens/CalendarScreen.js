@@ -27,9 +27,8 @@ import {
   useToast,
   EmptyState,
 } from '../components';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
-import StorageUtils from '../utils/StorageUtils';
+import API from '../api/api-core';
+import { debugError } from '../utils/DebugUtils';
 
 const CalendarScreen = ({ route, navigation }) => {
   const { fundraiserId } = route.params || {};
@@ -68,42 +67,24 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const loadFundraiser = async () => {
     try {
-      const response = await fetch(`${API.baseURL}/v1/fundraisers/${fundraiserId}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get(`/v1/fundraisers/${fundraiserId}`);
 
-      if (!response.ok) {
-        throw new Error(t('error_fetching_fundraiser'));
-      }
-
-      const result = await response.json();
       if (result.success && result.fundraiser) {
         setFundraiser(result.fundraiser);
       }
     } catch (err) {
-      console.error('Error loading fundraiser:', err);
+      debugError('Error loading fundraiser:', err);
       throw err;
     }
   };
 
   const loadCalendars = async () => {
     try {
-      const response = await fetch(`${API.baseURL}/v1/fundraisers/${fundraiserId}/entries`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get(`/v1/fundraisers/${fundraiserId}/entries`);
 
-      if (!response.ok) {
-        throw new Error(t('error_fetching_fundraiser_entries'));
-      }
-
-      const result = await response.json();
       setCalendars(result.fundraiser_entries || []);
     } catch (err) {
-      console.error('Error loading calendars:', err);
+      debugError('Error loading calendars:', err);
       setCalendars([]);
     }
   };
@@ -146,22 +127,10 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const updateCalendarAmount = async (calendarId, amount) => {
     try {
-      const response = await fetch(
-        `${API.baseURL}/v1/fundraisers/${fundraiserId}/entries/${calendarId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-          body: JSON.stringify({ amount: parseInt(amount) || 0 }),
-        }
+      await API.put(
+        `/v1/fundraisers/${fundraiserId}/entries/${calendarId}`,
+        { amount: parseInt(amount) || 0 }
       );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_updating_fundraiser_entry_amount'));
-      }
 
       // Update local state
       setCalendars((prev) =>
@@ -178,24 +147,10 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const updateCalendarAmountPaid = async (calendarId, amountPaid) => {
     try {
-      const response = await fetch(
-        `${API.baseURL}/v1/fundraisers/${fundraiserId}/entries/${calendarId}/payment`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-          body: JSON.stringify({ amount_paid: parseFloat(amountPaid) || 0 }),
-        }
+      const result = await API.put(
+        `/v1/fundraisers/${fundraiserId}/entries/${calendarId}/payment`,
+        { amount_paid: parseFloat(amountPaid) || 0 }
       );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_updating_fundraiser_entry_amount_paid'));
-      }
-
-      const result = await response.json();
 
       // Update local state
       setCalendars((prev) =>
@@ -218,22 +173,10 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const updateCalendarPaid = async (calendarId, paid) => {
     try {
-      const response = await fetch(
-        `${API.baseURL}/v1/fundraisers/${fundraiserId}/entries/${calendarId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-          body: JSON.stringify({ paid }),
-        }
+      await API.put(
+        `/v1/fundraisers/${fundraiserId}/entries/${calendarId}`,
+        { paid }
       );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_updating_fundraiser_entry_paid_status'));
-      }
 
       // Update local state
       setCalendars((prev) => prev.map((c) => (c.id === calendarId ? { ...c, paid } : c)));

@@ -180,6 +180,18 @@ const CONFIG = {
     TIME_FORMAT: 'HH:mm',
     DATETIME_FORMAT: 'YYYY-MM-DD HH:mm',
   },
+
+  // Currency configuration
+  CURRENCY: {
+    DEFAULT: 'CAD',
+    LOCALE: 'en-CA',
+  },
+
+  // Tax rates (Canada/Quebec)
+  TAX: {
+    GST_RATE: 0.05, // 5% - Canadian federal Goods and Services Tax
+    QST_RATE: 0.09975, // 9.975% - Quebec provincial Sales Tax
+  },
 };
 
 // Helper function to get full API URL

@@ -13,8 +13,6 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
-  TextInput,
-  Alert,
 } from 'react-native';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -32,34 +30,11 @@ import {
   EmptyState,
 } from '../components';
 import { canManageFinance, canApproveFinance } from '../utils/PermissionUtils';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
-import StorageUtils from '../utils/StorageUtils';
-
-const DEFAULT_CURRENCY = 'CAD';
-const TAX_GST = 0.05; // 5%
-const TAX_QST = 0.09975; // 9.975%
-
-function getCurrentFiscalYear() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  if (month >= 8) {
-    // September or later
-    return {
-      start: `${year}-09-01`,
-      end: `${year + 1}-08-31`,
-      label: `${year}-${year + 1}`,
-    };
-  } else {
-    return {
-      start: `${year - 1}-09-01`,
-      end: `${year}-08-31`,
-      label: `${year - 1}-${year}`,
-    };
-  }
-}
+import CONFIG from '../config';
+import API from '../api/api-core';
+import { getCurrentFiscalYear } from '../utils/DateUtils';
+import { formatCurrency } from '../utils/FormatUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const ExpensesScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -103,7 +78,6 @@ const ExpensesScreen = ({ navigation }) => {
   });
 
   // Tax calculator state
-  const [taxCalcVisible, setTaxCalcVisible] = useState(false);
   const [subtotal, setSubtotal] = useState('');
   const [taxBreakdown, setTaxBreakdown] = useState(null);
 
@@ -145,127 +119,82 @@ const ExpensesScreen = ({ navigation }) => {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${API.baseURL}/v1/finance/budget-categories`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/budget-categories');
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_categories'));
-      }
-
-      const result = await response.json();
       setCategories(result.data || []);
     } catch (err) {
-      console.error('Error loading categories:', err);
+      debugError('Error loading categories:', err);
       setCategories([]);
     }
   };
 
   const loadItems = async () => {
     try {
-      const response = await fetch(`${API.baseURL}/v1/finance/budget-items`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/budget-items');
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_items'));
-      }
-
-      const result = await response.json();
       setItems(result.data || []);
     } catch (err) {
-      console.error('Error loading items:', err);
+      debugError('Error loading items:', err);
       setItems([]);
     }
   };
 
   const loadExpenses = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: filters.start_date,
         end_date: filters.end_date,
-      });
+      };
 
       if (filters.category_id !== 'all') {
-        params.append('category_id', filters.category_id);
+        params.category_id = filters.category_id;
       }
 
-      const response = await fetch(`${API.baseURL}/v1/finance/budget-expenses?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/budget-expenses', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_expenses'));
-      }
-
-      const result = await response.json();
       setExpenses(result.data || []);
     } catch (err) {
-      console.error('Error loading expenses:', err);
+      debugError('Error loading expenses:', err);
       setExpenses([]);
     }
   };
 
   const loadSummary = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: filters.start_date,
         end_date: filters.end_date,
-      });
+      };
 
       if (filters.category_id !== 'all') {
-        params.append('category_id', filters.category_id);
+        params.category_id = filters.category_id;
       }
 
-      const response = await fetch(`${API.baseURL}/v1/finance/expense-summary?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/expense-summary', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_summary'));
-      }
-
-      const result = await response.json();
       setSummary(result.data || null);
     } catch (err) {
-      console.error('Error loading summary:', err);
+      debugError('Error loading summary:', err);
       setSummary(null);
     }
   };
 
   const loadMonthlyData = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: fiscalYear.start,
         end_date: fiscalYear.end,
-      });
+      };
 
       if (filters.category_id !== 'all') {
-        params.append('category_id', filters.category_id);
+        params.category_id = filters.category_id;
       }
 
-      const response = await fetch(`${API.baseURL}/v1/finance/expenses-monthly?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/expenses-monthly', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_monthly_data'));
-      }
-
-      const result = await response.json();
       setMonthlyData(result.data || []);
     } catch (err) {
-      console.error('Error loading monthly data:', err);
+      debugError('Error loading monthly data:', err);
       setMonthlyData([]);
     }
   };
@@ -293,18 +222,9 @@ const ExpensesScreen = ({ navigation }) => {
     setLoading(false);
   };
 
-  const formatCurrency = (amount) => {
-    const value = Number(amount) || 0;
-    return new Intl.NumberFormat('en', {
-      style: 'currency',
-      currency: DEFAULT_CURRENCY,
-      maximumFractionDigits: 2,
-    }).format(value);
-  };
-
   const calculateTaxes = (subtotalValue) => {
-    const gst = subtotalValue * TAX_GST;
-    const qst = subtotalValue * TAX_QST;
+    const gst = subtotalValue * CONFIG.TAX.GST_RATE;
+    const qst = subtotalValue * CONFIG.TAX.QST_RATE;
     const total = subtotalValue + gst + qst;
     return { subtotal: subtotalValue, gst, qst, total };
   };
@@ -369,20 +289,7 @@ const ExpensesScreen = ({ navigation }) => {
       setSaving(true);
       setDeleteConfirmVisible(false);
 
-      const response = await fetch(
-        `${API.baseURL}/v1/finance/budget-expenses/${expenseToDelete.id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_deleting_expense'));
-      }
+      await API.delete(`/v1/finance/budget-expenses/${expenseToDelete.id}`);
 
       toast.show(t('expense_deleted'), 'success');
       setExpenseToDelete(null);
@@ -422,24 +329,10 @@ const ExpensesScreen = ({ navigation }) => {
         notes: formData.notes || null,
       };
 
-      const url = selectedExpense
-        ? `${API.baseURL}/v1/finance/budget-expenses/${selectedExpense.id}`
-        : `${API.baseURL}/v1/finance/budget-expenses`;
-
-      const method = selectedExpense ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_saving_expense'));
+      if (selectedExpense) {
+        await API.put(`/v1/finance/budget-expenses/${selectedExpense.id}`, payload);
+      } else {
+        await API.post('/v1/finance/budget-expenses', payload);
       }
 
       toast.show(
@@ -566,7 +459,7 @@ const ExpensesScreen = ({ navigation }) => {
               )}
             </View>
 
-            {canManage && (
+            {typeof canManageFinance === 'function' && canManageFinance() && (
               <View style={styles.expenseActions}>
                 <TouchableOpacity
                   style={[commonStyles.buttonSecondary, styles.actionButton]}
@@ -576,7 +469,7 @@ const ExpensesScreen = ({ navigation }) => {
                   <Text style={commonStyles.buttonSecondaryText}>{t('edit')}</Text>
                 </TouchableOpacity>
 
-                {canApprove && (
+                {typeof canApproveFinance === 'function' && canApproveFinance() && (
                   <TouchableOpacity
                     style={[commonStyles.buttonDanger, styles.actionButton]}
                     onPress={() => handleDeleteExpense(expense)}
@@ -728,7 +621,7 @@ const ExpensesScreen = ({ navigation }) => {
         return (
           <>
             {renderFilters()}
-            {canManage && (
+            {typeof canManageFinance === 'function' && canManageFinance() && (
               <View style={styles.actionButtons}>
                 <TouchableOpacity
                   style={commonStyles.button}

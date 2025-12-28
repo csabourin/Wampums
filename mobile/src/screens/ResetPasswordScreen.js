@@ -7,7 +7,6 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  View,
   Text,
   ScrollView,
   StyleSheet,
@@ -23,8 +22,8 @@ import {
   Toast,
   useToast,
 } from '../components';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
+import API from '../api/api-core';
+import { validatePassword } from '../utils/ValidationUtils';
 
 const ResetPasswordScreen = ({ route, navigation }) => {
   const { token } = route.params || {};
@@ -43,22 +42,6 @@ const ResetPasswordScreen = ({ route, navigation }) => {
     }
   }, [token]);
 
-  const validatePassword = (password) => {
-    if (password.length < 8) {
-      return t('password_min_length');
-    }
-    if (!/[A-Z]/.test(password)) {
-      return t('password_needs_uppercase');
-    }
-    if (!/[a-z]/.test(password)) {
-      return t('password_needs_lowercase');
-    }
-    if (!/[0-9]/.test(password)) {
-      return t('password_needs_number');
-    }
-    return null;
-  };
-
   const handleSendResetLink = async () => {
     if (!email) {
       toast.show(t('please_enter_email'), 'warning');
@@ -68,15 +51,7 @@ const ResetPasswordScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${API.baseURL}/auth/request-reset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const result = await response.json();
+      const result = await API.public('/auth/request-reset', { email }, 'POST');
 
       if (result.success) {
         toast.show(t('reset_link_sent'), 'success');
@@ -112,15 +87,7 @@ const ResetPasswordScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${API.baseURL}/auth/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token, new_password: newPassword }),
-      });
-
-      const result = await response.json();
+      const result = await API.public('/auth/reset-password', { token, new_password: newPassword }, 'POST');
 
       if (result.success) {
         toast.show(t('password_reset_successful'), 'success');
