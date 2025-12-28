@@ -74,9 +74,9 @@ module.exports = (pool) => {
 
   /**
    * Create a new carpool offer
-   * Accessible by: animation, admin, parent
+   * Accessible by: anyone with carpools.view (animation, admin, parent)
    */
-  router.post('/offers', authenticate, blockDemoRoles, requirePermission('carpools.create'), asyncHandler(async (req, res) => {
+  router.post('/offers', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
@@ -146,9 +146,9 @@ module.exports = (pool) => {
 
   /**
    * Update a carpool offer
-   * Accessible by: owner of offer, or animation/admin
+   * Accessible by: owner of offer (carpools.view), or animation/admin (carpools.manage)
    */
-  router.put('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.edit'), asyncHandler(async (req, res) => {
+  router.put('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -172,13 +172,11 @@ module.exports = (pool) => {
       return error(res, 'Carpool offer not found', 404);
     }
 
-    // Check permission: owner or animation/admin
+    // Check permission: owner or user with carpools.manage
     const isOwner = offerCheck.rows[0].user_id === userId;
-    // Use centralized role constants for carpool management
-    const userRoles = req.userRoles || (userRole ? [userRole] : []);
-    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
+    const hasManagePermission = req.userPermissions && req.userPermissions.includes('carpools.manage');
 
-    if (!isOwner && !isStaff) {
+    if (!isOwner && !hasManagePermission) {
       return error(res, 'You do not have permission to update this carpool offer', 403);
     }
 
@@ -224,9 +222,9 @@ module.exports = (pool) => {
 
   /**
    * Cancel/deactivate a carpool offer
-   * Accessible by: owner of offer, or animation/admin
+   * Accessible by: owner of offer (carpools.view), or animation/admin (carpools.manage)
    */
-  router.delete('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.delete'), asyncHandler(async (req, res) => {
+  router.delete('/offers/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
@@ -245,13 +243,11 @@ module.exports = (pool) => {
       return error(res, 'Carpool offer not found', 404);
     }
 
-    // Check permission: owner or animation/admin
+    // Check permission: owner or user with carpools.manage
     const isOwner = offerCheck.rows[0].user_id === userId;
-    // Use centralized role constants for carpool management
-    const userRoles = req.userRoles || (userRole ? [userRole] : []);
-    const isStaff = userRoles.some(role => ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role));
+    const hasManagePermission = req.userPermissions && req.userPermissions.includes('carpools.manage');
 
-    if (!isOwner && !isStaff) {
+    if (!isOwner && !hasManagePermission) {
       return error(res, 'You do not have permission to cancel this carpool offer', 403);
     }
 
@@ -306,7 +302,7 @@ module.exports = (pool) => {
    * Assign a participant to a carpool
    * Accessible by: parent (own children), animation/admin (any child)
    */
-  router.post('/assignments', authenticate, blockDemoRoles, requirePermission('carpools.manage'), asyncHandler(async (req, res) => {
+  router.post('/assignments', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
     const userRole = req.user.role;
@@ -419,7 +415,7 @@ module.exports = (pool) => {
    * Remove a participant from a carpool assignment
    * Accessible by: parent (own children), animation/admin (any child)
    */
-  router.delete('/assignments/:id', authenticate, blockDemoRoles, requirePermission('carpools.manage'), asyncHandler(async (req, res) => {
+  router.delete('/assignments/:id', authenticate, blockDemoRoles, requirePermission('carpools.view'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
