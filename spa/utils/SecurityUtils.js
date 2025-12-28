@@ -84,8 +84,11 @@ export function sanitizeHTML(html, options = {}) {
     // Enable SVG support (DOMPurify has safe SVG defaults)
     USE_PROFILES: { html: true, svg: true, svgFilters: false },
 
-    // Safe for templates (prevents mXSS attacks)
-    SAFE_FOR_TEMPLATES: true,
+    // SAFE_FOR_TEMPLATES disabled because:
+    // - We use JavaScript template literals, not mustache/handlebars templates
+    // - Template literals are evaluated BEFORE HTML reaches DOMPurify
+    // - SAFE_FOR_TEMPLATES was stripping data-* attribute values
+    SAFE_FOR_TEMPLATES: false,
 
     // Return the entire HTML document structure
     WHOLE_DOCUMENT: false,
