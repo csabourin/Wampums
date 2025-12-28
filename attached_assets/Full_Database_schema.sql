@@ -864,6 +864,7 @@ CREATE TABLE public.roles (
   is_system_role boolean DEFAULT false,
   created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  data_scope character varying DEFAULT 'organization'::character varying,
   CONSTRAINT roles_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.subscribers (
