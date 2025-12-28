@@ -374,9 +374,7 @@ export function validateArray(value, fieldName = 'Field') {
 export function sanitizeHTML(html) {
     if (!html || typeof html !== 'string') return '';
 
-    const div = document.createElement('div');
-    div.textContent = html;
-    return div.innerHTML;
+    return sanitizeHtmlContent(html, { stripAll: true });
 }
 
 /**
