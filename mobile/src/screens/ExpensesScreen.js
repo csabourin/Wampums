@@ -82,10 +82,21 @@ const ExpensesScreen = ({ navigation }) => {
   const [taxBreakdown, setTaxBreakdown] = useState(null);
 
   const [saving, setSaving] = useState(false);
+  const [canManage, setCanManage] = useState(false);
+  const [canApprove, setCanApprove] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    loadData();
+    const init = async () => {
+      const [hasManage, hasApprove] = await Promise.all([
+        canManageFinance(),
+        canApproveFinance(),
+      ]);
+      setCanManage(hasManage);
+      setCanApprove(hasApprove);
+      loadData();
+    };
+    init();
   }, []);
 
   const loadData = async (forceRefresh = false) => {

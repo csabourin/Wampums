@@ -7,6 +7,22 @@
  * @module utils/PermissionUtils
  */
 
+import StorageUtils from './StorageUtils';
+
+/**
+ * Get cached user permissions from storage
+ * @returns {Promise<Array<string>>} Array of user permissions
+ */
+async function getUserPermissions() {
+  try {
+    const permissions = await StorageUtils.getItem('USER_PERMISSIONS');
+    return Array.isArray(permissions) ? permissions : [];
+  } catch (error) {
+    console.error('Error getting user permissions:', error);
+    return [];
+  }
+}
+
 /**
  * Check if user has a specific permission
  *
@@ -138,6 +154,138 @@ export function getDashboardType(userPermissions) {
   return hasPermissions ? 'leader' : 'parent';
 }
 
+// ==========================================
+// Async Permission Checkers (No Arguments)
+// ==========================================
+// These functions fetch permissions from storage internally
+// and are used by screens for permission checks
+
+/**
+ * Check if user can view badges
+ * @returns {Promise<boolean>} True if user can view badges
+ */
+export async function canViewBadges() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['badges.view', 'badges.manage'], permissions);
+}
+
+/**
+ * Check if user can approve badges
+ * @returns {Promise<boolean>} True if user can approve badges
+ */
+export async function canApproveBadges() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['badges.approve', 'badges.manage'], permissions);
+}
+
+/**
+ * Check if user can manage badges
+ * @returns {Promise<boolean>} True if user can manage badges
+ */
+export async function canManageBadges() {
+  const permissions = await getUserPermissions();
+  return hasPermission('badges.manage', permissions);
+}
+
+/**
+ * Check if user can view finance
+ * @returns {Promise<boolean>} True if user can view finance
+ */
+export async function canViewFinance() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['finance.view', 'finance.manage'], permissions);
+}
+
+/**
+ * Check if user can manage finance
+ * @returns {Promise<boolean>} True if user can manage finance
+ */
+export async function canManageFinance() {
+  const permissions = await getUserPermissions();
+  return hasPermission('finance.manage', permissions);
+}
+
+/**
+ * Check if user can approve finance
+ * @returns {Promise<boolean>} True if user can approve finance
+ */
+export async function canApproveFinance() {
+  const permissions = await getUserPermissions();
+  return hasPermission('finance.approve', permissions);
+}
+
+/**
+ * Check if user can view budget
+ * @returns {Promise<boolean>} True if user can view budget
+ */
+export async function canViewBudget() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['budget.view', 'finance.manage'], permissions);
+}
+
+/**
+ * Check if user can view groups
+ * @returns {Promise<boolean>} True if user can view groups
+ */
+export async function canViewGroups() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['groups.view', 'groups.manage'], permissions);
+}
+
+/**
+ * Check if user can view participants
+ * @returns {Promise<boolean>} True if user can view participants
+ */
+export async function canViewParticipants() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['participants.view', 'participants.edit'], permissions);
+}
+
+/**
+ * Check if user can view users
+ * @returns {Promise<boolean>} True if user can view users
+ */
+export async function canViewUsers() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['users.view', 'users.assign_roles'], permissions);
+}
+
+/**
+ * Check if user can send communications
+ * @returns {Promise<boolean>} True if user can send communications
+ */
+export async function canSendCommunications() {
+  const permissions = await getUserPermissions();
+  return hasPermission('communications.send', permissions);
+}
+
+/**
+ * Check if user is district admin
+ * @returns {Promise<boolean>} True if user is district admin
+ */
+export async function isDistrictAdmin() {
+  const permissions = await getUserPermissions();
+  return hasPermission('users.assign_district', permissions);
+}
+
+/**
+ * Check if user can view fundraisers
+ * @returns {Promise<boolean>} True if user can view fundraisers
+ */
+export async function canViewFundraisers() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['fundraisers.view', 'fundraisers.manage'], permissions);
+}
+
+/**
+ * Check if user can manage fundraisers
+ * @returns {Promise<boolean>} True if user can manage fundraisers
+ */
+export async function canManageFundraisers() {
+  const permissions = await getUserPermissions();
+  return hasPermission('fundraisers.manage', permissions);
+}
+
 export default {
   hasPermission,
   hasAnyPermission,
@@ -145,4 +293,18 @@ export default {
   isAdmin,
   isStaff,
   getDashboardType,
+  canViewBadges,
+  canApproveBadges,
+  canManageBadges,
+  canViewFinance,
+  canManageFinance,
+  canApproveFinance,
+  canViewBudget,
+  canViewGroups,
+  canViewParticipants,
+  canViewUsers,
+  canSendCommunications,
+  isDistrictAdmin,
+  canViewFundraisers,
+  canManageFundraisers,
 };

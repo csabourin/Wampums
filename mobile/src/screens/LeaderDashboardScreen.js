@@ -11,7 +11,7 @@
  * - Offline support with caching indicators
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -89,7 +89,7 @@ const LeaderDashboardScreen = () => {
    * Reload data when screen comes into focus
    */
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       loadDashboardContext();
     }, [])
   );
@@ -190,7 +190,7 @@ const LeaderDashboardScreen = () => {
    *
    * @param {Object} action - Action definition
    */
-  const handleActionPress = (action) => {
+  const handleActionPress = useCallback((action) => {
     if (!action) return;
 
     if (action.screen) {
@@ -204,7 +204,7 @@ const LeaderDashboardScreen = () => {
     }
 
     Alert.alert(action.label, t('Coming soon'), [{ text: t('OK') }]);
-  };
+  }, [navigation]);
 
   /**
    * Render grid of action buttons
@@ -213,7 +213,7 @@ const LeaderDashboardScreen = () => {
    * @param {string} variant - Visual variant for cards
    * @returns {React.ReactElement|null}
    */
-  const renderActionGrid = (actions, variant) => {
+  const renderActionGrid = useCallback((actions, variant) => {
     if (!actions.length) return null;
 
     return (
@@ -253,26 +253,10 @@ const LeaderDashboardScreen = () => {
         ))}
       </View>
     );
-  };
+  }, [gridItemWidth, handleActionPress]);
 
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <LoadingSpinner />
-        <Text style={styles.loadingText}>{t('loading')}</Text>
-      </View>
-    );
-  }
-
-  if (error && !refreshing) {
-    return (
-      <View style={styles.centerContainer}>
-        <ErrorMessage message={error} />
-      </View>
-    );
-  }
-
-  const manageItems = [
+  // Compute menu items (must be before early returns per React hooks rules)
+  const manageItems = useMemo(() => [
     {
       key: 'managePoints',
       label: t('manage_points'),
@@ -301,9 +285,9 @@ const LeaderDashboardScreen = () => {
       screen: 'NextMeeting',
       permission: 'activities.view',
     },
-  ].filter(canAccessAction);
+  ].filter(canAccessAction), [userPermissions]);
 
-  const dashboardSections = [
+  const dashboardSections = useMemo(() => [
     {
       key: 'dayToDay',
       title: t('dashboard_day_to_day_section'),
@@ -578,7 +562,25 @@ const LeaderDashboardScreen = () => {
       ...section,
       items: section.items.filter(canAccessAction),
     }))
-    .filter((section) => section.items.length > 0);
+    .filter((section) => section.items.length > 0), [userPermissions]);
+
+  // Early returns after all hooks
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <LoadingSpinner />
+        <Text style={styles.loadingText}>{t('loading')}</Text>
+      </View>
+    );
+  }
+
+  if (error && !refreshing) {
+    return (
+      <View style={styles.centerContainer}>
+        <ErrorMessage message={error} />
+      </View>
+    );
+  }
 
   const logoSource = organizationLogo
     ? { uri: organizationLogo }

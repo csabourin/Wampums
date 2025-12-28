@@ -68,12 +68,16 @@ const BudgetsScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    if (typeof canViewBudget === 'function' && !canViewBudget()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    const checkPermissions = async () => {
+      if (!(await canViewBudget())) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissions();
   }, []);
 
   const loadData = async (forceRefresh = false) => {

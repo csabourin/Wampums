@@ -42,13 +42,18 @@ const ApproveBadgesScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    // Check permissions
-    if (!canApproveBadges()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    // Check permissions and load data
+    const checkPermissionsAndLoad = async () => {
+      const hasPermission = await canApproveBadges();
+      if (!hasPermission) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissionsAndLoad();
   }, []);
 
   const loadData = async (forceRefresh = false) => {

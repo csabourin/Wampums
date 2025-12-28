@@ -53,12 +53,16 @@ const GroupsScreen = ({ navigation }) => {
 
   useEffect(() => {
     // Check permissions
-    if (!canViewGroups()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    const checkPermissions = async () => {
+      if (!(await canViewGroups())) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissions();
   }, []);
 
   const loadData = async () => {

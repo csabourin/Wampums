@@ -57,6 +57,7 @@ const FundraisersScreen = ({ navigation }) => {
   });
 
   const [saving, setSaving] = useState(false);
+  const [canManage, setCanManage] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -66,7 +67,7 @@ const FundraisersScreen = ({ navigation }) => {
       return;
     }
 
-    loadData();
+    checkPermissionAndLoad();
   }, []);
 
   const loadData = async (forceRefresh = false) => {
@@ -353,7 +354,7 @@ const FundraisersScreen = ({ navigation }) => {
         </View>
 
         {/* Add Button */}
-        {canManageFundraisers() && (
+        {canManage && (
           <TouchableOpacity
             style={[commonStyles.button, styles.addButton]}
             onPress={handleAddFundraiser}

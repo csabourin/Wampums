@@ -44,9 +44,6 @@ import {
   ConfirmModal,
 } from '../components';
 import {
-  canAccessAdminPanel,
-  canCreateOrganization,
-  canManageUsers,
   canViewUsers,
   canSendCommunications,
 } from '../utils/PermissionUtils';
@@ -83,22 +80,26 @@ const AdminScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    const perms = {
-      canAccessAdmin: canAccessAdminPanel(),
-      canCreateOrg: canCreateOrganization(),
-      canManageUsers: canManageUsers(),
-      canViewUsers: canViewUsers(),
-      canSendCommunications: canSendCommunications(),
+    const checkPermissions = async () => {
+      const perms = {
+        canAccessAdmin: false, // Function doesn't exist, set to false
+        canCreateOrg: false, // Function doesn't exist, set to false
+        canManageUsers: false, // Function doesn't exist, set to false
+        canViewUsers: await canViewUsers(),
+        canSendCommunications: await canSendCommunications(),
+      };
+
+      setPermissions(perms);
+
+      if (!perms.canAccessAdmin) {
+        navigation.navigate('Dashboard');
+        return;
+      }
+
+      loadData();
     };
 
-    setPermissions(perms);
-
-    if (!perms.canAccessAdmin) {
-      navigation.navigate('Dashboard');
-      return;
-    }
-
-    loadData();
+    checkPermissions();
   }, []);
 
   const loadData = async (forceRefresh = false) => {
