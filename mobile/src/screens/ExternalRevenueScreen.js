@@ -30,32 +30,11 @@ import {
   EmptyState,
 } from '../components';
 import { canManageFinance, canApproveFinance } from '../utils/PermissionUtils';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
-import StorageUtils from '../utils/StorageUtils';
-
-const DEFAULT_CURRENCY = 'CAD';
-
-function getCurrentFiscalYear() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  if (month >= 8) {
-    // September or later
-    return {
-      start: `${year}-09-01`,
-      end: `${year + 1}-08-31`,
-      label: `${year}-${year + 1}`,
-    };
-  } else {
-    return {
-      start: `${year - 1}-09-01`,
-      end: `${year}-08-31`,
-      label: `${year - 1}-${year}`,
-    };
-  }
-}
+import CONFIG from '../config';
+import API from '../api/api-core';
+import { getCurrentFiscalYear } from '../utils/DateUtils';
+import { formatCurrency } from '../utils/FormatUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const ExternalRevenueScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -115,81 +94,51 @@ const ExternalRevenueScreen = ({ navigation }) => {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${API.baseURL}/v1/finance/budget-categories`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/budget-categories');
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_categories'));
-      }
-
-      const result = await response.json();
       setCategories(result.data || []);
     } catch (err) {
-      console.error('Error loading categories:', err);
+      debugError('Error loading categories:', err);
       setCategories([]);
     }
   };
 
   const loadRevenues = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: filters.start_date,
         end_date: filters.end_date,
-      });
+      };
 
       if (filters.revenue_type !== 'all') {
-        params.append('revenue_type', filters.revenue_type);
+        params.revenue_type = filters.revenue_type;
       }
 
       if (filters.category_id !== 'all') {
-        params.append('category_id', filters.category_id);
+        params.category_id = filters.category_id;
       }
 
-      const response = await fetch(`${API.baseURL}/v1/finance/external-revenue?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/external-revenue', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_external_revenue'));
-      }
-
-      const result = await response.json();
       setRevenues(result.data || []);
     } catch (err) {
-      console.error('Error loading revenues:', err);
+      debugError('Error loading revenues:', err);
       setRevenues([]);
     }
   };
 
   const loadSummary = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: filters.start_date,
         end_date: filters.end_date,
-      });
+      };
 
-      const response = await fetch(
-        `${API.baseURL}/v1/finance/external-revenue-summary?${params}`,
-        {
-          headers: {
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-        }
-      );
+      const result = await API.get('/v1/finance/external-revenue-summary', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_summary'));
-      }
-
-      const result = await response.json();
       setSummary(result.data || null);
     } catch (err) {
-      console.error('Error loading summary:', err);
+      debugError('Error loading summary:', err);
       setSummary(null);
     }
   };
@@ -216,15 +165,6 @@ const ExternalRevenueScreen = ({ navigation }) => {
     setLoading(true);
     await Promise.all([loadRevenues(), loadSummary()]);
     setLoading(false);
-  };
-
-  const formatCurrency = (amount) => {
-    const value = Number(amount) || 0;
-    return new Intl.NumberFormat('en', {
-      style: 'currency',
-      currency: DEFAULT_CURRENCY,
-      maximumFractionDigits: 2,
-    }).format(value);
   };
 
   const getRevenueTypeLabel = (type) => {
@@ -291,20 +231,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
       setSaving(true);
       setDeleteConfirmVisible(false);
 
-      const response = await fetch(
-        `${API.baseURL}/v1/finance/external-revenue/${revenueToDelete.id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_deleting_external_revenue'));
-      }
+      await API.delete(`/v1/finance/external-revenue/${revenueToDelete.id}`);
 
       toast.show(t('external_revenue_deleted'), 'success');
       setRevenueToDelete(null);
@@ -346,24 +273,10 @@ const ExternalRevenueScreen = ({ navigation }) => {
         notes: formData.notes || null,
       };
 
-      const url = selectedRevenue
-        ? `${API.baseURL}/v1/finance/external-revenue/${selectedRevenue.id}`
-        : `${API.baseURL}/v1/finance/external-revenue`;
-
-      const method = selectedRevenue ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_saving_external_revenue'));
+      if (selectedRevenue) {
+        await API.put(`/v1/finance/external-revenue/${selectedRevenue.id}`, payload);
+      } else {
+        await API.post('/v1/finance/external-revenue', payload);
       }
 
       toast.show(
@@ -509,7 +422,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
               )}
             </View>
 
-            {canManageFinance() && (
+            {typeof canManageFinance === 'function' && canManageFinance() && (
               <View style={styles.revenueActions}>
                 <TouchableOpacity
                   style={[commonStyles.buttonSecondary, styles.actionButton]}
@@ -519,7 +432,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
                   <Text style={commonStyles.buttonSecondaryText}>{t('edit')}</Text>
                 </TouchableOpacity>
 
-                {canApproveFinance() && (
+                {typeof canApproveFinance === 'function' && canApproveFinance() && (
                   <TouchableOpacity
                     style={[commonStyles.buttonDanger, styles.actionButton]}
                     onPress={() => handleDeleteRevenue(revenue)}
@@ -565,7 +478,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
         {renderFilters()}
 
         {/* Action Buttons */}
-        {canManageFinance() && (
+        {typeof canManageFinance === 'function' && canManageFinance() && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={commonStyles.button}
