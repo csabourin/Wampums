@@ -15,7 +15,6 @@ import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent } from "./utils/DOMUtils.js";
 import {
   clearActivityRelatedCaches,
-  clearParticipantRelatedCaches,
   deleteCachedData
 } from './indexedDB.js';
 
@@ -149,9 +148,8 @@ export class RoleManagement {
       await deleteCachedData(`v1/users/${userId}/roles`);
       await deleteCachedData('v1/users');
 
-      // Clear activity and participant caches as permissions may have changed
+      // Clear activity caches as permissions may have changed
       await clearActivityRelatedCaches();
-      await clearParticipantRelatedCaches();
 
       debugLog('User caches invalidated after role update');
     } catch (error) {
