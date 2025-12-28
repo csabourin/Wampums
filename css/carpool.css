@@ -64,6 +64,11 @@
 
 .carpool-landing__link {
   justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
 }
 
 .carpool-landing__skeletons {
@@ -178,6 +183,95 @@
   margin-bottom: var(--carpool-gap-lg);
 }
 
+/* Base button styles for carpool module */
+.carpool-page .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 0.5rem);
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-base, 1rem);
+  font-weight: var(--font-weight-medium, 500);
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: var(--carpool-radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-base, 250ms ease);
+  min-height: var(--carpool-touch-target);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: var(--shadow-sm);
+}
+
+.carpool-page .button--primary {
+  background: var(--carpool-highlight);
+  color: white;
+  border-color: var(--carpool-highlight);
+}
+
+.carpool-page .button--primary:hover:not(:disabled) {
+  background: var(--carpool-highlight-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--carpool-shadow);
+}
+
+.carpool-page .button--secondary {
+  background: var(--carpool-surface);
+  color: var(--carpool-text);
+  border-color: var(--carpool-border);
+}
+
+.carpool-page .button--secondary:hover:not(:disabled) {
+  background: var(--carpool-surface-muted);
+  border-color: var(--carpool-highlight);
+}
+
+.carpool-page .button--ghost {
+  background: transparent;
+  color: var(--carpool-text-muted);
+  border: none;
+  padding: var(--space-sm);
+  min-width: auto;
+  box-shadow: none;
+}
+
+.carpool-page .button--ghost:hover:not(:disabled) {
+  background: var(--carpool-surface-muted);
+  color: var(--carpool-text);
+}
+
+.carpool-page .button--danger {
+  background: var(--color-error, #dc3545);
+  color: white;
+  border-color: var(--color-error, #dc3545);
+}
+
+.carpool-page .button--danger:hover:not(:disabled) {
+  background: var(--color-error-light, #c82333);
+  transform: translateY(-1px);
+}
+
+.carpool-page .button--small {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--font-size-sm, 0.875rem);
+  min-height: var(--carpool-touch-target);
+}
+
+.carpool-page .button--block {
+  width: 100%;
+  display: flex;
+}
+
+.carpool-page .button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .button--large {
   padding: var(--space-md) var(--space-lg);
   font-size: var(--font-size-base, 1rem);
@@ -193,6 +287,10 @@
   font-weight: var(--font-weight-semibold, 600);
   box-shadow: var(--shadow-base, 0 3px 10px rgb(15 122 90 / 0.08));
   transition: transform var(--transition-base, 250ms ease), box-shadow var(--transition-base, 250ms ease), filter var(--transition-base, 250ms ease);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .button--large .icon {

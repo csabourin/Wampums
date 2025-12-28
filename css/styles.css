@@ -1269,6 +1269,11 @@ tr:hover {
   font-weight: var(--font-weight-medium);
   min-inline-size: var(--touch-target-min);
   min-block-size: var(--touch-target-min);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
 .ghost-button:disabled {
