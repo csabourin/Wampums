@@ -24,6 +24,7 @@ import {
   useToast,
 } from '../components';
 import API from '../api/api-core';
+import { validateEmail, validatePassword, validateRequired } from '../utils/ValidationUtils';
 
 const RegisterScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -39,15 +40,37 @@ const RegisterScreen = ({ navigation }) => {
   const toast = useToast();
 
   const handleRegister = async () => {
-    // Validate fields
-    if (
-      !formData.full_name ||
-      !formData.email ||
-      !formData.password ||
-      !formData.confirm_password ||
-      !formData.account_creation_password
-    ) {
-      toast.show(t('fill_required_fields'), 'warning');
+    // Validate required fields
+    if (!validateRequired(formData.full_name)) {
+      toast.show(t('full_name') + ' ' + t('is_required'), 'warning');
+      return;
+    }
+
+    if (!validateRequired(formData.email)) {
+      toast.show(t('email_required'), 'warning');
+      return;
+    }
+
+    // Validate email format
+    if (!validateEmail(formData.email)) {
+      toast.show(t('invalid_email'), 'warning');
+      return;
+    }
+
+    if (!validateRequired(formData.password)) {
+      toast.show(t('password_required'), 'warning');
+      return;
+    }
+
+    // Validate password strength
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) {
+      toast.show(passwordError, 'warning');
+      return;
+    }
+
+    if (!validateRequired(formData.confirm_password)) {
+      toast.show(t('confirm_password') + ' ' + t('is_required'), 'warning');
       return;
     }
 
@@ -57,22 +80,28 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
+    if (!validateRequired(formData.account_creation_password)) {
+      toast.show(t('account_creation_password') + ' ' + t('is_required'), 'warning');
+      return;
+    }
+
     try {
       setLoading(true);
 
       const payload = {
-        full_name: formData.full_name,
-        email: formData.email.toLowerCase(),
+        full_name: formData.full_name.trim(),
+        email: formData.email.toLowerCase().trim(),
         password: formData.password,
         confirm_password: formData.confirm_password,
         account_creation_password: formData.account_creation_password,
         user_type: formData.user_type,
       };
 
-      const result = await API.public('/register', payload, 'POST');
+      // Use /public/register endpoint (mirrors spa/api/api-endpoints.js)
+      const result = await API.public('/public/register', payload, 'POST');
 
       if (result.success) {
-        toast.show(result.message || t('account_created_successfully'), 'success');
+        toast.show(result.message || t('registration_successful_parent'), 'success');
         setTimeout(() => {
           navigation.navigate('Login');
         }, 3000);

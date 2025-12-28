@@ -27,9 +27,10 @@ import {
   useToast,
 } from '../components';
 import { canCreateOrganization, hasRole } from '../utils/PermissionUtils';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
-import StorageUtils from '../utils/StorageUtils';
+import CONFIG from '../config';
+import API from '../api/api-core';
+import { validateRequired, validateEmail } from '../utils/ValidationUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const CreateOrganizationScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -80,28 +81,46 @@ const CreateOrganizationScreen = ({ navigation }) => {
 
   const handleCreateOrganization = async () => {
     // Validate required fields
-    if (
-      !formData.name ||
-      !formData.registration_password ||
-      !formData.account_creation_password
-    ) {
-      toast.show(t('fill_required_fields'), 'warning');
+    if (!validateRequired(formData.name)) {
+      toast.show(t('organization_name') + ' ' + t('is_required'), 'warning');
+      return;
+    }
+
+    if (!validateRequired(formData.registration_password)) {
+      toast.show(t('registration_password') + ' ' + t('is_required'), 'warning');
+      return;
+    }
+
+    if (!validateRequired(formData.account_creation_password)) {
+      toast.show(t('account_creation_password') + ' ' + t('is_required'), 'warning');
+      return;
+    }
+
+    // Validate email if provided
+    if (formData.email && !validateEmail(formData.email)) {
+      toast.show(t('invalid_email'), 'warning');
       return;
     }
 
     try {
       setSubmitting(true);
 
-      const response = await fetch(`${API.baseURL}/organizations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-        body: JSON.stringify(formData),
-      });
+      // Trim form data
+      const payload = {
+        ...formData,
+        name: formData.name.trim(),
+        address: formData.address.trim(),
+        city: formData.city.trim(),
+        province: formData.province.trim(),
+        postal_code: formData.postal_code.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.toLowerCase().trim(),
+        registration_password: formData.registration_password.trim(),
+        account_creation_password: formData.account_creation_password.trim(),
+      };
 
-      const result = await response.json();
+      // Use centralized API helper (mirrors spa/api/api-endpoints.js)
+      const result = await API.post('/organizations', payload);
 
       if (result.success) {
         toast.show(t('unit_created_successfully'), 'success');
@@ -112,6 +131,7 @@ const CreateOrganizationScreen = ({ navigation }) => {
         toast.show(result.message || t('error_creating_unit'), 'error');
       }
     } catch (err) {
+      debugError('Error creating organization:', err);
       toast.show(err.message || t('error_creating_unit'), 'error');
     } finally {
       setSubmitting(false);

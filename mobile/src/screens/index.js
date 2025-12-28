@@ -45,9 +45,32 @@ export { default as UserParticipantLinkScreen } from './UserParticipantLinkScree
 export { default as MedicationPlanningScreen } from './MedicationPlanningScreen';
 export { default as MedicationDistributionScreen } from './MedicationDistributionScreen';
 
-// Future screens (Phase 2 & 3)
-// export { default as RegisterScreen } from './RegisterScreen';
-// export { default as ResetPasswordScreen } from './ResetPasswordScreen';
+// Auth & Organization screens
+export { default as RegisterScreen } from './RegisterScreen';
+export { default as ResetPasswordScreen } from './ResetPasswordScreen';
+export { default as RegisterOrganizationScreen } from './RegisterOrganizationScreen';
+export { default as CreateOrganizationScreen } from './CreateOrganizationScreen';
+
+// Finance screens
+export { default as BudgetsScreen } from './BudgetsScreen';
+export { default as ExpensesScreen } from './ExpensesScreen';
+export { default as ExternalRevenueScreen } from './ExternalRevenueScreen';
+export { default as RevenueDashboardScreen } from './RevenueDashboardScreen';
+
+// Inventory & Resources screens
+export { default as InventoryScreen } from './InventoryScreen';
+export { default as MaterialManagementScreen } from './MaterialManagementScreen';
+export { default as ResourceDashboardScreen } from './ResourceDashboardScreen';
+
+// Reports screens
+export { default as ReportsScreen } from './ReportsScreen';
+export { default as GroupParticipantReportScreen } from './GroupParticipantReportScreen';
+
+// Other screens
+export { default as CalendarScreen } from './CalendarScreen';
+export { default as FundraisersScreen } from './FundraisersScreen';
+export { default as MailingListScreen } from './MailingListScreen';
+
+// Future screens
 // export { default as ActivityDetailScreen } from './ActivityDetailScreen';
 // export { default as CarpoolScreen } from './CarpoolScreen';
-// export { default as ReportsScreen } from './ReportsScreen';

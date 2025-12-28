@@ -68,7 +68,7 @@ const CONFIG = {
     LOGIN: '/public/login',
     VERIFY_2FA: '/public/verify-2fa',
     LOGOUT: '/api/auth/logout',
-    REGISTER: '/api/auth/register',
+    REGISTER: '/public/register',
     RESET_PASSWORD: '/api/auth/reset-password',
     REQUEST_RESET: '/api/auth/request-reset',
     VERIFY_SESSION: '/api/auth/verify-session',
