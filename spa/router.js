@@ -162,6 +162,24 @@ const routes = {
 export class Router {
   constructor(app) {
     this.app = app;
+    // MEMORY LEAK FIX: Track current module instance for cleanup
+    this.currentModuleInstance = null;
+  }
+
+  /**
+   * Clean up the current module before loading a new one
+   * CRITICAL: Prevents memory leaks by calling destroy() on modules
+   */
+  cleanupCurrentModule() {
+    if (this.currentModuleInstance && typeof this.currentModuleInstance.destroy === 'function') {
+      debugLog('[Router] Cleaning up previous module');
+      try {
+        this.currentModuleInstance.destroy();
+      } catch (error) {
+        debugError('[Router] Error during module cleanup:', error);
+      }
+    }
+    this.currentModuleInstance = null;
   }
 
    navigate(path) {
@@ -172,6 +190,9 @@ export class Router {
 
   async route(path) {
     debugLog("Routing to:", path);
+
+    // MEMORY LEAK FIX: Clean up previous module before loading new one
+    this.cleanupCurrentModule();
 
     // Guard against null, undefined, or empty paths
     if (!path || typeof path !== 'string') {
@@ -260,6 +281,7 @@ export class Router {
           }
           const Budgets = await this.loadModule('Budgets');
           const budgets = new Budgets(this.app);
+          this.currentModuleInstance = budgets; // Track for cleanup
           await budgets.init();
           break;
         case "externalRevenue":
