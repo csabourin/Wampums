@@ -75,22 +75,24 @@ module.exports = (pool) => {
 
     // Organization-scoped users (staff): show ALL participants
     if (dataScope === 'organization') {
+      // PERFORMANCE FIX: Use LEFT JOINs with aggregation instead of correlated subqueries
+      // This eliminates N+1 query problem (was 2 subqueries per participant)
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
-                 (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
-                  FROM form_submissions
-                  WHERE participant_id = p.id AND organization_id = $1), '[]'::json
+                 json_agg(
+                   DISTINCT jsonb_build_object('form_type', fs.form_type, 'updated_at', fs.updated_at)
+                 ) FILTER (WHERE fs.id IS NOT NULL),
+                 '[]'::json
                ) as form_submissions,
-               COALESCE(
-                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
-                 0
-               ) as total_points,
+               COALESCE(SUM(pts.value), 0) as total_points,
                po.inscription_date
         FROM participants p
         JOIN participant_organizations po ON p.id = po.participant_id
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
+        LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
+        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
         WHERE po.organization_id = $1
       `;
 
@@ -101,6 +103,8 @@ module.exports = (pool) => {
         params.push(groupId);
       }
 
+      // GROUP BY required for aggregation functions
+      query += ` GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles, po.inscription_date`;
       query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       params.push(limit, offset);
 
@@ -115,23 +119,24 @@ module.exports = (pool) => {
       countParams = groupId ? [organizationId, groupId] : [organizationId];
     } else {
       // Linked-scoped users (parents): only show participants linked to them
+      // PERFORMANCE FIX: Use LEFT JOINs with aggregation instead of correlated subqueries
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
-                 (SELECT json_agg(json_build_object('form_type', form_type, 'updated_at', updated_at))
-                  FROM form_submissions
-                  WHERE participant_id = p.id AND organization_id = $1), '[]'::json
+                 json_agg(
+                   DISTINCT jsonb_build_object('form_type', fs.form_type, 'updated_at', fs.updated_at)
+                 ) FILTER (WHERE fs.id IS NOT NULL),
+                 '[]'::json
                ) as form_submissions,
-               COALESCE(
-                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
-                 0
-               ) as total_points,
+               COALESCE(SUM(pts.value), 0) as total_points,
                po.inscription_date
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
         JOIN participant_organizations po ON p.id = po.participant_id
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
+        LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
+        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
         WHERE up.user_id = $2 AND po.organization_id = $1
       `;
 
@@ -142,6 +147,8 @@ module.exports = (pool) => {
         params.push(groupId);
       }
 
+      // GROUP BY required for aggregation functions
+      query += ` GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles, po.inscription_date`;
       query += ` ORDER BY p.first_name, p.last_name LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
       params.push(limit, offset);
 

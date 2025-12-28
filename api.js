@@ -123,25 +123,54 @@ app.use(
   }),
 );
 
-// CORS configuration - restrict to specific origins for security
-// In production, only allow requests from your domain(s)
-// In development, allow localhost for testing
+// CORS configuration - supports multiple domains, subdomains, and React Native apps
+// Flexible but secure: validates against patterns while allowing dynamic subdomains
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
+    // IMPORTANT: Allow requests with no origin (React Native apps, Postman, mobile apps)
+    // React Native apps don't send an Origin header
+    if (!origin) {
+      debugLog && debugLog('[CORS] Request with no origin (likely React Native or mobile app) - ALLOWED');
+      return callback(null, true);
+    }
 
-    // Parse allowed origins from environment variable
-    const allowedOrigins = process.env.ALLOWED_ORIGINS
+    // Parse allowed origin patterns from environment variable
+    // Supports:
+    // - Exact matches: https://wampums.app
+    // - Wildcard subdomains: *.wampums.app (matches any.subdomain.wampums.app)
+    // - Multiple patterns: https://wampums.app,*.wampums.app,*.custom-domain.com
+    const allowedPatterns = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
       : isProduction
-        ? ['https://wampums.app', 'https://www.wampums.app']  // Production default
-        : ['http://localhost:5173', 'http://localhost:5000', 'http://localhost:3000'];  // Development default
+        ? ['https://wampums.app', 'https://*.wampums.app']  // Production: main domain + all subdomains
+        : ['http://localhost:5173', 'http://localhost:5000', 'http://localhost:3000', 'http://*.localhost:*'];
 
-    if (allowedOrigins.includes(origin)) {
+    // Check if origin matches any allowed pattern
+    const isAllowed = allowedPatterns.some(pattern => {
+      // Exact match
+      if (pattern === origin) {
+        return true;
+      }
+
+      // Wildcard pattern matching (e.g., *.wampums.app)
+      if (pattern.includes('*')) {
+        // Escape special regex characters except *
+        const regexPattern = pattern
+          .replace(/\./g, '\\.')  // Escape dots
+          .replace(/\*/g, '.*');  // Convert * to .*
+
+        const regex = new RegExp(`^${regexPattern}$`, 'i');
+        return regex.test(origin);
+      }
+
+      return false;
+    });
+
+    if (isAllowed) {
+      debugLog && debugLog(`[CORS] Request from ${origin} - ALLOWED`);
       callback(null, true);
     } else {
-      logger.warn('CORS request blocked from origin:', origin);
+      logger.warn('[CORS] Request blocked from origin:', origin, '| Allowed patterns:', allowedPatterns);
       callback(new Error('Not allowed by CORS'));
     }
   },

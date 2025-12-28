@@ -335,54 +335,80 @@ module.exports = (pool, logger) => {
       const pointRules = await getPointSystemRules(client, organizationId);
       const pointUpdates = [];
 
-      // Process attendance and apply points for each participant
-      for (const pid of participantIds) {
-        // Get existing attendance status for this participant on this date
-        const existingResult = await client.query(
-          `SELECT status FROM attendance
-           WHERE participant_id = $1 AND organization_id = $2 AND date = $3`,
-          [pid, organizationId, date]
-        );
+      // PERFORMANCE FIX: Use CTE to batch process all attendance updates in one query
+      // This eliminates N+1 query problem (was 4 queries per participant)
 
-        const previousStatus = existingResult.rows.length > 0 ? existingResult.rows[0].status : null;
+      // First, get existing attendance statuses and group IDs for all participants
+      const existingDataResult = await client.query(
+        `SELECT
+          p.id as participant_id,
+          a.status as previous_status,
+          pg.group_id
+         FROM unnest($1::int[]) as p(id)
+         LEFT JOIN attendance a ON a.participant_id = p.id
+           AND a.organization_id = $2 AND a.date = $3
+         LEFT JOIN participant_groups pg ON pg.participant_id = p.id
+           AND pg.organization_id = $2`,
+        [participantIds, organizationId, date]
+      );
 
-        // Upsert attendance record
-        await client.query(
-          `INSERT INTO attendance (participant_id, organization_id, date, status)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (participant_id, organization_id, date)
-           DO UPDATE SET status = $4`,
-          [pid, organizationId, date, status]
-        );
+      // Build VALUES clause for batch upsert
+      const attendanceValues = participantIds.map((_, idx) =>
+        `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+      ).join(', ');
 
-        // Calculate point adjustment based on status change
-        const pointAdjustment = calculateAttendancePoints(previousStatus, status, pointRules);
+      const attendanceParams = participantIds.flatMap(pid =>
+        [pid, organizationId, date, status]
+      );
+
+      // Batch upsert all attendance records
+      await client.query(
+        `INSERT INTO attendance (participant_id, organization_id, date, status)
+         VALUES ${attendanceValues}
+         ON CONFLICT (participant_id, organization_id, date)
+         DO UPDATE SET status = EXCLUDED.status`,
+        attendanceParams
+      );
+
+      // Calculate point adjustments and prepare batch insert
+      const pointsToInsert = [];
+      for (const row of existingDataResult.rows) {
+        const pointAdjustment = calculateAttendancePoints(row.previous_status, status, pointRules);
 
         if (pointAdjustment !== 0) {
-          // Get participant's group for proper point tracking
-          const groupResult = await client.query(
-            `SELECT group_id FROM participant_groups
-             WHERE participant_id = $1 AND organization_id = $2`,
-            [pid, organizationId]
-          );
-          const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
-
-          // Insert point record with reason tracking
-          await client.query(
-            `INSERT INTO points (participant_id, group_id, organization_id, value, created_at)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [pid, groupId, organizationId, pointAdjustment, date]
-          );
+          pointsToInsert.push({
+            participant_id: row.participant_id,
+            group_id: row.group_id,
+            points: pointAdjustment,
+            previous_status: row.previous_status
+          });
 
           pointUpdates.push({
-            participant_id: pid,
-            previous_status: previousStatus,
+            participant_id: row.participant_id,
+            previous_status: row.previous_status,
             new_status: status,
             points: pointAdjustment
           });
 
-          logger.info(`[attendance] Participant ${pid}: ${previousStatus || 'none'} -> ${status}, points: ${pointAdjustment > 0 ? '+' : ''}${pointAdjustment}`);
+          logger.info(`[attendance] Participant ${row.participant_id}: ${row.previous_status || 'none'} -> ${status}, points: ${pointAdjustment > 0 ? '+' : ''}${pointAdjustment}`);
         }
+      }
+
+      // Batch insert all points if any adjustments needed
+      if (pointsToInsert.length > 0) {
+        const pointsValues = pointsToInsert.map((_, idx) =>
+          `($${idx * 5 + 1}, $${idx * 5 + 2}, $${idx * 5 + 3}, $${idx * 5 + 4}, $${idx * 5 + 5})`
+        ).join(', ');
+
+        const pointsParams = pointsToInsert.flatMap(p =>
+          [p.participant_id, p.group_id, organizationId, p.points, date]
+        );
+
+        await client.query(
+          `INSERT INTO points (participant_id, group_id, organization_id, value, created_at)
+           VALUES ${pointsValues}`,
+          pointsParams
+        );
       }
 
       await client.query('COMMIT');

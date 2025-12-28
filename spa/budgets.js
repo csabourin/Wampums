@@ -54,6 +54,26 @@ export class Budgets {
     // Loading state management
     this.loadingManager = new LoadingStateManager();
     this.isInitializing = false;
+
+    // MEMORY LEAK FIX: AbortController for automatic event listener cleanup
+    this.abortController = new AbortController();
+  }
+
+  /**
+   * Clean up event listeners and resources
+   * CRITICAL: Call this when navigating away from the page to prevent memory leaks
+   */
+  destroy() {
+    debugLog('[Budgets] Cleaning up resources and event listeners');
+    // Abort all event listeners attached with this controller's signal
+    this.abortController.abort();
+    // Clean up any other resources
+    this.categories = [];
+    this.items = [];
+    this.expenses = [];
+    this.summaryReport = null;
+    this.revenueBreakdown = null;
+    this.budgetPlans = [];
   }
 
   /**
@@ -1026,6 +1046,9 @@ export class Budgets {
   }
 
   attachEventListeners() {
+    // MEMORY LEAK FIX: Use AbortController signal for all event listeners
+    const { signal } = this.abortController;
+
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
@@ -1038,13 +1061,13 @@ export class Budgets {
           debugError("Error switching budget tabs", error);
           this.app.showMessage(translate("error_loading_data"), "error");
         }
-      });
+      }, { signal });
     });
 
     // Add category button
     const addCategoryBtn = document.getElementById("add-category-btn");
     if (addCategoryBtn) {
-      addCategoryBtn.addEventListener("click", () => this.showCategoryModal());
+      addCategoryBtn.addEventListener("click", () => this.showCategoryModal(), { signal });
     }
 
     // Edit category buttons
@@ -1055,7 +1078,7 @@ export class Budgets {
         if (category) {
           this.showCategoryModal(category);
         }
-      });
+      }, { signal });
     });
 
     // Delete category buttons
