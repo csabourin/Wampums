@@ -18,7 +18,7 @@ import {
 import {
   getUsers,
   getRoleCatalog,
-  getUserRoles,
+  getUserRoleAssignments,
   updateUserRolesV1
 } from './api/api-endpoints.js';
 import { API } from './api/api-core.js';
@@ -77,7 +77,7 @@ export class RoleManagement {
   }
 
   async fetchUserRoles(userId) {
-    const result = await getUserRoles(userId);
+    const result = await getUserRoleAssignments(userId);
     return result.data || [];
   }
 
