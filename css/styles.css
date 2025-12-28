@@ -4108,10 +4108,6 @@ details p {
   border-bottom-color: var(--color-primary);
 }
 
-.tab-content {
-  display: none;
-}
-
 .tab-content.active {
   display: block;
 }
