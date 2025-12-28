@@ -123,7 +123,33 @@ app.use(
   }),
 );
 
-app.use(cors());
+// CORS configuration - restrict to specific origins for security
+// In production, only allow requests from your domain(s)
+// In development, allow localhost for testing
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+
+    // Parse allowed origins from environment variable
+    const allowedOrigins = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+      : isProduction
+        ? ['https://wampums.app', 'https://www.wampums.app']  // Production default
+        : ['http://localhost:5173', 'http://localhost:5000', 'http://localhost:3000'];  // Development default
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn('CORS request blocked from origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,  // Allow credentials (cookies, authorization headers)
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 // Rate limiting configuration - relaxed limits for development
 const generalLimiter = rateLimit({
@@ -269,6 +295,13 @@ app.use(express.static(staticDir, { setHeaders: setStaticCacheHeaders }));
 // SSL is enabled by default. Only disable certificate validation in development if explicitly set.
 const poolConfig = {
   connectionString: process.env.SB_URL || process.env.DATABASE_URL,
+  // Optimize connection pool for performance
+  max: parseInt(process.env.DB_POOL_MAX || '20', 10),  // Maximum pool size (default: 20)
+  min: parseInt(process.env.DB_POOL_MIN || '5', 10),   // Minimum idle connections (default: 5)
+  idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT || '30000', 10),  // Close idle connections after 30s
+  connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '2000', 10),  // Timeout waiting for connection (2s)
+  // Allow connections to be reused to reduce overhead
+  allowExitOnIdle: false,
 };
 
 // Configure SSL based on environment

@@ -18,12 +18,13 @@ const logger = winston.createLogger({
 });
 
 /**
- * Generate a random 6-digit verification code
+ * Generate a cryptographically secure random 6-digit verification code
  * @returns {string} 6-digit code
  */
 function generate2FACode() {
-  // Generate a random number between 100000 and 999999
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // Use crypto.randomInt for cryptographically secure randomness
+  // Generates a random number between 100000 and 999999 (inclusive)
+  const code = crypto.randomInt(100000, 1000000).toString();
   return code;
 }
 
