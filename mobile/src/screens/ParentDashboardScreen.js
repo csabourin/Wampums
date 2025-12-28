@@ -19,6 +19,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { getParticipants, getActivities, getMyChildrenAssignments } from '../api/api-endpoints';
 import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
@@ -27,13 +28,31 @@ import NumberUtils from '../utils/NumberUtils';
 import { Card, LoadingSpinner, ErrorMessage } from '../components';
 import CONFIG from '../config';
 
-const ParentDashboardScreen = ({ navigation }) => {
+const ParentDashboardScreen = () => {
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [children, setChildren] = useState([]);
   const [upcomingActivities, setUpcomingActivities] = useState([]);
   const [carpoolAssignments, setCarpoolAssignments] = useState([]);
+
+  // Configure header with settings button
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: t('dashboard_title'),
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Settings')}
+          style={{ paddingRight: 16 }}
+          accessibilityLabel={t('settings')}
+        >
+          <Text style={{ fontSize: 24 }}>⚙️</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   useEffect(() => {
     loadDashboardData();

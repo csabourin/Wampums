@@ -49,6 +49,23 @@ const LeaderDashboardScreen = () => {
   const navigation = useNavigation();
   const { width: windowWidth } = useWindowDimensions();
 
+  // Configure header with settings button
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: t('dashboard_title'),
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Settings')}
+          style={{ paddingRight: 16 }}
+          accessibilityLabel={t('settings')}
+        >
+          <Text style={{ fontSize: 24 }}>⚙️</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
+
   // State
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -256,7 +273,8 @@ const LeaderDashboardScreen = () => {
   }, [gridItemWidth, handleActionPress]);
 
   // Compute menu items (must be before early returns per React hooks rules)
-  const manageItems = useMemo(() => [
+  // Quick access section - matches original dashboard.js top section
+  const quickAccessItems = useMemo(() => [
     {
       key: 'managePoints',
       label: t('manage_points'),
@@ -315,7 +333,7 @@ const LeaderDashboardScreen = () => {
         },
         {
           key: 'medicationDistribution',
-          label: t('medication_distribution_link'),
+          label: t('medication_dispensing_link'),
           icon: '💊',
           screen: 'MedicationDistribution',
           permissions: ['medication.distribute', 'medication.manage', 'medication.view'],
@@ -327,7 +345,7 @@ const LeaderDashboardScreen = () => {
           screen: 'ParentDashboard',
           permissions: ['participants.view', 'communications.send'],
         },
-      ],
+      ].filter(canAccessAction),
     },
     {
       key: 'preparation',
@@ -337,12 +355,14 @@ const LeaderDashboardScreen = () => {
           key: 'activitiesCalendar',
           label: t('activities_calendar'),
           icon: '🗓️',
+          screen: 'Activities',
           permissions: ['activities.view', 'activities.manage'],
         },
         {
           key: 'carpoolCoordination',
           label: t('carpool_coordination'),
           icon: '🚗',
+          screen: 'Carpool',
           permissions: ['carpools.view', 'carpools.manage'],
         },
         {
@@ -363,12 +383,14 @@ const LeaderDashboardScreen = () => {
           key: 'inventory',
           label: t('inventory_link'),
           icon: '📦',
+          screen: 'Inventory',
           permissions: ['resources.view', 'resources.manage'],
         },
         {
           key: 'materialManagement',
           label: t('material_management_link'),
           icon: '🧰',
+          screen: 'MaterialManagement',
           permissions: ['resources.view', 'resources.manage'],
         },
         {
@@ -385,7 +407,7 @@ const LeaderDashboardScreen = () => {
           screen: 'PermissionSlips',
           permissions: ['permission_slips.view', 'permission_slips.manage'],
         },
-      ],
+      ].filter(canAccessAction),
     },
     {
       key: 'operations',
@@ -395,15 +417,17 @@ const LeaderDashboardScreen = () => {
           key: 'resources',
           label: t('resource_dashboard_link'),
           icon: '🗂️',
+          screen: 'ResourceDashboard',
           permissions: ['resources.view', 'resources.manage'],
         },
         {
-          key: 'permissionSlipDashboard',
+          key: 'permissionSlipsDashboard',
           label: t('permission_slip_dashboard_link'),
-          icon: '🛡️',
+          icon: '📋',
+          screen: 'PermissionSlips',
           permissions: ['permission_slips.view', 'permission_slips.manage'],
         },
-      ],
+      ].filter(canAccessAction),
     },
     {
       key: 'finance',
@@ -414,37 +438,37 @@ const LeaderDashboardScreen = () => {
           label: t('finance_memberships_tab'),
           icon: '💰',
           screen: 'Finance',
-          permissions: ['finance.view', 'finance.manage'],
+          permission: 'finance.view',
         },
         {
           key: 'financeDefinitions',
           label: t('finance_definitions_tab'),
-          icon: '🧾',
+          icon: '💵',
           screen: 'Finance',
-          permissions: ['finance.view', 'finance.manage'],
+          permission: 'finance.view',
         },
         {
           key: 'financialReport',
           label: t('financial_report'),
           icon: '📈',
-          screen: 'RevenueDashboard',
-          permissions: ['finance.view', 'finance.manage'],
+          screen: 'Finance',
+          permission: 'finance.view',
         },
         {
-          key: 'expenseTracking',
+          key: 'expenses',
           label: t('expense_tracking'),
-          icon: '👛',
+          icon: '💸',
           screen: 'Expenses',
-          permissions: ['finance.view', 'finance.manage'],
+          permissions: ['finance.manage', 'finance.view'],
         },
         {
           key: 'externalRevenue',
           label: t('external_revenue'),
-          icon: '🤝',
+          icon: '💵',
           screen: 'ExternalRevenue',
-          permissions: ['finance.view', 'fundraisers.view'],
+          permissions: ['finance.manage', 'finance.view'],
         },
-      ],
+      ].filter(canAccessAction),
     },
     {
       key: 'admin',
@@ -455,41 +479,41 @@ const LeaderDashboardScreen = () => {
           label: t('manage_names'),
           icon: '🪪',
           screen: 'Participants',
-          permissions: ['participants.view', 'participants.edit'],
+          permission: 'participants.view',
         },
         {
           key: 'manageGroups',
           label: t('manage_groups'),
           icon: '👥',
           screen: 'Groups',
-          permissions: ['groups.view', 'groups.manage'],
+          permission: 'groups.view',
         },
         {
-          key: 'manageUsers',
+          key: 'manageUsersParticipants',
           label: t('manage_users_participants'),
           icon: '⚙️',
           screen: 'UserParticipantLink',
-          permissions: ['users.view', 'users.edit'],
+          permission: 'users.view',
         },
         {
           key: 'accountInfo',
           label: t('account_info'),
           icon: '👤',
-          permissions: ['users.view', 'users.edit'],
+          screen: 'AccountInfo',
         },
         {
           key: 'mailingList',
           label: t('mailing_list'),
           icon: '✉️',
           screen: 'MailingList',
-          permissions: ['communications.send'],
+          permission: 'communications.send',
         },
         {
           key: 'fundraisers',
           label: t('fundraisers'),
           icon: '❤️',
           screen: 'Fundraisers',
-          permissions: ['fundraisers.view', 'fundraisers.manage'],
+          permission: 'fundraisers.view',
         },
         {
           key: 'revenueDashboard',
@@ -499,110 +523,81 @@ const LeaderDashboardScreen = () => {
           permissions: ['finance.view', 'fundraisers.view'],
         },
         {
-          key: 'budgetManagement',
+          key: 'budgets',
           label: t('budget_management'),
-          icon: '💵',
+          icon: '💼',
           screen: 'Budgets',
-          permissions: ['budget.view', 'budget.manage'],
-        },
-        {
-          key: 'calendar',
-          label: t('calendar') || 'Calendar',
-          icon: '📅',
-          screen: 'Calendar',
-          permissions: ['activities.view', 'activities.manage'],
+          permission: 'budget.view',
         },
         {
           key: 'reports',
           label: t('reports'),
-          icon: '📑',
+          icon: '📋',
           screen: 'Reports',
-          permissions: ['reports.view', 'reports.manage'],
+          permissions: ['reports.view', 'reports.export'],
         },
         {
           key: 'groupParticipantReport',
           label: t('feuille_participants'),
-          icon: '📋',
+          icon: '📑',
           screen: 'GroupParticipantReport',
-          permissions: ['reports.view', 'reports.manage'],
+          permissions: ['reports.view', 'reports.export'],
         },
-        {
-          key: 'inventory',
-          label: t('inventory_link') || 'Inventory',
-          icon: '📦',
-          screen: 'Inventory',
-          permissions: ['inventory.view', 'inventory.manage'],
-        },
-        {
-          key: 'materialManagement',
-          label: t('material_management_link') || 'Material Management',
-          icon: '🔧',
-          screen: 'MaterialManagement',
-          permissions: ['inventory.view', 'inventory.manage'],
-        },
-        {
-          key: 'resourceDashboard',
-          label: t('resource_dashboard') || 'Resource Dashboard',
-          icon: '🏢',
-          screen: 'ResourceDashboard',
-          permissions: ['inventory.view', 'activities.view'],
-        },
-      ],
+      ].filter(canAccessAction),
+    },
+  ], [userPermissions]);
+
+  // System Administration section
+  const administrationItems = useMemo(() => [
+    {
+      key: 'roleManagement',
+      label: t('role_management'),
+      icon: '🏷️',
+      screen: 'RoleManagement',
+      permissions: ['roles.view', 'roles.manage'],
     },
     {
-      key: 'systemAdministration',
-      title: t('system_administration') || 'System Administration',
-      items: [
-        {
-          key: 'roleManagement',
-          label: t('role_management') || 'Role Management',
-          icon: '🔐',
-          screen: 'RoleManagement',
-          permissions: ['roles.manage', 'roles.view'],
-        },
-        {
-          key: 'formPermissions',
-          label: t('form_permissions') || 'Form Permissions',
-          icon: '📝',
-          screen: 'FormPermissions',
-          permissions: ['forms.manage'],
-        },
-        {
-          key: 'districtManagement',
-          label: t('district_management_title') || 'District Management',
-          icon: '🧭',
-          screen: 'DistrictDashboard',
-          permissions: ['district.view', 'district.manage'],
-        },
-        {
-          key: 'createOrganization',
-          label: t('create_unit') || 'Create Unit',
-          icon: '🏠',
-          screen: 'CreateOrganization',
-          permissions: ['org.create'],
-        },
-        {
-          key: 'administration',
-          label: t('administration'),
-          icon: '🛡️',
-          screen: 'Admin',
-          permissions: [
-            'users.view',
-            'users.edit',
-            'roles.manage',
-            'roles.view',
-            'org.create',
-            'communications.send',
-          ],
-        },
-      ],
+      key: 'districtManagement',
+      label: t('district_management_title'),
+      icon: '🗺️',
+      screen: 'DistrictDashboard',
+      permissions: ['roles.view', 'roles.manage'],
     },
-  ]
-    .map((section) => ({
-      ...section,
-      items: section.items.filter(canAccessAction),
-    }))
-    .filter((section) => section.items.length > 0), [userPermissions]);
+    {
+      key: 'formPermissions',
+      label: t('form_permissions'),
+      icon: '📝',
+      screen: 'FormPermissions',
+      permission: 'forms.manage_permissions',
+    },
+    {
+      key: 'createOrganization',
+      label: t('create_unit'),
+      icon: '🏢',
+      screen: 'CreateOrganization',
+      permission: 'organizations.create',
+    },
+    {
+      key: 'adminPanel',
+      label: t('administration'),
+      icon: '🛡️',
+      screen: 'Admin',
+      permission: 'admin.access',
+    },
+  ].filter(canAccessAction), [userPermissions]);
+
+  // Filter out empty sections
+  const visibleSections = useMemo(() => {
+    return dashboardSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter(canAccessAction),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [dashboardSections, userPermissions]);
+
+  // Only show Administration section if there are items
+  const showAdministrationSection = administrationItems.length > 0;
 
   // Early returns after all hooks
   if (loading) {
@@ -632,7 +627,7 @@ const LeaderDashboardScreen = () => {
       {isOffline && (
         <View style={styles.offlineIndicator}>
           <Text style={styles.offlineText}>
-            📡 {t('Offline')} - {t('Viewing cached data')}
+            📡 {t('offline')} - {t('viewing_cached_data')}
           </Text>
         </View>
       )}
@@ -644,29 +639,46 @@ const LeaderDashboardScreen = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* Header with Organization Name */}
         <View style={styles.header}>
           <Text style={styles.title}>{t('dashboard_title')}</Text>
           <Text style={styles.organizationName}>{displayName}</Text>
         </View>
 
-        {renderActionGrid(manageItems, 'primary')}
+        {/* Quick Access Section - matches original dashboard top buttons */}
+        {quickAccessItems.length > 0 && (
+          <View style={styles.quickAccessSection}>
+            {renderActionGrid(quickAccessItems, 'primary')}
+          </View>
+        )}
 
+        {/* Organization Logo - matches original dashboard placement */}
         <View style={styles.logoContainer}>
-          {/* TODO: Replace hardcoded fallback logo with a mobile-specific S3 asset. */}
           <Image
             source={logoSource}
             style={styles.logo}
             resizeMode="contain"
-            accessibilityLabel={t('dashboard_title')}
+            accessibilityLabel={displayName}
           />
         </View>
 
-        {dashboardSections.map((section) => (
+        {/* Dashboard Sections - Day-to-Day, Preparation, Operations, Finance, Admin */}
+        {visibleSections.map((section) => (
           <View key={section.key} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             {renderActionGrid(section.items, 'secondary')}
           </View>
         ))}
+
+        {/* System Administration Section - matches original dashboard admin section */}
+        {showAdministrationSection && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              {t('system_administration')}
+            </Text>
+            {renderActionGrid(administrationItems, 'secondary')}
+          </View>
+        )}
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -724,6 +736,10 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.xs,
     textAlign: 'center',
   },
+  quickAccessSection: {
+    marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+  },
   actionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -731,10 +747,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   actionCard: {
-    borderRadius: theme.borderRadius.lg,
-    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.lg,
     paddingHorizontal: theme.spacing.sm,
-    minHeight: theme.touchTarget.min * 2,
+    minHeight: 96,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: theme.spacing.sm,
@@ -742,50 +758,56 @@ const styles = StyleSheet.create({
   },
   actionCardPrimary: {
     backgroundColor: theme.colors.primary,
+    borderWidth: 0,
   },
   actionCardSecondary: {
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.borderLight,
+    borderColor: theme.colors.border,
   },
   actionIconPrimary: {
-    fontSize: theme.fontSize.xl,
+    fontSize: theme.fontSize.xxl,
     marginBottom: theme.spacing.xs,
     color: theme.colors.surface,
   },
   actionIconSecondary: {
-    fontSize: theme.fontSize.xl,
+    fontSize: theme.fontSize.xxl,
     marginBottom: theme.spacing.xs,
-    color: theme.colors.primary,
+    color: theme.colors.text,
   },
   actionLabelPrimary: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.semibold,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
     color: theme.colors.surface,
     textAlign: 'center',
+    lineHeight: theme.fontSize.base * 1.4,
   },
   actionLabelSecondary: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.semibold,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
     color: theme.colors.text,
     textAlign: 'center',
+    lineHeight: theme.fontSize.base * 1.4,
   },
   logoContainer: {
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
   },
   logo: {
-    width: '100%',
-    maxWidth: theme.spacing.xxxl * 5,
-    height: theme.spacing.xxxl * 4,
+    width: '80%',
+    maxWidth: 335,
+    aspectRatio: 335 / 366,
+    height: undefined,
   },
   section: {
-    marginTop: theme.spacing.lg,
+    marginTop: theme.spacing.md,
   },
   sectionTitle: {
     paddingHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.bold,
     color: theme.colors.text,

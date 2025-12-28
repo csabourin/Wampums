@@ -1,22 +1,27 @@
 /**
  * App Navigator
  *
- * Main app stack navigator - handles deep linking and modal screens
+ * Main app stack navigator - matches web SPA structure
+ * Dashboard is the home screen, all other screens accessible via navigation
+ * No tab navigation - pure stack navigation like web version
  */
 
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import MainTabNavigator from './MainTabNavigator';
 
-// Import modal/detail screens
+// Import screens
 import {
+  DashboardScreen,
   ParticipantDetailScreen,
+  ParticipantsScreen,
+  ActivitiesScreen,
   ManagePointsScreen,
   AttendanceScreen,
   MeetingPreparationScreen,
   NextMeetingScreen,
   HonorsScreen,
   MedicationScreen,
+  SettingsScreen,
   // Finance screens
   BudgetsScreen,
   ExpensesScreen,
@@ -61,11 +66,6 @@ import RiskAcceptanceScreen from '../screens/RiskAcceptanceScreen';
 import RoleManagementScreen from '../screens/RoleManagementScreen';
 import UserParticipantLinkScreen from '../screens/UserParticipantLinkScreen';
 
-// Import future modal/detail screens
-// import ActivityDetailScreen from '../screens/ActivityDetailScreen';
-// import CarpoolScreen from '../screens/CarpoolScreen';
-// import PermissionSlipScreen from '../screens/PermissionSlipScreen';
-
 const Stack = createStackNavigator();
 
 const AppNavigator = ({ userPermissions }) => {
@@ -74,11 +74,38 @@ const AppNavigator = ({ userPermissions }) => {
       screenOptions={{
         headerShown: false,
       }}
+      initialRouteName="Dashboard"
     >
-      {/* Main tab navigation */}
-      <Stack.Screen name="MainTabs">
-        {() => <MainTabNavigator userPermissions={userPermissions} />}
-      </Stack.Screen>
+      {/* Dashboard - Home screen (like web SPA) */}
+      <Stack.Screen name="Dashboard" component={DashboardScreen} />
+
+      {/* Core Screens - Accessible from Dashboard */}
+      <Stack.Screen
+        name="Participants"
+        component={ParticipantsScreen}
+        options={{
+          headerShown: true,
+          title: 'Participants',
+        }}
+      />
+
+      <Stack.Screen
+        name="Activities"
+        component={ActivitiesScreen}
+        options={{
+          headerShown: true,
+          title: 'Activities',
+        }}
+      />
+
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          headerShown: true,
+          title: 'Settings',
+        }}
+      />
 
       {/* Detail screens */}
       <Stack.Screen
