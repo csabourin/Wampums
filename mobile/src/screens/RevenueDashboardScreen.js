@@ -26,32 +26,11 @@ import {
   useToast,
   EmptyState,
 } from '../components';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
-import StorageUtils from '../utils/StorageUtils';
-
-const DEFAULT_CURRENCY = 'CAD';
-
-function getCurrentFiscalYear() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  if (month >= 8) {
-    // September or later
-    return {
-      start: `${year}-09-01`,
-      end: `${year + 1}-08-31`,
-      label: `${year}-${year + 1}`,
-    };
-  } else {
-    return {
-      start: `${year - 1}-09-01`,
-      end: `${year}-08-31`,
-      label: `${year - 1}-${year}`,
-    };
-  }
-}
+import CONFIG from '../config';
+import API from '../api/api-core';
+import { getCurrentFiscalYear } from '../utils/DateUtils';
+import { formatCurrency } from '../utils/FormatUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const RevenueDashboardScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -99,100 +78,64 @@ const RevenueDashboardScreen = ({ navigation }) => {
 
   const loadDashboardData = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: dateRange.start,
         end_date: dateRange.end,
-      });
+      };
 
-      const response = await fetch(`${API.baseURL}/v1/finance/revenue-dashboard?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/revenue-dashboard', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_dashboard_data'));
-      }
-
-      const result = await response.json();
       setDashboardData(result.data || null);
     } catch (err) {
-      console.error('Error loading dashboard data:', err);
+      debugError('Error loading dashboard data:', err);
       setDashboardData(null);
     }
   };
 
   const loadBySourceData = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: dateRange.start,
         end_date: dateRange.end,
-      });
+      };
 
-      const response = await fetch(`${API.baseURL}/v1/finance/revenue-by-source?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/revenue-by-source', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_by_source_data'));
-      }
-
-      const result = await response.json();
       setBySourceData(result.data || []);
     } catch (err) {
-      console.error('Error loading by source data:', err);
+      debugError('Error loading by source data:', err);
       setBySourceData([]);
     }
   };
 
   const loadByCategoryData = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: dateRange.start,
         end_date: dateRange.end,
-      });
+      };
 
-      const response = await fetch(`${API.baseURL}/v1/finance/revenue-by-category?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/revenue-by-category', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_by_category_data'));
-      }
-
-      const result = await response.json();
       setByCategoryData(result.data || []);
     } catch (err) {
-      console.error('Error loading by category data:', err);
+      debugError('Error loading by category data:', err);
       setByCategoryData([]);
     }
   };
 
   const loadComparisonData = async () => {
     try {
-      const params = new URLSearchParams({
+      const params = {
         start_date: fiscalYear.start,
         end_date: fiscalYear.end,
-      });
+      };
 
-      const response = await fetch(`${API.baseURL}/v1/finance/revenue-comparison?${params}`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/finance/revenue-comparison', params);
 
-      if (!response.ok) {
-        throw new Error(t('failed_to_load_comparison_data'));
-      }
-
-      const result = await response.json();
       setComparisonData(result.data || null);
     } catch (err) {
-      console.error('Error loading comparison data:', err);
+      debugError('Error loading comparison data:', err);
       setComparisonData(null);
     }
   };
@@ -217,15 +160,6 @@ const RevenueDashboardScreen = ({ navigation }) => {
     setLoading(true);
     await Promise.all([loadDashboardData(), loadBySourceData(), loadByCategoryData()]);
     setLoading(false);
-  };
-
-  const formatCurrency = (amount) => {
-    const value = Number(amount) || 0;
-    return new Intl.NumberFormat('en', {
-      style: 'currency',
-      currency: DEFAULT_CURRENCY,
-      maximumFractionDigits: 2,
-    }).format(value);
   };
 
   const getSourceLabel = (source) => {
