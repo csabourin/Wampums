@@ -149,24 +149,41 @@ module.exports = (pool, logger) => {
               [groupId, organizationId, value]
             );
 
-            // Also insert individual point records for each member of the group
+            // PERFORMANCE FIX: Batch insert all member points and calculate totals in a single query
+            // This eliminates N+1 query problem (was 2 queries per member)
             const memberTotals = [];
-            for (const memberId of memberIds) {
-              await client.query(
-                `INSERT INTO points (participant_id, group_id, organization_id, value)
-                 VALUES ($1, $2, $3, $4)`,
+            if (memberIds.length > 0) {
+              // Build VALUES clause for batch insert
+              const valuesClauses = memberIds.map((_, idx) =>
+                `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+              ).join(', ');
+
+              const insertValues = memberIds.flatMap(memberId =>
                 [memberId, groupId, organizationId, value]
               );
 
-              // Get the new total for this member
-              const memberTotalResult = await client.query(
-                `SELECT COALESCE(SUM(value), 0) as total FROM points
-                 WHERE organization_id = $1 AND participant_id = $2`,
-                [organizationId, memberId]
+              // Batch insert all points
+              await client.query(
+                `INSERT INTO points (participant_id, group_id, organization_id, value)
+                 VALUES ${valuesClauses}`,
+                insertValues
               );
-              memberTotals.push({
-                id: memberId,
-                totalPoints: parseInt(memberTotalResult.rows[0].total)
+
+              // Calculate totals for all members in one query using window aggregation
+              const totalsResult = await client.query(
+                `SELECT participant_id as id, COALESCE(SUM(value), 0) as total
+                 FROM points
+                 WHERE organization_id = $1 AND participant_id = ANY($2)
+                 GROUP BY participant_id`,
+                [organizationId, memberIds]
+              );
+
+              // Map results to expected format
+              totalsResult.rows.forEach(row => {
+                memberTotals.push({
+                  id: row.id,
+                  totalPoints: parseInt(row.total)
+                });
               });
             }
 
