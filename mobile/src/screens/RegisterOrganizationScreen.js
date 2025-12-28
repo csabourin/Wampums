@@ -27,9 +27,11 @@ import {
   useToast,
 } from '../components';
 import { isParent } from '../utils/PermissionUtils';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
+import CONFIG from '../config';
+import API from '../api/api-core';
 import StorageUtils from '../utils/StorageUtils';
+import { validateRequired } from '../utils/ValidationUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const RegisterOrganizationScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -54,19 +56,16 @@ const RegisterOrganizationScreen = ({ navigation }) => {
       if (isParent()) {
         const userId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID);
 
-        const response = await fetch(`${API.baseURL}/v1/users/${userId}/children`, {
-          headers: {
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-        });
+        // Use centralized API helper
+        const result = await API.get(`/v1/users/${userId}/children`);
 
-        if (response.ok) {
-          const result = await response.json();
-          setChildren(result.children || []);
+        if (result.success && result.data) {
+          setChildren(result.data.children || result.data || []);
         }
       }
     } catch (err) {
-      console.error('Error loading children:', err);
+      debugError('Error loading children:', err);
+      // Don't show error toast during initial load, just log it
     } finally {
       setLoading(false);
     }
@@ -81,8 +80,9 @@ const RegisterOrganizationScreen = ({ navigation }) => {
   };
 
   const handleRegister = async () => {
-    if (!formData.registration_password) {
-      toast.show(t('fill_required_fields'), 'warning');
+    // Validate registration password
+    if (!validateRequired(formData.registration_password)) {
+      toast.show(t('registration_password') + ' ' + t('is_required'), 'warning');
       return;
     }
 
@@ -91,23 +91,18 @@ const RegisterOrganizationScreen = ({ navigation }) => {
 
       const payload = {
         role: formData.role,
-        registration_password: formData.registration_password,
+        registration_password: formData.registration_password.trim(),
         link_children: selectedChildren,
       };
 
-      const response = await fetch(`${API.baseURL}/register-organization`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
+      // Use centralized API helper (mirrors spa/api/api-endpoints.js)
+      const result = await API.post('/register-for-organization', payload);
 
       if (result.success) {
-        toast.show(t('registration_successful'), 'success');
+        toast.show(
+          result.message || t('successfully_registered_for_organization'),
+          'success'
+        );
         setTimeout(() => {
           navigation.navigate('Dashboard');
         }, 2000);
@@ -115,6 +110,7 @@ const RegisterOrganizationScreen = ({ navigation }) => {
         toast.show(result.message || t('error_registering_for_organization'), 'error');
       }
     } catch (err) {
+      debugError('Error registering for organization:', err);
       toast.show(err.message || t('error_registering_for_organization'), 'error');
     } finally {
       setSubmitting(false);
