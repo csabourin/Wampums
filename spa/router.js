@@ -837,29 +837,14 @@ export function initRouter(app) {
 
     // Handle navigation
     document.addEventListener("click", (e) => {
-        // Check if click is on an anchor or a child element of an anchor
-        let target = e.target;
-
-        // Walk up the DOM tree to find an anchor, but stop at buttons or other interactive elements
-        while (target && target !== document) {
-            // If we hit a button, input, or other interactive element before finding an anchor, stop
-            if (target.matches("button, input, select, textarea")) {
-                return;
+        if (e.target.matches("a")) {
+            const url = e.target.getAttribute("href");
+            // Only handle valid internal URLs
+            if (url && url !== '#' && url !== '' && !url.startsWith('javascript:')) {
+                e.preventDefault();
+                history.pushState(null, "", url);
+                router.route(url);
             }
-
-            // If we found an anchor tag, handle navigation
-            if (target.matches("a")) {
-                const url = target.getAttribute("href");
-                // Only handle valid internal URLs
-                if (url && url !== '#' && url !== '' && !url.startsWith('javascript:')) {
-                    e.preventDefault();
-                    history.pushState(null, "", url);
-                    router.route(url);
-                }
-                return;
-            }
-
-            target = target.parentElement;
         }
     });
 
