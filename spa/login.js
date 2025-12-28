@@ -407,7 +407,7 @@ handleLoginSuccess(result) {
     const messageMap = {
       invalid_email_or_password: translate("invalid_email_or_password"),
       account_not_verified_login: translate("account_not_verified_login") || translate("invalid_email_or_password"),
-      too_many_login_attempts: translate("too_many_login_attempts") || translate("invalid_email_or_password"),
+      too_many_login_attempts: translate("too_many_login_attempts"),
       internal_server_error: translate("internal_server_error")
     };
 
