@@ -326,6 +326,7 @@ const LeaderDashboardScreen = () => {
           key: 'parentContact',
           label: t('parent_contact_list'),
           icon: '📒',
+          screen: 'ParentContactList',
           permissions: ['participants.view', 'users.view'],
         },
         {
@@ -339,6 +340,7 @@ const LeaderDashboardScreen = () => {
           key: 'parentDashboard',
           label: t('vue_parents'),
           icon: '👨‍👩‍👧',
+          screen: 'ParentDashboard',
           permissions: ['participants.view', 'communications.send'],
         },
       ],
@@ -370,6 +372,7 @@ const LeaderDashboardScreen = () => {
           key: 'participantDocuments',
           label: t('view_participant_documents'),
           icon: '📄',
+          screen: 'ParticipantDocuments',
           permissions: ['participants.view', 'participants.edit'],
         },
         {
@@ -467,18 +470,21 @@ const LeaderDashboardScreen = () => {
           key: 'manageParticipants',
           label: t('manage_names'),
           icon: '🪪',
+          screen: 'Participants',
           permissions: ['participants.view', 'participants.edit'],
         },
         {
           key: 'manageGroups',
           label: t('manage_groups'),
           icon: '👥',
+          screen: 'Groups',
           permissions: ['groups.view', 'groups.manage'],
         },
         {
           key: 'manageUsers',
           label: t('manage_users_participants'),
           icon: '⚙️',
+          screen: 'UserParticipantLink',
           permissions: ['users.view', 'users.edit'],
         },
         {
@@ -536,6 +542,7 @@ const LeaderDashboardScreen = () => {
           key: 'roleManagement',
           label: t('role_management') || 'Role Management',
           icon: '🔐',
+          screen: 'RoleManagement',
           permissions: ['roles.manage', 'roles.view'],
         },
         {
@@ -554,6 +561,7 @@ const LeaderDashboardScreen = () => {
           key: 'administration',
           label: t('administration'),
           icon: '🛡️',
+          screen: 'Admin',
           permissions: [
             'users.view',
             'users.edit',

@@ -7,17 +7,21 @@
  */
 
 import { app, translate } from './app.js';
-import { getApiUrl } from './ajax-functions.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
-import { getStorage } from './utils/StorageUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent } from "./utils/DOMUtils.js";
 import {
   clearActivityRelatedCaches,
-  clearParticipantRelatedCaches,
   deleteCachedData
 } from './indexedDB.js';
+import {
+  getUsers,
+  getRoleCatalog,
+  getUserRoleAssignments,
+  updateUserRolesV1
+} from './api/api-endpoints.js';
+import { API } from './api/api-core.js';
 
 export class RoleManagement {
   constructor(appInstance) {
@@ -56,91 +60,34 @@ export class RoleManagement {
   }
 
   async fetchUsers() {
-    const response = await fetch(`${getApiUrl()}/users`, {
-      headers: {
-        'Authorization': `Bearer ${getStorage('jwtToken')}`,
-        'X-Organization-Id': getStorage('currentOrganizationId')
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch users');
-    }
-
-    const result = await response.json();
+    const result = await getUsers();
     this.users = result.users || result.data || [];
     debugLog('Fetched users:', this.users.length);
   }
 
   async fetchRoles() {
-    const response = await fetch(`${getApiUrl()}/roles`, {
-      headers: {
-        'Authorization': `Bearer ${getStorage('jwtToken')}`,
-        'X-Organization-Id': getStorage('currentOrganizationId')
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch roles');
-    }
-
-    const result = await response.json();
+    const result = await getRoleCatalog();
     this.roles = result.data || [];
     debugLog('Fetched roles:', this.roles.length);
   }
 
   async fetchRolePermissions(roleId) {
-    const response = await fetch(`${getApiUrl()}/roles/${roleId}/permissions`, {
-      headers: {
-        'Authorization': `Bearer ${getStorage('jwtToken')}`,
-        'X-Organization-Id': getStorage('currentOrganizationId')
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch role permissions');
-    }
-
-    const result = await response.json();
+    const result = await API.get(`roles/${roleId}/permissions`);
     return result.data || [];
   }
 
   async fetchUserRoles(userId) {
-    const response = await fetch(`${getApiUrl()}/users/${userId}/roles`, {
-      headers: {
-        'Authorization': `Bearer ${getStorage('jwtToken')}`,
-        'X-Organization-Id': getStorage('currentOrganizationId')
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch user roles');
-    }
-
-    const result = await response.json();
+    const result = await getUserRoleAssignments(userId);
     return result.data || [];
   }
 
   async updateUserRoles(userId, roleIds) {
-    const response = await fetch(`${getApiUrl()}/users/${userId}/roles`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getStorage('jwtToken')}`,
-        'X-Organization-Id': getStorage('currentOrganizationId')
-      },
-      body: JSON.stringify({ roleIds })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update user roles');
-    }
+    const result = await updateUserRolesV1(userId, roleIds);
 
     // Clear relevant caches after role update
     await this.invalidateUserCaches(userId);
 
-    return await response.json();
+    return result;
   }
 
   async invalidateUserCaches(userId) {
@@ -149,9 +96,8 @@ export class RoleManagement {
       await deleteCachedData(`v1/users/${userId}/roles`);
       await deleteCachedData('v1/users');
 
-      // Clear activity and participant caches as permissions may have changed
+      // Clear activity caches as permissions may have changed
       await clearActivityRelatedCaches();
-      await clearParticipantRelatedCaches();
 
       debugLog('User caches invalidated after role update');
     } catch (error) {
@@ -621,8 +567,6 @@ export class RoleManagement {
   }
 
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return escapeHTML(text);
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "wampums",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "description": "Wampums project",
   "main": "api.js",
   "scripts": {
@@ -14,7 +14,11 @@
     "migrate": "node-pg-migrate",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
-    "migrate:create": "node-pg-migrate create"
+    "migrate:create": "node-pg-migrate create",
+    "lint:api-version": "bash -c \"rg --pcre2 \\\"app\\.use\\(\\\\\"/api(?!/v1)\\\\\"\\\" api.js routes && echo \\\"Non-v1 /api routes found\\\" && exit 1 || exit 0\"",
+    "lint:spa-console": "bash -c \"rg \\\"console\\\\.\\\" spa --glob \\\"!spa/utils/DebugUtils.js\\\" --glob \\\"!spa/config.js\\\" && echo \\\"Console usage found in SPA\\\" && exit 1 || exit 0\"",
+    "lint:spa-innerhtml": "bash -c \"rg \\\"innerHTML\\\\s*=\\\" spa --glob \\\"!spa/utils/DOMUtils.js\\\" --glob \\\"!spa/utils/SecurityUtils.js\\\" && echo \\\"innerHTML assignment found in SPA\\\" && exit 1 || exit 0\"",
+    "lint:sql-params": "bash -c \"rg --pcre2 \\\"pool\\\\.query\\\\(\\\\s*`(?![^`]*\\\\$\\\\d)\\\" routes utils services middleware && echo \\\"Non-parameterized SQL candidate found\\\" && exit 1 || exit 0\""
   },
   "dependencies": {
     "@googleapis/chat": "^44.4.0",

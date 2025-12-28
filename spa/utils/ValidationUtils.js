@@ -9,6 +9,7 @@
  */
 
 import { isValidDate } from './DateUtils.js';
+import { sanitizeHTML as sanitizeHTMLFromSecurity } from './SecurityUtils.js';
 
 /**
  * Validate email address
@@ -374,9 +375,7 @@ export function validateArray(value, fieldName = 'Field') {
 export function sanitizeHTML(html) {
     if (!html || typeof html !== 'string') return '';
 
-    const div = document.createElement('div');
-    div.textContent = html;
-    return div.innerHTML;
+    return sanitizeHTMLFromSecurity(html, { stripAll: true });
 }
 
 /**

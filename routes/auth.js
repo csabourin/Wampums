@@ -72,8 +72,8 @@ const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
 // Rate limiters
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per window
-  message: 'too_many_login_attempts',
+  max: 6, // 6 attempts per window (even number so login + 2FA both succeed if user is near limit)
+  message: { success: false, message: 'too_many_login_attempts' },
   standardHeaders: true,
   legacyHeaders: false,
 });

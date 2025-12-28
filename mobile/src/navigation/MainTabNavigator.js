@@ -7,14 +7,15 @@
 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { DashboardScreen, SettingsScreen } from '../screens';
+import { 
+  DashboardScreen, 
+  SettingsScreen,
+  ParticipantsScreen,
+  ActivitiesScreen,
+} from '../screens';
+import FinanceScreen from '../screens/FinanceScreen';
 import { translate as t } from '../i18n';
 import { getDashboardType, hasAnyPermission } from '../utils/PermissionUtils';
-
-// Import future screens
-// import ParticipantsScreen from '../screens/ParticipantsScreen';
-// import ActivitiesScreen from '../screens/ActivitiesScreen';
-// import FinanceScreen from '../screens/FinanceScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -56,7 +57,7 @@ const MainTabNavigator = ({ userPermissions }) => {
       {!isParent && (
         <Tab.Screen
           name="ParticipantsTab"
-          component={DashboardScreen} // Placeholder - replace with ParticipantsScreen
+          component={ParticipantsScreen}
           options={{
             title: t('participants'),
             tabBarIcon: () => null,
@@ -68,7 +69,7 @@ const MainTabNavigator = ({ userPermissions }) => {
       {!isParent && (
         <Tab.Screen
           name="ActivitiesTab"
-          component={DashboardScreen} // Placeholder - replace with ActivitiesScreen
+          component={ActivitiesScreen}
           options={{
             title: t('Activities'),
             tabBarIcon: () => null,
@@ -80,7 +81,7 @@ const MainTabNavigator = ({ userPermissions }) => {
       {canViewFinance && (
         <Tab.Screen
           name="FinanceTab"
-          component={DashboardScreen} // Placeholder - replace with FinanceScreen
+          component={FinanceScreen}
           options={{
             title: t('finance'),
             tabBarIcon: () => null,

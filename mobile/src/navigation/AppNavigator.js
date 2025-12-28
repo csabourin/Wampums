@@ -23,6 +23,23 @@ import {
 import MedicationPlanningScreen from '../screens/MedicationPlanningScreen';
 import MedicationDistributionScreen from '../screens/MedicationDistributionScreen';
 
+// Import admin and management screens
+import AdminScreen from '../screens/AdminScreen';
+import ApproveBadgesScreen from '../screens/ApproveBadgesScreen';
+import BadgeDashboardScreen from '../screens/BadgeDashboardScreen';
+import BadgeFormScreen from '../screens/BadgeFormScreen';
+import FinanceScreen from '../screens/FinanceScreen';
+import FormPermissionsScreen from '../screens/FormPermissionsScreen';
+import GroupsScreen from '../screens/GroupsScreen';
+import HealthFormScreen from '../screens/HealthFormScreen';
+import ParentContactListScreen from '../screens/ParentContactListScreen';
+import ParticipantDocumentsScreen from '../screens/ParticipantDocumentsScreen';
+import PermissionSlipsScreen from '../screens/PermissionSlipsScreen';
+import PermissionSlipSignScreen from '../screens/PermissionSlipSignScreen';
+import RiskAcceptanceScreen from '../screens/RiskAcceptanceScreen';
+import RoleManagementScreen from '../screens/RoleManagementScreen';
+import UserParticipantLinkScreen from '../screens/UserParticipantLinkScreen';
+
 // Import future modal/detail screens
 // import ActivityDetailScreen from '../screens/ActivityDetailScreen';
 // import CarpoolScreen from '../screens/CarpoolScreen';
@@ -114,6 +131,142 @@ const AppNavigator = ({ userPermissions }) => {
         component={MedicationDistributionScreen}
         options={{
           headerShown: false,
+        }}
+      />
+
+      {/* Admin and Management Screens */}
+      <Stack.Screen
+        name="Admin"
+        component={AdminScreen}
+        options={{
+          headerShown: true,
+          title: 'Administration',
+        }}
+      />
+
+      <Stack.Screen
+        name="ApproveBadges"
+        component={ApproveBadgesScreen}
+        options={{
+          headerShown: true,
+          title: 'Approve Badges',
+        }}
+      />
+
+      <Stack.Screen
+        name="BadgeDashboard"
+        component={BadgeDashboardScreen}
+        options={{
+          headerShown: true,
+          title: 'Badge Dashboard',
+        }}
+      />
+
+      <Stack.Screen
+        name="BadgeForm"
+        component={BadgeFormScreen}
+        options={{
+          headerShown: true,
+          title: 'Badge Form',
+        }}
+      />
+
+      <Stack.Screen
+        name="Finance"
+        component={FinanceScreen}
+        options={{
+          headerShown: true,
+          title: 'Finance',
+        }}
+      />
+
+      <Stack.Screen
+        name="FormPermissions"
+        component={FormPermissionsScreen}
+        options={{
+          headerShown: true,
+          title: 'Form Permissions',
+        }}
+      />
+
+      <Stack.Screen
+        name="Groups"
+        component={GroupsScreen}
+        options={{
+          headerShown: true,
+          title: 'Manage Groups',
+        }}
+      />
+
+      <Stack.Screen
+        name="HealthForm"
+        component={HealthFormScreen}
+        options={{
+          headerShown: true,
+          title: 'Health Form',
+        }}
+      />
+
+      <Stack.Screen
+        name="ParentContactList"
+        component={ParentContactListScreen}
+        options={{
+          headerShown: true,
+          title: 'Parent Contact List',
+        }}
+      />
+
+      <Stack.Screen
+        name="ParticipantDocuments"
+        component={ParticipantDocumentsScreen}
+        options={{
+          headerShown: true,
+          title: 'Participant Documents',
+        }}
+      />
+
+      <Stack.Screen
+        name="PermissionSlips"
+        component={PermissionSlipsScreen}
+        options={{
+          headerShown: true,
+          title: 'Permission Slips',
+        }}
+      />
+
+      <Stack.Screen
+        name="PermissionSlipSign"
+        component={PermissionSlipSignScreen}
+        options={{
+          headerShown: true,
+          title: 'Sign Permission Slip',
+        }}
+      />
+
+      <Stack.Screen
+        name="RiskAcceptance"
+        component={RiskAcceptanceScreen}
+        options={{
+          headerShown: true,
+          title: 'Risk Acceptance Form',
+        }}
+      />
+
+      <Stack.Screen
+        name="RoleManagement"
+        component={RoleManagementScreen}
+        options={{
+          headerShown: true,
+          title: 'Role Management',
+        }}
+      />
+
+      <Stack.Screen
+        name="UserParticipantLink"
+        component={UserParticipantLinkScreen}
+        options={{
+          headerShown: true,
+          title: 'Link Users & Participants',
         }}
       />
 

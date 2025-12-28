@@ -8,8 +8,7 @@
  *   import { CONFIG } from './config.js';
  *   debugLog(CONFIG.API_BASE_URL);
  */
-import { debugLog } from './utils/DebugUtils.js';
-
+import { debugLog } from "./utils/DebugUtils.js";
 
 /**
  * Determine if debug mode is enabled
@@ -59,7 +58,7 @@ export const CONFIG = {
     /**
      * Application Version
      */
-    VERSION: "2.7.0",
+    VERSION: "2.7.1",
 
     /**
      * Application Name
@@ -198,6 +197,7 @@ export const CONFIG = {
      * UI Settings
      */
     UI: {
+        HOMEPAGE_URL: "https://wampums.app",
         // Default number of items per page for paginated lists
         DEFAULT_PAGE_SIZE: 50,
 

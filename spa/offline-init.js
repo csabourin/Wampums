@@ -123,8 +123,8 @@ function handleToastEvent(event) {
     if (window.app && typeof window.app.showMessage === 'function') {
         window.app.showMessage(message, type);
     } else {
-        // Fallback - log to console
-        console.log(`[${type.toUpperCase()}] ${message}`);
+        // Fallback - log to debug output
+        debugWarn(`[${type.toUpperCase()}] ${message}`);
     }
 }
 

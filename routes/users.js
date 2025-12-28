@@ -401,7 +401,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/v1/users/:userId/roles', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const userId = parseInt(req.params.userId, 10);
+    const userId = req.params.userId; // UUID, not integer
 
     // Verify user belongs to organization
     const userCheck = await pool.query(
@@ -471,15 +471,15 @@ module.exports = (pool, logger) => {
    */
   router.put('/v1/users/:userId/roles', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const userId = parseInt(req.params.userId, 10);
+    const userId = req.params.userId; // UUID, not integer
     const { roleIds } = req.body;
 
     if (!Array.isArray(roleIds) || roleIds.length === 0) {
       return res.status(400).json({ success: false, message: 'roleIds must be a non-empty array' });
     }
 
-    // Prevent users from changing their own roles
-    if (userId === req.user.id) {
+    // Prevent users from changing their own roles (compare as strings since both are UUIDs)
+    if (userId === String(req.user.id)) {
       return res.status(400).json({ success: false, message: 'Cannot change your own roles' });
     }
 
@@ -512,13 +512,12 @@ module.exports = (pool, logger) => {
       return res.status(404).json({ success: false, message: 'User not found in this organization' });
     }
 
-    // Update user roles (also update the old 'role' column with the first role for backwards compatibility)
-    const firstRoleName = rolesResult.rows[0].role_name;
+    // Update user roles
     await pool.query(
       `UPDATE user_organizations
-       SET role_ids = $1::jsonb, role = $2
-       WHERE user_id = $3 AND organization_id = $4`,
-      [JSON.stringify(roleIds), firstRoleName, userId, organizationId]
+       SET role_ids = $1::jsonb
+       WHERE user_id = $2 AND organization_id = $3`,
+      [JSON.stringify(roleIds), userId, organizationId]
     );
 
     logger.info(`User ${userId} roles updated to [${roleIds.join(', ')}] by user ${req.user.id}`);

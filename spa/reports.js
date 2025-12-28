@@ -1,5 +1,6 @@
 // reports.js
 import { translate } from "./app.js";
+import { sanitizeHTML } from "./utils/SecurityUtils.js";
 import {
 	debugLog,
 	debugError,
@@ -1461,6 +1462,9 @@ export class Reports {
 
 	printReport() {
 		const printWindow = window.open("", "_blank");
+		const reportContent = document.getElementById("report-content");
+		const reportMarkup = reportContent ? reportContent.outerHTML : '';
+		const safeReportContent = reportMarkup ? sanitizeHTML(reportMarkup) : '';
 		printWindow.document.write(`
 			<html>
 				<head>
@@ -1473,7 +1477,7 @@ export class Reports {
 					</style>
 				</head>
 				<body>
-					${document.getElementById("report-content").innerHTML}
+					${safeReportContent}
 				</body>
 			</html>
 		`);
