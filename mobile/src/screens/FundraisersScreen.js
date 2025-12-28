@@ -5,7 +5,7 @@
  * Manage fundraising campaigns with calendar sales tracking
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -31,9 +31,7 @@ import {
   canViewFundraisers,
   canManageFundraisers,
 } from '../utils/PermissionUtils';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
-import StorageUtils from '../utils/StorageUtils';
+import API from '../api/api-core';
 
 const FundraisersScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -63,7 +61,7 @@ const FundraisersScreen = ({ navigation }) => {
 
   useEffect(() => {
     // Check permission
-    if (!canViewFundraisers()) {
+    if (typeof canViewFundraisers === 'function' && !canViewFundraisers()) {
       navigation.navigate('Dashboard');
       return;
     }
@@ -85,17 +83,8 @@ const FundraisersScreen = ({ navigation }) => {
 
   const loadFundraisers = async () => {
     try {
-      const response = await fetch(`${API.baseURL}/v1/fundraisers?include_archived=true`, {
-        headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-      });
+      const result = await API.get('/v1/fundraisers', { include_archived: true });
 
-      if (!response.ok) {
-        throw new Error(t('error_fetching_fundraisers'));
-      }
-
-      const result = await response.json();
       if (result.success && result.fundraisers) {
         const active = result.fundraisers
           .filter((f) => !f.archived)
@@ -157,22 +146,14 @@ const FundraisersScreen = ({ navigation }) => {
 
       const isArchiving = !fundraiserToArchive.archived;
 
-      const response = await fetch(
-        `${API.baseURL}/v1/fundraisers/${fundraiserToArchive.id}/archive`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${await StorageUtils.getToken()}`,
-          },
-          body: JSON.stringify({ archived: isArchiving }),
-        }
+      const result = await API.put(
+        `/v1/fundraisers/${fundraiserToArchive.id}/archive`,
+        { archived: isArchiving }
       );
 
-      if (!response.ok) {
-        const error = await response.json();
+      if (!result.success) {
         throw new Error(
-          error.message ||
+          result.message ||
             (isArchiving ? t('error_archiving_fundraiser') : t('error_unarchiving_fundraiser'))
         );
       }
@@ -213,24 +194,12 @@ const FundraisersScreen = ({ navigation }) => {
         objective: formData.objective ? parseFloat(formData.objective) : null,
       };
 
-      const url = selectedFundraiser
-        ? `${API.baseURL}/v1/fundraisers/${selectedFundraiser.id}`
-        : `${API.baseURL}/v1/fundraisers`;
+      const result = selectedFundraiser
+        ? await API.put(`/v1/fundraisers/${selectedFundraiser.id}`, payload)
+        : await API.post('/v1/fundraisers', payload);
 
-      const method = selectedFundraiser ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t('error_saving_fundraiser'));
+      if (!result.success) {
+        throw new Error(result.message || t('error_saving_fundraiser'));
       }
 
       toast.show(
@@ -329,7 +298,7 @@ const FundraisersScreen = ({ navigation }) => {
             <Text style={commonStyles.buttonText}>{t('view_fundraiser_entries')}</Text>
           </TouchableOpacity>
 
-          {canManageFundraisers() && (
+          {typeof canManageFundraisers === 'function' && canManageFundraisers() && (
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={[commonStyles.buttonSecondary, styles.actionButton]}
