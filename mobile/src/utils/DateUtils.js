@@ -306,6 +306,43 @@ export const isValidDate = (date) => {
   return !isNaN(dateObj.getTime());
 };
 
+/**
+ * Get current fiscal year (September 1 - August 31)
+ * @returns {Object} Fiscal year object with start, end, and label
+ */
+export const getCurrentFiscalYear = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  if (month >= 8) {
+    // September or later
+    return {
+      start: `${year}-09-01`,
+      end: `${year + 1}-08-31`,
+      label: `${year}-${year + 1}`,
+    };
+  } else {
+    return {
+      start: `${year - 1}-09-01`,
+      end: `${year}-08-31`,
+      label: `${year - 1}-${year}`,
+    };
+  }
+};
+
+/**
+ * Get today's date in ISO format (YYYY-MM-DD)
+ * @returns {string} Today's date
+ */
+export const getTodayISO = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default {
   formatDate,
   formatTime,
@@ -322,4 +359,6 @@ export default {
   startOfDay,
   endOfDay,
   isValidDate,
+  getCurrentFiscalYear,
+  getTodayISO,
 };
