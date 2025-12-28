@@ -200,7 +200,7 @@ export class ManageParticipants {
         }
       </style>
     `;
-    setContent(document.getElementById("app"), content);
+    setContent(document.getElementById("app"), content, { allowStyleTags: true });
   }
 
   renderParticipantRows() {
