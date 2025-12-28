@@ -58,6 +58,7 @@ const ADDITIONAL_ALLOWED_ATTRS = [
  * @param {string} html - The HTML string to sanitize
  * @param {Object} options - Sanitization options
  * @param {boolean} options.stripAll - Strip all HTML tags (default: false)
+ * @param {boolean} options.allowStyleTags - Allow <style> tags for trusted templates (default: false)
  * @returns {string} Sanitized HTML string
  */
 export function sanitizeHTML(html, options = {}) {
@@ -77,6 +78,7 @@ export function sanitizeHTML(html, options = {}) {
     // Use DOMPurify's default ALLOWED_TAGS (don't override)
     // Add application-specific attributes to the defaults
     ADD_ATTR: ADDITIONAL_ALLOWED_ATTRS,
+    ADD_TAGS: options.allowStyleTags ? ['style'] : [],
 
     // Allow data-* attributes (used extensively in the app for state management)
     ALLOW_DATA_ATTR: true,

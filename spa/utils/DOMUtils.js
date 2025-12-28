@@ -18,6 +18,8 @@ import { debugError } from './DebugUtils.js';
  *
  * @param {HTMLElement} element - Target element
  * @param {string} content - HTML content to set (will be sanitized)
+ * @param {Object} [options] - Sanitization options passed to sanitizeHTML
+ * @param {boolean} [options.allowStyleTags=false] - Allow <style> tags for trusted templates
  * @returns {HTMLElement} The element (for chaining)
  *
  * @example
@@ -25,13 +27,13 @@ import { debugError } from './DebugUtils.js';
  * const div = document.getElementById('description');
  * setContent(div, apiResponse.htmlContent);
  */
-export function setContent(element, content) {
+export function setContent(element, content, options = {}) {
   if (!element) {
     debugError('setContent: element is null or undefined');
     return null;
   }
 
-  element.innerHTML = sanitizeHTML(content);
+  element.innerHTML = sanitizeHTML(content, options);
   return element;
 }
 
