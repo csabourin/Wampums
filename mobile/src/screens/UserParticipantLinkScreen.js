@@ -54,7 +54,7 @@ const UserParticipantLinkScreen = ({ navigation }) => {
     // Check permissions
     const checkPermissions = async () => {
       if (!(await canViewUsers())) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

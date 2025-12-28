@@ -46,7 +46,7 @@ const ApproveBadgesScreen = ({ navigation }) => {
     const checkPermissionsAndLoad = async () => {
       const hasPermission = await canApproveBadges();
       if (!hasPermission) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

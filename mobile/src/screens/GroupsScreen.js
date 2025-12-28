@@ -55,7 +55,7 @@ const GroupsScreen = ({ navigation }) => {
     // Check permissions
     const checkPermissions = async () => {
       if (!(await canViewGroups())) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

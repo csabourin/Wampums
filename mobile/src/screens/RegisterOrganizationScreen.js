@@ -104,7 +104,7 @@ const RegisterOrganizationScreen = ({ navigation }) => {
           'success'
         );
         setTimeout(() => {
-          navigation.navigate('Dashboard');
+          navigation.navigate('MainTabs');
         }, 2000);
       } else {
         toast.show(result.message || t('error_registering_for_organization'), 'error');

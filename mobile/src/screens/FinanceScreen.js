@@ -89,7 +89,7 @@ const FinanceScreen = ({ navigation }) => {
     const checkPermissionAndLoad = async () => {
       const hasPermission = await canViewFinance();
       if (!hasPermission) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

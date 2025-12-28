@@ -92,7 +92,7 @@ const AdminScreen = ({ navigation }) => {
       setPermissions(perms);
 
       if (!perms.canAccessAdmin) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

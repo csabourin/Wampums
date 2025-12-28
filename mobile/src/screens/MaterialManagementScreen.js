@@ -67,7 +67,7 @@ const MaterialManagementScreen = ({ navigation }) => {
           [
             {
               text: t('OK'),
-              onPress: () => navigation.navigate('Dashboard'),
+              onPress: () => navigation.goBack(),
             },
           ]
         );

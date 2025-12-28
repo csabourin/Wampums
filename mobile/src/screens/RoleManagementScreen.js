@@ -51,7 +51,7 @@ const RoleManagementScreen = ({ navigation }) => {
   useEffect(() => {
     // Check permission
     if (!hasPermission('roles.view')) {
-      navigation.navigate('Dashboard');
+      navigation.goBack();
       return;
     }
 

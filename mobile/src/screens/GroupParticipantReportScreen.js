@@ -46,7 +46,7 @@ const GroupParticipantReportScreen = ({ navigation }) => {
           [
             {
               text: t('OK'),
-              onPress: () => navigation.navigate('Dashboard'),
+              onPress: () => navigation.goBack(),
             },
           ]
         );

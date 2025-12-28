@@ -43,7 +43,7 @@ const FormPermissionsScreen = ({ navigation }) => {
   useEffect(() => {
     // Check permission
     if (!isAdmin()) {
-      navigation.navigate('Dashboard');
+      navigation.goBack();
       return;
     }
 

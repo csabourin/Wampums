@@ -56,7 +56,7 @@ const BadgeDashboardScreen = ({ navigation }) => {
       const hasManagePermission = await canManageBadges();
       
       if (!hasViewPermission && !hasApprovePermission && !hasManagePermission) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

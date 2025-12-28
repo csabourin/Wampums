@@ -47,7 +47,7 @@ const ParticipantDocumentsScreen = ({ navigation }) => {
     // Check permissions
     const checkPermissions = async () => {
       if (!(await canViewParticipants())) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

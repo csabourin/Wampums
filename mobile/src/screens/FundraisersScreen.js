@@ -61,11 +61,19 @@ const FundraisersScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    // Check permission
-    if (typeof canViewFundraisers === 'function' && !canViewFundraisers()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    // Check permission and load data
+    const checkPermissionAndLoad = async () => {
+      const hasPermission = await canViewFundraisers();
+      if (!hasPermission) {
+        navigation.goBack();
+        return;
+      }
+
+      const hasManagePermission = await canManageFundraisers();
+      setCanManage(hasManagePermission);
+
+      loadData();
+    };
 
     checkPermissionAndLoad();
   }, []);

@@ -43,7 +43,7 @@ const ParentContactListScreen = ({ navigation }) => {
       const hasViewParticipants = await canViewParticipants();
       
       if (!hasSendComms && !hasViewParticipants) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 

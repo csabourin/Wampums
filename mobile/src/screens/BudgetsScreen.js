@@ -70,7 +70,7 @@ const BudgetsScreen = ({ navigation }) => {
   useEffect(() => {
     const checkPermissions = async () => {
       if (!(await canViewBudget())) {
-        navigation.navigate('Dashboard');
+        navigation.goBack();
         return;
       }
 
