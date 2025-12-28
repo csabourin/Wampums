@@ -49,13 +49,21 @@ const BadgeDashboardScreen = ({ navigation }) => {
   const [badgeModalVisible, setBadgeModalVisible] = useState(false);
 
   useEffect(() => {
-    // Check permissions
-    if (!canViewBadges() && !canApproveBadges() && !canManageBadges()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    // Check permissions and load data
+    const checkPermissionsAndLoad = async () => {
+      const hasViewPermission = await canViewBadges();
+      const hasApprovePermission = await canApproveBadges();
+      const hasManagePermission = await canManageBadges();
+      
+      if (!hasViewPermission && !hasApprovePermission && !hasManagePermission) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissionsAndLoad();
   }, []);
 
   const loadData = async (forceRefresh = false) => {

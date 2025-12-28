@@ -58,6 +58,7 @@ const FinanceScreen = ({ navigation }) => {
   const [error, setError] = useState('');
   const [feeDefinitions, setFeeDefinitions] = useState([]);
   const [participantFees, setParticipantFees] = useState([]);
+  const [canManage, setCanManage] = useState(false);
   const [participants, setParticipants] = useState([]);
   const [financeSummary, setFinanceSummary] = useState(null);
   const [activeTab, setActiveTab] = useState('memberships');
@@ -84,13 +85,21 @@ const FinanceScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    // Check permission
-    if (!canViewFinance()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    // Check permission and load data
+    const checkPermissionAndLoad = async () => {
+      const hasPermission = await canViewFinance();
+      if (!hasPermission) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      const hasManagePermission = await canManageFinance();
+      setCanManage(hasManagePermission);
+
+      loadData();
+    };
+
+    checkPermissionAndLoad();
   }, []);
 
   const loadData = async (forceRefresh = false) => {
@@ -343,7 +352,7 @@ const FinanceScreen = ({ navigation }) => {
         </View>
 
         {/* Fee Definitions */}
-        {canManageFinance() && (
+        {canManage && (
           <Card style={styles.card}>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionTitle}>{t('fee_definitions')}</Text>
@@ -399,7 +408,7 @@ const FinanceScreen = ({ navigation }) => {
                 <TableHeaderCell>{t('amount')}</TableHeaderCell>
                 <TableHeaderCell>{t('paid')}</TableHeaderCell>
                 <TableHeaderCell>{t('outstanding')}</TableHeaderCell>
-                {canManageFinance() && <TableHeaderCell>{t('actions')}</TableHeaderCell>}
+                {canManage && <TableHeaderCell>{t('actions')}</TableHeaderCell>}
               </TableHeader>
               {sortedFees.map((fee) => (
                 <TableRow key={fee.id}>
@@ -407,7 +416,7 @@ const FinanceScreen = ({ navigation }) => {
                   <TableCell>{formatCurrency(fee.total_amount)}</TableCell>
                   <TableCell>{formatCurrency(fee.total_paid)}</TableCell>
                   <TableCell>{formatCurrency(getOutstanding(fee))}</TableCell>
-                  {canManageFinance() && (
+                  {canManage && (
                     <TableCell>
                       {getOutstanding(fee) > 0 && (
                         <TouchableOpacity

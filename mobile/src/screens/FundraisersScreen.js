@@ -59,16 +59,25 @@ const FundraisersScreen = ({ navigation }) => {
   });
 
   const [saving, setSaving] = useState(false);
+  const [canManage, setCanManage] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    // Check permission
-    if (!canViewFundraisers()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    // Check permission and load data
+    const checkPermissionAndLoad = async () => {
+      const hasPermission = await canViewFundraisers();
+      if (!hasPermission) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      const hasManagePermission = await canManageFundraisers();
+      setCanManage(hasManagePermission);
+
+      loadData();
+    };
+
+    checkPermissionAndLoad();
   }, []);
 
   const loadData = async (forceRefresh = false) => {
@@ -329,7 +338,7 @@ const FundraisersScreen = ({ navigation }) => {
             <Text style={commonStyles.buttonText}>{t('view_fundraiser_entries')}</Text>
           </TouchableOpacity>
 
-          {canManageFundraisers() && (
+          {canManage && (
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={[commonStyles.buttonSecondary, styles.actionButton]}
@@ -384,7 +393,7 @@ const FundraisersScreen = ({ navigation }) => {
         </View>
 
         {/* Add Button */}
-        {canManageFundraisers() && (
+        {canManage && (
           <TouchableOpacity
             style={[commonStyles.button, styles.addButton]}
             onPress={handleAddFundraiser}

@@ -52,12 +52,16 @@ const UserParticipantLinkScreen = ({ navigation }) => {
 
   useEffect(() => {
     // Check permissions
-    if (!canViewUsers()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    const checkPermissions = async () => {
+      if (!(await canViewUsers())) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissions();
   }, []);
 
   useEffect(() => {

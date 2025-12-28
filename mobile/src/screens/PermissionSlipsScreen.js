@@ -67,12 +67,19 @@ const PermissionSlipsScreen = ({ navigation }) => {
 
   useEffect(() => {
     // Check permissions
-    if (!canSendCommunications() && !canViewParticipants()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    const checkPermissions = async () => {
+      const hasSendComms = await canSendCommunications();
+      const hasViewParticipants = await canViewParticipants();
+      
+      if (!hasSendComms && !hasViewParticipants) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissions();
   }, []);
 
   useEffect(() => {

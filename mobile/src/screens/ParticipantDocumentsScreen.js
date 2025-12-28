@@ -45,12 +45,16 @@ const ParticipantDocumentsScreen = ({ navigation }) => {
 
   useEffect(() => {
     // Check permissions
-    if (!canViewParticipants()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    const checkPermissions = async () => {
+      if (!(await canViewParticipants())) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissions();
   }, []);
 
   useEffect(() => {

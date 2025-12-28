@@ -73,12 +73,16 @@ const BudgetsScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    if (!canViewBudget()) {
-      navigation.navigate('Dashboard');
-      return;
-    }
+    const checkPermissions = async () => {
+      if (!(await canViewBudget())) {
+        navigation.navigate('Dashboard');
+        return;
+      }
 
-    loadData();
+      loadData();
+    };
+
+    checkPermissions();
   }, []);
 
   function getCurrentFiscalYear() {

@@ -95,10 +95,21 @@ const ExternalRevenueScreen = ({ navigation }) => {
   });
 
   const [saving, setSaving] = useState(false);
+  const [canManage, setCanManage] = useState(false);
+  const [canApprove, setCanApprove] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
-    loadData();
+    const init = async () => {
+      const [hasManage, hasApprove] = await Promise.all([
+        canManageFinance(),
+        canApproveFinance(),
+      ]);
+      setCanManage(hasManage);
+      setCanApprove(hasApprove);
+      loadData();
+    };
+    init();
   }, []);
 
   const loadData = async (forceRefresh = false) => {
@@ -509,7 +520,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
               )}
             </View>
 
-            {canManageFinance() && (
+            {canManage && (
               <View style={styles.revenueActions}>
                 <TouchableOpacity
                   style={[commonStyles.buttonSecondary, styles.actionButton]}
@@ -519,7 +530,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
                   <Text style={commonStyles.buttonSecondaryText}>{t('edit')}</Text>
                 </TouchableOpacity>
 
-                {canApproveFinance() && (
+                {canApprove && (
                   <TouchableOpacity
                     style={[commonStyles.buttonDanger, styles.actionButton]}
                     onPress={() => handleDeleteRevenue(revenue)}
@@ -565,7 +576,7 @@ const ExternalRevenueScreen = ({ navigation }) => {
         {renderFilters()}
 
         {/* Action Buttons */}
-        {canManageFinance() && (
+        {canManage && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={commonStyles.button}
