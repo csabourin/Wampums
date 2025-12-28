@@ -17,6 +17,27 @@ import {
   NextMeetingScreen,
   HonorsScreen,
   MedicationScreen,
+  // Finance screens
+  BudgetsScreen,
+  ExpensesScreen,
+  ExternalRevenueScreen,
+  RevenueDashboardScreen,
+  // Inventory & Resources
+  InventoryScreen,
+  MaterialManagementScreen,
+  ResourceDashboardScreen,
+  // Reports
+  ReportsScreen,
+  GroupParticipantReportScreen,
+  // Other screens
+  CalendarScreen,
+  FundraisersScreen,
+  MailingListScreen,
+  // Auth & Organization
+  RegisterScreen,
+  ResetPasswordScreen,
+  RegisterOrganizationScreen,
+  CreateOrganizationScreen,
 } from '../screens';
 
 // Import medication screens
@@ -267,6 +288,155 @@ const AppNavigator = ({ userPermissions }) => {
         options={{
           headerShown: true,
           title: 'Link Users & Participants',
+        }}
+      />
+
+      {/* Finance Screens */}
+      <Stack.Screen
+        name="Budgets"
+        component={BudgetsScreen}
+        options={{
+          headerShown: true,
+          title: 'Budgets',
+        }}
+      />
+
+      <Stack.Screen
+        name="Expenses"
+        component={ExpensesScreen}
+        options={{
+          headerShown: true,
+          title: 'Expenses',
+        }}
+      />
+
+      <Stack.Screen
+        name="ExternalRevenue"
+        component={ExternalRevenueScreen}
+        options={{
+          headerShown: true,
+          title: 'External Revenue',
+        }}
+      />
+
+      <Stack.Screen
+        name="RevenueDashboard"
+        component={RevenueDashboardScreen}
+        options={{
+          headerShown: true,
+          title: 'Revenue Dashboard',
+        }}
+      />
+
+      {/* Inventory & Resources Screens */}
+      <Stack.Screen
+        name="Inventory"
+        component={InventoryScreen}
+        options={{
+          headerShown: true,
+          title: 'Inventory',
+        }}
+      />
+
+      <Stack.Screen
+        name="MaterialManagement"
+        component={MaterialManagementScreen}
+        options={{
+          headerShown: true,
+          title: 'Material Management',
+        }}
+      />
+
+      <Stack.Screen
+        name="ResourceDashboard"
+        component={ResourceDashboardScreen}
+        options={{
+          headerShown: true,
+          title: 'Resource Dashboard',
+        }}
+      />
+
+      {/* Reports Screens */}
+      <Stack.Screen
+        name="Reports"
+        component={ReportsScreen}
+        options={{
+          headerShown: true,
+          title: 'Reports',
+        }}
+      />
+
+      <Stack.Screen
+        name="GroupParticipantReport"
+        component={GroupParticipantReportScreen}
+        options={{
+          headerShown: true,
+          title: 'Group Participant Report',
+        }}
+      />
+
+      {/* Other Screens */}
+      <Stack.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{
+          headerShown: true,
+          title: 'Calendar',
+        }}
+      />
+
+      <Stack.Screen
+        name="Fundraisers"
+        component={FundraisersScreen}
+        options={{
+          headerShown: true,
+          title: 'Fundraisers',
+        }}
+      />
+
+      <Stack.Screen
+        name="MailingList"
+        component={MailingListScreen}
+        options={{
+          headerShown: true,
+          title: 'Mailing List',
+        }}
+      />
+
+      {/* Auth & Organization Screens */}
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{
+          headerShown: true,
+          title: 'Register',
+        }}
+      />
+
+      <Stack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
+        options={{
+          headerShown: true,
+          title: 'Reset Password',
+        }}
+      />
+
+      <Stack.Screen
+        name="RegisterOrganization"
+        component={RegisterOrganizationScreen}
+        options={{
+          headerShown: true,
+          title: 'Join Organization',
+        }}
+      />
+
+      <Stack.Screen
+        name="CreateOrganization"
+        component={CreateOrganizationScreen}
+        options={{
+          headerShown: true,
+          title: 'Create Organization',
         }}
       />
 
