@@ -401,7 +401,7 @@ module.exports = (pool, logger) => {
    */
   router.get('/v1/users/:userId/roles', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const userId = parseInt(req.params.userId, 10);
+    const userId = req.params.userId; // UUID, not integer
 
     // Verify user belongs to organization
     const userCheck = await pool.query(
@@ -471,15 +471,15 @@ module.exports = (pool, logger) => {
    */
   router.put('/v1/users/:userId/roles', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const userId = parseInt(req.params.userId, 10);
+    const userId = req.params.userId; // UUID, not integer
     const { roleIds } = req.body;
 
     if (!Array.isArray(roleIds) || roleIds.length === 0) {
       return res.status(400).json({ success: false, message: 'roleIds must be a non-empty array' });
     }
 
-    // Prevent users from changing their own roles
-    if (userId === req.user.id) {
+    // Prevent users from changing their own roles (compare as strings since both are UUIDs)
+    if (userId === String(req.user.id)) {
       return res.status(400).json({ success: false, message: 'Cannot change your own roles' });
     }
 
