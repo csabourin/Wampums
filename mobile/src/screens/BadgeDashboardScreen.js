@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import {
   getBadgeSummary,
   getBadgeSystemSettings,
@@ -31,10 +32,14 @@ import {
   Select,
   EmptyState,
   Modal,
+  useToast,
 } from '../components';
 import { canViewBadges, canApproveBadges, canManageBadges } from '../utils/PermissionUtils';
+import { debugLog, debugError } from '../utils/DebugUtils';
 
-const BadgeDashboardScreen = ({ navigation }) => {
+const BadgeDashboardScreen = () => {
+  const navigation = useNavigation();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -51,12 +56,16 @@ const BadgeDashboardScreen = ({ navigation }) => {
   useEffect(() => {
     // Check permissions and load data
     const checkPermissionsAndLoad = async () => {
+      debugLog('[BadgeDashboard] Checking permissions...');
       const hasViewPermission = await canViewBadges();
       const hasApprovePermission = await canApproveBadges();
       const hasManagePermission = await canManageBadges();
+      debugLog('[BadgeDashboard] Permissions:', { hasViewPermission, hasApprovePermission, hasManagePermission });
       
       if (!hasViewPermission && !hasApprovePermission && !hasManagePermission) {
-        navigation.goBack();
+        debugError('[BadgeDashboard] No badge permissions, going back');
+        toast.show(t('error_permission_denied'), 'error');
+        setTimeout(() => navigation.goBack(), 100);
         return;
       }
 

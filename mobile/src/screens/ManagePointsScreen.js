@@ -5,7 +5,7 @@
  * Provides quick point adjustments for participants and groups.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,19 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import { getParticipants, getGroups, updatePoints } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
-import { Card, LoadingSpinner, ErrorMessage, Button } from '../components';
+import {
+  ListItem,
+  FilterBar,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  Button,
+  useToast,
+} from '../components';
 import SecurityUtils from '../utils/SecurityUtils';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
@@ -274,11 +283,11 @@ const ManagePointsScreen = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading_points') || 'Loading points...'} />;
   }
 
   if (error) {
-    return <ErrorMessage message={error} onRetry={loadPointsData} />;
+    return <ErrorState message={error} onRetry={loadPointsData} />;
   }
 
   return (

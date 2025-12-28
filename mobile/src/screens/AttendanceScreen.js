@@ -28,7 +28,7 @@ import {
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
 import SecurityUtils from '../utils/SecurityUtils';
-import { Button, ErrorMessage, LoadingSpinner } from '../components';
+import { Button, LoadingState, ErrorState } from '../components';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 import { debugError, debugLog } from '../utils/DebugUtils';
@@ -431,11 +431,11 @@ const AttendanceScreen = () => {
   };
 
   if (loading) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading_attendance') || 'Loading attendance...'} />;
   }
 
   if (error) {
-    return <ErrorMessage message={error} onRetry={loadInitialData} />;
+    return <ErrorState message={error} onRetry={loadInitialData} />;
   }
 
   return (

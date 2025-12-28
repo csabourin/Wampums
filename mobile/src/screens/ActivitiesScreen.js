@@ -6,78 +6,97 @@
  * For admin and leader users
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
-  Text,
-  FlatList,
+  ScrollView,
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
-  SegmentedControlIOS,
-  Platform,
+  Text,
 } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getActivities } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
-import { Card, LoadingSpinner, ErrorMessage } from '../components';
+import {
+  ListItem,
+  FilterBar,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  NoData,
+  useToast,
+} from '../components';
+import { hasPermission } from '../utils/PermissionUtils';
+import StorageUtils from '../utils/StorageUtils';
+import theme from '../theme';
 import CONFIG from '../config';
 
-const ActivitiesScreen = ({ navigation }) => {
+const ActivitiesScreen = () => {
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [activities, setActivities] = useState([]);
-  const [filteredActivities, setFilteredActivities] = useState([]);
-  const [filter, setFilter] = useState('upcoming'); // upcoming, past, all
+  const [activeFilter, setActiveFilter] = useState('upcoming');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [userPermissions, setUserPermissions] = useState([]);
+  
+  const { showToast, ToastComponent } = useToast();
+
+  // Configure header
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: t('activities_calendar') || 'Activities',
+      headerRight: () =>
+        canManage ? (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ActivityDetail', { id: 'new' })}
+            style={{ paddingRight: 16 }}
+          >
+            <Text style={{ fontSize: 28, color: theme.colors.primary }}>+</Text>
+          </TouchableOpacity>
+        ) : null,
+    });
+  }, [navigation]);
 
   useEffect(() => {
-    loadActivities();
+    loadUserPermissions();
   }, []);
 
-  useEffect(() => {
-    filterActivities();
-  }, [filter, activities]);
+  useFocusEffect(
+    useCallback(() => {
+      loadActivities();
+    }, [])
+  );
+
+  const loadUserPermissions = async () => {
+    try {
+      const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+      setUserPermissions(permissions || []);
+    } catch (err) {
+      console.error('Error loading permissions:', err);
+    }
+  };
 
   const loadActivities = async () => {
     try {
-      setError('');
-
+      setError(null);
       const response = await getActivities();
       if (response.success) {
-        // Sort by date descending
-        const sorted = response.data.sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
-        );
-        setActivities(sorted);
+        setActivities(response.data || []);
+      } else {
+        setError(response.message || t('error_loading_data'));
       }
     } catch (err) {
+      console.error('Error loading activities:', err);
       setError(err.message || t('error_loading_data'));
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterActivities = () => {
-    let filtered = [...activities];
-
-    switch (filter) {
-      case 'upcoming':
-        filtered = filtered.filter((a) => DateUtils.isFuture(a.date));
-        // Sort upcoming ascending (soonest first)
-        filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
-        break;
-      case 'past':
-        filtered = filtered.filter((a) => DateUtils.isPast(a.date));
-        // Sort past descending (most recent first)
-        filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-        break;
-      case 'all':
-        // Already sorted descending
-        break;
-    }
-
-    setFilteredActivities(filtered);
   };
 
   const onRefresh = async () => {
@@ -86,153 +105,186 @@ const ActivitiesScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
+  // Derived state: filtered and sorted activities
+  const filteredActivities = React.useMemo(() => {
+    let filtered = [...activities];
+    const now = new Date();
+
+    // Apply time filter
+    if (activeFilter === 'upcoming') {
+      filtered = filtered.filter((activity) => new Date(activity.date) >= now);
+    } else if (activeFilter === 'past') {
+      filtered = filtered.filter((activity) => new Date(activity.date) < now);
+    }
+    // 'all' shows everything
+
+    // Apply sort
+    filtered.sort((a, b) => {
+      const aDate = new Date(a.date);
+      const bDate = new Date(b.date);
+
+      if (sortBy === 'date') {
+        return sortOrder === 'asc' ? aDate - bDate : bDate - aDate;
+      } else if (sortBy === 'name') {
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        if (sortOrder === 'asc') {
+          return aName.localeCompare(bName);
+        } else {
+          return bName.localeCompare(aName);
+        }
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [activities, activeFilter, sortBy, sortOrder]);
+
+  const canManage = hasPermission(userPermissions, 'activities', 'create');
+
+  // Filter options
+  const filterOptions = [
+    {
+      value: 'upcoming',
+      label: t('upcoming') || 'Upcoming',
+      count: activities.filter((a) => new Date(a.date) >= new Date()).length,
+    },
+    {
+      value: 'past',
+      label: t('past') || 'Past',
+      count: activities.filter((a) => new Date(a.date) < new Date()).length,
+    },
+    {
+      value: 'all',
+      label: t('all') || 'All',
+      count: activities.length,
+    },
+  ];
+
+  // Sort options
+  const sortOptions = [
+    { value: 'date-asc', label: t('date_oldest_first') || 'Date (Oldest First)' },
+    { value: 'date-desc', label: t('date_newest_first') || 'Date (Newest First)' },
+    { value: 'name-asc', label: t('name_a_z') || 'Name (A-Z)' },
+    { value: 'name-desc', label: t('name_z_a') || 'Name (Z-A)' },
+  ];
+
+  const handleSortChange = (value) => {
+    const [field, order] = value.split('-');
+    setSortBy(field);
+    setSortOrder(order);
+  };
+
+  const handleActivityPress = (activity) => {
+    navigation.navigate('ActivityDetail', { id: activity.id });
+  };
+
   const getActivityStatus = (activity) => {
-    if (DateUtils.isToday(activity.date)) {
-      return { text: t('Today'), color: '#34C759' };
-    }
-    if (DateUtils.isFuture(activity.date)) {
-      return { text: t('Upcoming'), color: '#007AFF' };
-    }
-    return { text: t('Past'), color: '#8E8E93' };
-  };
-
-  const renderActivity = ({ item }) => {
-    const status = getActivityStatus(item);
-
-    return (
-      <Card onPress={() => navigation.navigate('ActivityDetail', { id: item.id })}>
-        <View style={styles.activityHeader}>
-          <View style={styles.activityInfo}>
-            <Text style={styles.activityName}>{item.name}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: status.color }]}>
-              <Text style={styles.statusText}>{status.text}</Text>
-            </View>
-          </View>
-          <Text style={styles.chevron}>›</Text>
-        </View>
-
-        <Text style={styles.activityDate}>
-          📅 {DateUtils.formatDate(item.date)} {DateUtils.formatTime(item.date)}
-        </Text>
-
-        {item.location && (
-          <Text style={styles.activityDetail}>📍 {item.location}</Text>
-        )}
-
-        {item.description && (
-          <Text style={styles.activityDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
-        )}
-
-        {item.participantCount !== undefined && (
-          <Text style={styles.activityDetail}>
-            👥 {item.participantCount} {t('participants')}
-          </Text>
-        )}
-      </Card>
+    const activityDate = new Date(activity.date);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const activityDay = new Date(
+      activityDate.getFullYear(),
+      activityDate.getMonth(),
+      activityDate.getDate()
     );
+
+    if (activityDay.getTime() === today.getTime()) {
+      return { text: t('today') || 'Today', color: theme.colors.success };
+    }
+    if (activityDate >= now) {
+      return { text: t('upcoming') || 'Upcoming', color: theme.colors.primary };
+    }
+    return { text: t('past') || 'Past', color: theme.colors.text.secondary };
   };
 
+  // Render methods
   if (loading) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading_activities') || 'Loading activities...'} />;
   }
 
   if (error) {
-    return <ErrorMessage message={error} onRetry={loadActivities} />;
+    return <ErrorState message={error} onRetry={loadActivities} />;
+  }
+
+  if (activities.length === 0) {
+    return (
+      <EmptyState
+        icon="📅"
+        title={t('no_activities') || 'No Activities Yet'}
+        message={
+          canManage
+            ? t('no_activities_create') || 'Create your first activity to get started'
+            : t('no_activities_check_back') || 'Check back later for upcoming activities'
+        }
+        actionLabel={canManage ? t('create_activity') || 'Create Activity' : undefined}
+        onAction={canManage ? () => navigation.navigate('ActivityDetail', { id: 'new' }) : undefined}
+      />
+    );
   }
 
   return (
     <View style={styles.container}>
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        {Platform.OS === 'ios' ? (
-          <SegmentedControlIOS
-            values={[
-              t('Upcoming'),
-              t('Past'),
-              t('All'),
-            ]}
-            selectedIndex={
-              filter === 'upcoming' ? 0 : filter === 'past' ? 1 : 2
-            }
-            onChange={(event) => {
-              const index = event.nativeEvent.selectedSegmentIndex;
-              setFilter(index === 0 ? 'upcoming' : index === 1 ? 'past' : 'all');
-            }}
-            style={styles.segmentedControl}
-          />
-        ) : (
-          <View style={styles.androidTabs}>
-            <TouchableOpacity
-              style={[
-                styles.androidTab,
-                filter === 'upcoming' && styles.androidTabActive,
-              ]}
-              onPress={() => setFilter('upcoming')}
-            >
-              <Text
-                style={[
-                  styles.androidTabText,
-                  filter === 'upcoming' && styles.androidTabTextActive,
-                ]}
-              >
-                {t('Upcoming')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.androidTab, filter === 'past' && styles.androidTabActive]}
-              onPress={() => setFilter('past')}
-            >
-              <Text
-                style={[
-                  styles.androidTabText,
-                  filter === 'past' && styles.androidTabTextActive,
-                ]}
-              >
-                {t('Past')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.androidTab, filter === 'all' && styles.androidTabActive]}
-              onPress={() => setFilter('all')}
-            >
-              <Text
-                style={[
-                  styles.androidTabText,
-                  filter === 'all' && styles.androidTabTextActive,
-                ]}
-              >
-                {t('All')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Activities List */}
-      <FlatList
-        data={filteredActivities}
-        renderItem={renderActivity}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{t('No activities')}</Text>
-          </View>
-        }
+      <FilterBar
+        filters={filterOptions}
+        activeFilter={activeFilter}
+        onFilterChange={setActiveFilter}
+        sortOptions={sortOptions}
+        sortValue={`${sortBy}-${sortOrder}`}
+        onSortChange={handleSortChange}
       />
 
-      {/* Add Button (for admins/leaders) */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('ActivityDetail', { id: 'new' })}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.listContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+        {filteredActivities.length === 0 ? (
+          <NoData
+            icon="🔍"
+            message={
+              activeFilter === 'upcoming'
+                ? t('no_upcoming_activities') || 'No upcoming activities'
+                : activeFilter === 'past'
+                ? t('no_past_activities') || 'No past activities'
+                : t('no_activities_filter') || 'No activities match your filters'
+            }
+          />
+        ) : (
+          filteredActivities.map((activity) => {
+            const status = getActivityStatus(activity);
+            const activityDate = DateUtils.formatDate(activity.date);
+            const activityTime = activity.time
+              ? DateUtils.formatTime(activity.time)
+              : null;
+
+            return (
+              <ListItem
+                key={activity.id}
+                title={activity.name}
+                subtitle={
+                  `📅 ${activityDate}${activityTime ? ` ${activityTime}` : ''}` +
+                  (activity.location ? `\n📍 ${activity.location}` : '') +
+                  (activity.participant_count
+                    ? `\n👥 ${activity.participant_count} ${t('participants') || 'participants'}`
+                    : '')
+                }
+                badge={
+                  status
+                    ? {
+                        text: status.text,
+                        color: status.color,
+                      }
+                    : undefined
+                }
+                onPress={() => handleActivityPress(activity)}
+              />
+            );
+          })
+        )}
+      </ScrollView>
+
+      <ToastComponent />
     </View>
   );
 };
@@ -240,118 +292,13 @@ const ActivitiesScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background.primary,
   },
-  filterContainer: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  segmentedControl: {
-    height: 32,
-  },
-  androidTabs: {
-    flexDirection: 'row',
-  },
-  androidTab: {
+  scrollView: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-    marginHorizontal: 4,
-    alignItems: 'center',
-  },
-  androidTabActive: {
-    backgroundColor: '#007AFF',
-  },
-  androidTabText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  androidTabTextActive: {
-    color: '#fff',
-    fontWeight: '600',
   },
   listContainer: {
-    padding: 16,
-  },
-  activityHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  activityInfo: {
-    flex: 1,
-  },
-  activityName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  chevron: {
-    fontSize: 24,
-    color: '#C7C7CC',
-    marginLeft: 8,
-  },
-  activityDate: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 4,
-  },
-  activityDetail: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  activityDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 8,
-    lineHeight: 20,
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  fabText: {
-    fontSize: 32,
-    color: '#fff',
-    fontWeight: '300',
+    padding: theme.spacing.md,
   },
 });
 

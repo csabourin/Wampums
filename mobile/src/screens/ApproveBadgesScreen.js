@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { getPendingBadges, updateBadgeStatus } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -30,8 +31,10 @@ import {
 } from '../components';
 import { canApproveBadges } from '../utils/PermissionUtils';
 import DateUtils from '../utils/DateUtils';
+import { debugLog, debugError } from '../utils/DebugUtils';
 
-const ApproveBadgesScreen = ({ navigation }) => {
+const ApproveBadgesScreen = () => {
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -44,9 +47,13 @@ const ApproveBadgesScreen = ({ navigation }) => {
   useEffect(() => {
     // Check permissions and load data
     const checkPermissionsAndLoad = async () => {
+      debugLog('[ApproveBadges] Checking permissions...');
       const hasPermission = await canApproveBadges();
+      debugLog('[ApproveBadges] Permission result:', hasPermission);
       if (!hasPermission) {
-        navigation.goBack();
+        debugError('[ApproveBadges] Permission denied, going back');
+        toast.show(t('error_permission_denied'), 'error');
+        setTimeout(() => navigation.goBack(), 100);
         return;
       }
 

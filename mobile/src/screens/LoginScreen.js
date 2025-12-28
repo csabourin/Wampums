@@ -120,6 +120,16 @@ const LoginScreen = ({ navigation, onLogin }) => {
   const storeSessionData = async (data) => {
     // Store session data similar to spa/login.js
     // Backend returns snake_case (user_id, user_role, etc.)
+    debugLog('🟠 [LoginScreen] Login response data:', {
+      hasToken: !!data.token,
+      userId: data.user_id || data.userId,
+      userRole: data.user_role || data.userRole,
+      userRoles: data.user_roles || data.userRoles,
+      userPermissions: data.user_permissions || data.userPermissions,
+      permissionsLength: (data.user_permissions || data.userPermissions || []).length,
+      organizationId: data.organization_id,
+    });
+    
     await StorageUtils.setStorageMultiple({
       [CONFIG.STORAGE_KEYS.JWT_TOKEN]: data.token,
       [CONFIG.STORAGE_KEYS.USER_ID]: data.user_id || data.userId,
@@ -130,6 +140,8 @@ const LoginScreen = ({ navigation, onLogin }) => {
       [CONFIG.STORAGE_KEYS.ORGANIZATION_ID]: data.organization_id || organizationId,
       [CONFIG.STORAGE_KEYS.CURRENT_ORGANIZATION_ID]: data.organization_id || organizationId,
     });
+    
+    debugLog('🟠 [LoginScreen] Stored permissions:', await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS));
 
     // Backend uses snake_case
     if (data.guardian_participants || data.guardianParticipants) {

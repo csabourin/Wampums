@@ -19,6 +19,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
@@ -32,7 +33,7 @@ import {
   useToast,
 } from '../components';
 import { canViewInventory, canManageInventory } from '../utils/PermissionUtils';
-import { API } from '../api/api-core';
+import { getEquipment } from '../api/api-endpoints';
 import StorageUtils from '../utils/StorageUtils';
 
 const LOCATION_TYPES = [
@@ -66,7 +67,9 @@ const InventoryScreen = ({ navigation }) => {
     location_type: 'local_scout_hall',
     location_details: '',
     share_with_local_group: true,
+    photo_url: '',
   });
+  const [selectedImage, setSelectedImage] = useState(null); // Local image before upload
 
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
@@ -100,15 +103,10 @@ const InventoryScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getToken();
+      const response = await getEquipment();
 
-      const response = await fetch(`${API.baseURL}/v1/resources/equipment`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setEquipment(result.data?.equipment || result.equipment || []);
+      if (response.success && response.data) {
+        setEquipment(response.data.equipment || response.data || []);
       }
     } catch (err) {
       console.error('Error loading equipment:', err);
@@ -137,7 +135,38 @@ const InventoryScreen = ({ navigation }) => {
       location_type: 'local_scout_hall',
       location_details: '',
       share_with_local_group: true,
+      photo_url: '',
     });
+    setSelectedImage(null);
+  };
+
+  // Image picker function
+  const pickImage = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        toast.show(t('photo_permission_required'), 'warning');
+        return;
+      }
+
+      // Launch picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setSelectedImage(imageUri);
+        setFormData({ ...formData, photo_url: imageUri });
+      }
+    } catch (error) {
+      debugError('Error picking image:', error);
+      toast.show(t('error_picking_image'), 'error');
+    }
   };
 
   const handleAdd = async () => {
@@ -168,9 +197,10 @@ const InventoryScreen = ({ navigation }) => {
         location_type: formData.location_type || 'local_scout_hall',
         location_details: formData.location_details?.trim() || null,
         share_with_local_group: formData.share_with_local_group,
+        photo_url: formData.photo_url?.trim() || null,
       };
 
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
       const response = await fetch(`${API.baseURL}/v1/resources/equipment`, {
         method: 'POST',
         headers: {
@@ -225,9 +255,10 @@ const InventoryScreen = ({ navigation }) => {
         acquisition_date: formData.acquisition_date || null,
         location_type: formData.location_type || 'local_scout_hall',
         location_details: formData.location_details?.trim() || null,
+        photo_url: formData.photo_url?.trim() || null,
       };
 
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
       const response = await fetch(
         `${API.baseURL}/v1/resources/equipment/${editingItem.id}`,
         {
@@ -278,7 +309,7 @@ const InventoryScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const token = await StorageUtils.getToken();
+              const token = await StorageUtils.getJWT();
               const response = await fetch(
                 `${API.baseURL}/v1/resources/equipment/${item.id}`,
                 {
@@ -317,7 +348,9 @@ const InventoryScreen = ({ navigation }) => {
       location_type: item.location_type || 'local_scout_hall',
       location_details: item.location_details || '',
       share_with_local_group: item.share_with_local_group ?? true,
+      photo_url: item.photo_url || '',
     });
+    setSelectedImage(item.photo_url || null);
     setShowEditModal(true);
   };
 
@@ -349,6 +382,30 @@ const InventoryScreen = ({ navigation }) => {
   const renderEquipmentForm = () => {
     return (
       <View style={styles.formContainer}>
+        {/* Image Picker Section */}
+        <View style={styles.imageSection}>
+          <Text style={styles.label}>{t('equipment_photo')}</Text>
+          {selectedImage ? (
+            <View style={styles.imagePreviewContainer}>
+              <Image
+                source={{ uri: selectedImage }}
+                style={styles.imagePreview}
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                style={styles.changePhotoButton}
+                onPress={pickImage}
+              >
+                <Text style={styles.changePhotoText}>{t('change_photo')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
+              <Text style={styles.addPhotoText}>📷 {t('add_photo')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <FormField
           label={t('equipment_name')}
           value={formData.name}
@@ -546,6 +603,15 @@ const InventoryScreen = ({ navigation }) => {
               activeOpacity={0.7}
               disabled={!canManageInventory()}
             >
+              {/* Equipment Image */}
+              {item.photo_url && (
+                <Image
+                  source={{ uri: item.photo_url }}
+                  style={styles.equipmentImage}
+                  resizeMode="cover"
+                />
+              )}
+              
               <View style={styles.listItemHeader}>
                 <Text style={styles.listItemName}>{item.name}</Text>
                 <Text style={styles.listItemQuantity}>
@@ -911,6 +977,61 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: theme.colors.textMuted,
+  },
+  // Image styles
+  imageSection: {
+    marginBottom: theme.spacing.md,
+  },
+  label: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
+  },
+  imagePreviewContainer: {
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.borderLight,
+  },
+  changePhotoButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.borderRadius.md,
+    minHeight: theme.touchTarget.min,
+  },
+  changePhotoText: {
+    color: theme.colors.surface,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  addPhotoButton: {
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.borderLight,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    minHeight: theme.touchTarget.min,
+  },
+  addPhotoText: {
+    color: theme.colors.textMuted,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+  },
+  equipmentImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.borderLight,
+    marginBottom: theme.spacing.sm,
   },
 });
 

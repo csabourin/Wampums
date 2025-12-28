@@ -13,16 +13,43 @@ export { default as StatCard } from './StatCard';
 export { default as QuickActionButton } from './QuickActionButton';
 export { default as DashboardSection } from './DashboardSection';
 
-// Newly Added Shared Components (Phase 1)
-export { default as TableRow, Table, TableHeader, TableCell, TableHeaderCell } from './TableRow';
-export { default as FilterBar, SortButton } from './FilterBar';
-export { default as Modal, ConfirmModal } from './Modal';
-export { default as Toast, useToast } from './Toast';
-export { default as EmptyState, NoResults, NoData } from './EmptyState';
-export { default as FormField, Checkbox, RadioButton, RadioGroup, Select } from './FormField';
+// Table Components
+export { 
+  Table, 
+  TableHeader, 
+  TableRow, 
+  TableCell, 
+  TableHeaderCell,
+  ListItem 
+} from './Table';
 
-// Placeholder exports for future components
-// export { default as Header } from './Header';
-// export { default as ParticipantCard } from './ParticipantCard';
-// export { default as ActivityCard } from './ActivityCard';
-// export { default as LanguageSwitcher } from './LanguageSwitcher';
+// Filter & Search
+export { default as FilterBar, SortButton, SearchBar } from './FilterBar';
+
+// Modal & Dialogs
+export { default as Modal, ConfirmModal } from './Modal';
+
+// Toast Notifications
+export { default as Toast, useToast } from './Toast';
+
+// Form Components
+export { 
+  default as FormField, 
+  Checkbox, 
+  RadioButton, 
+  RadioGroup, 
+  Select 
+} from './FormField';
+
+// Dynamic Form Renderer
+export { default as DynamicFormRenderer } from './DynamicFormRenderer';
+
+// Empty States
+export { 
+  default as EmptyState, 
+  NoResults, 
+  NoData,
+  LoadingState,
+  ErrorState,
+  OfflineState
+} from './EmptyState';

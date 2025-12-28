@@ -8,6 +8,7 @@
  */
 
 import StorageUtils from './StorageUtils';
+import CONFIG from '../config';
 
 /**
  * Get cached user permissions from storage
@@ -15,8 +16,10 @@ import StorageUtils from './StorageUtils';
  */
 async function getUserPermissions() {
   try {
-    const permissions = await StorageUtils.getItem('USER_PERMISSIONS');
-    return Array.isArray(permissions) ? permissions : [];
+    const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+    const result = Array.isArray(permissions) ? permissions : [];
+    console.log('[PermissionUtils] Retrieved permissions:', result);
+    return result;
   } catch (error) {
     console.error('Error getting user permissions:', error);
     return [];
@@ -175,7 +178,15 @@ export async function canViewBadges() {
  */
 export async function canApproveBadges() {
   const permissions = await getUserPermissions();
-  return hasAnyPermission(['badges.approve', 'badges.manage'], permissions);
+  const result = hasAnyPermission(['badges.approve', 'badges.manage'], permissions);
+  console.log('[PermissionUtils] canApproveBadges check:', {
+    permissions,
+    required: ['badges.approve', 'badges.manage'],
+    result,
+    hasBadgesApprove: permissions.includes('badges.approve'),
+    hasBadgesManage: permissions.includes('badges.manage')
+  });
+  return result;
 }
 
 /**
@@ -185,6 +196,24 @@ export async function canApproveBadges() {
 export async function canManageBadges() {
   const permissions = await getUserPermissions();
   return hasPermission('badges.manage', permissions);
+}
+
+/**
+ * Check if user can view inventory
+ * @returns {Promise<boolean>} True if user can view inventory
+ */
+export async function canViewInventory() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['inventory.view', 'inventory.manage'], permissions);
+}
+
+/**
+ * Check if user can manage inventory
+ * @returns {Promise<boolean>} True if user can manage inventory
+ */
+export async function canManageInventory() {
+  const permissions = await getUserPermissions();
+  return hasPermission('inventory.manage', permissions);
 }
 
 /**
@@ -296,6 +325,8 @@ export default {
   canViewBadges,
   canApproveBadges,
   canManageBadges,
+  canViewInventory,
+  canManageInventory,
   canViewFinance,
   canManageFinance,
   canApproveFinance,

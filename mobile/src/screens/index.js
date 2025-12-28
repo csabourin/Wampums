@@ -16,6 +16,8 @@ export { default as DistrictDashboardScreen } from './DistrictDashboardScreen';
 export { default as ParticipantsScreen } from './ParticipantsScreen';
 export { default as ActivitiesScreen } from './ActivitiesScreen';
 export { default as SettingsScreen } from './SettingsScreen';
+export { default as AccountInfoScreen } from './AccountInfoScreen';
+export { default as CarpoolScreen } from './CarpoolScreen';
 export { default as ManagePointsScreen } from './ManagePointsScreen';
 export { default as AttendanceScreen } from './AttendanceScreen';
 export { default as MeetingPreparationScreen } from './MeetingPreparationScreen';

@@ -6,43 +6,90 @@
  * For admin and leader users
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
-  Text,
-  FlatList,
-  TextInput,
+  ScrollView,
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getParticipants, getGroups } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
-import { Card, LoadingSpinner, ErrorMessage } from '../components';
+import {
+  ListItem,
+  SearchBar,
+  FilterBar,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  NoResults,
+  useToast,
+  ConfirmModal,
+} from '../components';
+import { hasPermission } from '../utils/PermissionUtils';
+import StorageUtils from '../utils/StorageUtils';
+import theme from '../theme';
 import CONFIG from '../config';
 
-const ParticipantsScreen = ({ navigation }) => {
+const ParticipantsScreen = () => {
+  const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [filteredParticipants, setFilteredParticipants] = useState([]);
   const [groups, setGroups] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('all');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  
+  const { showToast, ToastComponent } = useToast();
+
+  // Configure navigation header
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: t('manage_names') || 'Participants',
+      headerRight: () =>
+        canManage ? (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ParticipantDetail', { id: 'new' })}
+            style={{ paddingRight: 16 }}
+          >
+            <Text style={{ fontSize: 28, color: theme.colors.primary }}>+</Text>
+          </TouchableOpacity>
+        ) : null,
+    });
+  }, [navigation]);
 
   useEffect(() => {
-    loadData();
+    loadUserPermissions();
   }, []);
 
-  useEffect(() => {
-    filterParticipants();
-  }, [searchQuery, selectedGroup, participants]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  const loadUserPermissions = async () => {
+    try {
+      const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+      setUserPermissions(permissions || []);
+    } catch (err) {
+      console.error('Error loading permissions:', err);
+    }
+  };
 
   const loadData = async () => {
     try {
-      setError('');
+      setLoading(true);
+      setError(null);
 
       // Load participants and groups in parallel
       const [participantsResponse, groupsResponse] = await Promise.all([
@@ -51,45 +98,19 @@ const ParticipantsScreen = ({ navigation }) => {
       ]);
 
       if (participantsResponse.success) {
-        setParticipants(participantsResponse.data);
+        setParticipants(participantsResponse.data || participantsResponse.participants || []);
+      } else {
+        throw new Error(participantsResponse.message || 'Failed to load participants');
       }
 
       if (groupsResponse.success) {
-        setGroups(groupsResponse.data);
+        setGroups(groupsResponse.data || groupsResponse.groups || []);
       }
     } catch (err) {
-      setError(err.message || t('error_loading_data'));
+      setError(err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterParticipants = () => {
-    let filtered = [...participants];
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (p) =>
-          p.firstName?.toLowerCase().includes(query) ||
-          p.lastName?.toLowerCase().includes(query)
-      );
-    }
-
-    // Filter by group
-    if (selectedGroup !== 'all') {
-      filtered = filtered.filter((p) => p.groupId === selectedGroup);
-    }
-
-    // Sort by last name, first name
-    filtered.sort((a, b) => {
-      const aName = `${a.lastName} ${a.firstName}`.toLowerCase();
-      const bName = `${b.lastName} ${b.firstName}`.toLowerCase();
-      return aName.localeCompare(bName);
-    });
-
-    setFilteredParticipants(filtered);
   };
 
   const onRefresh = async () => {
@@ -98,107 +119,163 @@ const ParticipantsScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const renderParticipant = ({ item }) => (
-    <Card onPress={() => navigation.navigate('ParticipantDetail', { participantId: item.id })}>
-      <View style={styles.participantRow}>
-        <View style={styles.participantInfo}>
-          <Text style={styles.participantName}>
-            {item.firstName} {item.lastName}
-          </Text>
-          <Text style={styles.participantDetail}>
-            {t('age')}: {DateUtils.calculateAge(item.birthdate)}{' '}
-            {t('years')}
-          </Text>
-          {item.group && (
-            <Text style={styles.participantDetail}>
-              {t('group')}: {item.group}
-            </Text>
-          )}
-        </View>
-        <Text style={styles.chevron}>›</Text>
-      </View>
-    </Card>
-  );
+  const canManage = hasPermission('participants.manage', userPermissions);
 
+  // Filter and sort participants
+  const filteredParticipants = participants
+    .filter((p) => {
+      // Filter by group
+      if (activeFilter !== 'all' && p.groupId !== parseInt(activeFilter)) {
+        return false;
+      }
+
+      // Filter by search query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        return (
+          p.firstName?.toLowerCase().includes(query) ||
+          p.lastName?.toLowerCase().includes(query)
+        );
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      let aVal, bVal;
+
+      switch (sortBy) {
+        case 'name':
+          aVal = `${a.lastName} ${a.firstName}`.toLowerCase();
+          bVal = `${b.lastName} ${b.firstName}`.toLowerCase();
+          break;
+        case 'age':
+          aVal = DateUtils.calculateAge(a.birthdate) || 0;
+          bVal = DateUtils.calculateAge(b.birthdate) || 0;
+          break;
+        case 'group':
+          aVal = a.groupName || '';
+          bVal = b.groupName || '';
+          break;
+        default:
+          return 0;
+      }
+
+      const comparison = aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+  // Prepare filter options
+  const filterOptions = [
+    { key: 'all', label: t('all_groups') || 'All', count: participants.length },
+    ...groups.map((group) => ({
+      key: String(group.id),
+      label: group.name,
+      count: participants.filter((p) => p.groupId === group.id).length,
+    })),
+  ];
+
+  const sortOptions = [
+    { key: 'name', label: t('name') || 'Name' },
+    { key: 'age', label: t('age') || 'Age' },
+    { key: 'group', label: t('group') || 'Group' },
+  ];
+
+  // Loading state
   if (loading) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading')} />;
   }
 
+  // Error state
   if (error) {
-    return <ErrorMessage message={error} onRetry={loadData} />;
+    return <ErrorState message={error.message} onRetry={loadData} />;
+  }
+
+  // Empty state
+  if (participants.length === 0) {
+    return (
+      <EmptyState
+        icon="👥"
+        title={t('no_participants') || 'No Participants'}
+        message={t('add_first_participant') || 'Add your first participant to get started.'}
+        actionLabel={canManage ? (t('add_participant') || 'Add Participant') : undefined}
+        onAction={canManage ? () => navigation.navigate('ParticipantDetail', { id: 'new' }) : undefined}
+      />
+    );
   }
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder={t('Search participants')}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
+      {ToastComponent}
 
-      {/* Group Filter */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterButton, selectedGroup === 'all' && styles.filterButtonActive]}
-          onPress={() => setSelectedGroup('all')}
-        >
-          <Text
-            style={[
-              styles.filterButtonText,
-              selectedGroup === 'all' && styles.filterButtonTextActive,
-            ]}
-          >
-            {t('all_groups')}
-          </Text>
-        </TouchableOpacity>
-        {groups.map((group) => (
-          <TouchableOpacity
-            key={group.id}
-            style={[
-              styles.filterButton,
-              selectedGroup === group.id && styles.filterButtonActive,
-            ]}
-            onPress={() => setSelectedGroup(group.id)}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                selectedGroup === group.id && styles.filterButtonTextActive,
-              ]}
-            >
-              {group.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Participants List */}
-      <FlatList
-        data={filteredParticipants}
-        renderItem={renderParticipant}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>{t('no_participants')}</Text>
-          </View>
-        }
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder={t('search_participants') || 'Search participants...'}
       />
 
-      {/* Add Button (for admins) */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('ParticipantDetail', { id: 'new' })}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      <FilterBar
+        filters={filterOptions}
+        activeFilter={activeFilter}
+        onFilterChange={setActiveFilter}
+        sortOptions={sortOptions}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSortChange={(field, order) => {
+          setSortBy(field);
+          setSortOrder(order);
+        }}
+      />
+
+      {filteredParticipants.length === 0 ? (
+        <NoResults
+          searchTerm={searchQuery}
+          onClear={() => {
+            setSearchQuery('');
+            setActiveFilter('all');
+          }}
+        />
+      ) : (
+        <ScrollView
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={styles.listContent}
+        >
+          {filteredParticipants.map((participant) => (
+            <ListItem
+              key={participant.id}
+              title={`${participant.firstName} ${participant.lastName}`}
+              subtitle={[
+                participant.groupName,
+                `${DateUtils.calculateAge(participant.birthdate)} ${t('years') || 'years'}`,
+              ]
+                .filter(Boolean)
+                .join(' • ')}
+              leftIcon="👤"
+              onPress={() =>
+                navigation.navigate('ParticipantDetail', { id: participant.id })
+              }
+            />
+          ))}
+        </ScrollView>
+      )}
+
+      <ConfirmModal
+        visible={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          // Delete logic would go here
+          showToast(t('participant_deleted') || 'Participant deleted', 'success');
+          setDeleteTarget(null);
+          await loadData();
+        }}
+        title={t('confirm_delete') || 'Delete Participant?'}
+        message={
+          deleteTarget
+            ? t('confirm_delete_participant_message') ||
+              `Are you sure you want to delete ${deleteTarget.firstName} ${deleteTarget.lastName}?`
+            : ''
+        }
+        confirmStyle="danger"
+      />
     </View>
   );
 };
@@ -206,101 +283,10 @@ const ParticipantsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
-  searchContainer: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  searchInput: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#f5f5f5',
-    marginRight: 8,
-  },
-  filterButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  filterButtonTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  listContainer: {
-    padding: 16,
-  },
-  participantRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  participantInfo: {
-    flex: 1,
-  },
-  participantName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  participantDetail: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  chevron: {
-    fontSize: 24,
-    color: '#C7C7CC',
-    marginLeft: 8,
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  fabText: {
-    fontSize: 32,
-    color: '#fff',
-    fontWeight: '300',
+  listContent: {
+    paddingBottom: theme.spacing.xl,
   },
 });
 

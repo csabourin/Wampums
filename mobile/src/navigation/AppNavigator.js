@@ -22,6 +22,9 @@ import {
   HonorsScreen,
   MedicationScreen,
   SettingsScreen,
+  AccountInfoScreen,
+  ParentDashboardScreen,
+  CarpoolScreen,
   // Finance screens
   BudgetsScreen,
   ExpensesScreen,
@@ -79,6 +82,16 @@ const AppNavigator = ({ userPermissions }) => {
       {/* Dashboard - Home screen (like web SPA) */}
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
 
+      {/* Parent Dashboard - Parent view */}
+      <Stack.Screen
+        name="ParentDashboard"
+        component={ParentDashboardScreen}
+        options={{
+          headerShown: true,
+          title: 'Parent Dashboard',
+        }}
+      />
+
       {/* Core Screens - Accessible from Dashboard */}
       <Stack.Screen
         name="Participants"
@@ -99,11 +112,29 @@ const AppNavigator = ({ userPermissions }) => {
       />
 
       <Stack.Screen
+        name="Carpool"
+        component={CarpoolScreen}
+        options={{
+          headerShown: true,
+          title: 'Carpool',
+        }}
+      />
+
+      <Stack.Screen
         name="Settings"
         component={SettingsScreen}
         options={{
           headerShown: true,
           title: 'Settings',
+        }}
+      />
+
+      <Stack.Screen
+        name="AccountInfo"
+        component={AccountInfoScreen}
+        options={{
+          headerShown: true,
+          title: 'Account Settings',
         }}
       />
 

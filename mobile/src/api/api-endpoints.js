@@ -734,6 +734,177 @@ export const getUsers = async () => {
 };
 
 /**
+ * Get current user profile
+ */
+export const getUserProfile = async () => {
+  return API.get('/api/v1/users/me');
+};
+
+/**
+ * Update current user profile
+ */
+export const updateUserProfile = async (profileData) => {
+  return API.put('/api/v1/users/me', profileData);
+};
+
+/**
+ * Change user password
+ */
+export const changePassword = async (passwordData) => {
+  return API.post('/api/v1/users/me/password', passwordData);
+};
+
+/**
+ * ============================================================================
+ * BADGES
+ * ============================================================================
+ */
+
+/**
+ * Get pending badges for approval
+ */
+export const getPendingBadges = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/pending-badges', {}, { forceRefresh });
+};
+
+/**
+ * Get badge progress for participants
+ */
+export const getBadgeProgress = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/badge-progress', {}, { forceRefresh });
+};
+
+/**
+ * Save badge progress (submit for approval)
+ */
+export const saveBadgeProgress = async (badgeData) => {
+  return API.post('/api/save-badge-progress', badgeData);
+};
+
+/**
+ * Approve a badge
+ */
+export const approveBadge = async (progressId) => {
+  return API.post('/api/approve-badge', { progress_id: progressId });
+};
+
+/**
+ * Reject a badge
+ */
+export const rejectBadge = async (progressId, reason = '') => {
+  return API.post('/api/reject-badge', { progress_id: progressId, reason });
+};
+
+/**
+ * Update badge status (approve or reject)
+ */
+export const updateBadgeStatus = async (progressId, status, reason = '') => {
+  if (status === 'approved') {
+    return approveBadge(progressId);
+  } else if (status === 'rejected') {
+    return rejectBadge(progressId, reason);
+  }
+  throw new Error('Invalid status: must be "approved" or "rejected"');
+};
+
+/**
+ * Get badge summary for all participants
+ */
+export const getBadgeSummary = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/badge-summary', {}, { forceRefresh });
+};
+
+/**
+ * Get badge history for a participant
+ */
+export const getBadgeHistory = async (participantId, { forceRefresh = false } = {}) => {
+  return API.get(`/api/badge-history?participant_id=${participantId}`, {}, { forceRefresh });
+};
+
+/**
+ * Get current stars for participants
+ */
+export const getCurrentStars = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/current-stars', {}, { forceRefresh });
+};
+
+/**
+ * Get badge system settings
+ */
+export const getBadgeSystemSettings = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/badge-system-settings', {}, { forceRefresh });
+};
+
+/**
+ * Update badge progress entry
+ */
+export const updateBadgeProgress = async (progressId, badgeData) => {
+  return API.put(`/api/badge-progress/${progressId}`, badgeData);
+};
+
+/**
+ * ============================================================================
+ * REPORTS & CONTACTS
+ * ============================================================================
+ */
+
+/**
+ * Get parent contact list
+ */
+export const getParentContactList = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/parent-contact-list', {}, { forceRefresh });
+};
+
+/**
+ * ============================================================================
+ * DYNAMIC FORMS (V1)
+ * ============================================================================
+ */
+
+/**
+ * Get organization form formats
+ * @param {string} context - Optional context filter (participant, organization, admin_panel, public, form_builder)
+ */
+export const getOrganizationFormFormats = async (context = null) => {
+  const url = context 
+    ? `${CONFIG.ENDPOINTS.FORMS}/organization-form-formats?context=${context}`
+    : `${CONFIG.ENDPOINTS.FORMS}/organization-form-formats`;
+  return API.get(url);
+};
+
+/**
+ * Get form submission for a participant
+ * @param {number} participantId - Participant ID
+ * @param {string} formType - Form type (e.g., 'fiche_sante', 'registration')
+ */
+export const getFormSubmission = async (participantId, formType) => {
+  return API.get(
+    `${CONFIG.ENDPOINTS.FORMS}/form-submission?participant_id=${participantId}&form_type=${formType}`
+  );
+};
+
+/**
+ * Submit/save form data for a participant
+ * @param {string} formType - Form type
+ * @param {number} participantId - Participant ID
+ * @param {Object} formData - Form data to save
+ */
+export const submitDynamicForm = async (formType, participantId, formData) => {
+  return API.post(`${CONFIG.ENDPOINTS.FORMS}/form-submission`, {
+    form_type: formType,
+    participant_id: participantId,
+    submission_data: formData,
+  });
+};
+
+/**
+ * Save form submission (alias for submitDynamicForm for backward compatibility)
+ */
+export const saveFormSubmission = async (formType, participantId, formData) => {
+  return submitDynamicForm(formType, participantId, formData);
+};
+
+/**
  * Get all roles
  */
 export const getRoles = async () => {

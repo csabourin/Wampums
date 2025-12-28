@@ -16,6 +16,7 @@ import {
   Linking,
   TouchableOpacity,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { getParentContactList } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -25,10 +26,14 @@ import {
   Card,
   EmptyState,
   FilterBar,
+  useToast,
 } from '../components';
 import { canSendCommunications, canViewParticipants } from '../utils/PermissionUtils';
+import { debugLog, debugError } from '../utils/DebugUtils';
 
-const ParentContactListScreen = ({ navigation }) => {
+const ParentContactListScreen = () => {
+  const navigation = useNavigation();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -39,11 +44,15 @@ const ParentContactListScreen = ({ navigation }) => {
   useEffect(() => {
     // Check permissions
     const checkPermissions = async () => {
+      debugLog('[ParentContactList] Checking permissions...');
       const hasSendComms = await canSendCommunications();
       const hasViewParticipants = await canViewParticipants();
+      debugLog('[ParentContactList] Permissions:', { hasSendComms, hasViewParticipants });
       
       if (!hasSendComms && !hasViewParticipants) {
-        navigation.goBack();
+        debugError('[ParentContactList] No permissions, going back');
+        toast.show(t('error_permission_denied'), 'error');
+        setTimeout(() => navigation.goBack(), 100);
         return;
       }
 

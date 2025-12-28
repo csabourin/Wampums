@@ -19,16 +19,16 @@ import {
   fetchParents,
   getOrganizationFormFormats,
   submitDynamicForm,
+  getFormSubmission,
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
-  LoadingSpinner,
-  ErrorMessage,
-  Card,
-  FormField,
+  LoadingState,
+  ErrorState,
+  DynamicFormRenderer,
   Checkbox,
-  Toast,
+  Button,
   useToast,
 } from '../components';
 import DateUtils from '../utils/DateUtils';
@@ -42,7 +42,7 @@ const HealthFormScreen = ({ route, navigation }) => {
   const [formStructure, setFormStructure] = useState(null);
   const [formData, setFormData] = useState({});
   const [emergencyContacts, setEmergencyContacts] = useState([]);
-  const toast = useToast();
+  const { showToast, ToastComponent } = useToast();
 
   useEffect(() => {
     loadData();
@@ -51,50 +51,60 @@ const HealthFormScreen = ({ route, navigation }) => {
   const loadData = async () => {
     try {
       setError('');
+      setLoading(true);
 
-      // Load participant, parents, and form structure in parallel
-      const [participantData, parentsData, formFormats] = await Promise.all([
+      // Load participant, parents, form formats, and existing submission in parallel
+      const [participantData, parentsData, formFormatsResponse, existingSubmission] = await Promise.all([
         fetchParticipant(participantId),
         fetchParents(participantId),
-        getOrganizationFormFormats(),
+        getOrganizationFormFormats('participant'),
+        getFormSubmission(participantId, 'fiche_sante').catch(() => ({ success: false })),
       ]);
 
       setParticipant(participantData);
       setParents(parentsData || []);
 
-      // Get health form structure
+      // Get health form structure from response
+      const formFormats = formFormatsResponse.success ? formFormatsResponse.data : {};
       if (formFormats?.fiche_sante) {
-        setFormStructure(formFormats.fiche_sante);
-        // Initialize form data with default values
-        initializeFormData(formFormats.fiche_sante);
+        const formStructureData = formFormats.fiche_sante.form_structure || formFormats.fiche_sante;
+        setFormStructure(formStructureData);
+        
+        // Initialize with existing data or defaults
+        if (existingSubmission.success && existingSubmission.form_data) {
+          setFormData(existingSubmission.form_data);
+          // Set emergency contacts from existing submission
+          if (existingSubmission.form_data.emergency_contacts) {
+            setEmergencyContacts(existingSubmission.form_data.emergency_contacts);
+          }
+        } else {
+          // Initialize with default values
+          const initialData = {};
+          if (formStructureData.fields) {
+            formStructureData.fields.forEach((field) => {
+              if (field.default_value !== undefined) {
+                initialData[field.name] = field.default_value;
+              } else if (field.type === 'checkbox') {
+                initialData[field.name] = false;
+              } else {
+                initialData[field.name] = '';
+              }
+            });
+          }
+          setFormData(initialData);
+          
+          // Set default emergency contacts from parent data
+          const defaultEmergency = (parentsData || [])
+            .filter((p) => p.is_emergency_contact)
+            .map((p) => p.id.toString());
+          setEmergencyContacts(defaultEmergency);
+        }
       }
-
-      // Set default emergency contacts
-      const defaultEmergency = parentsData
-        ?.filter((p) => p.is_emergency_contact)
-        .map((p) => p.id.toString()) || [];
-      setEmergencyContacts(defaultEmergency);
     } catch (err) {
       setError(err.message || t('error_loading_data'));
     } finally {
       setLoading(false);
     }
-  };
-
-  const initializeFormData = (structure) => {
-    if (!structure?.fields) return;
-
-    const initialData = {};
-    structure.fields.forEach((field) => {
-      if (field.default_value !== undefined) {
-        initialData[field.name] = field.default_value;
-      } else if (field.type === 'checkbox') {
-        initialData[field.name] = false;
-      } else {
-        initialData[field.name] = '';
-      }
-    });
-    setFormData(initialData);
   };
 
   const handleFieldChange = (fieldName, value) => {
@@ -133,105 +143,33 @@ const HealthFormScreen = ({ route, navigation }) => {
       );
 
       if (result.success) {
-        toast.show(t('health_form_saved_successfully'), 'success');
+        showToast(t('health_form_saved_successfully') || 'Health form saved successfully', 'success');
         // Navigate back after a short delay
         setTimeout(() => {
           navigation.goBack();
         }, 1500);
       } else {
-        toast.show(result.message || t('error_saving_health_form'), 'error');
+        showToast(result.message || t('error_saving_health_form'), 'error');
       }
     } catch (err) {
-      toast.show(err.message || t('error_saving_health_form'), 'error');
+      showToast(err.message || t('error_saving_health_form'), 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const renderFormField = (field) => {
-    const value = formData[field.name] || '';
-
-    switch (field.type) {
-      case 'text':
-      case 'email':
-      case 'tel':
-        return (
-          <FormField
-            key={field.name}
-            label={field.label}
-            value={value}
-            onChangeText={(val) => handleFieldChange(field.name, val)}
-            placeholder={field.placeholder}
-            keyboardType={
-              field.type === 'email'
-                ? 'email-address'
-                : field.type === 'tel'
-                ? 'phone-pad'
-                : 'default'
-            }
-            required={field.required}
-            helpText={field.help_text}
-          />
-        );
-
-      case 'textarea':
-        return (
-          <FormField
-            key={field.name}
-            label={field.label}
-            value={value}
-            onChangeText={(val) => handleFieldChange(field.name, val)}
-            placeholder={field.placeholder}
-            multiline
-            numberOfLines={4}
-            required={field.required}
-            helpText={field.help_text}
-          />
-        );
-
-      case 'checkbox':
-        return (
-          <Checkbox
-            key={field.name}
-            label={field.label}
-            checked={value === true || value === 'true'}
-            onPress={() => handleFieldChange(field.name, !value)}
-            style={styles.checkbox}
-          />
-        );
-
-      case 'select':
-        // For select fields, we would use the Select component
-        // For now, render as text input
-        return (
-          <FormField
-            key={field.name}
-            label={field.label}
-            value={value}
-            onChangeText={(val) => handleFieldChange(field.name, val)}
-            placeholder={field.placeholder}
-            required={field.required}
-            helpText={field.help_text}
-          />
-        );
-
-      default:
-        return null;
-    }
-  };
-
   if (loading && !participant) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading_health_form') || 'Loading health form...'} />;
   }
 
   if (error && !loading) {
-    return <ErrorMessage message={error} onRetry={loadData} />;
+    return <ErrorState message={error} onRetry={loadData} />;
   }
 
   if (!participant) {
     return (
-      <ErrorMessage
-        message={t('participant_not_found')}
+      <ErrorState
+        message={t('participant_not_found') || 'Participant not found'}
         onRetry={() => navigation.goBack()}
       />
     );
@@ -241,7 +179,7 @@ const HealthFormScreen = ({ route, navigation }) => {
     <View style={commonStyles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* Participant Information */}
-        <Card style={styles.infoCard}>
+        <View style={styles.infoCard}>
           <Text style={styles.sectionTitle}>{t('general_information')}</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>{t('full_name')}:</Text>
@@ -261,19 +199,24 @@ const HealthFormScreen = ({ route, navigation }) => {
               {DateUtils.calculateAge(participant.birthdate)} {t('years')}
             </Text>
           </View>
-        </Card>
+        </View>
 
         {/* Dynamic Form Fields */}
-        {formStructure?.fields && (
-          <Card style={styles.formCard}>
+        {formStructure && (
+          <View style={styles.formCard}>
             <Text style={styles.sectionTitle}>{t('health_information')}</Text>
-            {formStructure.fields.map((field) => renderFormField(field))}
-          </Card>
+            <DynamicFormRenderer
+              formStructure={formStructure}
+              formData={formData}
+              onFieldChange={handleFieldChange}
+              disabled={loading}
+            />
+          </View>
         )}
 
         {/* Emergency Contacts */}
         {parents.length > 0 && (
-          <Card style={styles.contactsCard}>
+          <View style={styles.contactsCard}>
             <Text style={styles.sectionTitle}>{t('emergency_contacts')}</Text>
             <Text style={styles.helpText}>{t('select_emergency_contacts')}</Text>
 
@@ -302,28 +245,19 @@ const HealthFormScreen = ({ route, navigation }) => {
                 />
               </View>
             ))}
-          </Card>
+          </View>
         )}
 
         {/* Submit Button */}
-        <TouchableOpacity
-          style={commonStyles.button}
+        <Button
+          title={t('save_health_form') || 'Save Health Form'}
           onPress={handleSubmit}
-          disabled={loading}
-          activeOpacity={0.7}
-        >
-          <Text style={commonStyles.buttonText}>{t('save_health_form')}</Text>
-        </TouchableOpacity>
+          loading={loading}
+          style={styles.submitButton}
+        />
       </ScrollView>
 
-      {/* Toast Notifications */}
-      <Toast
-        visible={toast.toastState.visible}
-        message={toast.toastState.message}
-        type={toast.toastState.type}
-        duration={toast.toastState.duration}
-        onDismiss={toast.hide}
-      />
+      <ToastComponent />
     </View>
   );
 };
@@ -333,17 +267,26 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   infoCard: {
+    backgroundColor: theme.colors.background.secondary,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
     marginBottom: theme.spacing.md,
   },
   formCard: {
+    backgroundColor: theme.colors.background.secondary,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
     marginBottom: theme.spacing.md,
   },
   contactsCard: {
+    backgroundColor: theme.colors.background.secondary,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
     marginBottom: theme.spacing.md,
   },
   sectionTitle: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: theme.fontWeight.bold,
+    fontSize: 18,
+    fontWeight: '600',
     color: theme.colors.primary,
     marginBottom: theme.spacing.md,
   },
@@ -352,18 +295,22 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.xs,
   },
   infoLabel: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.textMuted,
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.text.secondary,
     minWidth: 120,
   },
   infoValue: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.text,
+    fontSize: 14,
+    color: theme.colors.text.primary,
     flex: 1,
   },
+  submitButton: {
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
   helpText: {
-    fontSize: theme.fontSize.sm,
+    fontSize: 14,
     color: theme.colors.textMuted,
     marginBottom: theme.spacing.md,
   },
