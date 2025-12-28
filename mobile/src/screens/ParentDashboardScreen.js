@@ -183,7 +183,7 @@ const ParentDashboardScreen = ({ navigation }) => {
         <Text style={styles.sectionTitle}>{t('Quick Actions')}</Text>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('FinanceTab')}
+          onPress={() => navigation.navigate('Finance')}
         >
           <Text style={styles.actionButtonText}>💰 {t('View Fees')}</Text>
         </TouchableOpacity>
@@ -193,6 +193,30 @@ const ParentDashboardScreen = ({ navigation }) => {
         >
           <Text style={styles.actionButtonText}>
             📄 {t('Permission Slips')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('HealthForm')}
+        >
+          <Text style={styles.actionButtonText}>
+            🏥 {t('Health Form')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('RiskAcceptance')}
+        >
+          <Text style={styles.actionButtonText}>
+            ⚠️ {t('Risk Acceptance Form')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('ParticipantDocuments')}
+        >
+          <Text style={styles.actionButtonText}>
+            📋 {t('View Documents')}
           </Text>
         </TouchableOpacity>
       </View>

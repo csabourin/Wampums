@@ -26,12 +26,28 @@ export { default as MedicationScreen } from './MedicationScreen';
 // Detail screens
 export { default as ParticipantDetailScreen } from './ParticipantDetailScreen';
 
+// Admin and Management screens
+export { default as AdminScreen } from './AdminScreen';
+export { default as ApproveBadgesScreen } from './ApproveBadgesScreen';
+export { default as BadgeDashboardScreen } from './BadgeDashboardScreen';
+export { default as BadgeFormScreen } from './BadgeFormScreen';
+export { default as FinanceScreen } from './FinanceScreen';
+export { default as FormPermissionsScreen } from './FormPermissionsScreen';
+export { default as GroupsScreen } from './GroupsScreen';
+export { default as HealthFormScreen } from './HealthFormScreen';
+export { default as ParentContactListScreen } from './ParentContactListScreen';
+export { default as ParticipantDocumentsScreen } from './ParticipantDocumentsScreen';
+export { default as PermissionSlipsScreen } from './PermissionSlipsScreen';
+export { default as PermissionSlipSignScreen } from './PermissionSlipSignScreen';
+export { default as RiskAcceptanceScreen } from './RiskAcceptanceScreen';
+export { default as RoleManagementScreen } from './RoleManagementScreen';
+export { default as UserParticipantLinkScreen } from './UserParticipantLinkScreen';
+export { default as MedicationPlanningScreen } from './MedicationPlanningScreen';
+export { default as MedicationDistributionScreen } from './MedicationDistributionScreen';
+
 // Future screens (Phase 2 & 3)
 // export { default as RegisterScreen } from './RegisterScreen';
 // export { default as ResetPasswordScreen } from './ResetPasswordScreen';
 // export { default as ActivityDetailScreen } from './ActivityDetailScreen';
 // export { default as CarpoolScreen } from './CarpoolScreen';
-// export { default as FinanceScreen } from './FinanceScreen';
-// export { default as MedicationScreen } from './MedicationScreen';
-// export { default as PermissionSlipsScreen } from './PermissionSlipsScreen';
 // export { default as ReportsScreen } from './ReportsScreen';
