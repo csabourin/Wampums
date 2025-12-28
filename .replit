@@ -30,11 +30,13 @@ externalPort = 5173
 
 [userenv.development]
 PORT = "5000"
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5000,http://localhost:3000,http://*.localhost:*"
 
 [userenv.shared]
 
 [userenv.production]
 PORT = "5000"
+ALLOWED_ORIGINS = "https://wampums.app,https://*.wampums.app"
 
 [workflows]
 runButton = "Project"
