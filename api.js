@@ -133,7 +133,7 @@ const corsOptions = {
     // IMPORTANT: Allow requests with no origin (React Native apps, Postman, mobile apps)
     // React Native apps don't send an Origin header
     if (!origin) {
-      debugLog && debugLog('[CORS] Request with no origin (likely React Native or mobile app) - ALLOWED');
+      // Note: Intentionally not logging "no origin" requests to reduce log noise
       return callback(null, true);
     }
 
@@ -153,8 +153,9 @@ const corsOptions = {
             'http://127.0.0.1:*',
             'https://localhost:*',
             'https://127.0.0.1:*',
-            // Replit dynamic domains
+            // Replit dynamic domains (includes multi-level subdomains like *.worf.replit.dev)
             'https://*.replit.dev',
+            'https://*.worf.replit.dev',
             'https://*.repl.co',
             // Other common dev environments
             'https://*.codesandbox.io',
