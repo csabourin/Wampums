@@ -94,10 +94,10 @@ async function getCurrentOrganizationId(req, pool, logger) {
 
   // Try to get from hostname/domain mapping
   const hostname = req.hostname;
-  const isProduction = process.env.NODE_ENV === 'production';
 
   try {
-    const result = await pool.query(
+    // First try exact match
+    let result = await pool.query(
       'SELECT organization_id FROM organization_domains WHERE domain = $1',
       [hostname]
     );
@@ -105,19 +105,26 @@ async function getCurrentOrganizationId(req, pool, logger) {
     if (result.rows.length > 0) {
       return result.rows[0].organization_id;
     }
-  } catch (error) {
-    // Table might not exist or query failed
-    if (logger) {
-      logger.warn('Error querying organization_domains:', error.message);
-    }
-  }
 
-  // In development, fall back to default organization ID 1
-  if (!isProduction) {
-    if (logger) {
-      logger.info(`Development mode: using default organization ID 1 for hostname ${hostname}`);
+    // Try wildcard matching - convert wildcard patterns in DB to match hostname
+    // Supports patterns like *.worf.replit.dev, *.kirk.replit.dev, wampums*.test
+    // Convert * to % for SQL LIKE, then check if hostname matches the pattern
+    result = await pool.query(
+      `SELECT organization_id, domain FROM organization_domains 
+       WHERE domain LIKE '%*%' 
+       AND $1 LIKE REPLACE(domain, '*', '%')
+       ORDER BY LENGTH(domain) DESC
+       LIMIT 1`,
+      [hostname]
+    );
+
+    if (result.rows.length > 0) {
+      return result.rows[0].organization_id;
     }
-    return 1;
+  } catch (error) {
+    if (logger) {
+      logger.error('Error getting organization ID:', error.message);
+    }
   }
 
   throw new OrganizationNotFoundError('Organization mapping not found for request');
