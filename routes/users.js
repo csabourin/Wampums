@@ -512,13 +512,12 @@ module.exports = (pool, logger) => {
       return res.status(404).json({ success: false, message: 'User not found in this organization' });
     }
 
-    // Update user roles (also update the old 'role' column with the first role for backwards compatibility)
-    const firstRoleName = rolesResult.rows[0].role_name;
+    // Update user roles
     await pool.query(
       `UPDATE user_organizations
-       SET role_ids = $1::jsonb, role = $2
-       WHERE user_id = $3 AND organization_id = $4`,
-      [JSON.stringify(roleIds), firstRoleName, userId, organizationId]
+       SET role_ids = $1::jsonb
+       WHERE user_id = $2 AND organization_id = $3`,
+      [JSON.stringify(roleIds), userId, organizationId]
     );
 
     logger.info(`User ${userId} roles updated to [${roleIds.join(', ')}] by user ${req.user.id}`);
