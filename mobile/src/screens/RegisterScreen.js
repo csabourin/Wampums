@@ -7,7 +7,6 @@
 
 import React, { useState } from 'react';
 import {
-  View,
   Text,
   ScrollView,
   StyleSheet,
@@ -24,8 +23,7 @@ import {
   Toast,
   useToast,
 } from '../components';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
+import API from '../api/api-core';
 
 const RegisterScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -71,15 +69,7 @@ const RegisterScreen = ({ navigation }) => {
         user_type: formData.user_type,
       };
 
-      const response = await fetch(`${API.baseURL}/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
+      const result = await API.public('/register', payload, 'POST');
 
       if (result.success) {
         toast.show(result.message || t('account_created_successfully'), 'success');
