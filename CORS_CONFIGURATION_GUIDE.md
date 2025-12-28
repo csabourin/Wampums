@@ -5,12 +5,39 @@ The Wampums app supports:
 - **Multiple domains** (dynamically created subdomains)
 - **React Native mobile app**
 - **Web browsers** from various subdomains
+- **Development environments** (Replit, Vite, CodeSandbox, etc.)
 
 The CORS configuration is designed to be **flexible yet secure**.
 
 ---
 
-## Configuration
+## Automatic Development Support
+
+**In development mode** (`NODE_ENV !== "production"`), the following are **automatically allowed**:
+
+### ✅ Auto-Allowed in Development:
+- **Localhost with ANY port** (Vite can use random ports)
+  - `http://localhost:5173`, `http://localhost:3000`, `http://localhost:8080`, etc.
+  - `http://127.0.0.1:*`
+
+- **Replit dynamic domains**
+  - `https://projectname-username.replit.dev`
+  - `https://*.repl.co`
+
+- **Other dev environments**
+  - `https://*.codesandbox.io`
+  - `https://*.stackblitz.io`
+  - `https://*.gitpod.io`
+
+- **Local .test domains**
+  - `http://wampums-1.test` (from your config.js)
+  - `http://*.test:*`
+
+**No configuration needed for development!** 🎉
+
+---
+
+## Production Configuration
 
 ### Environment Variable: `ALLOWED_ORIGINS`
 
