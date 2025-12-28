@@ -221,7 +221,9 @@ export class Budgets {
     const container = document.getElementById("app");
     if (!container) return;
 
+    debugLog(`[TAB DEBUG] render() called with activeTab: "${this.activeTab}"`);
     const tabContent = await this.renderTabContent();
+    debugLog(`[TAB DEBUG] tabContent generated for tab: "${this.activeTab}"`);
 
     setContent(container, `
       <div class="page-container budgets-page">
@@ -276,6 +278,14 @@ export class Budgets {
    */
   async renderAndBind() {
     await this.render();
+
+    // Verify data-tab attributes are present after render
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    debugLog(`[TAB DEBUG] After render, found ${tabButtons.length} tab buttons:`);
+    tabButtons.forEach(btn => {
+      debugLog(`[TAB DEBUG]   - Button with data-tab="${btn.dataset.tab}", active=${btn.classList.contains('active')}`);
+    });
+
     this.attachEventListeners();
   }
 
@@ -335,20 +345,28 @@ export class Budgets {
   }
 
   async renderTabContent() {
+    debugLog(`[TAB DEBUG] renderTabContent() switch on activeTab: "${this.activeTab}"`);
     switch (this.activeTab) {
       case "overview":
+        debugLog(`[TAB DEBUG] Rendering overview tab`);
         return this.renderOverview();
       case "categories":
+        debugLog(`[TAB DEBUG] Rendering categories tab`);
         return this.renderCategories();
       case "items":
+        debugLog(`[TAB DEBUG] Rendering items tab`);
         return this.renderBudgetItems();
       case "expenses":
+        debugLog(`[TAB DEBUG] Rendering expenses tab`);
         return this.renderExpenses();
       case "planning":
+        debugLog(`[TAB DEBUG] Rendering planning tab`);
         return this.renderPlanning();
       case "reports":
+        debugLog(`[TAB DEBUG] Rendering reports tab`);
         return await this.renderReports();
       default:
+        debugLog(`[TAB DEBUG] Unknown tab "${this.activeTab}", returning empty content`);
         return "";
     }
   }
@@ -1028,12 +1046,25 @@ export class Budgets {
   attachEventListeners() {
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((btn) => {
+      debugLog(`[TAB DEBUG] Attaching listener to button with data-tab="${btn.dataset.tab}"`);
       btn.addEventListener("click", async (e) => {
         try {
+          debugLog('[TAB DEBUG] Tab button clicked:', {
+            target: e.target,
+            currentTarget: e.currentTarget,
+            targetDataTab: e.target.dataset?.tab,
+            currentTargetDataTab: e.currentTarget?.dataset?.tab
+          });
           const targetTab = e.currentTarget?.dataset?.tab || e.target.dataset.tab;
+          debugLog(`[TAB DEBUG] Setting activeTab to: "${targetTab}"`);
+          debugLog(`[TAB DEBUG] activeTab before: "${this.activeTab}"`);
           this.activeTab = targetTab || "overview";
+          debugLog(`[TAB DEBUG] activeTab after: "${this.activeTab}"`);
+          debugLog(`[TAB DEBUG] Calling updateURL()`);
           this.updateURL();
+          debugLog(`[TAB DEBUG] Calling renderAndBind()`);
           await this.renderAndBind();
+          debugLog(`[TAB DEBUG] renderAndBind() completed. Final activeTab: "${this.activeTab}"`);
         } catch (error) {
           debugError("Error switching budget tabs", error);
           this.app.showMessage(translate("error_loading_data"), "error");
