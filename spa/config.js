@@ -198,6 +198,7 @@ export const CONFIG = {
      * UI Settings
      */
     UI: {
+        HOMEPAGE_URL: 'https://wampums.app',
         // Default number of items per page for paginated lists
         DEFAULT_PAGE_SIZE: 50,
 

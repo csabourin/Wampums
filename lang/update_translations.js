@@ -99,7 +99,9 @@ const newTranslations = {
 
     // Application errors
     "application_error": "Application Error",
+    "error_loading_page": "An error occurred while loading the page.",
     "error_loading_application": "There was a problem loading the application. Please try reloading the page.",
+    "go_to_homepage": "Go to homepage",
     "reload": "Reload",
 
     // Login errors
@@ -275,7 +277,9 @@ const newTranslations = {
 
     // Application errors
     "application_error": "Erreur d'application",
+    "error_loading_page": "Une erreur s'est produite lors du chargement de la page.",
     "error_loading_application": "Un problème est survenu lors du chargement de l'application. Veuillez recharger la page.",
+    "go_to_homepage": "Aller à l'accueil",
     "reload": "Recharger",
 
     // Login errors

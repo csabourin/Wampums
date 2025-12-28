@@ -45,7 +45,7 @@ export class ManagePoints {
       await this.preloadManagePointsData();
       this.render();
       this.attachEventListeners();
-      console.debug("init called");
+      debugLog("init called");
       if (navigator.onLine) {
         await this.refreshPointsData();
       }

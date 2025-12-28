@@ -6,14 +6,14 @@ import {
 import { initRouter, Router } from "./router.js";
 import { Login } from "./login.js";
 import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
+import { makeApiRequest } from "./api/api-core.js";
 import { CONFIG } from "./config.js";
 import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
 import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { urlBase64ToUint8Array } from "./functions.js";
 import updateManager from "./pwa-update-manager.js";
 import { initOfflineSupport } from "./offline-init.js";
-import { setContent, clearElement } from "./utils/DOMUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
+import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
 
 const debugMode = isDebugMode();
 
@@ -81,18 +81,10 @@ async function sendSubscriptionToServer(subscription) {
                         throw new Error('No token available');
                 }
 
-                const response = await fetch('/api/v1/push-subscription', {
+                await makeApiRequest('v1/push-subscription', {
                         method: 'POST',
-                        headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}` // Include the JWT token in the Authorization header
-                        },
-                        body: JSON.stringify(payload),
+                        body: payload
                 });
-
-                if (!response.ok) {
-                        throw new Error('Failed to save subscription on server');
-                }
 
                 debugLog('Subscription saved on server');
         } catch (error) {
@@ -189,13 +181,7 @@ export const app = {
                                         debugLog("Organization ID fetched:", orgId);
                                 } catch (error) {
                                         debugError("Error fetching organization ID:", error);
-                                        // Set default as fallback
-                                        this.organizationId = 1;
-                                        setStorageMultiple({
-                                                currentOrganizationId: this.organizationId,
-                                                organizationId: this.organizationId
-                                        });
-                                        debugLog("Using default organization ID: 1");
+                                        throw error;
                                 }
                         } else {
                                 this.organizationId = storedOrgId;
@@ -229,13 +215,13 @@ export const app = {
 
                 } catch (error) {
                         debugError("Initialization error:", error);
-                        setContent(document.getElementById("app"), `
-                                <div class="error-container">
-                                        <h1>${this.translate('application_error') || 'Application Error'}</h1>
-                                        <p>${this.translate('error_loading_application') || 'Error loading application'}</p>
-                                        <button onclick="window.location.reload()">${this.translate('reload') || 'Reload'}</button>
-                                </div>
-                        `);
+                        this.renderError(this.translate('error_loading_application'), {
+                                titleKey: 'application_error',
+                                showReload: true,
+                                actions: [
+                                        { labelKey: 'go_to_homepage', href: CONFIG.UI.HOMEPAGE_URL }
+                                ]
+                        });
                 }
         },
 
@@ -595,21 +581,53 @@ export const app = {
                 }
         },
 
-        renderError(message) {
-                debugLog("Rendering error:", message);
-                const errorContent = `
-                        <div class="error-container">
-                                <h1>${this.translate("error")}</h1>
-                                <p>${escapeHTML(message)}</p>
-                                <p><a href="/">${this.translate("back_to_home")}</a></p>
-                        </div>
-                `;
+        renderError(message, options = {}) {
+                const {
+                        titleKey = 'error',
+                        actions = null,
+                        showReload = false
+                } = options;
+
                 const appContainer = document.getElementById("app");
-                if (appContainer) {
-                        setContent(appContainer, errorContent);
-                } else {
+                if (!appContainer) {
                         debugError("App container not found");
+                        return;
                 }
+
+                clearElement(appContainer);
+
+                const container = createElement('div', { className: 'error-container' });
+                const title = createElement('h1', { text: this.translate(titleKey) });
+                const messageText = createElement('p', { text: message });
+                container.appendChild(title);
+                container.appendChild(messageText);
+
+                const actionItems = actions || [{ labelKey: 'back_to_home', href: '/' }];
+                if (actionItems.length || showReload) {
+                        const actionsWrapper = createElement('div', { className: 'error-actions' });
+
+                        if (showReload) {
+                                const reloadButton = createElement('button', {
+                                        text: this.translate('reload'),
+                                        className: 'btn'
+                                });
+                                reloadButton.addEventListener('click', () => window.location.reload());
+                                actionsWrapper.appendChild(reloadButton);
+                        }
+
+                        actionItems.forEach(action => {
+                                const link = createElement('a', {
+                                        text: this.translate(action.labelKey),
+                                        className: 'btn',
+                                        attributes: { href: action.href }
+                                });
+                                actionsWrapper.appendChild(link);
+                        });
+
+                        container.appendChild(actionsWrapper);
+                }
+
+                appContainer.appendChild(container);
         },
 
         translate(key) {

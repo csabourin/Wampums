@@ -30,7 +30,7 @@
  * ```
  */
 
-import { debugLog } from './DebugUtils.js';
+import { debugLog, debugWarn } from './DebugUtils.js';
 
 export class BaseModule {
   /**
@@ -79,7 +79,7 @@ export class BaseModule {
    */
   addEventListener(element, event, handler, options = {}) {
     if (!element) {
-      console.warn(`[${this.constructor.name}] Attempted to add listener to null element`);
+      debugWarn(`[${this.constructor.name}] Attempted to add listener to null element`);
       return;
     }
 
