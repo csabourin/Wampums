@@ -123,8 +123,8 @@ app.use(
   }),
 );
 
-// CORS configuration - supports multiple domains, subdomains, and React Native apps
-// Flexible but secure: validates against patterns while allowing dynamic subdomains
+// CORS configuration - supports multiple domains, subdomains, React Native, and dev environments
+// Flexible but secure: validates against patterns while allowing dynamic subdomains and dev tools
 const corsOptions = {
   origin: function (origin, callback) {
     // IMPORTANT: Allow requests with no origin (React Native apps, Postman, mobile apps)
@@ -138,12 +138,29 @@ const corsOptions = {
     // Supports:
     // - Exact matches: https://wampums.app
     // - Wildcard subdomains: *.wampums.app (matches any.subdomain.wampums.app)
+    // - Port wildcards: localhost:* (matches localhost:5173, localhost:3000, etc.)
     // - Multiple patterns: https://wampums.app,*.wampums.app,*.custom-domain.com
     const allowedPatterns = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
       : isProduction
         ? ['https://wampums.app', 'https://*.wampums.app']  // Production: main domain + all subdomains
-        : ['http://localhost:5173', 'http://localhost:5000', 'http://localhost:3000', 'http://*.localhost:*'];
+        : [
+            // Development: localhost with any port (Vite can use random ports)
+            'http://localhost:*',
+            'http://127.0.0.1:*',
+            'https://localhost:*',
+            'https://127.0.0.1:*',
+            // Replit dynamic domains
+            'https://*.replit.dev',
+            'https://*.repl.co',
+            // Other common dev environments
+            'https://*.codesandbox.io',
+            'https://*.stackblitz.io',
+            'https://*.gitpod.io',
+            // Local .test domains (wampums-1.test from config.js)
+            'http://*.test',
+            'http://*.test:*',
+          ];
 
     // Check if origin matches any allowed pattern
     const isAllowed = allowedPatterns.some(pattern => {
@@ -152,8 +169,18 @@ const corsOptions = {
         return true;
       }
 
-      // Wildcard pattern matching (e.g., *.wampums.app)
+      // Wildcard pattern matching (e.g., *.wampums.app, localhost:*)
       if (pattern.includes('*')) {
+        // Handle port wildcards specially (e.g., localhost:*)
+        if (pattern.includes(':*')) {
+          const basePattern = pattern.replace(':*', '');
+          // Match if origin starts with the base and has a port
+          if (origin.startsWith(basePattern + ':')) {
+            return true;
+          }
+        }
+
+        // Regular wildcard pattern matching
         // Escape special regex characters except *
         const regexPattern = pattern
           .replace(/\./g, '\\.')  // Escape dots
