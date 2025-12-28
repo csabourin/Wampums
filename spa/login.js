@@ -15,26 +15,19 @@ export class Login {
     debugLog("Login init started");
     
     // Try to fetch organization settings if not already loaded
+    // Since we're not logged in, this will use the public endpoint
     if (!this.app.organizationSettings && !this.app.isOrganizationSettingsFetched) {
       debugLog("Organization settings not loaded, attempting to fetch...");
       try {
         await this.app.fetchOrganizationSettings();
       } catch (error) {
         debugError("Failed to fetch organization settings in login:", error);
+        // Don't block rendering if settings fetch fails
       }
     }
 
-    // Set a maximum wait time of 3 seconds for organization settings
-    let attempts = 0;
-    const maxAttempts = 30; // 30 * 100ms = 3 seconds
-
-    while (!this.app.organizationSettings && attempts < maxAttempts) {
-      debugLog(`Waiting for organization settings... Attempt ${attempts + 1}/${maxAttempts}`);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-
-    // Render the login form even if we couldn't get organization settings
+    // Render the login form immediately
+    // Organization settings will be available now or use defaults
     debugLog("Rendering login form, organizationSettings:",
                 this.app.organizationSettings ? "loaded" : "not loaded");
     this.render();

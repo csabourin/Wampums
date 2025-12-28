@@ -2496,6 +2496,13 @@ export async function switchOrganization(organizationId) {
  * Get organization settings
  */
 export async function getOrganizationSettings(orgId = null) {
+    // Check if user is logged in - if not, use public endpoint directly
+    const token = localStorage.getItem('jwtToken');
+    if (!token) {
+        debugLog('No token found, using public organization settings endpoint');
+        return getPublicOrganizationSettings();
+    }
+    
     const params = orgId ? { organization_id: orgId } : {};
     try {
         return await API.get('organization-settings', params, {
