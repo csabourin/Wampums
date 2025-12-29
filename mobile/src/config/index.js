@@ -9,7 +9,6 @@
  */
 
 import Constants from 'expo-constants';
-import { debugError } from '../utils/DebugUtils.js';
 
 // Environment-based configuration
 // Note: Expo supports .env files - variables are available as process.env.VARIABLE_NAME
@@ -244,7 +243,9 @@ export const getDynamicApiBaseUrl = async () => {
     const StorageUtils = require('../utils/StorageUtils').default;
     return await StorageUtils.getItem('dynamicApiBaseUrl');
   } catch (err) {
-    debugError('Error getting dynamic API base URL:', err);
+    // Use console.error directly to avoid require cycle with DebugUtils
+    // eslint-disable-next-line no-console
+    console.error('[Debug] Error getting dynamic API base URL:', err);
     return null;
   }
 };

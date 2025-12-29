@@ -146,7 +146,13 @@ const corsOptions = {
     const allowedPatterns = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
       : isProduction
-        ? ['https://wampums.app', 'https://*.wampums.app']  // Production: main domain + all subdomains
+        ? [
+            'https://wampums.app',
+            'https://*.wampums.app',
+            // Allow localhost for Expo web development in production
+            'http://localhost:*',
+            'http://127.0.0.1:*'
+          ]
         : [
             // Development: localhost with any port (Vite can use random ports)
             'http://localhost:*',

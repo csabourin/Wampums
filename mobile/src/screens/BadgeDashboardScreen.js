@@ -88,7 +88,9 @@ const BadgeDashboardScreen = () => {
         ]);
 
       setGroups(groupsResponse.data || groupsResponse.groups || []);
-      setParticipants(participantsResponse.data || participantsResponse.participants || []);
+      const participantsList = participantsResponse.data || participantsResponse.participants || [];
+      console.log('[BadgeDashboard] First participant sample:', participantsList[0]);
+      setParticipants(participantsList);
       setBadgeEntries(badgeSummaryResponse.data || []);
 
       const settings = badgeSettingsResponse?.data || null;
@@ -240,6 +242,7 @@ const BadgeDashboardScreen = () => {
       };
     });
 
+    console.log('[BadgeDashboard] Built records sample:', records[0]);
     return records;
   }, [groups, participants, badgeEntries, templates, badgeSettings]);
 
@@ -353,9 +356,13 @@ const BadgeDashboardScreen = () => {
             </Text>
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() =>
-                navigation.navigate('BadgeForm', { participantId: record.id })
-              }
+              onPress={() => {
+                if (!record.id) {
+                  console.error('[BadgeDashboard] Missing participant ID for record:', record);
+                  return;
+                }
+                navigation.navigate('BadgeForm', { participantId: record.id });
+              }}
               activeOpacity={0.7}
             >
               <Text style={styles.editButtonText}>✏️</Text>

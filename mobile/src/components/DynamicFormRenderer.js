@@ -12,7 +12,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { translate as t } from '../i18n';
-import { FormField, Checkbox, RadioGroup, Select } from './';
+import FormField, { Checkbox, RadioGroup, Select } from './FormField';
 import theme from '../theme';
 import { debugLog, debugWarn, debugError } from '../utils/DebugUtils';
 

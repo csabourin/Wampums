@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import {
-  fetchParticipant,
+  getParticipant,
   fetchParents,
   getOrganizationFormFormats,
   submitDynamicForm,
@@ -55,7 +55,7 @@ const HealthFormScreen = ({ route, navigation }) => {
 
       // Load participant, parents, form formats, and existing submission in parallel
       const [participantData, parentsData, formFormatsResponse, existingSubmission] = await Promise.all([
-        fetchParticipant(participantId),
+        getParticipant(participantId),
         fetchParents(participantId),
         getOrganizationFormFormats('participant'),
         getFormSubmission(participantId, 'fiche_sante').catch(() => ({ success: false })),

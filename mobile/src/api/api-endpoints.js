@@ -769,9 +769,15 @@ export const getPendingBadges = async ({ forceRefresh = false } = {}) => {
 
 /**
  * Get badge progress for participants
+ * @param {number} participantId - Optional participant ID to filter progress
+ * @param {Object} options - Request options
+ * @param {boolean} options.forceRefresh - Force cache refresh
  */
-export const getBadgeProgress = async ({ forceRefresh = false } = {}) => {
-  return API.get('/api/badge-progress', {}, { forceRefresh });
+export const getBadgeProgress = async (participantId = null, { forceRefresh = false } = {}) => {
+  const endpoint = participantId 
+    ? `/api/badge-progress?participant_id=${participantId}`
+    : '/api/badge-progress';
+  return API.get(endpoint, {}, { forceRefresh });
 };
 
 /**

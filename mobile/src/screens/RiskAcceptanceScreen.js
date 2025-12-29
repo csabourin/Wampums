@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import {
-  fetchParticipant,
+  getParticipant,
   fetchAcceptationRisque,
   saveAcceptationRisque,
 } from '../api/api-endpoints';
@@ -58,7 +58,7 @@ const RiskAcceptanceScreen = ({ route, navigation }) => {
       setError('');
 
       const [participantData, acceptationData] = await Promise.all([
-        fetchParticipant(participantId),
+        getParticipant(participantId),
         fetchAcceptationRisque(participantId),
       ]);
 

@@ -19,7 +19,7 @@ import {
 import {
   getBadgeProgress,
   saveBadgeProgress,
-  fetchParticipant,
+  getParticipant,
   getBadgeSystemSettings,
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
@@ -38,7 +38,7 @@ import DateUtils from '../utils/DateUtils';
 import SecurityUtils from '../utils/SecurityUtils';
 
 const BadgeFormScreen = ({ route, navigation }) => {
-  const { participantId } = route.params;
+  const { participantId } = route.params || {};
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -59,6 +59,7 @@ const BadgeFormScreen = ({ route, navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
+    console.log('[BadgeForm] Received participantId:', participantId);
     loadData();
   }, [participantId]);
 
@@ -66,9 +67,14 @@ const BadgeFormScreen = ({ route, navigation }) => {
     try {
       setError('');
 
+      if (!participantId) {
+        throw new Error(t('participant_id_required') || 'Participant ID is required');
+      }
+
+      console.log('[BadgeForm] Loading data for participantId:', participantId);
       const [settingsResponse, participantResponse, progressResponse] = await Promise.all([
         getBadgeSystemSettings({ forceRefresh }),
-        fetchParticipant(participantId),
+        getParticipant(participantId),
         getBadgeProgress(participantId, { forceRefresh }),
       ]);
 
@@ -76,11 +82,14 @@ const BadgeFormScreen = ({ route, navigation }) => {
       setBadgeSettings(settings);
       setTemplates(settings?.templates || []);
 
-      if (!participantResponse || !participantResponse.participant) {
+      console.log('[BadgeForm] Participant response:', participantResponse);
+      
+      // The API returns participant data directly in the response (not nested under .participant)
+      const p = participantResponse?.data || participantResponse;
+      if (!p || !p.id) {
         throw new Error(t('participant_not_found'));
       }
 
-      const p = participantResponse.participant;
       setParticipant(p);
       setParticipantSection(p.group_section || p.section || 'general');
 
