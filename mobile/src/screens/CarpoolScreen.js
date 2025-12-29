@@ -31,8 +31,6 @@ import { Picker } from '@react-native-picker/picker';
 import {
   getActivity,
   getActivityParticipants,
-} from '../api/api-endpoints';
-import {
   getCarpoolOffers,
   createCarpoolOffer,
   updateCarpoolOffer,

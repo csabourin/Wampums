@@ -501,6 +501,27 @@ export const getMyChildrenAssignments = async () => {
 };
 
 /**
+ * Update carpool offer
+ */
+export const updateCarpoolOffer = async (offerId, offerData) => {
+  return API.put(`${CONFIG.ENDPOINTS.CARPOOLS}/offers/${offerId}`, offerData);
+};
+
+/**
+ * Cancel carpool offer
+ */
+export const cancelCarpoolOffer = async (offerId, reason = '') => {
+  return API.delete(`${CONFIG.ENDPOINTS.CARPOOLS}/offers/${offerId}`, { reason });
+};
+
+/**
+ * Remove participant assignment from carpool
+ */
+export const removeAssignment = async (assignmentId) => {
+  return API.delete(`${CONFIG.ENDPOINTS.CARPOOLS}/assignments/${assignmentId}`);
+};
+
+/**
  * ============================================================================
  * ATTENDANCE (V1)
  * ============================================================================
@@ -1454,6 +1475,9 @@ export default {
   assignParticipantToCarpool,
   getMyCarpoolOffers,
   getMyChildrenAssignments,
+  updateCarpoolOffer,
+  cancelCarpoolOffer,
+  removeAssignment,
   // Attendance
   getAttendance,
   createAttendance,
