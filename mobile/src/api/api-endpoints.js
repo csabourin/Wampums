@@ -1170,6 +1170,89 @@ export const updateBadgeProgress = async (progressId, badgeData) => {
  */
 
 /**
+ * Get attendance report
+ * @param {Object} options - Report options
+ * @param {string} options.startDate - Start date (YYYY-MM-DD)
+ * @param {string} options.endDate - End date (YYYY-MM-DD)
+ * @param {number} options.groupId - Optional group ID filter
+ * @param {string} options.format - Optional format (csv, json)
+ */
+export const getAttendanceReport = async (options = {}) => {
+  const params = {};
+  if (options.startDate) params.start_date = options.startDate;
+  if (options.endDate) params.end_date = options.endDate;
+  if (options.groupId) params.group_id = options.groupId;
+  if (options.format) params.format = options.format;
+
+  return API.get('/attendance-report', params);
+};
+
+/**
+ * Get health contact report
+ */
+export const getHealthContactReport = async () => {
+  return API.get('/health-contact-report');
+};
+
+/**
+ * Get health report
+ * @param {number} groupId - Optional group ID filter
+ */
+export const getHealthReport = async (groupId = null) => {
+  const params = groupId ? { group_id: groupId } : {};
+  return API.get('/health-report', params);
+};
+
+/**
+ * Get allergies report
+ */
+export const getAllergiesReport = async () => {
+  return API.get('/allergies-report');
+};
+
+/**
+ * Get medication report
+ */
+export const getMedicationReport = async () => {
+  return API.get('/medication-report');
+};
+
+/**
+ * Get vaccine report
+ */
+export const getVaccineReport = async () => {
+  return API.get('/vaccine-report');
+};
+
+/**
+ * Get leave alone authorization report
+ */
+export const getLeaveAloneReport = async () => {
+  return API.get('/leave-alone-report');
+};
+
+/**
+ * Get media authorization report
+ */
+export const getMediaAuthorizationReport = async () => {
+  return API.get('/media-authorization-report');
+};
+
+/**
+ * Get missing documents report
+ */
+export const getMissingDocumentsReport = async () => {
+  return API.get('/missing-documents-report');
+};
+
+/**
+ * Get mailing list
+ */
+export const getMailingList = async () => {
+  return API.get('/mailing-list');
+};
+
+/**
  * Get parent contact list
  */
 export const getParentContactList = async ({ forceRefresh = false } = {}) => {
@@ -1437,6 +1520,17 @@ export default {
   deleteMedicationRequirement,
   recordMedicationDistribution,
   markMedicationDistributionAsGiven,
+  // Reports
+  getAttendanceReport,
+  getHealthContactReport,
+  getHealthReport,
+  getAllergiesReport,
+  getMedicationReport,
+  getVaccineReport,
+  getLeaveAloneReport,
+  getMediaAuthorizationReport,
+  getMissingDocumentsReport,
+  getMailingList,
   // Resources
   getEquipment,
   getEquipmentReservations,
