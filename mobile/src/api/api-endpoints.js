@@ -407,9 +407,6 @@ export const getParentDashboard = async () => {
 /**
  * Get parent contact list
  */
-export const getParentContactList = async () => {
-  return API.get('/parent-contact-list');
-};
 
 /**
  * Get user children
