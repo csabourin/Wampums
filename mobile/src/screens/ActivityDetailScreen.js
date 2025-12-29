@@ -41,17 +41,30 @@ const ActivityDetailScreen = () => {
   const [saving, setSaving] = useState(false);
 
   // Form state
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    date: '',
+    time: '',
+    location: '',
+    meeting_time_going: '',
+    meeting_location_going: '',
+    meeting_time_return: '',
+    meeting_location_return: '',
+  });
 
   useEffect(() => {
     if (!isNewActivity) {
       loadActivity();
     }
   }, [activityId]);
+
+  const handleFieldChange = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
 
   const loadActivity = async () => {
     try {
@@ -61,11 +74,17 @@ const ActivityDetailScreen = () => {
 
       if (response.success && response.data) {
         const activity = response.data;
-        setName(activity.name || '');
-        setDescription(activity.description || '');
-        setDate(activity.date || '');
-        setTime(activity.time || '');
-        setLocation(activity.location || '');
+        setFormData({
+          name: activity.name || '',
+          description: activity.description || '',
+          date: activity.date || '',
+          time: activity.time || '',
+          location: activity.location || '',
+          meeting_time_going: activity.meeting_time_going || '',
+          meeting_location_going: activity.meeting_location_going || '',
+          meeting_time_return: activity.meeting_time_return || '',
+          meeting_location_return: activity.meeting_location_return || '',
+        });
       } else {
         throw new Error(response.message || t('error_loading_activity'));
       }
@@ -79,12 +98,12 @@ const ActivityDetailScreen = () => {
 
   const handleSave = async () => {
     // Basic validation
-    if (!name.trim()) {
+    if (!formData.name.trim()) {
       Alert.alert(t('error'), t('activity_name_required'));
       return;
     }
 
-    if (!date.trim()) {
+    if (!formData.date.trim()) {
       Alert.alert(t('error'), t('activity_date_required'));
       return;
     }
@@ -92,13 +111,16 @@ const ActivityDetailScreen = () => {
     try {
       setSaving(true);
 
-      const activityData = {
-        name: name.trim(),
-        description: description.trim(),
-        date: date.trim(),
-        time: time.trim(),
-        location: location.trim(),
-      };
+      // Prepare activity data with trimmed values
+      const activityData = Object.keys(formData).reduce((acc, key) => {
+        const value = formData[key];
+        acc[key] = typeof value === 'string' ? value.trim() : value;
+        // Convert empty strings to null for optional fields
+        if (acc[key] === '' && key !== 'name' && key !== 'date') {
+          acc[key] = null;
+        }
+        return acc;
+      }, {});
 
       let response;
       if (isNewActivity) {
@@ -191,16 +213,16 @@ const ActivityDetailScreen = () => {
           <Text style={styles.label}>{t('activity_name')} *</Text>
           <TextInput
             style={styles.input}
-            value={name}
-            onChangeText={setName}
+            value={formData.name}
+            onChangeText={(value) => handleFieldChange('name', value)}
             placeholder={t('enter_activity_name')}
           />
 
           <Text style={styles.label}>{t('description')}</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            value={description}
-            onChangeText={setDescription}
+            value={formData.description}
+            onChangeText={(value) => handleFieldChange('description', value)}
             placeholder={t('enter_description')}
             multiline
             numberOfLines={4}
@@ -209,24 +231,65 @@ const ActivityDetailScreen = () => {
           <Text style={styles.label}>{t('date')} *</Text>
           <TextInput
             style={styles.input}
-            value={date}
-            onChangeText={setDate}
+            value={formData.date}
+            onChangeText={(value) => handleFieldChange('date', value)}
             placeholder="YYYY-MM-DD"
           />
 
           <Text style={styles.label}>{t('time')}</Text>
           <TextInput
             style={styles.input}
-            value={time}
-            onChangeText={setTime}
+            value={formData.time}
+            onChangeText={(value) => handleFieldChange('time', value)}
             placeholder="HH:MM"
           />
 
           <Text style={styles.label}>{t('location')}</Text>
           <TextInput
             style={styles.input}
-            value={location}
-            onChangeText={setLocation}
+            value={formData.location}
+            onChangeText={(value) => handleFieldChange('location', value)}
+            placeholder={t('enter_location')}
+          />
+        </Card>
+
+        {/* Meeting Times Card */}
+        <Card style={styles.formCard}>
+          <Text style={styles.sectionTitle}>{t('Meeting Times')}</Text>
+
+          <Text style={styles.subSectionTitle}>{t('Going to Activity')}</Text>
+          <Text style={styles.label}>{t('meeting_time')}</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.meeting_time_going}
+            onChangeText={(value) => handleFieldChange('meeting_time_going', value)}
+            placeholder="HH:MM"
+          />
+
+          <Text style={styles.label}>{t('meeting_location')}</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.meeting_location_going}
+            onChangeText={(value) => handleFieldChange('meeting_location_going', value)}
+            placeholder={t('enter_location')}
+          />
+
+          <Text style={[styles.subSectionTitle, styles.subSectionSpacing]}>
+            {t('Returning from Activity')}
+          </Text>
+          <Text style={styles.label}>{t('meeting_time')}</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.meeting_time_return}
+            onChangeText={(value) => handleFieldChange('meeting_time_return', value)}
+            placeholder="HH:MM"
+          />
+
+          <Text style={styles.label}>{t('meeting_location')}</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.meeting_location_return}
+            onChangeText={(value) => handleFieldChange('meeting_location_return', value)}
             placeholder={t('enter_location')}
           />
 
@@ -251,18 +314,12 @@ const ActivityDetailScreen = () => {
           </View>
         </Card>
 
-        {/* TODO: Add additional sections:
-          - Meeting times (going/return)
-          - Participant list
-          - Carpool management
-          - Attendance link
-        */}
+        {/* Future features */}
         <Card style={styles.todoCard}>
           <Text style={styles.todoTitle}>🚧 {t('coming_soon')}</Text>
           <Text style={styles.todoText}>
             {t('additional_features_coming_soon')}:
           </Text>
-          <Text style={styles.todoItem}>• {t('meeting_times')}</Text>
           <Text style={styles.todoItem}>• {t('participant_assignment')}</Text>
           <Text style={styles.todoItem}>• {t('carpool_coordination')}</Text>
           <Text style={styles.todoItem}>• {t('attendance_tracking')}</Text>
@@ -285,6 +342,21 @@ const styles = StyleSheet.create({
   formTitle: {
     ...commonStyles.heading2,
     marginBottom: theme.spacing.lg,
+  },
+  sectionTitle: {
+    ...commonStyles.heading3,
+    marginBottom: theme.spacing.md,
+  },
+  subSectionTitle: {
+    ...commonStyles.bodyText,
+    fontWeight: theme.fontWeight.bold,
+    fontSize: 16,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    color: theme.colors.primary,
+  },
+  subSectionSpacing: {
+    marginTop: theme.spacing.lg,
   },
   label: {
     ...commonStyles.bodyText,
