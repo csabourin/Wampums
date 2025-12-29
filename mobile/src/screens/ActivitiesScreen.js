@@ -140,7 +140,7 @@ const ActivitiesScreen = () => {
     return filtered;
   }, [activities, activeFilter, sortBy, sortOrder]);
 
-  const canManage = hasPermission(userPermissions, 'activities', 'create');
+  const canManage = hasPermission('activities.manage', userPermissions);
 
   // Filter options
   const filterOptions = [

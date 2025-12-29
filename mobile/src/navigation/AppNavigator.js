@@ -48,6 +48,9 @@ import {
   CreateOrganizationScreen,
 } from '../screens';
 
+// Import additional screens not in index
+import ActivityDetailScreen from '../screens/ActivityDetailScreen';
+
 // Import medication screens
 import MedicationPlanningScreen from '../screens/MedicationPlanningScreen';
 import MedicationDistributionScreen from '../screens/MedicationDistributionScreen';
@@ -109,6 +112,15 @@ const AppNavigator = ({ userPermissions }) => {
         options={{
           headerShown: true,
           title: 'Activities',
+        }}
+      />
+
+      <Stack.Screen
+        name="ActivityDetail"
+        component={ActivityDetailScreen}
+        options={{
+          headerShown: true,
+          title: 'Activity Details',
         }}
       />
 
