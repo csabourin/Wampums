@@ -59,7 +59,6 @@ const BadgeFormScreen = ({ route, navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
-    console.log('[BadgeForm] Received participantId:', participantId);
     loadData();
   }, [participantId]);
 
@@ -71,7 +70,6 @@ const BadgeFormScreen = ({ route, navigation }) => {
         throw new Error(t('participant_id_required') || 'Participant ID is required');
       }
 
-      console.log('[BadgeForm] Loading data for participantId:', participantId);
       const [settingsResponse, participantResponse, progressResponse] = await Promise.all([
         getBadgeSystemSettings({ forceRefresh }),
         getParticipant(participantId),
@@ -82,9 +80,8 @@ const BadgeFormScreen = ({ route, navigation }) => {
       setBadgeSettings(settings);
       setTemplates(settings?.templates || []);
 
-      console.log('[BadgeForm] Participant response:', participantResponse);
-      
-      // The API returns participant data directly in the response (not nested under .participant)
+      // IMPORTANT: The API returns participant data in response.data (not response.participant)
+      // See routes/participants.js line 1016: success(res, { ...participantData, ...hasFlags })
       const p = participantResponse?.data || participantResponse;
       if (!p || !p.id) {
         throw new Error(t('participant_not_found'));

@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import {
   getParticipant,
-  fetchParents,
+  getGuardians,
   getOrganizationFormFormats,
   submitDynamicForm,
   getFormSubmission,
@@ -29,6 +29,7 @@ import {
   DynamicFormRenderer,
   Checkbox,
   Button,
+  Toast,
   useToast,
 } from '../components';
 import DateUtils from '../utils/DateUtils';
@@ -42,7 +43,7 @@ const HealthFormScreen = ({ route, navigation }) => {
   const [formStructure, setFormStructure] = useState(null);
   const [formData, setFormData] = useState({});
   const [emergencyContacts, setEmergencyContacts] = useState([]);
-  const { showToast, ToastComponent } = useToast();
+  const toast = useToast();
 
   useEffect(() => {
     loadData();
@@ -54,15 +55,16 @@ const HealthFormScreen = ({ route, navigation }) => {
       setLoading(true);
 
       // Load participant, parents, form formats, and existing submission in parallel
-      const [participantData, parentsData, formFormatsResponse, existingSubmission] = await Promise.all([
+      const [participantData, guardiansResponse, formFormatsResponse, existingSubmission] = await Promise.all([
         getParticipant(participantId),
-        fetchParents(participantId),
+        getGuardians(participantId),
         getOrganizationFormFormats('participant'),
         getFormSubmission(participantId, 'fiche_sante').catch(() => ({ success: false })),
       ]);
 
       setParticipant(participantData);
-      setParents(parentsData || []);
+      const parentsData = guardiansResponse?.data || guardiansResponse || [];
+      setParents(parentsData);
 
       // Get health form structure from response
       const formFormats = formFormatsResponse.success ? formFormatsResponse.data : {};
@@ -143,16 +145,16 @@ const HealthFormScreen = ({ route, navigation }) => {
       );
 
       if (result.success) {
-        showToast(t('health_form_saved_successfully') || 'Health form saved successfully', 'success');
+        toast.show(t('health_form_saved_successfully') || 'Health form saved successfully', 'success');
         // Navigate back after a short delay
         setTimeout(() => {
           navigation.goBack();
         }, 1500);
       } else {
-        showToast(result.message || t('error_saving_health_form'), 'error');
+        toast.show(result.message || t('error_saving_health_form'), 'error');
       }
     } catch (err) {
-      showToast(err.message || t('error_saving_health_form'), 'error');
+      toast.show(err.message || t('error_saving_health_form'), 'error');
     } finally {
       setLoading(false);
     }
@@ -257,7 +259,13 @@ const HealthFormScreen = ({ route, navigation }) => {
         />
       </ScrollView>
 
-      <ToastComponent />
+      <Toast
+        visible={toast.toastState.visible}
+        message={toast.toastState.message}
+        type={toast.toastState.type}
+        duration={toast.toastState.duration}
+        onDismiss={toast.hide}
+      />
     </View>
   );
 };

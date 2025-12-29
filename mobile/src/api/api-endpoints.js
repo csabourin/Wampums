@@ -269,6 +269,14 @@ export const deleteParticipant = async (id) => {
 };
 
 /**
+ * Get guardians/parents for a participant
+ * @param {number} participantId - Participant ID
+ */
+export const getGuardians = async (participantId) => {
+  return API.get(`/guardians?participant_id=${participantId}`);
+};
+
+/**
  * ============================================================================
  * CARPOOLS (V1)
  * ============================================================================
@@ -908,6 +916,22 @@ export const submitDynamicForm = async (formType, participantId, formData) => {
  */
 export const saveFormSubmission = async (formType, participantId, formData) => {
   return submitDynamicForm(formType, participantId, formData);
+};
+
+/**
+ * Get risk acceptance data for a participant
+ * @param {number} participantId - Participant ID
+ */
+export const getRiskAcceptance = async (participantId) => {
+  return API.get(`/risk-acceptance?participant_id=${participantId}`);
+};
+
+/**
+ * Save risk acceptance data for a participant
+ * @param {Object} data - Risk acceptance data (must include participant_id)
+ */
+export const saveRiskAcceptance = async (data) => {
+  return API.post('/risk-acceptance', data);
 };
 
 /**

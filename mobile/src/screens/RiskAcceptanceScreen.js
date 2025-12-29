@@ -16,8 +16,8 @@ import {
 } from 'react-native';
 import {
   getParticipant,
-  fetchAcceptationRisque,
-  saveAcceptationRisque,
+  getRiskAcceptance,
+  saveRiskAcceptance,
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -57,14 +57,17 @@ const RiskAcceptanceScreen = ({ route, navigation }) => {
     try {
       setError('');
 
-      const [participantData, acceptationData] = await Promise.all([
+      const [participantResponse, riskResponse] = await Promise.all([
         getParticipant(participantId),
-        fetchAcceptationRisque(participantId),
+        getRiskAcceptance(participantId).catch(() => ({ success: false })),
       ]);
 
+      // Handle participant data
+      const participantData = participantResponse?.data || participantResponse;
       setParticipant(participantData);
 
       // Populate form with existing data if available
+      const acceptationData = riskResponse?.data || null;
       if (acceptationData) {
         setFormData({
           groupe_district: acceptationData.groupe_district || '',
@@ -130,7 +133,10 @@ const RiskAcceptanceScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
 
-      const result = await saveAcceptationRisque(participantId, formData);
+      const result = await saveRiskAcceptance({
+        participant_id: participantId,
+        ...formData,
+      });
 
       if (result.success) {
         toast.show(t('risk_acceptance_saved_successfully'), 'success');
