@@ -447,6 +447,43 @@ export const getFinanceSummary = async () => {
 };
 
 /**
+ * Get a participant-level finance statement (guardian or staff scope)
+ * @param {number} participantId - Participant ID
+ * @returns {Promise} Participant finance statement with fees and payments
+ */
+export const getParticipantStatement = async (participantId) => {
+  return API.get(`${CONFIG.ENDPOINTS.FINANCE}/participants/${participantId}/statement`);
+};
+
+/**
+ * ============================================================================
+ * STRIPE PAYMENTS
+ * ============================================================================
+ */
+
+/**
+ * Create a Stripe payment intent for a participant fee
+ * @param {number} participantFeeId - Participant fee ID
+ * @param {number} amount - Amount to charge
+ * @returns {Promise} Payment intent with clientSecret
+ */
+export const createStripePaymentIntent = async (participantFeeId, amount) => {
+  return API.post(`${CONFIG.ENDPOINTS.STRIPE}/create-payment-intent`, {
+    participant_fee_id: participantFeeId,
+    amount,
+  });
+};
+
+/**
+ * Get the status of a Stripe payment intent
+ * @param {string} paymentIntentId - Stripe payment intent ID
+ * @returns {Promise} Payment intent status
+ */
+export const getStripePaymentStatus = async (paymentIntentId) => {
+  return API.get(`${CONFIG.ENDPOINTS.STRIPE}/payment-status/${paymentIntentId}`);
+};
+
+/**
  * ============================================================================
  * POINTS (Legacy)
  * ============================================================================
@@ -1061,6 +1098,10 @@ export default {
   createFeeDefinition,
   getParticipantFees,
   getFinanceSummary,
+  getParticipantStatement,
+  // Stripe Payments
+  createStripePaymentIntent,
+  getStripePaymentStatus,
   // Points
   updatePoints,
   getPointsReport,
