@@ -18,6 +18,8 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
+  Modal,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -26,13 +28,14 @@ import {
   getMyChildrenAssignments,
   getPermissionSlips,
   getParticipantStatement,
+  linkUserParticipants,
 } from '../api/api-endpoints';
 import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
 import NumberUtils from '../utils/NumberUtils';
 import FormatUtils from '../utils/FormatUtils';
-import { Card, LoadingSpinner, ErrorMessage } from '../components';
+import { Card, LoadingSpinner, ErrorMessage, Button } from '../components';
 import CONFIG from '../config';
 import { debugLog, debugError } from '../utils/DebugUtils';
 
@@ -49,6 +52,11 @@ const ParentDashboardScreen = () => {
     totalOutstanding: 0,
     participantCount: 0,
   });
+
+  // Link participants dialog state
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [participantsToLink, setParticipantsToLink] = useState([]);
+  const [selectedParticipants, setSelectedParticipants] = useState([]);
 
   // Configure header with settings button
   useEffect(() => {
@@ -186,6 +194,85 @@ const ParentDashboardScreen = () => {
     setRefreshing(false);
   };
 
+  /**
+   * Check if there are guardian participants to link
+   * This happens when a new parent account is created and existing participants need to be linked
+   */
+  const checkAndShowLinkParticipantsDialog = async () => {
+    try {
+      // Check for guardian participants in storage (set during registration)
+      const guardianParticipantsToLink = await StorageUtils.getItem('GUARDIAN_PARTICIPANTS_TO_LINK');
+
+      if (guardianParticipantsToLink && Array.isArray(guardianParticipantsToLink) && guardianParticipantsToLink.length > 0) {
+        debugLog('Found participants to link:', guardianParticipantsToLink);
+        setParticipantsToLink(guardianParticipantsToLink);
+        setSelectedParticipants(guardianParticipantsToLink.map(p => p.participant_id));
+        setShowLinkDialog(true);
+
+        // Clear from storage after showing
+        await StorageUtils.removeItem('GUARDIAN_PARTICIPANTS_TO_LINK');
+      }
+    } catch (error) {
+      debugError('Error checking for participants to link:', error);
+    }
+  };
+
+  /**
+   * Handle linking selected participants to current user
+   */
+  const handleLinkParticipants = async () => {
+    if (selectedParticipants.length === 0) {
+      Alert.alert(t('error'), t('Please select at least one participant'));
+      return;
+    }
+
+    try {
+      const response = await linkUserParticipants({ participant_ids: selectedParticipants });
+
+      if (response.success) {
+        Alert.alert(
+          t('success'),
+          t('participants_linked_successfully'),
+          [
+            {
+              text: t('OK'),
+              onPress: async () => {
+                setShowLinkDialog(false);
+                // Refresh dashboard data to show newly linked participants
+                await loadDashboardData();
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert(t('error'), response.message || t('error_linking_participants'));
+      }
+    } catch (error) {
+      debugError('Error linking participants:', error);
+      Alert.alert(t('error'), t('error_linking_participants'));
+    }
+  };
+
+  /**
+   * Toggle participant selection in link dialog
+   */
+  const toggleParticipantSelection = (participantId) => {
+    setSelectedParticipants(prev => {
+      if (prev.includes(participantId)) {
+        return prev.filter(id => id !== participantId);
+      } else {
+        return [...prev, participantId];
+      }
+    });
+  };
+
+  // Check for participants to link after initial load
+  useEffect(() => {
+    if (!loading) {
+      checkAndShowLinkParticipantsDialog();
+    }
+  }, [loading]);
+
   if (loading) {
     return <LoadingSpinner message={t('loading')} />;
   }
@@ -195,10 +282,11 @@ const ParentDashboardScreen = () => {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
+    <>
+      <ScrollView
+        style={styles.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('Parent Dashboard')}</Text>
       </View>
@@ -347,6 +435,61 @@ const ParentDashboardScreen = () => {
         </View>
       )}
 
+      {/* Important Forms Section */}
+      {children.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📋 {t('Important Forms')}</Text>
+          <Text style={styles.formsDescription}>
+            {t('Complete these forms for your children')}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.formCard}
+            onPress={() => navigation.navigate('HealthForm')}
+          >
+            <View style={styles.formCardContent}>
+              <View>
+                <Text style={styles.formCardTitle}>🏥 {t('Health Form')}</Text>
+                <Text style={styles.formCardDescription}>
+                  {t('Medical information and allergies')}
+                </Text>
+              </View>
+              <Text style={styles.formCardArrow}>→</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.formCard}
+            onPress={() => navigation.navigate('RiskAcceptance')}
+          >
+            <View style={styles.formCardContent}>
+              <View>
+                <Text style={styles.formCardTitle}>⚠️ {t('Risk Acceptance')}</Text>
+                <Text style={styles.formCardDescription}>
+                  {t('Activity risk acknowledgment')}
+                </Text>
+              </View>
+              <Text style={styles.formCardArrow}>→</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.formCard}
+            onPress={() => navigation.navigate('ParticipantDocuments')}
+          >
+            <View style={styles.formCardContent}>
+              <View>
+                <Text style={styles.formCardTitle}>📄 {t('Documents')}</Text>
+                <Text style={styles.formCardDescription}>
+                  {t('View and manage participant documents')}
+                </Text>
+              </View>
+              <Text style={styles.formCardArrow}>→</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Quick Actions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('Quick Actions')}</Text>
@@ -390,6 +533,60 @@ const ParentDashboardScreen = () => {
         </TouchableOpacity>
       </View>
     </ScrollView>
+
+      {/* Link Participants Dialog */}
+      <Modal
+        visible={showLinkDialog}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowLinkDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{t('link_existing_participants')}</Text>
+            <Text style={styles.modalDescription}>
+              {t('existing_participants_found')}
+            </Text>
+
+            <ScrollView style={styles.modalScrollView}>
+              {participantsToLink.map((participant) => (
+                <TouchableOpacity
+                  key={participant.participant_id}
+                  style={styles.participantCheckboxRow}
+                  onPress={() => toggleParticipantSelection(participant.participant_id)}
+                >
+                  <View style={styles.checkbox}>
+                    {selectedParticipants.includes(participant.participant_id) && (
+                      <Text style={styles.checkmark}>✓</Text>
+                    )}
+                  </View>
+                  <Text style={styles.participantName}>
+                    {participant.first_name} {participant.last_name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowLinkDialog(false)}
+              >
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.linkButton]}
+                onPress={handleLinkParticipants}
+              >
+                <Text style={styles.linkButtonText}>
+                  {t('link_selected_participants')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -558,6 +755,126 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: 14,
     color: '#007AFF',
+    fontWeight: '600',
+  },
+  // Forms Section Styles
+  formsDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  formCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
+  },
+  formCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  formCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  formCardDescription: {
+    fontSize: 13,
+    color: '#666',
+  },
+  formCardArrow: {
+    fontSize: 20,
+    color: '#007AFF',
+  },
+  // Link Participants Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+  },
+  modalScrollView: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  participantCheckboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    borderRadius: 4,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmark: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+  participantName: {
+    fontSize: 16,
+    color: '#333',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  linkButton: {
+    backgroundColor: '#007AFF',
+  },
+  linkButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

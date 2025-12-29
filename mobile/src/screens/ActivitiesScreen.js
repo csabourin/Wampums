@@ -258,6 +258,9 @@ const ActivitiesScreen = () => {
                   (activity.location ? `\n📍 ${activity.location}` : '') +
                   (activity.participant_count
                     ? `\n👥 ${activity.participant_count} ${t('participants') || 'participants'}`
+                    : '') +
+                  (activity.carpool_offer_count
+                    ? `\n🚗 ${activity.carpool_offer_count} ${t('vehicles') || 'vehicles'}`
                     : '')
                 }
                 badge={
@@ -265,6 +268,14 @@ const ActivitiesScreen = () => {
                     ? {
                         text: status.text,
                         color: status.color,
+                      }
+                    : undefined
+                }
+                rightAction={
+                  activity.carpool_offer_count > 0
+                    ? {
+                        label: t('view_carpools') || 'Carpools',
+                        onPress: () => navigation.navigate('Carpool', { activityId: activity.id }),
                       }
                     : undefined
                 }
