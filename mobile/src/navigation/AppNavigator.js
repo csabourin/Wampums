@@ -58,6 +58,7 @@ import ApproveBadgesScreen from '../screens/ApproveBadgesScreen';
 import BadgeDashboardScreen from '../screens/BadgeDashboardScreen';
 import BadgeFormScreen from '../screens/BadgeFormScreen';
 import FinanceScreen from '../screens/FinanceScreen';
+import ParentFinanceScreen from '../screens/ParentFinanceScreen';
 import FormPermissionsScreen from '../screens/FormPermissionsScreen';
 import GroupsScreen from '../screens/GroupsScreen';
 import HealthFormScreen from '../screens/HealthFormScreen';
@@ -256,6 +257,15 @@ const AppNavigator = ({ userPermissions }) => {
         options={{
           headerShown: true,
           title: 'Finance',
+        }}
+      />
+
+      <Stack.Screen
+        name="ParentFinance"
+        component={ParentFinanceScreen}
+        options={{
+          headerShown: true,
+          title: 'My Finances',
         }}
       />
 

@@ -269,11 +269,187 @@ export const deleteParticipant = async (id) => {
 };
 
 /**
+ * ============================================================================
+ * GUARDIANS / PARENTS
+ * ============================================================================
+ */
+
+/**
+ * Get all guardians
+ */
+export const getAllGuardians = async () => {
+  return API.get('/guardians');
+};
+
+/**
  * Get guardians/parents for a participant
  * @param {number} participantId - Participant ID
  */
 export const getGuardians = async (participantId) => {
-  return API.get(`/guardians?participant_id=${participantId}`);
+  return API.get('/guardians', { participant_id: participantId });
+};
+
+/**
+ * Fetch guardians for a participant (alias for getGuardians)
+ * @param {number} participantId - Participant ID
+ */
+export const fetchGuardians = async (participantId) => {
+  return getGuardians(participantId);
+};
+
+/**
+ * Get guardians for specific participant
+ * @param {number} participantId - Participant ID
+ */
+export const getGuardiansForParticipant = async (participantId) => {
+  return API.get('/guardians-for-participant', { participant_id: participantId });
+};
+
+/**
+ * Get guardian info by ID
+ * @param {number} guardianId - Guardian ID
+ */
+export const getGuardianInfo = async (guardianId) => {
+  return API.get('/guardian-info', { guardian_id: guardianId });
+};
+
+/**
+ * Get guardian core info (alias for getGuardianInfo)
+ * @param {number} guardianId - Guardian ID
+ */
+export const getGuardianCoreInfo = async (guardianId) => {
+  return getGuardianInfo(guardianId);
+};
+
+/**
+ * Save parent/guardian
+ * @param {Object} parentData - Parent/guardian data
+ */
+export const saveParent = async (parentData) => {
+  return API.post('/save-guardian', parentData);
+};
+
+/**
+ * Save guardian (alias for saveParent)
+ * @param {Object} guardianData - Guardian data
+ */
+export const saveGuardian = async (guardianData) => {
+  return API.post('/save-guardian', guardianData);
+};
+
+/**
+ * Save guardian form submission
+ * @param {Object} formData - Guardian form data
+ */
+export const saveGuardianFormSubmission = async (formData) => {
+  return API.post('/save-guardian-form-submission', formData);
+};
+
+/**
+ * Link parent to participant
+ * @param {number} parentId - Parent/guardian ID
+ * @param {number} participantId - Participant ID
+ */
+export const linkParentToParticipant = async (parentId, participantId) => {
+  return API.post('/link-parent-to-participant', {
+    parent_id: parentId,
+    participant_id: participantId,
+  });
+};
+
+/**
+ * Link guardian to participant (alias)
+ * @param {number} participantId - Participant ID
+ * @param {number} guardianId - Guardian ID
+ */
+export const linkGuardianToParticipant = async (participantId, guardianId) => {
+  return API.post('/link-parent-to-participant', {
+    participant_id: participantId,
+    guardian_id: guardianId,
+  });
+};
+
+/**
+ * Remove guardians from participant
+ * @param {number} participantId - Participant ID
+ * @param {Array<number>} guardianIds - Array of guardian IDs to remove
+ */
+export const removeGuardians = async (participantId, guardianIds) => {
+  return API.post('/remove-guardians', {
+    participant_id: participantId,
+    guardian_ids: guardianIds,
+  });
+};
+
+/**
+ * Fetch parents (alias for fetchGuardians)
+ * @param {number} participantId - Participant ID
+ */
+export const fetchParents = async (participantId) => {
+  return fetchGuardians(participantId);
+};
+
+/**
+ * Get parent users
+ * @param {boolean} forceRefresh - Force refresh from server
+ */
+export const getParentUsers = async (forceRefresh = false) => {
+  return API.get('/parent-users', {}, { forceRefresh });
+};
+
+/**
+ * Get parent dashboard data
+ */
+export const getParentDashboard = async () => {
+  return API.get('/parent-dashboard');
+};
+
+/**
+ * Get parent contact list
+ */
+export const getParentContactList = async () => {
+  return API.get('/parent-contact-list');
+};
+
+/**
+ * Get user children
+ * @param {string} userId - User ID (UUID)
+ */
+export const getUserChildren = async (userId) => {
+  return API.get('/user-children', { user_id: userId });
+};
+
+/**
+ * Associate user to participant
+ * @param {number} participantId - Participant ID
+ * @param {string} userId - User ID (UUID)
+ */
+export const associateUser = async (participantId, userId) => {
+  return API.post('/associate-user', {
+    participant_id: participantId,
+    user_id: userId,
+  });
+};
+
+/**
+ * Link user to participants
+ * Supports two signatures:
+ * 1. linkUserParticipants({participant_ids: [...]}) - self-linking
+ * 2. linkUserParticipants(userId, participantIds) - admin linking another user
+ *
+ * @param {string|Object} userIdOrData - User ID or data object
+ * @param {Array<number>} participantIds - Array of participant IDs (if first param is userId)
+ */
+export const linkUserParticipants = async (userIdOrData, participantIds) => {
+  if (typeof userIdOrData === 'object' && userIdOrData !== null) {
+    return API.post('/link-user-participants', {
+      participant_ids: userIdOrData.participant_ids,
+    });
+  }
+  return API.post('/link-user-participants', {
+    user_id: userIdOrData,
+    participant_ids: participantIds,
+  });
 };
 
 /**
@@ -430,6 +606,23 @@ export const createFeeDefinition = async (feeData) => {
 };
 
 /**
+ * Update fee definition
+ * @param {number} id - Fee definition ID
+ * @param {Object} feeData - Updated fee definition data
+ */
+export const updateFeeDefinition = async (id, feeData) => {
+  return API.put(`${CONFIG.ENDPOINTS.FINANCE}/fee-definitions/${id}`, feeData);
+};
+
+/**
+ * Delete fee definition
+ * @param {number} id - Fee definition ID
+ */
+export const deleteFeeDefinition = async (id) => {
+  return API.delete(`${CONFIG.ENDPOINTS.FINANCE}/fee-definitions/${id}`);
+};
+
+/**
  * Get participant fees
  */
 export const getParticipantFees = async (participantId = null) => {
@@ -440,10 +633,124 @@ export const getParticipantFees = async (participantId = null) => {
 };
 
 /**
+ * Create participant fee
+ * @param {Object} feeData - Participant fee data
+ */
+export const createParticipantFee = async (feeData) => {
+  return API.post(`${CONFIG.ENDPOINTS.FINANCE}/participant-fees`, feeData);
+};
+
+/**
+ * Update participant fee
+ * @param {number} id - Participant fee ID
+ * @param {Object} feeData - Updated participant fee data
+ */
+export const updateParticipantFee = async (id, feeData) => {
+  return API.put(`${CONFIG.ENDPOINTS.FINANCE}/participant-fees/${id}`, feeData);
+};
+
+/**
+ * Get payments for a participant fee
+ * @param {number} participantFeeId - Participant fee ID
+ */
+export const getParticipantPayments = async (participantFeeId) => {
+  return API.get(`${CONFIG.ENDPOINTS.FINANCE}/participant-fees/${participantFeeId}/payments`);
+};
+
+/**
+ * Create a payment for a participant fee
+ * @param {number} participantFeeId - Participant fee ID
+ * @param {Object} paymentData - Payment data
+ */
+export const createParticipantPayment = async (participantFeeId, paymentData) => {
+  return API.post(`${CONFIG.ENDPOINTS.FINANCE}/participant-fees/${participantFeeId}/payments`, paymentData);
+};
+
+/**
+ * Update an existing payment
+ * @param {number} paymentId - Payment ID
+ * @param {Object} paymentData - Updated payment data
+ */
+export const updatePayment = async (paymentId, paymentData) => {
+  return API.put(`${CONFIG.ENDPOINTS.FINANCE}/payments/${paymentId}`, paymentData);
+};
+
+/**
+ * Get payment plans for a participant fee
+ * @param {number} participantFeeId - Participant fee ID
+ */
+export const getPaymentPlans = async (participantFeeId) => {
+  return API.get(`${CONFIG.ENDPOINTS.FINANCE}/participant-fees/${participantFeeId}/payment-plans`);
+};
+
+/**
+ * Create a payment plan for a participant fee
+ * @param {number} participantFeeId - Participant fee ID
+ * @param {Object} planData - Payment plan data
+ */
+export const createPaymentPlan = async (participantFeeId, planData) => {
+  return API.post(`${CONFIG.ENDPOINTS.FINANCE}/participant-fees/${participantFeeId}/payment-plans`, planData);
+};
+
+/**
+ * Update an existing payment plan
+ * @param {number} planId - Payment plan ID
+ * @param {Object} planData - Updated payment plan data
+ */
+export const updatePaymentPlan = async (planId, planData) => {
+  return API.put(`${CONFIG.ENDPOINTS.FINANCE}/payment-plans/${planId}`, planData);
+};
+
+/**
+ * Delete a payment plan
+ * @param {number} planId - Payment plan ID
+ */
+export const deletePaymentPlan = async (planId) => {
+  return API.delete(`${CONFIG.ENDPOINTS.FINANCE}/payment-plans/${planId}`);
+};
+
+/**
  * Get finance summary report
  */
 export const getFinanceSummary = async () => {
   return API.get(`${CONFIG.ENDPOINTS.FINANCE}/reports/summary`);
+};
+
+/**
+ * Get a participant-level finance statement (guardian or staff scope)
+ * @param {number} participantId - Participant ID
+ * @returns {Promise} Participant finance statement with fees and payments
+ */
+export const getParticipantStatement = async (participantId) => {
+  return API.get(`${CONFIG.ENDPOINTS.FINANCE}/participants/${participantId}/statement`);
+};
+
+/**
+ * ============================================================================
+ * STRIPE PAYMENTS
+ * ============================================================================
+ */
+
+/**
+ * Create a Stripe payment intent for a participant fee
+ * @param {number} participantFeeId - Participant fee ID
+ * @param {number} amount - Amount to charge
+ * @returns {Promise} Payment intent with clientSecret
+ */
+export const createStripePaymentIntent = async (participantFeeId, amount) => {
+  return API.post(`${CONFIG.ENDPOINTS.STRIPE}/create-payment-intent`, {
+    participant_fee_id: participantFeeId,
+    amount,
+  });
+};
+
+/**
+ * Get the status of a Stripe payment intent
+ * @param {string} paymentIntentId - Stripe payment intent ID
+ * @returns {Promise} Payment intent status
+ */
+export const getStripePaymentStatus = async (paymentIntentId) => {
+  return API.get(`${CONFIG.ENDPOINTS.STRIPE}/payment-status/${paymentIntentId}`);
 };
 
 /**
@@ -863,6 +1170,89 @@ export const updateBadgeProgress = async (progressId, badgeData) => {
  */
 
 /**
+ * Get attendance report
+ * @param {Object} options - Report options
+ * @param {string} options.startDate - Start date (YYYY-MM-DD)
+ * @param {string} options.endDate - End date (YYYY-MM-DD)
+ * @param {number} options.groupId - Optional group ID filter
+ * @param {string} options.format - Optional format (csv, json)
+ */
+export const getAttendanceReport = async (options = {}) => {
+  const params = {};
+  if (options.startDate) params.start_date = options.startDate;
+  if (options.endDate) params.end_date = options.endDate;
+  if (options.groupId) params.group_id = options.groupId;
+  if (options.format) params.format = options.format;
+
+  return API.get('/attendance-report', params);
+};
+
+/**
+ * Get health contact report
+ */
+export const getHealthContactReport = async () => {
+  return API.get('/health-contact-report');
+};
+
+/**
+ * Get health report
+ * @param {number} groupId - Optional group ID filter
+ */
+export const getHealthReport = async (groupId = null) => {
+  const params = groupId ? { group_id: groupId } : {};
+  return API.get('/health-report', params);
+};
+
+/**
+ * Get allergies report
+ */
+export const getAllergiesReport = async () => {
+  return API.get('/allergies-report');
+};
+
+/**
+ * Get medication report
+ */
+export const getMedicationReport = async () => {
+  return API.get('/medication-report');
+};
+
+/**
+ * Get vaccine report
+ */
+export const getVaccineReport = async () => {
+  return API.get('/vaccine-report');
+};
+
+/**
+ * Get leave alone authorization report
+ */
+export const getLeaveAloneReport = async () => {
+  return API.get('/leave-alone-report');
+};
+
+/**
+ * Get media authorization report
+ */
+export const getMediaAuthorizationReport = async () => {
+  return API.get('/media-authorization-report');
+};
+
+/**
+ * Get missing documents report
+ */
+export const getMissingDocumentsReport = async () => {
+  return API.get('/missing-documents-report');
+};
+
+/**
+ * Get mailing list
+ */
+export const getMailingList = async () => {
+  return API.get('/mailing-list');
+};
+
+/**
  * Get parent contact list
  */
 export const getParentContactList = async ({ forceRefresh = false } = {}) => {
@@ -1037,6 +1427,26 @@ export default {
   createParticipant,
   updateParticipant,
   deleteParticipant,
+  // Guardians / Parents
+  getAllGuardians,
+  getGuardians,
+  fetchGuardians,
+  getGuardiansForParticipant,
+  getGuardianInfo,
+  getGuardianCoreInfo,
+  saveParent,
+  saveGuardian,
+  saveGuardianFormSubmission,
+  linkParentToParticipant,
+  linkGuardianToParticipant,
+  removeGuardians,
+  fetchParents,
+  getParentUsers,
+  getParentDashboard,
+  getParentContactList,
+  getUserChildren,
+  associateUser,
+  linkUserParticipants,
   // Carpools
   getCarpoolOffers,
   getUnassignedParticipants,
@@ -1059,8 +1469,23 @@ export default {
   // Finance
   getFeeDefinitions,
   createFeeDefinition,
+  updateFeeDefinition,
+  deleteFeeDefinition,
   getParticipantFees,
+  createParticipantFee,
+  updateParticipantFee,
+  getParticipantPayments,
+  createParticipantPayment,
+  updatePayment,
+  getPaymentPlans,
+  createPaymentPlan,
+  updatePaymentPlan,
+  deletePaymentPlan,
   getFinanceSummary,
+  getParticipantStatement,
+  // Stripe Payments
+  createStripePaymentIntent,
+  getStripePaymentStatus,
   // Points
   updatePoints,
   getPointsReport,
@@ -1095,6 +1520,17 @@ export default {
   deleteMedicationRequirement,
   recordMedicationDistribution,
   markMedicationDistributionAsGiven,
+  // Reports
+  getAttendanceReport,
+  getHealthContactReport,
+  getHealthReport,
+  getAllergiesReport,
+  getMedicationReport,
+  getVaccineReport,
+  getLeaveAloneReport,
+  getMediaAuthorizationReport,
+  getMissingDocumentsReport,
+  getMailingList,
   // Resources
   getEquipment,
   getEquipmentReservations,
