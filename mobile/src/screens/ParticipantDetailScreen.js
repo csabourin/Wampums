@@ -28,8 +28,15 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 
 // API and utilities
-import { getParticipant, updateParticipant } from '../api/api-endpoints';
+import {
+  getParticipant,
+  updateParticipant,
+  createParticipant,
+  deleteParticipant,
+  getGroups,
+} from '../api/api-endpoints';
 import { translate as t } from '../i18n';
+import { Picker } from '@react-native-picker/picker';
 import StorageUtils from '../utils/StorageUtils';
 import SecurityUtils from '../utils/SecurityUtils';
 import DateUtils from '../utils/DateUtils';
@@ -45,12 +52,15 @@ import { debugError } from '../utils/DebugUtils.js';
 const ParticipantDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { participantId } = route.params || {};
+  const { id } = route.params || {};
+  const participantId = id;
+  const isNewParticipant = participantId === 'new';
 
   // State
   const [participant, setParticipant] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [isLoading, setIsLoading] = useState(!isNewParticipant);
+  const [isEditing, setIsEditing] = useState(isNewParticipant);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -66,6 +76,9 @@ const ParticipantDetailScreen = () => {
     city: '',
     province: '',
     postalCode: '',
+    group_id: null,
+    first_leader: false,
+    second_leader: false,
   });
 
   // User permissions
@@ -91,11 +104,23 @@ const ParticipantDetailScreen = () => {
   }, []);
 
   /**
+   * Load groups
+   */
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  /**
    * Load participant data
    */
   useEffect(() => {
-    if (participantId) {
+    if (participantId && participantId !== 'new') {
       loadParticipant();
+    } else if (isNewParticipant) {
+      // For new participants, just set header
+      navigation.setOptions({
+        title: t('create_participant') || 'New Participant',
+      });
     }
   }, [participantId]);
 
@@ -112,6 +137,21 @@ const ParticipantDetailScreen = () => {
       setCanEdit(canEditParticipant);
     } catch (error) {
       debugError('Error loading user role:', error);
+    }
+  };
+
+  /**
+   * Load groups list
+   */
+  const loadGroups = async () => {
+    try {
+      const response = await getGroups();
+      if (response.success && response.data) {
+        setGroups(response.data);
+      }
+    } catch (error) {
+      debugError('Error loading groups:', error);
+      // Non-critical error, continue
     }
   };
 
@@ -149,15 +189,18 @@ const ParticipantDetailScreen = () => {
    */
   const initializeFormData = (data) => {
     setFormData({
-      firstName: data.firstName || '',
-      lastName: data.lastName || '',
+      firstName: data.firstName || data.first_name || '',
+      lastName: data.lastName || data.last_name || '',
       email: data.email || '',
       phone: data.phone || '',
       birthdate: data.birthdate || '',
       address: data.address || '',
       city: data.city || '',
       province: data.province || '',
-      postalCode: data.postalCode || '',
+      postalCode: data.postalCode || data.postal_code || '',
+      group_id: data.group_id || null,
+      first_leader: data.first_leader || false,
+      second_leader: data.second_leader || false,
     });
   };
 
@@ -216,40 +259,110 @@ const ParticipantDetailScreen = () => {
       // Sanitize all input data
       const sanitizedData = SecurityUtils.deepSanitize(formData);
 
-      // Update participant via API
-      const response = await updateParticipant(participantId, sanitizedData);
+      // Ensure role logic: only one leader role per participant
+      if (sanitizedData.first_leader && sanitizedData.second_leader) {
+        sanitizedData.second_leader = false;
+      }
+
+      let response;
+      if (isNewParticipant) {
+        // Create new participant
+        response = await createParticipant(sanitizedData);
+      } else {
+        // Update existing participant
+        response = await updateParticipant(participantId, sanitizedData);
+      }
 
       if (response.success) {
         // CRITICAL: Invalidate participant caches (following CLAUDE.md)
         await CacheManager.clearParticipantRelatedCaches();
 
-        // Update local state
-        setParticipant({ ...participant, ...sanitizedData });
-        setIsEditing(false);
-
-        // Show success message
-        if (response.queued) {
-          Alert.alert(
-            t('Queued'),
-            t('Will sync when online'),
-            [{ text: t('OK') }]
-          );
-        } else {
+        if (isNewParticipant) {
+          // Navigate back with success message
           Alert.alert(
             t('success'),
-            t('data_saved'),
-            [{ text: t('OK') }]
+            t('participant_created'),
+            [
+              {
+                text: t('OK'),
+                onPress: () => navigation.goBack(),
+              },
+            ]
           );
+        } else {
+          // Update local state
+          setParticipant({ ...participant, ...sanitizedData });
+          setIsEditing(false);
+
+          // Show success message
+          if (response.queued) {
+            Alert.alert(t('Queued'), t('Will sync when online'), [{ text: t('OK') }]);
+          } else {
+            Alert.alert(t('success'), t('data_saved'), [{ text: t('OK') }]);
+          }
         }
       } else {
         setError(response.message || t('error_saving_participant'));
+        Alert.alert(t('error'), response.message || t('error_saving_participant'));
       }
     } catch (err) {
       debugError('Error saving participant:', err);
       setError(t('error_saving_participant'));
+      Alert.alert(t('error'), t('error_saving_participant'));
     } finally {
       setIsSaving(false);
     }
+  };
+
+  /**
+   * Delete participant
+   */
+  const handleDelete = () => {
+    if (isNewParticipant) return;
+
+    Alert.alert(
+      t('confirm_delete'),
+      t('confirm_delete_participant_message'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsSaving(true);
+              const response = await deleteParticipant(participantId);
+
+              if (response.success) {
+                // CRITICAL: Invalidate participant caches
+                await CacheManager.clearParticipantRelatedCaches();
+
+                Alert.alert(
+                  t('success'),
+                  t('participant_deleted'),
+                  [
+                    {
+                      text: t('OK'),
+                      onPress: () => navigation.goBack(),
+                    },
+                  ]
+                );
+              } else {
+                Alert.alert(t('error'), response.message || t('error_deleting_participant'));
+              }
+            } catch (err) {
+              debugError('Error deleting participant:', err);
+              Alert.alert(t('error'), t('error_deleting_participant'));
+            } finally {
+              setIsSaving(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   /**
@@ -360,27 +473,29 @@ const ParticipantDetailScreen = () => {
         {/* Error message */}
         {error && <ErrorMessage message={error} />}
 
-        {/* Header Card */}
-        <Card style={styles.headerCard}>
-          <View style={styles.headerContent}>
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>
-                {participant?.firstName?.[0] || '?'}
-                {participant?.lastName?.[0] || ''}
-              </Text>
-            </View>
-            <View style={styles.headerInfo}>
-              <Text style={styles.nameText}>
-                {participant?.firstName} {participant?.lastName}
-              </Text>
-              {getAge() && (
-                <Text style={styles.ageText}>
-                  {getAge()} {t('years')}
+        {/* Header Card - only show for existing participants */}
+        {!isNewParticipant && participant && (
+          <Card style={styles.headerCard}>
+            <View style={styles.headerContent}>
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>
+                  {participant?.firstName?.[0] || '?'}
+                  {participant?.lastName?.[0] || ''}
                 </Text>
-              )}
+              </View>
+              <View style={styles.headerInfo}>
+                <Text style={styles.nameText}>
+                  {participant?.firstName} {participant?.lastName}
+                </Text>
+                {getAge() && (
+                  <Text style={styles.ageText}>
+                    {getAge()} {t('years')}
+                  </Text>
+                )}
+              </View>
             </View>
-          </View>
-        </Card>
+          </Card>
+        )}
 
         {/* Basic Information Card */}
         <Card style={styles.card}>
@@ -432,6 +547,85 @@ const ParticipantDetailScreen = () => {
           })}
         </Card>
 
+        {/* Group & Role Card */}
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('Group & Role')}</Text>
+
+          {/* Group Picker */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>{t('group')}</Text>
+            {isEditing ? (
+              <Picker
+                selectedValue={formData.group_id}
+                onValueChange={(value) => {
+                  handleFieldChange('group_id', value);
+                  // Reset role when changing group
+                  if (!value) {
+                    handleFieldChange('first_leader', false);
+                    handleFieldChange('second_leader', false);
+                  }
+                }}
+                style={styles.picker}
+                enabled={!isSaving}
+              >
+                <Picker.Item label={t('no_group')} value={null} />
+                {groups.map((group) => (
+                  <Picker.Item
+                    key={group.id}
+                    label={group.name}
+                    value={group.id}
+                  />
+                ))}
+              </Picker>
+            ) : (
+              <Text style={styles.fieldValue}>
+                {formData.group_id
+                  ? groups.find((g) => g.id === formData.group_id)?.name || t('no_group')
+                  : t('no_group')}
+              </Text>
+            )}
+          </View>
+
+          {/* Role Picker - Only enabled when group is selected */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>{t('role')}</Text>
+            {isEditing ? (
+              <Picker
+                selectedValue={
+                  formData.first_leader
+                    ? 'leader'
+                    : formData.second_leader
+                      ? 'second_leader'
+                      : 'none'
+                }
+                onValueChange={(value) => {
+                  handleFieldChange('first_leader', value === 'leader');
+                  handleFieldChange('second_leader', value === 'second_leader');
+                }}
+                style={styles.picker}
+                enabled={!isSaving && formData.group_id !== null}
+              >
+                <Picker.Item label={t('none')} value="none" />
+                <Picker.Item label={t('leader')} value="leader" />
+                <Picker.Item label={t('second_leader')} value="second_leader" />
+              </Picker>
+            ) : (
+              <Text style={styles.fieldValue}>
+                {formData.first_leader
+                  ? t('leader')
+                  : formData.second_leader
+                    ? t('second_leader')
+                    : t('none')}
+              </Text>
+            )}
+            {!formData.group_id && isEditing && (
+              <Text style={styles.helpText}>
+                {t('Select a group to assign a role')}
+              </Text>
+            )}
+          </View>
+        </Card>
+
         {/* Placeholder cards for future features */}
         <Card style={styles.placeholderCard}>
           <Text style={styles.placeholderText}>
@@ -470,7 +664,9 @@ const ParticipantDetailScreen = () => {
               onPress={handleCancel}
               disabled={isSaving}
             >
-              <Text style={styles.buttonText}>{t('cancel')}</Text>
+              <Text style={styles.buttonText}>
+                {isNewParticipant ? t('back') : t('cancel')}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.saveButton, isSaving && styles.disabledButton]}
@@ -481,21 +677,34 @@ const ParticipantDetailScreen = () => {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={[styles.buttonText, styles.saveButtonText]}>
-                  {t('save')}
+                  {isNewParticipant ? t('create') : t('save')}
                 </Text>
               )}
             </TouchableOpacity>
           </>
         ) : (
           canEdit && (
-            <TouchableOpacity
-              style={[styles.button, styles.editButton]}
-              onPress={handleEdit}
-            >
-              <Text style={[styles.buttonText, styles.editButtonText]}>
-                {t('edit')}
-              </Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.button, styles.editButton]}
+                onPress={handleEdit}
+              >
+                <Text style={[styles.buttonText, styles.editButtonText]}>
+                  {t('edit')}
+                </Text>
+              </TouchableOpacity>
+              {!isNewParticipant && (
+                <TouchableOpacity
+                  style={[styles.button, styles.deleteButton]}
+                  onPress={handleDelete}
+                  disabled={isSaving}
+                >
+                  <Text style={[styles.buttonText, styles.deleteButtonText]}>
+                    {t('delete')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
           )
         )}
       </View>
@@ -682,8 +891,27 @@ const styles = StyleSheet.create({
   editButtonText: {
     color: '#fff',
   },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+  },
+  deleteButtonText: {
+    color: '#fff',
+  },
   disabledButton: {
     opacity: 0.6,
+  },
+  picker: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    marginTop: 5,
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+    marginTop: 5,
   },
 });
 

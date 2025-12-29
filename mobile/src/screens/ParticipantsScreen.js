@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
+  Text,
   ScrollView,
   StyleSheet,
   RefreshControl,
