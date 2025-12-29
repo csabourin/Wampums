@@ -24,7 +24,7 @@ export {
 } from './Table';
 
 // Filter & Search
-export { default as FilterBar, SortButton, SearchBar } from './FilterBar';
+export { default as FilterBar } from './FilterBar';
 
 // Modal & Dialogs
 export { default as Modal, ConfirmModal } from './Modal';

@@ -21,11 +21,11 @@ import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
 import {
   ListItem,
-  FilterBar,
   LoadingState,
   ErrorState,
   EmptyState,
   NoData,
+  Toast,
   useToast,
 } from '../components';
 import { hasPermission } from '../utils/PermissionUtils';
@@ -44,7 +44,7 @@ const ActivitiesScreen = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [userPermissions, setUserPermissions] = useState([]);
   
-  const { showToast, ToastComponent } = useToast();
+  const toast = useToast();
 
   // Configure header
   useEffect(() => {
@@ -225,15 +225,6 @@ const ActivitiesScreen = () => {
 
   return (
     <View style={styles.container}>
-      <FilterBar
-        filters={filterOptions}
-        activeFilter={activeFilter}
-        onFilterChange={setActiveFilter}
-        sortOptions={sortOptions}
-        sortValue={`${sortBy}-${sortOrder}`}
-        onSortChange={handleSortChange}
-      />
-
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.listContainer}
@@ -284,7 +275,13 @@ const ActivitiesScreen = () => {
         )}
       </ScrollView>
 
-      <ToastComponent />
+      <Toast
+        visible={toast.toastState.visible}
+        message={toast.toastState.message}
+        type={toast.toastState.type}
+        duration={toast.toastState.duration}
+        onDismiss={toast.hide}
+      />
     </View>
   );
 };

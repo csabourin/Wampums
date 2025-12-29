@@ -83,6 +83,55 @@ export const NoData = ({ message = 'No items yet', actionLabel, onAction }) => {
   );
 };
 
+/**
+ * LoadingState Component
+ *
+ * Pre-configured empty state for loading.
+ */
+export const LoadingState = ({ message = 'Loading...' }) => {
+  return (
+    <EmptyState
+      icon="⏳"
+      title="Loading"
+      message={message}
+    />
+  );
+};
+
+/**
+ * ErrorState Component
+ *
+ * Pre-configured empty state for errors with retry.
+ */
+export const ErrorState = ({ message = 'An error occurred', onRetry }) => {
+  return (
+    <EmptyState
+      icon="⚠️"
+      title="Error"
+      message={message}
+      actionLabel={onRetry ? 'Retry' : undefined}
+      onAction={onRetry}
+    />
+  );
+};
+
+/**
+ * OfflineState Component
+ *
+ * Pre-configured empty state for offline status.
+ */
+export const OfflineState = ({ message = 'No internet connection', onRetry }) => {
+  return (
+    <EmptyState
+      icon="📡"
+      title="Offline"
+      message={message}
+      actionLabel={onRetry ? 'Retry' : undefined}
+      onAction={onRetry}
+    />
+  );
+};
+
 const styles = StyleSheet.create({
   icon: {
     fontSize: 64,

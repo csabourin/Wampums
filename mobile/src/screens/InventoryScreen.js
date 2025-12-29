@@ -35,6 +35,7 @@ import {
 import { canViewInventory, canManageInventory } from '../utils/PermissionUtils';
 import { getEquipment } from '../api/api-endpoints';
 import StorageUtils from '../utils/StorageUtils';
+import { debugLog, debugError } from '../utils/DebugUtils';
 
 const LOCATION_TYPES = [
   { label: () => t('location_type_local_scout_hall'), value: 'local_scout_hall' },
@@ -106,10 +107,23 @@ const InventoryScreen = ({ navigation }) => {
       const response = await getEquipment();
 
       if (response.success && response.data) {
-        setEquipment(response.data.equipment || response.data || []);
+        const equipmentData = response.data.equipment || response.data || [];
+        
+        // DEBUG: Log equipment data to see photo_url
+        debugLog('Equipment data loaded:', equipmentData.length, 'items');
+        equipmentData.forEach((item, index) => {
+          debugLog(`Item ${index}:`, {
+            id: item.id,
+            name: item.name,
+            photo_url: item.photo_url,
+            hasPhoto: !!item.photo_url
+          });
+        });
+        
+        setEquipment(equipmentData);
       }
     } catch (err) {
-      console.error('Error loading equipment:', err);
+      debugError('Error loading equipment:', err);
       toast.show(t('error_loading_data'), 'error');
     } finally {
       setLoading(false);
@@ -388,9 +402,13 @@ const InventoryScreen = ({ navigation }) => {
           {selectedImage ? (
             <View style={styles.imagePreviewContainer}>
               <Image
-                source={{ uri: selectedImage }}
+                source={{
+                  uri: selectedImage,
+                  cache: 'force-cache',
+                }}
                 style={styles.imagePreview}
                 resizeMode="cover"
+                onError={(e) => debugError('Preview error:', e.nativeEvent.error)}
               />
               <TouchableOpacity
                 style={styles.changePhotoButton}
@@ -604,12 +622,29 @@ const InventoryScreen = ({ navigation }) => {
               disabled={!canManageInventory()}
             >
               {/* Equipment Image */}
-              {item.photo_url && (
-                <Image
-                  source={{ uri: item.photo_url }}
-                  style={styles.equipmentImage}
-                  resizeMode="cover"
-                />
+              {item.photo_url ? (
+                <View>
+                  <Image
+                    source={{
+                      uri: item.photo_url,
+                      // Add caching and proper headers for remote images
+                      cache: 'force-cache',
+                    }}
+                    style={styles.equipmentImage}
+                    resizeMode="cover"
+                    onError={(e) => {
+                      debugError('Image load error for', item.name, ':', e.nativeEvent.error);
+                      debugLog('Photo URL was:', item.photo_url);
+                    }}
+                    onLoad={() => {
+                      debugLog('Image loaded successfully for', item.name);
+                    }}
+                  />
+                </View>
+              ) : (
+                <View style={styles.noImagePlaceholder}>
+                  <Text style={styles.noImageText}>📷</Text>
+                </View>
               )}
               
               <View style={styles.listItemHeader}>
@@ -1032,6 +1067,19 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.borderLight,
     marginBottom: theme.spacing.sm,
+  },
+  noImagePlaceholder: {
+    width: '100%',
+    height: 150,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.borderLight,
+    marginBottom: theme.spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noImageText: {
+    fontSize: 48,
+    opacity: 0.3,
   },
 });
 
