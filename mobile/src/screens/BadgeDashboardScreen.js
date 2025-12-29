@@ -25,6 +25,7 @@ import {
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
+import badgeImages from '../../assets/images/_badgeImages';
 import {
   LoadingSpinner,
   ErrorMessage,
@@ -284,6 +285,7 @@ const BadgeDashboardScreen = () => {
   };
 
   const renderBadgeChip = (badge) => {
+    debugLog('[BadgeDashboard] badge object:', badge);
     const totalLevels = Math.max(1, badge.obtainable);
     const percent = Math.min(100, Math.round((badge.stars / totalLevels) * 100));
 
@@ -313,6 +315,14 @@ const BadgeDashboardScreen = () => {
       </View>
     ));
 
+    // Determine image source
+    let imageSource = null;
+    if (badge.image && badgeImages[badge.image]) {
+      imageSource = badgeImages[badge.image];
+    } else if (badge.image && typeof badge.image === 'string' && badge.image.startsWith('http')) {
+      imageSource = { uri: badge.image };
+    }
+
     return (
       <TouchableOpacity
         key={badge.name}
@@ -321,6 +331,13 @@ const BadgeDashboardScreen = () => {
         activeOpacity={0.7}
       >
         <View style={styles.badgeChipContent}>
+          {imageSource && (
+            <Image
+              source={imageSource}
+              style={styles.badgeImage}
+              resizeMode="contain"
+            />
+          )}
           <Text style={styles.badgeName}>{badge.name}</Text>
           <View style={styles.badgeStars}>{stars}</View>
           <View style={styles.badgeStatusRow}>{statusPills}</View>
@@ -657,6 +674,11 @@ const styles = StyleSheet.create({
   },
   statusRejected: {
     backgroundColor: theme.colors.error,
+  },
+  badgeImage: {
+    width: 40,
+    height: 40,
+    marginBottom: 4,
   },
   statusPillText: {
     fontSize: theme.fontSize.xs,

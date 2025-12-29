@@ -33,6 +33,8 @@ import CacheManager from '../utils/CacheManager';
 import SecurityUtils from '../utils/SecurityUtils';
 import { hasPermission, hasAnyPermission } from '../utils/PermissionUtils';
 import theme, { commonStyles } from '../theme';
+// Static St-Paul image (relative to /mobile/src/screens)
+const StPaulImage = require('../../assets/images/6eASt-Paul.webp');
 import CONFIG from '../config';
 import { debugError } from '../utils/DebugUtils';
 
@@ -639,6 +641,7 @@ const LeaderDashboardScreen = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+
         {/* Header with Organization Name */}
         <View style={styles.header}>
           <Text style={styles.title}>{t('dashboard_title')}</Text>
@@ -655,7 +658,7 @@ const LeaderDashboardScreen = () => {
         {/* Organization Logo - matches original dashboard placement */}
         <View style={styles.logoContainer}>
           <Image
-            source={logoSource}
+            source={StPaulImage}
             style={styles.logo}
             resizeMode="contain"
             accessibilityLabel={displayName}
