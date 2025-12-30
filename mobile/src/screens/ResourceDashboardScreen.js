@@ -21,10 +21,10 @@ import {
   Card,
   EmptyState,
   FormField,
-  Select,
   Toast,
   useToast,
 } from '../components';
+import { Picker } from '@react-native-picker/picker';
 import { canViewInventory } from '../utils/PermissionUtils';
 import API from '../api/api-core';
 import CONFIG from '../config';
@@ -307,18 +307,25 @@ const ResourceDashboardScreen = ({ navigation }) => {
         <Card>
           <Text style={styles.sectionTitle}>{t('reservation_section_title')}</Text>
 
-          <Select
-            label={t('equipment_label')}
-            value={quickReserveData.equipment_id}
-            onValueChange={(value) =>
-              setQuickReserveData({ ...quickReserveData, equipment_id: value })
-            }
-            options={[
-              { label: t('reservation_equipment_placeholder'), value: '' },
-              ...equipment.map((item) => ({ label: item.name, value: String(item.id) })),
-            ]}
-            required
-          />
+          <View style={{ marginBottom: 16 }}>
+            <Text style={commonStyles.inputLabel}>{t('equipment_label')}</Text>
+            <Picker
+              selectedValue={quickReserveData.equipment_id}
+              onValueChange={(value) =>
+                setQuickReserveData({ ...quickReserveData, equipment_id: value })
+              }
+              style={[commonStyles.input]}
+            >
+              <Picker.Item label={t('reservation_equipment_placeholder')} value="" />
+              {equipment.map((item) => (
+                <Picker.Item
+                  key={item.id}
+                  label={item.name}
+                  value={String(item.id)}
+                />
+              ))}
+            </Picker>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.halfWidth}>

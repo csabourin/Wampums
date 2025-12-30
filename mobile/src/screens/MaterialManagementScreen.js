@@ -22,11 +22,11 @@ import {
   Card,
   EmptyState,
   FormField,
-  Select,
   Checkbox,
   Toast,
   useToast,
 } from '../components';
+import { Picker } from '@react-native-picker/picker';
 import { canViewInventory } from '../utils/PermissionUtils';
 import API from '../api/api-core';
 import CONFIG from '../config';
@@ -269,39 +269,44 @@ const MaterialManagementScreen = ({ navigation }) => {
         <Card>
           <Text style={styles.sectionTitle}>{t('reservation_form')}</Text>
 
-          <Select
-            label={t('select_activity_optional')}
-            value={formData.activity_id}
-            onValueChange={(value) => {
-              if (value) {
-                const activity = activities.find((a) => a.id === parseInt(value, 10));
-                if (activity) {
+          <View style={{ marginBottom: 16 }}>
+            <Text style={commonStyles.inputLabel}>{t('select_activity_optional')}</Text>
+            <Picker
+              selectedValue={formData.activity_id}
+              onValueChange={(value) => {
+                if (value) {
+                  const activity = activities.find((a) => a.id === parseInt(value, 10));
+                  if (activity) {
+                    setFormData({
+                      ...formData,
+                      activity_id: value,
+                      date_from: activity.activity_date,
+                      date_to: activity.activity_date,
+                      reserved_for: activity.name,
+                    });
+                  }
+                } else {
                   setFormData({
                     ...formData,
-                    activity_id: value,
-                    date_from: activity.activity_date,
-                    date_to: activity.activity_date,
-                    reserved_for: activity.name,
+                    activity_id: '',
+                    date_from: '',
+                    date_to: '',
+                    reserved_for: '',
                   });
                 }
-              } else {
-                setFormData({
-                  ...formData,
-                  activity_id: '',
-                  date_from: '',
-                  date_to: '',
-                  reserved_for: '',
-                });
-              }
-            }}
-            options={[
-              { label: t('manual_date_entry'), value: '' },
-              ...activities.map((activity) => ({
-                label: `${activity.name} - ${activity.activity_date}`,
-                value: String(activity.id),
-              })),
-            ]}
-          />
+              }}
+              style={[commonStyles.input]}
+            >
+              <Picker.Item label={t('manual_date_entry')} value="" />
+              {activities.map((activity) => (
+                <Picker.Item
+                  key={activity.id}
+                  label={`${activity.name} - ${activity.activity_date}`}
+                  value={String(activity.id)}
+                />
+              ))}
+            </Picker>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.halfWidth}>

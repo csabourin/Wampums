@@ -33,8 +33,8 @@ import {
   ConfirmModal,
   Toast,
   useToast,
-  Select,
 } from '../components';
+import { Picker } from '@react-native-picker/picker';
 import { canViewUsers } from '../utils/PermissionUtils';
 
 const UserParticipantLinkScreen = ({ navigation }) => {
@@ -335,13 +335,23 @@ const UserParticipantLinkScreen = ({ navigation }) => {
               {selectedParticipant.last_name}
             </Text>
 
-            <Select
-              label={t('select_user')}
-              value={selectedUserId}
-              onChange={setSelectedUserId}
-              options={userOptions}
-              placeholder={t('select_a_user')}
-            />
+            <View style={{ marginBottom: 16 }}>
+              <Text style={commonStyles.inputLabel}>{t('select_user')}</Text>
+              <Picker
+                selectedValue={selectedUserId}
+                onValueChange={setSelectedUserId}
+                style={[commonStyles.input]}
+              >
+                <Picker.Item label={t('select_a_user')} value="" />
+                {userOptions.map((option) => (
+                  <Picker.Item
+                    key={option.value}
+                    label={option.label}
+                    value={option.value}
+                  />
+                ))}
+              </Picker>
+            </View>
           </>
         )}
       </Modal>
