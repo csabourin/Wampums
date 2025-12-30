@@ -395,10 +395,9 @@ const InventoryScreen = ({ navigation }) => {
 
   const renderEquipmentForm = () => {
     return (
-      <View style={styles.formContainer}>
+      <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
         {/* Image Picker Section */}
         <View style={styles.imageSection}>
-          <Text style={styles.label}>{t('equipment_photo')}</Text>
           {selectedImage ? (
             <View style={styles.imagePreviewContainer}>
               <Image
@@ -414,7 +413,7 @@ const InventoryScreen = ({ navigation }) => {
                 style={styles.changePhotoButton}
                 onPress={pickImage}
               >
-                <Text style={styles.changePhotoText}>{t('change_photo')}</Text>
+                <Text style={styles.changePhotoText}>📷 {t('change_photo')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -432,14 +431,15 @@ const InventoryScreen = ({ navigation }) => {
           required
         />
 
-        <FormField
-          label={t('equipment_category')}
-          value={formData.category}
-          onChangeText={(value) => setFormData({ ...formData, category: value })}
-          placeholder={t('equipment_category')}
-        />
-
         <View style={styles.row}>
+          <View style={styles.halfWidth}>
+            <FormField
+              label={t('equipment_category')}
+              value={formData.category}
+              onChangeText={(value) => setFormData({ ...formData, category: value })}
+              placeholder={t('equipment_category')}
+            />
+          </View>
           <View style={styles.halfWidth}>
             <FormField
               label={t('equipment_quantity_total')}
@@ -451,23 +451,12 @@ const InventoryScreen = ({ navigation }) => {
               placeholder="1"
             />
           </View>
-          <View style={styles.halfWidth}>
-            <FormField
-              label={t('equipment_available')}
-              value={formData.quantity_available}
-              onChangeText={(value) =>
-                setFormData({ ...formData, quantity_available: value })
-              }
-              keyboardType="numeric"
-              placeholder="0"
-            />
-          </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.halfWidth}>
             <FormField
-              label={t('equipment_item_value')}
+              label={t('equipment_item_value') + ' ($)'}
               value={formData.item_value}
               onChangeText={(value) =>
                 setFormData({ ...formData, item_value: value })
@@ -526,9 +515,9 @@ const InventoryScreen = ({ navigation }) => {
           }
           placeholder={t('equipment_description')}
           multiline
-          numberOfLines={3}
+          numberOfLines={2}
         />
-      </View>
+      </ScrollView>
     );
   };
 
@@ -545,58 +534,84 @@ const InventoryScreen = ({ navigation }) => {
 
     return (
       <View style={styles.galleryContainer}>
-        {equipment.map((item) => (
-          <Card key={item.id} style={styles.equipmentCard}>
-            <View style={styles.equipmentCardHeader}>
-              <Text style={styles.equipmentName}>{item.name}</Text>
-              {item.category && (
-                <Text style={styles.equipmentCategory}>{item.category}</Text>
-              )}
-            </View>
+        {equipment.map((item) => {
+          const available = item.quantity_available ?? (item.quantity_total - (item.reserved_quantity ?? 0));
+          const total = item.quantity_total ?? 0;
+          const reserved = item.reserved_quantity ?? 0;
 
-            <View style={styles.equipmentDetails}>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('equipment_quantity_total')}:</Text>
-                <Text style={styles.detailValue}>{item.quantity_total ?? 0}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('equipment_reserved')}:</Text>
-                <Text style={styles.detailValue}>{item.reserved_quantity ?? 0}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('equipment_item_value')}:</Text>
-                <Text style={styles.detailValue}>{formatCurrency(item.item_value)}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('equipment_acquisition_date')}:</Text>
-                <Text style={styles.detailValue}>{formatDate(item.acquisition_date)}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>{t('equipment_location')}:</Text>
-                <Text style={styles.detailValue}>{formatLocation(item)}</Text>
-              </View>
-            </View>
+          return (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => canManageInventory() && openEditModal(item)}
+              activeOpacity={0.8}
+              disabled={!canManageInventory()}
+            >
+              <Card style={styles.galleryCard}>
+                {/* Large Image */}
+                {item.photo_url ? (
+                  <Image
+                    source={{ uri: item.photo_url, cache: 'force-cache' }}
+                    style={styles.galleryImage}
+                    resizeMode="cover"
+                    onError={(e) => debugError('Gallery image error:', e.nativeEvent.error)}
+                  />
+                ) : (
+                  <View style={styles.galleryImagePlaceholder}>
+                    <Text style={styles.galleryImagePlaceholderIcon}>📦</Text>
+                  </View>
+                )}
 
-            {canManageInventory() && (
-              <View style={styles.cardActions}>
-                <TouchableOpacity
-                  style={[commonStyles.button, styles.editButton]}
-                  onPress={() => openEditModal(item)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={commonStyles.buttonText}>{t('edit')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[commonStyles.button, styles.deleteButton]}
-                  onPress={() => handleDelete(item)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={commonStyles.buttonText}>{t('delete')}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </Card>
-        ))}
+                {/* Equipment Info Overlay */}
+                <View style={styles.galleryInfo}>
+                  <Text style={styles.galleryName} numberOfLines={2}>{item.name}</Text>
+
+                  {item.category && (
+                    <View style={styles.galleryCategoryBadge}>
+                      <Text style={styles.galleryCategoryText}>{item.category}</Text>
+                    </View>
+                  )}
+
+                  {/* Key Stats */}
+                  <View style={styles.galleryStats}>
+                    <View style={styles.galleryStat}>
+                      <Text style={styles.galleryStatValue}>{total}</Text>
+                      <Text style={styles.galleryStatLabel}>{t('total')}</Text>
+                    </View>
+                    <View style={styles.galleryStatDivider} />
+                    <View style={styles.galleryStat}>
+                      <Text style={styles.galleryStatValue}>{available}</Text>
+                      <Text style={styles.galleryStatLabel}>{t('available')}</Text>
+                    </View>
+                    <View style={styles.galleryStatDivider} />
+                    <View style={styles.galleryStat}>
+                      <Text style={styles.galleryStatValue}>{reserved}</Text>
+                      <Text style={styles.galleryStatLabel}>{t('reserved')}</Text>
+                    </View>
+                  </View>
+
+                  {/* Location */}
+                  <View style={styles.galleryLocation}>
+                    <Text style={styles.galleryLocationIcon}>📍</Text>
+                    <Text style={styles.galleryLocationText} numberOfLines={1}>
+                      {formatLocation(item)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Delete button for manage permission */}
+                {canManageInventory() && (
+                  <TouchableOpacity
+                    style={styles.galleryDeleteButton}
+                    onPress={() => handleDelete(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.galleryDeleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                )}
+              </Card>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };
@@ -613,62 +628,89 @@ const InventoryScreen = ({ navigation }) => {
     }
 
     return (
-      <View style={styles.listContainer}>
-        {equipment.map((item) => (
-          <Card key={item.id} style={styles.listItem}>
+      <View style={styles.tableContainer}>
+        {equipment.map((item) => {
+          const available = item.quantity_available ?? (item.quantity_total - (item.reserved_quantity ?? 0));
+          const total = item.quantity_total ?? 0;
+          const reserved = item.reserved_quantity ?? 0;
+
+          return (
             <TouchableOpacity
-              onPress={() => openEditModal(item)}
+              key={item.id}
+              onPress={() => canManageInventory() && openEditModal(item)}
               activeOpacity={0.7}
               disabled={!canManageInventory()}
             >
-              {/* Equipment Image */}
-              {item.photo_url ? (
-                <View>
+              <Card style={styles.tableRow}>
+                {/* Square Thumbnail */}
+                {item.photo_url ? (
                   <Image
-                    source={{
-                      uri: item.photo_url,
-                      // Add caching and proper headers for remote images
-                      cache: 'force-cache',
-                    }}
-                    style={styles.equipmentImage}
+                    source={{ uri: item.photo_url, cache: 'force-cache' }}
+                    style={styles.tableThumbnail}
                     resizeMode="cover"
-                    onError={(e) => {
-                      debugError('Image load error for', item.name, ':', e.nativeEvent.error);
-                      debugLog('Photo URL was:', item.photo_url);
-                    }}
-                    onLoad={() => {
-                      debugLog('Image loaded successfully for', item.name);
-                    }}
+                    onError={(e) => debugError('Table thumbnail error:', e.nativeEvent.error)}
                   />
+                ) : (
+                  <View style={styles.tableThumbnailPlaceholder}>
+                    <Text style={styles.tableThumbnailIcon}>📦</Text>
+                  </View>
+                )}
+
+                {/* Equipment Details */}
+                <View style={styles.tableContent}>
+                  <View style={styles.tableHeader}>
+                    <Text style={styles.tableName} numberOfLines={1}>{item.name}</Text>
+                    {item.category && (
+                      <View style={styles.tableCategoryBadge}>
+                        <Text style={styles.tableCategoryText} numberOfLines={1}>{item.category}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Compact Info Grid */}
+                  <View style={styles.tableInfoGrid}>
+                    <View style={styles.tableInfoItem}>
+                      <Text style={styles.tableInfoLabel}>{t('total')}:</Text>
+                      <Text style={styles.tableInfoValue}>{total}</Text>
+                    </View>
+                    <View style={styles.tableInfoItem}>
+                      <Text style={styles.tableInfoLabel}>{t('reserved')}:</Text>
+                      <Text style={styles.tableInfoValue}>{reserved}</Text>
+                    </View>
+                    <View style={styles.tableInfoItem}>
+                      <Text style={styles.tableInfoLabel}>{t('value')}:</Text>
+                      <Text style={styles.tableInfoValue}>{formatCurrency(item.item_value)}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.tableInfoGrid}>
+                    <View style={styles.tableInfoItem}>
+                      <Text style={styles.tableInfoLabel}>{t('date')}:</Text>
+                      <Text style={styles.tableInfoValue}>{formatDate(item.acquisition_date)}</Text>
+                    </View>
+                    <View style={[styles.tableInfoItem, styles.tableInfoItemWide]}>
+                      <Text style={styles.tableInfoLabel}>📍</Text>
+                      <Text style={styles.tableInfoValue} numberOfLines={1}>
+                        {formatLocation(item)}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              ) : (
-                <View style={styles.noImagePlaceholder}>
-                  <Text style={styles.noImageText}>📷</Text>
-                </View>
-              )}
-              
-              <View style={styles.listItemHeader}>
-                <Text style={styles.listItemName}>{item.name}</Text>
-                <Text style={styles.listItemQuantity}>
-                  {item.quantity_total ?? 0} {t('total')}
-                </Text>
-              </View>
-              {item.category && (
-                <Text style={styles.listItemCategory}>{item.category}</Text>
-              )}
-              <Text style={styles.listItemLocation}>{formatLocation(item)}</Text>
+
+                {/* Delete button */}
+                {canManageInventory() && (
+                  <TouchableOpacity
+                    style={styles.tableDeleteButton}
+                    onPress={() => handleDelete(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.tableDeleteIcon}>🗑️</Text>
+                  </TouchableOpacity>
+                )}
+              </Card>
             </TouchableOpacity>
-            {canManageInventory() && (
-              <TouchableOpacity
-                style={styles.deleteIconButton}
-                onPress={() => handleDelete(item)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.deleteIcon}>🗑️</Text>
-              </TouchableOpacity>
-            )}
-          </Card>
-        ))}
+          );
+        })}
       </View>
     );
   };
@@ -759,31 +801,29 @@ const InventoryScreen = ({ navigation }) => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContent}
         >
-          <ScrollView>
-            {renderEquipmentForm()}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[commonStyles.button, submitting && commonStyles.buttonDisabled]}
-                onPress={handleAdd}
-                disabled={submitting}
-                activeOpacity={0.7}
-              >
-                <Text style={commonStyles.buttonText}>
-                  {submitting ? t('saving') : t('save_equipment')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[commonStyles.button, styles.cancelButton]}
-                onPress={() => {
-                  setShowAddModal(false);
-                  resetForm();
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={commonStyles.buttonText}>{t('cancel')}</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+          {renderEquipmentForm()}
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[commonStyles.button, submitting && commonStyles.buttonDisabled]}
+              onPress={handleAdd}
+              disabled={submitting}
+              activeOpacity={0.7}
+            >
+              <Text style={commonStyles.buttonText}>
+                {submitting ? t('saving') : t('save_equipment')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[commonStyles.button, styles.cancelButton]}
+              onPress={() => {
+                setShowAddModal(false);
+                resetForm();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={commonStyles.buttonText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -801,32 +841,30 @@ const InventoryScreen = ({ navigation }) => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContent}
         >
-          <ScrollView>
-            {renderEquipmentForm()}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[commonStyles.button, submitting && commonStyles.buttonDisabled]}
-                onPress={handleEdit}
-                disabled={submitting}
-                activeOpacity={0.7}
-              >
-                <Text style={commonStyles.buttonText}>
-                  {submitting ? t('saving') : t('save_changes')}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[commonStyles.button, styles.cancelButton]}
-                onPress={() => {
-                  setShowEditModal(false);
-                  setEditingItem(null);
-                  resetForm();
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={commonStyles.buttonText}>{t('cancel')}</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+          {renderEquipmentForm()}
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[commonStyles.button, submitting && commonStyles.buttonDisabled]}
+              onPress={handleEdit}
+              disabled={submitting}
+              activeOpacity={0.7}
+            >
+              <Text style={commonStyles.buttonText}>
+                {submitting ? t('saving') : t('save_changes')}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[commonStyles.button, styles.cancelButton]}
+              onPress={() => {
+                setShowEditModal(false);
+                setEditingItem(null);
+                resetForm();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={commonStyles.buttonText}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -860,13 +898,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.fontSize.xxl,
     fontWeight: theme.fontWeight.bold,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     marginBottom: theme.spacing.sm,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: theme.fontSize.base,
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
     textAlign: 'center',
   },
   addButton: {
@@ -894,106 +932,214 @@ const styles = StyleSheet.create({
   },
   viewToggleText: {
     fontSize: theme.fontSize.base,
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
   },
   viewToggleTextActive: {
     color: theme.colors.primary,
     fontWeight: theme.fontWeight.semibold,
   },
+
+  // ===== GALLERY VIEW STYLES =====
   galleryContainer: {
     gap: theme.spacing.md,
   },
-  equipmentCard: {
-    marginBottom: theme.spacing.sm,
-  },
-  equipmentCardHeader: {
+  galleryCard: {
+    padding: 0,
+    overflow: 'hidden',
     marginBottom: theme.spacing.md,
   },
-  equipmentName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+  galleryImage: {
+    width: '100%',
+    height: 220,
+    backgroundColor: theme.colors.background.secondary,
   },
-  equipmentCategory: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textMuted,
-  },
-  equipmentDetails: {
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  detailLabel: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textMuted,
-  },
-  detailValue: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.text,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.md,
-  },
-  editButton: {
-    flex: 1,
-  },
-  deleteButton: {
-    flex: 1,
-    backgroundColor: theme.colors.danger,
-  },
-  listContainer: {
-    gap: theme.spacing.sm,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  listItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.xs,
-  },
-  listItemName: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.text,
-    flex: 1,
-  },
-  listItemQuantity: {
-    fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.primary,
-  },
-  listItemCategory: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textMuted,
-    marginBottom: theme.spacing.xs,
-  },
-  listItemLocation: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.textMuted,
-  },
-  deleteIconButton: {
-    padding: theme.spacing.sm,
-    minHeight: theme.touchTarget.min,
-    minWidth: theme.touchTarget.min,
+  galleryImagePlaceholder: {
+    width: '100%',
+    height: 220,
+    backgroundColor: theme.colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteIcon: {
-    fontSize: theme.fontSize.xl,
+  galleryImagePlaceholderIcon: {
+    fontSize: 64,
+    opacity: 0.3,
   },
+  galleryInfo: {
+    padding: theme.spacing.md,
+  },
+  galleryName: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  galleryCategoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: theme.colors.secondary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    marginBottom: theme.spacing.md,
+  },
+  galleryCategoryText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.primary,
+    textTransform: 'uppercase',
+  },
+  galleryStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.background.secondary,
+    borderRadius: theme.borderRadius.md,
+  },
+  galleryStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  galleryStatValue: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  galleryStatLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  galleryStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: theme.colors.border,
+  },
+  galleryLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  galleryLocationIcon: {
+    fontSize: theme.fontSize.base,
+  },
+  galleryLocationText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.text.secondary,
+    flex: 1,
+  },
+  galleryDeleteButton: {
+    position: 'absolute',
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
+    backgroundColor: 'rgba(154, 63, 56, 0.9)',
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.md,
+  },
+  galleryDeleteIcon: {
+    fontSize: 20,
+  },
+
+  // ===== TABLE VIEW STYLES =====
+  tableContainer: {
+    gap: theme.spacing.sm,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    padding: theme.spacing.sm,
+    gap: theme.spacing.sm,
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.xs,
+  },
+  tableThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.background.secondary,
+  },
+  tableThumbnailPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.background.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tableThumbnailIcon: {
+    fontSize: 32,
+    opacity: 0.3,
+  },
+  tableContent: {
+    flex: 1,
+    gap: theme.spacing.xs,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+  },
+  tableName: {
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  tableCategoryBadge: {
+    backgroundColor: theme.colors.secondary,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+  },
+  tableCategoryText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.primary,
+    textTransform: 'uppercase',
+  },
+  tableInfoGrid: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  tableInfoItem: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    alignItems: 'baseline',
+  },
+  tableInfoItemWide: {
+    flex: 2,
+  },
+  tableInfoLabel: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.text.secondary,
+  },
+  tableInfoValue: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  tableDeleteButton: {
+    padding: theme.spacing.xs,
+    minWidth: theme.touchTarget.min,
+    minHeight: theme.touchTarget.min,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tableDeleteIcon: {
+    fontSize: 20,
+  },
+
+  // ===== FORM/MODAL STYLES =====
   formContainer: {
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
   },
   row: {
     flexDirection: 'row',
@@ -1003,24 +1149,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalContent: {
-    maxHeight: '80%',
+    flex: 1,
   },
   modalActions: {
     flexDirection: 'column',
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderLight,
   },
   cancelButton: {
-    backgroundColor: theme.colors.textMuted,
+    backgroundColor: theme.colors.text.tertiary,
   },
+
   // Image styles
   imageSection: {
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   label: {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     marginBottom: theme.spacing.xs,
   },
   imagePreviewContainer: {
@@ -1029,7 +1179,7 @@ const styles = StyleSheet.create({
   },
   imagePreview: {
     width: '100%',
-    height: 200,
+    height: 180,
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.borderLight,
   },
@@ -1046,40 +1196,20 @@ const styles = StyleSheet.create({
     fontWeight: theme.fontWeight.semibold,
   },
   addPhotoButton: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.borderLight,
     borderRadius: theme.borderRadius.md,
     borderWidth: 2,
     borderColor: theme.colors.border,
     borderStyle: 'dashed',
     alignItems: 'center',
-    minHeight: theme.touchTarget.min,
+    minHeight: 60,
   },
   addPhotoText: {
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.medium,
-  },
-  equipmentImage: {
-    width: '100%',
-    height: 150,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.borderLight,
-    marginBottom: theme.spacing.sm,
-  },
-  noImagePlaceholder: {
-    width: '100%',
-    height: 150,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.borderLight,
-    marginBottom: theme.spacing.sm,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  noImageText: {
-    fontSize: 48,
-    opacity: 0.3,
   },
 });
 
