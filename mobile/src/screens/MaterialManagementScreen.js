@@ -27,7 +27,8 @@ import {
   useToast,
 } from '../components';
 import { canViewInventory } from '../utils/PermissionUtils';
-import { API } from '../api/api-core';
+import API from '../api/api-core';
+import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 
 const LOCATION_TYPES = [
@@ -83,25 +84,17 @@ const MaterialManagementScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getJWT();
-
-      const [equipmentResponse, reservationsResponse] = await Promise.all([
-        fetch(`${API.baseURL}/v1/resources/equipment`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API.baseURL}/v1/resources/equipment/reservations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [equipmentResult, reservationsResult] = await Promise.all([
+        API.get('/v1/resources/equipment'),
+        API.get('/v1/resources/equipment/reservations'),
       ]);
 
-      if (equipmentResponse.ok) {
-        const result = await equipmentResponse.json();
-        setEquipment(result.data?.equipment || result.equipment || []);
+      if (equipmentResult.success) {
+        setEquipment(equipmentResult.data?.equipment || equipmentResult.equipment || []);
       }
 
-      if (reservationsResponse.ok) {
-        const result = await reservationsResponse.json();
-        setReservations(result.data?.reservations || result.reservations || []);
+      if (reservationsResult.success) {
+        setReservations(reservationsResult.data?.reservations || reservationsResult.reservations || []);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -208,19 +201,9 @@ const MaterialManagementScreen = ({ navigation }) => {
         })),
       };
 
-      const token = await StorageUtils.getJWT();
-      const response = await fetch(`${API.baseURL}/v1/resources/equipment/reservations/bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const result = await API.post('/v1/resources/equipment/reservations/bulk', payload);
 
-      const result = await response.json();
-
-      if (result.success || response.ok) {
+      if (result.success) {
         toast.show(t('bulk_reservation_saved'), 'success');
         setSelectedItems(new Map());
         setFormData({
