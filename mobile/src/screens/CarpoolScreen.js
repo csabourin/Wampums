@@ -646,8 +646,10 @@ const CarpoolScreen = () => {
   const activityDateString = activity.date || activity.activity_date;
   const activityDateFormatted = activityDateString
     ? (() => {
-        // Parse YYYY-MM-DD as local date (not UTC) to avoid timezone shift
-        const [year, month, day] = activityDateString.split('-').map(Number);
+        // Extract date portion (YYYY-MM-DD) from datetime string
+        const dateOnly = activityDateString.substring(0, 10);
+        // Parse as local date (not UTC) to avoid timezone shift
+        const [year, month, day] = dateOnly.split('-').map(Number);
         const localDate = new Date(year, month - 1, day); // month is 0-indexed
         return DateUtils.formatDate(localDate);
       })()
