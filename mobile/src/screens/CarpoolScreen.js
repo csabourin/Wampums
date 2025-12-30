@@ -1399,7 +1399,7 @@ const ActivitySelectionView = ({ navigation }) => {
                 <View style={styles.activitySelectionContent}>
                   <View style={styles.activitySelectionInfo}>
                     <Text style={styles.activitySelectionName}>
-                      {SecurityUtils.sanitizeText(activity.name)}
+                      {SecurityUtils.sanitizeInput(activity.name)}
                     </Text>
                     <Text style={styles.activitySelectionDate}>
                       📅 {activityDate}
@@ -1407,7 +1407,7 @@ const ActivitySelectionView = ({ navigation }) => {
                     </Text>
                     {activity.meeting_location_going && (
                       <Text style={styles.activitySelectionLocation}>
-                        📍 {SecurityUtils.sanitizeText(activity.meeting_location_going)}
+                        📍 {SecurityUtils.sanitizeInput(activity.meeting_location_going)}
                       </Text>
                     )}
                   </View>
