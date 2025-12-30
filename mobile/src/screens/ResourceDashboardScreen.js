@@ -68,7 +68,7 @@ const ResourceDashboardScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
 
       const [equipmentResponse, reservationsResponse, summaryResponse] = await Promise.all([
         fetch(`${API.baseURL}/v1/resources/equipment`, {
@@ -128,7 +128,7 @@ const ResourceDashboardScreen = ({ navigation }) => {
         quantity_total: parseInt(quickAddData.quantity_total, 10) || 1,
       };
 
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
       const response = await fetch(`${API.baseURL}/v1/resources/equipment`, {
         method: 'POST',
         headers: {
@@ -176,7 +176,7 @@ const ResourceDashboardScreen = ({ navigation }) => {
         notes: quickReserveData.notes?.trim() || '',
       };
 
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
       const response = await fetch(`${API.baseURL}/v1/resources/equipment/reservations`, {
         method: 'POST',
         headers: {
