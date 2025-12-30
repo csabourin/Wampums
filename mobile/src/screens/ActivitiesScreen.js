@@ -112,18 +112,38 @@ const ActivitiesScreen = () => {
 
     // Apply time filter
     if (activeFilter === 'upcoming') {
-      filtered = filtered.filter((activity) => new Date(activity.date) >= now);
+      filtered = filtered.filter((activity) => {
+        const activityDate = activity.date || activity.activity_date;
+        if (!activityDate) return false;
+        // Parse as local date to avoid timezone issues
+        const [year, month, day] = activityDate.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day);
+        return localDate >= now;
+      });
     } else if (activeFilter === 'past') {
-      filtered = filtered.filter((activity) => new Date(activity.date) < now);
+      filtered = filtered.filter((activity) => {
+        const activityDate = activity.date || activity.activity_date;
+        if (!activityDate) return false;
+        // Parse as local date to avoid timezone issues
+        const [year, month, day] = activityDate.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day);
+        return localDate < now;
+      });
     }
     // 'all' shows everything
 
     // Apply sort
     filtered.sort((a, b) => {
-      const aDate = new Date(a.date);
-      const bDate = new Date(b.date);
+      const aDateStr = a.date || a.activity_date;
+      const bDateStr = b.date || b.activity_date;
 
       if (sortBy === 'date') {
+        if (!aDateStr || !bDateStr) return 0;
+        // Parse as local dates
+        const [aYear, aMonth, aDay] = aDateStr.split('-').map(Number);
+        const [bYear, bMonth, bDay] = bDateStr.split('-').map(Number);
+        const aDate = new Date(aYear, aMonth - 1, aDay);
+        const bDate = new Date(bYear, bMonth - 1, bDay);
         return sortOrder === 'asc' ? aDate - bDate : bDate - aDate;
       } else if (sortBy === 'name') {
         const aName = (a.name || '').toLowerCase();
@@ -147,12 +167,24 @@ const ActivitiesScreen = () => {
     {
       value: 'upcoming',
       label: t('upcoming') || 'Upcoming',
-      count: activities.filter((a) => new Date(a.date) >= new Date()).length,
+      count: activities.filter((a) => {
+        const dateStr = a.date || a.activity_date;
+        if (!dateStr) return false;
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day);
+        return localDate >= new Date();
+      }).length,
     },
     {
       value: 'past',
       label: t('past') || 'Past',
-      count: activities.filter((a) => new Date(a.date) < new Date()).length,
+      count: activities.filter((a) => {
+        const dateStr = a.date || a.activity_date;
+        if (!dateStr) return false;
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day);
+        return localDate < new Date();
+      }).length,
     },
     {
       value: 'all',
@@ -180,7 +212,13 @@ const ActivitiesScreen = () => {
   };
 
   const getActivityStatus = (activity) => {
-    const activityDate = new Date(activity.date);
+    const dateStr = activity.date || activity.activity_date;
+    if (!dateStr) return null;
+
+    // Parse as local date to avoid timezone issues
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const activityDate = new Date(year, month - 1, day);
+
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const activityDay = new Date(
@@ -244,7 +282,15 @@ const ActivitiesScreen = () => {
         ) : (
           filteredActivities.map((activity) => {
             const status = getActivityStatus(activity);
-            const activityDate = DateUtils.formatDate(activity.date);
+            // Parse date as local to avoid timezone issues
+            const dateStr = activity.date || activity.activity_date;
+            const activityDate = dateStr
+              ? (() => {
+                  const [year, month, day] = dateStr.split('-').map(Number);
+                  const localDate = new Date(year, month - 1, day);
+                  return DateUtils.formatDate(localDate);
+                })()
+              : '';
             const activityTime = activity.time
               ? DateUtils.formatTime(activity.time)
               : null;
