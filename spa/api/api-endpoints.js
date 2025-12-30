@@ -1696,6 +1696,16 @@ export async function getActivitesRencontre() {
 }
 
 /**
+ * Get all activities for the organization
+ * @param {Object} params - Query parameters (e.g., { upcoming_only: true })
+ * @param {Object} cacheOptions - Cache options (e.g., { forceRefresh: true })
+ * @returns {Promise<Object>} Response with activities array
+ */
+export async function getActivities(params = {}, cacheOptions = {}) {
+    return API.get('v1/activities', params, cacheOptions);
+}
+
+/**
  * Save reminder
  */
 export async function saveReminder(reminderData) {
