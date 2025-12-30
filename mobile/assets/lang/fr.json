@@ -1299,6 +1299,8 @@
   "second_leader": "Second Pisteur",
   "secondary_contact": "Contact secondaire",
   "select_activity": "Sélectionner une activité",
+  "select_activity_optional": "Sélectionner une activité (optionnel)",
+  "manual_date_entry": "Saisie manuelle des dates (sans activité)",
   "select_animateur": "Sélectionner un animateur",
   "select_csv_file": "Sélectionner un fichier CSV",
   "select_date": "Sélectionnez la date",
