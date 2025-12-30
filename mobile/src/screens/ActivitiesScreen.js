@@ -86,6 +86,11 @@ const ActivitiesScreen = () => {
     try {
       setError(null);
       const response = await getActivities();
+      console.log('=== Activities API Response ===');
+      console.log('Success:', response.success);
+      console.log('Data length:', response.data?.length);
+      console.log('First activity:', response.data?.[0]);
+      console.log('================================');
       if (response.success) {
         setActivities(response.data || []);
       } else {
@@ -107,18 +112,28 @@ const ActivitiesScreen = () => {
 
   // Derived state: filtered and sorted activities
   const filteredActivities = React.useMemo(() => {
+    console.log('=== Filtering Activities ===');
+    console.log('Total activities:', activities.length);
+    console.log('Active filter:', activeFilter);
+
     let filtered = [...activities];
     const now = new Date();
+    console.log('Current date:', now);
 
     // Apply time filter
     if (activeFilter === 'upcoming') {
       filtered = filtered.filter((activity) => {
         const activityDate = activity.date || activity.activity_date;
-        if (!activityDate) return false;
+        if (!activityDate) {
+          console.log('Activity has no date:', activity.name);
+          return false;
+        }
         // Parse as local date to avoid timezone issues
         const [year, month, day] = activityDate.split('-').map(Number);
         const localDate = new Date(year, month - 1, day);
-        return localDate >= now;
+        const isUpcoming = localDate >= now;
+        console.log(`${activity.name}: ${activityDate} -> ${localDate} -> ${isUpcoming ? 'UPCOMING' : 'PAST'}`);
+        return isUpcoming;
       });
     } else if (activeFilter === 'past') {
       filtered = filtered.filter((activity) => {
@@ -131,6 +146,9 @@ const ActivitiesScreen = () => {
       });
     }
     // 'all' shows everything
+
+    console.log('Filtered count:', filtered.length);
+    console.log('===========================');
 
     // Apply sort
     filtered.sort((a, b) => {
