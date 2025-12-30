@@ -642,7 +642,16 @@ const CarpoolScreen = () => {
     );
   }
 
-  const activityDate = DateUtils.formatDate(activity.date || activity.activity_date);
+  // Format activity date - parse as local date to avoid timezone issues
+  const activityDateString = activity.date || activity.activity_date;
+  const activityDateFormatted = activityDateString
+    ? (() => {
+        // Parse YYYY-MM-DD as local date (not UTC) to avoid timezone shift
+        const [year, month, day] = activityDateString.split('-').map(Number);
+        const localDate = new Date(year, month - 1, day); // month is 0-indexed
+        return DateUtils.formatDate(localDate);
+      })()
+    : '';
   const hasReturnTrip = activity.meeting_location_return;
 
   return (
@@ -655,7 +664,7 @@ const CarpoolScreen = () => {
         {/* Activity Info */}
         <Card style={styles.activityCard}>
           <Text style={styles.activityName}>{activity.name}</Text>
-          <Text style={styles.activityDate}>📅 {activityDate}</Text>
+          <Text style={styles.activityDate}>📅 {activityDateFormatted}</Text>
 
           {activity.meeting_time_going && (
             <View style={styles.meetingInfo}>
