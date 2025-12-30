@@ -89,7 +89,11 @@ export class CarpoolDashboard {
       return;
     }
 
-    const activityDate = new Date(this.activity.activity_date);
+    // Parse activity_date as local date to avoid timezone shift issues
+    // YYYY-MM-DD strings parsed as new Date() are treated as UTC, which can shift to previous day in local timezone
+    const activityDateString = this.activity.activity_date;
+    const [year, month, day] = activityDateString.split('-').map(Number);
+    const activityDate = new Date(year, month - 1, day); // month is 0-indexed
 
     setContent(container, `
       <section class="page carpool-page">
