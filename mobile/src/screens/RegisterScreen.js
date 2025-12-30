@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
@@ -179,11 +180,11 @@ const RegisterScreen = ({ navigation }) => {
             textContentType="password"
           />
 
-          <Select
+          <Picker
             label={t('user_type')}
             value={formData.user_type}
             onValueChange={(value) => setFormData({ ...formData, user_type: value })}
-            options={[
+            items={[
               { label: t('parent'), value: 'parent' },
               { label: t('leader'), value: 'leader' },
               { label: t('finance'), value: 'finance' },

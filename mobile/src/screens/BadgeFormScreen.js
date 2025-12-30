@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import {
   getBadgeProgress,
   saveBadgeProgress,
@@ -317,85 +318,88 @@ const BadgeFormScreen = ({ route, navigation }) => {
         </Card>
 
         {/* Badge Progress Form */}
-        <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>{t('submit_new_badge_progress')}</Text>
+          <Card style={styles.formCard}>
+            <Text style={styles.sectionTitle}>{t('submit_new_badge_progress')}</Text>
 
-          <Select
-            label={t('badge_select_badge') || t('badge')}
-            value={formData.badge_template_id}
-            onValueChange={(val) => handleFieldChange('badge_template_id', val)}
-            options={templateOptions}
-            required
-            disabled={!hasTemplates}
-          />
+            <FormField label={t('badge_select_badge') || t('badge')} required />
+            <Picker
+              selectedValue={formData.badge_template_id}
+              onValueChange={(val) => handleFieldChange('badge_template_id', val)}
+              enabled={hasTemplates}
+              style={styles.picker}
+            >
+              {templateOptions.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+              ))}
+            </Picker>
 
-          {!hasTemplates && (
-            <Text style={styles.warningText}>
-              {t('no_badge_templates_for_section') || t('no_badges')}
-            </Text>
-          )}
+            {!hasTemplates && (
+              <Text style={styles.warningText}>
+                {t('no_badge_templates_for_section') || t('no_badges')}
+              </Text>
+            )}
 
-          <FormField
-            label={t('objectif_proie')}
-            value={formData.objectif}
-            onChangeText={(val) => handleFieldChange('objectif', val)}
-            placeholder={t('objectif_proie')}
-            multiline
-            numberOfLines={3}
-            required
-          />
+            <FormField
+              label={t('objectif_proie')}
+              value={formData.objectif}
+              onChangeText={(val) => handleFieldChange('objectif', val)}
+              placeholder={t('objectif_proie')}
+              multiline
+              numberOfLines={3}
+              required
+            />
 
-          <FormField
-            label={t('description')}
-            value={formData.description}
-            onChangeText={(val) => handleFieldChange('description', val)}
-            placeholder={t('description')}
-            multiline
-            numberOfLines={3}
-            required
-          />
+            <FormField
+              label={t('description')}
+              value={formData.description}
+              onChangeText={(val) => handleFieldChange('description', val)}
+              placeholder={t('description')}
+              multiline
+              numberOfLines={3}
+              required
+            />
 
-          <Checkbox
-            label={t('fierte')}
-            checked={formData.fierte}
-            onPress={() => handleFieldChange('fierte', !formData.fierte)}
-          />
+            <Checkbox
+              label={t('fierte')}
+              checked={formData.fierte}
+              onPress={() => handleFieldChange('fierte', !formData.fierte)}
+            />
 
-          <FormField
-            label={t('raison')}
-            value={formData.raison}
-            onChangeText={(val) => handleFieldChange('raison', val)}
-            placeholder={t('raison')}
-            multiline
-            numberOfLines={3}
-            required
-          />
+            <FormField
+              label={t('raison')}
+              value={formData.raison}
+              onChangeText={(val) => handleFieldChange('raison', val)}
+              placeholder={t('raison')}
+              multiline
+              numberOfLines={3}
+              required
+            />
 
-          <FormField
-            label={t('date_obtention')}
-            value={formData.date_obtention}
-            onChangeText={(val) => handleFieldChange('date_obtention', val)}
-            placeholder="YYYY-MM-DD"
-            helpText={t('format_yyyy_mm_dd')}
-            required
-          />
+            <FormField
+              label={t('date_obtention')}
+              value={formData.date_obtention}
+              onChangeText={(val) => handleFieldChange('date_obtention', val)}
+              placeholder="YYYY-MM-DD"
+              helpText={t('format_yyyy_mm_dd')}
+              required
+            />
 
-          <TouchableOpacity
-            style={[
-              commonStyles.button,
-              (!hasTemplates || saving) && commonStyles.buttonDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={!hasTemplates || saving}
-            activeOpacity={0.7}
-          >
-            <Text style={commonStyles.buttonText}>
-              {saving ? t('saving') : t('save_badge_progress')}
-            </Text>
-          </TouchableOpacity>
-        </Card>
+            <TouchableOpacity
+              style={[
+                commonStyles.button,
+                (!hasTemplates || saving) && commonStyles.buttonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={!hasTemplates || saving}
+              activeOpacity={0.7}
+            >
+              <Text style={commonStyles.buttonText}>
+                {saving ? t('saving') : t('save_badge_progress')}
+              </Text>
+            </TouchableOpacity>
+          </Card>
 
-        {/* Existing Badge Progress */}
+          {/* Existing Badge Progress */}
         <Card style={styles.progressCard}>
           <Text style={styles.sectionTitle}>{t('existing_badge_progress')}</Text>
 

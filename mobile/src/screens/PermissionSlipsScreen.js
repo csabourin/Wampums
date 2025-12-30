@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import {
   getPermissionSlips,
   savePermissionSlip,
@@ -500,87 +501,90 @@ const PermissionSlipsScreen = ({ navigation }) => {
               onPress={() => {
                 setCreateModalVisible(false);
                 resetForm();
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={commonStyles.button}
-              onPress={handleCreatePermissionSlip}
-              activeOpacity={0.7}
-            >
-              <Text style={commonStyles.buttonText}>{t('create')}</Text>
-            </TouchableOpacity>
-          </View>
-        }
-      >
-        <FormField
-          label={t('activity_title_label')}
-          value={formData.activity_title}
-          onChangeText={(val) => handleFieldChange('activity_title', val)}
-          placeholder={t('activity_title_label')}
-          required
-        />
-
-        <FormField
-          label={t('activity_description_label')}
-          value={formData.activity_description}
-          onChangeText={(val) => handleFieldChange('activity_description', val)}
-          placeholder={t('activity_description_label')}
-          multiline
-          numberOfLines={4}
-        />
-
-        <FormField
-          label={t('deadline_date_label')}
-          value={formData.deadline_date}
-          onChangeText={(val) => handleFieldChange('deadline_date', val)}
-          placeholder="YYYY-MM-DD"
-          helpText={t('format_yyyy_mm_dd')}
-        />
-
-        <Select
-          label={t('select_group_label')}
-          value={formData.selected_audience}
-          onValueChange={(val) => handleFieldChange('selected_audience', val)}
-          options={audienceOptions}
-          required
-        />
-
-        {formData.selected_audience && filteredParticipants.length > 0 && (
-          <View style={styles.participantsSection}>
-            <View style={styles.participantsHeader}>
-              <Text style={styles.participantsLabel}>
-                {t('select_participants_label')} ({selectedCount} {t('participants_selected')})
-              </Text>
-              <View style={styles.selectButtons}>
-                <TouchableOpacity onPress={handleSelectAll} activeOpacity={0.7}>
-                  <Text style={styles.selectButtonText}>{t('select_all_participants')}</Text>
+                }}
+                activeOpacity={0.7}
+                >
+                <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.separator}> | </Text>
-                <TouchableOpacity onPress={handleDeselectAll} activeOpacity={0.7}>
-                  <Text style={styles.selectButtonText}>{t('deselect_all_participants')}</Text>
+                <TouchableOpacity
+                style={commonStyles.button}
+                onPress={handleCreatePermissionSlip}
+                activeOpacity={0.7}
+                >
+                <Text style={commonStyles.buttonText}>{t('create')}</Text>
                 </TouchableOpacity>
-              </View>
-            </View>
+                </View>
+                }
+              >
+                <FormField
+                label={t('activity_title_label')}
+                value={formData.activity_title}
+                onChangeText={(val) => handleFieldChange('activity_title', val)}
+                placeholder={t('activity_title_label')}
+                required
+                />
 
-            <View style={styles.participantsList}>
-              {filteredParticipants.map((participant) => (
-                <Checkbox
+                <FormField
+                label={t('activity_description_label')}
+                value={formData.activity_description}
+                onChangeText={(val) => handleFieldChange('activity_description', val)}
+                placeholder={t('activity_description_label')}
+                multiline
+                numberOfLines={4}
+                />
+
+                <FormField
+                label={t('deadline_date_label')}
+                value={formData.deadline_date}
+                onChangeText={(val) => handleFieldChange('deadline_date', val)}
+                placeholder="YYYY-MM-DD"
+                helpText={t('format_yyyy_mm_dd')}
+                />
+
+                <Text style={styles.participantsLabel}>{t('select_group_label')}</Text>
+                <Picker
+                selectedValue={formData.selected_audience}
+                onValueChange={(val) => handleFieldChange('selected_audience', val)}
+                style={styles.picker}
+                >
+                {audienceOptions.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+                ))}
+                </Picker>
+
+                {formData.selected_audience && filteredParticipants.length > 0 && (
+                <View style={styles.participantsSection}>
+                <View style={styles.participantsHeader}>
+                <Text style={styles.participantsLabel}>
+                  {t('select_participants_label')} ({selectedCount} {t('participants_selected')})
+                </Text>
+                <View style={styles.selectButtons}>
+                  <TouchableOpacity onPress={handleSelectAll} activeOpacity={0.7}>
+                  <Text style={styles.selectButtonText}>{t('select_all')}</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.separator}> | </Text>
+                  <TouchableOpacity onPress={handleDeselectAll} activeOpacity={0.7}>
+                  <Text style={styles.selectButtonText}>{t('deselect_all')}</Text>
+                  </TouchableOpacity>
+                </View>
+                </View>
+
+                <ScrollView style={styles.participantsList}>
+                {filteredParticipants.map((participant) => (
+                  <Checkbox
                   key={participant.id}
                   label={`${participant.first_name} ${participant.last_name}`}
-                  checked={formData.selected_participant_ids.includes(participant.id)}
-                  onPress={() => handleToggleParticipant(participant.id)}
+                  value={formData.selected_participant_ids.includes(participant.id)}
+                  onValueChange={() => handleToggleParticipant(participant.id)}
                   style={styles.participantCheckbox}
-                />
-              ))}
-            </View>
-          </View>
-        )}
-      </Modal>
+                  />
+                ))}
+                </ScrollView>
+                </View>
+                )}
+              </Modal>
 
-      {/* Toast Notifications */}
+              {/* Toast Notifications */}
       <Toast
         visible={toast.toastState.visible}
         message={toast.toastState.message}

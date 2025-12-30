@@ -50,6 +50,10 @@ const ORGANIZATION_SETTINGS_KEY = 'organizationSettings';
 const LeaderDashboardScreen = () => {
   const navigation = useNavigation();
   const { width: windowWidth } = useWindowDimensions();
+  const scrollViewRef = React.useRef(null);
+  const SCROLL_KEY = 'LeaderDashboardScrollY';
+  const [initialScrollY, setInitialScrollY] = useState(0);
+  const [scrollReady, setScrollReady] = useState(false);
 
   // Configure header with settings button
   useEffect(() => {
@@ -110,6 +114,16 @@ const LeaderDashboardScreen = () => {
   useFocusEffect(
     useCallback(() => {
       loadDashboardContext();
+      setScrollReady(false);
+      (async () => {
+        try {
+          const y = await StorageUtils.getItem(SCROLL_KEY);
+          const scrollY = y ? parseInt(y, 10) : 0;
+          setInitialScrollY(scrollY);
+        } catch {}
+        setScrollReady(true);
+      })();
+      return () => {};
     }, [])
   );
 
@@ -624,6 +638,10 @@ const LeaderDashboardScreen = () => {
     : FALLBACK_ORG_LOGO;
   const displayName = organizationName || t('groups');
 
+  if (!scrollReady) {
+    return <LoadingSpinner message={t('loading')} />;
+  }
+
   return (
     <View style={styles.container}>
       {isOffline && (
@@ -635,11 +653,24 @@ const LeaderDashboardScreen = () => {
       )}
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        onScroll={async e => {
+          const y = Math.round(e.nativeEvent.contentOffset.y);
+          try {
+            await StorageUtils.setItem(SCROLL_KEY, String(y));
+          } catch {}
+        }}
+        scrollEventThrottle={16}
+        onLayout={() => {
+          if (scrollViewRef.current && initialScrollY > 0) {
+            scrollViewRef.current.scrollTo({ y: initialScrollY, animated: false });
+          }
+        }}
       >
 
         {/* Header with Organization Name */}

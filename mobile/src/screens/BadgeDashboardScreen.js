@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import {
   getBadgeSummary,
@@ -459,13 +460,18 @@ const BadgeDashboardScreen = () => {
     <View style={commonStyles.container}>
       {/* Controls */}
       <View style={styles.controls}>
-        <Select
-          label={t('badge_sort_label')}
-          value={sortKey}
-          onValueChange={setSortKey}
-          options={sortOptions}
-          style={styles.sortSelect}
-        />
+        <View style={styles.sortSelect}>
+          <Text style={styles.pickerLabel}>{t('badge_sort_label')}</Text>
+          <Picker
+        selectedValue={sortKey}
+        onValueChange={setSortKey}
+        style={styles.picker}
+          >
+        {sortOptions.map((option) => (
+          <Picker.Item key={option.value} label={option.label} value={option.value} />
+        ))}
+          </Picker>
+        </View>
         <TouchableOpacity
           style={styles.sortDirectionButton}
           onPress={() => setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))}

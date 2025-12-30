@@ -13,7 +13,10 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
-} from 'react-native';
+  TextInput,
+  ActivityIndicator,
+  } from 'react-native';
+  import { Picker } from '@react-native-picker/picker';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
@@ -370,52 +373,52 @@ const ExpensesScreen = ({ navigation }) => {
   const renderFilters = () => {
     return (
       <Card style={styles.filtersCard}>
-        <Text style={styles.filtersTitle}>{t('filters')}</Text>
+      <Text style={styles.filtersTitle}>{t('filters')}</Text>
 
-        <FormField
-          label={t('start_date')}
-          value={filters.start_date}
-          onChangeText={(value) => setFilters({ ...filters, start_date: value })}
-          placeholder="YYYY-MM-DD"
-        />
+      <FormField
+        label={t('start_date')}
+        value={filters.start_date}
+        onChangeText={(value) => setFilters({ ...filters, start_date: value })}
+        placeholder="YYYY-MM-DD"
+      />
 
-        <FormField
-          label={t('end_date')}
-          value={filters.end_date}
-          onChangeText={(value) => setFilters({ ...filters, end_date: value })}
-          placeholder="YYYY-MM-DD"
-        />
+      <FormField
+        label={t('end_date')}
+        value={filters.end_date}
+        onChangeText={(value) => setFilters({ ...filters, end_date: value })}
+        placeholder="YYYY-MM-DD"
+      />
 
-        <Select
-          label={t('category')}
-          value={filters.category_id}
-          onValueChange={(value) => setFilters({ ...filters, category_id: value })}
-          options={[
-            { label: t('all_categories'), value: 'all' },
-            ...categories.map((cat) => ({
-              label: cat.name,
-              value: String(cat.id),
-            })),
-          ]}
-        />
+      <Picker
+        label={t('category')}
+        selectedValue={filters.category_id}
+        onValueChange={(value) => setFilters({ ...filters, category_id: value })}
+        items={[
+        { label: t('all_categories'), value: 'all' },
+        ...categories.map((cat) => ({
+          label: cat.name,
+          value: String(cat.id),
+        })),
+        ]}
+      />
 
-        <View style={styles.filterActions}>
-          <TouchableOpacity
-            style={[commonStyles.button, styles.filterButton]}
-            onPress={applyFilters}
-            activeOpacity={0.7}
-          >
-            <Text style={commonStyles.buttonText}>{t('apply_filters')}</Text>
-          </TouchableOpacity>
+      <View style={styles.filterActions}>
+        <TouchableOpacity
+        style={[commonStyles.button, styles.filterButton]}
+        onPress={applyFilters}
+        activeOpacity={0.7}
+        >
+        <Text style={commonStyles.buttonText}>{t('apply_filters')}</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[commonStyles.buttonSecondary, styles.filterButton]}
-            onPress={resetFilters}
-            activeOpacity={0.7}
-          >
-            <Text style={commonStyles.buttonSecondaryText}>{t('reset')}</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+        style={[commonStyles.buttonSecondary, styles.filterButton]}
+        onPress={resetFilters}
+        activeOpacity={0.7}
+        >
+        <Text style={commonStyles.buttonSecondaryText}>{t('reset')}</Text>
+        </TouchableOpacity>
+      </View>
       </Card>
     );
   };
@@ -735,66 +738,66 @@ const ExpensesScreen = ({ navigation }) => {
                 setExpenseModalVisible(false);
                 setSelectedExpense(null);
                 setTaxBreakdown(null);
-              }}
-              activeOpacity={0.7}
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[commonStyles.button, saving && commonStyles.buttonDisabled]}
+                onPress={handleSaveExpense}
+                disabled={saving}
+                activeOpacity={0.7}
+              >
+                <Text style={commonStyles.buttonText}>{saving ? t('saving') : t('save')}</Text>
+              </TouchableOpacity>
+              </View>
+            }
             >
-              <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[commonStyles.button, saving && commonStyles.buttonDisabled]}
-              onPress={handleSaveExpense}
-              disabled={saving}
-              activeOpacity={0.7}
-            >
-              <Text style={commonStyles.buttonText}>{saving ? t('saving') : t('save')}</Text>
-            </TouchableOpacity>
-          </View>
-        }
-      >
-        <ScrollView>
-          <FormField
-            label={t('date')}
-            value={formData.expense_date}
-            onChangeText={(value) => setFormData({ ...formData, expense_date: value })}
-            placeholder="YYYY-MM-DD"
-            required
-          />
+            <ScrollView>
+              <FormField
+              label={t('date')}
+              value={formData.expense_date}
+              onChangeText={(value) => setFormData({ ...formData, expense_date: value })}
+              placeholder="YYYY-MM-DD"
+              required
+              />
 
-          <Select
-            label={t('category')}
-            value={formData.budget_category_id}
-            onValueChange={(value) => setFormData({ ...formData, budget_category_id: value })}
-            options={[
-              { label: t('uncategorized'), value: '' },
-              ...categories.map((cat) => ({
+              <Picker
+              label={t('category')}
+              selectedValue={formData.budget_category_id}
+              onValueChange={(value) => setFormData({ ...formData, budget_category_id: value })}
+              items={[
+                { label: t('uncategorized'), value: '' },
+                ...categories.map((cat) => ({
                 label: cat.name,
                 value: String(cat.id),
-              })),
-            ]}
-          />
+                })),
+              ]}
+              />
 
-          <Select
-            label={t('budget_item')}
-            value={formData.budget_item_id}
-            onValueChange={(value) => setFormData({ ...formData, budget_item_id: value })}
-            options={[
-              { label: t('select_item'), value: '' },
-              ...items.map((item) => ({
+              <Picker
+              label={t('budget_item')}
+              selectedValue={formData.budget_item_id}
+              onValueChange={(value) => setFormData({ ...formData, budget_item_id: value })}
+              items={[
+                { label: t('select_item'), value: '' },
+                ...items.map((item) => ({
                 label: item.name,
                 value: String(item.id),
-              })),
-            ]}
-          />
+                })),
+              ]}
+              />
 
-          <FormField
-            label={t('description')}
-            value={formData.description}
-            onChangeText={(value) => setFormData({ ...formData, description: value })}
-            placeholder={t('enter_expense_description')}
-            required
-          />
+              <FormField
+              label={t('description')}
+              value={formData.description}
+              onChangeText={(value) => setFormData({ ...formData, description: value })}
+              placeholder={t('enter_expense_description')}
+              required
+              />
 
-          {/* Tax Calculator */}
+              {/* Tax Calculator */}
           <Card style={styles.taxCalculatorCard}>
             <Text style={styles.taxCalculatorTitle}>{t('amount_and_taxes')}</Text>
 

@@ -872,6 +872,20 @@ export const getNextMeetingInfo = async () => {
 };
 
 /**
+ * Save reminder for meeting
+ */
+export const saveReminder = async (reminderData) => {
+  return API.post('save-reminder', reminderData);
+};
+
+/**
+ * Get reminder
+ */
+export const getReminder = async () => {
+  return API.get('reminder');
+};
+
+/**
  * Get meeting activities templates
  */
 export const getMeetingActivities = async () => {
@@ -1521,6 +1535,8 @@ export default {
   saveReunionPreparation,
   getReunionDates,
   getNextMeetingInfo,
+  saveReminder,
+  getReminder,
   getMeetingActivities,
   getAnimateurs,
   // Budget

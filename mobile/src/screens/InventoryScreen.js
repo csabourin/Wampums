@@ -19,6 +19,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -396,127 +397,135 @@ const InventoryScreen = ({ navigation }) => {
   const renderEquipmentForm = () => {
     return (
       <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-        {/* Image Picker Section */}
-        <View style={styles.imageSection}>
-          {selectedImage ? (
-            <View style={styles.imagePreviewContainer}>
-              <Image
-                source={{
-                  uri: selectedImage,
-                  cache: 'force-cache',
-                }}
-                style={styles.imagePreview}
-                resizeMode="cover"
-                onError={(e) => debugError('Preview error:', e.nativeEvent.error)}
-              />
-              <TouchableOpacity
-                style={styles.changePhotoButton}
-                onPress={pickImage}
-              >
-                <Text style={styles.changePhotoText}>📷 {t('change_photo')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
-              <Text style={styles.addPhotoText}>📷 {t('add_photo')}</Text>
-            </TouchableOpacity>
-          )}
+      {/* Image Picker Section */}
+      <View style={styles.imageSection}>
+        {selectedImage ? (
+        <View style={styles.imagePreviewContainer}>
+          <Image
+          source={{
+            uri: selectedImage,
+            cache: 'force-cache',
+          }}
+          style={styles.imagePreview}
+          resizeMode="cover"
+          onError={(e) => debugError('Preview error:', e.nativeEvent.error)}
+          />
+          <TouchableOpacity
+          style={styles.changePhotoButton}
+          onPress={pickImage}
+          >
+          <Text style={styles.changePhotoText}>📷 {t('change_photo')}</Text>
+          </TouchableOpacity>
         </View>
+        ) : (
+        <TouchableOpacity style={styles.addPhotoButton} onPress={pickImage}>
+          <Text style={styles.addPhotoText}>📷 {t('add_photo')}</Text>
+        </TouchableOpacity>
+        )}
+      </View>
 
+      <FormField
+        label={t('equipment_name')}
+        value={formData.name}
+        onChangeText={(value) => setFormData({ ...formData, name: value })}
+        placeholder={t('equipment_name')}
+        required
+      />
+
+      <View style={styles.row}>
+        <View style={styles.halfWidth}>
         <FormField
-          label={t('equipment_name')}
-          value={formData.name}
-          onChangeText={(value) => setFormData({ ...formData, name: value })}
-          placeholder={t('equipment_name')}
-          required
+          label={t('equipment_category')}
+          value={formData.category}
+          onChangeText={(value) => setFormData({ ...formData, category: value })}
+          placeholder={t('equipment_category')}
         />
-
-        <View style={styles.row}>
-          <View style={styles.halfWidth}>
-            <FormField
-              label={t('equipment_category')}
-              value={formData.category}
-              onChangeText={(value) => setFormData({ ...formData, category: value })}
-              placeholder={t('equipment_category')}
-            />
-          </View>
-          <View style={styles.halfWidth}>
-            <FormField
-              label={t('equipment_quantity_total')}
-              value={formData.quantity_total}
-              onChangeText={(value) =>
-                setFormData({ ...formData, quantity_total: value })
-              }
-              keyboardType="numeric"
-              placeholder="1"
-            />
-          </View>
         </View>
-
-        <View style={styles.row}>
-          <View style={styles.halfWidth}>
-            <FormField
-              label={t('equipment_item_value') + ' ($)'}
-              value={formData.item_value}
-              onChangeText={(value) =>
-                setFormData({ ...formData, item_value: value })
-              }
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-            />
-          </View>
-          <View style={styles.halfWidth}>
-            <FormField
-              label={t('equipment_acquisition_date')}
-              value={formData.acquisition_date}
-              onChangeText={(value) =>
-                setFormData({ ...formData, acquisition_date: value })
-              }
-              placeholder="YYYY-MM-DD"
-            />
-          </View>
+        <View style={styles.halfWidth}>
+        <FormField
+          label={t('equipment_quantity_total')}
+          value={formData.quantity_total}
+          onChangeText={(value) =>
+          setFormData({ ...formData, quantity_total: value })
+          }
+          keyboardType="numeric"
+          placeholder="1"
+        />
         </View>
+      </View>
 
-        <Select
-          label={t('equipment_location_type')}
-          value={formData.location_type}
-          onValueChange={(value) =>
-            setFormData({ ...formData, location_type: value })
-          }
-          options={LOCATION_TYPES.map((type) => ({
-            label: type.label(),
-            value: type.value,
-          }))}
-        />
-
+      <View style={styles.row}>
+        <View style={styles.halfWidth}>
         <FormField
-          label={t('equipment_location_details')}
-          value={formData.location_details}
+          label={t('equipment_item_value') + ' ($)'}
+          value={formData.item_value}
           onChangeText={(value) =>
-            setFormData({ ...formData, location_details: value })
+          setFormData({ ...formData, item_value: value })
           }
-          placeholder={t('equipment_location_details_placeholder')}
+          keyboardType="decimal-pad"
+          placeholder="0.00"
         />
-
+        </View>
+        <View style={styles.halfWidth}>
         <FormField
-          label={t('equipment_condition')}
-          value={formData.condition_note}
+          label={t('equipment_acquisition_date')}
+          value={formData.acquisition_date}
           onChangeText={(value) =>
-            setFormData({ ...formData, condition_note: value })
+          setFormData({ ...formData, acquisition_date: value })
           }
-          placeholder={t('equipment_condition')}
+          placeholder="YYYY-MM-DD"
         />
+        </View>
+      </View>
 
-        <FormField
-          label={t('equipment_description')}
-          value={formData.description}
-          onChangeText={(value) =>
-            setFormData({ ...formData, description: value })
-          }
-          placeholder={t('equipment_description')}
-          multiline
-          numberOfLines={2}
-        />
+      <View>
+        <Text style={styles.label}>{t('equipment_location_type')}</Text>
+        <Picker
+        selectedValue={formData.location_type}
+        onValueChange={(value) =>
+          setFormData({ ...formData, location_type: value })
+        }
+        >
+        {LOCATION_TYPES.map((type) => (
+          <Picker.Item key={type.value} label={type.label()} value={type.value} />
+        ))}
+        </Picker>
+      </View>
+
+      <FormField
+        label={t('equipment_location_details')}
+        value={formData.location_details}
+        onChangeText={(value) =>
+        setFormData({ ...formData, location_details: value })
+        }
+        placeholder={t('equipment_location_details_placeholder')}
+      />
+
+      <View>
+        <Text style={styles.label}>{t('equipment_condition')}</Text>
+        <Picker
+        selectedValue={formData.condition_note}
+        onValueChange={(value) =>
+          setFormData({ ...formData, condition_note: value })
+        }
+        >
+        <Picker.Item label={t('condition_excellent')} value="excellent" />
+        <Picker.Item label={t('condition_good')} value="good" />
+        <Picker.Item label={t('condition_fair')} value="fair" />
+        <Picker.Item label={t('condition_poor')} value="poor" />
+        </Picker>
+      </View>
+
+      <FormField
+        label={t('equipment_description')}
+        value={formData.description}
+        onChangeText={(value) =>
+        setFormData({ ...formData, description: value })
+        }
+        placeholder={t('equipment_description')}
+        multiline
+        numberOfLines={2}
+      />
       </ScrollView>
     );
   };

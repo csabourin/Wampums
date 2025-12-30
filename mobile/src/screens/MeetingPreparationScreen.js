@@ -5,7 +5,7 @@
  * Allows creating and updating meeting preparation details.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,20 +14,28 @@ import {
   RefreshControl,
   TextInput,
   TouchableOpacity,
+  Alert,
+  Share,
+  Switch,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import {
   getReunionDates,
   getReunionPreparation,
   saveReunionPreparation,
   getAnimateurs,
   getMeetingActivities,
+  saveReminder,
+  getReminder,
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
 import SecurityUtils from '../utils/SecurityUtils';
+import { ActivityManager } from '../utils/ActivityManager';
 import { Button, Card, ErrorMessage, LoadingSpinner } from '../components';
+import ActivityDescriptionModal from '../components/ActivityDescriptionModal';
 import theme, { commonStyles } from '../theme';
-import { debugError } from '../utils/DebugUtils';
+import { debugError, debugLog } from '../utils/DebugUtils';
 
 const EMPTY_ACTIVITY = {
   time: '',
@@ -47,13 +55,30 @@ const normalizePreparation = (preparation) => {
     return null;
   }
 
+  // Parse activities if it's a JSON string
+  let activities = preparation.activities || [];
+  if (typeof activities === 'string') {
+    try {
+      activities = JSON.parse(activities);
+    } catch (err) {
+      debugError('Error parsing activities JSON:', err);
+      activities = [];
+    }
+  }
+
+  // Parse youth_of_honor if it's a string
+  let youthOfHonor = preparation.youth_of_honor || [];
+  if (typeof youthOfHonor === 'string') {
+    youthOfHonor = youthOfHonor.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
   return {
     date: preparation.date || '',
     animateur_responsable: preparation.animateur_responsable || '',
-    youth_of_honor: preparation.youth_of_honor || [],
+    youth_of_honor: youthOfHonor,
     endroit: preparation.endroit || '',
     notes: preparation.notes || '',
-    activities: preparation.activities || [],
+    activities: activities,
   };
 };
 
@@ -69,18 +94,42 @@ const MeetingPreparationScreen = () => {
   const [formData, setFormData] = useState({
     date: '',
     animateur_responsable: '',
-    youth_of_honor: '',
+    youth_of_honor: [],
     endroit: '',
     notes: '',
   });
   const [activities, setActivities] = useState([EMPTY_ACTIVITY]);
   const [saving, setSaving] = useState(false);
+  const [reminderData, setReminderData] = useState({
+    text: '',
+    date: '',
+    recurring: false,
+  });
+  const [savingReminder, setSavingReminder] = useState(false);
+  const [quickEditMode, setQuickEditMode] = useState(false);
+  const [expandedActivityIndex, setExpandedActivityIndex] = useState(null);
+  const [descriptionModal, setDescriptionModal] = useState({
+    visible: false,
+    title: '',
+    description: '',
+  });
+
+  // Managers
+  const activityManagerRef = useRef(null);
 
   const honorList = useMemo(() => {
-    return formData.youth_of_honor
-      ? formData.youth_of_honor.split(',').map((name) => name.trim()).filter(Boolean)
-      : [];
+    return Array.isArray(formData.youth_of_honor) ? formData.youth_of_honor : [];
   }, [formData.youth_of_honor]);
+
+  // Initialize activity manager
+  useEffect(() => {
+    if (animateurs.length > 0 && activityTemplates.length > 0) {
+      activityManagerRef.current = new ActivityManager(
+        animateurs,
+        activityTemplates
+      );
+    }
+  }, [animateurs, activityTemplates]);
 
   /**
    * Load preparation data for a meeting date.
@@ -94,7 +143,7 @@ const MeetingPreparationScreen = () => {
         setFormData({
           date: normalized.date,
           animateur_responsable: normalized.animateur_responsable,
-          youth_of_honor: normalized.youth_of_honor.join(', '),
+          youth_of_honor: normalized.youth_of_honor,
           endroit: normalized.endroit,
           notes: normalized.notes,
         });
@@ -102,8 +151,13 @@ const MeetingPreparationScreen = () => {
           normalized.activities.length > 0 ? normalized.activities : [EMPTY_ACTIVITY]
         );
       } else {
+        // No existing meeting data - initialize with template activities
+        const defaultActivities = activityManagerRef.current
+          ? activityManagerRef.current.initializePlaceholderActivities()
+          : [EMPTY_ACTIVITY];
+        
         setFormData((prev) => ({ ...prev, date }));
-        setActivities([EMPTY_ACTIVITY]);
+        setActivities(defaultActivities.length > 0 ? defaultActivities : [EMPTY_ACTIVITY]);
       }
     } catch (err) {
       debugError('Error loading meeting preparation:', err);
@@ -132,19 +186,72 @@ const MeetingPreparationScreen = () => {
       const initialDate = selectedDate || uniqueDates[0];
       setSelectedDate(initialDate);
 
-      setAnimateurs(
-        animateursResponse.success
-          ? animateursResponse.animateurs || animateursResponse.data || []
-          : []
+      // Deduplicate animateurs by ID to avoid duplicate key errors
+      const animateursList = animateursResponse.success
+        ? animateursResponse.animateurs || animateursResponse.data || []
+        : [];
+      const uniqueAnimateurs = Array.from(
+        new Map(animateursList.map((a) => [a.id, a])).values()
       );
-      setActivityTemplates(activitiesResponse.success ? activitiesResponse.data || [] : []);
+      setAnimateurs(uniqueAnimateurs);
+      // Deduplicate activity templates by ID
+      const templates = activitiesResponse.success ? activitiesResponse.data || [] : [];
+      const uniqueTemplates = Array.from(
+        new Map(templates.map((t) => [t.id, t])).values()
+      );
+      setActivityTemplates(uniqueTemplates);
 
       await loadPreparation(initialDate);
+
+      // Load existing reminder
+      try {
+        const reminderResponse = await getReminder();
+        if (reminderResponse.success && reminderResponse.reminder) {
+          setReminderData({
+            text: reminderResponse.reminder.text || '',
+            date: reminderResponse.reminder.date || '',
+            recurring: reminderResponse.reminder.recurring || false,
+          });
+        }
+      } catch (err) {
+        debugError('Error loading reminder:', err);
+      }
     } catch (err) {
       debugError('Error loading meeting data:', err);
       setError(err.message || t('error_loading_preparation_reunions'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Handle saving a reminder
+   */
+  const handleSaveReminder = async () => {
+    if (!reminderData.date) {
+      setError(t('error') + ': ' + t('reminder_date') + ' ' + t('required'));
+      return;
+    }
+
+    setSavingReminder(true);
+    try {
+      const payload = {
+        text: SecurityUtils.sanitizeInput(reminderData.text),
+        date: SecurityUtils.sanitizeInput(reminderData.date),
+        recurring: reminderData.recurring,
+      };
+
+      const response = await saveReminder(payload);
+      if (!response.success) {
+        throw new Error(response.message || t('error_saving_reminder'));
+      }
+
+      Alert.alert(t('success'), t('reminder_saved_successfully'));
+    } catch (err) {
+      debugError('Error saving reminder:', err);
+      setError(err.message || t('error_saving_reminder'));
+    } finally {
+      setSavingReminder(false);
     }
   };
 
@@ -186,9 +293,119 @@ const MeetingPreparationScreen = () => {
     setActivities((prev) => prev.filter((_, idx) => idx !== index));
   };
 
+  /**
+   * Create new meeting
+   */
+  const createNewMeeting = () => {
+    Alert.alert(
+      t('new_meeting'),
+      t('create_new_meeting_confirm') || t('new_meeting'),
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('create'),
+          onPress: () => {
+            const newDate = DateUtils.formatDate(new Date());
+            
+            // Initialize with template activities
+            const defaultActivities = activityManagerRef.current
+              ? activityManagerRef.current.initializePlaceholderActivities()
+              : [EMPTY_ACTIVITY];
+            
+            setSelectedDate(newDate);
+            setFormData({
+              date: newDate,
+              animateur_responsable: '',
+              youth_of_honor: [],
+              endroit: formData.endroit || '',
+              notes: '',
+            });
+            setActivities(defaultActivities.length > 0 ? defaultActivities : [EMPTY_ACTIVITY]);
+            setCustomDate('');
+          },
+        },
+      ]
+    );
+  };
+
+  /**
+   * Export/share meeting
+   */
+  const handleExport = async () => {
+    try {
+      const text = `
+MEETING PREPARATION
+Date: ${formData.date}
+Location: ${formData.endroit}
+Leader: ${formData.animateur_responsable}
+Honors: ${honorList.join(', ')}
+
+ACTIVITIES:
+${activities
+  .map(
+    (a, i) => `
+${i + 1}. ${a.activity}
+   Time: ${a.time} | Duration: ${a.duration}
+   Responsible: ${a.responsable}
+   Materials: ${a.materiel}
+`
+  )
+  .join('')}
+
+NOTES:
+${formData.notes}
+      `.trim();
+
+      await Share.share({
+        message: text,
+        title: `Meeting Preparation - ${formData.date}`,
+      });
+    } catch (err) {
+      debugError('Error exporting meeting:', err);
+    }
+  };
+
+  /**
+   * Show activity description
+   */
+  const showActivityDescription = (activityName) => {
+    const manager = activityManagerRef.current;
+    if (!manager) return;
+
+    const description = manager.getActivityDescription(activityName);
+    if (description) {
+      setDescriptionModal({
+        visible: true,
+        title: activityName,
+        description,
+      });
+    }
+  };
+
   const handleSave = async () => {
+    // Validation
+    if (!formData.date) {
+      setError(t('error') + ': ' + t('date') + ' ' + t('required'));
+      return;
+    }
+    if (!formData.animateur_responsable) {
+      setError(t('error') + ': ' + t('animateur_responsable') + ' ' + t('required'));
+      return;
+    }
+    if (!formData.endroit) {
+      setError(t('error') + ': ' + t('meeting_location') + ' ' + t('required'));
+      return;
+    }
+
     setSaving(true);
     try {
+      // Filter empty activities
+      const validActivities = activities.filter(
+        (a) => a.time || a.duration || a.activity
+      );
       const payload = {
         date: SecurityUtils.sanitizeInput(formData.date),
         animateur_responsable: SecurityUtils.sanitizeInput(formData.animateur_responsable),
@@ -209,6 +426,8 @@ const MeetingPreparationScreen = () => {
         throw new Error(response.message || t('error_saving_reunion_preparation'));
       }
 
+      debugLog('Meeting preparation saved:', payload);
+      Alert.alert(t('success'), t('reunion_preparation_saved'));
       setSelectedDate(payload.date);
       await loadMeetingData();
     } catch (err) {
@@ -250,29 +469,22 @@ const MeetingPreparationScreen = () => {
 
       <View style={styles.dateSection}>
         <Text style={styles.sectionTitle}>{t('select_date')}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.dateChips}>
+        <View style={{ marginBottom: 16 }}>
+          <Picker
+            selectedValue={selectedDate}
+            onValueChange={(date) => setSelectedDate(date)}
+            style={[commonStyles.input]}
+          >
+            <Picker.Item label={t('select_date')} value="" />
             {availableDates.map((date) => (
-              <TouchableOpacity
+              <Picker.Item
                 key={date}
-                onPress={() => setSelectedDate(date)}
-                style={[
-                  styles.dateChip,
-                  selectedDate === date && styles.dateChipActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dateChipText,
-                    selectedDate === date && styles.dateChipTextActive,
-                  ]}
-                >
-                  {DateUtils.formatDate(date)}
-                </Text>
-              </TouchableOpacity>
+                label={DateUtils.formatDate(date)}
+                value={date}
+              />
             ))}
-          </View>
-        </ScrollView>
+          </Picker>
+        </View>
         <View style={styles.customDateRow}>
           <TextInput
             style={styles.input}
@@ -282,6 +494,13 @@ const MeetingPreparationScreen = () => {
           />
           <Button title={t('update')} onPress={handleDateSubmit} />
         </View>
+
+        <Button
+          title={t('new_meeting')}
+          onPress={createNewMeeting}
+          variant="secondary"
+          style={styles.newMeetingBtn}
+        />
       </View>
 
       <View style={styles.formSection}>
@@ -301,36 +520,24 @@ const MeetingPreparationScreen = () => {
               setFormData((prev) => ({ ...prev, animateur_responsable: value }))
             }
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.animateurRow}>
+          <View style={{ marginBottom: 16 }}>
+            <Picker
+              selectedValue={formData.animateur_responsable}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, animateur_responsable: value }))
+              }
+              style={[commonStyles.input]}
+            >
+              <Picker.Item label={t('select')} value="" />
               {animateurs.map((animateur) => (
-                <TouchableOpacity
+                <Picker.Item
                   key={animateur.id}
-                  style={[
-                    styles.animateurChip,
-                    formData.animateur_responsable === animateur.full_name &&
-                      styles.animateurChipActive,
-                  ]}
-                  onPress={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      animateur_responsable: animateur.full_name,
-                    }))
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.animateurChipText,
-                      formData.animateur_responsable === animateur.full_name &&
-                        styles.animateurChipTextActive,
-                    ]}
-                  >
-                    {animateur.full_name}
-                  </Text>
-                </TouchableOpacity>
+                  label={animateur.full_name || animateur.name || ''}
+                  value={animateur.id}
+                />
               ))}
-            </View>
-          </ScrollView>
+            </Picker>
+          </View>
           <TextInput
             style={styles.input}
             placeholder={t('meeting_location_placeholder')}
@@ -340,9 +547,12 @@ const MeetingPreparationScreen = () => {
           <TextInput
             style={styles.input}
             placeholder={t('youth_of_honor')}
-            value={formData.youth_of_honor}
+            value={Array.isArray(formData.youth_of_honor) ? formData.youth_of_honor.join(', ') : formData.youth_of_honor}
             onChangeText={(value) =>
-              setFormData((prev) => ({ ...prev, youth_of_honor: value }))
+              setFormData((prev) => ({
+                ...prev,
+                youth_of_honor: value.split(',').map(name => name.trim()).filter(Boolean)
+              }))
             }
           />
           <TextInput
@@ -356,71 +566,191 @@ const MeetingPreparationScreen = () => {
       </View>
 
       <View style={styles.activitiesSection}>
-        <Text style={styles.sectionTitle}>{t('activite_responsable_materiel')}</Text>
-        {activities.map((activity, index) => (
-          <Card key={`activity-${index}`} style={styles.activityCard}>
-            <Text style={styles.activityTitle}>
-              {t('activity')} #{index + 1}
+        <View style={styles.activitiesSectionHeader}>
+          <Text style={styles.sectionTitle}>{t('activite_responsable_materiel')}</Text>
+          <TouchableOpacity
+            onPress={() => setQuickEditMode(!quickEditMode)}
+            style={styles.quickEditToggle}
+          >
+            <Text style={styles.quickEditLabel}>
+              {t('quick_edit')}: {quickEditMode ? t('on') : t('off')}
             </Text>
-            <View style={styles.activityRow}>
-              <TextInput
-                style={[styles.input, styles.halfInput]}
-                placeholder={t('meeting_time')}
-                value={activity.time}
-                onChangeText={(value) => updateActivity(index, 'time', value)}
-              />
-              <TextInput
-                style={[styles.input, styles.halfInput]}
-                placeholder={t('heure_et_duree')}
-                value={activity.duration}
-                onChangeText={(value) => updateActivity(index, 'duration', value)}
-              />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder={t('activity')}
-              value={activity.activity}
-              onChangeText={(value) => updateActivity(index, 'activity', value)}
-            />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.templateRow}>
-                {activityTemplates.map((template) => (
-                  <TouchableOpacity
-                    key={`template-${template.id}-${index}`}
-                    style={styles.templateChip}
-                    onPress={() => updateActivity(index, 'activity', template.activity)}
-                  >
-                    <Text style={styles.templateChipText}>{template.activity}</Text>
-                  </TouchableOpacity>
-                ))}
+          </TouchableOpacity>
+        </View>
+        {activities.map((activity, index) => (
+          <Card
+            key={`activity-${index}`}
+            style={[
+              styles.activityCard,
+              expandedActivityIndex === index && styles.activityCardExpanded,
+            ]}
+          >
+            <TouchableOpacity
+              onPress={() =>
+                setExpandedActivityIndex(
+                  expandedActivityIndex === index ? null : index
+                )
+              }
+              style={styles.activityHeader}
+            >
+              <Text style={styles.activityTitle}>
+                {t('activity')} #{index + 1}: {activity.activity || t('empty')}
+              </Text>
+              <Text style={styles.expandIcon}>
+                {expandedActivityIndex === index ? '▼' : '▶'}
+              </Text>
+            </TouchableOpacity>
+
+            {(expandedActivityIndex === index || !quickEditMode) && (
+              <View>
+                <View>
+                  <TextInput
+                    style={[styles.input, styles.halfInput]}
+                    placeholder={t('meeting_time')}
+                    value={activity.time}
+                    onChangeText={(value) => updateActivity(index, 'time', value)}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.halfInput]}
+                    placeholder={t('heure_et_duree')}
+                    value={activity.duration}
+                    onChangeText={(value) => updateActivity(index, 'duration', value)}
+                  />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('activity')}
+                  value={activity.activity}
+                  onChangeText={(value) => updateActivity(index, 'activity', value)}
+                />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.templatesScroll}
+                >
+                  <View style={styles.templateRow}>
+                    {activityTemplates.map((template, templateIndex) => (
+                      <TouchableOpacity
+                        key={`template-${index}-${templateIndex}`}
+                        style={styles.templateChip}
+                        onPress={() =>
+                          updateActivity(index, 'activity', template.activity)
+                        }
+                        onLongPress={() =>
+                          showActivityDescription(template.activity)
+                        }
+                      >
+                        <Text style={styles.templateChipText}>
+                          {template.activity}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                <Text style={styles.inputLabel}>
+                  {t('animateur_responsable')}
+                </Text>
+                <Picker
+                  selectedValue={activity.responsable}
+                  onValueChange={(value) =>
+                    updateActivity(index, 'responsable', value)
+                  }
+                  style={[commonStyles.input]}
+                >
+                  <Picker.Item label={t('select')} value="" />
+                  {animateurs.map((animateur) => (
+                    <Picker.Item
+                      key={animateur.id}
+                      label={animateur.full_name || animateur.name || ''}
+                      value={animateur.id}
+                    />
+                  ))}
+                </Picker>
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('materiel')}
+                  value={activity.materiel}
+                  onChangeText={(value) => updateActivity(index, 'materiel', value)}
+                />
+                <Button
+                  title={t('delete')}
+                  variant="danger"
+                  onPress={() => removeActivity(index)}
+                  disabled={activities.length === 1}
+                />
               </View>
-            </ScrollView>
-            <TextInput
-              style={styles.input}
-              placeholder={t('animateur_responsable')}
-              value={activity.responsable}
-              onChangeText={(value) => updateActivity(index, 'responsable', value)}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={t('materiel')}
-              value={activity.materiel}
-              onChangeText={(value) => updateActivity(index, 'materiel', value)}
-            />
-            <Button
-              title={t('delete')}
-              variant="danger"
-              onPress={() => removeActivity(index)}
-              disabled={activities.length === 1}
-            />
+            )}
           </Card>
         ))}
-        <Button title={t('Add')} onPress={addActivity} variant="secondary" />
+        <Button title={t('Add')} onPress={addActivity} variant="secondary" style={styles.addActivityBtn} />
       </View>
 
-      <View style={styles.saveSection}>
-        <Button title={t('save')} onPress={handleSave} loading={saving} />
+      <View style={styles.reminderSection}>
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>{t('set_reminder')}</Text>
+          <TextInput
+            style={[styles.input, styles.multilineInput]}
+            placeholder={t('reminder_text')}
+            multiline
+            value={reminderData.text}
+            onChangeText={(value) =>
+              setReminderData((prev) => ({ ...prev, text: value }))
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder={t('reminder_date')}
+            value={reminderData.date}
+            onChangeText={(value) =>
+              setReminderData((prev) => ({ ...prev, date: value }))
+            }
+          />
+          <View style={styles.recurringToggle}>
+            <Text style={styles.inputLabel}>{t('recurring_reminder')}</Text>
+            <Switch
+              value={reminderData.recurring}
+              onValueChange={(value) =>
+                setReminderData((prev) => ({
+                  ...prev,
+                  recurring: value,
+                }))
+              }
+            />
+          </View>
+          <Button
+            title={t('save_reminder')}
+            onPress={handleSaveReminder}
+            loading={savingReminder}
+            variant="secondary"
+          />
+        </Card>
       </View>
+
+      <View style={styles.actionButtons}>
+        <Button
+          title={t('export')}
+          onPress={handleExport}
+          variant="secondary"
+          style={{ flex: 1, marginRight: 8 }}
+        />
+        <Button
+          title={t('save')}
+          onPress={handleSave}
+          loading={saving}
+          style={{ flex: 1 }}
+        />
+      </View>
+
+      {/* Activity Description Modal */}
+      <ActivityDescriptionModal
+        visible={descriptionModal.visible}
+        onClose={() =>
+          setDescriptionModal({ ...descriptionModal, visible: false })
+        }
+        title={descriptionModal.title}
+        description={descriptionModal.description}
+      />
     </ScrollView>
   );
 };
@@ -428,6 +758,24 @@ const MeetingPreparationScreen = () => {
 const styles = StyleSheet.create({
   header: {
     padding: theme.spacing.lg,
+  },
+  errorBanner: {
+    backgroundColor: theme.colors.error,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+  },
+  errorText: {
+    color: theme.colors.surface,
+    flex: 1,
+    ...commonStyles.body,
+  },
+  errorClose: {
+    color: theme.colors.surface,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   title: {
     ...commonStyles.heading2,
@@ -512,12 +860,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
   },
+  activitiesSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  quickEditToggle: {
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  quickEditLabel: {
+    ...commonStyles.caption,
+    fontSize: 12,
+  },
   activityCard: {
     marginBottom: theme.spacing.md,
   },
+  activityCardExpanded: {
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
   activityTitle: {
     ...commonStyles.heading3,
-    marginBottom: theme.spacing.sm,
+  },
+  expandIcon: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
   },
   activityRow: {
     flexDirection: 'row',
@@ -540,9 +918,71 @@ const styles = StyleSheet.create({
   templateChipText: {
     ...commonStyles.caption,
   },
-  saveSection: {
+  reminderSection: {
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginRight: theme.spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+  },
+  checkboxChecked: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  checkboxText: {
+    color: theme.colors.surface,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    ...commonStyles.body,
+  },
+  reminderSection: {
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+  },
+  recurringToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+  },
+  actionButtons: {
+    flexDirection: 'row',
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
+    gap: theme.spacing.md,
+  },
+  templatesScroll: {
+    marginBottom: theme.spacing.md,
+  },
+  inputLabel: {
+    ...commonStyles.label,
+    marginBottom: theme.spacing.xs,
+  },
+  newMeetingBtn: {
+    marginTop: theme.spacing.md,
+  },
+  addActivityBtn: {
+    marginTop: theme.spacing.md,
   },
 });
 

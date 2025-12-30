@@ -15,7 +15,8 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-} from 'react-native';
+  } from 'react-native';
+  import { Picker } from '@react-native-picker/picker';
 import {
   getUsers,
   updateUserRole,
@@ -31,7 +32,6 @@ import {
   ErrorMessage,
   Card,
   FormField,
-  Select,
   Checkbox,
   Toast,
   useToast,
@@ -441,55 +441,57 @@ const AdminScreen = ({ navigation }) => {
                 setEditingUserId(null);
                 setEditingUserRole('');
                 setSelectedUser(null);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[commonStyles.button, saving && commonStyles.buttonDisabled]}
-              onPress={handleUpdateUserRole}
-              disabled={saving}
-              activeOpacity={0.7}
-            >
-              <Text style={commonStyles.buttonText}>
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[commonStyles.button, saving && commonStyles.buttonDisabled]}
+                onPress={handleUpdateUserRole}
+                disabled={saving}
+                activeOpacity={0.7}
+              >
+                <Text style={commonStyles.buttonText}>
                 {saving ? t('saving') : t('save')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        }
-      >
-        {selectedUser && (
-          <>
-            <Text style={styles.modalLabel}>{t('email')}:</Text>
-            <Text style={styles.modalValue}>{selectedUser.email}</Text>
+                </Text>
+              </TouchableOpacity>
+              </View>
+            }
+            >
+            {selectedUser && (
+              <>
+              <Text style={styles.modalLabel}>{t('email')}:</Text>
+              <Text style={styles.modalValue}>{selectedUser.email}</Text>
 
-            <Select
-              label={t('role')}
-              value={editingUserRole}
-              onValueChange={setEditingUserRole}
-              options={roleOptions}
-              required
+              <Picker
+                selectedValue={editingUserRole}
+                onValueChange={setEditingUserRole}
+                style={styles.picker}
+              >
+                {roleOptions.map((option) => (
+                <Picker.Item key={option.value} label={option.label} value={option.value} />
+                ))}
+              </Picker>
+              </>
+            )}
+            </Modal>
+
+            {/* Approve User Confirm Modal */}
+            <ConfirmModal
+            visible={approveConfirmVisible}
+            onClose={() => {
+              setApproveConfirmVisible(false);
+              setSelectedUser(null);
+            }}
+            onConfirm={handleApproveUser}
+            title={t('confirm_approve_user')}
+            message={t('confirm_approve_user_message')}
+            confirmText={t('approve')}
+            cancelText={t('cancel')}
             />
-          </>
-        )}
-      </Modal>
 
-      {/* Approve User Confirm Modal */}
-      <ConfirmModal
-        visible={approveConfirmVisible}
-        onClose={() => {
-          setApproveConfirmVisible(false);
-          setSelectedUser(null);
-        }}
-        onConfirm={handleApproveUser}
-        title={t('confirm_approve_user')}
-        message={t('confirm_approve_user_message')}
-        confirmText={t('approve')}
-        cancelText={t('cancel')}
-      />
-
-      {/* Toast Notifications */}
+            {/* Toast Notifications */}
       <Toast
         visible={toast.toastState.visible}
         message={toast.toastState.message}

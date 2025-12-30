@@ -14,6 +14,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
@@ -325,65 +326,62 @@ const ExternalRevenueScreen = ({ navigation }) => {
   const renderFilters = () => {
     return (
       <Card style={styles.filtersCard}>
-        <Text style={styles.filtersTitle}>{t('filters')}</Text>
+      <Text style={styles.filtersTitle}>{t('filters')}</Text>
 
-        <FormField
-          label={t('start_date')}
-          value={filters.start_date}
-          onChangeText={(value) => setFilters({ ...filters, start_date: value })}
-          placeholder="YYYY-MM-DD"
-        />
+      <FormField
+        label={t('start_date')}
+        value={filters.start_date}
+        onChangeText={(value) => setFilters({ ...filters, start_date: value })}
+        placeholder="YYYY-MM-DD"
+      />
 
-        <FormField
-          label={t('end_date')}
-          value={filters.end_date}
-          onChangeText={(value) => setFilters({ ...filters, end_date: value })}
-          placeholder="YYYY-MM-DD"
-        />
+      <FormField
+        label={t('end_date')}
+        value={filters.end_date}
+        onChangeText={(value) => setFilters({ ...filters, end_date: value })}
+        placeholder="YYYY-MM-DD"
+      />
 
-        <Select
-          label={t('revenue_type')}
-          value={filters.revenue_type}
-          onValueChange={(value) => setFilters({ ...filters, revenue_type: value })}
-          options={[
-            { label: t('all_types'), value: 'all' },
-            { label: t('donation'), value: 'donation' },
-            { label: t('sponsorship'), value: 'sponsorship' },
-            { label: t('grant'), value: 'grant' },
-            { label: t('other'), value: 'other' },
-          ]}
-        />
+      <Picker
+        selectedValue={filters.revenue_type}
+        onValueChange={(value) => setFilters({ ...filters, revenue_type: value })}
+        style={styles.picker}
+      >
+        <Picker.Item label={t('all_types')} value="all" />
+        <Picker.Item label={t('donation')} value="donation" />
+        <Picker.Item label={t('sponsorship')} value="sponsorship" />
+        <Picker.Item label={t('grant')} value="grant" />
+        <Picker.Item label={t('other')} value="other" />
+      </Picker>
 
-        <Select
-          label={t('category')}
-          value={filters.category_id}
-          onValueChange={(value) => setFilters({ ...filters, category_id: value })}
-          options={[
-            { label: t('all_categories'), value: 'all' },
-            ...categories.map((cat) => ({
-              label: cat.name,
-              value: String(cat.id),
-            })),
-          ]}
-        />
+      <Picker
+        selectedValue={filters.category_id}
+        onValueChange={(value) => setFilters({ ...filters, category_id: value })}
+        style={styles.picker}
+      >
+        <Picker.Item label={t('all_categories')} value="all" />
+        {categories.map((cat) => (
+        <Picker.Item key={cat.id} label={cat.name} value={String(cat.id)} />
+        ))}
+      </Picker>
 
-        <View style={styles.filterActions}>
-          <TouchableOpacity
-            style={[commonStyles.button, styles.filterButton]}
-            onPress={applyFilters}
-            activeOpacity={0.7}
-          >
-            <Text style={commonStyles.buttonText}>{t('apply_filters')}</Text>
-          </TouchableOpacity>
+      <View style={styles.filterActions}>
+        <TouchableOpacity
+        style={[commonStyles.button, styles.filterButton]}
+        onPress={applyFilters}
+        activeOpacity={0.7}
+        >
+        <Text style={commonStyles.buttonText}>{t('apply_filters')}</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[commonStyles.buttonSecondary, styles.filterButton]}
-            onPress={resetFilters}
-            activeOpacity={0.7}
-          >
-            <Text style={commonStyles.buttonSecondaryText}>{t('reset')}</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+        style={[commonStyles.buttonSecondary, styles.filterButton]}
+        onPress={resetFilters}
+        activeOpacity={0.7}
+        >
+        <Text style={commonStyles.buttonSecondaryText}>{t('reset')}</Text>
+        </TouchableOpacity>
+      </View>
       </Card>
     );
   };
@@ -520,106 +518,102 @@ const ExternalRevenueScreen = ({ navigation }) => {
               onPress={() => {
                 setRevenueModalVisible(false);
                 setSelectedRevenue(null);
-              }}
-              activeOpacity={0.7}
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[commonStyles.button, saving && commonStyles.buttonDisabled]}
+                onPress={handleSaveRevenue}
+                disabled={saving}
+                activeOpacity={0.7}
+              >
+                <Text style={commonStyles.buttonText}>{saving ? t('saving') : t('save')}</Text>
+              </TouchableOpacity>
+              </View>
+            }
             >
-              <Text style={commonStyles.buttonSecondaryText}>{t('cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[commonStyles.button, saving && commonStyles.buttonDisabled]}
-              onPress={handleSaveRevenue}
-              disabled={saving}
-              activeOpacity={0.7}
-            >
-              <Text style={commonStyles.buttonText}>{saving ? t('saving') : t('save')}</Text>
-            </TouchableOpacity>
-          </View>
-        }
-      >
-        <ScrollView>
-          <Select
-            label={t('revenue_type')}
-            value={formData.revenue_type}
-            onValueChange={(value) => setFormData({ ...formData, revenue_type: value })}
-            options={[
-              { label: t('donation'), value: 'donation' },
-              { label: t('sponsorship'), value: 'sponsorship' },
-              { label: t('grant'), value: 'grant' },
-              { label: t('other'), value: 'other' },
-            ]}
-            required
-          />
+            <ScrollView>
+              <Picker
+              selectedValue={formData.revenue_type}
+              onValueChange={(value) => setFormData({ ...formData, revenue_type: value })}
+              style={styles.picker}
+              >
+              <Picker.Item label={t('donation')} value="donation" />
+              <Picker.Item label={t('sponsorship')} value="sponsorship" />
+              <Picker.Item label={t('grant')} value="grant" />
+              <Picker.Item label={t('other')} value="other" />
+              </Picker>
 
-          <FormField
-            label={t('date')}
-            value={formData.revenue_date}
-            onChangeText={(value) => setFormData({ ...formData, revenue_date: value })}
-            placeholder="YYYY-MM-DD"
-            required
-          />
+              <FormField
+              label={t('date')}
+              value={formData.revenue_date}
+              onChangeText={(value) => setFormData({ ...formData, revenue_date: value })}
+              placeholder="YYYY-MM-DD"
+              required
+              />
 
-          <FormField
-            label={t('source_donor')}
-            value={formData.description}
-            onChangeText={(value) => setFormData({ ...formData, description: value })}
-            placeholder={t('enter_source_donor_name')}
-            required
-          />
+              <FormField
+              label={t('source_donor')}
+              value={formData.description}
+              onChangeText={(value) => setFormData({ ...formData, description: value })}
+              placeholder={t('enter_source_donor_name')}
+              required
+              />
 
-          <FormField
-            label={t('amount')}
-            value={formData.amount}
-            onChangeText={(value) => setFormData({ ...formData, amount: value })}
-            placeholder="0.00"
-            keyboardType="numeric"
-            required
-          />
+              <FormField
+              label={t('amount')}
+              value={formData.amount}
+              onChangeText={(value) => setFormData({ ...formData, amount: value })}
+              placeholder="0.00"
+              keyboardType="numeric"
+              required
+              />
 
-          <Select
-            label={t('category')}
-            value={formData.budget_category_id}
-            onValueChange={(value) => setFormData({ ...formData, budget_category_id: value })}
-            options={[
-              { label: t('uncategorized'), value: '' },
-              ...categories.map((cat) => ({
-                label: cat.name,
-                value: String(cat.id),
-              })),
-            ]}
-          />
+              <Picker
+              selectedValue={formData.budget_category_id}
+              onValueChange={(value) => setFormData({ ...formData, budget_category_id: value })}
+              style={styles.picker}
+              >
+              <Picker.Item label={t('uncategorized')} value="" />
+              {categories.map((cat) => (
+                <Picker.Item key={cat.id} label={cat.name} value={String(cat.id)} />
+              ))}
+              </Picker>
 
-          <FormField
-            label={t('reference_number')}
-            value={formData.reference_number}
-            onChangeText={(value) => setFormData({ ...formData, reference_number: value })}
-            placeholder={t('check_number_transfer_id')}
-          />
+              <FormField
+              label={t('reference_number')}
+              value={formData.reference_number}
+              onChangeText={(value) => setFormData({ ...formData, reference_number: value })}
+              placeholder={t('check_number_transfer_id')}
+              />
 
-          <FormField
-            label={t('payment_method')}
-            value={formData.payment_method}
-            onChangeText={(value) => setFormData({ ...formData, payment_method: value })}
-            placeholder={t('cash_check_transfer')}
-          />
+              <FormField
+              label={t('payment_method')}
+              value={formData.payment_method}
+              onChangeText={(value) => setFormData({ ...formData, payment_method: value })}
+              placeholder={t('cash_check_transfer')}
+              />
 
-          <FormField
-            label={t('receipt_url')}
-            value={formData.receipt_url}
-            onChangeText={(value) => setFormData({ ...formData, receipt_url: value })}
-            placeholder="https://"
-          />
+              <FormField
+              label={t('receipt_url')}
+              value={formData.receipt_url}
+              onChangeText={(value) => setFormData({ ...formData, receipt_url: value })}
+              placeholder="https://"
+              />
 
-          <FormField
-            label={t('notes')}
-            value={formData.notes}
-            onChangeText={(value) => setFormData({ ...formData, notes: value })}
-            multiline
-            numberOfLines={3}
-          />
-        </ScrollView>
-      </Modal>
+              <FormField
+              label={t('notes')}
+              value={formData.notes}
+              onChangeText={(value) => setFormData({ ...formData, notes: value })}
+              multiline
+              numberOfLines={3}
+              />
+            </ScrollView>
+            </Modal>
 
-      {/* Delete Confirm Modal */}
+            {/* Delete Confirm Modal */}
       <ConfirmModal
         visible={deleteConfirmVisible}
         onClose={() => {
