@@ -31,7 +31,12 @@ import {
   canViewFundraisers,
   canManageFundraisers,
 } from '../utils/PermissionUtils';
-import API from '../api/api-core';
+import {
+  getFundraisers,
+  createFundraiser,
+  updateFundraiser,
+  archiveFundraiser,
+} from '../api/api-endpoints';
 
 const FundraisersScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -92,7 +97,7 @@ const FundraisersScreen = ({ navigation }) => {
 
   const loadFundraisers = async () => {
     try {
-      const result = await API.get('/v1/fundraisers', { include_archived: true });
+      const result = await getFundraisers(true);
 
       if (result.success && result.fundraisers) {
         const active = result.fundraisers
@@ -155,10 +160,7 @@ const FundraisersScreen = ({ navigation }) => {
 
       const isArchiving = !fundraiserToArchive.archived;
 
-      const result = await API.put(
-        `/v1/fundraisers/${fundraiserToArchive.id}/archive`,
-        { archived: isArchiving }
-      );
+      const result = await archiveFundraiser(fundraiserToArchive.id, isArchiving);
 
       if (!result.success) {
         throw new Error(
@@ -204,8 +206,8 @@ const FundraisersScreen = ({ navigation }) => {
       };
 
       const result = selectedFundraiser
-        ? await API.put(`/v1/fundraisers/${selectedFundraiser.id}`, payload)
-        : await API.post('/v1/fundraisers', payload);
+        ? await updateFundraiser(selectedFundraiser.id, payload)
+        : await createFundraiser(payload);
 
       if (!result.success) {
         throw new Error(result.message || t('error_saving_fundraiser'));
@@ -307,7 +309,7 @@ const FundraisersScreen = ({ navigation }) => {
             <Text style={commonStyles.buttonText}>{t('view_fundraiser_entries')}</Text>
           </TouchableOpacity>
 
-          {typeof canManageFundraisers === 'function' && canManageFundraisers() && (
+          {canManage && (
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={[commonStyles.buttonSecondary, styles.actionButton]}

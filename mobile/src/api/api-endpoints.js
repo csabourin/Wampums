@@ -1401,6 +1401,59 @@ export const createPaymentIntent = async (amount, currency = 'cad') => {
 
 /**
  * ============================================================================
+ * FUNDRAISERS
+ * ============================================================================
+ */
+
+/**
+ * Get all fundraisers
+ * @param {boolean} includeArchived - Include archived fundraisers
+ * @returns {Promise} Fundraisers with statistics
+ */
+export const getFundraisers = async (includeArchived = false) => {
+  return API.get('fundraisers', { include_archived: includeArchived });
+};
+
+/**
+ * Get single fundraiser details
+ * @param {number} fundraiserId - Fundraiser ID
+ * @returns {Promise} Fundraiser details
+ */
+export const getFundraiser = async (fundraiserId) => {
+  return API.get(`fundraisers/${fundraiserId}`);
+};
+
+/**
+ * Create a new fundraiser
+ * @param {Object} data - Fundraiser data (name, start_date, end_date, objective)
+ * @returns {Promise} Created fundraiser
+ */
+export const createFundraiser = async (data) => {
+  return API.post('fundraisers', data);
+};
+
+/**
+ * Update fundraiser
+ * @param {number} fundraiserId - Fundraiser ID
+ * @param {Object} data - Updated fundraiser data
+ * @returns {Promise} Updated fundraiser
+ */
+export const updateFundraiser = async (fundraiserId, data) => {
+  return API.put(`fundraisers/${fundraiserId}`, data);
+};
+
+/**
+ * Archive/unarchive a fundraiser
+ * @param {number} fundraiserId - Fundraiser ID
+ * @param {boolean} archived - Archive status
+ * @returns {Promise} Updated fundraiser
+ */
+export const archiveFundraiser = async (fundraiserId, archived) => {
+  return API.put(`fundraisers/${fundraiserId}/archive`, { archived });
+};
+
+/**
+ * ============================================================================
  * TRANSLATIONS
  * ============================================================================
  */
@@ -1582,6 +1635,12 @@ export default {
   registerPushSubscription,
   // Payments
   createPaymentIntent,
+  // Fundraisers
+  getFundraisers,
+  getFundraiser,
+  createFundraiser,
+  updateFundraiser,
+  archiveFundraiser,
   // Translations
   getTranslations,
   saveTranslation,
