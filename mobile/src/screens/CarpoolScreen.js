@@ -58,6 +58,14 @@ import CONFIG from '../config';
 const CarpoolScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
+
+  // Debug logging to diagnose navigation parameter issues
+  debugLog('=== CarpoolScreen Navigation Debug ===');
+  debugLog('route.params:', route.params);
+  debugLog('activityId (raw):', route.params?.activityId);
+  debugLog('activityId type:', typeof route.params?.activityId);
+  debugLog('======================================');
+
   const activityId = parseInt(route.params?.activityId);
 
   const [loading, setLoading] = useState(true);
