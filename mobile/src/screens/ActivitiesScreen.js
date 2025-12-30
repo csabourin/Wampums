@@ -349,7 +349,13 @@ const ActivitiesScreen = () => {
                   activity.carpool_offer_count > 0
                     ? {
                         label: t('view_carpools') || 'Carpools',
-                        onPress: () => navigation.navigate('Carpool', { activityId: activity.id }),
+                        onPress: () => {
+                          debugLog('=== Navigating to Carpool ===');
+                          debugLog('activity.id:', activity.id);
+                          debugLog('activity.id type:', typeof activity.id);
+                          debugLog('============================');
+                          navigation.navigate('Carpool', { activityId: activity.id });
+                        },
                       }
                     : undefined
                 }

@@ -58,6 +58,14 @@ import CONFIG from '../config';
 const CarpoolScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
+
+  // Debug logging to diagnose navigation parameter issues
+  debugLog('=== CarpoolScreen Navigation Debug ===');
+  debugLog('route.params:', route.params);
+  debugLog('activityId (raw):', route.params?.activityId);
+  debugLog('activityId type:', typeof route.params?.activityId);
+  debugLog('======================================');
+
   const activityId = parseInt(route.params?.activityId);
 
   const [loading, setLoading] = useState(true);
@@ -594,19 +602,9 @@ const CarpoolScreen = () => {
     );
   };
 
-  // Invalid activity ID - show error and redirect
+  // Activity selection view - shown when no activityId provided
   if (isInvalidActivityId) {
-    return (
-      <View style={commonStyles.container}>
-        <EmptyState
-          icon="⚠️"
-          title={t('invalid_activity')}
-          message={t('please_select_activity_from_list')}
-          actionLabel={t('go_to_activities')}
-          onAction={() => navigation.navigate('Activities')}
-        />
-      </View>
-    );
+    return <ActivitySelectionView navigation={navigation} />;
   }
 
   // Loading state
@@ -1281,5 +1279,222 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+/**
+ * ActivitySelectionView - Shown when no activityId is provided
+ * Mirrors SPA's showCarpoolQuickAccess functionality
+ */
+const ActivitySelectionView = ({ navigation }) => {
+  const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadActivities();
+  }, []);
+
+  const loadActivities = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Import getActivities from api-endpoints
+      const { getActivities } = await import('../api/api-endpoints');
+      const allActivities = await getActivities({ forceRefresh: true });
+
+      // Filter to upcoming activities only
+      const now = new Date();
+      const upcoming = allActivities.filter((activity) => {
+        const dateStr = activity.date || activity.activity_date;
+        if (!dateStr) return false;
+
+        // Extract date portion and parse as local date
+        const dateOnly = dateStr.substring(0, 10);
+        const [year, month, day] = dateOnly.split('-').map(Number);
+        const activityDate = new Date(year, month - 1, day);
+
+        return activityDate >= now;
+      });
+
+      // Sort by date ascending
+      upcoming.sort((a, b) => {
+        const aDateStr = a.date || a.activity_date;
+        const bDateStr = b.date || b.activity_date;
+        if (!aDateStr || !bDateStr) return 0;
+
+        const aDateOnly = aDateStr.substring(0, 10);
+        const bDateOnly = bDateStr.substring(0, 10);
+        const [aYear, aMonth, aDay] = aDateOnly.split('-').map(Number);
+        const [bYear, bMonth, bDay] = bDateOnly.split('-').map(Number);
+        const aDate = new Date(aYear, aMonth - 1, aDay);
+        const bDate = new Date(bYear, bMonth - 1, bDay);
+
+        return aDate - bDate;
+      });
+
+      setActivities(upcoming);
+    } catch (err) {
+      debugError('Failed to load activities for selection:', err);
+      setError(t('error_loading_activities'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleActivitySelect = (activity) => {
+    debugLog('Activity selected for carpool:', activity.id);
+    // Navigate to CarpoolScreen with activityId - this will remount the screen
+    navigation.replace('Carpool', { activityId: activity.id });
+  };
+
+  if (loading) {
+    return <LoadingState message={t('loading_activities')} />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={loadActivities} />;
+  }
+
+  return (
+    <View style={commonStyles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <Card style={styles.selectionCard}>
+          <Text style={styles.selectionTitle}>{t('carpool_coordination')}</Text>
+          <Text style={styles.selectionSubtitle}>{t('select_activity_for_carpool')}</Text>
+        </Card>
+
+        {activities.length === 0 ? (
+          <EmptyState
+            icon="📅"
+            title={t('no_upcoming_activities')}
+            message={t('no_upcoming_activities_carpool')}
+            actionLabel={t('view_all_activities')}
+            onAction={() => navigation.navigate('Activities')}
+          />
+        ) : (
+          activities.map((activity) => {
+            const dateStr = activity.date || activity.activity_date;
+            const activityDate = dateStr
+              ? (() => {
+                  const dateOnly = dateStr.substring(0, 10);
+                  const [year, month, day] = dateOnly.split('-').map(Number);
+                  const localDate = new Date(year, month - 1, day);
+                  return DateUtils.formatDate(localDate);
+                })()
+              : '';
+
+            const carpoolCount = activity.carpool_offer_count || 0;
+            const assignedCount = activity.assigned_participant_count || 0;
+
+            return (
+              <TouchableOpacity
+                key={activity.id}
+                style={styles.activitySelectionCard}
+                onPress={() => handleActivitySelect(activity)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.activitySelectionContent}>
+                  <View style={styles.activitySelectionInfo}>
+                    <Text style={styles.activitySelectionName}>
+                      {SecurityUtils.sanitizeText(activity.name)}
+                    </Text>
+                    <Text style={styles.activitySelectionDate}>
+                      📅 {activityDate}
+                      {activity.departure_time_going && ` • ${activity.departure_time_going}`}
+                    </Text>
+                    {activity.meeting_location_going && (
+                      <Text style={styles.activitySelectionLocation}>
+                        📍 {SecurityUtils.sanitizeText(activity.meeting_location_going)}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.activitySelectionStats}>
+                    <View style={styles.statBadge}>
+                      <Text style={styles.statBadgeText}>
+                        {carpoolCount} {t('vehicles')}
+                      </Text>
+                    </View>
+                    <Text style={styles.statText}>
+                      {assignedCount} {t('assigned')}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
+  );
+};
+
+// Additional styles for ActivitySelectionView
+const selectionStyles = StyleSheet.create({
+  selectionCard: {
+    marginBottom: theme.spacing.md,
+  },
+  selectionTitle: {
+    fontSize: 24,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  selectionSubtitle: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+  },
+  activitySelectionCard: {
+    backgroundColor: theme.colors.background.card,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+  },
+  activitySelectionContent: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+  },
+  activitySelectionInfo: {
+    flex: 1,
+  },
+  activitySelectionName: {
+    fontSize: 16,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  activitySelectionDate: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.xs,
+  },
+  activitySelectionLocation: {
+    fontSize: 12,
+    color: theme.colors.text.tertiary,
+  },
+  activitySelectionStats: {
+    alignItems: 'flex-end',
+    gap: theme.spacing.xs,
+  },
+  statBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+  },
+  statBadgeText: {
+    fontSize: 12,
+    fontWeight: theme.fontWeight.semibold,
+    color: '#FFFFFF',
+  },
+  statText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+  },
+});
+
+// Merge selection styles into main styles object
+Object.assign(styles, selectionStyles);
 
 export default CarpoolScreen;
