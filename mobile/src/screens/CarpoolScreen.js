@@ -100,16 +100,19 @@ const CarpoolScreen = () => {
   const isStaff = hasPermission('carpools.manage', userPermissions);
   const hasCarpoolAccess = hasPermission('carpools.view', userPermissions) || isStaff;
 
+  // Validate activityId - show error if missing or invalid
+  const isInvalidActivityId = !route.params?.activityId || isNaN(activityId);
+
   useEffect(() => {
     loadUserData();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      if (hasCarpoolAccess) {
+      if (hasCarpoolAccess && !isInvalidActivityId) {
         loadData();
       }
-    }, [hasCarpoolAccess])
+    }, [hasCarpoolAccess, isInvalidActivityId])
   );
 
   const loadUserData = async () => {
@@ -119,18 +122,6 @@ const CarpoolScreen = () => {
 
       const storedUserId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID);
       setUserId(storedUserId);
-
-      // Debug logging for auth/org state
-      const token = await StorageUtils.getJWT();
-      const orgId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
-      debugLog('=== CarpoolScreen User Data ===');
-      debugLog('Has JWT token:', !!token);
-      debugLog('Organization ID:', orgId);
-      debugLog('User ID:', storedUserId);
-      debugLog('Permissions:', permissions);
-      debugLog('Has carpools.view:', permissions?.includes('carpools.view'));
-      debugLog('Has carpools.manage:', permissions?.includes('carpools.manage'));
-      debugLog('================================');
     } catch (err) {
       debugError('Error loading user data:', err);
     }
@@ -140,15 +131,6 @@ const CarpoolScreen = () => {
     try {
       setLoading(true);
       setError(null);
-
-      // Debug logging
-      debugLog('=== CarpoolScreen loadData ===');
-      debugLog('route.params:', route.params);
-      debugLog('activityId (raw):', route.params?.activityId);
-      debugLog('activityId (parsed):', activityId);
-      debugLog('activityId type:', typeof activityId);
-      debugLog('activityId isNaN:', isNaN(activityId));
-      debugLog('==============================');
 
       // Load activity, offers, and participants in parallel
       const [activityResponse, offersResponse, participantsResponse] = await Promise.all([
@@ -611,6 +593,21 @@ const CarpoolScreen = () => {
       </View>
     );
   };
+
+  // Invalid activity ID - show error and redirect
+  if (isInvalidActivityId) {
+    return (
+      <View style={commonStyles.container}>
+        <EmptyState
+          icon="⚠️"
+          title={t('invalid_activity')}
+          message={t('please_select_activity_from_list')}
+          actionLabel={t('go_to_activities')}
+          onAction={() => navigation.navigate('Activities')}
+        />
+      </View>
+    );
+  }
 
   // Loading state
   if (loading) {
