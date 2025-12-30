@@ -1228,6 +1228,8 @@
   "second_leader": "Assistant leader",
   "secondary_contact": "Secondary Contact",
   "select_activity": "Select an activity",
+  "select_activity_optional": "Select an activity (optional)",
+  "manual_date_entry": "Manual date entry (no activity)",
   "select_animateur": "Select an animator",
   "select_csv_file": "Select CSV File",
   "select_date": "Select date",

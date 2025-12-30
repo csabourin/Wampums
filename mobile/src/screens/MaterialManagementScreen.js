@@ -27,7 +27,8 @@ import {
   useToast,
 } from '../components';
 import { canViewInventory } from '../utils/PermissionUtils';
-import { API } from '../api/api-core';
+import API from '../api/api-core';
+import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 
 const LOCATION_TYPES = [
@@ -42,9 +43,11 @@ const MaterialManagementScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [equipment, setEquipment] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [selectedItems, setSelectedItems] = useState(new Map()); // equipmentId -> quantity
 
   const [formData, setFormData] = useState({
+    activity_id: '',
     date_from: '',
     date_to: '',
     reserved_for: '',
@@ -83,25 +86,22 @@ const MaterialManagementScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getJWT();
-
-      const [equipmentResponse, reservationsResponse] = await Promise.all([
-        fetch(`${API.baseURL}/v1/resources/equipment`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API.baseURL}/v1/resources/equipment/reservations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [equipmentResult, reservationsResult, activitiesResult] = await Promise.all([
+        API.get('/v1/resources/equipment'),
+        API.get('/v1/resources/equipment/reservations'),
+        API.get('/v1/activities'),
       ]);
 
-      if (equipmentResponse.ok) {
-        const result = await equipmentResponse.json();
-        setEquipment(result.data?.equipment || result.equipment || []);
+      if (equipmentResult.success) {
+        setEquipment(equipmentResult.data?.equipment || equipmentResult.equipment || []);
       }
 
-      if (reservationsResponse.ok) {
-        const result = await reservationsResponse.json();
-        setReservations(result.data?.reservations || result.reservations || []);
+      if (reservationsResult.success) {
+        setReservations(reservationsResult.data?.reservations || reservationsResult.reservations || []);
+      }
+
+      if (activitiesResult.success) {
+        setActivities(activitiesResult.data?.activities || activitiesResult.activities || []);
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -179,8 +179,9 @@ const MaterialManagementScreen = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.date_from || !formData.date_to) {
-      toast.show(t('date_required') || 'Please select reservation dates', 'warning');
+    // Check if activity is selected OR both dates are provided
+    if (!formData.activity_id && (!formData.date_from || !formData.date_to)) {
+      toast.show(t('date_required') || 'Please select an activity or enter reservation dates', 'warning');
       return;
     }
 
@@ -198,8 +199,6 @@ const MaterialManagementScreen = ({ navigation }) => {
       setSubmitting(true);
 
       const payload = {
-        date_from: formData.date_from,
-        date_to: formData.date_to,
         reserved_for: formData.reserved_for,
         notes: formData.notes || '',
         items: Array.from(selectedItems.entries()).map(([equipment_id, quantity]) => ({
@@ -208,19 +207,17 @@ const MaterialManagementScreen = ({ navigation }) => {
         })),
       };
 
-      const token = await StorageUtils.getJWT();
-      const response = await fetch(`${API.baseURL}/v1/resources/equipment/reservations/bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      // Add activity_id if selected, otherwise add dates
+      if (formData.activity_id) {
+        payload.activity_id = parseInt(formData.activity_id, 10);
+      } else {
+        payload.date_from = formData.date_from;
+        payload.date_to = formData.date_to;
+      }
 
-      const result = await response.json();
+      const result = await API.post('/v1/resources/equipment/reservations/bulk', payload);
 
-      if (result.success || response.ok) {
+      if (result.success) {
         toast.show(t('bulk_reservation_saved'), 'success');
         setSelectedItems(new Map());
         setFormData({
@@ -271,6 +268,40 @@ const MaterialManagementScreen = ({ navigation }) => {
         <Card>
           <Text style={styles.sectionTitle}>{t('reservation_form')}</Text>
 
+          <Select
+            label={t('select_activity_optional')}
+            value={formData.activity_id}
+            onValueChange={(value) => {
+              if (value) {
+                const activity = activities.find((a) => a.id === parseInt(value, 10));
+                if (activity) {
+                  setFormData({
+                    ...formData,
+                    activity_id: value,
+                    date_from: activity.activity_date,
+                    date_to: activity.activity_date,
+                    reserved_for: activity.name,
+                  });
+                }
+              } else {
+                setFormData({
+                  ...formData,
+                  activity_id: '',
+                  date_from: '',
+                  date_to: '',
+                  reserved_for: '',
+                });
+              }
+            }}
+            options={[
+              { label: t('manual_date_entry'), value: '' },
+              ...activities.map((activity) => ({
+                label: `${activity.name} - ${activity.activity_date}`,
+                value: String(activity.id),
+              })),
+            ]}
+          />
+
           <View style={styles.row}>
             <View style={styles.halfWidth}>
               <FormField
@@ -279,6 +310,7 @@ const MaterialManagementScreen = ({ navigation }) => {
                 onChangeText={(value) => setFormData({ ...formData, date_from: value })}
                 placeholder="YYYY-MM-DD"
                 required
+                editable={!formData.activity_id}
               />
             </View>
             <View style={styles.halfWidth}>
@@ -288,6 +320,7 @@ const MaterialManagementScreen = ({ navigation }) => {
                 onChangeText={(value) => setFormData({ ...formData, date_to: value })}
                 placeholder="YYYY-MM-DD"
                 required
+                editable={!formData.activity_id}
               />
             </View>
           </View>
@@ -298,6 +331,7 @@ const MaterialManagementScreen = ({ navigation }) => {
             onChangeText={(value) => setFormData({ ...formData, reserved_for: value })}
             placeholder={t('activity_name')}
             required
+            editable={!formData.activity_id}
           />
 
           <FormField

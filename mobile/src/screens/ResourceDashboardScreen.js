@@ -26,7 +26,8 @@ import {
   useToast,
 } from '../components';
 import { canViewInventory } from '../utils/PermissionUtils';
-import { API } from '../api/api-core';
+import API from '../api/api-core';
+import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 
 const ResourceDashboardScreen = ({ navigation }) => {
@@ -68,36 +69,22 @@ const ResourceDashboardScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getJWT();
-
-      const [equipmentResponse, reservationsResponse, summaryResponse] = await Promise.all([
-        fetch(`${API.baseURL}/v1/resources/equipment`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(
-          `${API.baseURL}/v1/resources/equipment/reservations?meeting_date=${meetingDate}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        ),
-        fetch(`${API.baseURL}/v1/resources/status/dashboard?meeting_date=${meetingDate}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [equipmentResult, reservationsResult, summaryResult] = await Promise.all([
+        API.get('/v1/resources/equipment'),
+        API.get('/v1/resources/equipment/reservations', { meeting_date: meetingDate }),
+        API.get('/v1/resources/status/dashboard', { meeting_date: meetingDate }),
       ]);
 
-      if (equipmentResponse.ok) {
-        const result = await equipmentResponse.json();
-        setEquipment(result.data?.equipment || result.equipment || []);
+      if (equipmentResult.success) {
+        setEquipment(equipmentResult.data?.equipment || equipmentResult.equipment || []);
       }
 
-      if (reservationsResponse.ok) {
-        const result = await reservationsResponse.json();
-        setReservations(result.data?.reservations || result.reservations || []);
+      if (reservationsResult.success) {
+        setReservations(reservationsResult.data?.reservations || reservationsResult.reservations || []);
       }
 
-      if (summaryResponse.ok) {
-        const result = await summaryResponse.json();
-        setDashboardSummary(result.data || result || { reservations: [] });
+      if (summaryResult.success) {
+        setDashboardSummary(summaryResult.data || summaryResult || { reservations: [] });
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -128,19 +115,9 @@ const ResourceDashboardScreen = ({ navigation }) => {
         quantity_total: parseInt(quickAddData.quantity_total, 10) || 1,
       };
 
-      const token = await StorageUtils.getJWT();
-      const response = await fetch(`${API.baseURL}/v1/resources/equipment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const result = await API.post('/v1/resources/equipment', payload);
 
-      const result = await response.json();
-
-      if (result.success || response.ok) {
+      if (result.success) {
         toast.show(t('inventory_saved'), 'success');
         setQuickAddData({
           name: '',
@@ -176,19 +153,9 @@ const ResourceDashboardScreen = ({ navigation }) => {
         notes: quickReserveData.notes?.trim() || '',
       };
 
-      const token = await StorageUtils.getJWT();
-      const response = await fetch(`${API.baseURL}/v1/resources/equipment/reservations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const result = await API.post('/v1/resources/equipment/reservations', payload);
 
-      const result = await response.json();
-
-      if (result.success || response.ok) {
+      if (result.success) {
         toast.show(t('reservation_saved'), 'success');
         setQuickReserveData({
           equipment_id: '',

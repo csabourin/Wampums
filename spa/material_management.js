@@ -5,7 +5,8 @@ import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import {
   getEquipmentInventory,
   getEquipmentReservations,
-  saveBulkReservations
+  saveBulkReservations,
+  getActivities
 } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { CONFIG } from "./config.js";
@@ -26,7 +27,9 @@ export class MaterialManagement {
     this.app = app;
     this.equipment = [];
     this.reservations = [];
+    this.activities = [];
     this.selectedItems = new Map(); // Map of equipment_id -> quantity
+    this.selectedActivityId = null;
   }
 
   async init() {
@@ -41,13 +44,15 @@ export class MaterialManagement {
   }
 
   async refreshData() {
-    const [equipmentResponse, reservationResponse] = await Promise.all([
+    const [equipmentResponse, reservationResponse, activitiesResponse] = await Promise.all([
       getEquipmentInventory(),
-      getEquipmentReservations()
+      getEquipmentReservations(),
+      getActivities()
     ]);
 
     this.equipment = equipmentResponse?.data?.equipment || equipmentResponse?.equipment || [];
     this.reservations = reservationResponse?.data?.reservations || reservationResponse?.reservations || [];
+    this.activities = activitiesResponse?.data?.activities || activitiesResponse?.activities || [];
   }
 
   /**
@@ -123,19 +128,30 @@ export class MaterialManagement {
         <div class="card">
           <h2>${escapeHTML(translate("reservation_form"))}</h2>
           <form id="bulkReservationForm" class="stacked">
+            <label class="stacked">
+              <span>${escapeHTML(translate("select_activity_optional"))}</span>
+              <select id="activitySelect">
+                <option value="">${escapeHTML(translate("manual_date_entry"))}</option>
+                ${this.activities.map(activity => `
+                  <option value="${activity.id}" ${this.selectedActivityId === activity.id ? 'selected' : ''}>
+                    ${escapeHTML(activity.name)} - ${formatDate(activity.activity_date)}
+                  </option>
+                `).join('')}
+              </select>
+            </label>
             <div class="grid grid-2" style="margin-bottom: 1.5rem;">
               <label class="stacked">
                 <span>${escapeHTML(translate("date_from"))}</span>
-                <input type="date" id="reservationDateFrom" value="${escapeHTML(dateFrom)}" required />
+                <input type="date" id="reservationDateFrom" value="${escapeHTML(dateFrom)}" ${this.selectedActivityId ? 'readonly' : ''} required />
               </label>
               <label class="stacked">
                 <span>${escapeHTML(translate("date_to"))}</span>
-                <input type="date" id="reservationDateTo" value="${escapeHTML(dateTo)}" required />
+                <input type="date" id="reservationDateTo" value="${escapeHTML(dateTo)}" ${this.selectedActivityId ? 'readonly' : ''} required />
               </label>
             </div>
             <label class="stacked">
               <span>${escapeHTML(translate("activity_name"))}</span>
-              <input type="text" name="reserved_for" maxlength="200" required />
+              <input type="text" name="reserved_for" id="reservedFor" maxlength="200" ${this.selectedActivityId ? 'readonly' : ''} required />
             </label>
             <label class="stacked">
               <span>${escapeHTML(translate("reservation_notes"))}</span>
@@ -258,6 +274,28 @@ export class MaterialManagement {
   }
 
   attachEventHandlers() {
+    // Handle activity selection
+    const activitySelect = document.getElementById('activitySelect');
+    if (activitySelect) {
+      activitySelect.addEventListener('change', (event) => {
+        const activityId = event.target.value ? parseInt(event.target.value) : null;
+        this.selectedActivityId = activityId;
+
+        if (activityId) {
+          // Auto-populate fields from selected activity
+          const activity = this.activities.find(a => a.id === activityId);
+          if (activity) {
+            document.getElementById('reservationDateFrom').value = activity.activity_date;
+            document.getElementById('reservationDateTo').value = activity.activity_date;
+            document.getElementById('reservedFor').value = activity.name;
+          }
+        }
+
+        this.render();
+        this.attachEventHandlers();
+      });
+    }
+
     // Handle date changes - re-render to update conflict warnings
     const dateFromInput = document.getElementById('reservationDateFrom');
     const dateToInput = document.getElementById('reservationDateTo');
@@ -321,8 +359,6 @@ export class MaterialManagement {
         }
 
         const payload = {
-          date_from: dateFrom,
-          date_to: dateTo,
           reserved_for: formData.get('reserved_for'),
           notes: formData.get('notes') || '',
           items: Array.from(this.selectedItems.entries()).map(([equipment_id, quantity]) => ({
@@ -330,6 +366,14 @@ export class MaterialManagement {
             quantity
           }))
         };
+
+        // Add activity_id if selected, otherwise add dates
+        if (this.selectedActivityId) {
+          payload.activity_id = this.selectedActivityId;
+        } else {
+          payload.date_from = dateFrom;
+          payload.date_to = dateTo;
+        }
 
         try {
           // Optimistic update: Add reservations to local state immediately

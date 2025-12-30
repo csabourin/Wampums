@@ -884,6 +884,7 @@ module.exports = (pool) => {
     authenticate,
     requirePermission("inventory.view"),
     [
+      query("activity_id").optional().isInt({ min: 1 }),
       query("meeting_date").optional().isISO8601(),
       query("date_from").optional().isISO8601(),
       query("date_to").optional().isISO8601(),
@@ -892,6 +893,7 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
+        const activityId = req.query.activity_id ? parseInt(req.query.activity_id, 10) : null;
         const meetingDate = req.query.meeting_date
           ? parseDate(req.query.meeting_date)
           : null;
@@ -902,7 +904,10 @@ module.exports = (pool) => {
         const params = [organizationId];
         let filter = "";
 
-        if (meetingDate) {
+        if (activityId) {
+          filter = "AND er.activity_id = $2";
+          params.push(activityId);
+        } else if (meetingDate) {
           filter = "AND er.meeting_date = $2";
           params.push(meetingDate);
         } else if (dateFrom && dateTo) {
@@ -928,11 +933,15 @@ module.exports = (pool) => {
                     e.organization_id AS owner_organization_id,
                     owner_org.name AS owner_organization_name,
                     er.organization_id AS reservation_organization_id,
-                    reservation_org.name AS organization_name
+                    reservation_org.name AS organization_name,
+                    a.id AS activity_id,
+                    a.name AS activity_name,
+                    a.activity_date
                FROM equipment_reservations er
                JOIN equipment_items e ON e.id = er.equipment_id
                LEFT JOIN organizations reservation_org ON reservation_org.id = er.organization_id
                LEFT JOIN organizations owner_org ON owner_org.id = e.organization_id
+               LEFT JOIN activities a ON a.id = er.activity_id
                LEFT JOIN equipment_item_organizations eio
                  ON eio.equipment_id = er.equipment_id
                 AND eio.organization_id = $1
@@ -1301,8 +1310,9 @@ module.exports = (pool) => {
     blockDemoRoles,
     requirePermission("inventory.reserve"),
     [
-      check("date_from").isISO8601(),
-      check("date_to").isISO8601(),
+      check("activity_id").optional().isInt({ min: 1 }),
+      check("date_from").optional().isISO8601(),
+      check("date_to").optional().isISO8601(),
       check("reserved_for").isString().trim().isLength({ min: 1, max: 200 }),
       check("notes").optional().isString().trim().isLength({ max: 2000 }),
       check("items").isArray({ min: 1, max: 50 }),
@@ -1313,10 +1323,37 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { date_from, date_to, reserved_for, notes, items } = req.body;
+        const { activity_id, date_from, date_to, reserved_for, notes, items } = req.body;
 
-        const normalizedDateFrom = parseDate(date_from);
-        const normalizedDateTo = parseDate(date_to);
+        let normalizedDateFrom;
+        let normalizedDateTo;
+        let activityName;
+
+        // If activity_id is provided, fetch activity details and use its date
+        if (activity_id) {
+          const activityResult = await pool.query(
+            `SELECT id, name, activity_date FROM activities
+             WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
+            [activity_id, organizationId]
+          );
+
+          if (activityResult.rows.length === 0) {
+            return error(res, "Activity not found or not accessible", 404);
+          }
+
+          const activity = activityResult.rows[0];
+          activityName = activity.name;
+          normalizedDateFrom = parseDate(activity.activity_date);
+          normalizedDateTo = parseDate(activity.activity_date);
+        } else {
+          // If no activity_id, dates are required
+          if (!date_from || !date_to) {
+            return error(res, "Either activity_id or both date_from and date_to must be provided", 400);
+          }
+
+          normalizedDateFrom = parseDate(date_from);
+          normalizedDateTo = parseDate(date_to);
+        }
 
         if (!normalizedDateFrom || !normalizedDateTo) {
           return error(res, "Invalid date range", 400);
@@ -1382,12 +1419,13 @@ module.exports = (pool) => {
 
           const insertResult = await pool.query(
             `INSERT INTO equipment_reservations
-             (organization_id, equipment_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              RETURNING *`,
             [
               organizationId,
               item.equipment_id,
+              activity_id || null,
               normalizedDateFrom, // Use date_from as meeting_date for backward compatibility
               normalizedDateFrom,
               normalizedDateTo,
