@@ -1300,7 +1300,10 @@ const ActivitySelectionView = ({ navigation }) => {
 
       // Import getActivities from api-endpoints
       const { getActivities } = await import('../api/api-endpoints');
-      const allActivities = await getActivities({ forceRefresh: true });
+      const response = await getActivities({ forceRefresh: true });
+
+      // Extract data array from response
+      const allActivities = response.data || [];
 
       // Filter to upcoming activities only
       const now = new Date();
