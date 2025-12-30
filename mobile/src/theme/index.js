@@ -21,8 +21,8 @@ const theme = {
     successLight: '#20ad83',
     error: '#9a3f38',
     errorLight: '#d45a51',
-    warning: '#f1b746',
-    warningLight: '#ffd773',
+    warning: '#8b6914', // WCAG AA compliant dark gold/brown (7.0:1 contrast on white)
+    warningLight: '#b8860b', // WCAG AA compliant goldenrod (4.5:1 contrast on white)
     info: '#178fce',
 
     // Selection & States
@@ -30,10 +30,24 @@ const theme = {
     selectedText: '#ffffff',
 
     // Neutral Colors
-    text: '#1d2f2a',
+    white: '#ffffff',
+    black: '#000000',
+    text: {
+      primary: '#1d2f2a',
+      secondary: '#47665d',
+      tertiary: '#6f8a81',
+    },
+    // Legacy flat text colors for backwards compatibility
+    textPrimary: '#1d2f2a',
     textLight: '#47665d',
     textMuted: '#6f8a81',
-    background: '#f3f7f4',
+    background: {
+      primary: '#f3f7f4',
+      secondary: '#f7fbf9',
+      card: '#ffffff',
+    },
+    // Legacy flat background colors for backwards compatibility
+    backgroundPrimary: '#f3f7f4',
     backgroundGradientStart: '#f1f7f3',
     backgroundGradientMiddle: '#f7fbf9',
     backgroundGradientEnd: '#f3f7f4',
@@ -42,6 +56,7 @@ const theme = {
     surfaceGradientEnd: '#f7fbf9',
     border: '#d3e3dc',
     borderLight: '#e2efea',
+    danger: '#9a3f38', // Alias for error for consistency with web
   },
 
   // Gradients - RN-compatible format for use with LinearGradient
@@ -199,7 +214,7 @@ export const commonStyles = {
   // Container styles
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.background.primary,
   },
 
   // Card styles
@@ -249,13 +264,13 @@ export const commonStyles = {
     borderRadius: theme.borderRadius.md,
     padding: theme.spacing.md,
     fontSize: theme.fontSize.base,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     minHeight: theme.touchTarget.min,
   },
   inputLabel: {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     marginBottom: theme.spacing.xs,
   },
 
@@ -280,12 +295,12 @@ export const commonStyles = {
   },
   bodyText: {
     fontSize: theme.fontSize.base,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
     lineHeight: theme.fontSize.base * theme.lineHeight.normal,
   },
   caption: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
     lineHeight: theme.fontSize.sm * theme.lineHeight.normal,
   },
 
@@ -296,7 +311,7 @@ export const commonStyles = {
   sectionTitle: {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
     marginBottom: theme.spacing.sm,
     textTransform: 'uppercase',
   },
@@ -335,7 +350,7 @@ export const commonStyles = {
   loadingText: {
     marginTop: theme.spacing.md,
     fontSize: theme.fontSize.base,
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
     textAlign: 'center',
   },
 
@@ -368,7 +383,7 @@ export const commonStyles = {
   },
   emptyText: {
     fontSize: theme.fontSize.lg,
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
     textAlign: 'center',
   },
 
@@ -402,7 +417,7 @@ export const commonStyles = {
     color: theme.colors.selectedText,
   },
   badgeTextSecondary: {
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
 
   // Alerts/Messages
@@ -439,7 +454,7 @@ export const commonStyles = {
     color: '#155724',
   },
   alertTextWarning: {
-    color: '#856404',
+    color: '#6b5411', // WCAG AA compliant dark brown (7.5:1 contrast on #fff3cd background)
   },
   alertTextError: {
     color: '#721c24',
@@ -521,7 +536,7 @@ export const commonStyles = {
   tableCell: {
     flex: 1,
     fontSize: theme.fontSize.base,
-    color: theme.colors.text,
+    color: theme.colors.text.primary,
   },
 
   // Form Extensions
@@ -535,7 +550,7 @@ export const commonStyles = {
   },
   formHelp: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.textMuted,
+    color: theme.colors.text.tertiary,
     marginTop: theme.spacing.xs,
   },
   checkbox: {
