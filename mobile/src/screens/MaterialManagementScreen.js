@@ -83,7 +83,7 @@ const MaterialManagementScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
 
       const [equipmentResponse, reservationsResponse] = await Promise.all([
         fetch(`${API.baseURL}/v1/resources/equipment`, {
@@ -208,7 +208,7 @@ const MaterialManagementScreen = ({ navigation }) => {
         })),
       };
 
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
       const response = await fetch(`${API.baseURL}/v1/resources/equipment/reservations/bulk`, {
         method: 'POST',
         headers: {
