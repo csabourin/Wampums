@@ -96,7 +96,7 @@ const CONFIG = {
     USERS: '/v1/users',
     BUDGET: '/v1/budget',
     PUSH_SUBSCRIPTION: '/v1/push-subscription',
-    FORMS: '/api/v1/forms',
+    FORMS: '/api',
 
     // Legacy endpoints
     INITIAL_DATA: '/initial-data',
