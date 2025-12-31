@@ -315,6 +315,51 @@ export async function canManageFundraisers() {
   return hasAnyPermission(['fundraisers.create', 'fundraisers.edit', 'fundraisers.delete'], permissions);
 }
 
+/**
+ * Check if user can view reports
+ * @returns {Promise<boolean>} True if user can view reports
+ */
+export async function canViewReports() {
+  const permissions = await getUserPermissions();
+  return hasPermission('reports.view', permissions);
+}
+
+/**
+ * Check if user can view activities
+ * @returns {Promise<boolean>} True if user can view activities
+ */
+export async function canViewActivities() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['activities.view', 'activities.manage'], permissions);
+}
+
+/**
+ * Check if user can manage activities
+ * @returns {Promise<boolean>} True if user can manage activities
+ */
+export async function canManageActivities() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['activities.create', 'activities.edit', 'activities.delete'], permissions);
+}
+
+/**
+ * Check if user can view carpools
+ * @returns {Promise<boolean>} True if user can view carpools
+ */
+export async function canViewCarpools() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['carpools.view', 'carpools.manage'], permissions);
+}
+
+/**
+ * Check if user can manage carpools
+ * @returns {Promise<boolean>} True if user can manage carpools
+ */
+export async function canManageCarpools() {
+  const permissions = await getUserPermissions();
+  return hasPermission('carpools.manage', permissions);
+}
+
 export default {
   hasPermission,
   hasAnyPermission,
@@ -338,4 +383,9 @@ export default {
   isDistrictAdmin,
   canViewFundraisers,
   canManageFundraisers,
+  canViewReports,
+  canViewActivities,
+  canManageActivities,
+  canViewCarpools,
+  canManageCarpools,
 };

@@ -1278,6 +1278,53 @@ export const getMissingDocumentsReport = async () => {
 };
 
 /**
+ * Get participant progress timeline and participants list
+ */
+export const getParticipantProgressReport = async (participantId = null) => {
+  const params = participantId ? { participant_id: participantId } : {};
+  return API.get('/participant-progress', params);
+};
+
+/**
+ * Get participant age report
+ */
+export const getParticipantAgeReport = async () => {
+  return API.get('/participant-age');
+};
+
+/**
+ * Get finance summary report
+ */
+export const getFinanceReport = async () => {
+  return API.get('/v1/finance/reports/summary');
+};
+
+/**
+ * Get available form types
+ */
+export const getFormTypes = async () => {
+  return API.get('/form-types');
+};
+
+/**
+ * Get form structure for all form types
+ */
+export const getFormStructure = async () => {
+  return API.get('/organization-form-formats');
+};
+
+/**
+ * Get all form submissions
+ * @param {number|null} participantId - Optional participant ID filter
+ * @param {string} formType - Form type to fetch
+ */
+export const getFormSubmissions = async (participantId = null, formType) => {
+  const params = { form_type: formType };
+  if (participantId) params.participant_id = participantId;
+  return API.get('/form-submissions', params);
+};
+
+/**
  * Get mailing list
  */
 export const getMailingList = async () => {
@@ -1664,6 +1711,12 @@ export default {
   getLeaveAloneReport,
   getMediaAuthorizationReport,
   getMissingDocumentsReport,
+  getParticipantProgressReport,
+  getParticipantAgeReport,
+  getFinanceReport,
+  getFormTypes,
+  getFormStructure,
+  getFormSubmissions,
   getMailingList,
   // Resources
   getEquipment,
