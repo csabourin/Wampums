@@ -263,7 +263,7 @@ const LeaderDashboardScreen = () => {
   const renderActionGrid = useCallback((actions, variant) => {
     if (!actions.length) return null;
 
-    const iconColor = variant === 'primary' ? theme.colors.surface : theme.colors.text;
+    const iconColor = theme.colors.surface;
 
     return (
       <View style={styles.actionGrid}>
@@ -272,29 +272,19 @@ const LeaderDashboardScreen = () => {
             key={action.key}
             style={[
               styles.actionCard,
-              variant === 'primary'
-                ? styles.actionCardPrimary
-                : styles.actionCardSecondary,
+              styles.actionCardPrimary,
               { width: gridItemWidth },
             ]}
             onPress={() => handleActionPress(action)}
             activeOpacity={0.85}
           >
             <View
-              style={
-                variant === 'primary'
-                  ? styles.actionIconPrimary
-                  : styles.actionIconSecondary
-              }
+              style={styles.actionIconPrimary}
             >
               {renderIcon(action.iconFamily, action.iconName, iconColor)}
             </View>
             <Text
-              style={
-                variant === 'primary'
-                  ? styles.actionLabelPrimary
-                  : styles.actionLabelSecondary
-              }
+              style={styles.actionLabelPrimary}
             >
               {action.label}
             </Text>
@@ -311,7 +301,7 @@ const LeaderDashboardScreen = () => {
       key: 'managePoints',
       label: t('manage_points'),
       iconFamily: 'MaterialCommunityIcons',
-      iconName: 'coin',
+      iconName: 'star-four-points-circle',
       screen: 'ManagePoints',
       permission: 'points.manage',
     },
@@ -357,16 +347,16 @@ const LeaderDashboardScreen = () => {
         {
           key: 'badgeDashboard',
           label: t('badge_dashboard_link'),
-          iconFamily: 'Ionicons',
-          iconName: 'stats-chart-outline',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'tablet-dashboard',
           screen: 'BadgeDashboard',
           permissions: ['badges.view', 'badges.manage'],
         },
         {
           key: 'parentContact',
           label: t('parent_contact_list'),
-          iconFamily: 'Ionicons',
-          iconName: 'book-outline',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'ambulance',
           screen: 'ParentContactList',
           permissions: ['participants.view', 'users.view'],
         },
@@ -427,8 +417,8 @@ const LeaderDashboardScreen = () => {
         {
           key: 'inventory',
           label: t('inventory_link'),
-          iconFamily: 'Ionicons',
-          iconName: 'cube-outline',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'warehouse',
           screen: 'Inventory',
           permissions: ['resources.view', 'resources.manage'],
         },
@@ -465,10 +455,18 @@ const LeaderDashboardScreen = () => {
         {
           key: 'resources',
           label: t('resource_dashboard_link'),
-          iconFamily: 'Ionicons',
-          iconName: 'folder-open-outline',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'shipping-pallet',
           screen: 'ResourceDashboard',
           permissions: ['resources.view', 'resources.manage'],
+        },
+         {
+          key: 'reports',
+          label: t('reports'),
+          iconFamily: 'Ionicons',
+          iconName: 'clipboard-outline',
+          screen: 'Reports',
+          permissions: ['reports.view', 'reports.export'],
         },
         {
           key: 'permissionSlipsDashboard',
@@ -477,6 +475,14 @@ const LeaderDashboardScreen = () => {
           iconName: 'clipboard-outline',
           screen: 'PermissionSlips',
           permissions: ['permission_slips.view', 'permission_slips.manage'],
+        },
+        {
+          key: 'fundraisers',
+          label: t('fundraisers'),
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'hand-heart',
+          screen: 'Fundraisers',
+          permission: 'fundraisers.view',
         },
       ].filter(canAccessAction),
     },
@@ -570,14 +576,6 @@ const LeaderDashboardScreen = () => {
           permission: 'communications.send',
         },
         {
-          key: 'fundraisers',
-          label: t('fundraisers'),
-          iconFamily: 'Ionicons',
-          iconName: 'heart-outline',
-          screen: 'Fundraisers',
-          permission: 'fundraisers.view',
-        },
-        {
           key: 'revenueDashboard',
           label: t('revenue_dashboard'),
           iconFamily: 'Ionicons',
@@ -592,14 +590,6 @@ const LeaderDashboardScreen = () => {
           iconName: 'briefcase-outline',
           screen: 'Budgets',
           permission: 'budget.view',
-        },
-        {
-          key: 'reports',
-          label: t('reports'),
-          iconFamily: 'Ionicons',
-          iconName: 'clipboard-outline',
-          screen: 'Reports',
-          permissions: ['reports.view', 'reports.export'],
         },
         {
           key: 'groupParticipantReport',
