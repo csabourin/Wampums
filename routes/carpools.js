@@ -468,22 +468,29 @@ module.exports = (pool) => {
     const userId = req.user.id;
 
     const result = await pool.query(
-      `SELECT
-        ca.*,
-        p.first_name || ' ' || p.last_name as participant_name,
-        co.vehicle_make,
-        co.vehicle_color,
-        co.trip_direction as offer_trip_direction,
-        u.full_name as driver_name,
-        u.email as driver_email,
-        a.name as activity_name,
-        a.activity_date,
-        a.meeting_location_going,
-        a.meeting_time_going,
-        a.departure_time_going,
-        a.meeting_location_return,
-        a.meeting_time_return,
-        a.departure_time_return
+      `SELECT DISTINCT
+        co.id as carpool_offer_id,
+        u.full_name as "driverName",
+        u.email as "driverEmail",
+        a.name as "activityName",
+        a.id as "activityId",
+        a.activity_date as "activityDate",
+        a.meeting_location_going as "meetingLocationGoing",
+        a.meeting_time_going as "meetingTimeGoing",
+        a.departure_time_going as "departureTimeGoing",
+        a.meeting_location_return as "meetingLocationReturn",
+        a.meeting_time_return as "meetingTimeReturn",
+        a.departure_time_return as "departureTimeReturn",
+        co.vehicle_make as "vehicleMake",
+        co.vehicle_color as "vehicleColor",
+        co.trip_direction as "tripDirection",
+        co.total_seats_available as "totalSpots",
+        (SELECT COUNT(*) FROM carpool_assignments WHERE carpool_offer_id = co.id) as "occupiedSpots",
+        json_agg(json_build_object(
+          'participantId', p.id,
+          'participantName', p.first_name || ' ' || p.last_name,
+          'tripDirection', ca.trip_direction
+        )) as "myChildren"
        FROM carpool_assignments ca
        JOIN participants p ON ca.participant_id = p.id
        JOIN user_participants up ON p.id = up.participant_id
@@ -494,6 +501,10 @@ module.exports = (pool) => {
          AND ca.organization_id = $2
          AND co.is_active = TRUE
          AND a.is_active = TRUE
+       GROUP BY co.id, u.full_name, u.email, a.name, a.id, a.activity_date,
+         a.meeting_location_going, a.meeting_time_going, a.departure_time_going,
+         a.meeting_location_return, a.meeting_time_return, a.departure_time_return,
+         co.vehicle_make, co.vehicle_color, co.trip_direction, co.total_seats_available
        ORDER BY a.activity_date ASC, a.departure_time_going ASC`,
       [userId, organizationId]
     );
