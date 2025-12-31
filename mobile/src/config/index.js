@@ -96,7 +96,7 @@ const CONFIG = {
     USERS: '/v1/users',
     BUDGET: '/v1/budget',
     PUSH_SUBSCRIPTION: '/v1/push-subscription',
-    FORMS: '/api',
+    FORMS: '/api/v1/forms',
 
     // Legacy endpoints
     INITIAL_DATA: '/initial-data',
@@ -114,7 +114,6 @@ const CONFIG = {
     HONORS_HISTORY: '/honors-history',
     FUNDRAISERS: '/fundraisers',
     CALENDARS: '/calendars',
-    FORMS: '/form-formats',
     REUNION_PREPARATION: '/reunion-preparation',
     SAVE_REUNION_PREPARATION: '/save-reunion-preparation',
     REUNION_DATES: '/reunion-dates',
