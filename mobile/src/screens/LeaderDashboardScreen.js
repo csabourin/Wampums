@@ -24,6 +24,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 // API and utilities
 import { getOrganizationSettings } from '../api/api-endpoints';
@@ -66,7 +67,7 @@ const LeaderDashboardScreen = () => {
           style={{ paddingRight: 16 }}
           accessibilityLabel={t('settings')}
         >
-          <Text style={{ fontSize: 24 }}>⚙️</Text>
+          <Ionicons name="settings-outline" size={24} color={theme.colors.text} />
         </TouchableOpacity>
       ),
     });
@@ -240,6 +241,19 @@ const LeaderDashboardScreen = () => {
   }, [navigation]);
 
   /**
+   * Render icon based on icon family
+   */
+  const renderIcon = (iconFamily, iconName, color, size = 32) => {
+    const IconComponent = iconFamily === 'MaterialCommunityIcons'
+      ? MaterialCommunityIcons
+      : iconFamily === 'MaterialIcons'
+      ? MaterialIcons
+      : Ionicons;
+
+    return <IconComponent name={iconName} size={size} color={color} />;
+  };
+
+  /**
    * Render grid of action buttons
    *
    * @param {Array<Object>} actions - Action definitions
@@ -248,6 +262,8 @@ const LeaderDashboardScreen = () => {
    */
   const renderActionGrid = useCallback((actions, variant) => {
     if (!actions.length) return null;
+
+    const iconColor = variant === 'primary' ? theme.colors.surface : theme.colors.text;
 
     return (
       <View style={styles.actionGrid}>
@@ -264,15 +280,15 @@ const LeaderDashboardScreen = () => {
             onPress={() => handleActionPress(action)}
             activeOpacity={0.85}
           >
-            <Text
+            <View
               style={
                 variant === 'primary'
                   ? styles.actionIconPrimary
                   : styles.actionIconSecondary
               }
             >
-              {action.icon}
-            </Text>
+              {renderIcon(action.iconFamily, action.iconName, iconColor)}
+            </View>
             <Text
               style={
                 variant === 'primary'
@@ -294,28 +310,32 @@ const LeaderDashboardScreen = () => {
     {
       key: 'managePoints',
       label: t('manage_points'),
-      icon: '🪙',
+      iconFamily: 'MaterialCommunityIcons',
+      iconName: 'coin',
       screen: 'ManagePoints',
       permission: 'points.manage',
     },
     {
       key: 'manageHonors',
       label: t('manage_honors'),
-      icon: '🏅',
+      iconFamily: 'MaterialCommunityIcons',
+      iconName: 'medal',
       screen: 'Honors',
       permission: 'honors.manage',
     },
     {
       key: 'attendance',
       label: t('attendance'),
-      icon: '✅',
+      iconFamily: 'MaterialIcons',
+      iconName: 'check-circle',
       screen: 'Attendance',
       permission: 'attendance.manage',
     },
     {
       key: 'upcomingMeeting',
       label: t('upcoming_meeting'),
-      icon: '📅',
+      iconFamily: 'Ionicons',
+      iconName: 'calendar-outline',
       screen: 'NextMeeting',
       permission: 'activities.view',
     },
@@ -329,35 +349,40 @@ const LeaderDashboardScreen = () => {
         {
           key: 'approveBadges',
           label: t('approve_badges'),
-          icon: '🎖️',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'medal-outline',
           screen: 'ApproveBadges',
           permissions: ['badges.approve', 'badges.view'],
         },
         {
           key: 'badgeDashboard',
           label: t('badge_dashboard_link'),
-          icon: '📊',
+          iconFamily: 'Ionicons',
+          iconName: 'stats-chart-outline',
           screen: 'BadgeDashboard',
           permissions: ['badges.view', 'badges.manage'],
         },
         {
           key: 'parentContact',
           label: t('parent_contact_list'),
-          icon: '📒',
+          iconFamily: 'Ionicons',
+          iconName: 'book-outline',
           screen: 'ParentContactList',
           permissions: ['participants.view', 'users.view'],
         },
         {
           key: 'medicationDistribution',
           label: t('medication_dispensing_link'),
-          icon: '💊',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'pill',
           screen: 'MedicationDistribution',
           permissions: ['medication.distribute', 'medication.manage', 'medication.view'],
         },
         {
           key: 'parentDashboard',
           label: t('vue_parents'),
-          icon: '👨‍👩‍👧',
+          iconFamily: 'Ionicons',
+          iconName: 'people',
           screen: 'ParentDashboard',
           permissions: ['participants.view', 'communications.send'],
         },
@@ -370,56 +395,64 @@ const LeaderDashboardScreen = () => {
         {
           key: 'activitiesCalendar',
           label: t('activities_calendar'),
-          icon: '🗓️',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'calendar-multiple',
           screen: 'Activities',
           permissions: ['activities.view', 'activities.manage'],
         },
         {
           key: 'carpoolCoordination',
           label: t('carpool_coordination'),
-          icon: '🚗',
+          iconFamily: 'Ionicons',
+          iconName: 'car-outline',
           screen: 'Carpool',
           permissions: ['carpools.view', 'carpools.manage'],
         },
         {
           key: 'meetingPrep',
           label: t('preparation_reunions'),
-          icon: '📝',
+          iconFamily: 'Ionicons',
+          iconName: 'create-outline',
           screen: 'MeetingPreparation',
           permissions: ['activities.manage', 'attendance.manage'],
         },
         {
           key: 'participantDocuments',
           label: t('view_participant_documents'),
-          icon: '📄',
+          iconFamily: 'Ionicons',
+          iconName: 'document-outline',
           screen: 'ParticipantDocuments',
           permissions: ['participants.view', 'participants.edit'],
         },
         {
           key: 'inventory',
           label: t('inventory_link'),
-          icon: '📦',
+          iconFamily: 'Ionicons',
+          iconName: 'cube-outline',
           screen: 'Inventory',
           permissions: ['resources.view', 'resources.manage'],
         },
         {
           key: 'materialManagement',
           label: t('material_management_link'),
-          icon: '🧰',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'toolbox',
           screen: 'MaterialManagement',
           permissions: ['resources.view', 'resources.manage'],
         },
         {
           key: 'medicationPlanning',
           label: t('medication_planning_link'),
-          icon: '🧪',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'test-tube',
           screen: 'MedicationPlanning',
           permissions: ['medication.manage'],
         },
         {
           key: 'permissionSlips',
           label: t('manage_permission_slips'),
-          icon: '📑',
+          iconFamily: 'Ionicons',
+          iconName: 'documents-outline',
           screen: 'PermissionSlips',
           permissions: ['permission_slips.view', 'permission_slips.manage'],
         },
@@ -432,14 +465,16 @@ const LeaderDashboardScreen = () => {
         {
           key: 'resources',
           label: t('resource_dashboard_link'),
-          icon: '🗂️',
+          iconFamily: 'Ionicons',
+          iconName: 'folder-open-outline',
           screen: 'ResourceDashboard',
           permissions: ['resources.view', 'resources.manage'],
         },
         {
           key: 'permissionSlipsDashboard',
           label: t('permission_slip_dashboard_link'),
-          icon: '📋',
+          iconFamily: 'Ionicons',
+          iconName: 'clipboard-outline',
           screen: 'PermissionSlips',
           permissions: ['permission_slips.view', 'permission_slips.manage'],
         },
@@ -452,35 +487,40 @@ const LeaderDashboardScreen = () => {
         {
           key: 'financeMemberships',
           label: t('finance_memberships_tab'),
-          icon: '💰',
+          iconFamily: 'Ionicons',
+          iconName: 'cash-outline',
           screen: 'Finance',
           permission: 'finance.view',
         },
         {
           key: 'financeDefinitions',
           label: t('finance_definitions_tab'),
-          icon: '💵',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'cash-100',
           screen: 'Finance',
           permission: 'finance.view',
         },
         {
           key: 'financialReport',
           label: t('financial_report'),
-          icon: '📈',
+          iconFamily: 'Ionicons',
+          iconName: 'trending-up',
           screen: 'Finance',
           permission: 'finance.view',
         },
         {
           key: 'expenses',
           label: t('expense_tracking'),
-          icon: '💸',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'cash-minus',
           screen: 'Expenses',
           permissions: ['finance.manage', 'finance.view'],
         },
         {
           key: 'externalRevenue',
           label: t('external_revenue'),
-          icon: '💵',
+          iconFamily: 'MaterialCommunityIcons',
+          iconName: 'cash-plus',
           screen: 'ExternalRevenue',
           permissions: ['finance.manage', 'finance.view'],
         },
@@ -493,69 +533,79 @@ const LeaderDashboardScreen = () => {
         {
           key: 'manageParticipants',
           label: t('manage_names'),
-          icon: '🪪',
+          iconFamily: 'Ionicons',
+          iconName: 'id-card-outline',
           screen: 'Participants',
           permission: 'participants.view',
         },
         {
           key: 'manageGroups',
           label: t('manage_groups'),
-          icon: '👥',
+          iconFamily: 'Ionicons',
+          iconName: 'people-outline',
           screen: 'Groups',
           permission: 'groups.view',
         },
         {
           key: 'manageUsersParticipants',
           label: t('manage_users_participants'),
-          icon: '⚙️',
+          iconFamily: 'Ionicons',
+          iconName: 'settings-outline',
           screen: 'UserParticipantLink',
           permission: 'users.view',
         },
         {
           key: 'accountInfo',
           label: t('account_info'),
-          icon: '👤',
+          iconFamily: 'Ionicons',
+          iconName: 'person-outline',
           screen: 'AccountInfo',
         },
         {
           key: 'mailingList',
           label: t('mailing_list'),
-          icon: '✉️',
+          iconFamily: 'Ionicons',
+          iconName: 'mail-outline',
           screen: 'MailingList',
           permission: 'communications.send',
         },
         {
           key: 'fundraisers',
           label: t('fundraisers'),
-          icon: '❤️',
+          iconFamily: 'Ionicons',
+          iconName: 'heart-outline',
           screen: 'Fundraisers',
           permission: 'fundraisers.view',
         },
         {
           key: 'revenueDashboard',
           label: t('revenue_dashboard'),
-          icon: '📊',
+          iconFamily: 'Ionicons',
+          iconName: 'stats-chart',
           screen: 'RevenueDashboard',
           permissions: ['finance.view', 'fundraisers.view'],
         },
         {
           key: 'budgets',
           label: t('budget_management'),
-          icon: '💼',
+          iconFamily: 'Ionicons',
+          iconName: 'briefcase-outline',
           screen: 'Budgets',
           permission: 'budget.view',
         },
         {
           key: 'reports',
           label: t('reports'),
-          icon: '📋',
+          iconFamily: 'Ionicons',
+          iconName: 'clipboard-outline',
           screen: 'Reports',
           permissions: ['reports.view', 'reports.export'],
         },
         {
           key: 'groupParticipantReport',
           label: t('feuille_participants'),
-          icon: '📑',
+          iconFamily: 'Ionicons',
+          iconName: 'document-text-outline',
           screen: 'GroupParticipantReport',
           permissions: ['reports.view', 'reports.export'],
         },
@@ -568,35 +618,40 @@ const LeaderDashboardScreen = () => {
     {
       key: 'roleManagement',
       label: t('role_management'),
-      icon: '🏷️',
+      iconFamily: 'Ionicons',
+      iconName: 'pricetag-outline',
       screen: 'RoleManagement',
       permissions: ['roles.view', 'roles.manage'],
     },
     {
       key: 'districtManagement',
       label: t('district_management_title'),
-      icon: '🗺️',
+      iconFamily: 'Ionicons',
+      iconName: 'map-outline',
       screen: 'DistrictDashboard',
       permissions: ['roles.view', 'roles.manage'],
     },
     {
       key: 'formPermissions',
       label: t('form_permissions'),
-      icon: '📝',
+      iconFamily: 'Ionicons',
+      iconName: 'create-outline',
       screen: 'FormPermissions',
       permission: 'forms.manage_permissions',
     },
     {
       key: 'createOrganization',
       label: t('create_unit'),
-      icon: '🏢',
+      iconFamily: 'Ionicons',
+      iconName: 'business-outline',
       screen: 'CreateOrganization',
       permission: 'organizations.create',
     },
     {
       key: 'adminPanel',
       label: t('administration'),
-      icon: '🛡️',
+      iconFamily: 'Ionicons',
+      iconName: 'shield-outline',
       screen: 'Admin',
       permission: 'admin.access',
     },
@@ -646,9 +701,12 @@ const LeaderDashboardScreen = () => {
     <View style={styles.container}>
       {isOffline && (
         <View style={styles.offlineIndicator}>
-          <Text style={styles.offlineText}>
-            📡 {t('offline')} - {t('viewing_cached_data')}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <MaterialCommunityIcons name="wifi-off" size={20} color={theme.colors.surface} />
+            <Text style={styles.offlineText}>
+              {t('offline')} - {t('viewing_cached_data')}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -800,14 +858,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
   },
   actionIconPrimary: {
-    fontSize: theme.fontSize.xxl,
     marginBottom: theme.spacing.xs,
-    color: theme.colors.surface,
   },
   actionIconSecondary: {
-    fontSize: theme.fontSize.xxl,
     marginBottom: theme.spacing.xs,
-    color: theme.colors.text,
   },
   actionLabelPrimary: {
     fontSize: theme.fontSize.base,
