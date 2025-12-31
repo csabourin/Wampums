@@ -61,12 +61,18 @@ const ReportsScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleReportPress = (reportType) => {
-    Alert.alert(
-      t('report_not_yet_implemented'),
-      `${reportType} ${t('will_be_available_soon')}`,
-      [{ text: t('OK') }]
-    );
+  const handleReportPress = (reportType, reportTitle) => {
+    // Special case: time-since-registration navigates to dedicated screen
+    if (reportType === 'time-since-registration') {
+      navigation.navigate('TimeSinceRegistration');
+      return;
+    }
+
+    // Navigate to ReportViewer screen for all other reports
+    navigation.navigate('ReportViewer', {
+      reportType,
+      reportTitle,
+    });
   };
 
   const renderReportButton = (icon, title, description, reportType) => {
@@ -74,7 +80,7 @@ const ReportsScreen = ({ navigation }) => {
       <TouchableOpacity
         key={reportType}
         style={styles.reportButton}
-        onPress={() => handleReportPress(title)}
+        onPress={() => handleReportPress(reportType, title)}
         activeOpacity={0.7}
       >
         <View style={styles.reportButtonIcon}>
@@ -220,6 +226,19 @@ const ReportsScreen = ({ navigation }) => {
               t('financial_report_title'),
               t('financial_report_desc'),
               'financial'
+            )}
+          </View>
+        </View>
+
+        {/* Advanced Reports Section */}
+        <View style={styles.categorySection}>
+          <Text style={styles.categoryTitle}>{t('advanced_reports_category')}</Text>
+          <View style={styles.reportsGrid}>
+            {renderReportButton(
+              '📋',
+              t('missing_fields_report_title'),
+              t('missing_fields_report_desc'),
+              'missing-fields'
             )}
           </View>
         </View>
