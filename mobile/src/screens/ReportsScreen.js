@@ -61,12 +61,22 @@ const ReportsScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleReportPress = (reportType) => {
-    Alert.alert(
-      t('report_not_yet_implemented'),
-      `${reportType} ${t('will_be_available_soon')}`,
-      [{ text: t('OK') }]
-    );
+  const handleReportPress = (reportType, reportTitle) => {
+    // Special case: time-since-registration navigates to different screen if it exists
+    if (reportType === 'time-since-registration') {
+      Alert.alert(
+        t('report_not_yet_implemented'),
+        `${reportTitle} ${t('will_be_available_soon')}`,
+        [{ text: t('OK') }]
+      );
+      return;
+    }
+
+    // Navigate to ReportViewer screen
+    navigation.navigate('ReportViewer', {
+      reportType,
+      reportTitle,
+    });
   };
 
   const renderReportButton = (icon, title, description, reportType) => {
@@ -74,7 +84,7 @@ const ReportsScreen = ({ navigation }) => {
       <TouchableOpacity
         key={reportType}
         style={styles.reportButton}
-        onPress={() => handleReportPress(title)}
+        onPress={() => handleReportPress(reportType, title)}
         activeOpacity={0.7}
       >
         <View style={styles.reportButtonIcon}>

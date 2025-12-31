@@ -66,6 +66,7 @@ export { default as ResourceDashboardScreen } from './ResourceDashboardScreen';
 
 // Reports screens
 export { default as ReportsScreen } from './ReportsScreen';
+export { default as ReportViewerScreen } from './ReportViewerScreen';
 export { default as GroupParticipantReportScreen } from './GroupParticipantReportScreen';
 
 // Other screens
