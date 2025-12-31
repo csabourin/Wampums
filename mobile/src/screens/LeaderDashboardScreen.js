@@ -55,6 +55,8 @@ const LeaderDashboardScreen = () => {
   const SCROLL_KEY = 'LeaderDashboardScrollY';
   const [initialScrollY, setInitialScrollY] = useState(0);
   const [scrollReady, setScrollReady] = useState(false);
+  const scrollPositionRef = React.useRef(0);
+  const saveScrollTimeoutRef = React.useRef(null);
 
   // Configure header with settings button
   useEffect(() => {
@@ -106,6 +108,13 @@ const LeaderDashboardScreen = () => {
 
     return () => {
       CacheManager.removeNetworkListener(networkListener);
+      // Save scroll position on unmount
+      if (saveScrollTimeoutRef.current) {
+        clearTimeout(saveScrollTimeoutRef.current);
+      }
+      if (scrollPositionRef.current > 0) {
+        StorageUtils.setItem(SCROLL_KEY, String(scrollPositionRef.current)).catch(() => {});
+      }
     };
   }, []);
 
@@ -707,11 +716,17 @@ const LeaderDashboardScreen = () => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        onScroll={async e => {
+        onScroll={e => {
           const y = Math.round(e.nativeEvent.contentOffset.y);
-          try {
-            await StorageUtils.setItem(SCROLL_KEY, String(y));
-          } catch {}
+          scrollPositionRef.current = y;
+
+          // Debounce AsyncStorage writes to avoid excessive I/O
+          if (saveScrollTimeoutRef.current) {
+            clearTimeout(saveScrollTimeoutRef.current);
+          }
+          saveScrollTimeoutRef.current = setTimeout(() => {
+            StorageUtils.setItem(SCROLL_KEY, String(y)).catch(() => {});
+          }, 500); // Save 500ms after user stops scrolling
         }}
         scrollEventThrottle={16}
         onLayout={() => {

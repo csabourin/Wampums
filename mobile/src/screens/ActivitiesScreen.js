@@ -30,6 +30,7 @@ import {
 } from '../components';
 import { hasPermission } from '../utils/PermissionUtils';
 import StorageUtils from '../utils/StorageUtils';
+import { debugLog } from '../utils/DebugUtils';
 import theme from '../theme';
 import CONFIG from '../config';
 
@@ -86,18 +87,18 @@ const ActivitiesScreen = () => {
     try {
       setError(null);
       const response = await getActivities();
-      console.log('=== Activities API Response ===');
-      console.log('Success:', response.success);
-      console.log('Data length:', response.data?.length);
-      console.log('First activity:', response.data?.[0]);
-      console.log('================================');
+      debugLog('=== Activities API Response ===');
+      debugLog('Success:', response.success);
+      debugLog('Data length:', response.data?.length);
+      debugLog('First activity:', response.data?.[0]);
+      debugLog('================================');
       if (response.success) {
         setActivities(response.data || []);
       } else {
         setError(response.message || t('error_loading_data'));
       }
     } catch (err) {
-      console.error('Error loading activities:', err);
+      debugLog('Error loading activities:', err);
       setError(err.message || t('error_loading_data'));
     } finally {
       setLoading(false);
@@ -112,20 +113,20 @@ const ActivitiesScreen = () => {
 
   // Derived state: filtered and sorted activities
   const filteredActivities = React.useMemo(() => {
-    console.log('=== Filtering Activities ===');
-    console.log('Total activities:', activities.length);
-    console.log('Active filter:', activeFilter);
+    debugLog('=== Filtering Activities ===');
+    debugLog('Total activities:', activities.length);
+    debugLog('Active filter:', activeFilter);
 
     let filtered = [...activities];
     const now = new Date();
-    console.log('Current date:', now);
+    debugLog('Current date:', now);
 
     // Apply time filter
     if (activeFilter === 'upcoming') {
       filtered = filtered.filter((activity) => {
         const activityDate = activity.date || activity.activity_date;
         if (!activityDate) {
-          console.log('Activity has no date:', activity.name);
+          debugLog('Activity has no date:', activity.name);
           return false;
         }
         // Extract just the date portion (YYYY-MM-DD) from datetime string
@@ -134,7 +135,7 @@ const ActivitiesScreen = () => {
         const [year, month, day] = dateOnly.split('-').map(Number);
         const localDate = new Date(year, month - 1, day);
         const isUpcoming = localDate >= now;
-        console.log(`${activity.name}: ${activityDate} -> ${dateOnly} -> ${localDate} -> ${isUpcoming ? 'UPCOMING' : 'PAST'}`);
+        debugLog(`${activity.name}: ${activityDate} -> ${dateOnly} -> ${localDate} -> ${isUpcoming ? 'UPCOMING' : 'PAST'}`);
         return isUpcoming;
       });
     } else if (activeFilter === 'past') {
@@ -151,8 +152,8 @@ const ActivitiesScreen = () => {
     }
     // 'all' shows everything
 
-    console.log('Filtered count:', filtered.length);
-    console.log('===========================');
+    debugLog('Filtered count:', filtered.length);
+    debugLog('===========================');
 
     // Apply sort
     filtered.sort((a, b) => {
@@ -186,38 +187,41 @@ const ActivitiesScreen = () => {
 
   const canManage = hasPermission('activities.manage', userPermissions);
 
-  // Filter options
-  const filterOptions = [
-    {
-      value: 'upcoming',
-      label: t('upcoming') || 'Upcoming',
-      count: activities.filter((a) => {
-        const dateStr = a.date || a.activity_date;
-        if (!dateStr) return false;
-        const dateOnly = dateStr.substring(0, 10);
-        const [year, month, day] = dateOnly.split('-').map(Number);
-        const localDate = new Date(year, month - 1, day);
-        return localDate >= new Date();
-      }).length,
-    },
-    {
-      value: 'past',
-      label: t('past') || 'Past',
-      count: activities.filter((a) => {
-        const dateStr = a.date || a.activity_date;
-        if (!dateStr) return false;
-        const dateOnly = dateStr.substring(0, 10);
-        const [year, month, day] = dateOnly.split('-').map(Number);
-        const localDate = new Date(year, month - 1, day);
-        return localDate < new Date();
-      }).length,
-    },
-    {
-      value: 'all',
-      label: t('all') || 'All',
-      count: activities.length,
-    },
-  ];
+  // Filter options - memoized to avoid recalculating on every render
+  const filterOptions = React.useMemo(() => {
+    const now = new Date();
+    return [
+      {
+        value: 'upcoming',
+        label: t('upcoming') || 'Upcoming',
+        count: activities.filter((a) => {
+          const dateStr = a.date || a.activity_date;
+          if (!dateStr) return false;
+          const dateOnly = dateStr.substring(0, 10);
+          const [year, month, day] = dateOnly.split('-').map(Number);
+          const localDate = new Date(year, month - 1, day);
+          return localDate >= now;
+        }).length,
+      },
+      {
+        value: 'past',
+        label: t('past') || 'Past',
+        count: activities.filter((a) => {
+          const dateStr = a.date || a.activity_date;
+          if (!dateStr) return false;
+          const dateOnly = dateStr.substring(0, 10);
+          const [year, month, day] = dateOnly.split('-').map(Number);
+          const localDate = new Date(year, month - 1, day);
+          return localDate < now;
+        }).length,
+      },
+      {
+        value: 'all',
+        label: t('all') || 'All',
+        count: activities.length,
+      },
+    ];
+  }, [activities]);
 
   // Sort options
   const sortOptions = [
@@ -233,9 +237,9 @@ const ActivitiesScreen = () => {
     setSortOrder(order);
   };
 
-  const handleActivityPress = (activity) => {
+  const handleActivityPress = useCallback((activity) => {
     navigation.navigate('ActivityDetail', { id: activity.id });
-  };
+  }, [navigation]);
 
   const getActivityStatus = (activity) => {
     const dateStr = activity.date || activity.activity_date;

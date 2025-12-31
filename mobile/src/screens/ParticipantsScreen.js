@@ -10,7 +10,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
@@ -181,6 +181,25 @@ const ParticipantsScreen = () => {
     { key: 'group', label: t('group') || 'Group' },
   ];
 
+  // Render function for FlatList
+  const renderParticipantItem = useCallback(({ item: participant }) => (
+    <ListItem
+      title={`${participant.firstName} ${participant.lastName}`}
+      subtitle={[
+        participant.groupName,
+        `${DateUtils.calculateAge(participant.birthdate)} ${t('years') || 'years'}`,
+      ]
+        .filter(Boolean)
+        .join(' • ')}
+      leftIcon="👤"
+      onPress={() =>
+        navigation.navigate('ParticipantDetail', { id: participant.id })
+      }
+    />
+  ), [navigation]);
+
+  const keyExtractor = useCallback((item) => item.id.toString(), []);
+
   // Loading state
   if (loading) {
     return <LoadingState message={t('loading')} />;
@@ -236,27 +255,16 @@ const ParticipantsScreen = () => {
           }}
         />
       ) : (
-        <ScrollView
+        <FlatList
+          data={filteredParticipants}
+          renderItem={renderParticipantItem}
+          keyExtractor={keyExtractor}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           contentContainerStyle={styles.listContent}
-        >
-          {filteredParticipants.map((participant) => (
-            <ListItem
-              key={participant.id}
-              title={`${participant.firstName} ${participant.lastName}`}
-              subtitle={[
-                participant.groupName,
-                `${DateUtils.calculateAge(participant.birthdate)} ${t('years') || 'years'}`,
-              ]
-                .filter(Boolean)
-                .join(' • ')}
-              leftIcon="👤"
-              onPress={() =>
-                navigation.navigate('ParticipantDetail', { id: participant.id })
-              }
-            />
-          ))}
-        </ScrollView>
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+        />
       )}
 
       <ConfirmModal
