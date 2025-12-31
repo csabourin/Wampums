@@ -27,7 +27,12 @@ import {
   useToast,
   EmptyState,
 } from '../components';
-import API from '../api/api-core';
+import {
+  getFundraiser,
+  getCalendarsForFundraiser,
+  updateCalendarEntry,
+  updateCalendarPayment,
+} from '../api/api-endpoints';
 import { debugError } from '../utils/DebugUtils';
 
 const CalendarScreen = ({ route, navigation }) => {
@@ -67,7 +72,7 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const loadFundraiser = async () => {
     try {
-      const result = await API.get(`/v1/fundraisers/${fundraiserId}`);
+      const result = await getFundraiser(fundraiserId);
 
       if (result.success && result.fundraiser) {
         setFundraiser(result.fundraiser);
@@ -80,7 +85,7 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const loadCalendars = async () => {
     try {
-      const result = await API.get(`/v1/fundraisers/${fundraiserId}/entries`);
+      const result = await getCalendarsForFundraiser(fundraiserId);
 
       setCalendars(result.fundraiser_entries || []);
     } catch (err) {
@@ -127,10 +132,7 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const updateCalendarAmount = async (calendarId, amount) => {
     try {
-      await API.put(
-        `/v1/fundraisers/${fundraiserId}/entries/${calendarId}`,
-        { amount: parseInt(amount) || 0 }
-      );
+      await updateCalendarEntry(calendarId, { amount: parseInt(amount) || 0 });
 
       // Update local state
       setCalendars((prev) =>
@@ -147,10 +149,7 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const updateCalendarAmountPaid = async (calendarId, amountPaid) => {
     try {
-      const result = await API.put(
-        `/v1/fundraisers/${fundraiserId}/entries/${calendarId}/payment`,
-        { amount_paid: parseFloat(amountPaid) || 0 }
-      );
+      const result = await updateCalendarPayment(calendarId, parseFloat(amountPaid) || 0);
 
       // Update local state
       setCalendars((prev) =>
@@ -173,10 +172,7 @@ const CalendarScreen = ({ route, navigation }) => {
 
   const updateCalendarPaid = async (calendarId, paid) => {
     try {
-      await API.put(
-        `/v1/fundraisers/${fundraiserId}/entries/${calendarId}`,
-        { paid }
-      );
+      await updateCalendarEntry(calendarId, { paid });
 
       // Update local state
       setCalendars((prev) => prev.map((c) => (c.id === calendarId ? { ...c, paid } : c)));

@@ -1454,6 +1454,50 @@ export const archiveFundraiser = async (fundraiserId, archived) => {
 
 /**
  * ============================================================================
+ * CALENDARS / FUNDRAISER ENTRIES
+ * ============================================================================
+ */
+
+/**
+ * Get calendar entries for a fundraiser
+ * @param {number} fundraiserId - Fundraiser ID
+ * @returns {Promise} Fundraiser entries with participant details
+ */
+export const getCalendarsForFundraiser = async (fundraiserId) => {
+  return API.get('calendars', { fundraiser_id: fundraiserId });
+};
+
+/**
+ * Update calendar entry
+ * @param {number} calendarId - Calendar entry ID
+ * @param {Object} data - Updated entry data (amount, amount_paid, paid)
+ * @returns {Promise} Updated calendar entry
+ */
+export const updateCalendarEntry = async (calendarId, data) => {
+  return API.put(`calendars/${calendarId}`, data);
+};
+
+/**
+ * Update calendar payment
+ * @param {number} calendarId - Calendar entry ID
+ * @param {number} amountPaid - Amount paid
+ * @returns {Promise} Updated calendar entry
+ */
+export const updateCalendarPayment = async (calendarId, amountPaid) => {
+  return API.put(`calendars/${calendarId}/payment`, { amount_paid: amountPaid });
+};
+
+/**
+ * Get calendar entries for a participant
+ * @param {number} participantId - Participant ID
+ * @returns {Promise} Participant's fundraiser entries
+ */
+export const getParticipantCalendar = async (participantId) => {
+  return API.get('participant-calendar', { participant_id: participantId });
+};
+
+/**
+ * ============================================================================
  * TRANSLATIONS
  * ============================================================================
  */
@@ -1641,6 +1685,11 @@ export default {
   createFundraiser,
   updateFundraiser,
   archiveFundraiser,
+  // Calendars / Fundraiser Entries
+  getCalendarsForFundraiser,
+  updateCalendarEntry,
+  updateCalendarPayment,
+  getParticipantCalendar,
   // Translations
   getTranslations,
   saveTranslation,

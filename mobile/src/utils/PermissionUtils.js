@@ -303,16 +303,16 @@ export async function isDistrictAdmin() {
  */
 export async function canViewFundraisers() {
   const permissions = await getUserPermissions();
-  return hasAnyPermission(['fundraisers.view', 'fundraisers.manage'], permissions);
+  return hasAnyPermission(['fundraisers.view', 'fundraisers.create', 'fundraisers.edit'], permissions);
 }
 
 /**
- * Check if user can manage fundraisers
+ * Check if user can manage fundraisers (create, edit, or delete)
  * @returns {Promise<boolean>} True if user can manage fundraisers
  */
 export async function canManageFundraisers() {
   const permissions = await getUserPermissions();
-  return hasPermission('fundraisers.manage', permissions);
+  return hasAnyPermission(['fundraisers.create', 'fundraisers.edit', 'fundraisers.delete'], permissions);
 }
 
 export default {
