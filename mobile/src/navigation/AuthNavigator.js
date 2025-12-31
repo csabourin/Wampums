@@ -10,12 +10,9 @@
 
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { LoginScreen } from '../screens';
+import { LoginScreen, RegisterScreen, ResetPasswordScreen } from '../screens';
 import OrganizationSelectScreen from '../screens/OrganizationSelectScreen';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
-// Import future auth screens
-// import RegisterScreen from '../screens/RegisterScreen';
-// import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 
 const Stack = createStackNavigator();
 
@@ -42,9 +39,8 @@ const AuthNavigator = ({ onLogin }) => {
           {(props) => <LoginScreen {...props} onLogin={onLogin} />}
         </Stack.Screen>
 
-        {/* Future auth screens */}
-        {/* <Stack.Screen name="Register" component={RegisterScreen} /> */}
-        {/* <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> */}
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       </Stack.Navigator>
     );
   } catch (error) {
