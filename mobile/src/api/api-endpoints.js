@@ -1345,6 +1345,36 @@ export const getParticipantAgeReport = async () => {
 };
 
 /**
+ * Get participants with documents info
+ * Returns participants with their form/document completion status
+ */
+export const getParticipantsWithDocuments = async () => {
+  const response = await API.get('/participant-details');
+  const settingsResponse = await getOrganizationSettings();
+
+  const settings = settingsResponse?.data || {};
+  const formTypes = Object.keys(settings)
+    .filter(key => key.endsWith('_structure'))
+    .map(key => key.replace('_structure', ''));
+
+  const participants = (response?.data?.participants || response?.participants || []).map(participant => {
+    formTypes.forEach(formType => {
+      participant[`has_${formType}`] = Boolean(participant[`has_${formType}`]);
+    });
+    return participant;
+  });
+
+  return {
+    ...response,
+    participants,
+    data: {
+      ...(response?.data || {}),
+      participants
+    }
+  };
+};
+
+/**
  * Get finance summary report
  */
 export const getFinanceReport = async () => {
