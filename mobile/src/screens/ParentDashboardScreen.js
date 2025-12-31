@@ -293,10 +293,24 @@ const ParentDashboardScreen = () => {
 
       {/* My Children Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('My Children')}</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{t('My Children')}</Text>
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={() => navigation.navigate('RegistrationForm')}
+          >
+            <Text style={styles.registerButtonText}>+ {t('Register Child')}</Text>
+          </TouchableOpacity>
+        </View>
         {children.length === 0 ? (
           <Card>
             <Text style={styles.emptyText}>{t('no_participants')}</Text>
+            <TouchableOpacity
+              style={styles.registerChildButton}
+              onPress={() => navigation.navigate('RegistrationForm')}
+            >
+              <Text style={styles.registerChildButtonText}>{t('Register Your First Child')}</Text>
+            </TouchableOpacity>
           </Card>
         ) : (
           children.map((child) => (
@@ -608,17 +622,46 @@ const styles = StyleSheet.create({
   section: {
     padding: 16,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
-    marginBottom: 12,
     color: '#333',
+  },
+  registerButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  registerButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyText: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
     padding: 20,
+  },
+  registerChildButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  registerChildButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   childName: {
     fontSize: 18,
