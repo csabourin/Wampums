@@ -1055,9 +1055,52 @@ export const createEquipmentReservation = async (reservationData) => {
 
 /**
  * Get permission slips
+ * @param {Object} params - Query parameters (e.g., meeting_date, participant_id)
+ * @param {Object} cacheOptions - Cache options (forceRefresh)
  */
-export const getPermissionSlips = async () => {
-  return API.get(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips`);
+export const getPermissionSlips = async (params = {}, cacheOptions = {}) => {
+  return API.get(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips`, params, cacheOptions);
+};
+
+/**
+ * Create or update a permission slip
+ * @param {Object} payload - Permission slip data
+ */
+export const savePermissionSlip = async (payload) => {
+  return API.post(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips`, payload);
+};
+
+/**
+ * Archive a permission slip
+ * @param {number} id - Permission slip ID
+ */
+export const archivePermissionSlip = async (id) => {
+  return API.patch(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/${id}/archive`, {});
+};
+
+/**
+ * Capture signature for a permission slip
+ * @param {number} id - Permission slip ID
+ * @param {Object} payload - Signature data
+ */
+export const signPermissionSlip = async (id, payload) => {
+  return API.patch(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/${id}/sign`, payload);
+};
+
+/**
+ * Send emails to parents for permission slips
+ * @param {Object} payload - Email payload (activity_title, meeting_date)
+ */
+export const sendPermissionSlipEmails = async (payload) => {
+  return API.post(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/send-emails`, payload);
+};
+
+/**
+ * Send reminder emails to parents for unsigned permission slips
+ * @param {Object} payload - Reminder payload (activity_title, meeting_date)
+ */
+export const sendPermissionSlipReminders = async (payload) => {
+  return API.post(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/send-reminders`, payload);
 };
 
 /**
@@ -1065,6 +1108,15 @@ export const getPermissionSlips = async () => {
  */
 export const viewPermissionSlip = async (id) => {
   return API.public(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/${id}/view`);
+};
+
+/**
+ * Get dashboard snapshot for resources and approvals
+ * @param {Object} params - Query parameters (e.g., meeting_date)
+ * @param {Object} cacheOptions - Cache options (forceRefresh)
+ */
+export const getResourceDashboard = async (params = {}, cacheOptions = {}) => {
+  return API.get(`${CONFIG.ENDPOINTS.RESOURCES}/status/dashboard`, params, cacheOptions);
 };
 
 /**

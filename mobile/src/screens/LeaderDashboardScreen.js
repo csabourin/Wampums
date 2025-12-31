@@ -444,7 +444,7 @@ const LeaderDashboardScreen = () => {
           iconFamily: 'Ionicons',
           iconName: 'documents-outline',
           screen: 'PermissionSlips',
-          permissions: ['permission_slips.view', 'permission_slips.manage'],
+          permissions: ['communications.send', 'participants.view'],
         },
       ].filter(canAccessAction),
     },
@@ -474,7 +474,7 @@ const LeaderDashboardScreen = () => {
           iconFamily: 'Ionicons',
           iconName: 'clipboard-outline',
           screen: 'PermissionSlips',
-          permissions: ['permission_slips.view', 'permission_slips.manage'],
+          permissions: ['communications.send', 'participants.view'],
         },
         {
           key: 'fundraisers',
