@@ -114,7 +114,6 @@ const CONFIG = {
     HONORS_HISTORY: '/honors-history',
     FUNDRAISERS: '/fundraisers',
     CALENDARS: '/calendars',
-    FORMS: '/form-formats',
     REUNION_PREPARATION: '/reunion-preparation',
     SAVE_REUNION_PREPARATION: '/save-reunion-preparation',
     REUNION_DATES: '/reunion-dates',
