@@ -1429,12 +1429,36 @@ export const getParentContactList = async ({ forceRefresh = false } = {}) => {
 /**
  * Get organization form formats
  * @param {string} context - Optional context filter (participant, organization, admin_panel, public, form_builder)
+ * @returns {Promise<Object>} Form formats object with form types as keys
  */
 export const getOrganizationFormFormats = async (context = null) => {
-  const url = context 
+  const url = context
     ? `${CONFIG.ENDPOINTS.FORMS}/organization-form-formats?context=${context}`
     : `${CONFIG.ENDPOINTS.FORMS}/organization-form-formats`;
-  return API.get(url);
+
+  const response = await API.get(url);
+
+  if (!response.success || !response.data) {
+    return null;
+  }
+
+  const formFormats = {};
+
+  // Check if response.data is an array
+  if (Array.isArray(response.data)) {
+    // Transform array format to object format
+    for (const format of response.data) {
+      formFormats[format.form_type] = format.form_structure;
+    }
+  } else {
+    // response.data is an object, extract form_structure from each form type
+    for (const [formType, formatData] of Object.entries(response.data)) {
+      // If formatData has a form_structure property, use it; otherwise use formatData directly
+      formFormats[formType] = formatData.form_structure || formatData;
+    }
+  }
+
+  return formFormats;
 };
 
 /**
