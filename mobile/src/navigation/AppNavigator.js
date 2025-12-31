@@ -71,6 +71,7 @@ import ParentContactListScreen from '../screens/ParentContactListScreen';
 import ParticipantDocumentsScreen from '../screens/ParticipantDocumentsScreen';
 import PermissionSlipsScreen from '../screens/PermissionSlipsScreen';
 import PermissionSlipSignScreen from '../screens/PermissionSlipSignScreen';
+import RegistrationFormScreen from '../screens/RegistrationFormScreen';
 import RiskAcceptanceScreen from '../screens/RiskAcceptanceScreen';
 import RoleManagementScreen from '../screens/RoleManagementScreen';
 import UserParticipantLinkScreen from '../screens/UserParticipantLinkScreen';
@@ -95,6 +96,16 @@ const AppNavigator = ({ userPermissions }) => {
         options={{
           headerShown: true,
           title: 'Parent Dashboard',
+        }}
+      />
+
+      {/* Registration Form - Parent can register children */}
+      <Stack.Screen
+        name="RegistrationForm"
+        component={RegistrationFormScreen}
+        options={{
+          headerShown: true,
+          title: 'Register Participant',
         }}
       />
 
