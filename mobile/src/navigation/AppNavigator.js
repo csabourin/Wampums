@@ -37,6 +37,7 @@ import {
   // Reports
   ReportsScreen,
   ReportViewerScreen,
+  TimeSinceRegistrationScreen,
   GroupParticipantReportScreen,
   // Other screens
   CalendarScreen,
@@ -454,6 +455,15 @@ const AppNavigator = ({ userPermissions }) => {
           headerShown: true,
           title: route.params?.reportTitle || 'Report',
         })}
+      />
+
+      <Stack.Screen
+        name="TimeSinceRegistration"
+        component={TimeSinceRegistrationScreen}
+        options={{
+          headerShown: true,
+          title: 'Time Since Registration',
+        }}
       />
 
       <Stack.Screen

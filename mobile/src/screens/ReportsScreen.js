@@ -62,17 +62,13 @@ const ReportsScreen = ({ navigation }) => {
   };
 
   const handleReportPress = (reportType, reportTitle) => {
-    // Special case: time-since-registration navigates to different screen if it exists
+    // Special case: time-since-registration navigates to dedicated screen
     if (reportType === 'time-since-registration') {
-      Alert.alert(
-        t('report_not_yet_implemented'),
-        `${reportTitle} ${t('will_be_available_soon')}`,
-        [{ text: t('OK') }]
-      );
+      navigation.navigate('TimeSinceRegistration');
       return;
     }
 
-    // Navigate to ReportViewer screen
+    // Navigate to ReportViewer screen for all other reports
     navigation.navigate('ReportViewer', {
       reportType,
       reportTitle,
@@ -230,6 +226,19 @@ const ReportsScreen = ({ navigation }) => {
               t('financial_report_title'),
               t('financial_report_desc'),
               'financial'
+            )}
+          </View>
+        </View>
+
+        {/* Advanced Reports Section */}
+        <View style={styles.categorySection}>
+          <Text style={styles.categoryTitle}>{t('advanced_reports_category')}</Text>
+          <View style={styles.reportsGrid}>
+            {renderReportButton(
+              '📋',
+              t('missing_fields_report_title'),
+              t('missing_fields_report_desc'),
+              'missing-fields'
             )}
           </View>
         </View>
