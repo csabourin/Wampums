@@ -192,7 +192,11 @@ const LeaderDashboardScreen = () => {
       }
     } catch (err) {
       debugError('Error loading dashboard context:', err);
-      setError(t('error_loading_dashboard'));
+      if (err?.status === 403) {
+        setError(t('no_permission_for_screen'));
+      } else {
+        setError(t('error_loading_dashboard'));
+      }
     } finally {
       setLoading(false);
     }
