@@ -62,7 +62,7 @@ const ParentDashboardScreen = () => {
   useEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      title: t('dashboard_title'),
+      title: t('parent_dashboard'),
       headerRight: () => (
         <TouchableOpacity
           onPress={() => navigation.navigate('Settings')}
@@ -104,8 +104,8 @@ const ParentDashboardScreen = () => {
       if (activitiesResponse.success) {
         // Filter to future activities and sort by date
         const upcoming = activitiesResponse.data
-          .filter((a) => DateUtils.isFuture(a.date))
-          .sort((a, b) => new Date(a.date) - new Date(b.date))
+          .filter((a) => DateUtils.isFuture(a.activity_date))
+          .sort((a, b) => new Date(a.activity_date) - new Date(b.activity_date))
           .slice(0, 5); // Show next 5 activities
         setUpcomingActivities(upcoming);
       }
@@ -287,30 +287,21 @@ const ParentDashboardScreen = () => {
         style={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('Parent Dashboard')}</Text>
-      </View>
 
       {/* My Children Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{t('My Children')}</Text>
+          <Text style={styles.sectionTitle}>{t('my_children')}</Text>
           <TouchableOpacity
             style={styles.registerButton}
             onPress={() => navigation.navigate('RegistrationForm')}
           >
-            <Text style={styles.registerButtonText}>+ {t('Register Child')}</Text>
+            <Text style={styles.registerButtonText}>+ {t('register_child')}</Text>
           </TouchableOpacity>
         </View>
         {children.length === 0 ? (
           <Card>
             <Text style={styles.emptyText}>{t('no_participants')}</Text>
-            <TouchableOpacity
-              style={styles.registerChildButton}
-              onPress={() => navigation.navigate('RegistrationForm')}
-            >
-              <Text style={styles.registerChildButtonText}>{t('Register Your First Child')}</Text>
-            </TouchableOpacity>
           </Card>
         ) : (
           children.map((child) => (
@@ -338,7 +329,7 @@ const ParentDashboardScreen = () => {
       {/* Financial Summary Section */}
       {financialSummary.totalOutstanding > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>💰 {t('Outstanding Balance')}</Text>
+          <Text style={styles.sectionTitle}>💰 {t('outstanding_balance')}</Text>
           <Card
             onPress={() => navigation.navigate('ParentFinance')}
             style={styles.financialCard}
@@ -347,12 +338,12 @@ const ParentDashboardScreen = () => {
               <Text style={styles.financialAmount}>
                 {FormatUtils.formatCurrency(financialSummary.totalOutstanding, 'CAD')}
               </Text>
-              <Text style={styles.financialLabel}>{t('Amount Due')}</Text>
+              <Text style={styles.financialLabel}>{t('amount_due')}</Text>
               <TouchableOpacity
                 style={styles.viewDetailsButton}
                 onPress={() => navigation.navigate('ParentFinance')}
               >
-                <Text style={styles.viewDetailsText}>{t('View Details')} →</Text>
+                <Text style={styles.viewDetailsText}>{t('view_details')} →</Text>
               </TouchableOpacity>
             </View>
           </Card>
@@ -363,7 +354,7 @@ const ParentDashboardScreen = () => {
       {unsignedPermissionSlips.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            📄 {t('Permission Slips')} ({unsignedPermissionSlips.length} {t('unsigned')})
+            📄 {t('permission_slip_title')} ({unsignedPermissionSlips.length} {t('unsigned')})
           </Text>
           {unsignedPermissionSlips.slice(0, 3).map((slip) => (
             <Card
@@ -373,10 +364,10 @@ const ParentDashboardScreen = () => {
             >
               <View style={styles.permissionSlipHeader}>
                 <Text style={styles.permissionSlipTitle}>
-                  {slip.title || slip.activity_name || t('Permission Slip')}
+                  {slip.title || slip.activity_name || t('permission_slip_title')}
                 </Text>
                 <View style={styles.urgentBadge}>
-                  <Text style={styles.urgentBadgeText}>⚠️ {t('Action Required')}</Text>
+                  <Text style={styles.urgentBadgeText}>⚠️ {t('action_required')}</Text>
                 </View>
               </View>
               {slip.participant_name && (
@@ -389,7 +380,7 @@ const ParentDashboardScreen = () => {
                   📅 {DateUtils.formatDate(slip.activity_date)}
                 </Text>
               )}
-              <Text style={styles.signNowText}>{t('Tap to sign')} →</Text>
+              <Text style={styles.signNowText}>{t('tap_to_sign')} →</Text>
             </Card>
           ))}
           {unsignedPermissionSlips.length > 3 && (
@@ -398,7 +389,7 @@ const ParentDashboardScreen = () => {
               onPress={() => navigation.navigate('PermissionSlips')}
             >
               <Text style={styles.viewAllText}>
-                {t('View All')} ({unsignedPermissionSlips.length})
+                {t('view_all')} ({unsignedPermissionSlips.length})
               </Text>
             </TouchableOpacity>
           )}
@@ -407,10 +398,10 @@ const ParentDashboardScreen = () => {
 
       {/* Upcoming Activities Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('Upcoming Activities')}</Text>
+        <Text style={styles.sectionTitle}>{t('upcoming_activities')}</Text>
         {upcomingActivities.length === 0 ? (
           <Card>
-            <Text style={styles.emptyText}>{t('No upcoming activities')}</Text>
+            <Text style={styles.emptyText}>{t('no_upcoming_activities')}</Text>
           </Card>
         ) : (
           upcomingActivities.map((activity) => (
@@ -420,10 +411,10 @@ const ParentDashboardScreen = () => {
             >
               <Text style={styles.activityName}>{activity.name}</Text>
               <Text style={styles.activityDate}>
-                📅 {DateUtils.formatDate(activity.date)}
+                📅 {DateUtils.formatDate(activity.activity_date)}
               </Text>
-              {activity.location && (
-                <Text style={styles.activityDetail}>📍 {activity.location}</Text>
+              {activity.meeting_location_going && (
+                <Text style={styles.activityDetail}>📍 {activity.meeting_location_going}</Text>
               )}
             </Card>
           ))
@@ -433,15 +424,15 @@ const ParentDashboardScreen = () => {
       {/* Carpool Assignments Section */}
       {carpoolAssignments.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('Carpool Assignments')}</Text>
+          <Text style={styles.sectionTitle}>{t('carpool_assignments')}</Text>
           {carpoolAssignments.map((assignment, index) => (
             <Card key={index}>
               <Text style={styles.carpoolActivity}>{assignment.activityName}</Text>
               <Text style={styles.carpoolDetail}>
-                🚗 {t('Driver')}: {assignment.driverName}
+                🚗 {t('driver')}: {assignment.driverName}
               </Text>
               <Text style={styles.carpoolDetail}>
-                👥 {t('Spots')}: {assignment.occupiedSpots}/
+                👥 {t('spots')}: {assignment.occupiedSpots}/
                 {assignment.totalSpots}
               </Text>
             </Card>
@@ -452,9 +443,9 @@ const ParentDashboardScreen = () => {
       {/* Important Forms Section */}
       {children.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 {t('Important Forms')}</Text>
+          <Text style={styles.sectionTitle}>📋 {t('important_forms')}</Text>
           <Text style={styles.formsDescription}>
-            {t('Complete these forms for your children')}
+            {t('complete_forms_description')}
           </Text>
 
           <TouchableOpacity
@@ -463,9 +454,9 @@ const ParentDashboardScreen = () => {
           >
             <View style={styles.formCardContent}>
               <View>
-                <Text style={styles.formCardTitle}>🏥 {t('Health Form')}</Text>
+                <Text style={styles.formCardTitle}>🏥 {t('fiche_sante')}</Text>
                 <Text style={styles.formCardDescription}>
-                  {t('Medical information and allergies')}
+                  {t('health_form_description')}
                 </Text>
               </View>
               <Text style={styles.formCardArrow}>→</Text>
@@ -478,9 +469,9 @@ const ParentDashboardScreen = () => {
           >
             <View style={styles.formCardContent}>
               <View>
-                <Text style={styles.formCardTitle}>⚠️ {t('Risk Acceptance')}</Text>
+                <Text style={styles.formCardTitle}>⚠️ {t('acceptation_risque')}</Text>
                 <Text style={styles.formCardDescription}>
-                  {t('Activity risk acknowledgment')}
+                  {t('risk_acceptance_description')}
                 </Text>
               </View>
               <Text style={styles.formCardArrow}>→</Text>
@@ -493,9 +484,9 @@ const ParentDashboardScreen = () => {
           >
             <View style={styles.formCardContent}>
               <View>
-                <Text style={styles.formCardTitle}>📄 {t('Documents')}</Text>
+                <Text style={styles.formCardTitle}>📄 {t('documents')}</Text>
                 <Text style={styles.formCardDescription}>
-                  {t('View and manage participant documents')}
+                  {t('documents_description')}
                 </Text>
               </View>
               <Text style={styles.formCardArrow}>→</Text>
@@ -506,19 +497,19 @@ const ParentDashboardScreen = () => {
 
       {/* Quick Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('Quick Actions')}</Text>
+        <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.navigate('Finance')}
         >
-          <Text style={styles.actionButtonText}>💰 {t('View Fees')}</Text>
+          <Text style={styles.actionButtonText}>💰 {t('view_fees')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => navigation.navigate('PermissionSlips')}
         >
           <Text style={styles.actionButtonText}>
-            📄 {t('Permission Slips')}
+            📄 {t('permission_slip_title')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -526,7 +517,7 @@ const ParentDashboardScreen = () => {
           onPress={() => navigation.navigate('HealthForm')}
         >
           <Text style={styles.actionButtonText}>
-            🏥 {t('Health Form')}
+            🏥 {t('fiche_sante')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -534,7 +525,7 @@ const ParentDashboardScreen = () => {
           onPress={() => navigation.navigate('RiskAcceptance')}
         >
           <Text style={styles.actionButtonText}>
-            ⚠️ {t('Risk Acceptance Form')}
+            ⚠️ {t('risk_acceptance_form')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -542,7 +533,7 @@ const ParentDashboardScreen = () => {
           onPress={() => navigation.navigate('ParticipantDocuments')}
         >
           <Text style={styles.actionButtonText}>
-            📋 {t('View Documents')}
+            📋 {t('view_documents')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -607,17 +598,7 @@ const ParentDashboardScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#007AFF',
-    padding: 20,
-    paddingTop: 40,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+    backgroundColor: '#f3f7f4',
   },
   section: {
     padding: 16,
@@ -649,19 +630,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     padding: 20,
-  },
-  registerChildButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  registerChildButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   childName: {
     fontSize: 18,
