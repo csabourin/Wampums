@@ -184,14 +184,24 @@ export class OptimisticUpdateManager {
     const promises = Array.from(this.pendingUpdates.values());
 
     if (timeout) {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Optimistic updates timeout')), timeout)
-      );
+      let timeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Optimistic updates timeout')), timeout);
+      });
 
-      return Promise.race([
-        Promise.allSettled(promises),
-        timeoutPromise
-      ]);
+      try {
+        const result = await Promise.race([
+          Promise.allSettled(promises),
+          timeoutPromise
+        ]);
+        // Clear timeout if promises settled first to prevent memory leak
+        if (timeoutId) clearTimeout(timeoutId);
+        return result;
+      } catch (error) {
+        // Clear timeout on error as well
+        if (timeoutId) clearTimeout(timeoutId);
+        throw error;
+      }
     }
 
     return Promise.allSettled(promises);

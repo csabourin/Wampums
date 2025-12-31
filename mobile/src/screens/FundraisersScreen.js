@@ -37,6 +37,7 @@ import {
   updateFundraiser,
   archiveFundraiser,
 } from '../api/api-endpoints';
+import { debugError } from '../utils/DebugUtils';
 
 const FundraisersScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -112,7 +113,7 @@ const FundraisersScreen = ({ navigation }) => {
         setArchivedFundraisers(archived);
       }
     } catch (err) {
-      console.error('Error loading fundraisers:', err);
+      debugError('Error loading fundraisers:', err);
       setFundraisers([]);
       setArchivedFundraisers([]);
     }

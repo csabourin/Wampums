@@ -26,6 +26,7 @@ import {
 import { canViewReports } from '../utils/PermissionUtils';
 import { API } from '../api/api-core';
 import StorageUtils from '../utils/StorageUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const GroupParticipantReportScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -55,7 +56,7 @@ const GroupParticipantReportScreen = ({ navigation }) => {
 
       await loadData();
     } catch (err) {
-      console.error('Error checking permissions:', err);
+      debugError('Error checking permissions:', err);
       setLoading(false);
     }
   };
@@ -68,13 +69,13 @@ const GroupParticipantReportScreen = ({ navigation }) => {
         fetch(`${API.baseURL}/v1/participants`, {
           headers: { Authorization: `Bearer ${token}` },
         }).catch((err) => {
-          console.error('Error loading participants:', err);
+          debugError('Error loading participants:', err);
           return { ok: false };
         }),
         fetch(`${API.baseURL}/v1/groups`, {
           headers: { Authorization: `Bearer ${token}` },
         }).catch((err) => {
-          console.error('Error loading groups:', err);
+          debugError('Error loading groups:', err);
           return { ok: false };
         }),
       ]);
@@ -98,7 +99,7 @@ const GroupParticipantReportScreen = ({ navigation }) => {
       setParticipants(participantsData);
       setGroups(groupsData);
     } catch (err) {
-      console.error('Error loading data:', err);
+      debugError('Error loading data:', err);
       Alert.alert(t('error'), t('error_loading_data'));
     } finally {
       setLoading(false);
@@ -163,7 +164,7 @@ const GroupParticipantReportScreen = ({ navigation }) => {
         title: t('den_list_report'),
       });
     } catch (err) {
-      console.error('Error sharing report:', err);
+      debugError('Error sharing report:', err);
       Alert.alert(t('error'), t('error_sharing_report'));
     }
   };

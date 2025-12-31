@@ -31,6 +31,7 @@ import { canViewInventory } from '../utils/PermissionUtils';
 import API from '../api/api-core';
 import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const LOCATION_TYPES = [
   { label: () => t('location_type_local_scout_hall'), value: 'local_scout_hall' },
@@ -80,7 +81,7 @@ const MaterialManagementScreen = ({ navigation }) => {
 
       await loadData();
     } catch (err) {
-      console.error('Error checking permissions:', err);
+      debugError('Error checking permissions:', err);
       setLoading(false);
     }
   };
@@ -105,7 +106,7 @@ const MaterialManagementScreen = ({ navigation }) => {
         setActivities(activitiesResult.data?.activities || activitiesResult.activities || []);
       }
     } catch (err) {
-      console.error('Error loading data:', err);
+      debugError('Error loading data:', err);
       toast.show(t('error_loading_data'), 'error');
     } finally {
       setLoading(false);
@@ -232,7 +233,7 @@ const MaterialManagementScreen = ({ navigation }) => {
         toast.show(result.message || t('error_saving_reservation'), 'error');
       }
     } catch (err) {
-      console.error('Error saving bulk reservations:', err);
+      debugError('Error saving bulk reservations:', err);
       toast.show(err.message || t('error_saving_reservation'), 'error');
     } finally {
       setSubmitting(false);

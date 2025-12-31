@@ -45,6 +45,8 @@ const ApproveBadgesScreen = () => {
   const toast = useToast();
 
   useEffect(() => {
+    let timeoutId;
+
     // Check permissions and load data
     const checkPermissionsAndLoad = async () => {
       debugLog('[ApproveBadges] Checking permissions...');
@@ -53,7 +55,7 @@ const ApproveBadgesScreen = () => {
       if (!hasPermission) {
         debugError('[ApproveBadges] Permission denied, going back');
         toast.show(t('error_permission_denied'), 'error');
-        setTimeout(() => navigation.goBack(), 100);
+        timeoutId = setTimeout(() => navigation.goBack(), 100);
         return;
       }
 
@@ -61,6 +63,13 @@ const ApproveBadgesScreen = () => {
     };
 
     checkPermissionsAndLoad();
+
+    // Cleanup timeout on unmount to prevent memory leak
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   const loadData = async (forceRefresh = false) => {
