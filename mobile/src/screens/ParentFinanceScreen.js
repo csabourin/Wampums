@@ -20,6 +20,7 @@ import {
 import {
   getParticipants,
   getParticipantStatement,
+  getUserChildren,
   createStripePaymentIntent,
   getStripePaymentStatus,
 } from '../api/api-endpoints';
@@ -33,9 +34,10 @@ import {
   EmptyState,
   Skeleton,
 } from '../components';
-import { isParent } from '../utils/PermissionUtils';
 import DateUtils from '../utils/DateUtils';
 import FormatUtils from '../utils/FormatUtils';
+import StorageUtils from '../utils/StorageUtils';
+import CONFIG from '../config';
 import { debugLog, debugError } from '../utils/DebugUtils';
 
 const ParentFinanceScreen = ({ navigation }) => {
@@ -66,9 +68,24 @@ const ParentFinanceScreen = ({ navigation }) => {
     try {
       debugLog('[ParentFinance] Loading participants...');
 
-      // Fetch participants
-      const participantsResponse = await getParticipants();
-      const participantsList = participantsResponse?.data || participantsResponse || [];
+      const guardianParticipantIds = await StorageUtils.getItem(
+        CONFIG.STORAGE_KEYS.GUARDIAN_PARTICIPANTS
+      );
+      let participantsList = [];
+
+      const childrenResponse = await getUserChildren();
+      if (childrenResponse?.success && Array.isArray(childrenResponse.data)) {
+        participantsList = childrenResponse.data;
+      } else {
+        debugLog('[ParentFinance] Falling back to guardian participants from storage...');
+        const participantsResponse = await getParticipants();
+        const allParticipants = participantsResponse?.data || [];
+        if (Array.isArray(guardianParticipantIds)) {
+          participantsList = allParticipants.filter((participant) =>
+            guardianParticipantIds.includes(participant.id)
+          );
+        }
+      }
 
       // Remove duplicates
       const uniqueParticipants = Array.from(
