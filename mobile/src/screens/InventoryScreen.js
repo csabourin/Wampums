@@ -98,7 +98,7 @@ const InventoryScreen = ({ navigation }) => {
 
       await loadData();
     } catch (err) {
-      console.error('Error checking permissions:', err);
+      debugError('Error checking permissions:', err);
       setLoading(false);
     }
   };
@@ -236,7 +236,7 @@ const InventoryScreen = ({ navigation }) => {
         toast.show(result.message || t('error_saving_equipment'), 'error');
       }
     } catch (err) {
-      console.error('Error adding equipment:', err);
+      debugError('Error adding equipment:', err);
       toast.show(err.message || t('error_saving_equipment'), 'error');
     } finally {
       setSubmitting(false);
@@ -298,7 +298,7 @@ const InventoryScreen = ({ navigation }) => {
         toast.show(result.message || t('error_updating_equipment'), 'error');
       }
     } catch (err) {
-      console.error('Error updating equipment:', err);
+      debugError('Error updating equipment:', err);
       toast.show(err.message || t('error_updating_equipment'), 'error');
     } finally {
       setSubmitting(false);
@@ -340,7 +340,7 @@ const InventoryScreen = ({ navigation }) => {
                 toast.show(t('error_deleting_equipment'), 'error');
               }
             } catch (err) {
-              console.error('Error deleting equipment:', err);
+              debugError('Error deleting equipment:', err);
               toast.show(t('error_deleting_equipment'), 'error');
             }
           },

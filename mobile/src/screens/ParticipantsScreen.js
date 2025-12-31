@@ -32,6 +32,7 @@ import {
 } from '../components';
 import { hasPermission } from '../utils/PermissionUtils';
 import StorageUtils from '../utils/StorageUtils';
+import { debugError } from '../utils/DebugUtils';
 import theme from '../theme';
 import CONFIG from '../config';
 
@@ -83,7 +84,7 @@ const ParticipantsScreen = () => {
       const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
       setUserPermissions(permissions || []);
     } catch (err) {
-      console.error('Error loading permissions:', err);
+      debugError('Error loading permissions:', err);
     }
   };
 

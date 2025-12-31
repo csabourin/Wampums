@@ -31,6 +31,7 @@ import {
 import { canSendCommunications } from '../utils/PermissionUtils';
 import { API } from '../api/api-core';
 import StorageUtils from '../utils/StorageUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const ROLES = [
   { key: 'parent', label: () => t('parents') },
@@ -85,7 +86,7 @@ const MailingListScreen = ({ navigation }) => {
 
       await loadData();
     } catch (err) {
-      console.error('Error checking permissions:', err);
+      debugError('Error checking permissions:', err);
       setLoading(false);
     }
   };
@@ -122,7 +123,7 @@ const MailingListScreen = ({ navigation }) => {
         setTemplates(result.templates || []);
       }
     } catch (err) {
-      console.error('Error loading data:', err);
+      debugError('Error loading data:', err);
       toast.show(t('error_loading_data'), 'error');
     } finally {
       setLoading(false);
@@ -209,7 +210,7 @@ const MailingListScreen = ({ navigation }) => {
         toast.show(result.message || t('error_sending_announcement'), 'error');
       }
     } catch (err) {
-      console.error('Error sending announcement:', err);
+      debugError('Error sending announcement:', err);
       toast.show(err.message || t('error_sending_announcement'), 'error');
     } finally {
       setSubmitting(false);

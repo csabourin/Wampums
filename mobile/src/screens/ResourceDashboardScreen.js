@@ -29,6 +29,7 @@ import { canViewInventory } from '../utils/PermissionUtils';
 import API from '../api/api-core';
 import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const ResourceDashboardScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -87,7 +88,7 @@ const ResourceDashboardScreen = ({ navigation }) => {
         setDashboardSummary(summaryResult.data || summaryResult || { reservations: [] });
       }
     } catch (err) {
-      console.error('Error loading data:', err);
+      debugError('Error loading data:', err);
       toast.show(t('error_loading_data'), 'error');
     } finally {
       setLoading(false);
@@ -129,7 +130,7 @@ const ResourceDashboardScreen = ({ navigation }) => {
         toast.show(result.message || t('error_saving_equipment'), 'error');
       }
     } catch (err) {
-      console.error('Error adding equipment:', err);
+      debugError('Error adding equipment:', err);
       toast.show(err.message || t('error_saving_equipment'), 'error');
     } finally {
       setSubmitting(false);
@@ -168,7 +169,7 @@ const ResourceDashboardScreen = ({ navigation }) => {
         toast.show(result.message || t('error_saving_reservation'), 'error');
       }
     } catch (err) {
-      console.error('Error saving reservation:', err);
+      debugError('Error saving reservation:', err);
       toast.show(err.message || t('error_saving_reservation'), 'error');
     } finally {
       setSubmitting(false);

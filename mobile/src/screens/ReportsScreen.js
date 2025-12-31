@@ -23,6 +23,7 @@ import {
   EmptyState,
 } from '../components';
 import { canViewReports } from '../utils/PermissionUtils';
+import { debugError } from '../utils/DebugUtils';
 
 const ReportsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -50,7 +51,7 @@ const ReportsScreen = ({ navigation }) => {
 
       setLoading(false);
     } catch (err) {
-      console.error('Error checking permissions:', err);
+      debugError('Error checking permissions:', err);
       setLoading(false);
     }
   };
