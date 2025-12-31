@@ -9,6 +9,9 @@
 
 import StorageUtils from './StorageUtils';
 import CONFIG from '../config';
+import { ROLE_BUNDLES } from '../config/roles';
+
+const PARENT_ROLE_KEYS = new Set(['parent', 'demoparent']);
 
 /**
  * Get cached user permissions from storage
@@ -31,6 +34,8 @@ async function getUserPermissions() {
  *
  * @param {string} permissionKey - The permission key to check (e.g., 'finance.view')
  * @param {Array<string>} userPermissions - Array of user permissions from storage
+ * @param {Array<string>} userRoles - Array of user role keys from storage
+ * @param {string} userRole - Single role key from storage
  * @returns {boolean} True if user has the permission
  *
  * @example
@@ -149,12 +154,33 @@ export function isStaff(userPermissions) {
  * const dashboardType = getDashboardType(userPermissions);
  * // Returns 'leader' or 'parent'
  */
-export function getDashboardType(userPermissions) {
-  const hasPermissions = Array.isArray(userPermissions)
-    ? userPermissions.length > 0
-    : false;
+export function getDashboardType(userPermissions, userRoles = [], userRole = '') {
+  const normalizedRoles = []
+    .concat(userRoles || [])
+    .concat(userRole ? [userRole] : [])
+    .filter((role) => typeof role === 'string')
+    .map((role) => role.toLowerCase());
+  const hasParentRole = normalizedRoles.some((role) => PARENT_ROLE_KEYS.has(role));
+  const hasNonParentRole = normalizedRoles.some((role) => !PARENT_ROLE_KEYS.has(role));
 
-  return hasPermissions ? 'leader' : 'parent';
+  if (hasParentRole && !hasNonParentRole) {
+    return 'parent';
+  }
+
+  if (hasNonParentRole) {
+    return 'leader';
+  }
+
+  const parentPermissions = new Set([
+    ...(ROLE_BUNDLES.parent?.permissions || []),
+    ...(ROLE_BUNDLES.demoparent?.permissions || []),
+  ]);
+  const permissionsList = Array.isArray(userPermissions) ? userPermissions : [];
+  const hasNonParentPermission = permissionsList.some(
+    (permission) => !parentPermissions.has(permission)
+  );
+
+  return hasNonParentPermission ? 'leader' : 'parent';
 }
 
 // ==========================================

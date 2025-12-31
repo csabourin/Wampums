@@ -665,6 +665,7 @@
   "installment_overview_title": "Payment plan & installments",
   "installment_shortcut_help": "Select an assigned membership to quickly open its plan or payment history.",
   "insufficient_permissions": "Insufficient permissions",
+  "no_permission_for_screen": "You do not have permission for this screen.",
   "insurance_info": "Insurance Information",
   "internal_server_error": "Internal server error",
   "internet": "Internet",

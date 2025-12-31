@@ -679,6 +679,7 @@
   "installment_overview_title": "Plan de paiement et versements",
   "installment_shortcut_help": "Choisissez une cotisation assignée pour ouvrir rapidement son plan ou son historique de paiements.",
   "insufficient_permissions": "Permissions insuffisantes",
+  "no_permission_for_screen": "Vous n’avez pas la permission d’accéder à cet écran.",
   "insurance_info": "Informations d’assurance",
   "internal_server_error": "Erreur interne du serveur",
   "internet": "Internet",

@@ -33,10 +33,14 @@ const DashboardScreen = () => {
   const loadUserPermissions = async () => {
     try {
       // Get user permissions from storage (already parsed by StorageUtils)
-      const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+      const [permissions, userRoles, userRole] = await Promise.all([
+        StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS),
+        StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLES),
+        StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE),
+      ]);
 
       // Determine which dashboard to show based on permissions
-      const type = getDashboardType(permissions || []);
+      const type = getDashboardType(permissions || [], userRoles || [], userRole || '');
       setDashboardType(type);
     } catch (err) {
       debugError('Error loading user permissions:', err);
