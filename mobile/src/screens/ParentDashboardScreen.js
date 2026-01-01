@@ -24,6 +24,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import {
   getParticipants,
+  getParentDashboard,
   getActivities,
   getMyChildrenAssignments,
   getPermissionSlips,
@@ -33,11 +34,82 @@ import {
 import StorageUtils from '../utils/StorageUtils';
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
-import NumberUtils from '../utils/NumberUtils';
 import FormatUtils from '../utils/FormatUtils';
-import { Card, LoadingSpinner, ErrorMessage, Button } from '../components';
+import { Card, LoadingSpinner, ErrorMessage } from '../components';
 import CONFIG from '../config';
 import { debugLog, debugError } from '../utils/DebugUtils';
+
+/**
+ * Normalize children data from the parent dashboard API into the dashboard-friendly shape.
+ * @param {Array<Object>} childrenData - Children payload from the parent dashboard API.
+ * @returns {Array<Object>} Normalized children with consistent keys.
+ */
+const normalizeDashboardChildren = (childrenData = []) =>
+  (Array.isArray(childrenData) ? childrenData : [])
+    .map((child) => ({
+      id: child.id,
+      firstName: child.first_name || child.firstName,
+      lastName: child.last_name || child.lastName,
+      birthdate: child.date_naissance || child.birthdate,
+      group: child.group_name || child.group,
+    }))
+    .filter((child) => child.id);
+
+/**
+ * Group carpool assignments by activity ID for quick lookup in the UI.
+ * @param {Array<Object>} assignments - Raw carpool assignments array.
+ * @returns {Map<number, Array<Object>>} Map of activity ID to assignments.
+ */
+const mapCarpoolAssignmentsByActivity = (assignments = []) => {
+  const grouped = new Map();
+
+  (Array.isArray(assignments) ? assignments : []).forEach((assignment) => {
+    const activityId = assignment.activityId;
+    if (!activityId) {
+      return;
+    }
+
+    if (!grouped.has(activityId)) {
+      grouped.set(activityId, []);
+    }
+
+    grouped.get(activityId).push(assignment);
+  });
+
+  return grouped;
+};
+
+/**
+ * Format time values that may already be in display format.
+ * @param {string|Date} timeValue - Time value to format.
+ * @returns {string} User-friendly time string.
+ */
+const formatOptionalTime = (timeValue) => {
+  if (!timeValue) {
+    return '';
+  }
+
+  const formatted = DateUtils.formatTime(timeValue);
+  return formatted || String(timeValue);
+};
+
+/**
+ * Get a localized label for carpool trip direction values.
+ * @param {string} tripDirection - Trip direction value from the API.
+ * @returns {string} Localized label.
+ */
+const getTripDirectionLabel = (tripDirection) => {
+  switch (tripDirection) {
+    case 'to_activity':
+      return t('going_to_activity');
+    case 'from_activity':
+      return t('returning_from_activity');
+    case 'both':
+      return `${t('going')} + ${t('returning')}`;
+    default:
+      return tripDirection || '';
+  }
+};
 
 const ParentDashboardScreen = () => {
   const navigation = useNavigation();
@@ -82,21 +154,43 @@ const ParentDashboardScreen = () => {
   const loadDashboardData = async () => {
     try {
       setError('');
-
-      // Get guardian participants
-      const guardianParticipants = await StorageUtils.getItem(
-        CONFIG.STORAGE_KEYS.GUARDIAN_PARTICIPANTS
-      );
-
-      // Load children data
-      const participantsResponse = await getParticipants();
       let myChildren = [];
-      if (participantsResponse.success) {
-        // Filter to only this guardian's children
-        myChildren = participantsResponse.data.filter((p) =>
-          guardianParticipants?.includes(p.id)
+      let childrenLoaded = false;
+
+      try {
+        const parentDashboardResponse = await getParentDashboard();
+        if (parentDashboardResponse?.success) {
+          const childrenData =
+            parentDashboardResponse.data?.children ||
+            parentDashboardResponse.data?.data?.children ||
+            [];
+          const normalizedChildren = normalizeDashboardChildren(childrenData);
+          myChildren = normalizedChildren;
+          childrenLoaded = true;
+          setChildren(normalizedChildren);
+        }
+      } catch (err) {
+        debugError('Error loading parent dashboard children:', err);
+      }
+
+      if (!childrenLoaded) {
+        const guardianParticipants = await StorageUtils.getItem(
+          CONFIG.STORAGE_KEYS.GUARDIAN_PARTICIPANTS
         );
-        setChildren(myChildren);
+
+        const participantsResponse = await getParticipants();
+        if (participantsResponse.success) {
+          const participantData = Array.isArray(participantsResponse.data)
+            ? participantsResponse.data
+            : [];
+          const filteredParticipants =
+            Array.isArray(guardianParticipants) && guardianParticipants.length > 0
+              ? participantData.filter((p) => guardianParticipants.includes(p.id))
+              : participantData;
+          const normalizedChildren = normalizeDashboardChildren(filteredParticipants);
+          myChildren = normalizedChildren;
+          setChildren(normalizedChildren);
+        }
       }
 
       // Load upcoming activities
@@ -106,7 +200,7 @@ const ParentDashboardScreen = () => {
         const upcoming = activitiesResponse.data
           .filter((a) => DateUtils.isFuture(a.activity_date))
           .sort((a, b) => new Date(a.activity_date) - new Date(b.activity_date))
-          .slice(0, 5); // Show next 5 activities
+          .slice(0, CONFIG.UI.PARENT_DASHBOARD_MAX_UPCOMING_ACTIVITIES);
         setUpcomingActivities(upcoming);
       }
 
@@ -222,7 +316,7 @@ const ParentDashboardScreen = () => {
    */
   const handleLinkParticipants = async () => {
     if (selectedParticipants.length === 0) {
-      Alert.alert(t('error'), t('Please select at least one participant'));
+      Alert.alert(t('error'), t('select_at_least_one_participant'));
       return;
     }
 
@@ -280,6 +374,8 @@ const ParentDashboardScreen = () => {
   if (error) {
     return <ErrorMessage message={error} onRetry={loadDashboardData} />;
   }
+
+  const carpoolAssignmentsByActivity = mapCarpoolAssignmentsByActivity(carpoolAssignments);
 
   return (
     <>
@@ -404,41 +500,82 @@ const ParentDashboardScreen = () => {
             <Text style={styles.emptyText}>{t('no_upcoming_activities')}</Text>
           </Card>
         ) : (
-          upcomingActivities.map((activity) => (
-            <Card
-              key={activity.id}
-              onPress={() => navigation.navigate('ActivityDetail', { id: activity.id })}
-            >
-              <Text style={styles.activityName}>{activity.name}</Text>
-              <Text style={styles.activityDate}>
-                📅 {DateUtils.formatDate(activity.activity_date)}
-              </Text>
-              {activity.meeting_location_going && (
-                <Text style={styles.activityDetail}>📍 {activity.meeting_location_going}</Text>
-              )}
-            </Card>
-          ))
+          upcomingActivities.map((activity) => {
+            const activityCarpools = carpoolAssignmentsByActivity.get(activity.id) || [];
+            return (
+              <Card key={activity.id}>
+                <Text style={styles.activityName}>{activity.name}</Text>
+                <Text style={styles.activityDate}>
+                  📅 {DateUtils.formatDate(activity.activity_date)}
+                </Text>
+                {activity.meeting_location_going && (
+                  <Text style={styles.activityDetail}>
+                    📍 {t('meeting_location')}: {activity.meeting_location_going}
+                  </Text>
+                )}
+                {activity.meeting_time_going && (
+                  <Text style={styles.activityDetail}>
+                    🕒 {t('meeting_time')}: {formatOptionalTime(activity.meeting_time_going)}
+                  </Text>
+                )}
+                {activity.meeting_location_return && (
+                  <Text style={styles.activityDetail}>
+                    ↩️ {t('returning')}: {activity.meeting_location_return}
+                  </Text>
+                )}
+                {activity.meeting_time_return && (
+                  <Text style={styles.activityDetail}>
+                    ⏰ {t('meeting_time')} ({t('returning')}):{' '}
+                    {formatOptionalTime(activity.meeting_time_return)}
+                  </Text>
+                )}
+                {activityCarpools.length > 0 && (
+                  <View style={styles.activityCarpoolSection}>
+                    <Text style={styles.activityCarpoolTitle}>
+                      🚗 {t('carpool_assignments')}
+                    </Text>
+                    {activityCarpools.map((assignment) => (
+                      <View
+                        key={`${assignment.carpool_offer_id}-${assignment.tripDirection || 'trip'}`}
+                        style={styles.carpoolAssignment}
+                      >
+                        <Text style={styles.carpoolDetail}>
+                          🚗 {t('driver')}: {assignment.driverName}
+                        </Text>
+                        {(assignment.vehicleMake || assignment.vehicleColor) && (
+                          <Text style={styles.carpoolDetail}>
+                            🚙 {[assignment.vehicleColor, assignment.vehicleMake]
+                              .filter(Boolean)
+                              .join(' ')}
+                          </Text>
+                        )}
+                        <Text style={styles.carpoolDetail}>
+                          👥 {t('spots')}: {assignment.occupiedSpots}/{assignment.totalSpots}
+                        </Text>
+                        {Array.isArray(assignment.myChildren) &&
+                          assignment.myChildren.length > 0 && (
+                            <Text style={styles.carpoolDetail}>
+                              👤 {t('my_children')}:{' '}
+                              {assignment.myChildren
+                                .map((child) => child.participantName)
+                                .filter(Boolean)
+                                .join(', ')}
+                            </Text>
+                          )}
+                        {assignment.tripDirection && (
+                          <Text style={styles.carpoolDetail}>
+                            🧭 {getTripDirectionLabel(assignment.tripDirection)}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </Card>
+            );
+          })
         )}
       </View>
-
-      {/* Carpool Assignments Section */}
-      {carpoolAssignments.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('carpool_assignments')}</Text>
-          {carpoolAssignments.map((assignment, index) => (
-            <Card key={index}>
-              <Text style={styles.carpoolActivity}>{assignment.activityName}</Text>
-              <Text style={styles.carpoolDetail}>
-                🚗 {t('driver')}: {assignment.driverName}
-              </Text>
-              <Text style={styles.carpoolDetail}>
-                👥 {t('spots')}: {assignment.occupiedSpots}/
-                {assignment.totalSpots}
-              </Text>
-            </Card>
-          ))}
-        </View>
-      )}
 
       {/* Important Forms Section */}
       {children.length > 0 && (
@@ -656,10 +793,20 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  carpoolActivity: {
-    fontSize: 16,
+  activityCarpoolSection: {
+    marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E6E6E6',
+  },
+  activityCarpoolTitle: {
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 4,
+    color: '#333',
+    marginBottom: 6,
+  },
+  carpoolAssignment: {
+    marginBottom: 8,
   },
   carpoolDetail: {
     fontSize: 14,
