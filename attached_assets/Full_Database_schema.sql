@@ -277,11 +277,13 @@ CREATE TABLE public.equipment_reservations (
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   date_from date,
   date_to date,
+  activity_id integer,
   CONSTRAINT equipment_reservations_pkey PRIMARY KEY (id),
   CONSTRAINT equipment_reservations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT equipment_reservations_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment_items(id),
   CONSTRAINT equipment_reservations_meeting_id_fkey FOREIGN KEY (meeting_id) REFERENCES public.reunion_preparations(id),
-  CONSTRAINT equipment_reservations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+  CONSTRAINT equipment_reservations_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT equipment_reservations_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.activities(id)
 );
 CREATE TABLE public.fee_definitions (
   id integer NOT NULL DEFAULT nextval('fee_definitions_id_seq'::regclass),
@@ -443,6 +445,8 @@ CREATE TABLE public.groups (
 CREATE TABLE public.guardian_users (
   guardian_id integer NOT NULL,
   user_id uuid,
+  gu_id integer GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
+  CONSTRAINT guardian_users_pkey PRIMARY KEY (gu_id),
   CONSTRAINT guardian_users_guardian_id_fkey FOREIGN KEY (guardian_id) REFERENCES public.parents_guardians(id),
   CONSTRAINT guardian_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
@@ -620,6 +624,7 @@ CREATE TABLE public.organizations (
   updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   api_key uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
   program_section text NOT NULL DEFAULT 'general'::text,
+  default_language text NOT NULL DEFAULT 'fr'::text,
   CONSTRAINT organizations_pkey PRIMARY KEY (id),
   CONSTRAINT organizations_program_section_fk FOREIGN KEY (id) REFERENCES public.organization_program_sections(organization_id),
   CONSTRAINT organizations_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(organization_id),
