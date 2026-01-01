@@ -20,9 +20,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { login, verify2FA, getOrganizationId } from '../api/api-endpoints';
+import { login, verify2FA, getOrganizationLanguage } from '../api/api-endpoints';
 import StorageUtils from '../utils/StorageUtils';
-import { translate as t } from '../i18n';
+import { translate as t, changeLanguage } from '../i18n';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
@@ -34,23 +34,45 @@ const LoginScreen = ({ navigation, onLogin }) => {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [trustDevice, setTrustDevice] = useState(false);
   const [organizationId, setOrganizationId] = useState('');
+  const [initializing, setInitializing] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [requires2FA, setRequires2FA] = useState(false);
 
   useEffect(() => {
-    debugLog('🟠 [LoginScreen] useEffect - loading organization ID');
-    // Load organization ID or prompt user
-    loadOrganizationId();
+    debugLog('🟠 [LoginScreen] useEffect - loading organization language and ID');
+    // Load organization language and ID
+    loadOrganizationData();
   }, []);
 
-  const loadOrganizationId = async () => {
-    // Try to get stored organization ID
-    const storedOrgId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
-    if (storedOrgId) {
-      setOrganizationId(storedOrgId);
+  const loadOrganizationData = async () => {
+    try {
+      // Try to get stored organization ID
+      const storedOrgId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
+      if (storedOrgId) {
+        setOrganizationId(storedOrgId);
+      }
+
+      // Fetch organization language and set it
+      debugLog('🟠 [LoginScreen] Fetching organization language');
+      const langResponse = await getOrganizationLanguage();
+
+      if (langResponse.success && langResponse.data?.default_language) {
+        const orgLanguage = langResponse.data.default_language;
+        debugLog('🟠 [LoginScreen] Organization default language:', orgLanguage);
+
+        // Set the app language to the organization's default language
+        await changeLanguage(orgLanguage);
+        debugLog('🟠 [LoginScreen] Language changed to:', orgLanguage);
+      } else {
+        debugLog('🟠 [LoginScreen] No organization language found, using default');
+      }
+    } catch (error) {
+      debugError('🔴 [LoginScreen] Error loading organization data:', error);
+    } finally {
+      // Always set initializing to false so the login screen can render
+      setInitializing(false);
     }
-    // In a real app, you might want to fetch this based on a domain or let user select
   };
 
   const handleLogin = async () => {
@@ -151,6 +173,16 @@ const LoginScreen = ({ navigation, onLogin }) => {
       );
     }
   };
+
+  // Show loading screen while fetching organization language
+  if (initializing) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>{t('loading')}</Text>
+      </View>
+    );
+  }
 
   if (requires2FA) {
     debugLog('🟠 [LoginScreen] Rendering 2FA view');
@@ -341,6 +373,15 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     fontSize: theme.fontSize.sm,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textLight,
   },
 });
 

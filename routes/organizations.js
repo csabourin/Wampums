@@ -194,18 +194,28 @@ module.exports = (pool, logger) => {
    * @swagger
    * /public/get_organization_id:
    *   get:
-   *     summary: Get current organization ID
-   *     description: Public endpoint to retrieve organization ID from request context
+   *     summary: Get current organization ID and default language
+   *     description: Public endpoint to retrieve organization ID and default language from request context
    *     tags: [Organizations]
    *     responses:
    *       200:
-   *         description: Organization ID retrieved
+   *         description: Organization ID and default language retrieved
    */
   router.get('/get_organization_id', asyncHandler(async (req, res) => {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      // Fetch organization default language
+      const orgResult = await pool.query(
+        'SELECT default_language FROM organizations WHERE id = $1',
+        [organizationId]
+      );
+
+      const defaultLanguage = orgResult.rows[0]?.default_language || 'fr';
+
       res.json({
         success: true,
-        organizationId: organizationId
+        organizationId: organizationId,
+        defaultLanguage: defaultLanguage
       });
   }));
 
