@@ -13,7 +13,7 @@
  * - Different UI for parents vs staff
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -54,6 +54,12 @@ import {
 } from '../components';
 import { debugLog, debugError } from '../utils/DebugUtils';
 import CONFIG from '../config';
+import CacheManager from '../utils/CacheManager';
+import {
+  globalOptimisticManager,
+  generateOptimisticId,
+} from '../utils/OptimisticUpdateManager';
+import { ROLE_GROUPS } from '../config/roles';
 
 const CarpoolScreen = () => {
   const navigation = useNavigation();
@@ -80,6 +86,7 @@ const CarpoolScreen = () => {
   const [unassignedParticipants, setUnassignedParticipants] = useState([]);
   const [userPermissions, setUserPermissions] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [userRoles, setUserRoles] = useState([]);
 
   // Modal state
   const [showOfferModal, setShowOfferModal] = useState(false);
@@ -105,7 +112,13 @@ const CarpoolScreen = () => {
   });
 
   // Permissions
-  const isStaff = hasPermission('carpools.manage', userPermissions);
+  const hasRoleInfo = userRoles && userRoles.length > 0;
+  const isStaffByRole = userRoles.some((role) =>
+    ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role)
+  );
+  const isStaff = hasRoleInfo
+    ? isStaffByRole
+    : hasPermission('carpools.manage', userPermissions);
   const hasCarpoolAccess = hasPermission('carpools.view', userPermissions) || isStaff;
 
   // Validate activityId - show error if missing or invalid
@@ -130,6 +143,18 @@ const CarpoolScreen = () => {
 
       const storedUserId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID);
       setUserId(storedUserId);
+
+      const storedUserRoles = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLES);
+      const storedUserRole = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
+      if (Array.isArray(storedUserRoles)) {
+        setUserRoles(storedUserRoles);
+      } else if (storedUserRoles) {
+        setUserRoles([storedUserRoles]);
+      } else if (storedUserRole) {
+        setUserRoles([storedUserRole]);
+      } else {
+        setUserRoles([]);
+      }
     } catch (err) {
       debugError('Error loading user data:', err);
     }
@@ -139,6 +164,12 @@ const CarpoolScreen = () => {
     try {
       setLoading(true);
       setError(null);
+
+      const resolvedUserId =
+        userId || (await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID));
+      if (!userId && resolvedUserId) {
+        setUserId(resolvedUserId);
+      }
 
       // Load activity, offers, and participants in parallel
       const [activityResponse, offersResponse, participantsResponse] = await Promise.all([
@@ -264,6 +295,7 @@ const CarpoolScreen = () => {
           editingOffer ? t('ride_offer_updated') : t('ride_offer_created')
         );
         closeOfferModal();
+        await CacheManager.clearCarpoolRelatedCaches(activityId);
         await loadData();
       } else {
         throw new Error(response.message || t('error_saving_data'));
@@ -326,6 +358,7 @@ const CarpoolScreen = () => {
 
       if (response.success) {
         Alert.alert(t('success'), t('ride_cancelled_success'));
+        await CacheManager.clearCarpoolRelatedCaches(activityId);
         await loadData();
       } else {
         throw new Error(response.message || t('error_cancelling_ride'));
@@ -364,21 +397,115 @@ const CarpoolScreen = () => {
     try {
       setSaving(true);
 
+      const participantId = parseInt(assignmentForm.participant_id);
+      const carpoolOfferId = parseInt(assignmentForm.carpool_offer_id);
+      const optimisticAssignmentId = generateOptimisticId('assignment');
+
       const data = {
-        participant_id: parseInt(assignmentForm.participant_id),
-        carpool_offer_id: parseInt(assignmentForm.carpool_offer_id),
+        participant_id: participantId,
+        carpool_offer_id: carpoolOfferId,
         trip_direction: assignmentForm.trip_direction,
       };
 
-      const response = await assignParticipantToCarpool(data);
+      const participant = participants.find((p) => p.id === participantId);
+      const participantName = participant
+        ? `${participant.first_name} ${participant.last_name}`
+        : t('participant');
 
-      if (response.success) {
-        Alert.alert(t('success'), t('participant_assigned_success'));
-        closeAssignModal();
-        await loadData();
-      } else {
-        throw new Error(response.message || t('error_assigning_participant'));
-      }
+      await globalOptimisticManager.execute(`assign-${optimisticAssignmentId}`, {
+        optimisticFn: () => {
+          const previousOffers = carpoolOffers;
+          const previousParticipants = participants;
+          const previousUnassigned = unassignedParticipants;
+
+          setCarpoolOffers((prev) =>
+            prev.map((offer) => {
+              if (offer.id !== carpoolOfferId) {
+                return offer;
+              }
+
+              const existingAssignments = offer.assignments || [];
+              const updatedAssignments = [
+                ...existingAssignments,
+                {
+                  assignment_id: optimisticAssignmentId,
+                  participant_id: participantId,
+                  participant_name: participantName,
+                  trip_direction: assignmentForm.trip_direction,
+                  assigned_by: userId,
+                },
+              ];
+
+              const updatedOffer = {
+                ...offer,
+                assignments: updatedAssignments,
+              };
+
+              if (['both', 'to_activity'].includes(assignmentForm.trip_direction)) {
+                updatedOffer.seats_used_going = (offer.seats_used_going || 0) + 1;
+              }
+              if (['both', 'from_activity'].includes(assignmentForm.trip_direction)) {
+                updatedOffer.seats_used_return = (offer.seats_used_return || 0) + 1;
+              }
+
+              return updatedOffer;
+            })
+          );
+
+          setParticipants((prev) =>
+            prev.map((p) => {
+              if (p.id !== participantId) {
+                return p;
+              }
+              const updatedAssignments = [
+                ...(p.carpool_assignments || []),
+                {
+                  assignment_id: optimisticAssignmentId,
+                  carpool_offer_id: carpoolOfferId,
+                  trip_direction: assignmentForm.trip_direction,
+                  driver_name: null,
+                  vehicle_make: null,
+                  vehicle_color: null,
+                },
+              ];
+              return {
+                ...p,
+                carpool_assignments: updatedAssignments,
+              };
+            })
+          );
+
+          setUnassignedParticipants((prev) =>
+            updateUnassignedParticipantsAfterAssign(
+              prev,
+              participantId,
+              assignmentForm.trip_direction,
+              hasReturnTrip
+            )
+          );
+
+          return { previousOffers, previousParticipants, previousUnassigned };
+        },
+        apiFn: async () => assignParticipantToCarpool(data),
+        successFn: async (response) => {
+          if (!response.success) {
+            throw new Error(response.message || t('error_assigning_participant'));
+          }
+          await CacheManager.clearCarpoolRelatedCaches(activityId);
+          Alert.alert(t('success'), t('participant_assigned_success'));
+          closeAssignModal();
+          await loadData();
+        },
+        rollbackFn: ({ previousOffers, previousParticipants, previousUnassigned }) => {
+          setCarpoolOffers(previousOffers);
+          setParticipants(previousParticipants);
+          setUnassignedParticipants(previousUnassigned);
+        },
+        onError: (err) => {
+          debugError('Error assigning participant:', err);
+          Alert.alert(t('error'), err.message || t('error_assigning_participant'));
+        },
+      });
     } catch (err) {
       debugError('Error assigning participant:', err);
       Alert.alert(t('error'), err.message || t('error_assigning_participant'));
@@ -402,14 +529,98 @@ const CarpoolScreen = () => {
           onPress: async () => {
             try {
               setSaving(true);
-              const response = await removeAssignment(assignmentId);
+              const assignmentDetails = carpoolOffers
+                .flatMap((offer) => offer.assignments || [])
+                .find((assignment) => assignment.assignment_id === assignmentId);
 
-              if (response.success) {
-                Alert.alert(t('success'), t('assignment_removed_success'));
-                await loadData();
-              } else {
-                throw new Error(response.message || t('error_removing_assignment'));
-              }
+              await globalOptimisticManager.execute(`remove-${assignmentId}`, {
+                optimisticFn: () => {
+                  const previousOffers = carpoolOffers;
+                  const previousParticipants = participants;
+                  const previousUnassigned = unassignedParticipants;
+
+                  setCarpoolOffers((prev) =>
+                    prev.map((offer) => {
+                      const updatedAssignments = (offer.assignments || []).filter(
+                        (assignment) => assignment.assignment_id !== assignmentId
+                      );
+
+                      if (updatedAssignments.length === (offer.assignments || []).length) {
+                        return offer;
+                      }
+
+                      const updatedOffer = {
+                        ...offer,
+                        assignments: updatedAssignments,
+                      };
+
+                      if (assignmentDetails) {
+                        if (['both', 'to_activity'].includes(assignmentDetails.trip_direction)) {
+                          updatedOffer.seats_used_going = Math.max(
+                            0,
+                            (offer.seats_used_going || 0) - 1
+                          );
+                        }
+                        if (['both', 'from_activity'].includes(assignmentDetails.trip_direction)) {
+                          updatedOffer.seats_used_return = Math.max(
+                            0,
+                            (offer.seats_used_return || 0) - 1
+                          );
+                        }
+                      }
+
+                      return updatedOffer;
+                    })
+                  );
+
+                  if (assignmentDetails) {
+                    setParticipants((prev) =>
+                      prev.map((p) => {
+                        if (p.id !== assignmentDetails.participant_id) {
+                          return p;
+                        }
+                        const updatedAssignments = (p.carpool_assignments || []).filter(
+                          (assignment) => assignment.assignment_id !== assignmentId
+                        );
+                        return {
+                          ...p,
+                          carpool_assignments: updatedAssignments,
+                        };
+                      })
+                    );
+
+                    setUnassignedParticipants((prev) =>
+                      updateUnassignedParticipantsAfterRemove(
+                        prev,
+                        assignmentDetails.participant_id,
+                        assignmentDetails.trip_direction,
+                        hasReturnTrip,
+                        participants
+                      )
+                    );
+                  }
+
+                  return { previousOffers, previousParticipants, previousUnassigned };
+                },
+                apiFn: async () => removeAssignment(assignmentId),
+                successFn: async (response) => {
+                  if (!response.success) {
+                    throw new Error(response.message || t('error_removing_assignment'));
+                  }
+                  await CacheManager.clearCarpoolRelatedCaches(activityId);
+                  Alert.alert(t('success'), t('assignment_removed_success'));
+                  await loadData();
+                },
+                rollbackFn: ({ previousOffers, previousParticipants, previousUnassigned }) => {
+                  setCarpoolOffers(previousOffers);
+                  setParticipants(previousParticipants);
+                  setUnassignedParticipants(previousUnassigned);
+                },
+                onError: (err) => {
+                  debugError('Error removing assignment:', err);
+                  Alert.alert(t('error'), err.message || t('error_removing_assignment'));
+                },
+              });
             } catch (err) {
               debugError('Error removing assignment:', err);
               Alert.alert(t('error'), err.message || t('error_removing_assignment'));
@@ -602,6 +813,166 @@ const CarpoolScreen = () => {
     );
   };
 
+  /**
+   * Determine ride needs for a participant.
+   * @param {Object} participant - Participant record with carpool_assignments.
+   * @param {boolean} includeReturnTrip - Whether return trip is available.
+   * @returns {{needsRideGoing: boolean, needsRideReturn: boolean}}
+   */
+  const getParticipantRideNeeds = (participant, includeReturnTrip) => {
+    const assignments = participant.carpool_assignments || [];
+    const hasRideGoing = assignments.some((assignment) =>
+      ['both', 'to_activity'].includes(assignment.trip_direction)
+    );
+    const hasRideReturn = assignments.some((assignment) =>
+      ['both', 'from_activity'].includes(assignment.trip_direction)
+    );
+
+    return {
+      needsRideGoing: !hasRideGoing,
+      needsRideReturn: includeReturnTrip && !hasRideReturn,
+    };
+  };
+
+  /**
+   * Check if the participant belongs to the current user.
+   * @param {Object} participant - Participant record with guardians list.
+   * @returns {boolean}
+   */
+  const isUserChild = (participant) => {
+    if (!userId) {
+      return false;
+    }
+
+    const guardians = participant.guardians || [];
+    return guardians.some((guardian) => String(guardian.user_id) === String(userId));
+  };
+
+  /**
+   * Update unassigned participants list after an optimistic assignment.
+   * @param {Array} unassigned - Current unassigned participant list.
+   * @param {number} participantId - Participant ID.
+   * @param {string} tripDirection - Assignment direction.
+   * @param {boolean} includeReturnTrip - Whether return trip exists.
+   * @returns {Array} Updated unassigned participant list.
+   */
+  const updateUnassignedParticipantsAfterAssign = (
+    unassigned,
+    participantId,
+    tripDirection,
+    includeReturnTrip
+  ) => {
+    return unassigned.reduce((acc, participant) => {
+      if (participant.id !== participantId) {
+        acc.push(participant);
+        return acc;
+      }
+
+      const nextParticipant = { ...participant };
+      if (['both', 'to_activity'].includes(tripDirection)) {
+        nextParticipant.has_ride_going = true;
+      }
+      if (['both', 'from_activity'].includes(tripDirection)) {
+        nextParticipant.has_ride_return = true;
+      }
+
+      const needsRideGoing = !nextParticipant.has_ride_going;
+      const needsRideReturn = includeReturnTrip && !nextParticipant.has_ride_return;
+
+      if (needsRideGoing || needsRideReturn) {
+        acc.push(nextParticipant);
+      }
+
+      return acc;
+    }, []);
+  };
+
+  /**
+   * Update unassigned participants list after an optimistic removal.
+   * @param {Array} unassigned - Current unassigned participant list.
+   * @param {number} participantId - Participant ID.
+   * @param {string} tripDirection - Assignment direction removed.
+   * @param {boolean} includeReturnTrip - Whether return trip exists.
+   * @param {Array} participantList - Full participant list for lookup.
+   * @returns {Array} Updated unassigned participant list.
+   */
+  const updateUnassignedParticipantsAfterRemove = (
+    unassigned,
+    participantId,
+    tripDirection,
+    includeReturnTrip,
+    participantList
+  ) => {
+    const isAlreadyUnassigned = unassigned.some((participant) => participant.id === participantId);
+    const participantInfo = participantList.find((p) => p.id === participantId);
+    if (!participantInfo) {
+      return unassigned;
+    }
+
+    const baseEntry = {
+      id: participantInfo.id,
+      first_name: participantInfo.first_name,
+      last_name: participantInfo.last_name,
+      guardians: participantInfo.guardians || [],
+      has_ride_going: true,
+      has_ride_return: true,
+    };
+
+    const rideNeeds = getParticipantRideNeeds(participantInfo, includeReturnTrip);
+    const hasRideGoing = !rideNeeds.needsRideGoing;
+    const hasRideReturn = !rideNeeds.needsRideReturn;
+
+    if (['both', 'to_activity'].includes(tripDirection)) {
+      baseEntry.has_ride_going = false;
+    } else {
+      baseEntry.has_ride_going = hasRideGoing;
+    }
+
+    if (includeReturnTrip) {
+      if (['both', 'from_activity'].includes(tripDirection)) {
+        baseEntry.has_ride_return = false;
+      } else {
+        baseEntry.has_ride_return = hasRideReturn;
+      }
+    }
+
+    const needsRideGoing = !baseEntry.has_ride_going;
+    const needsRideReturn = includeReturnTrip && !baseEntry.has_ride_return;
+
+    if (!needsRideGoing && !needsRideReturn) {
+      return unassigned;
+    }
+
+    if (isAlreadyUnassigned) {
+      return unassigned.map((participant) =>
+        participant.id === participantId ? { ...participant, ...baseEntry } : participant
+      );
+    }
+
+    return [...unassigned, baseEntry];
+  };
+
+  const hasReturnTrip = activity?.meeting_location_return;
+  const participantsWithNeeds = useMemo(
+    () =>
+      participants.map((participant) => ({
+        participant,
+        ...getParticipantRideNeeds(participant, Boolean(hasReturnTrip)),
+      })),
+    [participants, hasReturnTrip]
+  );
+  const participantsNeedingRides = participantsWithNeeds.filter(
+    (entry) => entry.needsRideGoing || entry.needsRideReturn
+  );
+  const myChildrenNeedingRides = participantsWithNeeds.filter(
+    (entry) =>
+      isUserChild(entry.participant) &&
+      (entry.needsRideGoing || entry.needsRideReturn)
+  );
+  const assignableParticipants = isStaff
+    ? participants
+    : myChildrenNeedingRides.map((entry) => entry.participant);
+
   // Activity selection view - shown when no activityId provided
   if (isInvalidActivityId) {
     return <ActivitySelectionView navigation={navigation} />;
@@ -652,7 +1023,6 @@ const CarpoolScreen = () => {
         return DateUtils.formatDate(localDate);
       })()
     : '';
-  const hasReturnTrip = activity.meeting_location_return;
 
   return (
     <View style={commonStyles.container}>
@@ -724,6 +1094,43 @@ const CarpoolScreen = () => {
                 </TouchableOpacity>
               </View>
             ))}
+          </Card>
+        )}
+
+        {/* Unassigned Participants Summary (Parents) */}
+        {!isStaff && (
+          <Card style={styles.warningCard}>
+            <Text style={styles.warningTitle}>
+              ⚠️ {participantsNeedingRides.length} {t('participants_need_rides')}
+            </Text>
+            <Text style={styles.childrenTitle}>{t('your_children_need_rides')}</Text>
+            {myChildrenNeedingRides.length === 0 ? (
+              <Text style={styles.noChildrenText}>{t('no_children_found')}</Text>
+            ) : (
+              myChildrenNeedingRides.map(({ participant, needsRideGoing, needsRideReturn }) => (
+                <View key={participant.id} style={styles.unassignedItem}>
+                  <View style={styles.unassignedInfo}>
+                    <Text style={styles.unassignedName}>
+                      {participant.first_name} {participant.last_name}
+                    </Text>
+                    <View style={styles.unassignedStatus}>
+                      {needsRideGoing && (
+                        <Text style={styles.needsRideBadge}>{t('needs_ride_going')}</Text>
+                      )}
+                      {needsRideReturn && hasReturnTrip && (
+                        <Text style={styles.needsRideBadge}>{t('needs_ride_return')}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => openAssignModal(null, participant.id)}
+                    style={styles.quickAssignButton}
+                  >
+                    <Text style={styles.quickAssignText}>{t('assign')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
           </Card>
         )}
 
@@ -868,7 +1275,7 @@ const CarpoolScreen = () => {
               enabled={!selectedParticipantId}
             >
               <Picker.Item label={t('select_participant')} value="" />
-              {participants.map((p) => (
+              {assignableParticipants.map((p) => (
                 <Picker.Item
                   key={p.id}
                   label={`${p.first_name} ${p.last_name}`}
@@ -929,7 +1336,7 @@ const CarpoolScreen = () => {
                 title={t('assign')}
                 onPress={handleAssignParticipant}
                 variant="primary"
-                disabled={saving}
+                disabled={saving || assignableParticipants.length === 0}
                 style={styles.modalButton}
               />
             </View>
@@ -1038,6 +1445,16 @@ const styles = StyleSheet.create({
     color: theme.colors.white,
     fontSize: 14,
     fontWeight: theme.fontWeight.semibold,
+  },
+  childrenTitle: {
+    fontSize: 14,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+  },
+  noChildrenText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
   },
   section: {
     marginBottom: theme.spacing.lg,
