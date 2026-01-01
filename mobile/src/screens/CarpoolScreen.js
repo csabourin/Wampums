@@ -59,6 +59,7 @@ import {
   globalOptimisticManager,
   generateOptimisticId,
 } from '../utils/OptimisticUpdateManager';
+import { ROLE_GROUPS } from '../config/roles';
 
 const CarpoolScreen = () => {
   const navigation = useNavigation();
@@ -85,6 +86,7 @@ const CarpoolScreen = () => {
   const [unassignedParticipants, setUnassignedParticipants] = useState([]);
   const [userPermissions, setUserPermissions] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [userRoles, setUserRoles] = useState([]);
 
   // Modal state
   const [showOfferModal, setShowOfferModal] = useState(false);
@@ -110,7 +112,13 @@ const CarpoolScreen = () => {
   });
 
   // Permissions
-  const isStaff = hasPermission('carpools.manage', userPermissions);
+  const hasRoleInfo = userRoles && userRoles.length > 0;
+  const isStaffByRole = userRoles.some((role) =>
+    ROLE_GROUPS.CARPOOL_MANAGEMENT.includes(role)
+  );
+  const isStaff = hasRoleInfo
+    ? isStaffByRole
+    : hasPermission('carpools.manage', userPermissions);
   const hasCarpoolAccess = hasPermission('carpools.view', userPermissions) || isStaff;
 
   // Validate activityId - show error if missing or invalid
@@ -135,6 +143,18 @@ const CarpoolScreen = () => {
 
       const storedUserId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID);
       setUserId(storedUserId);
+
+      const storedUserRoles = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLES);
+      const storedUserRole = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
+      if (Array.isArray(storedUserRoles)) {
+        setUserRoles(storedUserRoles);
+      } else if (storedUserRoles) {
+        setUserRoles([storedUserRoles]);
+      } else if (storedUserRole) {
+        setUserRoles([storedUserRole]);
+      } else {
+        setUserRoles([]);
+      }
     } catch (err) {
       debugError('Error loading user data:', err);
     }
@@ -396,6 +416,7 @@ const CarpoolScreen = () => {
         optimisticFn: () => {
           const previousOffers = carpoolOffers;
           const previousParticipants = participants;
+          const previousUnassigned = unassignedParticipants;
 
           setCarpoolOffers((prev) =>
             prev.map((offer) => {
@@ -454,7 +475,16 @@ const CarpoolScreen = () => {
             })
           );
 
-          return { previousOffers, previousParticipants };
+          setUnassignedParticipants((prev) =>
+            updateUnassignedParticipantsAfterAssign(
+              prev,
+              participantId,
+              assignmentForm.trip_direction,
+              hasReturnTrip
+            )
+          );
+
+          return { previousOffers, previousParticipants, previousUnassigned };
         },
         apiFn: async () => assignParticipantToCarpool(data),
         successFn: async (response) => {
@@ -466,9 +496,10 @@ const CarpoolScreen = () => {
           closeAssignModal();
           await loadData();
         },
-        rollbackFn: ({ previousOffers, previousParticipants }) => {
+        rollbackFn: ({ previousOffers, previousParticipants, previousUnassigned }) => {
           setCarpoolOffers(previousOffers);
           setParticipants(previousParticipants);
+          setUnassignedParticipants(previousUnassigned);
         },
         onError: (err) => {
           debugError('Error assigning participant:', err);
@@ -506,6 +537,7 @@ const CarpoolScreen = () => {
                 optimisticFn: () => {
                   const previousOffers = carpoolOffers;
                   const previousParticipants = participants;
+                  const previousUnassigned = unassignedParticipants;
 
                   setCarpoolOffers((prev) =>
                     prev.map((offer) => {
@@ -556,9 +588,19 @@ const CarpoolScreen = () => {
                         };
                       })
                     );
+
+                    setUnassignedParticipants((prev) =>
+                      updateUnassignedParticipantsAfterRemove(
+                        prev,
+                        assignmentDetails.participant_id,
+                        assignmentDetails.trip_direction,
+                        hasReturnTrip,
+                        participants
+                      )
+                    );
                   }
 
-                  return { previousOffers, previousParticipants };
+                  return { previousOffers, previousParticipants, previousUnassigned };
                 },
                 apiFn: async () => removeAssignment(assignmentId),
                 successFn: async (response) => {
@@ -569,9 +611,10 @@ const CarpoolScreen = () => {
                   Alert.alert(t('success'), t('assignment_removed_success'));
                   await loadData();
                 },
-                rollbackFn: ({ previousOffers, previousParticipants }) => {
+                rollbackFn: ({ previousOffers, previousParticipants, previousUnassigned }) => {
                   setCarpoolOffers(previousOffers);
                   setParticipants(previousParticipants);
+                  setUnassignedParticipants(previousUnassigned);
                 },
                 onError: (err) => {
                   debugError('Error removing assignment:', err);
@@ -803,6 +846,110 @@ const CarpoolScreen = () => {
 
     const guardians = participant.guardians || [];
     return guardians.some((guardian) => String(guardian.user_id) === String(userId));
+  };
+
+  /**
+   * Update unassigned participants list after an optimistic assignment.
+   * @param {Array} unassigned - Current unassigned participant list.
+   * @param {number} participantId - Participant ID.
+   * @param {string} tripDirection - Assignment direction.
+   * @param {boolean} includeReturnTrip - Whether return trip exists.
+   * @returns {Array} Updated unassigned participant list.
+   */
+  const updateUnassignedParticipantsAfterAssign = (
+    unassigned,
+    participantId,
+    tripDirection,
+    includeReturnTrip
+  ) => {
+    return unassigned.reduce((acc, participant) => {
+      if (participant.id !== participantId) {
+        acc.push(participant);
+        return acc;
+      }
+
+      const nextParticipant = { ...participant };
+      if (['both', 'to_activity'].includes(tripDirection)) {
+        nextParticipant.has_ride_going = true;
+      }
+      if (['both', 'from_activity'].includes(tripDirection)) {
+        nextParticipant.has_ride_return = true;
+      }
+
+      const needsRideGoing = !nextParticipant.has_ride_going;
+      const needsRideReturn = includeReturnTrip && !nextParticipant.has_ride_return;
+
+      if (needsRideGoing || needsRideReturn) {
+        acc.push(nextParticipant);
+      }
+
+      return acc;
+    }, []);
+  };
+
+  /**
+   * Update unassigned participants list after an optimistic removal.
+   * @param {Array} unassigned - Current unassigned participant list.
+   * @param {number} participantId - Participant ID.
+   * @param {string} tripDirection - Assignment direction removed.
+   * @param {boolean} includeReturnTrip - Whether return trip exists.
+   * @param {Array} participantList - Full participant list for lookup.
+   * @returns {Array} Updated unassigned participant list.
+   */
+  const updateUnassignedParticipantsAfterRemove = (
+    unassigned,
+    participantId,
+    tripDirection,
+    includeReturnTrip,
+    participantList
+  ) => {
+    const isAlreadyUnassigned = unassigned.some((participant) => participant.id === participantId);
+    const participantInfo = participantList.find((p) => p.id === participantId);
+    if (!participantInfo) {
+      return unassigned;
+    }
+
+    const baseEntry = {
+      id: participantInfo.id,
+      first_name: participantInfo.first_name,
+      last_name: participantInfo.last_name,
+      guardians: participantInfo.guardians || [],
+      has_ride_going: true,
+      has_ride_return: true,
+    };
+
+    const rideNeeds = getParticipantRideNeeds(participantInfo, includeReturnTrip);
+    const hasRideGoing = !rideNeeds.needsRideGoing;
+    const hasRideReturn = !rideNeeds.needsRideReturn;
+
+    if (['both', 'to_activity'].includes(tripDirection)) {
+      baseEntry.has_ride_going = false;
+    } else {
+      baseEntry.has_ride_going = hasRideGoing;
+    }
+
+    if (includeReturnTrip) {
+      if (['both', 'from_activity'].includes(tripDirection)) {
+        baseEntry.has_ride_return = false;
+      } else {
+        baseEntry.has_ride_return = hasRideReturn;
+      }
+    }
+
+    const needsRideGoing = !baseEntry.has_ride_going;
+    const needsRideReturn = includeReturnTrip && !baseEntry.has_ride_return;
+
+    if (!needsRideGoing && !needsRideReturn) {
+      return unassigned;
+    }
+
+    if (isAlreadyUnassigned) {
+      return unassigned.map((participant) =>
+        participant.id === participantId ? { ...participant, ...baseEntry } : participant
+      );
+    }
+
+    return [...unassigned, baseEntry];
   };
 
   const hasReturnTrip = activity?.meeting_location_return;

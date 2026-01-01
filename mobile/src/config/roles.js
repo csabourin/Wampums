@@ -195,6 +195,10 @@ export const ROLE_BUNDLES = {
   },
 };
 
+export const ROLE_GROUPS = {
+  CARPOOL_MANAGEMENT: ["district", "unitadmin", "leader", "admin", "animation"],
+};
+
 /**
  * Default role level lookup used as a fallback when no level is defined.
  */
