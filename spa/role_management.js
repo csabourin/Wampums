@@ -11,15 +11,13 @@ import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { setContent } from "./utils/DOMUtils.js";
-import {
-  clearActivityRelatedCaches,
-  deleteCachedData
-} from './indexedDB.js';
+import { deleteCachedData } from './indexedDB.js';
 import {
   getUsers,
   getRoleCatalog,
   getUserRoleAssignments,
-  updateUserRolesV1
+  updateUserRolesV1,
+  clearUserCaches
 } from './api/api-endpoints.js';
 import { API } from './api/api-core.js';
 
@@ -92,12 +90,8 @@ export class RoleManagement {
 
   async invalidateUserCaches(userId) {
     try {
-      // Clear user-specific caches
       await deleteCachedData(`v1/users/${userId}/roles`);
-      await deleteCachedData('v1/users');
-
-      // Clear activity caches as permissions may have changed
-      await clearActivityRelatedCaches();
+      await clearUserCaches();
 
       debugLog('User caches invalidated after role update');
     } catch (error) {
