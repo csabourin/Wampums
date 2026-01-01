@@ -92,7 +92,7 @@ export const refreshToken = async () => {
  */
 
 /**
- * Get organization ID by hostname or slug
+ * Get organization ID and default language by hostname or slug
  *
  * IMPORTANT: This function must use the organization's URL directly,
  * not the default API base URL, because we're resolving the org BEFORE
@@ -100,7 +100,7 @@ export const refreshToken = async () => {
  *
  * @param {string} hostname - The organization's hostname (e.g., "meute6a.app")
  * @param {string} organizationUrl - The full organization URL to query (e.g., "https://meute6a.app")
- * @returns {Promise<Object>} Response with organization_id
+ * @returns {Promise<Object>} Response with organization_id and defaultLanguage
  */
 export const getOrganizationId = async (hostname, organizationUrl = null) => {
   // If organizationUrl is provided, make a direct request to that URL
@@ -126,13 +126,14 @@ export const getOrganizationId = async (hostname, organizationUrl = null) => {
       debugLog('[getOrganizationId] Response received:', response.data);
 
       // Normalize response to match our API format
-      // Backend returns: { success: true, organizationId: 123 }
-      // We need: { success: true, data: { organization_id: 123 } }
+      // Backend returns: { success: true, organizationId: 123, defaultLanguage: 'fr' }
+      // We need: { success: true, data: { organization_id: 123, default_language: 'fr' } }
       if (response.data && response.data.organizationId) {
         return {
           success: true,
           data: {
             organization_id: response.data.organizationId,
+            default_language: response.data.defaultLanguage || 'fr',
           },
           message: 'Organization resolved',
         };
@@ -163,6 +164,40 @@ export const getOrganizationId = async (hostname, organizationUrl = null) => {
 
   // Fallback to default API (for backward compatibility)
   return API.public(CONFIG.ENDPOINTS.GET_ORGANIZATION_ID, { hostname });
+};
+
+/**
+ * Get organization language
+ * Fetches the default language for the current organization
+ * @returns {Promise<Object>} Response with default_language
+ */
+export const getOrganizationLanguage = async () => {
+  try {
+    const response = await API.public(CONFIG.ENDPOINTS.GET_ORGANIZATION_ID);
+    if (response.success && response.defaultLanguage) {
+      return {
+        success: true,
+        data: {
+          default_language: response.defaultLanguage
+        }
+      };
+    }
+    // Fallback to default language
+    return {
+      success: true,
+      data: {
+        default_language: 'fr'
+      }
+    };
+  } catch (error) {
+    debugError('[getOrganizationLanguage] Error:', error);
+    return {
+      success: true,
+      data: {
+        default_language: 'fr'
+      }
+    };
+  }
 };
 
 /**
@@ -1694,6 +1729,7 @@ export default {
   refreshToken,
   // Organization
   getOrganizationId,
+  getOrganizationLanguage,
   getOrganizationSettings,
   switchOrganization,
   // Activities
