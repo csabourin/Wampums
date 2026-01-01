@@ -353,6 +353,7 @@ class CacheManager {
     }
 
     await this.deleteCachedDataByPattern('v1/carpools/my-offers');
+    await this.deleteCachedDataByPattern('v1/carpools/my-children-assignments');
   }
 
   /**
