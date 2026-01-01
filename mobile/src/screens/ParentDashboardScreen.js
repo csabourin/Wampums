@@ -553,6 +553,15 @@ const ParentDashboardScreen = () => {
                     {formatOptionalTime(activity.meeting_time_return)}
                   </Text>
                 )}
+                <TouchableOpacity
+                  style={styles.carpoolLink}
+                  onPress={() => navigation.navigate('Carpool', { activityId: activity.id })}
+                >
+                  <Text style={styles.carpoolLinkTitle}>🚗 {t('view_carpools')}</Text>
+                  <Text style={styles.carpoolLinkSubtitle}>
+                    {t('carpool_view_and_assign')}
+                  </Text>
+                </TouchableOpacity>
                 {activityCarpools.length > 0 && (
                   <View style={styles.activityCarpoolSection}>
                     <Text style={styles.activityCarpoolTitle}>
@@ -836,6 +845,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 6,
+  },
+  carpoolLink: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    backgroundColor: '#fff',
+  },
+  carpoolLinkTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  carpoolLinkSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
   carpoolAssignment: {
     marginBottom: 8,
