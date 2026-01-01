@@ -25,24 +25,43 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import StorageUtils from '../utils/StorageUtils';
 import SecurityUtils from '../utils/SecurityUtils';
-import { translate as t } from '../i18n';
+import { translate as t, initI18n, changeLanguage, getCurrentLanguage } from '../i18n';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 import { getOrganizationId } from '../api/api-endpoints';
-import { debugError } from '../utils/DebugUtils.js';
+import { debugError, debugLog } from '../utils/DebugUtils.js';
 
 const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
   const [organizationUrl, setOrganizationUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasStoredOrg, setHasStoredOrg] = useState(false);
+  const [translationsReady, setTranslationsReady] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState(CONFIG.LOCALE.DEFAULT_LANGUAGE);
 
   useEffect(() => {
-    // Check if we already have a stored organization
-    checkStoredOrganization();
+    // Initialize i18n and check for stored organization
+    initializeScreen();
   }, []);
+
+  const initializeScreen = async () => {
+    try {
+      // Initialize i18n system first
+      const lang = await initI18n();
+      setSelectedLanguage(lang);
+      setTranslationsReady(true);
+      debugLog('i18n initialized with language:', lang);
+
+      // Then check if we already have a stored organization
+      await checkStoredOrganization();
+    } catch (error) {
+      debugError('Error initializing OrganizationSelectScreen:', error);
+      setTranslationsReady(true); // Still show UI even if initialization fails
+    }
+  };
 
   const checkStoredOrganization = async () => {
     const storedOrgId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
@@ -162,6 +181,24 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
   };
 
   /**
+   * Handle language change
+   */
+  const handleLanguageChange = async (lang) => {
+    try {
+      debugLog('Changing language to:', lang);
+      const success = await changeLanguage(lang);
+      if (success) {
+        setSelectedLanguage(lang);
+        // Force re-render by toggling translationsReady
+        setTranslationsReady(false);
+        setTimeout(() => setTranslationsReady(true), 10);
+      }
+    } catch (error) {
+      debugError('Error changing language:', error);
+    }
+  };
+
+  /**
    * Use stored organization and proceed to login
    */
   const handleUseStoredOrganization = async () => {
@@ -180,6 +217,15 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
     }
   };
 
+  // Show loading state while translations are loading
+  if (!translationsReady) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -187,6 +233,23 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.form}>
+          {/* Language Selector */}
+          <View style={styles.languageSelector}>
+            <Text style={styles.languageLabel}>
+              {selectedLanguage === 'en' ? 'Language / Langue' : 'Langue / Language'}
+            </Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedLanguage}
+                onValueChange={handleLanguageChange}
+                style={styles.picker}
+              >
+                <Picker.Item label="English" value="en" />
+                <Picker.Item label="Français" value="fr" />
+              </Picker>
+            </View>
+          </View>
+
           <Text style={styles.title}>{t('organization_select_title')}</Text>
           <Text style={styles.subtitle}>{t('organization_select_subtitle')}</Text>
 
@@ -287,6 +350,33 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.lg,
     ...theme.shadows.md,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  languageSelector: {
+    marginBottom: theme.spacing.lg,
+    paddingBottom: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  languageLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.background,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
   },
   title: {
     ...commonStyles.heading2,
