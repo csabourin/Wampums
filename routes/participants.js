@@ -75,8 +75,8 @@ module.exports = (pool) => {
 
     // Organization-scoped users (staff): show ALL participants
     if (dataScope === 'organization') {
-      // PERFORMANCE FIX: Use LEFT JOINs with aggregation instead of correlated subqueries
-      // This eliminates N+1 query problem (was 2 subqueries per participant)
+      // PERFORMANCE FIX: Use LEFT JOINs with aggregation for form_submissions
+      // Use subquery for points to avoid Cartesian product bug
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
@@ -85,14 +85,16 @@ module.exports = (pool) => {
                  ) FILTER (WHERE fs.id IS NOT NULL),
                  '[]'::json
                ) as form_submissions,
-               COALESCE(SUM(pts.value), 0) as total_points,
+               COALESCE(
+                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
+                 0
+               ) as total_points,
                po.inscription_date
         FROM participants p
         JOIN participant_organizations po ON p.id = po.participant_id
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
-        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
         WHERE po.organization_id = $1
       `;
 
@@ -119,7 +121,8 @@ module.exports = (pool) => {
       countParams = groupId ? [organizationId, groupId] : [organizationId];
     } else {
       // Linked-scoped users (parents): only show participants linked to them
-      // PERFORMANCE FIX: Use LEFT JOINs with aggregation instead of correlated subqueries
+      // PERFORMANCE FIX: Use LEFT JOINs with aggregation for form_submissions
+      // Use subquery for points to avoid Cartesian product bug
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
@@ -128,7 +131,10 @@ module.exports = (pool) => {
                  ) FILTER (WHERE fs.id IS NOT NULL),
                  '[]'::json
                ) as form_submissions,
-               COALESCE(SUM(pts.value), 0) as total_points,
+               COALESCE(
+                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
+                 0
+               ) as total_points,
                po.inscription_date
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
@@ -136,7 +142,6 @@ module.exports = (pool) => {
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
-        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
         WHERE up.user_id = $2 AND po.organization_id = $1
       `;
 
