@@ -47,7 +47,7 @@ const SettingsScreen = ({ navigation }) => {
 
     setUserName(name || '');
     setUserRole(role || '');
-    setOrganizationUrl(orgUrl || t('organization.not_set'));
+    setOrganizationUrl(orgUrl || t('organization_not_set'));
     setCurrentLanguage(getCurrentLanguage());
 
     // TODO: Load push notification preference when implemented
@@ -81,7 +81,7 @@ const SettingsScreen = ({ navigation }) => {
    */
   const handleSwitchOrganization = async () => {
     Alert.alert(
-      t('organization.switch_organization'),
+      t('organization_switch_organization'),
       t('Are you sure you want to switch to a different organization? You will need to log in again.'),
       [
         {
@@ -89,7 +89,7 @@ const SettingsScreen = ({ navigation }) => {
           style: 'cancel',
         },
         {
-          text: t('organization.continue'),
+          text: t('organization_continue'),
           style: 'default',
           onPress: async () => {
             setSwitchingOrg(true);
@@ -112,7 +112,7 @@ const SettingsScreen = ({ navigation }) => {
               debugError('Switch organization error:', error);
               Alert.alert(
                 t('Error'),
-                t('organization.switch_error'),
+                t('organization_switch_error'),
                 [{ text: t('OK') }]
               );
             } finally {
@@ -184,7 +184,7 @@ const SettingsScreen = ({ navigation }) => {
 
       {/* Organization Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('organization.current')}</Text>
+        <Text style={styles.sectionTitle}>{t('organization_current')}</Text>
         <Card>
           <View style={styles.settingRow}>
             <View style={styles.orgInfo}>
@@ -199,7 +199,7 @@ const SettingsScreen = ({ navigation }) => {
             disabled={switchingOrg}
           >
             <Text style={[styles.settingLabel, styles.switchOrgText]}>
-              {switchingOrg ? t('organization.switching') : t('organization.switch_organization')}
+              {switchingOrg ? t('organization_switching') : t('organization_switch_organization')}
             </Text>
             {!switchingOrg && <Text style={styles.chevron}>›</Text>}
           </TouchableOpacity>
