@@ -281,6 +281,10 @@ export async function clearGroupRelatedCaches() {
   }
 }
 
+/**
+ * Clear participant-related caches
+ * Call this after updates that affect participant data visibility.
+ */
 export async function clearBadgeRelatedCaches() {
   const keysToDelete = [
     "badge_dashboard_badges",
