@@ -805,6 +805,27 @@ const CarpoolScreen = () => {
     return guardians.some((guardian) => String(guardian.user_id) === String(userId));
   };
 
+  const hasReturnTrip = activity?.meeting_location_return;
+  const participantsWithNeeds = useMemo(
+    () =>
+      participants.map((participant) => ({
+        participant,
+        ...getParticipantRideNeeds(participant, Boolean(hasReturnTrip)),
+      })),
+    [participants, hasReturnTrip]
+  );
+  const participantsNeedingRides = participantsWithNeeds.filter(
+    (entry) => entry.needsRideGoing || entry.needsRideReturn
+  );
+  const myChildrenNeedingRides = participantsWithNeeds.filter(
+    (entry) =>
+      isUserChild(entry.participant) &&
+      (entry.needsRideGoing || entry.needsRideReturn)
+  );
+  const assignableParticipants = isStaff
+    ? participants
+    : myChildrenNeedingRides.map((entry) => entry.participant);
+
   // Activity selection view - shown when no activityId provided
   if (isInvalidActivityId) {
     return <ActivitySelectionView navigation={navigation} />;
@@ -855,26 +876,6 @@ const CarpoolScreen = () => {
         return DateUtils.formatDate(localDate);
       })()
     : '';
-  const hasReturnTrip = activity.meeting_location_return;
-  const participantsWithNeeds = useMemo(
-    () =>
-      participants.map((participant) => ({
-        participant,
-        ...getParticipantRideNeeds(participant, hasReturnTrip),
-      })),
-    [participants, hasReturnTrip]
-  );
-  const participantsNeedingRides = participantsWithNeeds.filter(
-    (entry) => entry.needsRideGoing || entry.needsRideReturn
-  );
-  const myChildrenNeedingRides = participantsWithNeeds.filter(
-    (entry) =>
-      isUserChild(entry.participant) &&
-      (entry.needsRideGoing || entry.needsRideReturn)
-  );
-  const assignableParticipants = isStaff
-    ? participants
-    : myChildrenNeedingRides.map((entry) => entry.participant);
 
   return (
     <View style={commonStyles.container}>
