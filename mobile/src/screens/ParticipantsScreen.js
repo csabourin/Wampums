@@ -21,7 +21,6 @@ import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
 import {
   ListItem,
-  SearchBar,
   FilterBar,
   LoadingState,
   ErrorState,
@@ -127,7 +126,7 @@ const ParticipantsScreen = () => {
   const filteredParticipants = participants
     .filter((p) => {
       // Filter by group
-      if (activeFilter !== 'all' && p.groupId !== parseInt(activeFilter)) {
+      if (activeFilter !== 'all' && p.group_id !== parseInt(activeFilter)) {
         return false;
       }
 
@@ -135,8 +134,8 @@ const ParticipantsScreen = () => {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         return (
-          p.firstName?.toLowerCase().includes(query) ||
-          p.lastName?.toLowerCase().includes(query)
+          p.first_name?.toLowerCase().includes(query) ||
+          p.last_name?.toLowerCase().includes(query)
         );
       }
 
@@ -147,16 +146,16 @@ const ParticipantsScreen = () => {
 
       switch (sortBy) {
         case 'name':
-          aVal = `${a.lastName} ${a.firstName}`.toLowerCase();
-          bVal = `${b.lastName} ${b.firstName}`.toLowerCase();
+          aVal = `${a.last_name} ${a.first_name}`.toLowerCase();
+          bVal = `${b.last_name} ${b.first_name}`.toLowerCase();
           break;
         case 'age':
           aVal = DateUtils.calculateAge(a.birthdate) || 0;
           bVal = DateUtils.calculateAge(b.birthdate) || 0;
           break;
         case 'group':
-          aVal = a.groupName || '';
-          bVal = b.groupName || '';
+          aVal = a.group_name || '';
+          bVal = b.group_name || '';
           break;
         default:
           return 0;
@@ -172,7 +171,7 @@ const ParticipantsScreen = () => {
     ...groups.map((group) => ({
       key: String(group.id),
       label: group.name,
-      count: participants.filter((p) => p.groupId === group.id).length,
+      count: participants.filter((p) => p.group_id === group.id).length,
     })),
   ];
 
@@ -185,9 +184,9 @@ const ParticipantsScreen = () => {
   // Render function for FlatList
   const renderParticipantItem = useCallback(({ item: participant }) => (
     <ListItem
-      title={`${participant.firstName} ${participant.lastName}`}
+      title={`${participant.first_name} ${participant.last_name}`}
       subtitle={[
-        participant.groupName,
+        participant.group_name,
         `${DateUtils.calculateAge(participant.birthdate)} ${t('years') || 'years'}`,
       ]
         .filter(Boolean)
@@ -228,23 +227,17 @@ const ParticipantsScreen = () => {
     <View style={styles.container}>
       {ToastComponent}
 
-      <SearchBar
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        placeholder={t('search_participants') || 'Search participants...'}
-      />
-
       <FilterBar
-        filters={filterOptions}
-        activeFilter={activeFilter}
-        onFilterChange={setActiveFilter}
-        sortOptions={sortOptions}
-        sortBy={sortBy}
-        sortOrder={sortOrder}
-        onSortChange={(field, order) => {
-          setSortBy(field);
-          setSortOrder(order);
-        }}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder={t('search_participants') || 'Search participants...'}
+        filterOptions={filterOptions.map(f => ({
+          label: f.label,
+          value: f.key,
+          active: f.key === activeFilter
+        }))}
+        onFilterToggle={(value) => setActiveFilter(value)}
+        showFilters={groups.length > 0}
       />
 
       {filteredParticipants.length === 0 ? (
@@ -281,7 +274,7 @@ const ParticipantsScreen = () => {
         message={
           deleteTarget
             ? t('confirm_delete_participant_message') ||
-              `Are you sure you want to delete ${deleteTarget.firstName} ${deleteTarget.lastName}?`
+              `Are you sure you want to delete ${deleteTarget.first_name} ${deleteTarget.last_name}?`
             : ''
         }
         confirmStyle="danger"
