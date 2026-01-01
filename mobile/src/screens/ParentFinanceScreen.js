@@ -147,7 +147,7 @@ const ParentFinanceScreen = ({ navigation }) => {
 
     } catch (err) {
       debugError('[ParentFinance] Error loading data:', err);
-      setError(err.message || t('error.generic'));
+      setError(err.message || t('error_default'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -242,7 +242,7 @@ const ParentFinanceScreen = ({ navigation }) => {
 
             } catch (err) {
               debugError('[ParentFinance] Payment error:', err);
-              Alert.alert(t('payment_failed'), err.message || t('error.generic'));
+              Alert.alert(t('payment_failed'), err.message || t('error_default'));
             } finally {
               setPaymentProcessing(false);
             }

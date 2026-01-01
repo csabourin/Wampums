@@ -60,14 +60,14 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
    */
   const validateOrganizationUrl = (url) => {
     if (!url || url.trim() === '') {
-      return { isValid: false, error: t('organization.url_required') };
+      return { isValid: false, error: t('organization_url_required') };
     }
 
     // Sanitize input
     const sanitized = SecurityUtils.sanitizeUrl(url.trim());
 
     if (!sanitized) {
-      return { isValid: false, error: t('organization.invalid_url') };
+      return { isValid: false, error: t('organization_invalid_url') };
     }
 
     try {
@@ -82,7 +82,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
 
       // Basic domain validation
       if (!hostname.includes('.')) {
-        return { isValid: false, error: t('organization.invalid_domain') };
+        return { isValid: false, error: t('organization_invalid_domain') };
       }
 
       return {
@@ -91,7 +91,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
         hostname: hostname,
       };
     } catch (err) {
-      return { isValid: false, error: t('organization.invalid_url_format') };
+      return { isValid: false, error: t('organization_invalid_url_format') };
     }
   };
 
@@ -142,11 +142,11 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
         // Navigate to login
         navigation.replace('Login');
       } else {
-        setError(response.message || t('organization.not_found'));
+        setError(response.message || t('organization_not_found'));
       }
     } catch (err) {
       debugError('Organization selection error:', err);
-      setError(err.message || t('organization.resolution_failed'));
+      setError(err.message || t('organization_resolution_failed'));
     } finally {
       setLoading(false);
     }
@@ -187,8 +187,8 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.form}>
-          <Text style={styles.title}>{t('organization.select_title')}</Text>
-          <Text style={styles.subtitle}>{t('organization.select_subtitle')}</Text>
+          <Text style={styles.title}>{t('organization_select_title')}</Text>
+          <Text style={styles.subtitle}>{t('organization_select_subtitle')}</Text>
 
           {error ? (
             <View style={[commonStyles.alert, commonStyles.alertError]}>
@@ -203,7 +203,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
             <View style={styles.storedOrgContainer}>
               <View style={[commonStyles.alert, commonStyles.alertInfo]}>
                 <Text style={[commonStyles.alertText, commonStyles.alertTextInfo]}>
-                  {t('organization.stored_found')}
+                  {t('organization_stored_found')}
                 </Text>
                 <Text style={[commonStyles.alertText, commonStyles.alertTextInfo, styles.storedUrl]}>
                   {organizationUrl}
@@ -214,7 +214,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
                 style={styles.button}
                 onPress={handleUseStoredOrganization}
               >
-                <Text style={styles.buttonText}>{t('organization.use_stored')}</Text>
+                <Text style={styles.buttonText}>{t('organization_use_stored')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -222,7 +222,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
                 onPress={handleSwitchOrganization}
               >
                 <Text style={[styles.buttonText, styles.buttonTextSecondary]}>
-                  {t('organization.switch_organization')}
+                  {t('organization_switch_organization')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -230,10 +230,10 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
             // No stored organization - prompt for URL
             <>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>{t('organization.url_label')}</Text>
+                <Text style={styles.label}>{t('organization_url_label')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={t('organization.url_placeholder')}
+                  placeholder={t('organization_url_placeholder')}
                   value={organizationUrl}
                   onChangeText={setOrganizationUrl}
                   autoCapitalize="none"
@@ -242,7 +242,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
                   textContentType="URL"
                   autoFocus
                 />
-                <Text style={styles.helpText}>{t('organization.url_help')}</Text>
+                <Text style={styles.helpText}>{t('organization_url_help')}</Text>
               </View>
 
               <TouchableOpacity
@@ -253,7 +253,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.buttonText}>{t('organization.continue')}</Text>
+                  <Text style={styles.buttonText}>{t('organization_continue')}</Text>
                 )}
               </TouchableOpacity>
             </>
@@ -261,7 +261,7 @@ const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
 
           {/* Example text */}
           <View style={styles.exampleContainer}>
-            <Text style={styles.exampleTitle}>{t('organization.examples_title')}</Text>
+            <Text style={styles.exampleTitle}>{t('organization_examples_title')}</Text>
             <Text style={styles.exampleText}>• https://troupe123.wampums.ca</Text>
             <Text style={styles.exampleText}>• https://mygroup.example.com</Text>
             <Text style={styles.exampleText}>• troupe456.wampums.ca</Text>
