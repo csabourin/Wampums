@@ -161,6 +161,7 @@ const CONFIG = {
     DEBOUNCE_DELAY: 300,
     POINTS_QUICK_ACTIONS: [1, 3, 5, -1, -3, -5],
     ATTENDANCE_STATUSES: ['present', 'late', 'absent', 'excused'],
+    PARENT_DASHBOARD_MAX_UPCOMING_ACTIVITIES: 5,
   },
 
   // Feature flags
