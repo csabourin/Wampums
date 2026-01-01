@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
+const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 module.exports = (pool) => {
@@ -116,6 +117,9 @@ module.exports = (pool) => {
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('activities.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
+    const shouldNotifyParticipants = req.body.notify_participants === undefined
+      ? true
+      : toBool(req.body.notify_participants) === 't';
 
     const {
       name,
@@ -171,8 +175,10 @@ module.exports = (pool) => {
     );
 
     // Send email notifications to affected users about activity changes
-    const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
-    await sendActivityUpdateNotifications(pool, id, organizationId);
+    if (shouldNotifyParticipants) {
+      const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
+      await sendActivityUpdateNotifications(pool, id, organizationId);
+    }
 
     return success(res, result.rows[0], 'Activity updated successfully');
   }));

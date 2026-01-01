@@ -21,6 +21,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Switch,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { getActivity, createActivity, updateActivity, deleteActivity } from '../api/api-endpoints';
@@ -39,6 +40,7 @@ const ActivityDetailScreen = () => {
   const [loading, setLoading] = useState(!isNewActivity);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [notifyParticipants, setNotifyParticipants] = useState(true);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -121,6 +123,10 @@ const ActivityDetailScreen = () => {
         }
         return acc;
       }, {});
+
+      if (!isNewActivity) {
+        activityData.notify_participants = notifyParticipants;
+      }
 
       let response;
       if (isNewActivity) {
@@ -293,6 +299,25 @@ const ActivityDetailScreen = () => {
             placeholder={t('enter_location')}
           />
 
+          {!isNewActivity && (
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleText}>
+                <Text style={styles.toggleLabel}>
+                  {t('activity_notify_updates_label')}
+                </Text>
+                <Text style={styles.toggleHelp}>
+                  {t('activity_notify_updates_help')}
+                </Text>
+              </View>
+              <Switch
+                value={notifyParticipants}
+                onValueChange={setNotifyParticipants}
+                trackColor={{ false: theme.colors.borderLight, true: theme.colors.primary }}
+                thumbColor={theme.colors.surface}
+              />
+            </View>
+          )}
+
           <View style={styles.buttonContainer}>
             <Button
               title={isNewActivity ? t('create') : t('save')}
@@ -371,6 +396,25 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.md,
+  },
+  toggleText: {
+    flex: 1,
+    marginRight: theme.spacing.md,
+  },
+  toggleLabel: {
+    ...commonStyles.bodyText,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  toggleHelp: {
+    ...commonStyles.bodyText,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.xs,
   },
   buttonContainer: {
     marginTop: theme.spacing.lg,

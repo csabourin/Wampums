@@ -305,6 +305,16 @@ export class Activities {
             </div>
           </fieldset>
 
+          ${isEdit ? `
+          <div class="form-group">
+            <label>
+              <input type="checkbox" name="notify_participants" checked>
+              ${translate('activity_notify_updates_label')}
+            </label>
+            <small class="form-help">${translate('activity_notify_updates_help')}</small>
+          </div>
+          ` : ''}
+
           <div class="modal__actions">
             <button type="button" class="button button--secondary" id="cancel-activity-btn">
               ${translate('cancel')}
@@ -358,6 +368,9 @@ export class Activities {
       if (!data.meeting_location_return) data.meeting_location_return = null;
       if (!data.meeting_time_return) data.meeting_time_return = null;
       if (!data.departure_time_return) data.departure_time_return = null;
+      if (isEdit) {
+        data.notify_participants = formData.get('notify_participants') === 'on';
+      }
 
       setButtonLoading(submitButton, true);
 
