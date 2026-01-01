@@ -2036,5 +2036,20 @@
   "district_management_bundle_administration": "Lecture des rapports et données administratives.",
   "district_management_bundle_parent": "Accès parent aux dossiers des enfants et au covoiturage.",
   "district_management_bundle_demoadmin": "Administration de démonstration en lecture seule.",
-  "district_management_bundle_demoparent": "Rôle parent de démonstration en lecture seule."
+  "district_management_bundle_demoparent": "Rôle parent de démonstration en lecture seule.",
+  "activity_notify_updates_label": "Notifier les parents et animateurs de cette mise à jour",
+  "activity_notify_updates_help": "Un courriel sera envoyé selon la langue préférée de chaque destinataire ou la langue par défaut de l'organisation.",
+  "activity_update_email_subject": "Activité mise à jour - {activity}",
+  "activity_update_email_heading": "Activité mise à jour",
+  "activity_update_email_greeting": "Bonjour {name},",
+  "activity_update_email_intro": "Les détails de « {activity} » prévue le {date} ont été mis à jour.",
+  "activity_update_email_date_label": "Date",
+  "activity_update_email_going_heading": "Aller",
+  "activity_update_email_return_heading": "Retour",
+  "activity_update_email_meeting_location": "Lieu de rencontre",
+  "activity_update_email_meeting_time": "Heure de rencontre",
+  "activity_update_email_departure_time": "Heure de départ",
+  "activity_update_email_footer": "Veuillez consulter les informations mises à jour dans le portail Wampums.",
+  "activity_update_email_signature": "Cordialement,\nÉquipe Wampums",
+  "activity_update_email_generic_name": "à vous"
 }

@@ -1,5 +1,28 @@
 // Email notification utilities for carpool module
-const { sendEmail } = require('./index');
+const {
+  sendEmail,
+  getUserEmailLanguage,
+  getTranslationsByCode,
+  sanitizeInput
+} = require('./index');
+const { escapeHtml } = require('./api-helpers');
+
+const fallbackTranslations = getTranslationsByCode('en');
+
+/**
+ * Format a date value according to locale for email templates.
+ * @param {string|Date} dateValue - Date string or Date instance.
+ * @param {string} locale - Locale code (e.g., en, fr).
+ * @returns {string}
+ */
+function formatEmailDate(dateValue, locale) {
+  const safeLocale = (locale || 'en').slice(0, 2).toLowerCase();
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat(safeLocale, { dateStyle: 'long' }).format(date);
+}
 
 /**
  * Send email notifications to affected guardians when a ride is cancelled
@@ -102,58 +125,106 @@ async function sendActivityUpdateNotifications(pool, activityId, organizationId)
   const activity = result.rows[0]; // Activity details are the same for all rows
 
   const emailPromises = result.rows.map(async (user) => {
-    const subject = `Activity Updated - ${activity.activity_name}`;
+    const preferredLanguage = await getUserEmailLanguage(pool, user.email, organizationId);
+    const translations = getTranslationsByCode(preferredLanguage);
+    const localeDate = formatEmailDate(activity.activity_date, preferredLanguage);
+    const safeGuardianName = sanitizeInput(user.guardian_name)
+      || translations.activity_update_email_generic_name
+      || fallbackTranslations.activity_update_email_generic_name
+      || '';
+    const safeActivityName = sanitizeInput(activity.activity_name);
+    const safeDate = sanitizeInput(localeDate);
+
+    const subjectTemplate = translations.activity_update_email_subject
+      || fallbackTranslations.activity_update_email_subject
+      || 'Activity Updated - {activity}';
+    const greetingTemplate = translations.activity_update_email_greeting
+      || fallbackTranslations.activity_update_email_greeting
+      || 'Hello {name},';
+    const introTemplate = translations.activity_update_email_intro
+      || fallbackTranslations.activity_update_email_intro
+      || 'The details for "{activity}" on {date} have been updated.';
+    const goingHeading = translations.activity_update_email_going_heading
+      || fallbackTranslations.activity_update_email_going_heading
+      || 'Going:';
+    const returnHeading = translations.activity_update_email_return_heading
+      || fallbackTranslations.activity_update_email_return_heading
+      || 'Returning:';
+    const meetingLocationLabel = translations.activity_update_email_meeting_location
+      || fallbackTranslations.activity_update_email_meeting_location
+      || 'Meeting Location';
+    const meetingTimeLabel = translations.activity_update_email_meeting_time
+      || fallbackTranslations.activity_update_email_meeting_time
+      || 'Meeting Time';
+    const departureTimeLabel = translations.activity_update_email_departure_time
+      || fallbackTranslations.activity_update_email_departure_time
+      || 'Departure Time';
+    const reviewPrompt = translations.activity_update_email_footer
+      || fallbackTranslations.activity_update_email_footer
+      || 'Please review the updated information in the Wampums portal.';
+    const signature = translations.activity_update_email_signature
+      || fallbackTranslations.activity_update_email_signature
+      || 'Best regards,\nWampums Team';
+
+    const subject = subjectTemplate.replace('{activity}', safeActivityName);
+    const greeting = greetingTemplate.replace('{name}', safeGuardianName);
+    const intro = introTemplate
+      .replace('{activity}', safeActivityName)
+      .replace('{date}', safeDate);
+
     const message = `
-Hello ${user.guardian_name},
+${greeting}
 
-The details for "${activity.activity_name}" on ${new Date(activity.activity_date).toLocaleDateString()} have been updated.
+${intro}
 
-Going:
-- Meeting Location: ${activity.meeting_location_going}
-- Meeting Time: ${activity.meeting_time_going}
-- Departure Time: ${activity.departure_time_going}
+${goingHeading}
+- ${meetingLocationLabel}: ${sanitizeInput(activity.meeting_location_going)}
+- ${meetingTimeLabel}: ${sanitizeInput(activity.meeting_time_going)}
+- ${departureTimeLabel}: ${sanitizeInput(activity.departure_time_going)}
 
 ${activity.meeting_location_return ? `
-Returning:
-- Meeting Location: ${activity.meeting_location_return}
-- Meeting Time: ${activity.meeting_time_return}
-- Departure Time: ${activity.departure_time_return}
+${returnHeading}
+- ${meetingLocationLabel}: ${sanitizeInput(activity.meeting_location_return)}
+- ${meetingTimeLabel}: ${sanitizeInput(activity.meeting_time_return)}
+- ${departureTimeLabel}: ${sanitizeInput(activity.departure_time_return)}
 ` : ''}
 
-Please review the updated information in the Wampums portal.
+${reviewPrompt}
 
-Best regards,
-Wampums Team
+${signature}
     `.trim();
+
+    const safeActivityNameHtml = escapeHtml(activity.activity_name);
+    const safeDateHtml = escapeHtml(safeDate);
 
     const html = `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  <h2 style="color: #0275d8;">Activity Updated</h2>
-  <p>Hello ${user.guardian_name},</p>
-  <p>The details for the following activity have been updated:</p>
+  <h2 style="color: #0275d8;">${escapeHtml(translations.activity_update_email_heading || fallbackTranslations.activity_update_email_heading || 'Activity Updated')}</h2>
+  <p>${escapeHtml(greeting)}</p>
+  <p>${escapeHtml(intro)}</p>
   <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #0275d8; margin: 20px 0;">
-    <h3 style="margin-top: 0;">${activity.activity_name}</h3>
-    <p><strong>Date:</strong> ${new Date(activity.activity_date).toLocaleDateString()}</p>
+    <h3 style="margin-top: 0;">${safeActivityNameHtml}</h3>
+    <p><strong>${escapeHtml(translations.activity_update_email_date_label || fallbackTranslations.activity_update_email_date_label || 'Date')}:</strong> ${safeDateHtml}</p>
 
-    <h4 style="margin-bottom: 10px;">Going:</h4>
+    <h4 style="margin-bottom: 10px;">${escapeHtml(goingHeading)}</h4>
     <ul style="margin-top: 0;">
-      <li><strong>Meeting Location:</strong> ${activity.meeting_location_going}</li>
-      <li><strong>Meeting Time:</strong> ${activity.meeting_time_going}</li>
-      <li><strong>Departure Time:</strong> ${activity.departure_time_going}</li>
+      <li><strong>${escapeHtml(meetingLocationLabel)}:</strong> ${escapeHtml(activity.meeting_location_going || '')}</li>
+      <li><strong>${escapeHtml(meetingTimeLabel)}:</strong> ${escapeHtml(activity.meeting_time_going || '')}</li>
+      <li><strong>${escapeHtml(departureTimeLabel)}:</strong> ${escapeHtml(activity.departure_time_going || '')}</li>
     </ul>
 
     ${activity.meeting_location_return ? `
-    <h4 style="margin-bottom: 10px;">Returning:</h4>
+    <h4 style="margin-bottom: 10px;">${escapeHtml(returnHeading)}</h4>
     <ul style="margin-top: 0;">
-      <li><strong>Meeting Location:</strong> ${activity.meeting_location_return}</li>
-      <li><strong>Meeting Time:</strong> ${activity.meeting_time_return}</li>
-      <li><strong>Departure Time:</strong> ${activity.departure_time_return}</li>
+      <li><strong>${escapeHtml(meetingLocationLabel)}:</strong> ${escapeHtml(activity.meeting_location_return || '')}</li>
+      <li><strong>${escapeHtml(meetingTimeLabel)}:</strong> ${escapeHtml(activity.meeting_time_return || '')}</li>
+      <li><strong>${escapeHtml(departureTimeLabel)}:</strong> ${escapeHtml(activity.departure_time_return || '')}</li>
     </ul>
     ` : ''}
   </div>
-  <p>Please review the updated information in the Wampums portal.</p>
+  <p>${escapeHtml(reviewPrompt)}</p>
   <hr style="border: none; border-top: 1px solid #dee2e6; margin: 30px 0;">
-  <p style="color: #6c757d; font-size: 14px;">Best regards,<br>Wampums Team</p>
+  <p style="color: #6c757d; font-size: 14px;">${escapeHtml(signature).replace(/\n/g, '<br>')}</p>
 </div>
     `.trim();
 

@@ -1998,5 +1998,20 @@
   "district_management_bundle_administration": "Reporting and administrative read access.",
   "district_management_bundle_parent": "Parent access to child records and carpooling.",
   "district_management_bundle_demoadmin": "Demo administration for read-only environments.",
-  "district_management_bundle_demoparent": "Demo parent read-only bundle."
+  "district_management_bundle_demoparent": "Demo parent read-only bundle.",
+  "activity_notify_updates_label": "Notify parents and leaders about this update",
+  "activity_notify_updates_help": "An email will be sent using each recipient's preferred language or the organization's default.",
+  "activity_update_email_subject": "Activity Updated - {activity}",
+  "activity_update_email_heading": "Activity Updated",
+  "activity_update_email_greeting": "Hello {name},",
+  "activity_update_email_intro": "The details for \"{activity}\" on {date} have been updated.",
+  "activity_update_email_date_label": "Date",
+  "activity_update_email_going_heading": "Going",
+  "activity_update_email_return_heading": "Returning",
+  "activity_update_email_meeting_location": "Meeting Location",
+  "activity_update_email_meeting_time": "Meeting Time",
+  "activity_update_email_departure_time": "Departure Time",
+  "activity_update_email_footer": "Please review the updated information in the Wampums portal.",
+  "activity_update_email_signature": "Best regards,\nWampums Team",
+  "activity_update_email_generic_name": "there"
 }
