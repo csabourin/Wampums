@@ -111,6 +111,29 @@ const getTripDirectionLabel = (tripDirection) => {
   }
 };
 
+/**
+ * Normalize permission slip response payloads into an array.
+ * @param {Object} response - API response payload.
+ * @returns {Array<Object>} Normalized permission slip entries.
+ */
+const normalizePermissionSlips = (response) => {
+  const payload = response?.data || response;
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload?.permission_slips)) {
+    return payload.permission_slips;
+  }
+
+  if (Array.isArray(payload?.data)) {
+    return payload.data;
+  }
+
+  return [];
+};
+
 const ParentDashboardScreen = () => {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
@@ -230,8 +253,9 @@ const ParentDashboardScreen = () => {
           // Collect all unsigned permission slips
           const allUnsigned = [];
           permissionSlipResponses.forEach((response) => {
-            if (response.success && response.data) {
-              const unsigned = response.data.filter((slip) => !slip.signed);
+            if (response.success) {
+              const slips = normalizePermissionSlips(response);
+              const unsigned = slips.filter((slip) => !slip.signed);
               allUnsigned.push(...unsigned);
             }
           });
@@ -647,6 +671,14 @@ const ParentDashboardScreen = () => {
         >
           <Text style={styles.actionButtonText}>
             📄 {t('permission_slip_title')}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('BadgeDashboard')}
+        >
+          <Text style={styles.actionButtonText}>
+            🏅 {t('badge_progress')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
