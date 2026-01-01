@@ -1854,6 +1854,7 @@
   "assigned": "Assigned",
   "vehicles": "Vehicles",
   "view_carpools": "View Carpools",
+  "carpool_view_and_assign": "Review offers and assign your children to rides.",
   "edit_activity": "Edit Activity",
   "create_activity": "Create Activity",
   "activity_created_success": "Activity created successfully",

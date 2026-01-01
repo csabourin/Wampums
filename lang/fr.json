@@ -1892,6 +1892,7 @@
   "assigned": "Assignés",
   "vehicles": "Véhicules",
   "view_carpools": "Voir covoiturages",
+  "carpool_view_and_assign": "Voir les offres et assigner vos enfants aux trajets.",
   "edit_activity": "Modifier l'activité",
   "create_activity": "Créer l'activité",
   "activity_created_success": "Activité créée avec succès",
