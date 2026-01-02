@@ -11,6 +11,7 @@ import { initI18n } from './src/i18n';
 import { RootNavigator } from './src/navigation';
 import { LoadingSpinner } from './src/components';
 import { logConfigValues } from './src/utils/DebugConfig';
+import { debugLog, debugError } from './src/utils/DebugUtils';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -24,9 +25,14 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    // Note: ErrorBoundary needs console.error for critical errors
+    // eslint-disable-next-line no-console
     console.error('🔴 ErrorBoundary caught error:', error);
+    // eslint-disable-next-line no-console
     console.error('🔴 Error info:', errorInfo);
+    // eslint-disable-next-line no-console
     console.error('🔴 Error stack:', error.stack);
+    // eslint-disable-next-line no-console
     console.error('🔴 Component stack:', errorInfo.componentStack);
     this.setState({ error, errorInfo });
   }
@@ -61,29 +67,29 @@ export default function App() {
 
   const initializeApp = async () => {
     try {
-      console.log('🟢 [App] Starting initialization');
+      debugLog('[App] Starting initialization');
 
       // Debug: Log all CONFIG values to check for type issues
       logConfigValues();
 
       // Initialize i18n system (loads translations and sets locale)
       await initI18n();
-      console.log('🟢 [App] i18n initialized successfully');
+      debugLog('[App] i18n initialized successfully');
     } catch (error) {
-      console.error('🔴 [App] Error initializing app:', error);
-      console.error('🔴 [App] Error stack:', error.stack);
+      debugError('[App] Error initializing app:', error);
+      debugError('[App] Error stack:', error.stack);
     } finally {
-      console.log('🟢 [App] Setting isLoading to false');
+      debugLog('[App] Setting isLoading to false');
       setIsLoading(false);
     }
   };
 
   if (isLoading) {
-    console.log('🟡 [App] Rendering LoadingSpinner');
+    debugLog('[App] Rendering LoadingSpinner');
     return <LoadingSpinner message="Loading Wampums..." />;
   }
 
-  console.log('🟢 [App] Rendering main app with RootNavigator');
+  debugLog('[App] Rendering main app with RootNavigator');
   return (
     <ErrorBoundary>
       <StatusBar style="auto" />

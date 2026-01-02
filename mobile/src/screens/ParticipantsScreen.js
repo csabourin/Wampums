@@ -48,8 +48,11 @@ const ParticipantsScreen = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [userPermissions, setUserPermissions] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  
+
   const { showToast, ToastComponent } = useToast();
+
+  // Calculate permissions-based access
+  const canManage = hasPermission('participants.manage', userPermissions);
 
   // Configure navigation header
   useEffect(() => {
@@ -66,7 +69,7 @@ const ParticipantsScreen = () => {
           </TouchableOpacity>
         ) : null,
     });
-  }, [navigation]);
+  }, [navigation, canManage]);
 
   useEffect(() => {
     loadUserPermissions();
@@ -119,8 +122,6 @@ const ParticipantsScreen = () => {
     await loadData();
     setRefreshing(false);
   };
-
-  const canManage = hasPermission('participants.manage', userPermissions);
 
   // Filter and sort participants
   const filteredParticipants = participants

@@ -31,6 +31,7 @@ class CacheManager {
   constructor() {
     this.isOnline = true;
     this.listeners = [];
+    this.netInfoUnsubscribe = null;
 
     // Initialize network state listener
     this.initializeNetworkListener();
@@ -41,7 +42,8 @@ class CacheManager {
    * Monitors connection and triggers sync when online
    */
   initializeNetworkListener() {
-    NetInfo.addEventListener(state => {
+    // Store unsubscribe function to prevent memory leak
+    this.netInfoUnsubscribe = NetInfo.addEventListener(state => {
       const wasOffline = !this.isOnline;
       this.isOnline = state.isConnected && state.isInternetReachable;
 
@@ -53,6 +55,17 @@ class CacheManager {
         this.syncQueuedMutations();
       }
     });
+  }
+
+  /**
+   * Cleanup network listener (for testing or module cleanup)
+   */
+  cleanup() {
+    if (this.netInfoUnsubscribe) {
+      this.netInfoUnsubscribe();
+      this.netInfoUnsubscribe = null;
+    }
+    this.listeners = [];
   }
 
   /**

@@ -10,6 +10,7 @@
 import StorageUtils from './StorageUtils';
 import CONFIG from '../config';
 import { ROLE_BUNDLES } from '../config/roles';
+import { debugLog, debugError } from './DebugUtils';
 
 const PARENT_ROLE_KEYS = new Set(['parent', 'demoparent']);
 
@@ -21,10 +22,10 @@ async function getUserPermissions() {
   try {
     const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
     const result = Array.isArray(permissions) ? permissions : [];
-    console.log('[PermissionUtils] Retrieved permissions:', result);
+    debugLog('[PermissionUtils] Retrieved permissions:', result);
     return result;
   } catch (error) {
-    console.error('Error getting user permissions:', error);
+    debugError('Error getting user permissions:', error);
     return [];
   }
 }
@@ -205,7 +206,7 @@ export async function canViewBadges() {
 export async function canApproveBadges() {
   const permissions = await getUserPermissions();
   const result = hasAnyPermission(['badges.approve', 'badges.manage'], permissions);
-  console.log('[PermissionUtils] canApproveBadges check:', {
+  debugLog('[PermissionUtils] canApproveBadges check:', {
     permissions,
     required: ['badges.approve', 'badges.manage'],
     result,
