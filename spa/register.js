@@ -80,8 +80,20 @@ export class Register {
       }
     } catch (error) {
       debugError("Registration error:", error);
-      // Display the specific error message if available, otherwise show generic error
-      this.showError(error.message || translate("error_creating_account"));
+
+      // Extract validation errors and display them
+      let errorMessage = error.message || translate("error_creating_account");
+
+      // Check if there are specific validation errors
+      if (error.message && error.message.includes('Validation failed:')) {
+        // Extract the specific validation message after "Validation failed:"
+        const validationError = error.message.split('Validation failed:')[1];
+        if (validationError) {
+          errorMessage = validationError.trim();
+        }
+      }
+
+      this.showError(errorMessage);
     }
   }
 

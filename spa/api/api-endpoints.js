@@ -797,7 +797,7 @@ export async function removeParticipantFromOrganization(participantId, organizat
  * Associate user to participant
  */
 export async function associateUser(participantId, userId) {
-    const response = await API.post('associate-user', {
+    const response = await API.post('associate-user-participant', {
         participant_id: participantId,
         user_id: userId
     });
