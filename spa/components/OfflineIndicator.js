@@ -217,8 +217,9 @@ export class OfflineIndicator {
         const badgeElement = this.element.querySelector('.offline-indicator-badge');
         const iconElement = this.element.querySelector('.offline-indicator-icon');
 
-        // Show indicator when offline or syncing
-        const shouldShow = this.isOffline || this.isSyncing || this.pendingCount > 0;
+        // Show indicator only when offline or actively syncing
+        // Don't show when online with pending items - toast notification handles that
+        const shouldShow = this.isOffline || this.isSyncing;
         
         if (shouldShow) {
             this.element.classList.add('visible');
@@ -231,31 +232,20 @@ export class OfflineIndicator {
             this.element.classList.add('syncing');
             this.element.style.backgroundColor = '#ff9800';
             iconElement.textContent = '🔄';
+            statusElement.textContent = this.getTranslation('status.syncing');
+            countElement.textContent = '';
         } else if (this.isOffline) {
             this.element.classList.remove('syncing');
             this.element.style.backgroundColor = '#f44336';
             iconElement.textContent = '⚠️';
-        } else {
-            this.element.classList.remove('syncing');
-            this.element.style.backgroundColor = '#4caf50';
-            iconElement.textContent = '✓';
-        }
-
-        // Update text content
-        if (this.isSyncing) {
-            statusElement.textContent = this.getTranslation('status.syncing');
-            countElement.textContent = '';
-        } else if (this.isOffline) {
             statusElement.textContent = this.getTranslation('status.offline');
             if (this.pendingCount > 0) {
                 countElement.textContent = this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount);
             } else {
                 countElement.textContent = '';
             }
-        } else {
-            statusElement.textContent = this.getTranslation('connection.restored');
-            countElement.textContent = '';
         }
+        // When online and not syncing, indicator is hidden (handled by shouldShow)
 
         // Update badge
         if (this.pendingCount > 0) {
@@ -289,11 +279,7 @@ export class OfflineIndicator {
         const fallbacks = {
             'status.offline': 'Offline',
             'status.syncing': 'Syncing...',
-            'sync.pending': '{{count}} change(s) pending',
-            'sync.complete': 'All changes synced',
-            'sync.failed': 'Some changes failed to sync',
-            'connection.restored': 'Connection restored',
-            'connection.lost': 'You are offline'
+            'sync.pending': '{{count}} change(s) pending'
         };
 
         return fallbacks[key] || key;
