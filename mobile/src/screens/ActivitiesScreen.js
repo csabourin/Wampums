@@ -188,8 +188,6 @@ const ActivitiesScreen = () => {
     return filtered;
   }, [activities, activeFilter, sortBy, sortOrder]);
 
-  const canManage = hasPermission('activities.manage', userPermissions);
-
   // Filter options - memoized to avoid recalculating on every render
   const filterOptions = React.useMemo(() => {
     const now = new Date();
