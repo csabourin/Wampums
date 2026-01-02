@@ -44,8 +44,11 @@ const ActivitiesScreen = () => {
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('asc');
   const [userPermissions, setUserPermissions] = useState([]);
-  
+
   const toast = useToast();
+
+  // Calculate permissions-based access
+  const canManage = hasPermission('activities.manage', userPermissions);
 
   // Configure header
   useEffect(() => {
@@ -62,7 +65,7 @@ const ActivitiesScreen = () => {
           </TouchableOpacity>
         ) : null,
     });
-  }, [navigation]);
+  }, [navigation, canManage]);
 
   useEffect(() => {
     loadUserPermissions();

@@ -26,9 +26,32 @@ const Toast = ({
 }) => {
   const translateY = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const [isVisible, setIsVisible] = React.useState(false);
+
+  const handleDismiss = React.useCallback(() => {
+    // Slide out and fade out
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: -100,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsVisible(false);
+      if (onDismiss) {
+        onDismiss();
+      }
+    });
+  }, [translateY, opacity, onDismiss]);
 
   useEffect(() => {
     if (visible) {
+      setIsVisible(true);
       // Slide in and fade in
       Animated.parallel([
         Animated.timing(translateY, {
@@ -53,30 +76,11 @@ const Toast = ({
       // Reset position when not visible
       translateY.setValue(-100);
       opacity.setValue(0);
+      setIsVisible(false);
     }
-  }, [visible, duration]);
+  }, [visible, duration, translateY, opacity, handleDismiss]);
 
-  const handleDismiss = () => {
-    // Slide out and fade out
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: -100,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      if (onDismiss) {
-        onDismiss();
-      }
-    });
-  };
-
-  if (!visible && opacity._value === 0) {
+  if (!visible && !isVisible) {
     return null;
   }
 

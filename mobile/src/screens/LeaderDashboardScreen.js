@@ -342,7 +342,7 @@ const LeaderDashboardScreen = () => {
       screen: 'NextMeeting',
       permission: 'activities.view',
     },
-  ].filter(canAccessAction), [userPermissions]);
+  ].filter(canAccessAction), [userPermissions, canAccessAction]);
 
   const dashboardSections = useMemo(() => [
     {
@@ -614,7 +614,7 @@ const LeaderDashboardScreen = () => {
         },
       ].filter(canAccessAction),
     },
-  ], [userPermissions]);
+  ], [userPermissions, canAccessAction]);
 
   // System Administration section
   const administrationItems = useMemo(() => [
@@ -658,7 +658,7 @@ const LeaderDashboardScreen = () => {
       screen: 'Admin',
       permission: 'admin.access',
     },
-  ].filter(canAccessAction), [userPermissions]);
+  ].filter(canAccessAction), [userPermissions, canAccessAction]);
 
   // Filter out empty sections
   const visibleSections = useMemo(() => {
@@ -668,7 +668,7 @@ const LeaderDashboardScreen = () => {
         items: section.items.filter(canAccessAction),
       }))
       .filter((section) => section.items.length > 0);
-  }, [dashboardSections, userPermissions]);
+  }, [dashboardSections, canAccessAction]);
 
   // Only show Administration section if there are items
   const showAdministrationSection = administrationItems.length > 0;
