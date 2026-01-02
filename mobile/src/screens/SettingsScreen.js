@@ -43,10 +43,13 @@ import {
 import theme, { commonStyles } from '../theme';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
 
-const SettingsScreen = ({ navigation }) => {
+const SettingsScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Get onLogout callback from route params or navigation
+  const onLogout = route?.params?.onLogout;
 
   // User data
   const [userData, setUserData] = useState(null);
@@ -244,7 +247,7 @@ const SettingsScreen = ({ navigation }) => {
   const handleSwitchOrganization = async () => {
     Alert.alert(
       t('organization_switch_organization'),
-      t('Are you sure you want to switch to a different organization? You will need to log in again.'),
+      t('confirm_switch_organization'),
       [
         {
           text: t('cancel'),
@@ -269,7 +272,10 @@ const SettingsScreen = ({ navigation }) => {
               await StorageUtils.removeItem(CONFIG.STORAGE_KEYS.ORGANIZATION_ID);
               await StorageUtils.removeItem(CONFIG.STORAGE_KEYS.CURRENT_ORGANIZATION_ID);
 
-              // Navigation will automatically switch to OrganizationSelectScreen
+              // Trigger navigation to auth flow by calling parent's onLogout
+              if (onLogout) {
+                onLogout();
+              }
             } catch (error) {
               debugError('Switch organization error:', error);
               Alert.alert(
@@ -306,8 +312,8 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleLogout = async () => {
     Alert.alert(
-      t('Confirm Logout'),
-      t('Are you sure you want to logout?'),
+      t('confirm_logout'),
+      t('confirm_logout_message'),
       [
         {
           text: t('cancel'),
@@ -325,7 +331,11 @@ const SettingsScreen = ({ navigation }) => {
             } finally {
               // Clear local storage regardless of API result
               await StorageUtils.clearUserData();
-              // Navigation will automatically switch to auth flow
+
+              // Trigger navigation to auth flow by calling parent's onLogout
+              if (onLogout) {
+                onLogout();
+              }
             }
           },
         },
@@ -434,7 +444,7 @@ const SettingsScreen = ({ navigation }) => {
           <Card>
             <View style={styles.settingRow}>
               <View style={styles.orgInfo}>
-                <Text style={styles.settingLabel}>{t('Organization')}</Text>
+                <Text style={styles.settingLabel}>{t('organization')}</Text>
                 <Text style={styles.orgUrl}>{organizationUrl}</Text>
               </View>
             </View>
@@ -451,13 +461,13 @@ const SettingsScreen = ({ navigation }) => {
             </TouchableOpacity>
           </Card>
           <Text style={styles.settingHelp}>
-            {t('Switching organizations will log you out and require you to log in again')}
+            {t('switching_organizations_warning')}
           </Text>
         </View>
 
         {/* Language Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('language')}</Text>
+          <Text style={styles.sectionTitle}>{t('language').toUpperCase()}</Text>
           <Card>
             <TouchableOpacity
               style={styles.settingRow}
@@ -479,10 +489,10 @@ const SettingsScreen = ({ navigation }) => {
 
         {/* Notifications Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('Notifications')}</Text>
+          <Text style={styles.sectionTitle}>{t('notifications').toUpperCase()}</Text>
           <Card>
             <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>{t('Push Notifications')}</Text>
+              <Text style={styles.settingLabel}>{t('push_notifications')}</Text>
               <Switch
                 value={pushEnabled}
                 onValueChange={setPushEnabled}
@@ -491,21 +501,21 @@ const SettingsScreen = ({ navigation }) => {
             </View>
           </Card>
           <Text style={styles.settingHelp}>
-            {t('Receive notifications about activities')}
+            {t('receive_notifications_about_activities')}
           </Text>
         </View>
 
         {/* App Info Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('App Info')}</Text>
+          <Text style={styles.sectionTitle}>{t('app_info').toUpperCase()}</Text>
           <Card>
             <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>{t('Version')}</Text>
+              <Text style={styles.settingLabel}>{t('version')}</Text>
               <Text style={styles.settingValue}>{CONFIG.APP.VERSION}</Text>
             </View>
             <View style={styles.separator} />
             <View style={styles.settingRow}>
-              <Text style={styles.settingLabel}>{t('Build')}</Text>
+              <Text style={styles.settingLabel}>{t('build')}</Text>
               <Text style={styles.settingValue}>{CONFIG.APP.BUILD_NUMBER}</Text>
             </View>
           </Card>
