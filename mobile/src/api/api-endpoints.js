@@ -457,7 +457,7 @@ export const getUserChildren = async (userId) => {
  * @param {string} userId - User ID (UUID)
  */
 export const associateUser = async (participantId, userId) => {
-  return API.post('/associate-user', {
+  return API.post('/associate-user-participant', {
     participant_id: participantId,
     user_id: userId,
   });
