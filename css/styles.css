@@ -1863,26 +1863,7 @@ tr:hover {
    5.16 INDICATORS & STATES
    ---------------------------------------------------------------------------- */
 
-.offline-indicator,
-#offline-indicator {
-  display: none;
-  background-color: rgb(76 101 174 / 0.95);
-  color: white;
-  text-align: center;
-  padding: var(--space-md);
-  padding-block-start: calc(var(--space-md) + var(--safe-area-top));
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline: 0;
-  z-index: var(--z-overlay);
-  font-size: var(--font-size-sm);
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(8px);
-}
-
-.offline #offline-indicator {
-  display: block;
-}
+/* Offline indicator styles are now injected by OfflineIndicator.js component */
 
 #loading-indicator {
   position: fixed;
