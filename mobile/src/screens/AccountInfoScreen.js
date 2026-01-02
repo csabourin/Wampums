@@ -1,9 +1,13 @@
 /**
- * AccountInfoScreen
+ * AccountInfoScreen (District-Level Integrations)
  *
- * Mirrors spa/modules/account-info.js functionality.
- * Allows users to view and edit their account settings.
- * Includes profile information, password change, and guardian info for parents.
+ * District-level account integrations and configurations.
+ * Accessible only to users with district permissions.
+ *
+ * Features:
+ * - WhatsApp Business API (Baileys) connection management
+ * - Google Workspace chat integration (placeholder)
+ * - Stripe payment integration status (placeholder)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -14,177 +18,202 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { translate as t } from '../i18n';
 import {
-  FormField,
   Button,
   LoadingState,
   ErrorState,
   Toast,
   useToast,
+  Card,
 } from '../components';
-import { getUserProfile, updateUserProfile, changePassword } from '../api/api-endpoints';
-import StorageUtils from '../utils/StorageUtils';
-import SecurityUtils from '../utils/SecurityUtils';
 import { hasPermission } from '../utils/PermissionUtils';
 import theme from '../theme';
 import CONFIG from '../config';
 import { debugLog, debugError } from '../utils/DebugUtils';
+import { makeApiRequest } from '../api/api-core';
 
 const AccountInfoScreen = () => {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [userData, setUserData] = useState(null);
-  const [saving, setSaving] = useState(false);
-  
-  // Form states
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [languagePreference, setLanguagePreference] = useState('en');
-  const [whatsappPhone, setWhatsappPhone] = useState('');
-  
-  // Password change states
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  
+
+  // Permissions
+  const [canManageCommunications, setCanManageCommunications] = useState(false);
+
+  // WhatsApp Baileys state
+  const [whatsappStatus, setWhatsappStatus] = useState(null);
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+
+  // Stripe state (placeholder)
+  const [stripeConnected, setStripeConnected] = useState(false);
+  const [stripeAccountId, setStripeAccountId] = useState(null);
+
+  // Google Workspace state (placeholder)
+  const [googleWorkspaceConnected, setGoogleWorkspaceConnected] = useState(false);
+
   const toast = useToast();
 
   useEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      title: t('account_settings') || 'Account Settings',
+      title: t('account_info') || 'Account Integrations',
     });
   }, [navigation]);
 
   useEffect(() => {
-    loadUserData();
+    checkPermissionsAndLoad();
   }, []);
 
-  const loadUserData = async () => {
+  const checkPermissionsAndLoad = async () => {
     try {
-      setError(null);
-      const response = await getUserProfile();
-      
-      if (response.success) {
-        const data = response.data;
-        setUserData(data);
-        setFullName(data.full_name || '');
-        setEmail(data.email || '');
-        setLanguagePreference(data.language_preference || 'en');
-        setWhatsappPhone(data.whatsapp_phone_number || '');
-      } else {
-        setError(response.message || t('error_loading_data'));
+      // Check if user has communications.send permission (district level)
+      const hasCommunicationsPermission = await hasPermission('communications.send');
+      setCanManageCommunications(hasCommunicationsPermission);
+
+      if (!hasCommunicationsPermission) {
+        setError(t('insufficient_permissions') || 'You do not have permission to access this page');
+        setLoading(false);
+        return;
       }
+
+      await loadIntegrations();
     } catch (err) {
-      debugError('Error loading user data:', err);
+      debugError('Error checking permissions:', err);
       setError(err.message || t('error_loading_data'));
     } finally {
       setLoading(false);
     }
   };
 
+  const loadIntegrations = async () => {
+    try {
+      // Load WhatsApp Baileys status
+      await loadWhatsAppStatus();
+
+      // Load Stripe status (placeholder - implement when ready)
+      // await loadStripeStatus();
+
+      // Load Google Workspace status (placeholder - implement when ready)
+      // await loadGoogleWorkspaceStatus();
+    } catch (err) {
+      debugError('Error loading integrations:', err);
+      throw err;
+    }
+  };
+
+  const loadWhatsAppStatus = async () => {
+    try {
+      debugLog('Loading WhatsApp Baileys status');
+      const response = await makeApiRequest('v1/whatsapp/baileys/status', {
+        method: 'GET',
+      });
+
+      if (response.success) {
+        setWhatsappStatus(response.data);
+        debugLog('WhatsApp status loaded:', response.data);
+      } else {
+        debugError('Failed to load WhatsApp status:', response.message);
+      }
+    } catch (err) {
+      debugError('Error loading WhatsApp status:', err);
+      // Don't throw - this is not critical
+    }
+  };
+
+  const handleDisconnectWhatsApp = async () => {
+    Alert.alert(
+      t('disconnect_whatsapp') || 'Disconnect WhatsApp',
+      t('disconnect_whatsapp_confirm') || 'Are you sure you want to disconnect your WhatsApp account? You will need to scan the QR code again to reconnect.',
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('disconnect'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setWhatsappLoading(true);
+              const response = await makeApiRequest('v1/whatsapp/baileys/disconnect', {
+                method: 'POST',
+              });
+
+              if (response.success) {
+                toast.show(t('whatsapp_disconnected') || 'WhatsApp disconnected successfully', 'success');
+                await loadWhatsAppStatus();
+              } else {
+                toast.show(response.message || t('error_disconnecting_whatsapp'), 'error');
+              }
+            } catch (err) {
+              debugError('Error disconnecting WhatsApp:', err);
+              toast.show(err.message || t('error_disconnecting_whatsapp'), 'error');
+            } finally {
+              setWhatsappLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleConnectWhatsAppWeb = () => {
+    // Open web interface for QR code scanning
+    // Since QR code scanning with Socket.io is complex in React Native,
+    // direct users to the web interface
+    const webUrl = `${CONFIG.API_BASE_URL.replace('/api', '')}/account-info`;
+
+    Alert.alert(
+      t('connect_via_web') || 'Connect via Web',
+      t('whatsapp_connect_web_message') || 'To connect your WhatsApp account, please use the web interface to scan the QR code. Would you like to open the web page now?',
+      [
+        {
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('open_web'),
+          onPress: () => {
+            Linking.openURL(webUrl).catch(err => {
+              debugError('Failed to open URL:', err);
+              toast.show(t('error_opening_browser'), 'error');
+            });
+          },
+        },
+      ]
+    );
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadUserData();
-    setRefreshing(false);
-  };
-
-  const handleSaveProfile = async () => {
-    // Validate inputs
-    if (!fullName.trim()) {
-      toast.show(t('error_name_required') || 'Name is required', 'error');
-      return;
-    }
-
-    if (!email.trim()) {
-      toast.show(t('error_email_required') || 'Email is required', 'error');
-      return;
-    }
-
-    if (!SecurityUtils.isValidEmail(email)) {
-      toast.show(t('error_email_invalid') || 'Invalid email address', 'error');
-      return;
-    }
-
     try {
-      setSaving(true);
-      const response = await updateUserProfile({
-        fullName: SecurityUtils.sanitizeInput(fullName.trim()),
-        email: SecurityUtils.sanitizeInput(email.trim()),
-        languagePreference,
-        whatsappPhoneNumber: SecurityUtils.sanitizeInput(whatsappPhone.trim()),
-      });
-
-      if (response.success) {
-        toast.show(t('success_profile_updated') || 'Profile updated successfully', 'success');
-        await loadUserData(); // Reload to get fresh data
-      } else {
-        toast.show(response.message || t('error_save_failed'), 'error');
-      }
+      await loadIntegrations();
     } catch (err) {
-      debugError('Error saving profile:', err);
-      toast.show(err.message || t('error_save_failed'), 'error');
+      debugError('Error refreshing:', err);
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleChangePassword = async () => {
-    // Validate password inputs
-    if (!currentPassword) {
-      toast.show(t('error_current_password_required') || 'Current password is required', 'error');
-      return;
-    }
-
-    if (!newPassword) {
-      toast.show(t('error_new_password_required') || 'New password is required', 'error');
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      toast.show(t('error_password_too_short') || 'Password must be at least 8 characters', 'error');
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast.show(t('error_passwords_dont_match') || 'Passwords do not match', 'error');
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const response = await changePassword({
-        currentPassword,
-        newPassword,
-      });
-
-      if (response.success) {
-        toast.show(t('success_password_changed') || 'Password changed successfully', 'success');
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-      } else {
-        toast.show(response.message || t('error_password_change_failed'), 'error');
-      }
-    } catch (err) {
-      debugError('Error changing password:', err);
-      toast.show(err.message || t('error_password_change_failed'), 'error');
-    } finally {
-      setSaving(false);
+      setRefreshing(false);
     }
   };
 
   if (loading) {
-    return <LoadingState message={t('loading_profile') || 'Loading profile...'} />;
+    return <LoadingState message={t('loading') || 'Loading...'} />;
   }
 
   if (error) {
-    return <ErrorState message={error} onRetry={loadUserData} />;
+    return <ErrorState message={error} onRetry={checkPermissionsAndLoad} />;
+  }
+
+  if (!canManageCommunications) {
+    return (
+      <ErrorState
+        message={t('district_permission_required') || 'This page is only accessible to users with district-level permissions'}
+      />
+    );
   }
 
   return (
@@ -194,113 +223,119 @@ const AccountInfoScreen = () => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Profile Section */}
+        {/* WhatsApp Baileys Integration Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('profile_information') || 'Profile Information'}</Text>
-          
-          <FormField
-            label={t('full_name') || 'Full Name'}
-            value={fullName}
-            onChangeText={setFullName}
-            placeholder={t('enter_full_name') || 'Enter your full name'}
-            required
-          />
+          <Text style={styles.sectionTitle}>
+            {t('whatsapp_integration') || 'WhatsApp Business Integration'}
+          </Text>
+          <Text style={styles.sectionDescription}>
+            {t('whatsapp_integration_description') || 'Connect your WhatsApp Business account to send automated messages and notifications to participants.'}
+          </Text>
 
-          <FormField
-            label={t('email') || 'Email'}
-            value={email}
-            onChangeText={setEmail}
-            placeholder={t('enter_email') || 'Enter your email'}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            required
-          />
+          <Card>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>{t('connection_status') || 'Connection Status'}:</Text>
+              <View style={[
+                styles.statusBadge,
+                whatsappStatus?.isConnected ? styles.statusConnected : styles.statusDisconnected
+              ]}>
+                <Text style={styles.statusText}>
+                  {whatsappStatus?.isConnected
+                    ? (t('connected') || 'Connected')
+                    : (t('disconnected') || 'Disconnected')}
+                </Text>
+              </View>
+            </View>
 
-          <FormField
-            label={t('language_preference') || 'Language Preference'}
-            value={languagePreference}
-            onChangeText={setLanguagePreference}
-            type="select"
-            options={[
-              { value: 'en', label: t('english') || 'English' },
-              { value: 'fr', label: t('french') || 'French' },
-            ]}
-          />
+            {whatsappStatus?.isConnected && whatsappStatus?.phoneNumber && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>{t('phone_number') || 'Phone Number'}:</Text>
+                <Text style={styles.infoValue}>{whatsappStatus.phoneNumber}</Text>
+              </View>
+            )}
 
-          <FormField
-            label={t('whatsapp_phone') || 'WhatsApp Phone Number'}
-            value={whatsappPhone}
-            onChangeText={setWhatsappPhone}
-            placeholder={t('enter_whatsapp_phone') || 'Enter WhatsApp number'}
-            keyboardType="phone-pad"
-          />
-
-          <Button
-            title={t('save_profile') || 'Save Profile'}
-            onPress={handleSaveProfile}
-            loading={saving}
-            style={styles.button}
-          />
+            {whatsappStatus?.isConnected ? (
+              <Button
+                title={t('disconnect_whatsapp') || 'Disconnect WhatsApp'}
+                onPress={handleDisconnectWhatsApp}
+                loading={whatsappLoading}
+                variant="danger"
+                style={styles.button}
+              />
+            ) : (
+              <>
+                <Text style={styles.helpText}>
+                  {t('whatsapp_connect_help') || 'To connect your WhatsApp account, you need to scan a QR code using the WhatsApp mobile app. This feature is best accessed via the web interface.'}
+                </Text>
+                <Button
+                  title={t('connect_via_web') || 'Connect via Web Interface'}
+                  onPress={handleConnectWhatsAppWeb}
+                  style={styles.button}
+                />
+              </>
+            )}
+          </Card>
         </View>
 
-        {/* Password Section */}
+        {/* Google Workspace Integration Section (Placeholder) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('change_password') || 'Change Password'}</Text>
-          
-          <FormField
-            label={t('current_password') || 'Current Password'}
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            placeholder={t('enter_current_password') || 'Enter current password'}
-            secureTextEntry
-            required
-          />
+          <Text style={styles.sectionTitle}>
+            {t('google_workspace_integration') || 'Google Workspace Chat Integration'}
+          </Text>
+          <Text style={styles.sectionDescription}>
+            {t('google_workspace_description') || 'Integrate with Google Workspace to enable chat features and collaboration tools.'}
+          </Text>
 
-          <FormField
-            label={t('new_password') || 'New Password'}
-            value={newPassword}
-            onChangeText={setNewPassword}
-            placeholder={t('enter_new_password') || 'Enter new password (min 8 characters)'}
-            secureTextEntry
-            required
-          />
+          <Card>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>{t('connection_status') || 'Connection Status'}:</Text>
+              <View style={[styles.statusBadge, styles.statusDisconnected]}>
+                <Text style={styles.statusText}>{t('not_configured') || 'Not Configured'}</Text>
+              </View>
+            </View>
 
-          <FormField
-            label={t('confirm_password') || 'Confirm New Password'}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            placeholder={t('confirm_new_password') || 'Confirm new password'}
-            secureTextEntry
-            required
-          />
-
-          <Button
-            title={t('change_password') || 'Change Password'}
-            onPress={handleChangePassword}
-            loading={saving}
-            variant="secondary"
-            style={styles.button}
-          />
+            <Text style={styles.placeholderText}>
+              {t('google_workspace_coming_soon') || 'Google Workspace integration is coming soon. This will allow you to connect your organization\'s Google Workspace account for enhanced chat and collaboration features.'}
+            </Text>
+          </Card>
         </View>
 
-        {/* Account Info */}
-        {userData && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('account_information') || 'Account Information'}</Text>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t('user_id') || 'User ID'}:</Text>
-              <Text style={styles.infoValue}>{userData.id}</Text>
+        {/* Stripe Integration Section (Placeholder) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {t('stripe_integration') || 'Stripe Payment Integration'}
+          </Text>
+          <Text style={styles.sectionDescription}>
+            {t('stripe_description') || 'Connect your Stripe account to accept online payments for memberships, activities, and fundraisers.'}
+          </Text>
+
+          <Card>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>{t('connection_status') || 'Connection Status'}:</Text>
+              <View style={[
+                styles.statusBadge,
+                stripeConnected ? styles.statusConnected : styles.statusDisconnected
+              ]}>
+                <Text style={styles.statusText}>
+                  {stripeConnected
+                    ? (t('connected') || 'Connected')
+                    : (t('not_connected') || 'Not Connected')}
+                </Text>
+              </View>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t('role') || 'Role'}:</Text>
-              <Text style={styles.infoValue}>{userData.role || '-'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t('organization') || 'Organization'}:</Text>
-              <Text style={styles.infoValue}>{userData.organization_name || '-'}</Text>
-            </View>
-          </View>
-        )}
+
+            {stripeAccountId && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>{t('account_id') || 'Account ID'}:</Text>
+                <Text style={styles.infoValue}>{stripeAccountId}</Text>
+              </View>
+            )}
+
+            <Text style={styles.placeholderText}>
+              {t('stripe_coming_soon') || 'Stripe payment integration is coming soon. This will allow you to connect your organization\'s Stripe account to accept online payments.'}
+            </Text>
+          </Card>
+        </View>
       </ScrollView>
 
       <Toast
@@ -326,19 +361,45 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   section: {
-    backgroundColor: theme.colors.background.secondary,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.md,
+    lineHeight: 20,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: theme.spacing.md,
   },
-  button: {
-    marginTop: theme.spacing.md,
+  statusLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.text.primary,
+  },
+  statusBadge: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+  },
+  statusConnected: {
+    backgroundColor: theme.colors.success + '20',
+  },
+  statusDisconnected: {
+    backgroundColor: theme.colors.error + '20',
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   infoRow: {
     flexDirection: 'row',
@@ -346,6 +407,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border.light,
+    marginBottom: theme.spacing.md,
   },
   infoLabel: {
     fontSize: 14,
@@ -355,6 +417,23 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     color: theme.colors.text.primary,
+  },
+  button: {
+    marginTop: theme.spacing.sm,
+  },
+  helpText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+    marginVertical: theme.spacing.md,
+    fontStyle: 'italic',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+    marginTop: theme.spacing.md,
+    fontStyle: 'italic',
   },
 });
 
