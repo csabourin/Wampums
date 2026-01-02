@@ -22,6 +22,7 @@ import {
   Button,
   LoadingState,
   ErrorState,
+  Toast,
   useToast,
 } from '../components';
 import { getUserProfile, updateUserProfile, changePassword } from '../api/api-endpoints';
@@ -51,7 +52,7 @@ const AccountInfoScreen = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
-  const { showToast, ToastComponent } = useToast();
+  const toast = useToast();
 
   useEffect(() => {
     navigation.setOptions({
@@ -96,17 +97,17 @@ const AccountInfoScreen = () => {
   const handleSaveProfile = async () => {
     // Validate inputs
     if (!fullName.trim()) {
-      showToast(t('error_name_required') || 'Name is required', 'error');
+      toast.show(t('error_name_required') || 'Name is required', 'error');
       return;
     }
 
     if (!email.trim()) {
-      showToast(t('error_email_required') || 'Email is required', 'error');
+      toast.show(t('error_email_required') || 'Email is required', 'error');
       return;
     }
 
     if (!SecurityUtils.isValidEmail(email)) {
-      showToast(t('error_email_invalid') || 'Invalid email address', 'error');
+      toast.show(t('error_email_invalid') || 'Invalid email address', 'error');
       return;
     }
 
@@ -120,14 +121,14 @@ const AccountInfoScreen = () => {
       });
 
       if (response.success) {
-        showToast(t('success_profile_updated') || 'Profile updated successfully', 'success');
+        toast.show(t('success_profile_updated') || 'Profile updated successfully', 'success');
         await loadUserData(); // Reload to get fresh data
       } else {
-        showToast(response.message || t('error_save_failed'), 'error');
+        toast.show(response.message || t('error_save_failed'), 'error');
       }
     } catch (err) {
       debugError('Error saving profile:', err);
-      showToast(err.message || t('error_save_failed'), 'error');
+      toast.show(err.message || t('error_save_failed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -136,22 +137,22 @@ const AccountInfoScreen = () => {
   const handleChangePassword = async () => {
     // Validate password inputs
     if (!currentPassword) {
-      showToast(t('error_current_password_required') || 'Current password is required', 'error');
+      toast.show(t('error_current_password_required') || 'Current password is required', 'error');
       return;
     }
 
     if (!newPassword) {
-      showToast(t('error_new_password_required') || 'New password is required', 'error');
+      toast.show(t('error_new_password_required') || 'New password is required', 'error');
       return;
     }
 
     if (newPassword.length < 8) {
-      showToast(t('error_password_too_short') || 'Password must be at least 8 characters', 'error');
+      toast.show(t('error_password_too_short') || 'Password must be at least 8 characters', 'error');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      showToast(t('error_passwords_dont_match') || 'Passwords do not match', 'error');
+      toast.show(t('error_passwords_dont_match') || 'Passwords do not match', 'error');
       return;
     }
 
@@ -163,16 +164,16 @@ const AccountInfoScreen = () => {
       });
 
       if (response.success) {
-        showToast(t('success_password_changed') || 'Password changed successfully', 'success');
+        toast.show(t('success_password_changed') || 'Password changed successfully', 'success');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        showToast(response.message || t('error_password_change_failed'), 'error');
+        toast.show(response.message || t('error_password_change_failed'), 'error');
       }
     } catch (err) {
       debugError('Error changing password:', err);
-      showToast(err.message || t('error_password_change_failed'), 'error');
+      toast.show(err.message || t('error_password_change_failed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -302,7 +303,13 @@ const AccountInfoScreen = () => {
         )}
       </ScrollView>
 
-      <ToastComponent />
+      <Toast
+        visible={toast.toastState.visible}
+        message={toast.toastState.message}
+        type={toast.toastState.type}
+        duration={toast.toastState.duration}
+        onDismiss={toast.hide}
+      />
     </View>
   );
 };
