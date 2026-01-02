@@ -78,7 +78,7 @@ import UserParticipantLinkScreen from '../screens/UserParticipantLinkScreen';
 
 const Stack = createStackNavigator();
 
-const AppNavigator = ({ userPermissions }) => {
+const AppNavigator = ({ userPermissions, onLogout }) => {
   return (
     <Stack.Navigator
       screenOptions={{
@@ -148,12 +148,13 @@ const AppNavigator = ({ userPermissions }) => {
 
       <Stack.Screen
         name="Settings"
-        component={SettingsScreen}
         options={{
           headerShown: true,
           title: 'Settings',
         }}
-      />
+      >
+        {(props) => <SettingsScreen {...props} route={{ ...props.route, params: { ...props.route?.params, onLogout } }} />}
+      </Stack.Screen>
 
       <Stack.Screen
         name="AccountInfo"
