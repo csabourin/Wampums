@@ -26,8 +26,7 @@ import {
   useToast,
 } from '../components';
 import { isAdmin, isDistrictAdmin } from '../utils/PermissionUtils';
-import { CONFIG } from '../config';
-import { API } from '../api/api-core';
+import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 
 const FormPermissionsScreen = ({ navigation }) => {
@@ -54,7 +53,7 @@ const FormPermissionsScreen = ({ navigation }) => {
     try {
       setError('');
 
-      const response = await fetch(`${API.baseURL}/form-permissions`, {
+      const response = await fetch(`${CONFIG.API.BASE_URL}/form-permissions`, {
         headers: {
           Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         },
@@ -116,7 +115,7 @@ const FormPermissionsScreen = ({ navigation }) => {
     try {
       setSaving(true);
 
-      const response = await fetch(`${API.baseURL}/form-permissions`, {
+      const response = await fetch(`${CONFIG.API.BASE_URL}/form-permissions`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -148,7 +147,7 @@ const FormPermissionsScreen = ({ navigation }) => {
     try {
       setSaving(true);
 
-      const response = await fetch(`${API.baseURL}/form-display-context`, {
+      const response = await fetch(`${CONFIG.API.BASE_URL}/form-display-context`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -24,7 +24,7 @@ import {
   EmptyState,
 } from '../components';
 import { canViewReports } from '../utils/PermissionUtils';
-import { API } from '../api/api-core';
+import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 import { debugError } from '../utils/DebugUtils';
 
@@ -66,13 +66,13 @@ const GroupParticipantReportScreen = ({ navigation }) => {
       const token = await StorageUtils.getJWT();
 
       const [participantsResponse, groupsResponse] = await Promise.all([
-        fetch(`${API.baseURL}/v1/participants`, {
+        fetch(`${CONFIG.API.BASE_URL}/v1/participants`, {
           headers: { Authorization: `Bearer ${token}` },
         }).catch((err) => {
           debugError('Error loading participants:', err);
           return { ok: false };
         }),
-        fetch(`${API.baseURL}/v1/groups`, {
+        fetch(`${CONFIG.API.BASE_URL}/v1/groups`, {
           headers: { Authorization: `Bearer ${token}` },
         }).catch((err) => {
           debugError('Error loading groups:', err);

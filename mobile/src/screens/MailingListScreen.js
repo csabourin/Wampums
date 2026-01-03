@@ -29,7 +29,7 @@ import {
   useToast,
 } from '../components';
 import { canSendCommunications } from '../utils/PermissionUtils';
-import { API } from '../api/api-core';
+import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 import { debugError } from '../utils/DebugUtils';
 
@@ -96,13 +96,13 @@ const MailingListScreen = ({ navigation }) => {
       const token = await StorageUtils.getJWT();
 
       const [mailingResponse, groupsResponse, announcementsResponse] = await Promise.all([
-        fetch(`${API.baseURL}/v1/communications/mailing-list`, {
+        fetch(`${CONFIG.API.BASE_URL}/v1/communications/mailing-list`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${API.baseURL}/v1/groups`, {
+        fetch(`${CONFIG.API.BASE_URL}/v1/groups`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`${API.baseURL}/v1/communications/announcements`, {
+        fetch(`${CONFIG.API.BASE_URL}/v1/communications/announcements`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -181,7 +181,7 @@ const MailingListScreen = ({ navigation }) => {
       };
 
       const token = await StorageUtils.getJWT();
-      const response = await fetch(`${API.baseURL}/v1/communications/announcements`, {
+      const response = await fetch(`${CONFIG.API.BASE_URL}/v1/communications/announcements`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

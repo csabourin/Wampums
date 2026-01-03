@@ -27,7 +27,7 @@ import {
   useToast,
 } from '../components';
 import DateUtils from '../utils/DateUtils';
-import { API } from '../api/api-core';
+import CONFIG from '../config';
 
 const PermissionSlipSignScreen = ({ route, navigation }) => {
   const { slipId } = route.params;
@@ -48,7 +48,7 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
       setError('');
       // Public endpoint - no auth required
       const response = await fetch(
-        `${API.baseURL}/v1/resources/permission-slips/${slipId}/view`
+        `${CONFIG.API.BASE_URL}/v1/resources/permission-slips/${slipId}/view`
       );
       const data = await response.json();
 
@@ -87,7 +87,7 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
       setIsSigning(true);
 
       const response = await fetch(
-        `${API.baseURL}/v1/resources/permission-slips/${slipId}/sign`,
+        `${CONFIG.API.BASE_URL}/v1/resources/permission-slips/${slipId}/sign`,
         {
           method: 'PATCH',
           headers: {
