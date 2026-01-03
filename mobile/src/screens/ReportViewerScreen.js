@@ -116,18 +116,24 @@ const ReportViewerScreen = ({ route, navigation }) => {
         case 'participant-progress':
           // Load participant list first
           data = await getParticipantProgressReport();
+          debugLog('Participant list loaded:', data?.data?.participants?.length, 'participants');
+
           if (data?.data?.participants) {
             setParticipantList(data.data.participants);
 
             // If we already have a selectedParticipantId (from navigation params),
             // load that participant's progress immediately
             if (selectedParticipantId) {
+              debugLog('Loading progress for participant:', selectedParticipantId);
               const progressData = await getParticipantProgressReport(selectedParticipantId);
+              debugLog('Progress data received:', progressData?.data?.progress ? 'YES' : 'NO');
+              debugLog('Progress data structure:', JSON.stringify(progressData, null, 2).substring(0, 500));
               setReportData(progressData);
               setLoading(false);
               return;
             } else if (data.data.participants.length > 0) {
               // Otherwise, auto-select the first participant
+              debugLog('Auto-selecting first participant:', data.data.participants[0].id);
               setSelectedParticipantId(data.data.participants[0].id);
             }
           }
@@ -160,8 +166,11 @@ const ReportViewerScreen = ({ route, navigation }) => {
 
   const loadParticipantProgress = async (participantId) => {
     try {
+      debugLog('loadParticipantProgress called for participant:', participantId);
       setLoading(true);
       const data = await getParticipantProgressReport(participantId);
+      debugLog('loadParticipantProgress data received:', data?.data?.progress ? 'YES' : 'NO');
+      debugLog('loadParticipantProgress data structure:', JSON.stringify(data, null, 2).substring(0, 500));
       setReportData(data);
     } catch (err) {
       debugError('Error loading participant progress:', err);
@@ -680,6 +689,17 @@ const ReportViewerScreen = ({ route, navigation }) => {
   };
 
   const renderParticipantProgressReport = (data) => {
+    debugLog('renderParticipantProgressReport called');
+    debugLog('data exists:', !!data);
+    debugLog('data.data exists:', !!data?.data);
+    debugLog('data.data.progress exists:', !!data?.data?.progress);
+    if (data) {
+      debugLog('data keys:', Object.keys(data));
+      if (data.data) {
+        debugLog('data.data keys:', Object.keys(data.data));
+      }
+    }
+
     const progressData = data?.data?.progress;
 
     return (
