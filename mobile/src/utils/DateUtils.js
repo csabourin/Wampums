@@ -332,8 +332,8 @@ export const getCurrentFiscalYear = () => {
 };
 
 /**
- * Get today's date in ISO format (YYYY-MM-DD)
- * @returns {string} Today's date
+ * Get today's date in ISO format (YYYY-MM-DD) using local timezone
+ * @returns {string} Today's date in local timezone
  */
 export const getTodayISO = () => {
   const today = new Date();

@@ -39,7 +39,7 @@ import CONFIG from '../config';
  * @returns {Array} Enriched participant list (filtered).
  */
 const buildHonorsList = (participants, honors, selectedDate) => {
-  const today = DateUtils.getTodayISO(true); // Get today's date in ISO format (YYYY-MM-DD) in local timezone
+  const today = DateUtils.getTodayISO(); // Get today's date in ISO format (YYYY-MM-DD) in local timezone
   const isCurrentDate = selectedDate === today;
 
   return participants
@@ -141,7 +141,7 @@ const HonorsScreen = () => {
         // Get available dates from API (in ISO format YYYY-MM-DD)
         const dates = data.availableDates || [];
         const today = DateUtils.getTodayISO(); // Use ISO format to match backend dates
-        
+
 
         // Ensure today is always in the list
         const uniqueDates = Array.from(new Set([today, ...dates]));
@@ -274,6 +274,11 @@ const HonorsScreen = () => {
               onValueChange={(itemValue) => setSelectedDate(itemValue)}
               style={styles.picker}
             >
+              <Picker.Item
+                label={DateUtils.getTodayISO()}
+                value={DateUtils.getTodayISO()}
+                selected
+              />
               {availableDates.map((date) => (
                 <Picker.Item
                   key={date}
