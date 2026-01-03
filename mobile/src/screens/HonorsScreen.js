@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { awardHonor, getHonors } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
@@ -208,29 +209,21 @@ const HonorsScreen = () => {
 
       <View style={styles.dateSection}>
         <Text style={styles.sectionTitle}>{t('select_date')}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.dateChips}>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={selectedDate}
+            onValueChange={(itemValue) => setSelectedDate(itemValue)}
+            style={styles.picker}
+          >
             {availableDates.map((date) => (
-              <TouchableOpacity
+              <Picker.Item
                 key={date}
-                onPress={() => setSelectedDate(date)}
-                style={[
-                  styles.dateChip,
-                  selectedDate === date && styles.dateChipActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.dateChipText,
-                    selectedDate === date && styles.dateChipTextActive,
-                  ]}
-                >
-                  {DateUtils.formatDate(date)}
-                </Text>
-              </TouchableOpacity>
+                label={DateUtils.formatDate(date)}
+                value={date}
+              />
             ))}
-          </View>
-        </ScrollView>
+          </Picker>
+        </View>
         <View style={styles.customDateRow}>
           <TextInput
             style={styles.input}
@@ -311,28 +304,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
   },
-  dateChips: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  dateChip: {
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surface,
+  pickerContainer: {
     borderWidth: 1,
     borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    marginBottom: theme.spacing.md,
+    overflow: 'hidden',
   },
-  dateChipActive: {
-    backgroundColor: theme.colors.primary,
-    borderColor: theme.colors.primary,
-  },
-  dateChipText: {
-    ...commonStyles.caption,
-  },
-  dateChipTextActive: {
-    color: theme.colors.surface,
+  picker: {
+    height: 50,
   },
   customDateRow: {
     flexDirection: 'row',
