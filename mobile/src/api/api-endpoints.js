@@ -304,6 +304,29 @@ export const deleteParticipant = async (id) => {
 };
 
 /**
+ * Update participant's group membership and roles
+ * @param {number} participantId - Participant ID
+ * @param {number|null} groupId - Group ID (null to remove from group)
+ * @param {boolean} firstLeader - Whether participant is first leader
+ * @param {boolean} secondLeader - Whether participant is second leader
+ * @param {string|null} roles - Additional roles (comma-separated)
+ */
+export const updateParticipantGroup = async (
+  participantId,
+  groupId,
+  firstLeader = false,
+  secondLeader = false,
+  roles = null
+) => {
+  return API.patch(`${CONFIG.ENDPOINTS.PARTICIPANTS}/${participantId}/group-membership`, {
+    group_id: groupId,
+    first_leader: firstLeader,
+    second_leader: secondLeader,
+    roles,
+  });
+};
+
+/**
  * ============================================================================
  * GUARDIANS / PARENTS
  * ============================================================================
@@ -1745,6 +1768,7 @@ export default {
   createParticipant,
   updateParticipant,
   deleteParticipant,
+  updateParticipantGroup,
   // Guardians / Parents
   getAllGuardians,
   getGuardians,
