@@ -75,6 +75,7 @@ import RegistrationFormScreen from '../screens/RegistrationFormScreen';
 import RiskAcceptanceScreen from '../screens/RiskAcceptanceScreen';
 import RoleManagementScreen from '../screens/RoleManagementScreen';
 import UserParticipantLinkScreen from '../screens/UserParticipantLinkScreen';
+import { translate as t } from '../i18n';
 
 const Stack = createStackNavigator();
 
@@ -95,7 +96,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ParentDashboardScreen}
         options={{
           headerShown: true,
-          title: 'Parent Dashboard',
+          title: t('parent_dashboard'),
         }}
       />
 
@@ -105,7 +106,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={RegistrationFormScreen}
         options={{
           headerShown: true,
-          title: 'Register Participant',
+          title: t('register_child'),
         }}
       />
 
@@ -115,7 +116,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ParticipantsScreen}
         options={{
           headerShown: true,
-          title: 'Participants',
+          title: t('manage_participants'),
         }}
       />
 
@@ -124,7 +125,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ActivitiesScreen}
         options={{
           headerShown: true,
-          title: 'Activities',
+          title: t('activities_calendar'),
         }}
       />
 
@@ -133,7 +134,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ActivityDetailScreen}
         options={{
           headerShown: true,
-          title: 'Activity Details',
+          title: t('activity_details'),
         }}
       />
 
@@ -142,7 +143,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={CarpoolScreen}
         options={{
           headerShown: true,
-          title: 'Carpool',
+          title: t('carpool_coordination'),
         }}
       />
 
@@ -150,7 +151,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         name="Settings"
         options={{
           headerShown: true,
-          title: 'Settings',
+          title: t('settings'),
         }}
       >
         {(props) => <SettingsScreen {...props} route={{ ...props.route, params: { ...props.route?.params, onLogout } }} />}
@@ -161,7 +162,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={AccountInfoScreen}
         options={{
           headerShown: true,
-          title: 'Account Settings',
+          title: t('account_info'),
         }}
       />
 
@@ -171,7 +172,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ParticipantDetailScreen}
         options={{
           headerShown: true,
-          title: 'Participant Details',
+          title: t('participant_details'),
         }}
       />
 
@@ -180,6 +181,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ManagePointsScreen}
         options={{
           headerShown: true,
+          title: t('manage_points'),
         }}
       />
 
@@ -188,6 +190,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={AttendanceScreen}
         options={{
           headerShown: true,
+          title: t('attendance'),
         }}
       />
 
@@ -196,6 +199,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={MeetingPreparationScreen}
         options={{
           headerShown: true,
+          title: t('preparation_reunions'),
         }}
       />
 
@@ -204,6 +208,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={NextMeetingScreen}
         options={{
           headerShown: true,
+          title: t('next_meeting'),
         }}
       />
 
@@ -212,6 +217,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={HonorsScreen}
         options={{
           headerShown: true,
+          title: t('honors'),
         }}
       />
 
@@ -220,6 +226,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={MedicationScreen}
         options={{
           headerShown: true,
+          title: t('medication_management_title'),
         }}
       />
 
@@ -228,7 +235,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={MedicationPlanningScreen}
         options={{
           headerShown: true,
-          title: 'Medication Planning',
+          title: t('medication_planning_title'),
         }}
       />
 
@@ -246,7 +253,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={AdminScreen}
         options={{
           headerShown: true,
-          title: 'Administration',
+          title: t('administration'),
         }}
       />
 
@@ -255,7 +262,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ApproveBadgesScreen}
         options={{
           headerShown: true,
-          title: 'Approve Badges',
+          title: t('approve_badges'),
         }}
       />
 
@@ -264,7 +271,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={BadgeDashboardScreen}
         options={{
           headerShown: true,
-          title: 'Badge Dashboard',
+          title: t('badge_dashboard_title'),
         }}
       />
 
@@ -273,7 +280,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={BadgeFormScreen}
         options={{
           headerShown: true,
-          title: 'Badge Form',
+          title: t('badge_progress_form'),
         }}
       />
 
@@ -282,7 +289,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={FinanceScreen}
         options={{
           headerShown: true,
-          title: 'Finance',
+          title: t('finance'),
         }}
       />
 
@@ -291,7 +298,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ParentFinanceScreen}
         options={{
           headerShown: true,
-          title: 'My Finances',
+          title: t('my_finances'),
         }}
       />
 
@@ -300,7 +307,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={FormPermissionsScreen}
         options={{
           headerShown: true,
-          title: 'Form Permissions',
+          title: t('form_permissions_title'),
         }}
       />
 
@@ -309,7 +316,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={GroupsScreen}
         options={{
           headerShown: true,
-          title: 'Manage Groups',
+          title: t('manage_groups'),
         }}
       />
 
@@ -318,7 +325,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={HealthFormScreen}
         options={{
           headerShown: true,
-          title: 'Health Form',
+          title: t('health_information'),
         }}
       />
 
@@ -327,7 +334,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ParentContactListScreen}
         options={{
           headerShown: true,
-          title: 'Parent Contact List',
+          title: t('parent_contact_list'),
         }}
       />
 
@@ -336,7 +343,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ParticipantDocumentsScreen}
         options={{
           headerShown: true,
-          title: 'Participant Documents',
+          title: t('participant_documents_title'),
         }}
       />
 
@@ -345,7 +352,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={PermissionSlipsScreen}
         options={{
           headerShown: true,
-          title: 'Permission Slips',
+          title: t('permission_slip_dashboard_title'),
         }}
       />
 
@@ -354,7 +361,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={PermissionSlipSignScreen}
         options={{
           headerShown: true,
-          title: 'Sign Permission Slip',
+          title: t('sign_permission_slip'),
         }}
       />
 
@@ -363,7 +370,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={RiskAcceptanceScreen}
         options={{
           headerShown: true,
-          title: 'Risk Acceptance Form',
+          title: t('formulaire_acceptation_risque'),
         }}
       />
 
@@ -372,7 +379,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={RoleManagementScreen}
         options={{
           headerShown: true,
-          title: 'Role Management',
+          title: t('role_management'),
         }}
       />
 
@@ -381,7 +388,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={UserParticipantLinkScreen}
         options={{
           headerShown: true,
-          title: 'Link Users & Participants',
+          title: t('manage_users_participants'),
         }}
       />
 
@@ -391,7 +398,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={BudgetsScreen}
         options={{
           headerShown: true,
-          title: 'Budgets',
+          title: t('budget_management'),
         }}
       />
 
@@ -400,7 +407,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ExpensesScreen}
         options={{
           headerShown: true,
-          title: 'Expenses',
+          title: t('expenses'),
         }}
       />
 
@@ -409,7 +416,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ExternalRevenueScreen}
         options={{
           headerShown: true,
-          title: 'External Revenue',
+          title: t('external_revenue'),
         }}
       />
 
@@ -418,7 +425,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={RevenueDashboardScreen}
         options={{
           headerShown: true,
-          title: 'Revenue Dashboard',
+          title: t('revenue_dashboard'),
         }}
       />
 
@@ -428,7 +435,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={InventoryScreen}
         options={{
           headerShown: true,
-          title: 'Inventory',
+          title: t('inventory_link'),
         }}
       />
 
@@ -437,7 +444,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={MaterialManagementScreen}
         options={{
           headerShown: true,
-          title: 'Material Management',
+          title: t('material_management_title'),
         }}
       />
 
@@ -446,7 +453,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ResourceDashboardScreen}
         options={{
           headerShown: true,
-          title: 'Resource Dashboard',
+          title: t('resource_dashboard_title'),
         }}
       />
 
@@ -456,7 +463,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ReportsScreen}
         options={{
           headerShown: true,
-          title: 'Reports',
+          title: t('reports_title'),
         }}
       />
 
@@ -465,7 +472,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ReportViewerScreen}
         options={({ route }) => ({
           headerShown: true,
-          title: route.params?.reportTitle || 'Report',
+          title: route.params?.reportTitle || t('report'),
         })}
       />
 
@@ -474,7 +481,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={TimeSinceRegistrationScreen}
         options={{
           headerShown: true,
-          title: 'Time Since Registration',
+          title: t('time_since_registration_report'),
         }}
       />
 
@@ -483,7 +490,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={GroupParticipantReportScreen}
         options={{
           headerShown: true,
-          title: 'Group Participant Report',
+          title: t('den_list_report'),
         }}
       />
 
@@ -493,7 +500,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={CalendarScreen}
         options={{
           headerShown: true,
-          title: 'Calendar',
+          title: t('activities_calendar'),
         }}
       />
 
@@ -502,7 +509,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={FundraisersScreen}
         options={{
           headerShown: true,
-          title: 'Fundraisers',
+          title: t('fundraisers'),
         }}
       />
 
@@ -511,7 +518,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={MailingListScreen}
         options={{
           headerShown: true,
-          title: 'Mailing List',
+          title: t('mailing_list'),
         }}
       />
 
@@ -521,7 +528,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={RegisterScreen}
         options={{
           headerShown: true,
-          title: 'Register',
+          title: t('register'),
         }}
       />
 
@@ -530,7 +537,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={ResetPasswordScreen}
         options={{
           headerShown: true,
-          title: 'Reset Password',
+          title: t('reset_password'),
         }}
       />
 
@@ -539,7 +546,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={RegisterOrganizationScreen}
         options={{
           headerShown: true,
-          title: 'Join Organization',
+          title: t('register_for_organization'),
         }}
       />
 
@@ -548,7 +555,7 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         component={CreateOrganizationScreen}
         options={{
           headerShown: true,
-          title: 'Create Organization',
+          title: t('create_organization'),
         }}
       />
 
