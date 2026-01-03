@@ -138,13 +138,21 @@ const HonorsScreen = () => {
         setParticipants(data.participants || []);
         setHonors(data.honors || []);
 
+        // Get available dates from API (in ISO format YYYY-MM-DD)
         const dates = data.availableDates || [];
-        const today = DateUtils.formatDate(new Date());
+        const today = DateUtils.getTodayISO(); // Use ISO format to match backend dates
+
+        // Ensure today is always in the list
         const uniqueDates = Array.from(new Set([today, ...dates]));
+
+        // Sort dates in descending order (newest first)
+        uniqueDates.sort((a, b) => new Date(b) - new Date(a));
+
         setAvailableDates(uniqueDates);
 
+        // Default to today if no date selected
         if (!targetDate) {
-          setSelectedDate(uniqueDates[0]);
+          setSelectedDate(today);
         }
       } else {
         throw new Error(response.message || t('error_loading_honors'));
