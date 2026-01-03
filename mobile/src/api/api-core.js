@@ -129,15 +129,19 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
     useCache = true, // Enable cache by default for GET requests
     forceRefresh = false, // Skip cache and fetch fresh data
     cacheDuration, // Optional custom cache duration
+    cacheKey, // Optional custom cache key (useful for endpoints with query params)
     ...axiosOptions
   } = options;
 
+  // Determine the cache key to use
+  const finalCacheKey = cacheKey || endpoint;
+
   // GET requests: Check cache first (unless forceRefresh)
   if (method === 'GET' && useCache && !forceRefresh) {
-    const cachedData = await CacheManager.getCachedData(endpoint);
+    const cachedData = await CacheManager.getCachedData(finalCacheKey);
     if (cachedData) {
       if (CONFIG.FEATURES.DEBUG_LOGGING) {
-        debugLog(`[API] Cache hit: ${endpoint}`);
+        debugLog(`[API] Cache hit: ${finalCacheKey}`);
       }
       return cachedData;
     }
@@ -214,17 +218,17 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
 
     // Cache successful GET responses
     if (method === 'GET' && useCache && normalizedResponse.success !== false) {
-      await CacheManager.cacheData(endpoint, normalizedResponse, cacheDuration);
+      await CacheManager.cacheData(finalCacheKey, normalizedResponse, cacheDuration);
     }
 
     return normalizedResponse;
   } catch (error) {
     // If offline and it's a GET request, try to return cached data
     if (!isOnline && method === 'GET' && useCache) {
-      const cachedData = await CacheManager.getCachedData(endpoint);
+      const cachedData = await CacheManager.getCachedData(finalCacheKey);
       if (cachedData) {
         if (CONFIG.FEATURES.DEBUG_LOGGING) {
-          debugLog(`[API] Offline - returning cached: ${endpoint}`);
+          debugLog(`[API] Offline - returning cached: ${finalCacheKey}`);
         }
         return {
           ...cachedData,
