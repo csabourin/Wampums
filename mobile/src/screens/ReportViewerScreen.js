@@ -773,64 +773,83 @@ const ReportViewerScreen = ({ route, navigation }) => {
             <Card style={styles.reportCard}>
               <Text style={styles.sectionTitle}>{t('timeline_title')}</Text>
               {(() => {
-                const timelineEvents = [
-                  ...(progressData.attendance || []).map((item) => ({
-                    type: 'attendance',
-                    date: item.date,
-                    status: item.status,
-                  })),
-                  ...(progressData.honors || []).map((item) => ({
-                    type: 'honor',
-                    date: item.date,
-                    reason: item.reason,
-                  })),
-                  ...(progressData.badges || []).map((item) => ({
-                    type: 'badge',
-                    date: item.date,
-                    badgeName: item.badge_name || item.territoire_chasse,
-                    level: item.etoiles,
-                    section: item.badge_section,
-                  })),
-                ].sort((a, b) => new Date(b.date) - new Date(a.date));
+                try {
+                  const timelineEvents = [
+                    ...(progressData.attendance || []).map((item) => ({
+                      type: 'attendance',
+                      date: item.date,
+                      status: item.status,
+                    })),
+                    ...(progressData.honors || []).map((item) => ({
+                      type: 'honor',
+                      date: item.date,
+                      reason: item.reason,
+                    })),
+                    ...(progressData.badges || []).map((item) => ({
+                      type: 'badge',
+                      date: item.date,
+                      badgeName: item.badge_name || item.territoire_chasse,
+                      level: item.etoiles,
+                      section: item.badge_section,
+                    })),
+                  ].filter((event) => event.date) // Filter out events with no date
+                   .sort((a, b) => {
+                     try {
+                       return new Date(b.date) - new Date(a.date);
+                     } catch (err) {
+                       debugError('Error sorting timeline dates:', err);
+                       return 0;
+                     }
+                   });
 
-                if (timelineEvents.length === 0) {
-                  return <Text style={styles.infoValue}>{t('participant_progress_empty')}</Text>;
-                }
-
-                return timelineEvents.map((event, index) => {
-                  let icon = '•';
-                  let title = '';
-                  let meta = '';
-
-                  if (event.type === 'attendance') {
-                    icon = '✓';
-                    title = t(event.status) || t('attendance');
-                    meta = t('attendance_status');
-                  } else if (event.type === 'honor') {
-                    icon = '🏆';
-                    title = t('honor_awarded');
-                    meta = event.reason || t('no_reason_provided');
-                  } else {
-                    icon = '⭐';
-                    title = t('badge_star') || t('badge');
-                    meta = `${event.badgeName || ''} · ${t('stars_count')} ${event.level || 0}${event.section ? ` · ${event.section}` : ''}`;
+                  if (timelineEvents.length === 0) {
+                    return <Text style={styles.infoValue}>{t('participant_progress_empty')}</Text>;
                   }
 
-                  return (
-                    <View key={index} style={styles.timelineItem}>
-                      <View style={styles.timelineIconContainer}>
-                        <Text style={styles.timelineIcon}>{icon}</Text>
+                  return timelineEvents.map((event, index) => {
+                    let icon = '•';
+                    let title = '';
+                    let meta = '';
+
+                    if (event.type === 'attendance') {
+                      icon = '✓';
+                      title = t(event.status) || t('attendance');
+                      meta = t('attendance_status');
+                    } else if (event.type === 'honor') {
+                      icon = '🏆';
+                      title = t('honor_awarded');
+                      meta = event.reason || t('no_reason_provided');
+                    } else {
+                      icon = '⭐';
+                      title = t('badge_star') || t('badge');
+                      meta = `${event.badgeName || ''} · ${t('stars_count')} ${event.level || 0}${event.section ? ` · ${event.section}` : ''}`;
+                    }
+
+                    let formattedDate = '';
+                    try {
+                      formattedDate = event.date ? new Date(event.date).toLocaleDateString() : '';
+                    } catch (err) {
+                      debugError('Error formatting date:', event.date, err);
+                      formattedDate = event.date || '';
+                    }
+
+                    return (
+                      <View key={`${event.type}-${index}`} style={styles.timelineItem}>
+                        <View style={styles.timelineIconContainer}>
+                          <Text style={styles.timelineIcon}>{icon}</Text>
+                        </View>
+                        <View style={styles.timelineContent}>
+                          <Text style={styles.timelineDate}>{formattedDate}</Text>
+                          <Text style={styles.timelineTitle}>{title}</Text>
+                          <Text style={styles.timelineMeta}>{meta}</Text>
+                        </View>
                       </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineDate}>
-                          {new Date(event.date).toLocaleDateString()}
-                        </Text>
-                        <Text style={styles.timelineTitle}>{title}</Text>
-                        <Text style={styles.timelineMeta}>{meta}</Text>
-                      </View>
-                    </View>
-                  );
-                });
+                    );
+                  });
+                } catch (err) {
+                  debugError('Error rendering timeline:', err);
+                  return <Text style={styles.infoValue}>{t('error_loading_timeline')}</Text>;
+                }
               })()}
             </Card>
           </View>
