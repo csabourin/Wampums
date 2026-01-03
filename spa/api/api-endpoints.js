@@ -1402,11 +1402,11 @@ export async function getBadgeSystemSettings() {
 // ============================================================================
 
 /**
- * Get honors for a date
+ * Get honors for a date (v1 - permission-based)
  */
 export async function getHonors(date = null) {
     const params = date ? { date } : {};
-    return API.get('honors', params);
+    return API.get('v1/honors', params);
 }
 
 /**
@@ -1417,7 +1417,7 @@ export async function getHonorsAndParticipants(date = null) {
 }
 
 /**
- * Get recent honors
+ * Get recent honors (legacy endpoint)
  */
 export async function getRecentHonors() {
     return API.get('recent-honors', {}, {
@@ -1427,14 +1427,14 @@ export async function getRecentHonors() {
 }
 
 /**
- * Award honor to participant
+ * Award honor to participant (v1 - permission-based)
  */
 export async function awardHonor(honorData) {
-    return API.post('award-honor', honorData);
+    return API.post('v1/honors', honorData);
 }
 
 /**
- * Get honors report
+ * Get honors report (legacy endpoint)
  */
 export async function getHonorsReport() {
     return API.get('honors-report', {}, {
@@ -1444,14 +1444,14 @@ export async function getHonorsReport() {
 }
 
 /**
- * Get honors history
+ * Get honors history (v1 - permission-based)
  */
 export async function getHonorsHistory(options = {}) {
     const params = {};
     if (options.startDate) params.start_date = options.startDate;
     if (options.endDate) params.end_date = options.endDate;
     if (options.participantId) params.participant_id = options.participantId;
-    return API.get('honors-history', params);
+    return API.get('v1/honors/history', params);
 }
 
 /**

@@ -387,6 +387,33 @@ export async function canManageCarpools() {
   return hasPermission('carpools.manage', permissions);
 }
 
+/**
+ * Check if user can view honors
+ * @returns {Promise<boolean>} True if user can view honors
+ */
+export async function canViewHonors() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['honors.view', 'honors.create', 'honors.manage'], permissions);
+}
+
+/**
+ * Check if user can award honors (create honors)
+ * @returns {Promise<boolean>} True if user can award honors
+ */
+export async function canAwardHonors() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission(['honors.create', 'honors.manage'], permissions);
+}
+
+/**
+ * Check if user can manage honors
+ * @returns {Promise<boolean>} True if user can manage honors
+ */
+export async function canManageHonors() {
+  const permissions = await getUserPermissions();
+  return hasPermission('honors.manage', permissions);
+}
+
 export default {
   hasPermission,
   hasAnyPermission,
@@ -415,4 +442,7 @@ export default {
   canManageActivities,
   canViewCarpools,
   canManageCarpools,
+  canViewHonors,
+  canAwardHonors,
+  canManageHonors,
 };
