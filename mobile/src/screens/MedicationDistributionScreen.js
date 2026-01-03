@@ -559,18 +559,19 @@ const MedicationDistributionScreen = () => {
 
   return (
     <View style={commonStyles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          {t('medication_distribution_title') || 'Distribution des médicaments'}
+        </Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← {t('back') || 'Retour'}</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← {t('back') || 'Retour'}</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>
-            {t('medication_distribution_title') || 'Distribution des médicaments'}
-          </Text>
-        </View>
+
 
         {/* Subtitle */}
         <View style={styles.subtitleContainer}>
