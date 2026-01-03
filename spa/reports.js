@@ -49,6 +49,14 @@ export class Reports {
 		this.render();
 		await this.loadFormTypes(); // Load form types after rendering the page
 		this.attachEventListeners();
+
+		// Check for URL parameter to auto-open participant progress report
+		const urlParams = new URLSearchParams(window.location.search);
+		const participantId = urlParams.get('participantId');
+		if (participantId) {
+			this.selectedParticipantId = participantId;
+			await this.loadReport('participant-progress');
+		}
 	}
 
 	render() {
