@@ -38,6 +38,7 @@ import theme, { commonStyles } from '../theme';
 const StPaulImage = require('../../assets/images/6eASt-Paul.webp');
 import CONFIG from '../config';
 import { debugError } from '../utils/DebugUtils';
+import { useIsMounted } from '../hooks/useIsMounted';
 
 // Components
 import { LoadingSpinner, ErrorMessage } from '../components';
@@ -50,6 +51,7 @@ const ORGANIZATION_SETTINGS_KEY = 'organizationSettings';
  */
 const LeaderDashboardScreen = () => {
   const navigation = useNavigation();
+  const isMounted = useIsMounted();
   const { width: windowWidth } = useWindowDimensions();
   const scrollViewRef = React.useRef(null);
   const SCROLL_KEY = 'LeaderDashboardScrollY';
@@ -124,14 +126,18 @@ const LeaderDashboardScreen = () => {
   useFocusEffect(
     useCallback(() => {
       loadDashboardContext();
+      if (!isMounted()) return;
       setScrollReady(false);
       (async () => {
         try {
           const y = await StorageUtils.getItem(SCROLL_KEY);
+          if (!isMounted()) return;
           const scrollY = y ? parseInt(y, 10) : 0;
           setInitialScrollY(scrollY);
         } catch {}
-        setScrollReady(true);
+        if (isMounted()) {
+          setScrollReady(true);
+        }
       })();
       return () => {};
     }, [])
@@ -145,6 +151,7 @@ const LeaderDashboardScreen = () => {
       const storedPermissions = await StorageUtils.getItem(
         CONFIG.STORAGE_KEYS.USER_PERMISSIONS
       );
+      if (!isMounted()) return;
       if (Array.isArray(storedPermissions)) {
         setUserPermissions(storedPermissions);
       }
@@ -158,12 +165,14 @@ const LeaderDashboardScreen = () => {
    */
   const loadDashboardContext = async () => {
     try {
+      if (!isMounted()) return;
       setLoading(true);
       setError(null);
 
       const cachedSettings = await StorageUtils.getItem(
         ORGANIZATION_SETTINGS_KEY
       );
+      if (!isMounted()) return;
       const cachedOrg = cachedSettings?.organization_info;
 
       if (cachedOrg) {
@@ -174,6 +183,7 @@ const LeaderDashboardScreen = () => {
       }
 
       const settingsResponse = await getOrganizationSettings();
+      if (!isMounted()) return;
       if (settingsResponse.success && settingsResponse.data) {
         const orgInfo = settingsResponse.data.organization_info || {};
         const sanitizedName = SecurityUtils.sanitizeInput(orgInfo.name || '');
@@ -187,18 +197,22 @@ const LeaderDashboardScreen = () => {
         );
       }
 
+      if (!isMounted()) return;
       if (settingsResponse.fromCache) {
         setIsOffline(true);
       }
     } catch (err) {
       debugError('Error loading dashboard context:', err);
+      if (!isMounted()) return;
       if (err?.status === 403) {
         setError(t('no_permission_for_screen'));
       } else {
         setError(t('error_loading_dashboard'));
       }
     } finally {
-      setLoading(false);
+      if (isMounted()) {
+        setLoading(false);
+      }
     }
   };
 
@@ -206,9 +220,12 @@ const LeaderDashboardScreen = () => {
    * Handle pull-to-refresh
    */
   const onRefresh = async () => {
+    if (!isMounted()) return;
     setRefreshing(true);
     await loadDashboardContext();
-    setRefreshing(false);
+    if (isMounted()) {
+      setRefreshing(false);
+    }
   };
 
   /**

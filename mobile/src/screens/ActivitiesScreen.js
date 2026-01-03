@@ -33,9 +33,11 @@ import StorageUtils from '../utils/StorageUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
 import theme from '../theme';
 import CONFIG from '../config';
+import { useIsMounted } from '../hooks/useIsMounted';
 
 const ActivitiesScreen = () => {
   const navigation = useNavigation();
+  const isMounted = useIsMounted();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -80,6 +82,7 @@ const ActivitiesScreen = () => {
   const loadUserPermissions = async () => {
     try {
       const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+      if (!isMounted()) return;
       setUserPermissions(permissions || []);
     } catch (err) {
       debugError('Error loading permissions:', err);
@@ -88,8 +91,10 @@ const ActivitiesScreen = () => {
 
   const loadActivities = async () => {
     try {
+      if (!isMounted()) return;
       setError(null);
       const response = await getActivities();
+      if (!isMounted()) return;
       debugLog('=== Activities API Response ===');
       debugLog('Success:', response.success);
       debugLog('Data length:', response.data?.length);
@@ -102,16 +107,22 @@ const ActivitiesScreen = () => {
       }
     } catch (err) {
       debugLog('Error loading activities:', err);
+      if (!isMounted()) return;
       setError(err.message || t('error_loading_data'));
     } finally {
-      setLoading(false);
+      if (isMounted()) {
+        setLoading(false);
+      }
     }
   };
 
   const onRefresh = async () => {
+    if (!isMounted()) return;
     setRefreshing(true);
     await loadActivities();
-    setRefreshing(false);
+    if (isMounted()) {
+      setRefreshing(false);
+    }
   };
 
   // Derived state: filtered and sorted activities
