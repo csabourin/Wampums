@@ -46,8 +46,9 @@ const ParticipantsScreen = () => {
 
   const { showToast, ToastComponent } = useToast();
 
-  // Check for manage permission (for editing)
-  const canManage = hasPermission('participants.manage', userPermissions);
+  // Check for edit permission (for editing group/role assignments)
+  // Uses participants.edit as per backend requirement at routes/participants.js:327
+  const canManage = hasPermission('participants.edit', userPermissions);
 
   // Configure navigation header
   useEffect(() => {
