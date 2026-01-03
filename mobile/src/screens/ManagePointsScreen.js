@@ -67,6 +67,7 @@ const ManagePointsScreen = () => {
   const [submitting, setSubmitting] = useSafeState(false);
   const [sortBy, setSortBy] = useSafeState(SORT_TYPES.GROUP);
   const [filterGroupId, setFilterGroupId] = useSafeState('all');
+  const isMounted = useIsMounted();
 
   /**
    * Debug filter changes
