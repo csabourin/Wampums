@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import theme, { commonStyles } from '../theme';
+import { translate as t } from '../i18n';
 
 /**
  * EmptyState Component
@@ -54,13 +55,13 @@ export const NoResults = ({ searchTerm, onClear }) => {
   return (
     <EmptyState
       icon="🔍"
-      title="No Results Found"
+      title={t('empty_no_results_found')}
       message={
         searchTerm
-          ? `No items match "${searchTerm}"`
-          : 'Try adjusting your search or filters'
+          ? t('empty_no_items_match').replace('{searchTerm}', searchTerm)
+          : t('empty_try_adjusting')
       }
-      actionLabel={onClear && 'Clear Filters'}
+      actionLabel={onClear && t('empty_clear_filters')}
       onAction={onClear}
     />
   );
@@ -71,12 +72,12 @@ export const NoResults = ({ searchTerm, onClear }) => {
  *
  * Pre-configured empty state for empty lists/collections.
  */
-export const NoData = ({ message = 'No items yet', actionLabel, onAction }) => {
+export const NoData = ({ message, actionLabel, onAction }) => {
   return (
     <EmptyState
       icon="📋"
-      title="Nothing Here Yet"
-      message={message}
+      title={t('empty_nothing_here_yet')}
+      message={message || t('empty_no_items_yet')}
       actionLabel={actionLabel}
       onAction={onAction}
     />
@@ -88,12 +89,12 @@ export const NoData = ({ message = 'No items yet', actionLabel, onAction }) => {
  *
  * Pre-configured empty state for loading.
  */
-export const LoadingState = ({ message = 'Loading...' }) => {
+export const LoadingState = ({ message }) => {
   return (
     <EmptyState
       icon="⏳"
-      title="Loading"
-      message={message}
+      title={t('state_loading')}
+      message={message || t('state_loading_message')}
     />
   );
 };
@@ -103,13 +104,13 @@ export const LoadingState = ({ message = 'Loading...' }) => {
  *
  * Pre-configured empty state for errors with retry.
  */
-export const ErrorState = ({ message = 'An error occurred', onRetry }) => {
+export const ErrorState = ({ message, onRetry }) => {
   return (
     <EmptyState
       icon="⚠️"
-      title="Error"
-      message={message}
-      actionLabel={onRetry ? 'Retry' : undefined}
+      title={t('state_error')}
+      message={message || t('state_error_occurred')}
+      actionLabel={onRetry ? t('state_retry') : undefined}
       onAction={onRetry}
     />
   );
@@ -120,13 +121,13 @@ export const ErrorState = ({ message = 'An error occurred', onRetry }) => {
  *
  * Pre-configured empty state for offline status.
  */
-export const OfflineState = ({ message = 'No internet connection', onRetry }) => {
+export const OfflineState = ({ message, onRetry }) => {
   return (
     <EmptyState
       icon="📡"
-      title="Offline"
-      message={message}
-      actionLabel={onRetry ? 'Retry' : undefined}
+      title={t('state_offline')}
+      message={message || t('state_no_internet')}
+      actionLabel={onRetry ? t('state_retry') : undefined}
       onAction={onRetry}
     />
   );

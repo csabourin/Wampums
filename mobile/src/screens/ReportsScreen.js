@@ -18,7 +18,7 @@ import {
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
-  LoadingSpinner,
+  LoadingState,
   Card,
   EmptyState,
 } from '../components';
@@ -96,7 +96,7 @@ const ReportsScreen = ({ navigation }) => {
   };
 
   if (loading && !refreshing) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading')} />;
   }
 
   return (

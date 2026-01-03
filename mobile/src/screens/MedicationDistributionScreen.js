@@ -145,8 +145,12 @@ const MedicationDistributionScreen = () => {
   };
 
   useEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: t('medication_distribution_title') || 'Medication Distribution',
+    });
     loadData();
-  }, []);
+  }, [navigation]);
 
   /**
    * Handle pull-to-refresh
@@ -189,8 +193,8 @@ const MedicationDistributionScreen = () => {
     const isToday = date.toDateString() === today.toDateString();
     const isTomorrow = date.toDateString() === tomorrow.toDateString();
 
-    if (isToday) return t('today') || 'Aujourd\'hui';
-    if (isTomorrow) return t('tomorrow') || 'Demain';
+    if (isToday) return t('today');
+    if (isTomorrow) return t('tomorrow');
 
     return DateUtils.formatDate(scheduledFor, 'fr');
   };
@@ -254,7 +258,7 @@ const MedicationDistributionScreen = () => {
       return (
         <Card style={styles.alertCard}>
           <Text style={styles.emptyText}>
-            {t('no_upcoming_alerts') || 'Aucune médication prévue dans les 90 prochaines minutes.'}
+            {t('no_upcoming_alerts')}
           </Text>
         </Card>
       );
@@ -293,7 +297,7 @@ const MedicationDistributionScreen = () => {
       return (
         <Card style={styles.readyCard}>
           <Text style={styles.emptyText}>
-            {t('no_participants_ready') || 'Aucun participant prêt pour les médicaments.'}
+            {t('no_participants_ready')}
           </Text>
         </Card>
       );
@@ -319,7 +323,7 @@ const MedicationDistributionScreen = () => {
               <View style={styles.readyHeader}>
                 <Text style={styles.readyParticipant}>{participantName}</Text>
                 <Text style={styles.readyCount}>
-                  {distributions.length} {t('medications') || 'Médicaments'}
+                  {distributions.length} {t('medications')}
                 </Text>
               </View>
 
@@ -336,22 +340,22 @@ const MedicationDistributionScreen = () => {
                     </Text>
                     {dist.dose_amount && (
                       <Text style={styles.medicationDose}>
-                        {dist.dose_amount}{dist.dose_unit ? ` ${dist.dose_unit}` : ''} - {dist.route || t('oral') || 'Orale'}
+                        {dist.dose_amount}{dist.dose_unit ? ` ${dist.dose_unit}` : ''} - {dist.route || t('oral')}
                       </Text>
                     )}
                     <View style={styles.medicationTimeRow}>
                       <Text style={styles.medicationTimeLabel}>
-                        ⏰ {t('administration_time') || 'Heures d\'administration'}:
+                        ⏰ {t('administration_time')}:
                       </Text>
                       <Text style={styles.medicationTime}>
-                        {formatScheduledTime(dist.scheduled_for)} ({t('breakfast') || 'Déjeuner'})
+                        {formatScheduledTime(dist.scheduled_for)} ({t('medication_frequency_breakfast')})
                       </Text>
                     </View>
                   </View>
 
                   <View style={styles.giveNowButton}>
                     <Text style={styles.giveNowText}>
-                      {t('give_now') || 'Donner maintenant'}
+                      {t('give_now')}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -371,7 +375,7 @@ const MedicationDistributionScreen = () => {
       return (
         <Card style={styles.upcomingCard}>
           <Text style={styles.emptyText}>
-            {t('no_upcoming_distributions') || 'Aucune médication prévue dans les 90 prochaines minutes.'}
+            {t('no_upcoming_distributions')}
           </Text>
         </Card>
       );
@@ -381,19 +385,19 @@ const MedicationDistributionScreen = () => {
       <View style={styles.tableContainer}>
         {/* Table Header */}
         <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>{t('date') || 'Date'}</Text>
-          <Text style={[styles.tableHeaderText, styles.timeColumn]}>{t('time') || 'time'}</Text>
+          <Text style={[styles.tableHeaderText, styles.dateColumn]}>{t('date')}</Text>
+          <Text style={[styles.tableHeaderText, styles.timeColumn]}>{t('time')}</Text>
           <Text style={[styles.tableHeaderText, styles.participantColumn]}>
-            {t('participants') || 'Participants'}
+            {t('participants')}
           </Text>
           <Text style={[styles.tableHeaderText, styles.medicationColumn]}>
-            {t('medications') || 'Médicaments'}
+            {t('medications')}
           </Text>
           <Text style={[styles.tableHeaderText, styles.doseColumn]}>
-            {t('default_dose') || 'Dose par défaut'}
+            {t('default_dose')}
           </Text>
           <Text style={[styles.tableHeaderText, styles.frequencyColumn]}>
-            {t('frequency') || 'Fréq.'}
+            {t('frequency')}
           </Text>
         </View>
 
@@ -442,7 +446,7 @@ const MedicationDistributionScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              {t('confirm_distribution') || 'Confirmer la distribution du médicament'}
+              {t('medication_give_confirmation')}
             </Text>
 
             {/* Participant */}
@@ -453,7 +457,7 @@ const MedicationDistributionScreen = () => {
             {/* Medication */}
             <View style={styles.modalField}>
               <Text style={styles.modalFieldLabelBold}>
-                {t('medications') || 'Médicaments'}:
+                {t('medications')}:
               </Text>
               <Text style={styles.modalFieldValue}>
                 {selectedDistribution.medication_name}
@@ -464,7 +468,7 @@ const MedicationDistributionScreen = () => {
             {selectedDistribution.dose_amount && (
               <View style={styles.modalField}>
                 <Text style={styles.modalFieldLabelBold}>
-                  {t('dosage_instructions') || 'Instructions de dosage'}:
+                  {t('dosage_instructions')}:
                 </Text>
                 <Text style={styles.modalFieldValue}>
                   {selectedDistribution.dose_amount}{selectedDistribution.dose_unit || ''}
@@ -476,7 +480,7 @@ const MedicationDistributionScreen = () => {
             {selectedDistribution.route && (
               <View style={styles.modalField}>
                 <Text style={styles.modalFieldLabelBold}>
-                  {t('route_of_administration') || 'Voie d\'administration'}:
+                  {t('route_of_administration')}:
                 </Text>
                 <Text style={styles.modalFieldValue}>
                   {selectedDistribution.route}
@@ -487,7 +491,7 @@ const MedicationDistributionScreen = () => {
             {/* Time */}
             <View style={styles.modalField}>
               <Text style={styles.modalFieldLabelBold}>
-                {t('time') || 'time'}:
+                {t('time')}:
               </Text>
               <Text style={styles.modalFieldValue}>
                 {formatScheduledTime(selectedDistribution.scheduled_for)}
@@ -497,13 +501,13 @@ const MedicationDistributionScreen = () => {
             {/* Witness */}
             <View style={styles.modalInputField}>
               <Text style={styles.modalInputLabel}>
-                {t('medication_witness_label') || 'Témoin'}
+                {t('medication_witness_label')}
               </Text>
               <TextInput
                 style={styles.modalInput}
                 value={witnessName}
                 onChangeText={setWitnessName}
-                placeholder="Christian Sabourin"
+                placeholder=""
                 autoFocus
               />
             </View>
@@ -511,7 +515,7 @@ const MedicationDistributionScreen = () => {
             {/* Optional Notes */}
             <View style={styles.modalInputField}>
               <Text style={styles.modalInputLabel}>
-                {t('medication_optional_notes') || 'Notes (facultatif)'}
+                {t('medication_optional_notes')}
               </Text>
               <TextInput
                 style={[styles.modalInput, styles.modalInputMultiline]}
@@ -531,7 +535,7 @@ const MedicationDistributionScreen = () => {
                 disabled={processing}
               >
                 <Text style={styles.modalButtonTextCancel}>
-                  {t('cancel') || 'Annuler'}
+                  {t('cancel')}
                 </Text>
               </TouchableOpacity>
 
@@ -542,8 +546,8 @@ const MedicationDistributionScreen = () => {
               >
                 <Text style={styles.modalButtonTextConfirm}>
                   {processing
-                    ? t('loading') || 'Chargement...'
-                    : t('medication_confirm_given') || 'Confirmer la distribution'}
+                    ? t('loading')
+                    : t('medication_confirm_given')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -559,15 +563,6 @@ const MedicationDistributionScreen = () => {
 
   return (
     <View style={commonStyles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>
-          {t('medication_distribution_title') || 'Distribution des médicaments'}
-        </Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← {t('back') || 'Retour'}</Text>
-        </TouchableOpacity>
-      </View>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
@@ -576,8 +571,7 @@ const MedicationDistributionScreen = () => {
         {/* Subtitle */}
         <View style={styles.subtitleContainer}>
           <Text style={styles.subtitle}>
-            {t('medication_distribution_subtitle') ||
-              'Saisissez les distributions, marquez les prises et surveillez les alertes.'}
+            {t('medication_distribution_subtitle')}
           </Text>
         </View>
 
@@ -591,8 +585,7 @@ const MedicationDistributionScreen = () => {
         <Card style={styles.toggleCard}>
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>
-              {t('group_participants_same_time') ||
-                'Une seule alerte regroupe les participants au même horaire.'}
+              {t('group_participants_same_time')}
             </Text>
             <Switch
               value={groupParticipantsBySameTime}
@@ -604,7 +597,7 @@ const MedicationDistributionScreen = () => {
 
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>
-              {t('go_to_planning') || 'Aller à la planification'}
+              {t('medication_switch_to_planning')}
             </Text>
             <Switch
               value={goToPlanning}
@@ -623,7 +616,7 @@ const MedicationDistributionScreen = () => {
         {/* Upcoming Alerts */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {t('upcoming_medication_alerts') || 'Alertes de médication à venir'}
+            {t('upcoming_medication_alerts')}
           </Text>
           {renderUpcomingAlerts()}
         </View>
@@ -631,12 +624,10 @@ const MedicationDistributionScreen = () => {
         {/* Participants Ready */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {t('participants_ready_for_medications') ||
-              'Participants prêts pour les médicaments'}
+            {t('participants_ready_for_medications')}
           </Text>
           <Text style={styles.sectionSubtitle}>
-            {t('tap_participant_to_distribute') ||
-              'Appuyez sur un participant pour voir et distribuer ses médicaments'}
+            {t('tap_participant_to_distribute')}
           </Text>
           {renderParticipantsReady()}
         </View>
@@ -644,7 +635,7 @@ const MedicationDistributionScreen = () => {
         {/* Upcoming Distributions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            {t('upcoming_distributions') || 'Distributions à venir'}
+            {t('upcoming_distributions')}
           </Text>
           {renderUpcomingDistributions()}
         </View>

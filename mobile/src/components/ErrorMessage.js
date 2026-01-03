@@ -7,6 +7,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Button from './Button';
+import theme from '../theme';
 
 const ErrorMessage = ({ message, onRetry, retryText = 'Retry' }) => {
   return (
@@ -30,14 +31,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.background,
   },
   errorText: {
-    color: '#FF3B30',
-    fontSize: 16,
+    color: theme.colors.error,
+    fontSize: theme.fontSize.base,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: theme.spacing.lg,
   },
   retryButton: {
     minWidth: 120,

@@ -25,8 +25,8 @@ import {
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
-  LoadingSpinner,
-  ErrorMessage,
+  LoadingState,
+  ErrorState,
   Card,
   EmptyState,
   FormField,
@@ -52,6 +52,17 @@ const GroupsScreen = ({ navigation }) => {
   const toast = useToast();
 
   useEffect(() => {
+    // Configure header
+    navigation.setOptions({
+      headerShown: true,
+      title: t('groups') || 'Groups',
+      headerRight: () => (
+        <TouchableOpacity onPress={() => setAddModalVisible(true)} style={{ paddingRight: 16 }}>
+          <Text style={{ fontSize: 28, color: theme.colors.primary }}>+</Text>
+        </TouchableOpacity>
+      ),
+    });
+
     // Check permissions
     const checkPermissions = async () => {
       if (!(await canViewGroups())) {
@@ -63,7 +74,7 @@ const GroupsScreen = ({ navigation }) => {
     };
 
     checkPermissions();
-  }, []);
+  }, [navigation]);
 
   const loadData = async () => {
     try {
@@ -195,11 +206,11 @@ const GroupsScreen = ({ navigation }) => {
   );
 
   if (loading && !refreshing && groups.length === 0) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading')} />;
   }
 
   if (error && !loading) {
-    return <ErrorMessage message={error} onRetry={loadData} />;
+    return <ErrorState message={error} onRetry={loadData} />;
   }
 
   return (
@@ -223,15 +234,6 @@ const GroupsScreen = ({ navigation }) => {
           />
         }
       />
-
-      {/* FAB - Add Group */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setAddModalVisible(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
 
       {/* Add Group Modal */}
       <Modal

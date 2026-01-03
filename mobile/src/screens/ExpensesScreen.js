@@ -20,8 +20,8 @@ import {
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
-  LoadingSpinner,
-  ErrorMessage,
+  LoadingState,
+  ErrorState,
   Card,
   StatCard,
   FormField,
@@ -648,11 +648,11 @@ const ExpensesScreen = ({ navigation }) => {
   };
 
   if (loading && !refreshing) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading')} />;
   }
 
   if (error && !loading) {
-    return <ErrorMessage message={error} onRetry={loadData} />;
+    return <ErrorState message={error} onRetry={loadData} />;
   }
 
   return (
