@@ -57,7 +57,6 @@ const buildGroupedParticipants = (participants) => {
 };
 
 const ManagePointsScreen = () => {
-  const isMounted = useIsMounted();
   const [loading, setLoading] = useSafeState(true);
   const [refreshing, setRefreshing] = useSafeState(false);
   const [error, setError] = useSafeState('');

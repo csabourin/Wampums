@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   Text,
 } from 'react-native';
+import { useIsMounted } from '../hooks/useIsMounted'; // Ensure this import is included
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getActivities } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
