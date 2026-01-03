@@ -478,6 +478,7 @@
   "error_loading_participant_documents": "Erreur lors du chargement des documents du participant",
   "error_loading_preparation_reunions": "Erreur lors du chargement de la préparation des réunions",
   "error_loading_report": "erreur de chargement du rapport",
+  "error_loading_timeline": "Erreur lors du chargement de la chronologie",
   "error_loading_upcoming_meeting": "Erreur lors du chargement de la réunion à venir",
   "error_logging_in": "Erreur de connexion",
   "error_no_fundraiser_id": "Aucun identifiant de campagne fourni",
