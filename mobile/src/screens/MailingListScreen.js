@@ -29,8 +29,7 @@ import {
   useToast,
 } from '../components';
 import { canSendCommunications } from '../utils/PermissionUtils';
-import CONFIG from '../config';
-import StorageUtils from '../utils/StorageUtils';
+import API from '../api/api-core';
 import { debugError } from '../utils/DebugUtils';
 
 const ROLES = [
@@ -93,34 +92,23 @@ const MailingListScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getJWT();
-
       const [mailingResponse, groupsResponse, announcementsResponse] = await Promise.all([
-        fetch(`${CONFIG.API.BASE_URL}/mailing-list`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${CONFIG.API.BASE_URL}/v1/groups`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${CONFIG.API.BASE_URL}/v1/announcements`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        API.get('mailing-list'),
+        API.get('v1/groups'),
+        API.get('v1/announcements'),
       ]);
 
-      if (mailingResponse.ok) {
-        const result = await mailingResponse.json();
-        setMailingList(result);
+      if (mailingResponse.success || mailingResponse.emails_by_role) {
+        setMailingList(mailingResponse);
       }
 
-      if (groupsResponse.ok) {
-        const result = await groupsResponse.json();
-        setGroups(result.data?.groups || result.groups || []);
+      if (groupsResponse.success || groupsResponse.data || groupsResponse.groups) {
+        setGroups(groupsResponse.data?.groups || groupsResponse.groups || groupsResponse.data || []);
       }
 
-      if (announcementsResponse.ok) {
-        const result = await announcementsResponse.json();
-        setAnnouncements(result.data || []);
-        setTemplates(result.templates || []);
+      if (announcementsResponse.success || announcementsResponse.data) {
+        setAnnouncements(announcementsResponse.data || []);
+        setTemplates(announcementsResponse.templates || []);
       }
     } catch (err) {
       debugError('Error loading data:', err);
@@ -180,19 +168,9 @@ const MailingListScreen = ({ navigation }) => {
         send_now: !saveAsDraft,
       };
 
-      const token = await StorageUtils.getJWT();
-      const response = await fetch(`${CONFIG.API.BASE_URL}/v1/announcements`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const result = await API.post('v1/announcements', payload);
 
-      const result = await response.json();
-
-      if (result.success || response.ok) {
+      if (result.success) {
         toast.show(
           saveAsDraft ? t('announcement_saved') : t('announcement_sent'),
           'success'
