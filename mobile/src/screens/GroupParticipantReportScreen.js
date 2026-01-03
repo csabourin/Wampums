@@ -63,7 +63,7 @@ const GroupParticipantReportScreen = ({ navigation }) => {
 
   const loadData = async () => {
     try {
-      const token = await StorageUtils.getToken();
+      const token = await StorageUtils.getJWT();
 
       const [participantsResponse, groupsResponse] = await Promise.all([
         fetch(`${API.baseURL}/v1/participants`, {
