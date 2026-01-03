@@ -467,6 +467,17 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
+    // Check if user has any children linked first
+    const childrenCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM user_participants WHERE user_id = $1',
+      [userId]
+    );
+
+    if (parseInt(childrenCheck.rows[0].count) === 0) {
+      // User has no children linked, return empty array
+      return success(res, []);
+    }
+
     const result = await pool.query(
       `SELECT DISTINCT
         co.id as carpool_offer_id,
@@ -474,23 +485,28 @@ module.exports = (pool) => {
         u.email as "driverEmail",
         a.name as "activityName",
         a.id as "activityId",
-        a.activity_date as "activityDate",
+        a.activity_date::text as "activityDate",
         a.meeting_location_going as "meetingLocationGoing",
-        a.meeting_time_going as "meetingTimeGoing",
-        a.departure_time_going as "departureTimeGoing",
+        a.meeting_time_going::text as "meetingTimeGoing",
+        a.departure_time_going::text as "departureTimeGoing",
         a.meeting_location_return as "meetingLocationReturn",
-        a.meeting_time_return as "meetingTimeReturn",
-        a.departure_time_return as "departureTimeReturn",
+        a.meeting_time_return::text as "meetingTimeReturn",
+        a.departure_time_return::text as "departureTimeReturn",
         co.vehicle_make as "vehicleMake",
         co.vehicle_color as "vehicleColor",
         co.trip_direction as "tripDirection",
         co.total_seats_available as "totalSpots",
         (SELECT COUNT(*) FROM carpool_assignments WHERE carpool_offer_id = co.id) as "occupiedSpots",
-        json_agg(json_build_object(
-          'participantId', p.id,
-          'participantName', p.first_name || ' ' || p.last_name,
-          'tripDirection', ca.trip_direction
-        )) as "myChildren"
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'participantId', p.id,
+              'participantName', p.first_name || ' ' || p.last_name,
+              'tripDirection', ca.trip_direction
+            )
+          ) FILTER (WHERE p.id IS NOT NULL),
+          '[]'::json
+        ) as "myChildren"
        FROM carpool_assignments ca
        JOIN participants p ON ca.participant_id = p.id
        JOIN user_participants up ON p.id = up.participant_id
