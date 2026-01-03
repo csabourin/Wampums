@@ -73,7 +73,7 @@ const HonorsScreen = () => {
   const [participants, setParticipants] = useState([]);
   const [honors, setHonors] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
-  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState(DateUtils.getTodayISO()); // Initialize to today
   const [selectedHonors, setSelectedHonors] = useState({});
   const [saving, setSaving] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
@@ -151,11 +151,6 @@ const HonorsScreen = () => {
         uniqueDates.sort((a, b) => new Date(b) - new Date(a));
 
         setAvailableDates(uniqueDates);
-
-        // Default to today if no date selected
-        if (!targetDate) {
-          setSelectedDate(today);
-        }
       } else {
         throw new Error(response.message || t('error_loading_honors'));
       }
