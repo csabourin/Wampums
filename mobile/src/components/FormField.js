@@ -70,8 +70,12 @@ const FormField = ({
  * Checkbox Component
  *
  * Reusable checkbox input with label.
+ *
+ * @param {string|React.ReactNode} label - Checkbox label
  */
 export const Checkbox = ({ label, checked, onPress, style }) => {
+  const isTextLabel = typeof label === 'string' || typeof label === 'number';
+
   return (
     <TouchableOpacity
       style={[styles.checkboxContainer, style]}
@@ -81,7 +85,11 @@ export const Checkbox = ({ label, checked, onPress, style }) => {
       <View style={[commonStyles.checkbox, checked && commonStyles.checkboxChecked]}>
         {checked && <Text style={styles.checkmark}>✓</Text>}
       </View>
-      {label && <Text style={styles.checkboxLabel}>{label}</Text>}
+      {label
+        ? isTextLabel
+          ? <Text style={styles.checkboxLabel}>{label}</Text>
+          : <View style={styles.checkboxLabelContainer}>{label}</View>
+        : null}
     </TouchableOpacity>
   );
 };
@@ -203,6 +211,10 @@ const styles = StyleSheet.create({
     marginLeft: theme.spacing.sm,
     fontSize: theme.fontSize.base,
     color: theme.colors.text,
+    flex: 1,
+  },
+  checkboxLabelContainer: {
+    marginLeft: theme.spacing.sm,
     flex: 1,
   },
   radioContainer: {
