@@ -32,6 +32,7 @@ import SecurityUtils from '../utils/SecurityUtils';
 import CONFIG from '../config';
 import theme, { commonStyles } from '../theme';
 import { debugError, debugLog } from '../utils/DebugUtils';
+import { useIsMounted } from '../hooks/useIsMounted';
 
 const SORT_TYPES = {
   NAME: 'name',
@@ -141,12 +142,14 @@ const ManagePointsScreen = () => {
    */
   const loadPointsData = async () => {
     try {
+      if (!isMounted()) return;
       setError('');
       const [participantsResponse, groupsResponse] = await Promise.all([
         getParticipants(),
         getGroups(),
       ]);
 
+      if (!isMounted()) return;
       const participantRows = participantsResponse.success
         ? participantsResponse.data || []
         : [];
@@ -156,9 +159,12 @@ const ManagePointsScreen = () => {
       setGroups(groupRows);
     } catch (err) {
       debugError('Error loading points data:', err);
+      if (!isMounted()) return;
       setError(err.message || t('error_loading_manage_points'));
     } finally {
-      setLoading(false);
+      if (isMounted()) {
+        setLoading(false);
+      }
     }
   };
 
@@ -167,9 +173,12 @@ const ManagePointsScreen = () => {
   }, []);
 
   const onRefresh = async () => {
+    if (!isMounted()) return;
     setRefreshing(true);
     await loadPointsData();
-    setRefreshing(false);
+    if (isMounted()) {
+      setRefreshing(false);
+    }
   };
 
   /**
@@ -177,6 +186,7 @@ const ManagePointsScreen = () => {
    * @param {number} points - Points delta.
    */
   const handlePointsUpdate = async (points) => {
+    if (!isMounted()) return;
     if (!selectedId || !selectedType) {
       setError(t('select_participant'));
       return;
@@ -193,6 +203,7 @@ const ManagePointsScreen = () => {
         },
       ]);
 
+      if (!isMounted()) return;
       if (!response.success) {
         throw new Error(response.message || t('error_loading_data'));
       }
@@ -205,11 +216,14 @@ const ManagePointsScreen = () => {
 
     } catch (err) {
       debugError('Error updating points:', err);
+      if (!isMounted()) return;
       setError(err.message || t('error_loading_manage_points'));
       // Reload data on error to ensure consistency
       await loadPointsData();
     } finally {
-      setSubmitting(false);
+      if (isMounted()) {
+        setSubmitting(false);
+      }
     }
   };
 

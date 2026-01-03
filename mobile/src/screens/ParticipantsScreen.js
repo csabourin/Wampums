@@ -33,6 +33,7 @@ import StorageUtils from '../utils/StorageUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
 import theme from '../theme';
 import CONFIG from '../config';
+import { useIsMounted } from '../hooks/useIsMounted';
 
 const ParticipantsScreen = () => {
   const navigation = useNavigation();
@@ -72,6 +73,7 @@ const ParticipantsScreen = () => {
   const loadUserPermissions = async () => {
     try {
       const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+      if (!isMounted()) return;
       setUserPermissions(permissions || []);
     } catch (err) {
       debugError('Error loading permissions:', err);
@@ -80,11 +82,13 @@ const ParticipantsScreen = () => {
 
   const loadData = async () => {
     try {
+      if (!isMounted()) return;
       setLoading(true);
       setError(null);
 
       // Check view permission
       const hasViewPermission = await canViewParticipants();
+      if (!isMounted()) return;
       if (!hasViewPermission) {
         navigation.navigate('Dashboard');
         return;
@@ -96,6 +100,7 @@ const ParticipantsScreen = () => {
         getGroups(),
       ]);
 
+      if (!isMounted()) return;
       if (participantsResponse.success) {
         setParticipants(participantsResponse.data || participantsResponse.participants || []);
       } else {
@@ -107,20 +112,27 @@ const ParticipantsScreen = () => {
       }
     } catch (err) {
       debugError('Error loading data:', err);
+      if (!isMounted()) return;
       setError(err);
     } finally {
-      setLoading(false);
+      if (isMounted()) {
+        setLoading(false);
+      }
     }
   };
 
   const onRefresh = async () => {
+    if (!isMounted()) return;
     setRefreshing(true);
     await loadData();
-    setRefreshing(false);
+    if (isMounted()) {
+      setRefreshing(false);
+    }
   };
 
   const handleGroupChange = async (participantId, groupId) => {
     if (!canManage) return;
+    if (!isMounted()) return;
 
     const participant = participants.find((p) => p.id === participantId);
     if (!participant) return;
@@ -138,6 +150,7 @@ const ParticipantsScreen = () => {
         null   // Reset additional roles when changing groups
       );
 
+      if (!isMounted()) return;
       if (result.success) {
         showToast(t('group_updated_successfully') || 'Group updated', 'success');
         await loadData();
@@ -146,14 +159,18 @@ const ParticipantsScreen = () => {
       }
     } catch (err) {
       debugError('Error updating group:', err);
+      if (!isMounted()) return;
       showToast(err.message || t('error_updating_group') || 'Error updating group', 'error');
     } finally {
-      setUpdatingParticipant(null);
+      if (isMounted()) {
+        setUpdatingParticipant(null);
+      }
     }
   };
 
   const handleRoleChange = async (participantId, role) => {
     if (!canManage) return;
+    if (!isMounted()) return;
 
     const participant = participants.find((p) => p.id === participantId);
     if (!participant || !participant.group_id) {
@@ -175,6 +192,7 @@ const ParticipantsScreen = () => {
         participant.roles || null
       );
 
+      if (!isMounted()) return;
       if (result.success) {
         showToast(t('role_updated_successfully') || 'Role updated', 'success');
         await loadData();
@@ -183,14 +201,18 @@ const ParticipantsScreen = () => {
       }
     } catch (err) {
       debugError('Error updating role:', err);
+      if (!isMounted()) return;
       showToast(err.message || t('error_updating_role') || 'Error updating role', 'error');
     } finally {
-      setUpdatingParticipant(null);
+      if (isMounted()) {
+        setUpdatingParticipant(null);
+      }
     }
   };
 
   const handleRolesChange = async (participantId, roles) => {
     if (!canManage) return;
+    if (!isMounted()) return;
 
     const participant = participants.find((p) => p.id === participantId);
     if (!participant || !participant.group_id) {
@@ -212,6 +234,7 @@ const ParticipantsScreen = () => {
         roles.trim() || null
       );
 
+      if (!isMounted()) return;
       if (result.success) {
         showToast(t('role_updated_successfully') || 'Roles updated', 'success');
         await loadData();
@@ -220,9 +243,12 @@ const ParticipantsScreen = () => {
       }
     } catch (err) {
       debugError('Error updating roles:', err);
+      if (!isMounted()) return;
       showToast(err.message || t('error_updating_role') || 'Error updating roles', 'error');
     } finally {
-      setUpdatingParticipant(null);
+      if (isMounted()) {
+        setUpdatingParticipant(null);
+      }
     }
   };
 

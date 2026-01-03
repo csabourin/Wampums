@@ -5,7 +5,7 @@
  * User registration with organization access password
  */
 
-import Reactfrom 'react';
+import React from 'react';
 import { useSafeState } from '../hooks/useSafeState';
 import {
   Text,
