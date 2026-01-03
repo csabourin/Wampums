@@ -245,6 +245,23 @@ export const getCurrentUserFromJWT = async () => {
   }
 };
 
+/**
+ * Get organization ID from JWT token
+ * Mirrors backend getOrganizationId functionality
+ */
+export const getOrganizationId = async () => {
+  try {
+    const token = await getJWT();
+    if (!token) return null;
+
+    const decoded = decodeJWT(token);
+    return decoded?.organizationId || null;
+  } catch (error) {
+    debugError('Error getting organization ID from JWT:', error);
+    return null;
+  }
+};
+
 export default {
   setItem,
   getItem,
@@ -259,4 +276,5 @@ export default {
   decodeJWT,
   isJWTExpired,
   getCurrentUserFromJWT,
+  getOrganizationId,
 };

@@ -56,7 +56,7 @@ const FormPermissionsScreen = ({ navigation }) => {
 
       const response = await fetch(`${API.baseURL}/form-permissions`, {
         headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
+          Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         },
       });
 
@@ -120,7 +120,7 @@ const FormPermissionsScreen = ({ navigation }) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
+          Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         },
         body: JSON.stringify({
           form_format_id: formFormatId,
@@ -152,7 +152,7 @@ const FormPermissionsScreen = ({ navigation }) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
+          Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         },
         body: JSON.stringify({
           form_format_id: formFormatId,

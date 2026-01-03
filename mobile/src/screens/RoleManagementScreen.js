@@ -87,7 +87,7 @@ const RoleManagementScreen = ({ navigation }) => {
   const fetchRoles = async () => {
     const response = await fetch(`${API.baseURL}/roles`, {
       headers: {
-        Authorization: `Bearer ${await StorageUtils.getToken()}`,
+        Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         'X-Organization-Id': await StorageUtils.getOrganizationId(),
       },
     });
@@ -103,7 +103,7 @@ const RoleManagementScreen = ({ navigation }) => {
   const fetchUsers = async () => {
     const response = await fetch(`${API.baseURL}/users`, {
       headers: {
-        Authorization: `Bearer ${await StorageUtils.getToken()}`,
+        Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         'X-Organization-Id': await StorageUtils.getOrganizationId(),
       },
     });
@@ -123,7 +123,7 @@ const RoleManagementScreen = ({ navigation }) => {
 
     const response = await fetch(`${API.baseURL}/roles/${roleId}/permissions`, {
       headers: {
-        Authorization: `Bearer ${await StorageUtils.getToken()}`,
+        Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         'X-Organization-Id': await StorageUtils.getOrganizationId(),
       },
     });
@@ -162,7 +162,7 @@ const RoleManagementScreen = ({ navigation }) => {
     try {
       const response = await fetch(`${API.baseURL}/users/${user.id}/roles`, {
         headers: {
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
+          Authorization: `Bearer ${await StorageUtils.getJWT()}`,
           'X-Organization-Id': await StorageUtils.getOrganizationId(),
         },
       });
@@ -200,7 +200,7 @@ const RoleManagementScreen = ({ navigation }) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await StorageUtils.getToken()}`,
+          Authorization: `Bearer ${await StorageUtils.getJWT()}`,
           'X-Organization-Id': await StorageUtils.getOrganizationId(),
         },
         body: JSON.stringify({ roleIds: selectedUserRoleIds }),
