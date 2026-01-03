@@ -22,8 +22,8 @@ import {
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
-  LoadingSpinner,
-  ErrorMessage,
+  LoadingState,
+  ErrorState,
   Card,
   FormField,
   Select,
@@ -209,11 +209,11 @@ const BudgetsScreen = ({ navigation }) => {
   const categoryOptions = categories.map((c) => ({ label: c.name, value: String(c.id) }));
 
   if (loading && !refreshing) {
-    return <LoadingSpinner message={t('loading')} />;
+    return <LoadingState message={t('loading')} />;
   }
 
   if (error && !loading) {
-    return <ErrorMessage message={error} onRetry={loadData} />;
+    return <ErrorState message={error} onRetry={loadData} />;
   }
 
   const totalBudgeted = summaryReport?.total_budgeted || 0;

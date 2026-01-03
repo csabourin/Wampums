@@ -6,11 +6,12 @@
 
 import React from 'react';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import theme from '../theme';
 
-const LoadingSpinner = ({ message, size = 'large', color = '#007AFF' }) => {
+const LoadingSpinner = ({ message, size = 'large', color }) => {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size={size} color={color} />
+      <ActivityIndicator size={size} color={color || theme.colors.primary} />
       {message && <Text style={styles.message}>{message}</Text>}
     </View>
   );
@@ -21,12 +22,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   message: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.base,
+    color: theme.colors.textLight,
   },
 });
 
