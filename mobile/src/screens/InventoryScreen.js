@@ -35,6 +35,7 @@ import {
 } from '../components';
 import { canViewInventory, canManageInventory } from '../utils/PermissionUtils';
 import { getEquipment } from '../api/api-endpoints';
+import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
 
@@ -216,7 +217,7 @@ const InventoryScreen = ({ navigation }) => {
       };
 
       const token = await StorageUtils.getJWT();
-      const response = await fetch(`${API.baseURL}/v1/resources/equipment`, {
+      const response = await fetch(`${CONFIG.API.BASE_URL}/v1/resources/equipment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,7 +276,7 @@ const InventoryScreen = ({ navigation }) => {
 
       const token = await StorageUtils.getJWT();
       const response = await fetch(
-        `${API.baseURL}/v1/resources/equipment/${editingItem.id}`,
+        `${CONFIG.API.BASE_URL}/v1/resources/equipment/${editingItem.id}`,
         {
           method: 'PUT',
           headers: {
@@ -326,7 +327,7 @@ const InventoryScreen = ({ navigation }) => {
             try {
               const token = await StorageUtils.getJWT();
               const response = await fetch(
-                `${API.baseURL}/v1/resources/equipment/${item.id}`,
+                `${CONFIG.API.BASE_URL}/v1/resources/equipment/${item.id}`,
                 {
                   method: 'DELETE',
                   headers: { Authorization: `Bearer ${token}` },
