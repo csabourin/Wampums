@@ -5,7 +5,8 @@
  * Allows marking attendance by date with group/individual selection.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -77,24 +78,24 @@ const formatDateForDisplay = (dateString) => {
 };
 
 const AttendanceScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [participants, setParticipants] = useState([]);
-  const [attendanceMap, setAttendanceMap] = useState({});
-  const [availableDates, setAvailableDates] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [participants, setParticipants] = useSafeState([]);
+  const [attendanceMap, setAttendanceMap] = useSafeState({});
+  const [availableDates, setAvailableDates] = useSafeState([]);
   // Initialize with today's date in local timezone
-  const [selectedDate, setSelectedDate] = useState(DateUtils.formatDate(new Date()));
-  const [savingId, setSavingId] = useState(null);
+  const [selectedDate, setSelectedDate] = useSafeState(DateUtils.formatDate(new Date()));
+  const [savingId, setSavingId] = useSafeState(null);
 
   // Selection states
-  const [selectedGroup, setSelectedGroup] = useState(null);
-  const [selectedParticipant, setSelectedParticipant] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useSafeState(null);
+  const [selectedParticipant, setSelectedParticipant] = useSafeState(null);
 
   // Guest states
-  const [guests, setGuests] = useState([]);
-  const [guestName, setGuestName] = useState('');
-  const [guestEmail, setGuestEmail] = useState('');
+  const [guests, setGuests] = useSafeState([]);
+  const [guestName, setGuestName] = useSafeState('');
+  const [guestEmail, setGuestEmail] = useSafeState('');
 
   // Group participants by group
   const groups = useMemo(() => {

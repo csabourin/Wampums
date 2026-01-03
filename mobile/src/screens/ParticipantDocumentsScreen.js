@@ -6,7 +6,8 @@
  * Allows viewing submitted forms
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -33,15 +34,15 @@ import {
 import { canViewParticipants } from '../utils/PermissionUtils';
 
 const ParticipantDocumentsScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [participants, setParticipants] = useState([]);
-  const [filteredParticipants, setFilteredParticipants] = useState([]);
-  const [formTypes, setFormTypes] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedForm, setSelectedForm] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [participants, setParticipants] = useSafeState([]);
+  const [filteredParticipants, setFilteredParticipants] = useSafeState([]);
+  const [formTypes, setFormTypes] = useSafeState([]);
+  const [searchQuery, setSearchQuery] = useSafeState('');
+  const [selectedForm, setSelectedForm] = useSafeState(null);
+  const [modalVisible, setModalVisible] = useSafeState(false);
 
   useEffect(() => {
     // Check permissions

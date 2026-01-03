@@ -5,7 +5,8 @@
  * User registration with organization access password
  */
 
-import React, { useState } from 'react';
+import Reactfrom 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   Text,
   ScrollView,
@@ -28,7 +29,7 @@ import API from '../api/api-core';
 import { validateEmail, validatePassword, validateRequired } from '../utils/ValidationUtils';
 
 const RegisterScreen = ({ navigation }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     full_name: '',
     email: '',
     password: '',
@@ -37,7 +38,7 @@ const RegisterScreen = ({ navigation }) => {
     user_type: 'parent',
   });
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useSafeState(false);
   const toast = useToast();
 
   const handleRegister = async () => {

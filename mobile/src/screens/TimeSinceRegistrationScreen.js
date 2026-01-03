@@ -5,7 +5,8 @@
  * Mirrors spa time-since-registration functionality
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -20,10 +21,10 @@ import { getParticipants } from '../api/api-endpoints';
 import { debugLog, debugError } from '../utils/DebugUtils';
 
 const TimeSinceRegistrationScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [participants, setParticipants] = useState([]);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [participants, setParticipants] = useSafeState([]);
+  const [error, setError] = useSafeState(null);
 
   useEffect(() => {
     loadData();

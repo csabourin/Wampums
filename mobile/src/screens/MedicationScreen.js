@@ -5,7 +5,8 @@
  * Supports medication planning and dispensing with alerts.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -38,17 +39,17 @@ const TABS = {
 };
 
 const MedicationScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState(TABS.PLANNING);
-  const [requirements, setRequirements] = useState([]);
-  const [participantMedications, setParticipantMedications] = useState([]);
-  const [distributions, setDistributions] = useState([]);
-  const [participants, setParticipants] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [editingRequirement, setEditingRequirement] = useState(null);
-  const [requirementForm, setRequirementForm] = useState({
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [activeTab, setActiveTab] = useSafeState(TABS.PLANNING);
+  const [requirements, setRequirements] = useSafeState([]);
+  const [participantMedications, setParticipantMedications] = useSafeState([]);
+  const [distributions, setDistributions] = useSafeState([]);
+  const [participants, setParticipants] = useSafeState([]);
+  const [suggestions, setSuggestions] = useSafeState([]);
+  const [editingRequirement, setEditingRequirement] = useSafeState(null);
+  const [requirementForm, setRequirementForm] = useSafeState({
     medication_name: '',
     dosage_instructions: '',
     frequency_text: '',
@@ -58,7 +59,7 @@ const MedicationScreen = () => {
     end_date: '',
     participant_id: '',
   });
-  const [distributionForm, setDistributionForm] = useState({
+  const [distributionForm, setDistributionForm] = useSafeState({
     medication_requirement_id: '',
     scheduled_for: '',
     activity_name: '',
@@ -66,8 +67,8 @@ const MedicationScreen = () => {
     dose_unit: '',
     dose_notes: '',
   });
-  const [witnessNames, setWitnessNames] = useState({});
-  const [saving, setSaving] = useState(false);
+  const [witnessNames, setWitnessNames] = useSafeState({});
+  const [saving, setSaving] = useSafeState(false);
 
   const requirementOptions = useMemo(() => {
     return requirements.map((requirement) => ({

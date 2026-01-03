@@ -6,7 +6,8 @@
  * For admin and leader users
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   ScrollView,
@@ -36,14 +37,14 @@ import CONFIG from '../config';
 
 const ActivitiesScreen = () => {
   const navigation = useNavigation();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [activities, setActivities] = useState([]);
-  const [activeFilter, setActiveFilter] = useState('upcoming');
-  const [sortBy, setSortBy] = useState('date');
-  const [sortOrder, setSortOrder] = useState('asc');
-  const [userPermissions, setUserPermissions] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState(null);
+  const [activities, setActivities] = useSafeState([]);
+  const [activeFilter, setActiveFilter] = useSafeState('upcoming');
+  const [sortBy, setSortBy] = useSafeState('date');
+  const [sortOrder, setSortOrder] = useSafeState('asc');
+  const [userPermissions, setUserPermissions] = useSafeState([]);
 
   const toast = useToast();
 

@@ -116,7 +116,69 @@ This screen now demonstrates proper patterns:
 4. `mobile/src/screens/ParticipantsScreen.js`
 
 ### ⚠️ HIGH PRIORITY (async operations):
-All 56 screens listed in the script output need the useIsMounted fix.
+All screens listed below need the useIsMounted fix.
+
+#### Screens with async state updates without mount checks
+1. `mobile/src/screens/AccountInfoScreen.js`
+2. `mobile/src/screens/ActivitiesScreen.js`
+3. `mobile/src/screens/ActivityDetailScreen.js`
+4. `mobile/src/screens/AdminScreen.js`
+5. `mobile/src/screens/ApproveBadgesScreen.js`
+6. `mobile/src/screens/AttendanceScreen.js`
+7. `mobile/src/screens/BadgeDashboardScreen.js`
+8. `mobile/src/screens/BadgeFormScreen.js`
+9. `mobile/src/screens/BudgetsScreen.js`
+10. `mobile/src/screens/CalendarScreen.js`
+11. `mobile/src/screens/CreateOrganizationScreen.js`
+12. `mobile/src/screens/DashboardScreen.js`
+13. `mobile/src/screens/ExpensesScreen.js`
+14. `mobile/src/screens/ExternalRevenueScreen.js`
+15. `mobile/src/screens/FinanceScreen.js`
+16. `mobile/src/screens/FormPermissionsScreen.js`
+17. `mobile/src/screens/FundraisersScreen.js`
+18. `mobile/src/screens/GroupParticipantReportScreen.js`
+19. `mobile/src/screens/GroupsScreen.js`
+20. `mobile/src/screens/HealthFormScreen.js`
+21. `mobile/src/screens/HonorsScreen.js`
+22. `mobile/src/screens/InventoryScreen.js`
+23. `mobile/src/screens/LeaderDashboardScreen.js`
+24. `mobile/src/screens/LoginScreen.js`
+25. `mobile/src/screens/MailingListScreen.js`
+26. `mobile/src/screens/ManagePointsScreen.js`
+27. `mobile/src/screens/MaterialManagementScreen.js`
+28. `mobile/src/screens/MedicationDistributionScreen.js`
+29. `mobile/src/screens/MedicationPlanningScreen.js`
+30. `mobile/src/screens/MedicationScreen.js`
+31. `mobile/src/screens/MeetingPreparationScreen.js`
+32. `mobile/src/screens/NextMeetingScreen.js`
+33. `mobile/src/screens/OrganizationSelectScreen.js`
+34. `mobile/src/screens/ParentContactListScreen.js`
+35. `mobile/src/screens/ParentDashboardScreen.js`
+36. `mobile/src/screens/ParentFinanceScreen.js`
+37. `mobile/src/screens/ParticipantDetailScreen.js`
+38. `mobile/src/screens/ParticipantDocumentsScreen.js`
+39. `mobile/src/screens/ParticipantsScreen.js`
+40. `mobile/src/screens/PermissionSlipSignScreen.js`
+41. `mobile/src/screens/PermissionSlipsScreen.js`
+42. `mobile/src/screens/RegisterOrganizationScreen.js`
+43. `mobile/src/screens/RegisterScreen.js`
+44. `mobile/src/screens/RegistrationFormScreen.js`
+45. `mobile/src/screens/ReportsScreen.js`
+46. `mobile/src/screens/ReportViewerScreen.js`
+47. `mobile/src/screens/ResetPasswordScreen.js`
+48. `mobile/src/screens/ResourceDashboardScreen.js`
+49. `mobile/src/screens/RevenueDashboardScreen.js`
+50. `mobile/src/screens/RiskAcceptanceScreen.js`
+51. `mobile/src/screens/RoleManagementScreen.js`
+52. `mobile/src/screens/SettingsScreen.js`
+53. `mobile/src/screens/TimeSinceRegistrationScreen.js`
+54. `mobile/src/screens/UserParticipantLinkScreen.js`
+
+#### Screens with useFocusEffect and async operations
+1. `mobile/src/screens/ActivitiesScreen.js`
+2. `mobile/src/screens/LeaderDashboardScreen.js`
+3. `mobile/src/screens/ManagePointsScreen.js`
+4. `mobile/src/screens/ParticipantsScreen.js`
 
 Run this command to see the full list:
 ```bash

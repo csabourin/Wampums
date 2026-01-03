@@ -5,7 +5,8 @@
  * Allows selecting participants to award honors with reasons.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -67,17 +68,17 @@ const buildHonorsList = (participants, honors, selectedDate) => {
 };
 
 const HonorsScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [participants, setParticipants] = useState([]);
-  const [honors, setHonors] = useState([]);
-  const [availableDates, setAvailableDates] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(DateUtils.getTodayISO()); // Initialize to today
-  const [selectedHonors, setSelectedHonors] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [sortBy, setSortBy] = useState('name'); // 'name' or 'honors'
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [participants, setParticipants] = useSafeState([]);
+  const [honors, setHonors] = useSafeState([]);
+  const [availableDates, setAvailableDates] = useSafeState([]);
+  const [selectedDate, setSelectedDate] = useSafeState(DateUtils.getTodayISO()); // Initialize to today
+  const [selectedHonors, setSelectedHonors] = useSafeState({});
+  const [saving, setSaving] = useSafeState(false);
+  const [userPermissions, setUserPermissions] = useSafeState([]);
+  const [sortBy, setSortBy] = useSafeState('name'); // 'name' or 'honors'
 
   /**
    * Format a YYYY-MM-DD date string for display without timezone conversion issues.

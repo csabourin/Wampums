@@ -5,7 +5,8 @@
  * Join an organization with a registration password
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -34,16 +35,16 @@ import { validateRequired } from '../utils/ValidationUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const RegisterOrganizationScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [children, setChildren] = useState([]);
-  const [selectedChildren, setSelectedChildren] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [children, setChildren] = useSafeState([]);
+  const [selectedChildren, setSelectedChildren] = useSafeState([]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     role: 'parent',
     registration_password: '',
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

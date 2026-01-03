@@ -6,7 +6,8 @@
  * Supports Stripe payment integration (when available)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -41,20 +42,20 @@ import CONFIG from '../config';
 import { debugLog, debugError } from '../utils/DebugUtils';
 
 const ParentFinanceScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState(null);
 
-  const [participants, setParticipants] = useState([]);
-  const [participantStatements, setParticipantStatements] = useState(new Map());
-  const [consolidatedTotals, setConsolidatedTotals] = useState({
+  const [participants, setParticipants] = useSafeState([]);
+  const [participantStatements, setParticipantStatements] = useSafeState(new Map());
+  const [consolidatedTotals, setConsolidatedTotals] = useSafeState({
     total_billed: 0,
     total_paid: 0,
     total_outstanding: 0,
   });
 
   // Stripe payment state
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useSafeState(false);
 
   /**
    * Load initial data

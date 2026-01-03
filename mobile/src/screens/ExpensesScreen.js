@@ -5,7 +5,8 @@
  * Enhanced expense tracking with tax calculation, filtering, and reporting
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -40,35 +41,35 @@ import { formatCurrency } from '../utils/FormatUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const ExpensesScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [expenses, setExpenses] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [items, setItems] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [monthlyData, setMonthlyData] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [expenses, setExpenses] = useSafeState([]);
+  const [categories, setCategories] = useSafeState([]);
+  const [items, setItems] = useSafeState([]);
+  const [summary, setSummary] = useSafeState(null);
+  const [monthlyData, setMonthlyData] = useSafeState([]);
 
   const fiscalYear = useMemo(() => getCurrentFiscalYear(), []);
 
   // Filters
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useSafeState({
     start_date: fiscalYear.start,
     end_date: fiscalYear.end,
     category_id: 'all',
   });
 
   // Active tab
-  const [activeTab, setActiveTab] = useState('list'); // list, summary, monthly
+  const [activeTab, setActiveTab] = useSafeState('list'); // list, summary, monthly
 
   // Modal state
-  const [expenseModalVisible, setExpenseModalVisible] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState(null);
-  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
-  const [expenseToDelete, setExpenseToDelete] = useState(null);
+  const [expenseModalVisible, setExpenseModalVisible] = useSafeState(false);
+  const [selectedExpense, setSelectedExpense] = useSafeState(null);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useSafeState(false);
+  const [expenseToDelete, setExpenseToDelete] = useSafeState(null);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     expense_date: new Date().toISOString().split('T')[0],
     budget_category_id: '',
     budget_item_id: '',
@@ -81,12 +82,12 @@ const ExpensesScreen = ({ navigation }) => {
   });
 
   // Tax calculator state
-  const [subtotal, setSubtotal] = useState('');
-  const [taxBreakdown, setTaxBreakdown] = useState(null);
+  const [subtotal, setSubtotal] = useSafeState('');
+  const [taxBreakdown, setTaxBreakdown] = useSafeState(null);
 
-  const [saving, setSaving] = useState(false);
-  const [canManage, setCanManage] = useState(false);
-  const [canApprove, setCanApprove] = useState(false);
+  const [saving, setSaving] = useSafeState(false);
+  const [canManage, setCanManage] = useSafeState(false);
+  const [canApprove, setCanApprove] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

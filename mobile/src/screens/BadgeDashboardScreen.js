@@ -6,7 +6,8 @@
  * View earned badges, stars, and completion progress
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -42,18 +43,18 @@ import { debugLog, debugError } from '../utils/DebugUtils';
 const BadgeDashboardScreen = () => {
   const navigation = useNavigation();
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [groups, setGroups] = useState([]);
-  const [participants, setParticipants] = useState([]);
-  const [badgeEntries, setBadgeEntries] = useState([]);
-  const [badgeSettings, setBadgeSettings] = useState(null);
-  const [templates, setTemplates] = useState([]);
-  const [sortKey, setSortKey] = useState('group');
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [selectedBadge, setSelectedBadge] = useState(null);
-  const [badgeModalVisible, setBadgeModalVisible] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [groups, setGroups] = useSafeState([]);
+  const [participants, setParticipants] = useSafeState([]);
+  const [badgeEntries, setBadgeEntries] = useSafeState([]);
+  const [badgeSettings, setBadgeSettings] = useSafeState(null);
+  const [templates, setTemplates] = useSafeState([]);
+  const [sortKey, setSortKey] = useSafeState('group');
+  const [sortDirection, setSortDirection] = useSafeState('asc');
+  const [selectedBadge, setSelectedBadge] = useSafeState(null);
+  const [badgeModalVisible, setBadgeModalVisible] = useSafeState(false);
 
   useEffect(() => {
     // Check permissions and load data

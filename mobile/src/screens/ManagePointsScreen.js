@@ -5,7 +5,8 @@
  * Provides quick point adjustments for participants and groups.
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -55,16 +56,16 @@ const buildGroupedParticipants = (participants) => {
 };
 
 const ManagePointsScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [participants, setParticipants] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
-  const [selectedType, setSelectedType] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [sortBy, setSortBy] = useState(SORT_TYPES.GROUP);
-  const [filterGroupId, setFilterGroupId] = useState('all');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [participants, setParticipants] = useSafeState([]);
+  const [groups, setGroups] = useSafeState([]);
+  const [selectedId, setSelectedId] = useSafeState(null);
+  const [selectedType, setSelectedType] = useSafeState(null);
+  const [submitting, setSubmitting] = useSafeState(false);
+  const [sortBy, setSortBy] = useSafeState(SORT_TYPES.GROUP);
+  const [filterGroupId, setFilterGroupId] = useSafeState('all');
 
   /**
    * Debug filter changes
