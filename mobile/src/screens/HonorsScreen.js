@@ -79,6 +79,31 @@ const HonorsScreen = () => {
   const [userPermissions, setUserPermissions] = useState([]);
   const [sortBy, setSortBy] = useState('name'); // 'name' or 'honors'
 
+  /**
+   * Format a YYYY-MM-DD date string for display without timezone conversion issues.
+   * @param {string} dateString - Date in YYYY-MM-DD format
+   * @returns {string} Formatted date string
+   */
+  const formatDateForDisplay = (dateString) => {
+    if (!dateString) return '';
+  
+    // Parse the date string manually to avoid timezone issues
+    const parts = dateString.split('-');
+    if (parts.length !== 3) return dateString;
+  
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // 0-indexed
+    const day = parseInt(parts[2], 10);
+  
+    // Create date at noon local time to avoid timezone issues
+    const date = new Date(year, month, day, 12, 0, 0);
+  
+    if (isNaN(date.getTime())) return dateString;
+  
+    // Use DateUtils for proper locale formatting
+    return DateUtils.formatDate(date);
+  };
+
   const honorsList = useMemo(() => {
     const list = buildHonorsList(participants, honors, selectedDate);
 
@@ -275,7 +300,7 @@ const HonorsScreen = () => {
               {availableDates.map((date) => (
                 <Picker.Item
                   key={date}
-                  label={DateUtils.formatDate(date)}
+                  label={formatDateForDisplay(date)}
                   value={date}
                 />
               ))}
