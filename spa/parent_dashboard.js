@@ -458,9 +458,16 @@ renderFormButtons(participant) {
                 </a>
         `;
 
-    debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge: ${(formButtons + badgeButton).length}`);
+    const progressReportButton = `
+                <a href="/reports?participantId=${participant.id}" class="form-btn form-btn--badge">
+                        <span class="form-btn__icon">📊</span>
+                        <span class="form-btn__label">${translate('view_progress_report')}</span>
+                </a>
+        `;
 
-    return formButtons + badgeButton;
+    debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge and progress: ${(formButtons + badgeButton + progressReportButton).length}`);
+
+    return formButtons + badgeButton + progressReportButton;
 }
 
         renderPermissionSlipSection(participant) {

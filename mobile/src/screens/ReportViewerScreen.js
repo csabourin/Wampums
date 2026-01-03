@@ -41,14 +41,14 @@ import {
 import { debugLog, debugError } from '../utils/DebugUtils';
 
 const ReportViewerScreen = ({ route, navigation }) => {
-  const { reportType, reportTitle } = route.params;
+  const { reportType, reportTitle, participantId } = route.params;
   const [loading, setLoading] = useSafeState(true);
   const [reportData, setReportData] = useSafeState(null);
   const [error, setError] = useSafeState(null);
 
   // State for participant progress report
   const [participantList, setParticipantList] = useSafeState([]);
-  const [selectedParticipantId, setSelectedParticipantId] = useSafeState(null);
+  const [selectedParticipantId, setSelectedParticipantId] = useSafeState(participantId || null);
 
   // State for missing fields report
   const [formTypes, setFormTypes] = useSafeState([]);

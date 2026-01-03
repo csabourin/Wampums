@@ -373,22 +373,37 @@ const ParentDashboardScreen = () => {
           </Card>
         ) : (
           children.map((child) => (
-            <Card
-              key={child.id}
-              onPress={() => navigation.navigate('ParticipantDetail', { id: child.id })}
-            >
-              <Text style={styles.childName}>
-                {child.firstName} {child.lastName}
-              </Text>
-              <Text style={styles.childDetail}>
-                {t('age')}: {DateUtils.calculateAge(child.birthdate)}{' '}
-                {t('years')}
-              </Text>
-              {child.group && (
-                <Text style={styles.childDetail}>
-                  {t('group')}: {child.group}
+            <Card key={child.id}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ParticipantDetail', { id: child.id })}
+                style={styles.childInfoContainer}
+              >
+                <Text style={styles.childName}>
+                  {child.firstName} {child.lastName}
                 </Text>
-              )}
+                <Text style={styles.childDetail}>
+                  {t('age')}: {DateUtils.calculateAge(child.birthdate)}{' '}
+                  {t('years')}
+                </Text>
+                {child.group && (
+                  <Text style={styles.childDetail}>
+                    {t('group')}: {child.group}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.progressButton}
+                onPress={() =>
+                  navigation.navigate('ReportViewer', {
+                    reportType: 'participant-progress',
+                    participantId: child.id,
+                  })
+                }
+              >
+                <Text style={styles.progressButtonText}>
+                  📊 {t('view_progress_report')}
+                </Text>
+              </TouchableOpacity>
             </Card>
           ))
         )}
@@ -721,6 +736,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  childInfoContainer: {
+    marginBottom: 12,
+  },
+  progressButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  progressButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   activityName: {
     fontSize: 16,
