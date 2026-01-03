@@ -35,7 +35,6 @@ import StorageUtils from '../utils/StorageUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
 import theme from '../theme';
 import CONFIG from '../config';
-import { useIsMounted } from '../hooks/useIsMounted';
 
 const ActivitiesScreen = () => {
   const navigation = useNavigation();
