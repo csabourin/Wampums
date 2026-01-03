@@ -1392,7 +1392,10 @@ export const getMissingDocumentsReport = async () => {
  */
 export const getParticipantProgressReport = async (participantId = null) => {
   const params = participantId ? { participant_id: participantId } : {};
-  return API.get('/participant-progress', params);
+  const cacheKey = participantId
+    ? `/participant-progress?participant_id=${participantId}`
+    : '/participant-progress';
+  return API.get('/participant-progress', params, { cacheKey });
 };
 
 /**
