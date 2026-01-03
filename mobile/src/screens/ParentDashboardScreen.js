@@ -179,8 +179,8 @@ const ParentDashboardScreen = () => {
     try {
       setError('');
       let myChildren = [];
-      let childrenLoaded = false;
 
+      // Phase 1: Load children data (sequential, depends on each other)
       try {
         const parentDashboardResponse = await getParentDashboard();
         if (parentDashboardResponse?.success) {
@@ -190,37 +190,81 @@ const ParentDashboardScreen = () => {
             [];
           const normalizedChildren = normalizeDashboardChildren(childrenData);
           myChildren = normalizedChildren;
-          childrenLoaded = true;
           setChildren(normalizedChildren);
         }
       } catch (err) {
         debugError('Error loading parent dashboard children:', err);
-      }
 
-      if (!childrenLoaded) {
-        const guardianParticipants = await StorageUtils.getItem(
-          CONFIG.STORAGE_KEYS.GUARDIAN_PARTICIPANTS
-        );
+        // Fallback: try loading from participants endpoint
+        try {
+          const guardianParticipants = await StorageUtils.getItem(
+            CONFIG.STORAGE_KEYS.GUARDIAN_PARTICIPANTS
+          );
 
-        const participantsResponse = await getParticipants();
-        if (participantsResponse.success) {
-          const participantData = Array.isArray(participantsResponse.data)
-            ? participantsResponse.data
-            : [];
-          const filteredParticipants =
-            Array.isArray(guardianParticipants) && guardianParticipants.length > 0
-              ? participantData.filter((p) => guardianParticipants.includes(p.id))
-              : participantData;
-          const normalizedChildren = normalizeDashboardChildren(filteredParticipants);
-          myChildren = normalizedChildren;
-          setChildren(normalizedChildren);
+          const participantsResponse = await getParticipants();
+          if (participantsResponse.success) {
+            const participantData = Array.isArray(participantsResponse.data)
+              ? participantsResponse.data
+              : [];
+            const filteredParticipants =
+              Array.isArray(guardianParticipants) && guardianParticipants.length > 0
+                ? participantData.filter((p) => guardianParticipants.includes(p.id))
+                : participantData;
+            const normalizedChildren = normalizeDashboardChildren(filteredParticipants);
+            myChildren = normalizedChildren;
+            setChildren(normalizedChildren);
+          }
+        } catch (fallbackErr) {
+          debugError('Error loading participants fallback:', fallbackErr);
         }
       }
 
-      // Load upcoming activities
-      const activitiesResponse = await getActivities();
+      // Phase 2: Load all independent data in parallel
+      const [
+        activitiesResponse,
+        carpoolResponse,
+        permissionSlipsResults,
+        financialResults
+      ] = await Promise.all([
+        // Load upcoming activities
+        getActivities().catch((err) => {
+          debugError('Error loading activities:', err);
+          return { success: false, data: [] };
+        }),
+
+        // Load carpool assignments
+        getMyChildrenAssignments().catch((err) => {
+          debugError('Error loading carpool assignments:', err);
+          return { success: false, data: [] };
+        }),
+
+        // Load permission slips for all children in parallel
+        myChildren.length > 0
+          ? Promise.all(
+              myChildren.map((child) =>
+                getPermissionSlips({ participant_id: child.id }).catch((err) => {
+                  debugError(`Error loading permission slips for child ${child.id}:`, err);
+                  return { success: false, data: [] };
+                })
+              )
+            )
+          : Promise.resolve([]),
+
+        // Load financial statements for all children in parallel
+        myChildren.length > 0
+          ? Promise.all(
+              myChildren.map((child) =>
+                getParticipantStatement(child.id).catch((err) => {
+                  debugError(`Error loading statement for child ${child.id}:`, err);
+                  return { success: false, data: null };
+                })
+              )
+            )
+          : Promise.resolve([])
+      ]);
+
+      // Process activities
       if (activitiesResponse.success) {
-        // Filter to future activities and sort by date
         const upcoming = activitiesResponse.data
           .filter((a) => DateUtils.isFuture(a.activity_date))
           .sort((a, b) => new Date(a.activity_date) - new Date(b.activity_date))
@@ -228,77 +272,38 @@ const ParentDashboardScreen = () => {
         setUpcomingActivities(upcoming);
       }
 
-      // Load carpool assignments for my children
-      try {
-        const carpoolResponse = await getMyChildrenAssignments();
-        if (carpoolResponse.success) {
-          setCarpoolAssignments(carpoolResponse.data || []);
-        }
-      } catch (err) {
-        debugError('Error loading carpool assignments:', err);
-        // Non-critical, continue
+      // Process carpool assignments
+      if (carpoolResponse.success) {
+        setCarpoolAssignments(carpoolResponse.data || []);
       }
 
-      // Load permission slips for all children
-      if (myChildren.length > 0) {
-        try {
-          const permissionSlipPromises = myChildren.map((child) =>
-            getPermissionSlips({ participant_id: child.id }).catch((err) => {
-              debugError(`Error loading permission slips for child ${child.id}:`, err);
-              return { success: false, data: [] };
-            })
-          );
-
-          const permissionSlipResponses = await Promise.all(permissionSlipPromises);
-
-          // Collect all unsigned permission slips
-          const allUnsigned = [];
-          permissionSlipResponses.forEach((response) => {
-            if (response.success) {
-              const slips = normalizePermissionSlips(response);
-              const unsigned = slips.filter((slip) => !slip.signed);
-              allUnsigned.push(...unsigned);
-            }
-          });
-
-          setUnsignedPermissionSlips(allUnsigned);
-          debugLog('Loaded permission slips:', allUnsigned.length, 'unsigned');
-        } catch (err) {
-          debugError('Error loading permission slips:', err);
-          // Non-critical, continue
+      // Process permission slips
+      const allUnsigned = [];
+      permissionSlipsResults.forEach((response) => {
+        if (response.success) {
+          const slips = normalizePermissionSlips(response);
+          const unsigned = slips.filter((slip) => !slip.signed);
+          allUnsigned.push(...unsigned);
         }
+      });
+      setUnsignedPermissionSlips(allUnsigned);
+      debugLog('Loaded permission slips:', allUnsigned.length, 'unsigned');
 
-        // Load financial summary for all children
-        try {
-          const statementPromises = myChildren.map((child) =>
-            getParticipantStatement(child.id).catch((err) => {
-              debugError(`Error loading statement for child ${child.id}:`, err);
-              return { success: false, data: null };
-            })
-          );
-
-          const statementResponses = await Promise.all(statementPromises);
-
-          // Calculate total outstanding
-          let totalOutstanding = 0;
-          statementResponses.forEach((response) => {
-            if (response.success && response.data) {
-              const statement = response.data;
-              const totals = statement.totals || {};
-              totalOutstanding += Number(totals.total_outstanding) || 0;
-            }
-          });
-
-          setFinancialSummary({
-            totalOutstanding,
-            participantCount: myChildren.length,
-          });
-          debugLog('Financial summary:', { totalOutstanding, participantCount: myChildren.length });
-        } catch (err) {
-          debugError('Error loading financial summary:', err);
-          // Non-critical, continue
+      // Process financial summary
+      let totalOutstanding = 0;
+      financialResults.forEach((response) => {
+        if (response.success && response.data) {
+          const statement = response.data;
+          const totals = statement.totals || {};
+          totalOutstanding += Number(totals.total_outstanding) || 0;
         }
-      }
+      });
+      setFinancialSummary({
+        totalOutstanding,
+        participantCount: myChildren.length,
+      });
+      debugLog('Financial summary:', { totalOutstanding, participantCount: myChildren.length });
+
     } catch (err) {
       debugError('Error in loadDashboardData:', err);
       setError(err.message || t('error_loading_data'));
