@@ -5,7 +5,8 @@
  * Complete fee management, participant fees, payments, and payment plans
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -53,23 +54,23 @@ import { debugError, debugLog } from '../utils/DebugUtils';
 const DEFAULT_CURRENCY = 'CAD';
 
 const FinanceScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [feeDefinitions, setFeeDefinitions] = useState([]);
-  const [participantFees, setParticipantFees] = useState([]);
-  const [canManage, setCanManage] = useState(false);
-  const [canView, setCanView] = useState(false);
-  const [participants, setParticipants] = useState([]);
-  const [financeSummary, setFinanceSummary] = useState(null);
-  const [activeTab, setActiveTab] = useState('memberships');
-  const [sortField, setSortField] = useState('name');
-  const [sortDirection, setSortDirection] = useState('asc');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [feeDefinitions, setFeeDefinitions] = useSafeState([]);
+  const [participantFees, setParticipantFees] = useSafeState([]);
+  const [canManage, setCanManage] = useSafeState(false);
+  const [canView, setCanView] = useSafeState(false);
+  const [participants, setParticipants] = useSafeState([]);
+  const [financeSummary, setFinanceSummary] = useSafeState(null);
+  const [activeTab, setActiveTab] = useSafeState('memberships');
+  const [sortField, setSortField] = useSafeState('name');
+  const [sortDirection, setSortDirection] = useSafeState('asc');
 
   // Fee Definition modal
-  const [feeDefModalVisible, setFeeDefModalVisible] = useState(false);
-  const [editingFeeDef, setEditingFeeDef] = useState(null);
-  const [feeDefForm, setFeeDefForm] = useState({
+  const [feeDefModalVisible, setFeeDefModalVisible] = useSafeState(false);
+  const [editingFeeDef, setEditingFeeDef] = useSafeState(null);
+  const [feeDefForm, setFeeDefForm] = useSafeState({
     year_start: '',
     year_end: '',
     registration_fee: '',
@@ -77,9 +78,9 @@ const FinanceScreen = ({ navigation }) => {
   });
 
   // Participant fee modal
-  const [participantFeeModalVisible, setParticipantFeeModalVisible] = useState(false);
-  const [editingParticipantFee, setEditingParticipantFee] = useState(null);
-  const [participantFeeForm, setParticipantFeeForm] = useState({
+  const [participantFeeModalVisible, setParticipantFeeModalVisible] = useSafeState(false);
+  const [editingParticipantFee, setEditingParticipantFee] = useSafeState(null);
+  const [participantFeeForm, setParticipantFeeForm] = useSafeState({
     participant_id: '',
     fee_definition_id: '',
     total_registration_fee: '',
@@ -94,17 +95,17 @@ const FinanceScreen = ({ navigation }) => {
   });
 
   // Payment modal
-  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
-  const [selectedParticipantFee, setSelectedParticipantFee] = useState(null);
-  const [paymentRows, setPaymentRows] = useState([
+  const [paymentModalVisible, setPaymentModalVisible] = useSafeState(false);
+  const [selectedParticipantFee, setSelectedParticipantFee] = useSafeState(null);
+  const [paymentRows, setPaymentRows] = useSafeState([
     { amount: '', date: DateUtils.formatDate(new Date()), method: 'cash', reference: '' }
   ]);
 
   // Plan modal
-  const [planModalVisible, setPlanModalVisible] = useState(false);
-  const [selectedPlanFee, setSelectedPlanFee] = useState(null);
-  const [existingPlan, setExistingPlan] = useState(null);
-  const [planForm, setPlanForm] = useState({
+  const [planModalVisible, setPlanModalVisible] = useSafeState(false);
+  const [selectedPlanFee, setSelectedPlanFee] = useSafeState(null);
+  const [existingPlan, setExistingPlan] = useSafeState(null);
+  const [planForm, setPlanForm] = useSafeState({
     number_of_payments: '',
     amount_per_payment: '',
     start_date: DateUtils.formatDate(new Date()),
@@ -112,7 +113,7 @@ const FinanceScreen = ({ navigation }) => {
     notes: '',
   });
 
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useSafeState(false);
 
   useEffect(() => {
     const checkPermissionAndLoad = async () => {

@@ -5,7 +5,8 @@
  * Budget management with categories, items, and expense tracking
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -41,30 +42,30 @@ import API from '../api/api-core';
 import CONFIG from '../config';
 
 const BudgetsScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [categories, setCategories] = useState([]);
-  const [items, setItems] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [summaryReport, setSummaryReport] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [categories, setCategories] = useSafeState([]);
+  const [items, setItems] = useSafeState([]);
+  const [expenses, setExpenses] = useSafeState([]);
+  const [summaryReport, setSummaryReport] = useSafeState(null);
+  const [activeTab, setActiveTab] = useSafeState('overview');
   const fiscalYear = getCurrentFiscalYear();
 
-  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
-  const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
-  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useSafeState(false);
+  const [categoryForm, setCategoryForm] = useSafeState({ name: '', description: '' });
+  const [editingCategory, setEditingCategory] = useSafeState(null);
 
-  const [itemModalVisible, setItemModalVisible] = useState(false);
-  const [itemForm, setItemForm] = useState({
+  const [itemModalVisible, setItemModalVisible] = useSafeState(false);
+  const [itemForm, setItemForm] = useSafeState({
     category_id: '',
     name: '',
     budgeted_amount: '',
     description: '',
   });
-  const [editingItem, setEditingItem] = useState(null);
+  const [editingItem, setEditingItem] = useSafeState(null);
 
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

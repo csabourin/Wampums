@@ -5,7 +5,8 @@
  * Admin panel with user management, notifications, and data import
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -50,13 +51,13 @@ import {
 import SecurityUtils from '../utils/SecurityUtils';
 
 const AdminScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [users, setUsers] = useState([]);
-  const [subscribers, setSubscribers] = useState([]);
-  const [currentOrganizationId, setCurrentOrganizationId] = useState(null);
-  const [permissions, setPermissions] = useState({
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [users, setUsers] = useSafeState([]);
+  const [subscribers, setSubscribers] = useSafeState([]);
+  const [currentOrganizationId, setCurrentOrganizationId] = useSafeState(null);
+  const [permissions, setPermissions] = useSafeState({
     canAccessAdmin: false,
     canCreateOrg: false,
     canManageUsers: false,
@@ -65,18 +66,18 @@ const AdminScreen = ({ navigation }) => {
   });
 
   // Notification form state
-  const [notificationTitle, setNotificationTitle] = useState('');
-  const [notificationBody, setNotificationBody] = useState('');
-  const [selectedSubscribers, setSelectedSubscribers] = useState({});
+  const [notificationTitle, setNotificationTitle] = useSafeState('');
+  const [notificationBody, setNotificationBody] = useSafeState('');
+  const [selectedSubscribers, setSelectedSubscribers] = useSafeState({});
 
   // User management state
-  const [editingUserId, setEditingUserId] = useState(null);
-  const [editingUserRole, setEditingUserRole] = useState('');
-  const [userModalVisible, setUserModalVisible] = useState(false);
-  const [approveConfirmVisible, setApproveConfirmVisible] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [editingUserId, setEditingUserId] = useSafeState(null);
+  const [editingUserRole, setEditingUserRole] = useSafeState('');
+  const [userModalVisible, setUserModalVisible] = useSafeState(false);
+  const [approveConfirmVisible, setApproveConfirmVisible] = useSafeState(false);
+  const [selectedUser, setSelectedUser] = useSafeState(null);
 
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

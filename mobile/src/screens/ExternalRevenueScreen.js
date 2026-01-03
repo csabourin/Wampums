@@ -5,7 +5,8 @@
  * Track donations, sponsorships, grants, and other external income
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -38,17 +39,17 @@ import { formatCurrency } from '../utils/FormatUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const ExternalRevenueScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [revenues, setRevenues] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [revenues, setRevenues] = useSafeState([]);
+  const [categories, setCategories] = useSafeState([]);
+  const [summary, setSummary] = useSafeState(null);
 
   const fiscalYear = useMemo(() => getCurrentFiscalYear(), []);
 
   // Filters
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useSafeState({
     start_date: fiscalYear.start,
     end_date: fiscalYear.end,
     revenue_type: 'all',
@@ -56,13 +57,13 @@ const ExternalRevenueScreen = ({ navigation }) => {
   });
 
   // Modal state
-  const [revenueModalVisible, setRevenueModalVisible] = useState(false);
-  const [selectedRevenue, setSelectedRevenue] = useState(null);
-  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
-  const [revenueToDelete, setRevenueToDelete] = useState(null);
+  const [revenueModalVisible, setRevenueModalVisible] = useSafeState(false);
+  const [selectedRevenue, setSelectedRevenue] = useSafeState(null);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useSafeState(false);
+  const [revenueToDelete, setRevenueToDelete] = useSafeState(null);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     revenue_type: 'donation',
     revenue_date: new Date().toISOString().split('T')[0],
     description: '',
@@ -74,9 +75,9 @@ const ExternalRevenueScreen = ({ navigation }) => {
     notes: '',
   });
 
-  const [saving, setSaving] = useState(false);
-  const [canManage, setCanManage] = useState(false);
-  const [canApprove, setCanApprove] = useState(false);
+  const [saving, setSaving] = useSafeState(false);
+  const [canManage, setCanManage] = useSafeState(false);
+  const [canApprove, setCanApprove] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

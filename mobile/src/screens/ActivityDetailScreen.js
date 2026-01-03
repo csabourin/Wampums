@@ -12,7 +12,8 @@
  * - Delete confirmation
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -37,13 +38,13 @@ const ActivityDetailScreen = () => {
   const activityId = route.params?.id;
   const isNewActivity = activityId === 'new';
 
-  const [loading, setLoading] = useState(!isNewActivity);
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [notifyParticipants, setNotifyParticipants] = useState(true);
+  const [loading, setLoading] = useSafeState(!isNewActivity);
+  const [error, setError] = useSafeState(null);
+  const [saving, setSaving] = useSafeState(false);
+  const [notifyParticipants, setNotifyParticipants] = useSafeState(true);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     name: '',
     description: '',
     date: '',

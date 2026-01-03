@@ -5,7 +5,8 @@
  * View roles and their permissions, assign roles to users
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -33,19 +34,19 @@ import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 
 const RoleManagementScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('roles'); // 'roles' or 'users'
-  const [roles, setRoles] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [selectedRoleId, setSelectedRoleId] = useState(null);
-  const [rolePermissions, setRolePermissions] = useState({});
-  const [selectedUserId, setSelectedUserId] = useState(null);
-  const [userRoles, setUserRoles] = useState([]);
-  const [selectedUserRoleIds, setSelectedUserRoleIds] = useState([]);
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [activeTab, setActiveTab] = useSafeState('roles'); // 'roles' or 'users'
+  const [roles, setRoles] = useSafeState([]);
+  const [users, setUsers] = useSafeState([]);
+  const [selectedRoleId, setSelectedRoleId] = useSafeState(null);
+  const [rolePermissions, setRolePermissions] = useSafeState({});
+  const [selectedUserId, setSelectedUserId] = useSafeState(null);
+  const [userRoles, setUserRoles] = useSafeState([]);
+  const [selectedUserRoleIds, setSelectedUserRoleIds] = useSafeState([]);
+  const [userSearchQuery, setUserSearchQuery] = useSafeState('');
+  const [saving, setSaving] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

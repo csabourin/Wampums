@@ -5,7 +5,8 @@
  * Dashboard for accessing various reports (health, attendance, finance, etc.)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -26,8 +27,8 @@ import { canViewReports } from '../utils/PermissionUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const ReportsScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
 
   useEffect(() => {
     checkPermissions();

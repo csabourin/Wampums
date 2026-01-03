@@ -6,7 +6,8 @@
  * For admin and leader users
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -38,17 +39,17 @@ import {
 import { canViewGroups } from '../utils/PermissionUtils';
 
 const GroupsScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [groups, setGroups] = useState([]);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [editingGroup, setEditingGroup] = useState(null);
-  const [editGroupName, setEditGroupName] = useState('');
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
-  const [groupToDelete, setGroupToDelete] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [groups, setGroups] = useSafeState([]);
+  const [newGroupName, setNewGroupName] = useSafeState('');
+  const [editingGroup, setEditingGroup] = useSafeState(null);
+  const [editGroupName, setEditGroupName] = useSafeState('');
+  const [addModalVisible, setAddModalVisible] = useSafeState(false);
+  const [editModalVisible, setEditModalVisible] = useSafeState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useSafeState(false);
+  const [groupToDelete, setGroupToDelete] = useSafeState(null);
   const toast = useToast();
 
   useEffect(() => {

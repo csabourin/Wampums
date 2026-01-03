@@ -6,7 +6,8 @@
  * For admin users
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -38,16 +39,16 @@ import { Picker } from '@react-native-picker/picker';
 import { canViewUsers } from '../utils/PermissionUtils';
 
 const UserParticipantLinkScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [participants, setParticipants] = useState([]);
-  const [filteredParticipants, setFilteredParticipants] = useState([]);
-  const [parentUsers, setParentUsers] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [linkModalVisible, setLinkModalVisible] = useState(false);
-  const [selectedParticipant, setSelectedParticipant] = useState(null);
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [participants, setParticipants] = useSafeState([]);
+  const [filteredParticipants, setFilteredParticipants] = useSafeState([]);
+  const [parentUsers, setParentUsers] = useSafeState([]);
+  const [searchQuery, setSearchQuery] = useSafeState('');
+  const [linkModalVisible, setLinkModalVisible] = useSafeState(false);
+  const [selectedParticipant, setSelectedParticipant] = useSafeState(null);
+  const [selectedUserId, setSelectedUserId] = useSafeState('');
   const toast = useToast();
 
   useEffect(() => {

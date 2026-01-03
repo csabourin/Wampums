@@ -5,7 +5,8 @@
  * Equipment inventory management with photo upload, gallery/table views
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -47,18 +48,18 @@ const LOCATION_TYPES = [
 ];
 
 const InventoryScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [equipment, setEquipment] = useState([]);
-  const [viewMode, setViewMode] = useState('gallery'); // 'gallery' or 'list'
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [equipment, setEquipment] = useSafeState([]);
+  const [viewMode, setViewMode] = useSafeState('gallery'); // 'gallery' or 'list'
 
   // Modal states
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
+  const [showAddModal, setShowAddModal] = useSafeState(false);
+  const [showEditModal, setShowEditModal] = useSafeState(false);
+  const [editingItem, setEditingItem] = useSafeState(null);
 
   // Form data
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     name: '',
     category: '',
     description: '',
@@ -72,9 +73,9 @@ const InventoryScreen = ({ navigation }) => {
     share_with_local_group: true,
     photo_url: '',
   });
-  const [selectedImage, setSelectedImage] = useState(null); // Local image before upload
+  const [selectedImage, setSelectedImage] = useSafeState(null); // Local image before upload
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

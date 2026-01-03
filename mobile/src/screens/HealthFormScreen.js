@@ -6,7 +6,8 @@
  * For parents to fill out health information
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -36,13 +37,13 @@ import DateUtils from '../utils/DateUtils';
 
 const HealthFormScreen = ({ route, navigation }) => {
   const { participantId } = route.params;
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [participant, setParticipant] = useState(null);
-  const [parents, setParents] = useState([]);
-  const [formStructure, setFormStructure] = useState(null);
-  const [formData, setFormData] = useState({});
-  const [emergencyContacts, setEmergencyContacts] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [error, setError] = useSafeState('');
+  const [participant, setParticipant] = useSafeState(null);
+  const [parents, setParents] = useSafeState([]);
+  const [formStructure, setFormStructure] = useSafeState(null);
+  const [formData, setFormData] = useSafeState({});
+  const [emergencyContacts, setEmergencyContacts] = useSafeState([]);
   const toast = useToast();
 
   useEffect(() => {

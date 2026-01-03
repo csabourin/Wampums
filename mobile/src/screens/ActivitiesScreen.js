@@ -6,7 +6,8 @@
  * For admin and leader users
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   ScrollView,

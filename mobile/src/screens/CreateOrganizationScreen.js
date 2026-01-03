@@ -5,7 +5,8 @@
  * Create a new organization/unit (district admin feature)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -33,10 +34,10 @@ import { validateRequired, validateEmail } from '../utils/ValidationUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const CreateOrganizationScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useSafeState(true);
+  const [error, setError] = useSafeState('');
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     name: '',
     address: '',
     city: '',
@@ -48,7 +49,7 @@ const CreateOrganizationScreen = ({ navigation }) => {
     account_creation_password: '',
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

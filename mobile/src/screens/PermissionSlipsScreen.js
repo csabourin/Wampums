@@ -6,7 +6,8 @@
  * Create, send, and track permission slip signatures
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -46,18 +47,18 @@ import DateUtils from '../utils/DateUtils';
 import { canSendCommunications, canViewParticipants } from '../utils/PermissionUtils';
 
 const PermissionSlipsScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [activityDate, setActivityDate] = useState(
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [activityDate, setActivityDate] = useSafeState(
     DateUtils.formatDate(new Date(), 'en', 'YYYY-MM-DD')
   );
-  const [permissionSlips, setPermissionSlips] = useState([]);
-  const [dashboardSummary, setDashboardSummary] = useState({ permission_summary: [] });
-  const [groups, setGroups] = useState([]);
-  const [participants, setParticipants] = useState([]);
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [formData, setFormData] = useState({
+  const [permissionSlips, setPermissionSlips] = useSafeState([]);
+  const [dashboardSummary, setDashboardSummary] = useSafeState({ permission_summary: [] });
+  const [groups, setGroups] = useSafeState([]);
+  const [participants, setParticipants] = useSafeState([]);
+  const [createModalVisible, setCreateModalVisible] = useSafeState(false);
+  const [formData, setFormData] = useSafeState({
     activity_title: '',
     activity_description: '',
     deadline_date: '',

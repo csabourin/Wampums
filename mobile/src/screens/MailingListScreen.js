@@ -5,7 +5,8 @@
  * Send announcements and view mailing lists by role
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -43,24 +44,24 @@ const ROLES = [
 ];
 
 const MailingListScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [mailingList, setMailingList] = useState({});
-  const [announcements, setAnnouncements] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [mailingList, setMailingList] = useSafeState({});
+  const [announcements, setAnnouncements] = useSafeState([]);
+  const [groups, setGroups] = useSafeState([]);
+  const [templates, setTemplates] = useSafeState([]);
 
-  const [showComposerModal, setShowComposerModal] = useState(false);
-  const [selectedRoles, setSelectedRoles] = useState(new Set(['parent', 'leader']));
-  const [selectedGroups, setSelectedGroups] = useState(new Set());
+  const [showComposerModal, setShowComposerModal] = useSafeState(false);
+  const [selectedRoles, setSelectedRoles] = useSafeState(new Set(['parent', 'leader']));
+  const [selectedGroups, setSelectedGroups] = useSafeState(new Set());
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     subject: '',
     message: '',
     scheduled_at: '',
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

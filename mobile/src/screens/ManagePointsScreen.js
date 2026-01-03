@@ -5,7 +5,8 @@
  * Provides quick point adjustments for participants and groups.
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,

@@ -11,7 +11,8 @@
  * - View all planned medications
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -55,35 +56,35 @@ const MedicationPlanningScreen = () => {
   const navigation = useNavigation();
 
   // State
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [saving, setSaving] = useSafeState(false);
+  const [error, setError] = useSafeState('');
 
   // Data
-  const [requirements, setRequirements] = useState([]);
-  const [participants, setParticipants] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
+  const [requirements, setRequirements] = useSafeState([]);
+  const [participants, setParticipants] = useSafeState([]);
+  const [suggestions, setSuggestions] = useSafeState([]);
 
   // Form state - participant FIRST
-  const [selectedParticipantId, setSelectedParticipantId] = useState('');
-  const [medicationName, setMedicationName] = useState('');
-  const [dosageInstructions, setDosageInstructions] = useState('');
-  const [frequency, setFrequency] = useState('custom');
-  const [administrationTimes, setAdministrationTimes] = useState([
+  const [selectedParticipantId, setSelectedParticipantId] = useSafeState('');
+  const [medicationName, setMedicationName] = useSafeState('');
+  const [dosageInstructions, setDosageInstructions] = useSafeState('');
+  const [frequency, setFrequency] = useSafeState('custom');
+  const [administrationTimes, setAdministrationTimes] = useSafeState([
     new Date(2000, 0, 1, 8, 0), // 08:00 AM
     new Date(2000, 0, 1, 12, 0), // 12:00 PM
     new Date(2000, 0, 1, 20, 0), // 08:00 PM
   ]);
-  const [showTimePicker, setShowTimePicker] = useState({ visible: false, index: 0 });
-  const [route, setRoute] = useState('');
-  const [defaultDose, setDefaultDose] = useState('');
-  const [doseUnit, setDoseUnit] = useState('mg');
-  const [generalNotes, setGeneralNotes] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [startDateOptional, setStartDateOptional] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [endDateOptional, setEndDateOptional] = useState('');
+  const [showTimePicker, setShowTimePicker] = useSafeState({ visible: false, index: 0 });
+  const [route, setRoute] = useSafeState('');
+  const [defaultDose, setDefaultDose] = useSafeState('');
+  const [doseUnit, setDoseUnit] = useSafeState('mg');
+  const [generalNotes, setGeneralNotes] = useSafeState('');
+  const [startDate, setStartDate] = useSafeState('');
+  const [startDateOptional, setStartDateOptional] = useSafeState('');
+  const [endDate, setEndDate] = useSafeState('');
+  const [endDateOptional, setEndDateOptional] = useSafeState('');
 
   /**
    * Load all medication planning data

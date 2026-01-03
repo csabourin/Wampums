@@ -5,7 +5,8 @@
  * Printable/shareable report of participants organized by group
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -29,10 +30,10 @@ import StorageUtils from '../utils/StorageUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const GroupParticipantReportScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [participants, setParticipants] = useState([]);
-  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [participants, setParticipants] = useSafeState([]);
+  const [groups, setGroups] = useSafeState([]);
 
   useEffect(() => {
     checkPermissionsAndLoad();

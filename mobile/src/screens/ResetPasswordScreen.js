@@ -5,7 +5,8 @@
  * Two-step password reset: request link or reset with token
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   Text,
   ScrollView,
@@ -27,13 +28,13 @@ import { validatePassword } from '../utils/ValidationUtils';
 
 const ResetPasswordScreen = ({ route, navigation }) => {
   const { token } = route.params || {};
-  const [mode, setMode] = useState(token ? 'reset' : 'email');
+  const [mode, setMode] = useSafeState(token ? 'reset' : 'email');
 
-  const [email, setEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useSafeState('');
+  const [newPassword, setNewPassword] = useSafeState('');
+  const [confirmPassword, setConfirmPassword] = useSafeState('');
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

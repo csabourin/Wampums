@@ -6,7 +6,8 @@
  * Includes COVID-19 declarations and signature
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -34,10 +35,10 @@ import DateUtils from '../utils/DateUtils';
 
 const RiskAcceptanceScreen = ({ route, navigation }) => {
   const { participantId } = route.params;
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [participant, setParticipant] = useState(null);
-  const [formData, setFormData] = useState({
+  const [loading, setLoading] = useSafeState(true);
+  const [error, setError] = useSafeState('');
+  const [participant, setParticipant] = useSafeState(null);
+  const [formData, setFormData] = useSafeState({
     groupe_district: '',
     accepte_risques: false,
     participation_volontaire: false,

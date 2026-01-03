@@ -6,7 +6,8 @@
  * View existing badge progress with stars
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -40,15 +41,15 @@ import SecurityUtils from '../utils/SecurityUtils';
 
 const BadgeFormScreen = ({ route, navigation }) => {
   const { participantId } = route.params || {};
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [participant, setParticipant] = useState(null);
-  const [badgeProgress, setBadgeProgress] = useState([]);
-  const [badgeSettings, setBadgeSettings] = useState(null);
-  const [templates, setTemplates] = useState([]);
-  const [participantSection, setParticipantSection] = useState('general');
-  const [formData, setFormData] = useState({
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [participant, setParticipant] = useSafeState(null);
+  const [badgeProgress, setBadgeProgress] = useSafeState([]);
+  const [badgeSettings, setBadgeSettings] = useSafeState(null);
+  const [templates, setTemplates] = useSafeState([]);
+  const [participantSection, setParticipantSection] = useSafeState('general');
+  const [formData, setFormData] = useSafeState({
     badge_template_id: '',
     objectif: '',
     description: '',
@@ -56,7 +57,7 @@ const BadgeFormScreen = ({ route, navigation }) => {
     raison: '',
     date_obtention: DateUtils.formatDate(new Date(), 'en', 'YYYY-MM-DD'),
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

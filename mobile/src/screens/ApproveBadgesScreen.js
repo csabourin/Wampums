@@ -6,7 +6,8 @@
  * Approve or reject badge progress entries
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -35,13 +36,13 @@ import { debugLog, debugError } from '../utils/DebugUtils';
 
 const ApproveBadgesScreen = () => {
   const navigation = useNavigation();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [pendingBadges, setPendingBadges] = useState([]);
-  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
-  const [selectedBadge, setSelectedBadge] = useState(null);
-  const [selectedAction, setSelectedAction] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [pendingBadges, setPendingBadges] = useSafeState([]);
+  const [confirmModalVisible, setConfirmModalVisible] = useSafeState(false);
+  const [selectedBadge, setSelectedBadge] = useSafeState(null);
+  const [selectedAction, setSelectedAction] = useSafeState(null);
   const toast = useToast();
 
   useEffect(() => {

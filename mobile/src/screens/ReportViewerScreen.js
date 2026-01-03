@@ -5,7 +5,8 @@
  * Mirrors spa/reports.js report rendering functionality
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -41,17 +42,17 @@ import { debugLog, debugError } from '../utils/DebugUtils';
 
 const ReportViewerScreen = ({ route, navigation }) => {
   const { reportType, reportTitle } = route.params;
-  const [loading, setLoading] = useState(true);
-  const [reportData, setReportData] = useState(null);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [reportData, setReportData] = useSafeState(null);
+  const [error, setError] = useSafeState(null);
 
   // State for participant progress report
-  const [participantList, setParticipantList] = useState([]);
-  const [selectedParticipantId, setSelectedParticipantId] = useState(null);
+  const [participantList, setParticipantList] = useSafeState([]);
+  const [selectedParticipantId, setSelectedParticipantId] = useSafeState(null);
 
   // State for missing fields report
-  const [formTypes, setFormTypes] = useState([]);
-  const [selectedFormType, setSelectedFormType] = useState(null);
+  const [formTypes, setFormTypes] = useSafeState([]);
+  const [selectedFormType, setSelectedFormType] = useSafeState(null);
 
   useEffect(() => {
     loadReport();

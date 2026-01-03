@@ -7,7 +7,8 @@
  * Public screen - no authentication required
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -31,12 +32,12 @@ import CONFIG from '../config';
 
 const PermissionSlipSignScreen = ({ route, navigation }) => {
   const { slipId } = route.params;
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [slip, setSlip] = useState(null);
-  const [guardianName, setGuardianName] = useState('');
-  const [consentChecked, setConsentChecked] = useState(false);
-  const [isSigning, setIsSigning] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [error, setError] = useSafeState('');
+  const [slip, setSlip] = useSafeState(null);
+  const [guardianName, setGuardianName] = useSafeState('');
+  const [consentChecked, setConsentChecked] = useSafeState(false);
+  const [isSigning, setIsSigning] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

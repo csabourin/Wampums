@@ -5,7 +5,8 @@
  * Displays the next scheduled meeting preparation details.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { getNextMeetingInfo } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
@@ -15,10 +16,10 @@ import theme, { commonStyles } from '../theme';
 import { debugError } from '../utils/DebugUtils';
 
 const NextMeetingScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [meeting, setMeeting] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [meeting, setMeeting] = useSafeState(null);
 
   /**
    * Load the next meeting information.

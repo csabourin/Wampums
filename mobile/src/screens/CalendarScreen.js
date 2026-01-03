@@ -5,7 +5,8 @@
  * Track calendar sales for fundraisers with inline editing
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -38,13 +39,13 @@ import { debugError } from '../utils/DebugUtils';
 const CalendarScreen = ({ route, navigation }) => {
   const { fundraiserId } = route.params || {};
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
 
-  const [fundraiser, setFundraiser] = useState(null);
-  const [calendars, setCalendars] = useState([]);
-  const [sortBy, setSortBy] = useState('name'); // 'name' or 'paid'
+  const [fundraiser, setFundraiser] = useSafeState(null);
+  const [calendars, setCalendars] = useSafeState([]);
+  const [sortBy, setSortBy] = useSafeState('name'); // 'name' or 'paid'
 
   const toast = useToast();
 

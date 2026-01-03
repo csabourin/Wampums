@@ -5,7 +5,8 @@
  * Allows creating and updating meeting preparation details.
  */
 
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -83,32 +84,32 @@ const normalizePreparation = (preparation) => {
 };
 
 const MeetingPreparationScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [availableDates, setAvailableDates] = useState([]);
-  const [selectedDate, setSelectedDate] = useState('');
-  const [customDate, setCustomDate] = useState('');
-  const [animateurs, setAnimateurs] = useState([]);
-  const [activityTemplates, setActivityTemplates] = useState([]);
-  const [formData, setFormData] = useState({
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [availableDates, setAvailableDates] = useSafeState([]);
+  const [selectedDate, setSelectedDate] = useSafeState('');
+  const [customDate, setCustomDate] = useSafeState('');
+  const [animateurs, setAnimateurs] = useSafeState([]);
+  const [activityTemplates, setActivityTemplates] = useSafeState([]);
+  const [formData, setFormData] = useSafeState({
     date: '',
     animateur_responsable: '',
     youth_of_honor: [],
     endroit: '',
     notes: '',
   });
-  const [activities, setActivities] = useState([EMPTY_ACTIVITY]);
-  const [saving, setSaving] = useState(false);
-  const [reminderData, setReminderData] = useState({
+  const [activities, setActivities] = useSafeState([EMPTY_ACTIVITY]);
+  const [saving, setSaving] = useSafeState(false);
+  const [reminderData, setReminderData] = useSafeState({
     text: '',
     date: '',
     recurring: false,
   });
-  const [savingReminder, setSavingReminder] = useState(false);
-  const [quickEditMode, setQuickEditMode] = useState(false);
-  const [expandedActivityIndex, setExpandedActivityIndex] = useState(null);
-  const [descriptionModal, setDescriptionModal] = useState({
+  const [savingReminder, setSavingReminder] = useSafeState(false);
+  const [quickEditMode, setQuickEditMode] = useSafeState(false);
+  const [expandedActivityIndex, setExpandedActivityIndex] = useSafeState(null);
+  const [descriptionModal, setDescriptionModal] = useSafeState({
     visible: false,
     title: '',
     description: '',
