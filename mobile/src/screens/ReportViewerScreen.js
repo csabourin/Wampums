@@ -168,14 +168,30 @@ const ReportViewerScreen = ({ route, navigation }) => {
     try {
       debugLog('loadParticipantProgress called for participant:', participantId);
       setLoading(true);
+
+      debugLog('Calling API for participant:', participantId);
       const data = await getParticipantProgressReport(participantId);
+      debugLog('API call completed');
+
       debugLog('loadParticipantProgress data received:', data?.data?.progress ? 'YES' : 'NO');
-      debugLog('loadParticipantProgress data structure:', JSON.stringify(data, null, 2).substring(0, 500));
+
+      // Safe logging - avoid crashes from large data
+      try {
+        const dataStr = JSON.stringify(data, null, 2);
+        debugLog('loadParticipantProgress data structure:', dataStr.substring(0, 500));
+      } catch (jsonErr) {
+        debugLog('Could not stringify data:', jsonErr.message);
+      }
+
+      debugLog('Setting report data...');
       setReportData(data);
+      debugLog('Report data set successfully');
     } catch (err) {
       debugError('Error loading participant progress:', err);
+      debugError('Error details:', err.message, err.stack);
       setError(err.message || t('error_loading_report'));
     } finally {
+      debugLog('Finishing loadParticipantProgress, setting loading to false');
       setLoading(false);
     }
   };
@@ -689,18 +705,20 @@ const ReportViewerScreen = ({ route, navigation }) => {
   };
 
   const renderParticipantProgressReport = (data) => {
-    debugLog('renderParticipantProgressReport called');
-    debugLog('data exists:', !!data);
-    debugLog('data.data exists:', !!data?.data);
-    debugLog('data.data.progress exists:', !!data?.data?.progress);
-    if (data) {
-      debugLog('data keys:', Object.keys(data));
-      if (data.data) {
-        debugLog('data.data keys:', Object.keys(data.data));
+    try {
+      debugLog('renderParticipantProgressReport called');
+      debugLog('data exists:', !!data);
+      debugLog('data.data exists:', !!data?.data);
+      debugLog('data.data.progress exists:', !!data?.data?.progress);
+      if (data) {
+        debugLog('data keys:', Object.keys(data));
+        if (data.data) {
+          debugLog('data.data keys:', Object.keys(data.data));
+        }
       }
-    }
 
-    const progressData = data?.data?.progress;
+      const progressData = data?.data?.progress;
+      debugLog('progressData extracted:', !!progressData);
 
     return (
       <View>
@@ -858,6 +876,20 @@ const ReportViewerScreen = ({ route, navigation }) => {
         )}
       </View>
     );
+    } catch (renderErr) {
+      debugError('CRITICAL: Error in renderParticipantProgressReport:', renderErr);
+      debugError('Error stack:', renderErr.stack);
+      return (
+        <View style={{ padding: 20 }}>
+          <Text style={{ color: 'red', marginBottom: 10 }}>
+            {t('error_loading_report')}
+          </Text>
+          <Text style={{ fontSize: 12, color: '#666' }}>
+            {renderErr.message}
+          </Text>
+        </View>
+      );
+    }
   };
 
   const renderMissingFieldsReport = (data) => {
