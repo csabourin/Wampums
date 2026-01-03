@@ -114,10 +114,20 @@ const ReportViewerScreen = ({ route, navigation }) => {
           data = await getFinanceReport();
           break;
         case 'participant-progress':
+          // Load participant list first
           data = await getParticipantProgressReport();
           if (data?.data?.participants) {
             setParticipantList(data.data.participants);
-            if (!selectedParticipantId && data.data.participants.length > 0) {
+
+            // If we already have a selectedParticipantId (from navigation params),
+            // load that participant's progress immediately
+            if (selectedParticipantId) {
+              const progressData = await getParticipantProgressReport(selectedParticipantId);
+              setReportData(progressData);
+              setLoading(false);
+              return;
+            } else if (data.data.participants.length > 0) {
+              // Otherwise, auto-select the first participant
               setSelectedParticipantId(data.data.participants[0].id);
             }
           }
