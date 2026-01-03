@@ -6,7 +6,8 @@
  * For leaders and admins to view contact details
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -34,12 +35,12 @@ import { debugLog, debugError } from '../utils/DebugUtils';
 const ParentContactListScreen = () => {
   const navigation = useNavigation();
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [children, setChildren] = useState({});
-  const [sections, setSections] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [children, setChildren] = useSafeState({});
+  const [sections, setSections] = useSafeState([]);
+  const [searchQuery, setSearchQuery] = useSafeState('');
 
   useEffect(() => {
     // Check permissions

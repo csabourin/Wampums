@@ -9,7 +9,8 @@
  * - Organization selection
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -29,15 +30,15 @@ import { debugLog, debugError } from '../utils/DebugUtils.js';
 
 const LoginScreen = ({ navigation, onLogin }) => {
   debugLog('🟠 [LoginScreen] Component initializing');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [twoFactorCode, setTwoFactorCode] = useState('');
-  const [trustDevice, setTrustDevice] = useState(false);
-  const [organizationId, setOrganizationId] = useState('');
-  const [initializing, setInitializing] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [requires2FA, setRequires2FA] = useState(false);
+  const [email, setEmail] = useSafeState('');
+  const [password, setPassword] = useSafeState('');
+  const [twoFactorCode, setTwoFactorCode] = useSafeState('');
+  const [trustDevice, setTrustDevice] = useSafeState(false);
+  const [organizationId, setOrganizationId] = useSafeState('');
+  const [initializing, setInitializing] = useSafeState(true);
+  const [loading, setLoading] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [requires2FA, setRequires2FA] = useSafeState(false);
 
   useEffect(() => {
     debugLog('🟠 [LoginScreen] useEffect - loading organization language and ID');

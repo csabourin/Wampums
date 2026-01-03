@@ -13,7 +13,8 @@
  * 6. User proceeds to LoginScreen
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -35,12 +36,12 @@ import { getOrganizationId } from '../api/api-endpoints';
 import { debugError, debugLog } from '../utils/DebugUtils.js';
 
 const OrganizationSelectScreen = ({ navigation, onOrganizationSelected }) => {
-  const [organizationUrl, setOrganizationUrl] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [hasStoredOrg, setHasStoredOrg] = useState(false);
-  const [translationsReady, setTranslationsReady] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState(CONFIG.LOCALE.DEFAULT_LANGUAGE);
+  const [organizationUrl, setOrganizationUrl] = useSafeState('');
+  const [loading, setLoading] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [hasStoredOrg, setHasStoredOrg] = useSafeState(false);
+  const [translationsReady, setTranslationsReady] = useSafeState(false);
+  const [selectedLanguage, setSelectedLanguage] = useSafeState(CONFIG.LOCALE.DEFAULT_LANGUAGE);
 
   useEffect(() => {
     // Initialize i18n and check for stored organization

@@ -11,7 +11,8 @@
  * - Offline support with caching indicators
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -53,8 +54,8 @@ const LeaderDashboardScreen = () => {
   const { width: windowWidth } = useWindowDimensions();
   const scrollViewRef = React.useRef(null);
   const SCROLL_KEY = 'LeaderDashboardScrollY';
-  const [initialScrollY, setInitialScrollY] = useState(0);
-  const [scrollReady, setScrollReady] = useState(false);
+  const [initialScrollY, setInitialScrollY] = useSafeState(0);
+  const [scrollReady, setScrollReady] = useSafeState(false);
   const scrollPositionRef = React.useRef(0);
   const saveScrollTimeoutRef = React.useRef(null);
 
@@ -76,13 +77,13 @@ const LeaderDashboardScreen = () => {
   }, [navigation]);
 
   // State
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [isOffline, setIsOffline] = useState(false);
-  const [organizationName, setOrganizationName] = useState('');
-  const [organizationLogo, setOrganizationLogo] = useState('');
-  const [userPermissions, setUserPermissions] = useState([]);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState(null);
+  const [isOffline, setIsOffline] = useSafeState(false);
+  const [organizationName, setOrganizationName] = useSafeState('');
+  const [organizationLogo, setOrganizationLogo] = useSafeState('');
+  const [userPermissions, setUserPermissions] = useSafeState([]);
 
   const gridColumns = 2;
   const gridGap = theme.spacing.sm;

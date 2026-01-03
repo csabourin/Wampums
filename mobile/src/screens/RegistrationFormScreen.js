@@ -12,7 +12,8 @@
  * - Links participant to organization
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -51,7 +52,7 @@ import { Card, LoadingSpinner, Button } from '../components';
  * Renders a single guardian form with all required fields
  */
 const GuardianFormSection = ({ guardian, index, onChange, onRemove, canRemove }) => {
-  const [showRelationshipHelp, setShowRelationshipHelp] = useState(false);
+  const [showRelationshipHelp, setShowRelationshipHelp] = useSafeState(false);
 
   const updateField = (field, value) => {
     onChange(index, { ...guardian, [field]: value });
@@ -191,20 +192,20 @@ const RegistrationFormScreen = () => {
   const isEditing = !!participantId;
 
   // State
-  const [loading, setLoading] = useState(isEditing);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useSafeState(isEditing);
+  const [saving, setSaving] = useSafeState(false);
+  const [error, setError] = useSafeState(null);
 
   // Participant data
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [birthdate, setBirthdate] = useState('');
-  const [inscriptionDate, setInscriptionDate] = useState(
+  const [firstName, setFirstName] = useSafeState('');
+  const [lastName, setLastName] = useSafeState('');
+  const [birthdate, setBirthdate] = useSafeState('');
+  const [inscriptionDate, setInscriptionDate] = useSafeState(
     DateUtils.formatDate(new Date(), 'en', 'YYYY-MM-DD')
   );
 
   // Guardians data
-  const [guardians, setGuardians] = useState([
+  const [guardians, setGuardians] = useSafeState([
     {
       prenom: '',
       nom: '',
@@ -219,8 +220,8 @@ const RegistrationFormScreen = () => {
   ]);
 
   // Date picker state
-  const [showBirthdatePicker, setShowBirthdatePicker] = useState(false);
-  const [showInscriptionDatePicker, setShowInscriptionDatePicker] = useState(false);
+  const [showBirthdatePicker, setShowBirthdatePicker] = useSafeState(false);
+  const [showInscriptionDatePicker, setShowInscriptionDatePicker] = useSafeState(false);
 
   // Configure header
   useEffect(() => {

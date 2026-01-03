@@ -5,7 +5,8 @@
  * Overview dashboard for resources and reservations for a specific meeting date
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -32,28 +33,28 @@ import StorageUtils from '../utils/StorageUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const ResourceDashboardScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
 
-  const [meetingDate, setMeetingDate] = useState(getTodayISO());
-  const [equipment, setEquipment] = useState([]);
-  const [reservations, setReservations] = useState([]);
-  const [dashboardSummary, setDashboardSummary] = useState({ reservations: [] });
+  const [meetingDate, setMeetingDate] = useSafeState(getTodayISO());
+  const [equipment, setEquipment] = useSafeState([]);
+  const [reservations, setReservations] = useSafeState([]);
+  const [dashboardSummary, setDashboardSummary] = useSafeState({ reservations: [] });
 
-  const [quickAddData, setQuickAddData] = useState({
+  const [quickAddData, setQuickAddData] = useSafeState({
     name: '',
     category: '',
     quantity_total: '1',
   });
 
-  const [quickReserveData, setQuickReserveData] = useState({
+  const [quickReserveData, setQuickReserveData] = useSafeState({
     equipment_id: '',
     reserved_quantity: '1',
     reserved_for: '',
     notes: '',
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
 
   function getTodayISO() {

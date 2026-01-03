@@ -5,7 +5,8 @@
  * Comprehensive view of all revenue sources aggregated
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -33,25 +34,25 @@ import { formatCurrency } from '../utils/FormatUtils';
 import { debugError } from '../utils/DebugUtils';
 
 const RevenueDashboardScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
 
-  const [dashboardData, setDashboardData] = useState(null);
-  const [bySourceData, setBySourceData] = useState([]);
-  const [byCategoryData, setByCategoryData] = useState([]);
-  const [comparisonData, setComparisonData] = useState(null);
+  const [dashboardData, setDashboardData] = useSafeState(null);
+  const [bySourceData, setBySourceData] = useSafeState([]);
+  const [byCategoryData, setByCategoryData] = useSafeState([]);
+  const [comparisonData, setComparisonData] = useSafeState(null);
 
   const fiscalYear = useMemo(() => getCurrentFiscalYear(), []);
 
   // Date range
-  const [dateRange, setDateRange] = useState({
+  const [dateRange, setDateRange] = useSafeState({
     start: fiscalYear.start,
     end: fiscalYear.end,
   });
 
   // Active tab
-  const [activeTab, setActiveTab] = useState('overview'); // overview, by-source, by-category, comparison
+  const [activeTab, setActiveTab] = useSafeState('overview'); // overview, by-source, by-category, comparison
 
   const toast = useToast();
 

@@ -12,7 +12,8 @@
  * - Photo upload (Phase 2 enhancement)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -57,16 +58,16 @@ const ParticipantDetailScreen = () => {
   const isNewParticipant = participantId === 'new';
 
   // State
-  const [participant, setParticipant] = useState(null);
-  const [groups, setGroups] = useState([]);
-  const [isLoading, setIsLoading] = useState(!isNewParticipant);
-  const [isEditing, setIsEditing] = useState(isNewParticipant);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [isOffline, setIsOffline] = useState(false);
+  const [participant, setParticipant] = useSafeState(null);
+  const [groups, setGroups] = useSafeState([]);
+  const [isLoading, setIsLoading] = useSafeState(!isNewParticipant);
+  const [isEditing, setIsEditing] = useSafeState(isNewParticipant);
+  const [isSaving, setIsSaving] = useSafeState(false);
+  const [error, setError] = useSafeState(null);
+  const [isOffline, setIsOffline] = useSafeState(false);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     firstName: '',
     lastName: '',
     email: '',
@@ -82,8 +83,8 @@ const ParticipantDetailScreen = () => {
   });
 
   // User permissions
-  const [userRole, setUserRole] = useState(null);
-  const [canEdit, setCanEdit] = useState(false);
+  const [userRole, setUserRole] = useSafeState(null);
+  const [canEdit, setCanEdit] = useSafeState(false);
 
   /**
    * Load user role and permissions

@@ -6,7 +6,8 @@
  * For admin and leader users
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -35,14 +36,14 @@ import CONFIG from '../config';
 
 const ParticipantsScreen = () => {
   const navigation = useNavigation();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [participants, setParticipants] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [expandedId, setExpandedId] = useState(null);
-  const [updatingParticipant, setUpdatingParticipant] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState(null);
+  const [participants, setParticipants] = useSafeState([]);
+  const [groups, setGroups] = useSafeState([]);
+  const [userPermissions, setUserPermissions] = useSafeState([]);
+  const [expandedId, setExpandedId] = useSafeState(null);
+  const [updatingParticipant, setUpdatingParticipant] = useSafeState(null);
 
   const { showToast, ToastComponent } = useToast();
 

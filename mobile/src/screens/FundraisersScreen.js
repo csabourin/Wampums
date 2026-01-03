@@ -5,7 +5,8 @@
  * Manage fundraising campaigns with calendar sales tracking
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -40,30 +41,30 @@ import {
 import { debugError } from '../utils/DebugUtils';
 
 const FundraisersScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
 
-  const [fundraisers, setFundraisers] = useState([]);
-  const [archivedFundraisers, setArchivedFundraisers] = useState([]);
-  const [showArchived, setShowArchived] = useState(false);
+  const [fundraisers, setFundraisers] = useSafeState([]);
+  const [archivedFundraisers, setArchivedFundraisers] = useSafeState([]);
+  const [showArchived, setShowArchived] = useSafeState(false);
 
   // Modal state
-  const [fundraiserModalVisible, setFundraiserModalVisible] = useState(false);
-  const [selectedFundraiser, setSelectedFundraiser] = useState(null);
-  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
-  const [fundraiserToArchive, setFundraiserToArchive] = useState(null);
+  const [fundraiserModalVisible, setFundraiserModalVisible] = useSafeState(false);
+  const [selectedFundraiser, setSelectedFundraiser] = useSafeState(null);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useSafeState(false);
+  const [fundraiserToArchive, setFundraiserToArchive] = useSafeState(null);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     name: '',
     start_date: '',
     end_date: '',
     objective: '',
   });
 
-  const [saving, setSaving] = useState(false);
-  const [canManage, setCanManage] = useState(false);
+  const [saving, setSaving] = useSafeState(false);
+  const [canManage, setCanManage] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

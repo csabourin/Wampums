@@ -9,7 +9,8 @@
  * - Parent permissions (limited access) -> ParentDashboardScreen
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import StorageUtils from '../utils/StorageUtils';
 import { getDashboardType } from '../utils/PermissionUtils';
@@ -23,8 +24,8 @@ import LeaderDashboardScreen from './LeaderDashboardScreen';
 import { debugError } from '../utils/DebugUtils.js';
 
 const DashboardScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [dashboardType, setDashboardType] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [dashboardType, setDashboardType] = useSafeState(null);
 
   useEffect(() => {
     loadUserPermissions();

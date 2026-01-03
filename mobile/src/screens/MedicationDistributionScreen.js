@@ -12,7 +12,8 @@
  * - Toggle options for grouping and planning
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -50,26 +51,26 @@ const MedicationDistributionScreen = () => {
   const navigation = useNavigation();
 
   // State
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [processing, setProcessing] = useSafeState(false);
 
   // Data
-  const [upcomingAlerts, setUpcomingAlerts] = useState([]);
-  const [participantsReady, setParticipantsReady] = useState([]);
-  const [upcomingDistributions, setUpcomingDistributions] = useState([]);
-  const [participants, setParticipants] = useState([]);
+  const [upcomingAlerts, setUpcomingAlerts] = useSafeState([]);
+  const [participantsReady, setParticipantsReady] = useSafeState([]);
+  const [upcomingDistributions, setUpcomingDistributions] = useSafeState([]);
+  const [participants, setParticipants] = useSafeState([]);
 
   // Toggle options
-  const [groupParticipantsBySameTime, setGroupParticipantsBySameTime] = useState(false);
-  const [goToPlanning, setGoToPlanning] = useState(false);
+  const [groupParticipantsBySameTime, setGroupParticipantsBySameTime] = useSafeState(false);
+  const [goToPlanning, setGoToPlanning] = useSafeState(false);
 
   // Modal state
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [selectedDistribution, setSelectedDistribution] = useState(null);
-  const [witnessName, setWitnessName] = useState('');
-  const [optionalNotes, setOptionalNotes] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useSafeState(false);
+  const [selectedDistribution, setSelectedDistribution] = useSafeState(null);
+  const [witnessName, setWitnessName] = useSafeState('');
+  const [optionalNotes, setOptionalNotes] = useSafeState('');
 
   /**
    * Load all distribution data

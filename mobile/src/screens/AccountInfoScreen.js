@@ -10,7 +10,8 @@
  * - Stripe payment integration status (placeholder)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -38,23 +39,23 @@ import { makeApiRequest } from '../api/api-core';
 
 const AccountInfoScreen = () => {
   const navigation = useNavigation();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState(null);
 
   // Permissions
-  const [canManageCommunications, setCanManageCommunications] = useState(false);
+  const [canManageCommunications, setCanManageCommunications] = useSafeState(false);
 
   // WhatsApp Baileys state
-  const [whatsappStatus, setWhatsappStatus] = useState(null);
-  const [whatsappLoading, setWhatsappLoading] = useState(false);
+  const [whatsappStatus, setWhatsappStatus] = useSafeState(null);
+  const [whatsappLoading, setWhatsappLoading] = useSafeState(false);
 
   // Stripe state (placeholder)
-  const [stripeConnected, setStripeConnected] = useState(false);
-  const [stripeAccountId, setStripeAccountId] = useState(null);
+  const [stripeConnected, setStripeConnected] = useSafeState(false);
+  const [stripeAccountId, setStripeAccountId] = useSafeState(null);
 
   // Google Workspace state (placeholder)
-  const [googleWorkspaceConnected, setGoogleWorkspaceConnected] = useState(false);
+  const [googleWorkspaceConnected, setGoogleWorkspaceConnected] = useSafeState(false);
 
   const toast = useToast();
 

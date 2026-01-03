@@ -5,7 +5,8 @@
  * Bulk equipment reservation with conflict detection
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -41,14 +42,14 @@ const LOCATION_TYPES = [
 ];
 
 const MaterialManagementScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [equipment, setEquipment] = useState([]);
-  const [reservations, setReservations] = useState([]);
-  const [activities, setActivities] = useState([]);
-  const [selectedItems, setSelectedItems] = useState(new Map()); // equipmentId -> quantity
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [equipment, setEquipment] = useSafeState([]);
+  const [reservations, setReservations] = useSafeState([]);
+  const [activities, setActivities] = useSafeState([]);
+  const [selectedItems, setSelectedItems] = useSafeState(new Map()); // equipmentId -> quantity
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useSafeState({
     activity_id: '',
     date_from: '',
     date_to: '',
@@ -56,7 +57,7 @@ const MaterialManagementScreen = ({ navigation }) => {
     notes: '',
   });
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

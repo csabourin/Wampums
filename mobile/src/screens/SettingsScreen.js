@@ -10,7 +10,8 @@
  * - Logout
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -44,31 +45,31 @@ import theme, { commonStyles } from '../theme';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
 
 const SettingsScreen = ({ navigation, route }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [saving, setSaving] = useSafeState(false);
 
   // Get onLogout callback from route params or navigation
   const onLogout = route?.params?.onLogout;
 
   // User data
-  const [userData, setUserData] = useState(null);
-  const [userRole, setUserRole] = useState('');
-  const [organizationUrl, setOrganizationUrl] = useState('');
-  const [currentLanguage, setCurrentLanguage] = useState('fr');
-  const [pushEnabled, setPushEnabled] = useState(false);
-  const [switchingOrg, setSwitchingOrg] = useState(false);
+  const [userData, setUserData] = useSafeState(null);
+  const [userRole, setUserRole] = useSafeState('');
+  const [organizationUrl, setOrganizationUrl] = useSafeState('');
+  const [currentLanguage, setCurrentLanguage] = useSafeState('fr');
+  const [pushEnabled, setPushEnabled] = useSafeState(false);
+  const [switchingOrg, setSwitchingOrg] = useSafeState(false);
 
   // Editable profile fields
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [languagePreference, setLanguagePreference] = useState('');
-  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [fullName, setFullName] = useSafeState('');
+  const [email, setEmail] = useSafeState('');
+  const [languagePreference, setLanguagePreference] = useSafeState('');
+  const [whatsappPhone, setWhatsappPhone] = useSafeState('');
 
   // Password fields
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useSafeState('');
+  const [newPassword, setNewPassword] = useSafeState('');
+  const [confirmPassword, setConfirmPassword] = useSafeState('');
 
   const toast = useToast();
 

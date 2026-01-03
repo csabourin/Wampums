@@ -6,7 +6,8 @@
  * Set display contexts for forms
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -30,13 +31,13 @@ import CONFIG from '../config';
 import StorageUtils from '../utils/StorageUtils';
 
 const FormPermissionsScreen = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [permissions, setPermissions] = useState([]);
-  const [formTypes, setFormTypes] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [permissions, setPermissions] = useSafeState([]);
+  const [formTypes, setFormTypes] = useSafeState([]);
+  const [roles, setRoles] = useSafeState([]);
+  const [saving, setSaving] = useSafeState(false);
   const toast = useToast();
 
   useEffect(() => {

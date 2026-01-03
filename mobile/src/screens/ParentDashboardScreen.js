@@ -10,7 +10,8 @@
  * - Carpool assignments
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
   Text,
@@ -136,22 +137,22 @@ const normalizePermissionSlips = (response) => {
 
 const ParentDashboardScreen = () => {
   const navigation = useNavigation();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-  const [children, setChildren] = useState([]);
-  const [upcomingActivities, setUpcomingActivities] = useState([]);
-  const [carpoolAssignments, setCarpoolAssignments] = useState([]);
-  const [unsignedPermissionSlips, setUnsignedPermissionSlips] = useState([]);
-  const [financialSummary, setFinancialSummary] = useState({
+  const [loading, setLoading] = useSafeState(true);
+  const [refreshing, setRefreshing] = useSafeState(false);
+  const [error, setError] = useSafeState('');
+  const [children, setChildren] = useSafeState([]);
+  const [upcomingActivities, setUpcomingActivities] = useSafeState([]);
+  const [carpoolAssignments, setCarpoolAssignments] = useSafeState([]);
+  const [unsignedPermissionSlips, setUnsignedPermissionSlips] = useSafeState([]);
+  const [financialSummary, setFinancialSummary] = useSafeState({
     totalOutstanding: 0,
     participantCount: 0,
   });
 
   // Link participants dialog state
-  const [showLinkDialog, setShowLinkDialog] = useState(false);
-  const [participantsToLink, setParticipantsToLink] = useState([]);
-  const [selectedParticipants, setSelectedParticipants] = useState([]);
+  const [showLinkDialog, setShowLinkDialog] = useSafeState(false);
+  const [participantsToLink, setParticipantsToLink] = useSafeState([]);
+  const [selectedParticipants, setSelectedParticipants] = useSafeState([]);
 
   // Configure header with settings button
   useEffect(() => {
