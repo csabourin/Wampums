@@ -20,9 +20,12 @@ import { awardHonor, getHonors } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import DateUtils from '../utils/DateUtils';
 import SecurityUtils from '../utils/SecurityUtils';
+import StorageUtils from '../utils/StorageUtils';
 import { Button, Card, ErrorMessage, LoadingSpinner } from '../components';
 import theme, { commonStyles } from '../theme';
-import { debugError } from '../utils/DebugUtils';
+import { debugError, debugLog } from '../utils/DebugUtils';
+import { hasPermission } from '../utils/PermissionUtils';
+import CONFIG from '../config';
 
 /**
  * Build participant honor stats for the selected date.
@@ -64,11 +67,31 @@ const HonorsScreen = () => {
   const [customDate, setCustomDate] = useState('');
   const [selectedHonors, setSelectedHonors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [sortBy, setSortBy] = useState('name'); // 'name' or 'honors'
 
-  const honorsList = useMemo(
-    () => buildHonorsList(participants, honors, selectedDate),
-    [participants, honors, selectedDate]
-  );
+  const honorsList = useMemo(() => {
+    const list = buildHonorsList(participants, honors, selectedDate);
+
+    // Sort the list based on sortBy
+    return list.sort((a, b) => {
+      if (sortBy === 'name') {
+        const nameA = `${a.last_name} ${a.first_name}`.toLowerCase();
+        const nameB = `${b.last_name} ${b.first_name}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      } else if (sortBy === 'honors') {
+        return b.totalHonors - a.totalHonors; // Descending order (most honors first)
+      }
+      return 0;
+    });
+  }, [participants, honors, selectedDate, sortBy]);
+
+  // Calculate permissions-based access
+  const canView = hasPermission('honors.view', userPermissions) ||
+                  hasPermission('honors.create', userPermissions) ||
+                  hasPermission('honors.manage', userPermissions);
+  const canAward = hasPermission('honors.create', userPermissions) ||
+                   hasPermission('honors.manage', userPermissions);
 
   const isPastDate = () => {
     if (!selectedDate) return false;
@@ -76,6 +99,20 @@ const HonorsScreen = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return target < today;
+  };
+
+  /**
+   * Load user permissions from storage
+   */
+  const loadUserPermissions = async () => {
+    try {
+      const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+      setUserPermissions(permissions || []);
+      debugLog('[HonorsScreen] Loaded permissions:', permissions);
+    } catch (err) {
+      debugError('Error loading permissions:', err);
+      setUserPermissions([]);
+    }
   };
 
   /**
@@ -112,6 +149,7 @@ const HonorsScreen = () => {
   };
 
   useEffect(() => {
+    loadUserPermissions();
     loadHonorsData();
   }, []);
 
@@ -197,6 +235,18 @@ const HonorsScreen = () => {
     return <ErrorMessage message={error} onRetry={loadHonorsData} />;
   }
 
+  // Check if user has permission to view honors
+  if (!canView) {
+    return (
+      <View style={[commonStyles.container, styles.centerContent]}>
+        <ErrorMessage
+          message={t('insufficient_permissions') || 'You do not have permission to view honors'}
+          onRetry={null}
+        />
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={commonStyles.container}
@@ -235,6 +285,28 @@ const HonorsScreen = () => {
         </View>
       </View>
 
+      <View style={styles.sortSection}>
+        <Text style={styles.sectionTitle}>{t('sort_by') || 'Sort by'}:</Text>
+        <View style={styles.sortButtons}>
+          <TouchableOpacity
+            style={[styles.sortButton, sortBy === 'name' && styles.sortButtonActive]}
+            onPress={() => setSortBy('name')}
+          >
+            <Text style={[styles.sortButtonText, sortBy === 'name' && styles.sortButtonTextActive]}>
+              👤 {t('name') || 'Name'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.sortButton, sortBy === 'honors' && styles.sortButtonActive]}
+            onPress={() => setSortBy('honors')}
+          >
+            <Text style={[styles.sortButtonText, sortBy === 'honors' && styles.sortButtonTextActive]}>
+              🏆 {t('honors') || 'Honors'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.listSection}>
         {honorsList.length === 0 ? (
           <Card>
@@ -242,7 +314,7 @@ const HonorsScreen = () => {
           </Card>
         ) : (
           honorsList.map((participant) => {
-            const isDisabled = isPastDate() || participant.honoredToday;
+            const isDisabled = !canAward || isPastDate() || participant.honoredToday;
             const selection = selectedHonors[participant.participant_id] || {};
             return (
               <Card key={participant.participant_id} style={styles.card}>
@@ -274,14 +346,16 @@ const HonorsScreen = () => {
         )}
       </View>
 
-      <View style={styles.saveSection}>
-        <Button
-          title={t('award_honor')}
-          onPress={handleAwardHonors}
-          loading={saving}
-          disabled={isPastDate()}
-        />
-      </View>
+      {canAward && (
+        <View style={styles.saveSection}>
+          <Button
+            title={t('award_honor')}
+            onPress={handleAwardHonors}
+            loading={saving}
+            disabled={isPastDate()}
+          />
+        </View>
+      )}
     </ScrollView>
   );
 };
@@ -320,6 +394,36 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     alignItems: 'center',
   },
+  sortSection: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  sortButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  sortButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+  },
+  sortButtonActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  sortButtonText: {
+    ...commonStyles.caption,
+    fontWeight: '500',
+  },
+  sortButtonTextActive: {
+    color: theme.colors.surface,
+    fontWeight: '600',
+  },
   input: {
     ...commonStyles.input,
     flex: 1,
@@ -344,6 +448,12 @@ const styles = StyleSheet.create({
   saveSection: {
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.lg,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
   },
 });
 

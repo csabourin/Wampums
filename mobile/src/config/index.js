@@ -98,6 +98,11 @@ const CONFIG = {
     PUSH_SUBSCRIPTION: '/v1/push-subscription',
     FORMS: '/api',
 
+    // Honors endpoints (v1 - permission-based)
+    HONORS: '/v1/honors',
+    AWARD_HONOR: '/v1/honors',
+    HONORS_HISTORY: '/v1/honors/history',
+
     // Legacy endpoints
     INITIAL_DATA: '/initial-data',
     NEWS: '/news',
@@ -108,10 +113,7 @@ const CONFIG = {
     POINTS_REPORT: '/points-report',
     POINTS_LEADERBOARD: '/points-leaderboard',
     BADGE_SUMMARY: '/badge-summary',
-    HONORS: '/honors',
-    AWARD_HONOR: '/award-honor',
     HONORS_REPORT: '/honors-report',
-    HONORS_HISTORY: '/honors-history',
     FUNDRAISERS: '/fundraisers',
     CALENDARS: '/calendars',
     REUNION_PREPARATION: '/reunion-preparation',
