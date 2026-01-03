@@ -276,11 +276,7 @@ const HonorsScreen = () => {
               onValueChange={(itemValue) => setSelectedDate(itemValue)}
               style={styles.picker}
             >
-              <Picker.Item
-                label={DateUtils.getTodayISO()}
-                value={DateUtils.getTodayISO()}
-                selected
-              />
+          
               {availableDates.map((date) => (
                 <Picker.Item
                   key={date}
