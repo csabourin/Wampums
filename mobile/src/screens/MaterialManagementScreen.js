@@ -15,6 +15,8 @@ import {
   RefreshControl,
   TouchableOpacity,
   Alert,
+  Image,
+  useWindowDimensions,
 } from 'react-native';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -24,6 +26,7 @@ import {
   EmptyState,
   FormField,
   Checkbox,
+  Modal,
   Toast,
   useToast,
 } from '../components';
@@ -48,6 +51,8 @@ const MaterialManagementScreen = ({ navigation }) => {
   const [reservations, setReservations] = useSafeState([]);
   const [activities, setActivities] = useSafeState([]);
   const [selectedItems, setSelectedItems] = useSafeState(new Map()); // equipmentId -> quantity
+  const [photoModalVisible, setPhotoModalVisible] = useSafeState(false);
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useSafeState(null);
 
   const [formData, setFormData] = useSafeState({
     activity_id: '',
@@ -59,6 +64,7 @@ const MaterialManagementScreen = ({ navigation }) => {
 
   const [submitting, setSubmitting] = useSafeState(false);
   const toast = useToast();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   useEffect(() => {
     checkPermissionsAndLoad();
@@ -241,6 +247,19 @@ const MaterialManagementScreen = ({ navigation }) => {
     }
   };
 
+  const openPhotoModal = (photoUrl) => {
+    if (!photoUrl) {
+      return;
+    }
+    setSelectedPhotoUrl(photoUrl);
+    setPhotoModalVisible(true);
+  };
+
+  const closePhotoModal = () => {
+    setPhotoModalVisible(false);
+    setSelectedPhotoUrl(null);
+  };
+
   const selectedItemsList = useMemo(() => {
     return Array.from(selectedItems.entries())
       .map(([equipmentId, quantity]) => {
@@ -393,22 +412,44 @@ const MaterialManagementScreen = ({ navigation }) => {
                     isSelected && conflicts.length > 0 && styles.equipmentItemWithConflicts,
                   ]}
                 >
-                  <Checkbox
-                    checked={isSelected}
-                    onPress={() => handleToggleItem(item.id)}
-                    label={
-                      <View style={styles.equipmentInfo}>
-                        <Text style={styles.equipmentName}>{item.name}</Text>
-                        {item.category && (
-                          <Text style={styles.equipmentCategory}>{item.category}</Text>
-                        )}
-                        <Text style={styles.equipmentAvailable}>
-                          {t('equipment_available')}: {item.quantity_total ?? 0}
-                        </Text>
-                        <Text style={styles.equipmentLocation}>{formatLocation(item)}</Text>
-                      </View>
-                    }
-                  />
+                  <View style={styles.equipmentRow}>
+                    <Checkbox
+                      checked={isSelected}
+                      onPress={() => handleToggleItem(item.id)}
+                      style={styles.equipmentCheckbox}
+                      label={
+                        <View style={styles.equipmentInfo}>
+                          <Text style={styles.equipmentName}>{item.name}</Text>
+                          {item.category && (
+                            <Text style={styles.equipmentCategory}>{item.category}</Text>
+                          )}
+                          <Text style={styles.equipmentAvailable}>
+                            {t('equipment_available')}: {item.quantity_total ?? 0}
+                          </Text>
+                          <Text style={styles.equipmentLocation}>{formatLocation(item)}</Text>
+                        </View>
+                      }
+                    />
+                    <TouchableOpacity
+                      style={styles.equipmentImageWrapper}
+                      onPress={() => openPhotoModal(item.photo_url)}
+                      disabled={!item.photo_url}
+                      activeOpacity={0.8}
+                      accessibilityLabel={t('equipment_photo')}
+                    >
+                      {item.photo_url ? (
+                        <Image
+                          source={{ uri: item.photo_url, cache: 'force-cache' }}
+                          style={styles.equipmentImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.equipmentImagePlaceholder}>
+                          <Text style={styles.equipmentImagePlaceholderIcon}>📷</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
 
                   {isSelected && (
                     <View style={styles.quantitySection}>
@@ -513,6 +554,38 @@ const MaterialManagementScreen = ({ navigation }) => {
         </Card>
       </ScrollView>
 
+      <Modal
+        visible={photoModalVisible}
+        onClose={closePhotoModal}
+        title={t('equipment_photo')}
+        scrollable={false}
+        style={styles.photoModal}
+      >
+        <View style={styles.photoModalBody}>
+          {selectedPhotoUrl ? (
+            <Image
+              source={{ uri: selectedPhotoUrl, cache: 'force-cache' }}
+              style={[
+                styles.photoModalImage,
+                {
+                  width: Math.min(
+                    screenWidth - theme.spacing.lg * 2,
+                    screenHeight - theme.spacing.xxxl * 2
+                  ),
+                  height: Math.min(
+                    screenWidth - theme.spacing.lg * 2,
+                    screenHeight - theme.spacing.xxxl * 2
+                  ),
+                },
+              ]}
+              resizeMode="contain"
+            />
+          ) : (
+            <Text style={styles.photoModalEmptyText}>{t('no_data_available')}</Text>
+          )}
+        </View>
+      </Modal>
+
       {/* Toast Notifications */}
       <Toast
         visible={toast.toastState.visible}
@@ -575,9 +648,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.borderRadius.sm,
   },
+  equipmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  equipmentCheckbox: {
+    flex: 1,
+  },
   equipmentInfo: {
     flex: 1,
-    marginLeft: theme.spacing.sm,
   },
   equipmentName: {
     fontSize: theme.fontSize.base,
@@ -597,6 +677,30 @@ const styles = StyleSheet.create({
   },
   equipmentLocation: {
     fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+  },
+  equipmentImageWrapper: {
+    width: theme.spacing.xxxl,
+    height: theme.spacing.xxxl,
+    borderRadius: theme.borderRadius.sm,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.background.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  equipmentImage: {
+    width: '100%',
+    height: '100%',
+  },
+  equipmentImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background.secondary,
+  },
+  equipmentImagePlaceholderIcon: {
+    fontSize: theme.fontSize.lg,
     color: theme.colors.textMuted,
   },
   quantitySection: {
@@ -673,6 +777,21 @@ const styles = StyleSheet.create({
   reservationDetail: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.textMuted,
+  },
+  photoModal: {
+    maxWidth: theme.container.md,
+  },
+  photoModalBody: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoModalImage: {
+    borderRadius: theme.borderRadius.md,
+  },
+  photoModalEmptyText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
   },
 });
 
