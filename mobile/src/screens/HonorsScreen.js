@@ -64,7 +64,6 @@ const HonorsScreen = () => {
   const [honors, setHonors] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
   const [selectedDate, setSelectedDate] = useState('');
-  const [customDate, setCustomDate] = useState('');
   const [selectedHonors, setSelectedHonors] = useState({});
   const [saving, setSaving] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
@@ -216,17 +215,6 @@ const HonorsScreen = () => {
     }
   };
 
-  const handleDateSubmit = () => {
-    const sanitized = SecurityUtils.sanitizeInput(customDate);
-    if (!sanitized) {
-      setError(t('error_loading_honors'));
-      return;
-    }
-
-    setSelectedDate(sanitized);
-    setCustomDate('');
-  };
-
   if (loading) {
     return <LoadingSpinner message={t('loading')} />;
   }
@@ -248,42 +236,35 @@ const HonorsScreen = () => {
   }
 
   return (
-    <ScrollView
-      style={commonStyles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('youth_of_honor')}</Text>
-        <Text style={styles.subtitle}>{t('manage_honors')}</Text>
-      </View>
+    <View style={commonStyles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>{t('youth_of_honor')}</Text>
+          <Text style={styles.subtitle}>{t('manage_honors')}</Text>
+        </View>
 
-      <View style={styles.dateSection}>
-        <Text style={styles.sectionTitle}>{t('select_date')}</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={selectedDate}
-            onValueChange={(itemValue) => setSelectedDate(itemValue)}
-            style={styles.picker}
-          >
-            {availableDates.map((date) => (
-              <Picker.Item
-                key={date}
-                label={DateUtils.formatDate(date)}
-                value={date}
-              />
-            ))}
-          </Picker>
+        <View style={styles.dateSection}>
+          <Text style={styles.sectionTitle}>{t('select_date')}</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={selectedDate}
+              onValueChange={(itemValue) => setSelectedDate(itemValue)}
+              style={styles.picker}
+            >
+              {availableDates.map((date) => (
+                <Picker.Item
+                  key={date}
+                  label={DateUtils.formatDate(date)}
+                  value={date}
+                />
+              ))}
+            </Picker>
+          </View>
         </View>
-        <View style={styles.customDateRow}>
-          <TextInput
-            style={styles.input}
-            placeholder={t('date')}
-            value={customDate}
-            onChangeText={setCustomDate}
-          />
-          <Button title={t('update')} onPress={handleDateSubmit} />
-        </View>
-      </View>
 
       <View style={styles.sortSection}>
         <Text style={styles.sectionTitle}>{t('sort_by') || 'Sort by'}:</Text>
@@ -316,28 +297,47 @@ const HonorsScreen = () => {
           honorsList.map((participant) => {
             const isDisabled = !canAward || isPastDate() || participant.honoredToday;
             const selection = selectedHonors[participant.participant_id] || {};
+            const isSelected = selection?.selected;
             return (
-              <Card key={participant.participant_id} style={styles.card}>
+              <Card
+                key={participant.participant_id}
+                style={[
+                  styles.card,
+                  isSelected && styles.cardSelected,
+                  isDisabled && styles.cardDisabled
+                ]}
+              >
                 <TouchableOpacity
                   onPress={() => toggleParticipant(participant.participant_id)}
                   disabled={isDisabled}
+                  style={styles.participantTouchable}
                 >
-                  <Text style={styles.participantName}>
-                    {participant.first_name} {participant.last_name}
-                  </Text>
-                  <Text style={styles.captionText}>
-                    {t('honors_count')}: {participant.totalHonors}
-                  </Text>
-                  {participant.reason ? (
-                    <Text style={styles.captionText}>{participant.reason}</Text>
-                  ) : null}
+                  <View style={styles.participantHeader}>
+                    <View style={styles.participantInfo}>
+                      <Text style={[styles.participantName, isDisabled && styles.textDisabled]}>
+                        {participant.first_name} {participant.last_name}
+                      </Text>
+                      <Text style={styles.captionText}>
+                        {t('honors_count')}: {participant.totalHonors}
+                      </Text>
+                      {participant.reason ? (
+                        <Text style={styles.captionText}>{participant.reason}</Text>
+                      ) : null}
+                    </View>
+                    {isSelected && !isDisabled && (
+                      <View style={styles.checkmarkContainer}>
+                        <Text style={styles.checkmark}>✓</Text>
+                      </View>
+                    )}
+                  </View>
                 </TouchableOpacity>
-                {!isDisabled && selection?.selected ? (
+                {!isDisabled && isSelected ? (
                   <TextInput
-                    style={styles.input}
+                    style={styles.reasonInput}
                     placeholder={t('honor_reason_prompt')}
                     value={selection.reason || ''}
                     onChangeText={(value) => updateReason(participant.participant_id, value)}
+                    multiline
                   />
                 ) : null}
               </Card>
@@ -345,9 +345,10 @@ const HonorsScreen = () => {
           })
         )}
       </View>
+      </ScrollView>
 
       {canAward && (
-        <View style={styles.saveSection}>
+        <View style={styles.fixedButtonContainer}>
           <Button
             title={t('award_honor')}
             onPress={handleAwardHonors}
@@ -356,11 +357,17 @@ const HonorsScreen = () => {
           />
         </View>
       )}
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: theme.spacing.xl,
+  },
   header: {
     padding: theme.spacing.lg,
   },
@@ -383,16 +390,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surface,
-    marginBottom: theme.spacing.md,
     overflow: 'hidden',
   },
   picker: {
     height: 50,
-  },
-  customDateRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    alignItems: 'center',
   },
   sortSection: {
     paddingHorizontal: theme.spacing.lg,
@@ -424,30 +425,74 @@ const styles = StyleSheet.create({
     color: theme.colors.surface,
     fontWeight: '600',
   },
-  input: {
-    ...commonStyles.input,
-    flex: 1,
-    marginBottom: theme.spacing.sm,
-  },
   listSection: {
     paddingHorizontal: theme.spacing.lg,
   },
   card: {
     marginBottom: theme.spacing.sm,
   },
+  cardSelected: {
+    borderColor: theme.colors.primary,
+    borderWidth: 2,
+    backgroundColor: theme.colors.primaryLight || '#e8f5e9',
+  },
+  cardDisabled: {
+    opacity: 0.5,
+  },
+  participantTouchable: {
+    padding: theme.spacing.sm,
+  },
+  participantHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  participantInfo: {
+    flex: 1,
+  },
   participantName: {
     ...commonStyles.heading3,
+    marginBottom: theme.spacing.xs,
+  },
+  textDisabled: {
+    color: theme.colors.textSecondary,
   },
   captionText: {
     ...commonStyles.caption,
+  },
+  checkmarkContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: theme.spacing.sm,
+  },
+  checkmark: {
+    color: theme.colors.surface,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  reasonInput: {
+    ...commonStyles.input,
+    marginTop: theme.spacing.sm,
+    marginHorizontal: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    minHeight: 60,
+    textAlignVertical: 'top',
   },
   emptyText: {
     ...commonStyles.bodyText,
     textAlign: 'center',
   },
-  saveSection: {
+  fixedButtonContainer: {
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.background,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
   centerContent: {
     flex: 1,
