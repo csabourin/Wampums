@@ -29,31 +29,41 @@ import CONFIG from '../config';
 
 /**
  * Build participant honor stats for the selected date.
+ * Filters to show:
+ * - All participants on current date (can award honors)
+ * - Only participants with honors on past dates (view only)
+ *
  * @param {Array} participants - Participants list.
  * @param {Array} honors - Honors list.
  * @param {string} selectedDate - Selected date.
- * @returns {Array} Enriched participant list.
+ * @returns {Array} Enriched participant list (filtered).
  */
 const buildHonorsList = (participants, honors, selectedDate) => {
-  return participants.map((participant) => {
-    const honorsForDate = honors.filter(
-      (honor) =>
-        honor.participant_id === participant.participant_id &&
-        honor.date === selectedDate
-    );
-    const totalHonors = honors.filter(
-      (honor) =>
-        honor.participant_id === participant.participant_id &&
-        new Date(honor.date) <= new Date(selectedDate)
-    ).length;
+  const today = DateUtils.getTodayISO(); // Get today's date in ISO format (YYYY-MM-DD)
+  const isCurrentDate = selectedDate === today;
 
-    return {
-      ...participant,
-      honoredToday: honorsForDate.length > 0,
-      totalHonors,
-      reason: honorsForDate[0]?.reason || '',
-    };
-  });
+  return participants
+    .map((participant) => {
+      const honorsForDate = honors.filter(
+        (honor) =>
+          honor.participant_id === participant.participant_id &&
+          honor.date === selectedDate
+      );
+      const totalHonors = honors.filter(
+        (honor) =>
+          honor.participant_id === participant.participant_id &&
+          new Date(honor.date) <= new Date(selectedDate)
+      ).length;
+
+      return {
+        ...participant,
+        honoredToday: honorsForDate.length > 0,
+        totalHonors,
+        reason: honorsForDate[0]?.reason || '',
+        visible: isCurrentDate || honorsForDate.length > 0, // Show all on current date, only honored on past dates
+      };
+    })
+    .filter((participant) => participant.visible); // Filter out non-visible participants
 };
 
 const HonorsScreen = () => {
