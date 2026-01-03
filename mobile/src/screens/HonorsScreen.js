@@ -102,12 +102,14 @@ const HonorsScreen = () => {
   const canAward = hasPermission('honors.create', userPermissions) ||
                    hasPermission('honors.manage', userPermissions);
 
+  /**
+   * Check if selected date is in the past
+   * Compares ISO date strings to avoid timezone issues
+   */
   const isPastDate = () => {
     if (!selectedDate) return false;
-    const target = new Date(selectedDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return target < today;
+    const today = DateUtils.getTodayISO();
+    return selectedDate < today; // ISO format strings are lexicographically sortable
   };
 
   /**
