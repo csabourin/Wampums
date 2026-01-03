@@ -60,10 +60,12 @@ import {
   generateOptimisticId,
 } from '../utils/OptimisticUpdateManager';
 import { ROLE_GROUPS } from '../config/roles';
+import { useIsMounted } from '../hooks/useIsMounted';
 
 const CarpoolScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const isMounted = useIsMounted();
 
   // Debug logging to diagnose navigation parameter issues
   debugLog('=== CarpoolScreen Navigation Debug ===');
@@ -139,13 +141,16 @@ const CarpoolScreen = () => {
   const loadUserData = async () => {
     try {
       const permissions = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_PERMISSIONS);
+      if (!isMounted()) return;
       setUserPermissions(permissions || []);
 
       const storedUserId = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID);
+      if (!isMounted()) return;
       setUserId(storedUserId);
 
       const storedUserRoles = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLES);
       const storedUserRole = await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE);
+      if (!isMounted()) return;
       if (Array.isArray(storedUserRoles)) {
         setUserRoles(storedUserRoles);
       } else if (storedUserRoles) {
@@ -162,11 +167,13 @@ const CarpoolScreen = () => {
 
   const loadData = async () => {
     try {
+      if (!isMounted()) return;
       setLoading(true);
       setError(null);
 
       const resolvedUserId =
         userId || (await StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ID));
+      if (!isMounted()) return;
       if (!userId && resolvedUserId) {
         setUserId(resolvedUserId);
       }
@@ -177,6 +184,8 @@ const CarpoolScreen = () => {
         getCarpoolOffers(activityId),
         getActivityParticipants(activityId),
       ]);
+
+      if (!isMounted()) return;
 
       if (activityResponse.success && activityResponse.data) {
         setActivity(activityResponse.data);
@@ -195,22 +204,29 @@ const CarpoolScreen = () => {
       // Load unassigned participants if staff
       if (isStaff) {
         const unassignedResponse = await getUnassignedParticipants(activityId);
+        if (!isMounted()) return;
         if (unassignedResponse.success) {
           setUnassignedParticipants(unassignedResponse.data || []);
         }
       }
     } catch (err) {
       debugError('Error loading carpool data:', err);
+      if (!isMounted()) return;
       setError(err.message || t('error_loading_data'));
     } finally {
-      setLoading(false);
+      if (isMounted()) {
+        setLoading(false);
+      }
     }
   };
 
   const onRefresh = async () => {
+    if (!isMounted()) return;
     setRefreshing(true);
     await loadData();
-    setRefreshing(false);
+    if (isMounted()) {
+      setRefreshing(false);
+    }
   };
 
   const handleOfferFieldChange = (field, value) => {

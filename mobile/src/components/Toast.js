@@ -50,10 +50,13 @@ const Toast = ({
   }, [translateY, opacity, onDismiss]);
 
   useEffect(() => {
+    let isCancelled = false;
+    let animationRef = null;
+
     if (visible) {
       setIsVisible(true);
       // Slide in and fade in
-      Animated.parallel([
+      animationRef = Animated.parallel([
         Animated.timing(translateY, {
           toValue: 0,
           duration: 300,
@@ -64,19 +67,30 @@ const Toast = ({
           duration: 300,
           useNativeDriver: true,
         }),
-      ]).start();
+      ]);
+      animationRef.start();
 
       // Auto-dismiss after duration
       const timer = setTimeout(() => {
-        handleDismiss();
+        if (!isCancelled) {
+          handleDismiss();
+        }
       }, duration);
 
-      return () => clearTimeout(timer);
+      return () => {
+        isCancelled = true;
+        clearTimeout(timer);
+        if (animationRef) {
+          animationRef.stop();
+        }
+      };
     } else {
       // Reset position when not visible
       translateY.setValue(-100);
       opacity.setValue(0);
-      setIsVisible(false);
+      if (!isCancelled) {
+        setIsVisible(false);
+      }
     }
   }, [visible, duration, translateY, opacity, handleDismiss]);
 
