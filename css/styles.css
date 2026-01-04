@@ -3247,17 +3247,23 @@ body.online .pending-update { display: none; }
 /* Honors Table */
 .honors-table {
   margin-block-end: calc(7rem + var(--safe-area-bottom));
+  background-color: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .honors-table__header {
   display: grid;
-  grid-template-columns: 3rem 1fr auto auto;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
+  grid-template-columns: 3rem 1fr 6rem 10rem;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
   background-color: var(--color-primary);
   color: white;
   font-weight: var(--font-weight-semibold);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -3275,14 +3281,20 @@ body.online .pending-update { display: none; }
   user-select: none;
   transition: background-color var(--transition-base);
   border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
 }
 
 .honors-table__header-cell[data-sort]:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.honors-table__header-cell[data-sort]:active {
+  background-color: rgba(255, 255, 255, 0.25);
 }
 
 .honors-table__header-cell--checkbox {
   grid-column: 1;
+  justify-content: center;
 }
 
 .honors-table__header-cell--name {
@@ -3291,35 +3303,41 @@ body.online .pending-update { display: none; }
 
 .honors-table__header-cell--count {
   grid-column: 3;
-  justify-content: center;
-  min-inline-size: 8rem;
+  justify-content: flex-end;
 }
 
 .honors-table__header-cell--date {
   grid-column: 4;
-  justify-content: center;
-  min-inline-size: 10rem;
+  justify-content: flex-end;
 }
 
 .sort-indicator {
   font-size: var(--font-size-sm);
-  opacity: 0.8;
+  opacity: 0.9;
+  margin-inline-start: var(--space-xs);
 }
 
 .honors-table__row {
   display: grid;
-  grid-template-columns: 3rem 1fr auto auto;
-  gap: var(--space-sm);
-  padding: var(--space-md);
+  grid-template-columns: 3rem 1fr 6rem 10rem;
+  gap: var(--space-md);
+  padding: var(--space-lg);
   border-block-end: 1px solid var(--color-border);
   cursor: pointer;
-  transition: background-color var(--transition-base);
+  transition: all var(--transition-base);
   align-items: center;
+  background-color: white;
+}
+
+.honors-table__row:nth-child(even) {
+  background-color: #f8f9fa;
 }
 
 .honors-table__row:hover {
   background-color: var(--color-primary-light);
   color: white;
+  transform: translateX(2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .honors-table__row.selected {
@@ -3329,8 +3347,14 @@ body.online .pending-update { display: none; }
 }
 
 .honors-table__row.disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  pointer-events: none;
+}
+
+.honors-table__row.disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .honors-table__cell {
@@ -3345,32 +3369,44 @@ body.online .pending-update { display: none; }
 
 .honors-table__cell--checkbox input[type="checkbox"] {
   position: static;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
   cursor: pointer;
+  margin: 0;
+  pointer-events: none; /* Let row handle clicks */
 }
 
 .honors-table__cell--name {
   grid-column: 2;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
 }
 
 .honors-table__cell--name label {
   cursor: pointer;
   margin: 0;
+  pointer-events: none; /* Let row handle clicks */
 }
 
 .honors-table__cell--count {
   grid-column: 3;
-  justify-content: center;
-  font-size: var(--font-size-lg);
-  min-inline-size: 8rem;
+  justify-content: flex-end;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
+}
+
+.honors-table__row:hover .honors-table__cell--count,
+.honors-table__row.selected .honors-table__cell--count {
+  color: inherit;
 }
 
 .honors-table__cell--date {
   grid-column: 4;
-  justify-content: center;
+  justify-content: flex-end;
+  font-size: var(--font-size-sm);
   color: var(--color-text-light);
-  min-inline-size: 10rem;
+  font-weight: var(--font-weight-normal);
 }
 
 .honors-table__row:hover .honors-table__cell--date,
@@ -3382,7 +3418,9 @@ body.online .pending-update { display: none; }
 @media (max-width: 768px) {
   .honors-table__header,
   .honors-table__row {
-    grid-template-columns: 3rem 1fr auto;
+    grid-template-columns: 3rem 1fr 4rem;
+    gap: var(--space-sm);
+    padding: var(--space-md);
   }
 
   .honors-table__header-cell--date,
@@ -3392,7 +3430,11 @@ body.online .pending-update { display: none; }
 
   .honors-table__header-cell--count,
   .honors-table__cell--count {
-    min-inline-size: 5rem;
+    font-size: var(--font-size-lg);
+  }
+
+  .honors-table__cell--name {
+    font-size: var(--font-size-sm);
   }
 }
 
