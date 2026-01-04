@@ -110,6 +110,10 @@ const ParentDashboardScreen = () => {
   const [participantsToLink, setParticipantsToLink] = useSafeState([]);
   const [selectedParticipants, setSelectedParticipants] = useSafeState([]);
 
+  // Participant selection for forms
+  const [showParticipantSelector, setShowParticipantSelector] = useSafeState(false);
+  const [selectedFormDestination, setSelectedFormDestination] = useSafeState(null);
+
   // Configure header with settings button
   useEffect(() => {
     navigation.setOptions({
@@ -334,6 +338,37 @@ const ParentDashboardScreen = () => {
     });
   };
 
+  /**
+   * Handle navigation to forms that require a participant ID
+   * @param {string} screenName - Name of the screen to navigate to
+   */
+  const handleFormNavigation = (screenName) => {
+    if (children.length === 0) {
+      Alert.alert(t('error'), t('no_participants_registered'));
+      return;
+    }
+
+    if (children.length === 1) {
+      // Only one child, navigate directly
+      navigation.navigate(screenName, { participantId: children[0].id });
+    } else {
+      // Multiple children, show selector
+      setSelectedFormDestination(screenName);
+      setShowParticipantSelector(true);
+    }
+  };
+
+  /**
+   * Navigate to selected form with chosen participant
+   */
+  const handleParticipantSelection = (participantId) => {
+    if (selectedFormDestination) {
+      navigation.navigate(selectedFormDestination, { participantId });
+      setShowParticipantSelector(false);
+      setSelectedFormDestination(null);
+    }
+  };
+
   // Check for participants to link after initial load
   useEffect(() => {
     if (!loading) {
@@ -538,7 +573,7 @@ const ParentDashboardScreen = () => {
 
           <TouchableOpacity
             style={styles.formCard}
-            onPress={() => navigation.navigate('HealthForm')}
+            onPress={() => handleFormNavigation('HealthForm')}
           >
             <View style={styles.formCardContent}>
               <View>
@@ -553,7 +588,7 @@ const ParentDashboardScreen = () => {
 
           <TouchableOpacity
             style={styles.formCard}
-            onPress={() => navigation.navigate('RiskAcceptance')}
+            onPress={() => handleFormNavigation('RiskAcceptance')}
           >
             <View style={styles.formCardContent}>
               <View>
@@ -568,7 +603,7 @@ const ParentDashboardScreen = () => {
 
           <TouchableOpacity
             style={styles.formCard}
-            onPress={() => navigation.navigate('ParticipantDocuments')}
+            onPress={() => handleFormNavigation('ParticipantDocuments')}
           >
             <View style={styles.formCardContent}>
               <View>
@@ -610,7 +645,7 @@ const ParentDashboardScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('HealthForm')}
+          onPress={() => handleFormNavigation('HealthForm')}
         >
           <Text style={styles.actionButtonText}>
             🏥 {t('fiche_sante')}
@@ -618,7 +653,7 @@ const ParentDashboardScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('RiskAcceptance')}
+          onPress={() => handleFormNavigation('RiskAcceptance')}
         >
           <Text style={styles.actionButtonText}>
             ⚠️ {t('risk_acceptance_form')}
@@ -626,7 +661,7 @@ const ParentDashboardScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('ParticipantDocuments')}
+          onPress={() => handleFormNavigation('ParticipantDocuments')}
         >
           <Text style={styles.actionButtonText}>
             📋 {t('view_documents')}
@@ -684,6 +719,54 @@ const ParentDashboardScreen = () => {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Participant Selector for Forms */}
+      <Modal
+        visible={showParticipantSelector}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowParticipantSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{t('select_participant')}</Text>
+            <Text style={styles.modalDescription}>
+              {t('select_child_for_form')}
+            </Text>
+
+            <ScrollView style={styles.modalScrollView}>
+              {children.map((child) => (
+                <TouchableOpacity
+                  key={child.id}
+                  style={styles.participantSelectionRow}
+                  onPress={() => handleParticipantSelection(child.id)}
+                >
+                  <View>
+                    <Text style={styles.participantName}>
+                      {child.firstName} {child.lastName}
+                    </Text>
+                    <Text style={styles.participantDetail}>
+                      {t('age')}: {DateUtils.calculateAge(child.birthdate)} {t('years')}
+                      {child.group && ` • ${t('group')}: ${child.group}`}
+                    </Text>
+                  </View>
+                  <Text style={styles.formCardArrow}>→</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalButton, styles.cancelButton, { marginTop: 12 }]}
+              onPress={() => {
+                setShowParticipantSelector(false);
+                setSelectedFormDestination(null);
+              }}
+            >
+              <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1027,6 +1110,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  participantSelectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    minHeight: CONFIG.UI.TOUCH_TARGET_SIZE,
+  },
+  participantDetail: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 4,
   },
 });
 
