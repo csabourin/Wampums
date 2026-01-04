@@ -192,7 +192,9 @@ module.exports = (pool, logger) => {
 
         // Verify participant belongs to this organization
         const participantCheck = await client.query(
-          `SELECT id FROM participants WHERE id = $1 AND organization_id = $2`,
+          `SELECT p.id FROM participants p
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE p.id = $1 AND po.organization_id = $2`,
           [participant_id, organizationId]
         );
 
@@ -208,7 +210,8 @@ module.exports = (pool, logger) => {
           const guardianCheck = await client.query(
             `SELECT pg.guardian_id FROM participant_guardians pg
              JOIN participants p ON pg.participant_id = p.id
-             WHERE pg.guardian_id = $1 AND p.organization_id = $2`,
+             JOIN participant_organizations po ON p.id = po.participant_id
+             WHERE pg.guardian_id = $1 AND po.organization_id = $2`,
             [guardian_id, organizationId]
           );
 
@@ -336,7 +339,8 @@ module.exports = (pool, logger) => {
       const linkCheck = await pool.query(
         `SELECT pg.guardian_id FROM participant_guardians pg
          JOIN participants p ON pg.participant_id = p.id
-         WHERE pg.guardian_id = $1 AND pg.participant_id = $2 AND p.organization_id = $3`,
+         JOIN participant_organizations po ON p.id = po.participant_id
+         WHERE pg.guardian_id = $1 AND pg.participant_id = $2 AND po.organization_id = $3`,
         [guardian_id, participant_id, organizationId]
       );
 
