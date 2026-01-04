@@ -60,6 +60,16 @@ const ReportViewerScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     if (reportType === 'participant-progress' && selectedParticipantId) {
+      debugLog('useEffect triggered for participant:', selectedParticipantId);
+      debugLog('Participant list length:', participantList.length);
+
+      // Verify the participant exists in the list before loading
+      const participantExists = participantList.some(p => p.id === selectedParticipantId);
+      if (!participantExists && participantList.length > 0) {
+        debugWarn('Selected participant not in list, skipping load:', selectedParticipantId);
+        return;
+      }
+
       loadParticipantProgress(selectedParticipantId);
     }
   }, [selectedParticipantId]);
@@ -727,17 +737,35 @@ const ReportViewerScreen = ({ route, navigation }) => {
           <Text style={styles.pickerLabel}>{t('select_participant')}</Text>
           <RNPicker
             selectedValue={selectedParticipantId}
-            onValueChange={(itemValue) => setSelectedParticipantId(itemValue)}
+            onValueChange={(itemValue) => {
+              debugLog('Picker value changing to:', itemValue);
+              try {
+                setSelectedParticipantId(itemValue);
+                debugLog('Picker value changed successfully');
+              } catch (pickerErr) {
+                debugError('Error changing picker value:', pickerErr);
+              }
+            }}
             style={styles.picker}
           >
             <RNPicker.Item label={t('select_participant_placeholder')} value={null} />
-            {participantList.map((p) => (
-              <RNPicker.Item
-                key={p.id}
-                label={`${p.first_name} ${p.last_name}${p.group_name ? ` · ${p.group_name}` : ''}`}
-                value={p.id}
-              />
-            ))}
+            {participantList && participantList.length > 0 ? (
+              participantList.map((p) => {
+                try {
+                  const label = `${p.first_name || ''} ${p.last_name || ''}${p.group_name ? ` · ${p.group_name}` : ''}`;
+                  return (
+                    <RNPicker.Item
+                      key={p.id}
+                      label={label}
+                      value={p.id}
+                    />
+                  );
+                } catch (itemErr) {
+                  debugError('Error rendering picker item for participant:', p?.id, itemErr);
+                  return null;
+                }
+              })
+            ) : null}
           </RNPicker>
         </Card>
 
