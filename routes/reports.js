@@ -750,28 +750,50 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/participant-progress', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+  router.get('/participant-progress', authenticate, asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
+      const hasReportsPermission = req.user.permissions && req.user.permissions.includes('reports.view');
 
-      const participantsResult = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name
-         FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-         LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE po.organization_id = $1
-         ORDER BY p.first_name, p.last_name`,
-        [organizationId]
-      );
+      // Get all participants (will be filtered for parents)
+      let participantsQuery;
+      let participantsParams;
+
+      if (hasReportsPermission) {
+        // Staff can see all participants
+        participantsQuery = `
+          SELECT p.id, p.first_name, p.last_name, g.name as group_name
+          FROM participants p
+          JOIN participant_organizations po ON p.id = po.participant_id
+          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+          LEFT JOIN groups g ON pg.group_id = g.id
+          WHERE po.organization_id = $1
+          ORDER BY p.first_name, p.last_name`;
+        participantsParams = [organizationId];
+      } else {
+        // Parents can only see their own children
+        participantsQuery = `
+          SELECT p.id, p.first_name, p.last_name, g.name as group_name
+          FROM participants p
+          JOIN participant_organizations po ON p.id = po.participant_id
+          JOIN user_participants up ON up.participant_id = p.id
+          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+          LEFT JOIN groups g ON pg.group_id = g.id
+          WHERE po.organization_id = $1 AND up.user_id = $2
+          ORDER BY p.first_name, p.last_name`;
+        participantsParams = [organizationId, req.user.id];
+      }
+
+      const participantsResult = await pool.query(participantsQuery, participantsParams);
 
       const participantId = req.query.participant_id ? Number(req.query.participant_id) : null;
       if (!participantId) {
         return res.json({ success: true, data: { participants: participantsResult.rows } });
       }
 
+      // Verify participant exists in allowed list (handles both staff and parent access)
       const participantSummary = participantsResult.rows.find((p) => p.id === participantId);
       if (!participantSummary) {
-        return res.status(404).json({ success: false, message: 'Participant not found in organization' });
+        return error(res, 'Participant not found or access denied', 403);
       }
 
       const attendanceResult = await pool.query(
