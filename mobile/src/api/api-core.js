@@ -218,7 +218,13 @@ const makeRequest = async (method, endpoint, data = null, options = {}) => {
 
     // Cache successful GET responses
     if (method === 'GET' && useCache && normalizedResponse.success !== false) {
-      await CacheManager.cacheData(finalCacheKey, normalizedResponse, cacheDuration);
+      try {
+        await CacheManager.cacheData(finalCacheKey, normalizedResponse, cacheDuration);
+      } catch (cacheErr) {
+        // Don't let caching errors break the request
+        debugError('[API] Error caching response:', finalCacheKey, cacheErr.message);
+        // Continue anyway - we have the data even if we couldn't cache it
+      }
     }
 
     return normalizedResponse;
