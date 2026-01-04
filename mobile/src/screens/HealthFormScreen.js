@@ -68,9 +68,11 @@ const HealthFormScreen = ({ route, navigation }) => {
       setParents(parentsData);
 
       // Get health form structure from response
-      const formFormats = formFormatsResponse.success ? formFormatsResponse.data : {};
+      // getOrganizationFormFormats returns the transformed object directly, not wrapped in {success, data}
+      const formFormats = formFormatsResponse || {};
       if (formFormats?.fiche_sante) {
-        const formStructureData = formFormats.fiche_sante.form_structure || formFormats.fiche_sante;
+        // formFormats.fiche_sante is already the form_structure from getOrganizationFormFormats
+        const formStructureData = formFormats.fiche_sante;
         setFormStructure(formStructureData);
         
         // Initialize with existing data or defaults
