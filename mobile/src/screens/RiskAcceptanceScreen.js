@@ -17,8 +17,8 @@ import {
 } from 'react-native';
 import {
   getParticipant,
-  getRiskAcceptance,
-  saveRiskAcceptance,
+  getFormSubmission,
+  submitDynamicForm,
 } from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
@@ -60,7 +60,7 @@ const RiskAcceptanceScreen = ({ route, navigation }) => {
 
       const [participantResponse, riskResponse] = await Promise.all([
         getParticipant(participantId),
-        getRiskAcceptance(participantId).catch(() => ({ success: false })),
+        getFormSubmission(participantId, 'acceptation_risque').catch(() => ({ success: false })),
       ]);
 
       // Handle participant data
@@ -68,8 +68,8 @@ const RiskAcceptanceScreen = ({ route, navigation }) => {
       setParticipant(participantData);
 
       // Populate form with existing data if available
-      const acceptationData = riskResponse?.data || null;
-      if (acceptationData) {
+      if (riskResponse.success && riskResponse.form_data) {
+        const acceptationData = riskResponse.form_data;
         setFormData({
           groupe_district: acceptationData.groupe_district || '',
           accepte_risques: acceptationData.accepte_risques || false,
@@ -134,10 +134,11 @@ const RiskAcceptanceScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
 
-      const result = await saveRiskAcceptance({
-        participant_id: participantId,
-        ...formData,
-      });
+      const result = await submitDynamicForm(
+        'acceptation_risque',
+        participantId,
+        formData
+      );
 
       if (result.success) {
         toast.show(t('risk_acceptance_saved_successfully'), 'success');
