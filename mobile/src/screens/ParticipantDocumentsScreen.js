@@ -33,7 +33,10 @@ import {
 } from '../components';
 import { canViewParticipants } from '../utils/PermissionUtils';
 
-const ParticipantDocumentsScreen = ({ navigation }) => {
+const ParticipantDocumentsScreen = ({ route, navigation }) => {
+  // Optional participantId from navigation params (for parent view)
+  const participantId = route?.params?.participantId;
+
   const [loading, setLoading] = useSafeState(true);
   const [refreshing, setRefreshing] = useSafeState(false);
   const [error, setError] = useSafeState('');
@@ -77,9 +80,16 @@ const ParticipantDocumentsScreen = ({ navigation }) => {
         setFormTypes(Object.keys(formFormatsResponse));
       }
 
-      // Set participants data
+      // Set participants data, filtering by participantId if provided
       if (participantsResponse?.participants) {
-        setParticipants(participantsResponse.participants);
+        let participantsList = participantsResponse.participants;
+
+        // Filter to specific participant if participantId is provided (parent view)
+        if (participantId) {
+          participantsList = participantsList.filter(p => p.id === participantId);
+        }
+
+        setParticipants(participantsList);
       }
     } catch (err) {
       setError(err.message || t('error_loading_data'));
