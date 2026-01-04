@@ -82,7 +82,8 @@ module.exports = (pool, logger) => {
       }
 
       const result = await pool.query(
-        `SELECT pg.*, pg.lien as relationship, g.id, g.nom, g.prenom, g.courriel,
+        `SELECT pg.guardian_id, pg.participant_id, pg.lien, pg.lien as relationship,
+                g.id, g.nom, g.prenom, g.courriel,
                 g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
                 g.is_primary, g.is_emergency_contact
          FROM participant_guardians pg
