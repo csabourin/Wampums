@@ -39,6 +39,9 @@ import {
   getFormSubmissions,
 } from '../api/api-endpoints';
 import { debugLog, debugError } from '../utils/DebugUtils';
+import { isParent } from '../utils/PermissionUtils';
+import StorageUtils from '../utils/StorageUtils';
+import CONFIG from '../config';
 
 const ReportViewerScreen = ({ route, navigation }) => {
   const { reportType, reportTitle, participantId } = route.params;
@@ -49,11 +52,29 @@ const ReportViewerScreen = ({ route, navigation }) => {
   // State for participant progress report
   const [participantList, setParticipantList] = useSafeState([]);
   const [selectedParticipantId, setSelectedParticipantId] = useSafeState(participantId || null);
-  const [isStaff, setIsStaff] = useSafeState(true); // Default to true, will be updated from API
+  const [isStaff, setIsStaff] = useSafeState(true); // Will be set based on user role
 
   // State for missing fields report
   const [formTypes, setFormTypes] = useSafeState([]);
   const [selectedFormType, setSelectedFormType] = useSafeState(null);
+
+  // Check if user is parent on mount
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const [userRoles, userRole] = await Promise.all([
+          StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLES),
+          StorageUtils.getItem(CONFIG.STORAGE_KEYS.USER_ROLE),
+        ]);
+        const userIsParent = isParent(userRoles || [], userRole || '');
+        setIsStaff(!userIsParent); // Staff = NOT a parent
+        debugLog('[ReportViewer] User role check:', { userIsParent, isStaff: !userIsParent });
+      } catch (err) {
+        debugError('[ReportViewer] Error checking user role:', err);
+      }
+    };
+    checkUserRole();
+  }, []);
 
   useEffect(() => {
     loadReport();
@@ -131,8 +152,7 @@ const ReportViewerScreen = ({ route, navigation }) => {
 
           if (data?.data?.participants) {
             setParticipantList(data.data.participants);
-            // Update isStaff flag from API response
-            setIsStaff(data.data.isStaff !== false); // Default to true if not present
+            // Note: isStaff is set from user role check in useEffect, not from API
 
             // If we already have a selectedParticipantId (from navigation params),
             // load that participant's progress immediately

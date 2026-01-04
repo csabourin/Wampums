@@ -184,6 +184,19 @@ export function getDashboardType(userPermissions, userRoles = [], userRole = '')
   return hasNonParentPermission ? 'leader' : 'parent';
 }
 
+/**
+ * Check if user has parent role
+ * @returns {boolean} True if user has parent or demoparent role
+ */
+export function isParent(userRoles = [], userRole = '') {
+  const normalizedRoles = []
+    .concat(userRoles || [])
+    .concat(userRole ? [userRole] : [])
+    .filter((role) => typeof role === 'string')
+    .map((role) => role.toLowerCase());
+  return normalizedRoles.some((role) => PARENT_ROLE_KEYS.has(role));
+}
+
 // ==========================================
 // Async Permission Checkers (No Arguments)
 // ==========================================

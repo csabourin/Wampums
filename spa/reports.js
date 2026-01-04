@@ -27,7 +27,7 @@ import {
 } from "./ajax-functions.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
-import { canViewReports, canViewParticipants } from "./utils/PermissionUtils.js";
+import { canViewReports, isParent } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 
 const REPORT_CURRENCY = "CAD";
@@ -47,8 +47,9 @@ export class Reports {
 			return;
 		}
 
-		// Determine if user is staff (has participants.view) or parent
-		this.isStaff = canViewParticipants();
+		// Check if user has parent role - parents are restricted even if they have other permissions
+		const userIsParent = isParent();
+		this.isStaff = !userIsParent; // Staff = NOT a parent
 
 		// Check for URL parameter to auto-open participant progress report
 		const urlParams = new URLSearchParams(window.location.search);
@@ -56,7 +57,7 @@ export class Reports {
 
 		// Parents can ONLY access this page with a participantId parameter
 		// They should not see the reports dashboard
-		if (!this.isStaff && !participantId) {
+		if (userIsParent && !participantId) {
 			debugLog('Parent attempting to access Reports page without participantId, redirecting to parent dashboard');
 			this.app.router.navigate("/parent-dashboard");
 			return;
@@ -64,7 +65,7 @@ export class Reports {
 
 		// If parent with participantId, skip rendering the reports dashboard
 		// and go straight to the participant progress report
-		if (!this.isStaff && participantId) {
+		if (userIsParent && participantId) {
 			debugLog('Parent accessing specific participant progress report:', participantId);
 			this.selectedParticipantId = participantId;
 			// Render a minimal container for the report content
