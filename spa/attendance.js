@@ -391,13 +391,16 @@ export class Attendance {
         participantRow.classList.add("participant-row");
         participantRow.dataset.participantId = participant.id;
         participantRow.dataset.groupId = group.id;
-        setContent(participantRow, `
+        setContent(
+          participantRow,
+          `
           <span class="participant-name">${participant.first_name} ${participant.last_name}    
             ${participant.first_leader ? `<span class="badge leader">${translate("first_leader")}</span>` : ""}
             ${participant.second_leader ? `<span class="badge second-leader">${translate("second_leader")}</span>` : ""}
           </span>      
           <span class="participant-status ${statusClass}">${translate(status)}</span>
-        `);
+        `,
+        );
         groupDiv.appendChild(participantRow);
       });
 
@@ -592,7 +595,7 @@ export class Attendance {
   }
 
   async updateIndividualStatus(participantId, newStatus) {
-    const previousStatus = this.attendanceData[participantId] || "present"; // Default to present if no status
+    const previousStatus = this.attendanceData[participantId] || ""; // Default to nothing if no status
 
     await this.optimisticManager.execute(
       `attendance-${participantId}-${this.currentDate}`,
