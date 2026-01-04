@@ -497,7 +497,7 @@ const AttendanceScreen = () => {
 
                 {/* Participants */}
                 {group.participants.map((participant) => {
-                  const status = attendanceMap[participant.id] || 'present';
+                  const status = attendanceMap[participant.id] || '';
                   const isSelected = selectedParticipant === participant.id;
                   const isHighlighted = selectedGroup === group.id;
 
