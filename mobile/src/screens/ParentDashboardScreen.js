@@ -623,7 +623,7 @@ const ParentDashboardScreen = () => {
         <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('Finance')}
+          onPress={() => navigation.navigate('ParentFinance')}
         >
           <Text style={styles.actionButtonText}>💰 {t('view_fees')}</Text>
         </TouchableOpacity>
