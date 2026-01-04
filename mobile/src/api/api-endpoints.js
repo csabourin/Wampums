@@ -1540,7 +1540,7 @@ export const getFormSubmission = async (participantId, formType) => {
  * @param {Object} formData - Form data to save
  */
 export const submitDynamicForm = async (formType, participantId, formData) => {
-  return API.post(`${CONFIG.ENDPOINTS.FORMS}/form-submission`, {
+  return API.post(`${CONFIG.ENDPOINTS.FORMS}/save-form-submission`, {
     form_type: formType,
     participant_id: participantId,
     submission_data: formData,
