@@ -753,8 +753,9 @@ module.exports = (pool, logger) => {
   router.get('/participant-progress', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
-      // Check if user has staff permissions (participants.view means they can see all participants)
-      const isStaff = req.user.permissions && req.user.permissions.includes('participants.view');
+      // Check if user has parent role - parents are restricted even if they have other permissions
+      const isParent = req.user.roleNames && (req.user.roleNames.includes('parent') || req.user.roleNames.includes('demoparent'));
+      const isStaff = !isParent; // Staff = NOT a parent
 
       // Parents can only see their own children, staff can see all participants
       let participantsQuery, participantsParams;
