@@ -27,7 +27,7 @@ import {
 } from "./ajax-functions.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
-import { canViewReports } from "./utils/PermissionUtils.js";
+import { canViewReports, canViewParticipants } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 
 const REPORT_CURRENCY = "CAD";
@@ -47,13 +47,42 @@ export class Reports {
 			return;
 		}
 
-		this.render();
-		await this.loadFormTypes(); // Load form types after rendering the page
-		this.attachEventListeners();
+		// Determine if user is staff (has participants.view) or parent
+		this.isStaff = canViewParticipants();
 
 		// Check for URL parameter to auto-open participant progress report
 		const urlParams = new URLSearchParams(window.location.search);
 		const participantId = urlParams.get('participantId');
+
+		// Parents can ONLY access this page with a participantId parameter
+		// They should not see the reports dashboard
+		if (!this.isStaff && !participantId) {
+			debugLog('Parent attempting to access Reports page without participantId, redirecting to parent dashboard');
+			this.app.router.navigate("/parent-dashboard");
+			return;
+		}
+
+		// If parent with participantId, skip rendering the reports dashboard
+		// and go straight to the participant progress report
+		if (!this.isStaff && participantId) {
+			debugLog('Parent accessing specific participant progress report:', participantId);
+			this.selectedParticipantId = participantId;
+			// Render a minimal container for the report content
+			const container = document.getElementById("app");
+			setContent(container, `
+				<a href="/parent-dashboard" class="button button--ghost">← ${translate("back")}</a>
+				<div id="report-content"></div>
+			`);
+			await this.loadReport('participant-progress');
+			return;
+		}
+
+		// Staff users get the full reports dashboard
+		this.render();
+		await this.loadFormTypes(); // Load form types after rendering the page
+		this.attachEventListeners();
+
+		// If staff clicked with participantId, auto-open that report
 		if (participantId) {
 			this.selectedParticipantId = participantId;
 			await this.loadReport('participant-progress');
@@ -1444,8 +1473,7 @@ export class Reports {
 			);
 			if (response?.data?.participants) {
 				this.participantList = response.data.participants;
-				// Update isStaff flag from API response
-				this.isStaff = response.data.isStaff !== false; // Default to true if not present
+				// Note: isStaff is already set in init() from canViewParticipants() permission check
 				if (!this.selectedParticipantId && this.participantList.length) {
 					this.selectedParticipantId = this.participantList[0].id;
 					return await this.fetchAndRenderParticipantProgress();
