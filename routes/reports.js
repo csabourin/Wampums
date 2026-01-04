@@ -753,20 +753,39 @@ module.exports = (pool, logger) => {
   router.get('/participant-progress', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
-      const participantsResult = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name
-         FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-         LEFT JOIN groups g ON pg.group_id = g.id
-         WHERE po.organization_id = $1
-         ORDER BY p.first_name, p.last_name`,
-        [organizationId]
-      );
+      // Check if user has staff permissions (participants.view means they can see all participants)
+      const isStaff = req.user.permissions && req.user.permissions.includes('participants.view');
+
+      // Parents can only see their own children, staff can see all participants
+      let participantsQuery, participantsParams;
+      if (isStaff) {
+        participantsQuery = `
+          SELECT p.id, p.first_name, p.last_name, g.name as group_name
+          FROM participants p
+          JOIN participant_organizations po ON p.id = po.participant_id
+          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+          LEFT JOIN groups g ON pg.group_id = g.id
+          WHERE po.organization_id = $1
+          ORDER BY p.first_name, p.last_name`;
+        participantsParams = [organizationId];
+      } else {
+        participantsQuery = `
+          SELECT p.id, p.first_name, p.last_name, g.name as group_name
+          FROM participants p
+          JOIN participant_organizations po ON p.id = po.participant_id
+          JOIN user_participants up ON p.id = up.participant_id
+          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+          LEFT JOIN groups g ON pg.group_id = g.id
+          WHERE po.organization_id = $1 AND up.user_id = $2
+          ORDER BY p.first_name, p.last_name`;
+        participantsParams = [organizationId, req.user.id];
+      }
+
+      const participantsResult = await pool.query(participantsQuery, participantsParams);
 
       const participantId = req.query.participant_id ? Number(req.query.participant_id) : null;
       if (!participantId) {
-        return res.json({ success: true, data: { participants: participantsResult.rows } });
+        return res.json({ success: true, data: { participants: participantsResult.rows, isStaff } });
       }
 
       const participantSummary = participantsResult.rows.find((p) => p.id === participantId);
@@ -833,6 +852,7 @@ module.exports = (pool, logger) => {
         success: true,
         data: {
           participants: participantsResult.rows,
+          isStaff,
           progress: {
             participant: participantSummary,
             attendance: attendanceResult.rows,

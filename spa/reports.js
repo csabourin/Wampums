@@ -38,6 +38,7 @@ export class Reports {
 		this.participantList = [];
 		this.selectedParticipantId = null;
 		this.participantProgressCache = new Map();
+		this.isStaff = true; // Default to true, will be updated from API
 	}
 
 	async init() {
@@ -1297,16 +1298,21 @@ export class Reports {
 			? `<div class="offline-notice" role="status">${translate("using_cached_report")}</div>`
 			: "";
 
+		// Show participant selector only for staff, hide for parents
+		const participantSelector = this.isStaff
+			? `<div class="form-field">
+					<label for="participant-progress-select">${translate("select_participant")}</label>
+					<select id="participant-progress-select">
+						<option value="">${translate("select_participant_placeholder")}</option>
+						${selectOptions}
+					</select>
+				</div>`
+			: ''; // Parents don't see the picker
+
 		return `
                         <div class="participant-progress">
                                 ${offlineNotice}
-                                <div class="form-field">
-                                        <label for="participant-progress-select">${translate("select_participant")}</label>
-                                        <select id="participant-progress-select">
-                                                <option value="">${translate("select_participant_placeholder")}</option>
-                                                ${selectOptions}
-                                        </select>
-                                </div>
+                                ${participantSelector}
                                 ${
 																	progressData
 																		? `
@@ -1438,6 +1444,8 @@ export class Reports {
 			);
 			if (response?.data?.participants) {
 				this.participantList = response.data.participants;
+				// Update isStaff flag from API response
+				this.isStaff = response.data.isStaff !== false; // Default to true if not present
 				if (!this.selectedParticipantId && this.participantList.length) {
 					this.selectedParticipantId = this.participantList[0].id;
 					return await this.fetchAndRenderParticipantProgress();

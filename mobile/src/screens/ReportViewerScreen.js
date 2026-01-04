@@ -49,6 +49,7 @@ const ReportViewerScreen = ({ route, navigation }) => {
   // State for participant progress report
   const [participantList, setParticipantList] = useSafeState([]);
   const [selectedParticipantId, setSelectedParticipantId] = useSafeState(participantId || null);
+  const [isStaff, setIsStaff] = useSafeState(true); // Default to true, will be updated from API
 
   // State for missing fields report
   const [formTypes, setFormTypes] = useSafeState([]);
@@ -130,6 +131,8 @@ const ReportViewerScreen = ({ route, navigation }) => {
 
           if (data?.data?.participants) {
             setParticipantList(data.data.participants);
+            // Update isStaff flag from API response
+            setIsStaff(data.data.isStaff !== false); // Default to true if not present
 
             // If we already have a selectedParticipantId (from navigation params),
             // load that participant's progress immediately
@@ -732,42 +735,44 @@ const ReportViewerScreen = ({ route, navigation }) => {
 
     return (
       <View>
-        {/* Participant Selector */}
-        <Card style={styles.pickerCard}>
-          <Text style={styles.pickerLabel}>{t('select_participant')}</Text>
-          <RNPicker
-            selectedValue={selectedParticipantId}
-            onValueChange={(itemValue) => {
-              debugLog('Picker value changing to:', itemValue);
-              try {
-                setSelectedParticipantId(itemValue);
-                debugLog('Picker value changed successfully');
-              } catch (pickerErr) {
-                debugError('Error changing picker value:', pickerErr);
-              }
-            }}
-            style={styles.picker}
-          >
-            <RNPicker.Item label={t('select_participant_placeholder')} value={null} />
-            {participantList && participantList.length > 0 ? (
-              participantList.map((p) => {
+        {/* Participant Selector - Only show for staff, hide for parents */}
+        {isStaff && (
+          <Card style={styles.pickerCard}>
+            <Text style={styles.pickerLabel}>{t('select_participant')}</Text>
+            <RNPicker
+              selectedValue={selectedParticipantId}
+              onValueChange={(itemValue) => {
+                debugLog('Picker value changing to:', itemValue);
                 try {
-                  const label = `${p.first_name || ''} ${p.last_name || ''}${p.group_name ? ` · ${p.group_name}` : ''}`;
-                  return (
-                    <RNPicker.Item
-                      key={p.id}
-                      label={label}
-                      value={p.id}
-                    />
-                  );
-                } catch (itemErr) {
-                  debugError('Error rendering picker item for participant:', p?.id, itemErr);
-                  return null;
+                  setSelectedParticipantId(itemValue);
+                  debugLog('Picker value changed successfully');
+                } catch (pickerErr) {
+                  debugError('Error changing picker value:', pickerErr);
                 }
-              })
-            ) : null}
-          </RNPicker>
-        </Card>
+              }}
+              style={styles.picker}
+            >
+              <RNPicker.Item label={t('select_participant_placeholder')} value={null} />
+              {participantList && participantList.length > 0 ? (
+                participantList.map((p) => {
+                  try {
+                    const label = `${p.first_name || ''} ${p.last_name || ''}${p.group_name ? ` · ${p.group_name}` : ''}`;
+                    return (
+                      <RNPicker.Item
+                        key={p.id}
+                        label={label}
+                        value={p.id}
+                      />
+                    );
+                  } catch (itemErr) {
+                    debugError('Error rendering picker item for participant:', p?.id, itemErr);
+                    return null;
+                  }
+                })
+              ) : null}
+            </RNPicker>
+          </Card>
+        )}
 
         {progressData ? (
           <View>
