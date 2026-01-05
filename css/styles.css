@@ -3414,27 +3414,40 @@ body.online .pending-update { display: none; }
   color: inherit;
 }
 
-/* Responsive adjustments for mobile */
+/* Responsive adjustments for tablets */
 @media (max-width: 768px) {
   .honors-table__header,
   .honors-table__row {
-    grid-template-columns: 3rem 1fr 4rem;
+    grid-template-columns: 2.5rem 1fr 5rem 9rem;
     gap: var(--space-sm);
     padding: var(--space-md);
+  }
+
+  .honors-table__header {
+    font-size: 0.7rem;
+  }
+
+  .honors-table__cell--count {
+    font-size: var(--font-size-lg);
+  }
+
+  .honors-table__cell--name,
+  .honors-table__cell--date {
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Responsive adjustments for small mobile screens only */
+@media (max-width: 480px) {
+  .honors-table__header,
+  .honors-table__row {
+    grid-template-columns: 2.5rem 1fr 4rem;
+    gap: var(--space-sm);
   }
 
   .honors-table__header-cell--date,
   .honors-table__cell--date {
     display: none;
-  }
-
-  .honors-table__header-cell--count,
-  .honors-table__cell--count {
-    font-size: var(--font-size-lg);
-  }
-
-  .honors-table__cell--name {
-    font-size: var(--font-size-sm);
   }
 }
 
