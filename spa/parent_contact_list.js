@@ -4,6 +4,7 @@ import { translate } from "./app.js";
 import { canSendCommunications, canViewParticipants } from "./utils/PermissionUtils.js";
 import { debounce } from "./utils/PerformanceUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { createPhoneLink } from "./utils/PhoneUtils.js";
 
 export class ParentContactList {
   constructor(app) {
@@ -219,23 +220,23 @@ export class ParentContactList {
                 }
                 ${
                   contact.phone_home
-                    ? `<span class="phone-number">${translate("phone_home")}: ${
+                    ? `<span class="phone-number">${translate("phone_home")}: ${createPhoneLink(
                         contact.phone_home
-                      }</span>`
+                      )}</span>`
                     : ""
                 }
                 ${
                   contact.phone_cell
-                    ? `<span class="phone-number">${translate("phone_cell")}: ${
+                    ? `<span class="phone-number">${translate("phone_cell")}: ${createPhoneLink(
                         contact.phone_cell
-                      }</span>`
+                      )}</span>`
                     : ""
                 }
                 ${
                   contact.phone_work
-                    ? `<span class="phone-number">${translate("phone_work")}: ${
+                    ? `<span class="phone-number">${translate("phone_work")}: ${createPhoneLink(
                         contact.phone_work
-                      }</span>`
+                      )}</span>`
                     : ""
                 }
             </div>

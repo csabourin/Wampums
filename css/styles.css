@@ -240,6 +240,20 @@ a:focus-visible {
   text-decoration: underline;
 }
 
+/* Phone Link Styles */
+.phone-link {
+  color: var(--color-info);
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+  cursor: pointer;
+}
+
+.phone-link:hover,
+.phone-link:focus-visible {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
 /* ============================================================================
    4. LAYOUT SYSTEM
    ============================================================================ */

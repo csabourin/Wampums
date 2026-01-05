@@ -31,6 +31,7 @@ import {
 } from '../components';
 import { canSendCommunications, canViewParticipants } from '../utils/PermissionUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
+import { formatPhoneNumber } from '../utils/PhoneUtils';
 
 const ParentContactListScreen = () => {
   const navigation = useNavigation();
@@ -230,7 +231,7 @@ const ParentContactListScreen = () => {
               activeOpacity={0.7}
             >
               <Text style={styles.contactLabel}>{t('phone_home')}:</Text>
-              <Text style={styles.contactLink}>{contact.phone_home}</Text>
+              <Text style={styles.contactLink}>{formatPhoneNumber(contact.phone_home)}</Text>
             </TouchableOpacity>
           )}
           {contact.phone_work && (
@@ -240,7 +241,7 @@ const ParentContactListScreen = () => {
               activeOpacity={0.7}
             >
               <Text style={styles.contactLabel}>{t('phone_work')}:</Text>
-              <Text style={styles.contactLink}>{contact.phone_work}</Text>
+              <Text style={styles.contactLink}>{formatPhoneNumber(contact.phone_work)}</Text>
             </TouchableOpacity>
           )}
           {contact.phone_cell && (
@@ -250,7 +251,7 @@ const ParentContactListScreen = () => {
               activeOpacity={0.7}
             >
               <Text style={styles.contactLabel}>{t('phone_cell')}:</Text>
-              <Text style={styles.contactLink}>{contact.phone_cell}</Text>
+              <Text style={styles.contactLink}>{formatPhoneNumber(contact.phone_cell)}</Text>
             </TouchableOpacity>
           )}
         </View>
