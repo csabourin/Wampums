@@ -7,6 +7,7 @@ import {
   fetchParents,
   getCurrentOrganizationId,
 } from "./ajax-functions.js";
+import { createPhoneLink } from "./utils/PhoneUtils.js";
 
 export class FicheSante {
   constructor(app) {
@@ -113,17 +114,22 @@ export class FicheSante {
       <h2>${translate("urgence")}</h2>
       ${this.parents
         .map(
-          (parent, index) => `
-            <div class="form-group">
-              <h3>${translate("contact")} ${index + 1}</h3>
-              <p>${parent.prenom} ${parent.nom}</p>
-              <p>${translate("telephone")}: ${parent.telephone_cellulaire || parent.telephone_residence || parent.telephone_travail || translate("no_phone")}</p>
-              <div class="checkbox-group">
-                <input type="checkbox" id="emergency_contact_${parent.id}" name="emergency_contacts[]" value="${parent.id}" ${parent.is_emergency_contact ? "checked" : ""}>
-                <label for="emergency_contact_${parent.id}">${translate("is_emergency_contact")}</label>
+          (parent, index) => {
+            const phoneNumber = parent.telephone_cellulaire || parent.telephone_residence || parent.telephone_travail;
+            const phoneDisplay = phoneNumber ? createPhoneLink(phoneNumber) : translate("no_phone");
+
+            return `
+              <div class="form-group">
+                <h3>${translate("contact")} ${index + 1}</h3>
+                <p>${parent.prenom} ${parent.nom}</p>
+                <p>${translate("telephone")}: ${phoneDisplay}</p>
+                <div class="checkbox-group">
+                  <input type="checkbox" id="emergency_contact_${parent.id}" name="emergency_contacts[]" value="${parent.id}" ${parent.is_emergency_contact ? "checked" : ""}>
+                  <label for="emergency_contact_${parent.id}">${translate("is_emergency_contact")}</label>
+                </div>
               </div>
-            </div>
-          `
+            `;
+          }
         )
         .join("")}
     `;

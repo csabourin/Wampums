@@ -14,6 +14,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Linking,
 } from 'react-native';
 import {
   getParticipant,
@@ -34,6 +35,7 @@ import {
   useToast,
 } from '../components';
 import DateUtils from '../utils/DateUtils';
+import { formatPhoneNumber, getCleanedPhoneNumber } from '../utils/PhoneUtils';
 
 const HealthFormScreen = ({ route, navigation }) => {
   const { participantId } = route.params;
@@ -225,31 +227,44 @@ const HealthFormScreen = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>{t('emergency_contacts')}</Text>
             <Text style={styles.helpText}>{t('select_emergency_contacts')}</Text>
 
-            {parents.map((parent, index) => (
-              <View key={parent.id} style={styles.contactItem}>
-                <View style={styles.contactHeader}>
-                  <Text style={styles.contactName}>
-                    {t('contact')} {index + 1}
+            {parents.map((parent, index) => {
+              const phoneNumber = parent.telephone_cellulaire ||
+                parent.telephone_residence ||
+                parent.telephone_travail;
+
+              return (
+                <View key={parent.id} style={styles.contactItem}>
+                  <View style={styles.contactHeader}>
+                    <Text style={styles.contactName}>
+                      {t('contact')} {index + 1}
+                    </Text>
+                  </View>
+                  <Text style={styles.contactDetail}>
+                    {parent.prenom} {parent.nom}
                   </Text>
+                  {phoneNumber ? (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(`tel:${getCleanedPhoneNumber(phoneNumber)}`)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.contactPhone}>
+                        {t('phone')}: {formatPhoneNumber(phoneNumber)}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.contactDetail}>
+                      {t('phone')}: {t('no_phone')}
+                    </Text>
+                  )}
+                  <Checkbox
+                    label={t('is_emergency_contact')}
+                    checked={emergencyContacts.includes(parent.id.toString())}
+                    onPress={() => toggleEmergencyContact(parent.id)}
+                    style={styles.emergencyCheckbox}
+                  />
                 </View>
-                <Text style={styles.contactDetail}>
-                  {parent.prenom} {parent.nom}
-                </Text>
-                <Text style={styles.contactDetail}>
-                  {t('phone')}:{' '}
-                  {parent.telephone_cellulaire ||
-                    parent.telephone_residence ||
-                    parent.telephone_travail ||
-                    t('no_phone')}
-                </Text>
-                <Checkbox
-                  label={t('is_emergency_contact')}
-                  checked={emergencyContacts.includes(parent.id.toString())}
-                  onPress={() => toggleEmergencyContact(parent.id)}
-                  style={styles.emergencyCheckbox}
-                />
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -345,6 +360,13 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: theme.colors.text,
     marginBottom: theme.spacing.xs,
+  },
+  contactPhone: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.info,
+    textDecorationLine: 'underline',
+    marginBottom: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs,
   },
   emergencyCheckbox: {
     marginTop: theme.spacing.sm,
