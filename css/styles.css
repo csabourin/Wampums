@@ -3386,6 +3386,25 @@ body.online .pending-update { display: none; }
   cursor: pointer;
   margin: 0;
   pointer-events: none; /* Let row handle clicks */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.participant-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.participant-last-honor {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
+  font-weight: var(--font-weight-normal);
+  display: none; /* Hidden by default, shown only on mobile */
+}
+
+.honors-table__row:hover .participant-last-honor,
+.honors-table__row.selected .participant-last-honor {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .honors-table__cell--count {
@@ -3448,6 +3467,11 @@ body.online .pending-update { display: none; }
   .honors-table__header-cell--date,
   .honors-table__cell--date {
     display: none;
+  }
+
+  /* Show date info under participant name on mobile */
+  .participant-last-honor {
+    display: block;
   }
 }
 

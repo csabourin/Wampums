@@ -178,7 +178,8 @@ export class ManageHonors {
         </div>
         <div class="honors-table__cell honors-table__cell--name">
           <label for="participant-${participant.participant_id}">
-            ${participant.first_name} ${participant.last_name}
+            <div class="participant-name">${participant.first_name} ${participant.last_name}</div>
+            <div class="participant-last-honor">${translate("last_honor_date")}: ${lastHonorDateFormatted}</div>
           </label>
         </div>
         <div class="honors-table__cell honors-table__cell--count">
