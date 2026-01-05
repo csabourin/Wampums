@@ -13,6 +13,8 @@ export class ManageHonors {
     this.allHonors = [];
     this.allParticipants = [];
     this.currentSort = { key: "name", order: "asc" };
+    this.pendingHonors = []; // Store honors being processed
+    this.currentHonorIndex = 0; // Track which honor we're entering
   }
 
   async init() {
@@ -170,6 +172,7 @@ export class ManageHonors {
     const lastHonorDateFormatted = participant.last_honor_date
       ? formatDate(participant.last_honor_date, this.app.lang)
       : "-";
+    const reasonText = participant.reason ? participant.reason : "";
 
     return `
       <div class="honors-table__row ${selectedClass} ${disabledClass}" data-participant-id="${participant.participant_id}" data-group-id="${participant.group_id}">
@@ -178,7 +181,9 @@ export class ManageHonors {
         </div>
         <div class="honors-table__cell honors-table__cell--name">
           <label for="participant-${participant.participant_id}">
-            ${participant.first_name} ${participant.last_name}
+            <div class="participant-name">${participant.first_name} ${participant.last_name}</div>
+            ${reasonText ? `<div class="participant-reason">${translate("honor_reason_label")}: ${reasonText}</div>` : ''}
+            <div class="participant-last-honor">${translate("last_honor_date")}: ${lastHonorDateFormatted}</div>
           </label>
         </div>
         <div class="honors-table__cell honors-table__cell--count">
@@ -245,31 +250,129 @@ export class ManageHonors {
       return;
     }
 
-    const honors = [];
+    // Prepare the list of participants needing reasons
+    this.pendingHonors = Array.from(selectedItems).map(item => ({
+      participantId: item.closest(".honors-table__row").dataset.participantId,
+      participantName: item.closest(".honors-table__row").querySelector(".participant-name").textContent.trim(),
+      reason: ""
+    }));
 
-    // Prompt for reason for each selected participant
-    for (const item of selectedItems) {
-      const participantId = item.closest(".honors-table__row").dataset.participantId;
-      const participantName = item.closest(".honors-table__row").querySelector("label").textContent.trim();
+    this.currentHonorIndex = 0;
+    this.showReasonModal();
+  }
 
-      const reason = prompt(`${translate("honor_reason_prompt")} - ${participantName}:`, "");
-
-      if (reason === null) {
-        // User cancelled the prompt
-        return;
-      }
-
-      if (!reason || reason.trim() === "") {
-        this.app.showMessage(translate("honor_reason_required"), "error");
-        return;
-      }
-
-      honors.push({
-        participantId: participantId,
-        date: this.currentDate,
-        reason: reason.trim()
-      });
+  showReasonModal() {
+    if (this.currentHonorIndex >= this.pendingHonors.length) {
+      // All reasons collected, submit the honors
+      this.submitHonors();
+      return;
     }
+
+    const currentHonor = this.pendingHonors[this.currentHonorIndex];
+    const modalHtml = `
+      <div class="modal-overlay" id="honor-reason-modal">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2>${translate("honor_reason_prompt")}</h2>
+            <button class="modal-close" id="close-modal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-participant-name">${currentHonor.participantName}</p>
+            <p class="modal-progress">${this.currentHonorIndex + 1} ${translate("of")} ${this.pendingHonors.length}</p>
+            <form id="honor-reason-form">
+              <div class="form-group">
+                <label for="honor-reason-input">${translate("honor_reason_label")}:</label>
+                <textarea
+                  id="honor-reason-input"
+                  class="form-control"
+                  rows="3"
+                  required
+                  placeholder="${translate("honor_reason_placeholder") || translate("honor_reason_prompt")}"
+                  autofocus
+                ></textarea>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="button button--secondary" id="cancel-honors">
+                  ${translate("cancel")}
+                </button>
+                <button type="submit" class="button button--primary">
+                  ${this.currentHonorIndex < this.pendingHonors.length - 1 ? translate("next") : translate("submit")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Add modal to page
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer.firstElementChild);
+
+    // Attach event listeners
+    document.getElementById('honor-reason-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.handleReasonSubmit();
+    });
+
+    document.getElementById('close-modal').addEventListener('click', () => {
+      this.closeReasonModal();
+    });
+
+    document.getElementById('cancel-honors').addEventListener('click', () => {
+      this.closeReasonModal();
+    });
+
+    // Close on overlay click
+    document.getElementById('honor-reason-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'honor-reason-modal') {
+        this.closeReasonModal();
+      }
+    });
+
+    // Focus the textarea
+    setTimeout(() => {
+      document.getElementById('honor-reason-input')?.focus();
+    }, 100);
+  }
+
+  handleReasonSubmit() {
+    const reasonInput = document.getElementById('honor-reason-input');
+    const reason = reasonInput.value.trim();
+
+    if (!reason) {
+      this.app.showMessage(translate("honor_reason_required"), "error");
+      return;
+    }
+
+    // Save the reason
+    this.pendingHonors[this.currentHonorIndex].reason = reason;
+
+    // Close modal and move to next
+    this.closeReasonModal();
+    this.currentHonorIndex++;
+    this.showReasonModal();
+  }
+
+  closeReasonModal() {
+    const modal = document.getElementById('honor-reason-modal');
+    if (modal) {
+      modal.remove();
+    }
+    // Reset if cancelled
+    if (this.currentHonorIndex < this.pendingHonors.length) {
+      this.pendingHonors = [];
+      this.currentHonorIndex = 0;
+    }
+  }
+
+  async submitHonors() {
+    const honors = this.pendingHonors.map(h => ({
+      participantId: h.participantId,
+      date: this.currentDate,
+      reason: h.reason
+    }));
 
     try {
       const result = await awardHonor(honors);
@@ -284,6 +387,9 @@ export class ManageHonors {
     } catch (error) {
       debugError("Error:", error);
       this.app.showMessage(`${translate("error_awarding_honor")}: ${error.message}`, "error");
+    } finally {
+      this.pendingHonors = [];
+      this.currentHonorIndex = 0;
     }
   }
 
