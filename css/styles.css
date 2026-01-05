@@ -3395,6 +3395,14 @@ body.online .pending-update { display: none; }
   font-weight: var(--font-weight-medium);
 }
 
+.participant-reason {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
+  font-weight: var(--font-weight-normal);
+  font-style: italic;
+  display: none; /* Hidden by default, shown only on mobile */
+}
+
 .participant-last-honor {
   font-size: var(--font-size-xs);
   color: var(--color-text-light);
@@ -3402,7 +3410,9 @@ body.online .pending-update { display: none; }
   display: none; /* Hidden by default, shown only on mobile */
 }
 
+.honors-table__row:hover .participant-reason,
 .honors-table__row:hover .participant-last-honor,
+.honors-table__row.selected .participant-reason,
 .honors-table__row.selected .participant-last-honor {
   color: rgba(255, 255, 255, 0.8);
 }
@@ -3469,10 +3479,106 @@ body.online .pending-update { display: none; }
     display: none;
   }
 
-  /* Show date info under participant name on mobile */
+  /* Show reason and date info under participant name on mobile */
+  .participant-reason,
   .participant-last-honor {
     display: block;
   }
+}
+
+/* Honor Reason Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-md);
+}
+
+.modal-dialog {
+  background-color: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--color-text-light);
+  cursor: pointer;
+  padding: var(--space-xs);
+  line-height: 1;
+  transition: color var(--transition-base);
+}
+
+.modal-close:hover {
+  color: var(--color-primary);
+}
+
+.modal-body {
+  padding: var(--space-lg);
+}
+
+.modal-participant-name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.modal-progress {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
+  margin-bottom: var(--space-lg);
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: flex-end;
+  margin-top: var(--space-lg);
+}
+
+.modal-actions .button {
+  min-width: 100px;
 }
 
 /* ----------------------------------------------------------------------------
