@@ -29,13 +29,9 @@ export function formatDate(dateString, lang = 'en', options = null) {
     if (!dateString) return '';
 
     try {
-        const parsed = new Date(dateString);
-        const date = isNaN(parsed.getTime())
-            ? (() => {
-                const [year, month, day] = dateString.split('-').map(Number);
-                return new Date(year, month - 1, day);
-            })()
-            : parsed;
+        // Always parse as local date to avoid timezone issues
+        const [year, month, day] = dateString.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
 
         if (isNaN(date.getTime())) {
             return '';
