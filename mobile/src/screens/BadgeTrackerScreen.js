@@ -518,60 +518,16 @@ const BadgeTrackerScreen = () => {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <View style={styles.headerTop}>
-        <View>
-          <Text style={styles.headerTitle}>
-            🐾 {t('badge_tracker_title') || 'Badges de la Meute'}
-          </Text>
-          <Text style={styles.headerSubtitle}>
-            {t('badge_tracker_subtitle') || 'Suivi des progrès des louveteaux'}
-          </Text>
-        </View>
-        <View style={styles.headerActions}>
-          {permissions.canApprove && (
-            <TouchableOpacity
-              style={[
-                styles.headerActionButton,
-                viewMode === VIEW_MODES.PENDING && styles.headerActionButtonActive,
-              ]}
-              onPress={() => setViewMode(viewMode === VIEW_MODES.PENDING ? VIEW_MODES.PARTICIPANTS : VIEW_MODES.PENDING)}
-            >
-              <Text style={[
-                styles.headerActionIcon,
-                viewMode === VIEW_MODES.PENDING && styles.headerActionIconActive,
-              ]}>
-                🕐
-              </Text>
-              {pendingBadges.length > 0 && (
-                <View style={[styles.headerActionBadge, styles.headerActionBadgeWarning]}>
-                  <Text style={styles.headerActionBadgeText}>{pendingBadges.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-          {permissions.canApprove && (
-            <TouchableOpacity
-              style={[
-                styles.headerActionButton,
-                viewMode === VIEW_MODES.DELIVERY && styles.headerActionButtonActive,
-              ]}
-              onPress={() => setViewMode(viewMode === VIEW_MODES.DELIVERY ? VIEW_MODES.PARTICIPANTS : VIEW_MODES.DELIVERY)}
-            >
-              <Text style={[
-                styles.headerActionIcon,
-                viewMode === VIEW_MODES.DELIVERY && styles.headerActionIconActive,
-              ]}>
-                🎁
-              </Text>
-              {deliveryQueue.length > 0 && (
-                <View style={[styles.headerActionBadge, styles.headerActionBadgeInfo]}>
-                  <Text style={styles.headerActionBadgeText}>{deliveryQueue.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.backButtonText}>← {t('back')}</Text>
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>
+        {t('badge_tracker_title') || 'Badges de la Meute'}
+      </Text>
     </View>
   );
 
@@ -1228,72 +1184,23 @@ const BadgeTrackerScreen = () => {
 const styles = StyleSheet.create({
   // Header
   header: {
-    backgroundColor: theme.colors.primary,
-    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  backButton: {
+    marginBottom: theme.spacing.sm,
+  },
+  backButtonText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.primary,
+    fontWeight: theme.fontWeight.semibold,
   },
   headerTitle: {
     fontSize: theme.fontSize.xl,
     fontWeight: theme.fontWeight.bold,
-    color: theme.colors.selectedText,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.selectedText,
-    opacity: 0.9,
-    marginTop: theme.spacing.xs,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  headerActionButton: {
-    width: theme.touchTarget.min,
-    height: theme.touchTarget.min,
-    borderRadius: theme.touchTarget.min / 2,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerActionButtonActive: {
-    backgroundColor: theme.colors.selectedText,
-    borderColor: theme.colors.selectedText,
-  },
-  headerActionIcon: {
-    fontSize: theme.fontSize.lg,
-    color: theme.colors.selectedText,
-  },
-  headerActionIconActive: {
-    color: theme.colors.primary,
-  },
-  headerActionBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    backgroundColor: theme.colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerActionBadgeText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.selectedText,
-    fontWeight: theme.fontWeight.bold,
-  },
-  headerActionBadgeWarning: {
-    backgroundColor: theme.colors.warning,
-  },
-  headerActionBadgeInfo: {
-    backgroundColor: theme.colors.info,
+    color: theme.colors.text,
   },
 
   // Stats
