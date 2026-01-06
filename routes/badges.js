@@ -1040,7 +1040,6 @@ module.exports = (pool, logger) => {
                 bp.star_type,
                 p.first_name,
                 p.last_name,
-                p.totem,
                 bt.name AS badge_name,
                 bt.template_key,
                 bt.translation_key,
@@ -1235,7 +1234,6 @@ module.exports = (pool, logger) => {
                 bp.star_type,
                 p.first_name,
                 p.last_name,
-                p.totem,
                 bt.name AS badge_name,
                 bt.template_key,
                 bt.translation_key,
@@ -1268,7 +1266,6 @@ module.exports = (pool, logger) => {
                 'proie'::text AS star_type,
                 p.first_name,
                 p.last_name,
-                p.totem,
                 bt.name AS badge_name,
                 bt.template_key,
                 bt.translation_key,
@@ -1296,7 +1293,7 @@ module.exports = (pool, logger) => {
 
       // Get participants with their groups
       const participantsResult = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, p.totem,
+        `SELECT p.id, p.first_name, p.last_name,
                 g.id AS group_id, g.name AS group_name, g.section
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
@@ -1309,11 +1306,13 @@ module.exports = (pool, logger) => {
 
       // Calculate stats
       const allBadges = badgesResult.rows;
+      const approvedBadges = allBadges.filter(b => b.status === 'approved');
       const stats = {
         totalParticipants: participantsResult.rows.length,
-        totalApproved: allBadges.filter(b => b.status === 'approved').length,
+        totalStars: approvedBadges.length,
+        totalApproved: approvedBadges.length,
         pendingApproval: allBadges.filter(b => b.status === 'pending').length,
-        awaitingDelivery: allBadges.filter(b => b.status === 'approved' && !b.delivered_at).length,
+        awaitingDelivery: approvedBadges.filter(b => !b.delivered_at).length,
         totalDelivered: allBadges.filter(b => b.delivered_at).length
       };
 
