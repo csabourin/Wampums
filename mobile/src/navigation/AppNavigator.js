@@ -62,6 +62,7 @@ import AdminScreen from '../screens/AdminScreen';
 import ApproveBadgesScreen from '../screens/ApproveBadgesScreen';
 import BadgeDashboardScreen from '../screens/BadgeDashboardScreen';
 import BadgeFormScreen from '../screens/BadgeFormScreen';
+import BadgeTrackerScreen from '../screens/BadgeTrackerScreen';
 import FinanceScreen from '../screens/FinanceScreen';
 import ParentFinanceScreen from '../screens/ParentFinanceScreen';
 import FormPermissionsScreen from '../screens/FormPermissionsScreen';
@@ -272,6 +273,15 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         options={{
           headerShown: true,
           title: t('badge_dashboard_title'),
+        }}
+      />
+
+      <Stack.Screen
+        name="BadgeTracker"
+        component={BadgeTrackerScreen}
+        options={{
+          headerShown: true,
+          title: t('badge_tracker_title'),
         }}
       />
 
