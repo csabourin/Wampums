@@ -1,7 +1,7 @@
 /**
- * Account Information Module
+ * Settings Module (Account Information & Preferences)
  *
- * Handles user profile management: viewing and updating name, email, and password
+ * Handles user settings: viewing and updating name, email, password, language, and push notifications
  * Follows Wampums module patterns with security best practices
  *
  * @module modules/account-info
@@ -9,25 +9,25 @@
 
 import { makeApiRequest } from "../api/api-core.js";
 import { debugLog, debugError } from "../utils/DebugUtils.js";
-import { translate } from "../app.js";
+import { translate, app as appInstance } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
-import { WhatsAppConnectionModule } from "./whatsapp-connection.js";
-import { canSendCommunications, isParent } from "../utils/PermissionUtils.js";
+import { isParent } from "../utils/PermissionUtils.js";
 import { setContent } from "../utils/DOMUtils.js";
+import { getStorage, setStorage } from "../utils/StorageUtils.js";
 
 /**
- * Account Information Management Class
+ * Settings/Account Information Management Class
  */
 export class AccountInfoModule {
   constructor(app) {
     this.app = app;
     this.userData = null;
     this.isLoading = false;
-    this.whatsappModule = null;
     this.guardianProfile = { guardian: null, participantIds: [] };
     this.guardianError = null;
     this.isParent = false;
-    this.canManageWhatsApp = false;
+    this.pushEnabled = false;
+    this.pushSupported = false;
   }
 
   /**
@@ -35,10 +35,15 @@ export class AccountInfoModule {
    * Loads user data and renders the page
    */
   async init() {
-    debugLog("Initializing AccountInfoModule");
+    debugLog("Initializing Settings Module");
     try {
       this.isParent = isParent();
-      this.canManageWhatsApp = canSendCommunications();
+
+      // Check push notification support
+      this.pushSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+      if (this.pushSupported) {
+        this.pushEnabled = await this.checkPushSubscription();
+      }
 
       await this.loadUserData();
       if (this.isParent) {
@@ -48,17 +53,29 @@ export class AccountInfoModule {
         this.guardianError = null;
       }
 
-      // Initialize WhatsApp connection module
-      if (this.canManageWhatsApp) {
-        this.whatsappModule = new WhatsAppConnectionModule(this.app);
-        await this.whatsappModule.init();
-      }
-
       this.render();
       this.attachEventListeners();
     } catch (error) {
-      debugError("Error initializing account info module:", error);
+      debugError("Error initializing settings module:", error);
       this.renderError(translate("error_loading_data"));
+    }
+  }
+
+  /**
+   * Check if user has an active push subscription
+   */
+  async checkPushSubscription() {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return false;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      return subscription !== null;
+    } catch (error) {
+      debugError("Error checking push subscription:", error);
+      return false;
     }
   }
 
@@ -108,15 +125,17 @@ export class AccountInfoModule {
   }
 
   /**
-   * Render the account information page
+   * Render the settings page
    */
   render() {
     const homeLink = this.isParent ? "/parent-dashboard" : "/dashboard";
 
     const fullName = escapeHTML(this.userData?.full_name || "");
     const email = escapeHTML(this.userData?.email || "");
-    const languagePreference = this.userData?.language_preference || "";
-    const whatsappPhone = escapeHTML(this.userData?.whatsapp_phone_number || "");
+    const roles = Array.isArray(this.userData?.roles) ? this.userData.roles.join(", ") : "";
+
+    // Get current UI language (not just preference)
+    const currentLang = this.app.lang || getStorage('lang', false, 'fr');
 
     const guardianData = this.guardianProfile?.guardian || {};
     const nameParts = fullName ? fullName.split(" ") : [];
@@ -131,256 +150,276 @@ export class AccountInfoModule {
     const hasParticipantLinks = Array.isArray(this.guardianProfile?.participantIds) && this.guardianProfile.participantIds.length > 0;
 
     const content = `
-      <a href="${homeLink}" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
-      <h1>${translate("account_settings") || translate("account_info_title")}</h1>
+      <div class="settings-page">
+        <header class="settings-header">
+          <a href="${homeLink}" class="home-icon" aria-label="${translate("back_to_dashboard")}">🏠</a>
+          <h1>${translate("settings") || translate("account_settings") || translate("account_info_title")}</h1>
+        </header>
 
-      <!-- Full Name Section -->
-      <section class="account-section">
-        <h2>${translate("account_info_fullname_title")}</h2>
-        <form id="fullname-form" class="account-form">
-          <div class="form-group">
-            <label for="fullname-input">${translate("account_info_fullname_label")}</label>
-            <input 
-              type="text" 
-              id="fullname-input" 
-              name="fullName"
-              value="${fullName}"
-              placeholder="${translate("account_info_fullname_placeholder")}"
-              required
-              minlength="2"
-              maxlength="100"
-              autocomplete="name"
-            />
+        <!-- Profile Summary Section -->
+        <section class="account-section profile-summary">
+          <div class="profile-card">
+            <div class="profile-name">${fullName}</div>
+            <div class="profile-role">${escapeHTML(roles)}</div>
           </div>
-          <button type="submit" class="btn btn-primary" id="fullname-submit">
-            ${translate("account_info_fullname_button")}
-          </button>
-        </form>
-      </section>
+        </section>
 
-      <!-- Email Section -->
-      <section class="account-section">
-        <h2>${translate("account_info_email_title")}</h2>
-        <div class="warning-box">
-          <p>${translate("account_info_email_warning")}</p>
-        </div>
-        <form id="email-form" class="account-form">
-          <div class="form-group">
-            <label for="email-input">${translate("account_info_email_label")}</label>
-            <input 
-              type="email" 
-              id="email-input" 
-              name="email"
-              value="${email}"
-              placeholder="${translate("account_info_email_placeholder")}"
-              required
-              autocomplete="email"
-            />
-          </div>
-          <button type="submit" class="btn btn-primary" id="email-submit">
-            ${translate("account_info_email_button")}
-          </button>
-        </form>
-      </section>
-
-      ${this.isParent ? `
-        <!-- Guardian Information Section (Parents only) -->
+        <!-- Profile Information Section -->
         <section class="account-section">
-          <h2>${translate("guardian_info_title")}</h2>
-          <p class="section-description">${translate("guardian_info_description")}</p>
-          <div class="warning-box">
-            <p>${translate("account_info_guardian_sync_notice")}</p>
-            ${this.guardianError ? `<p>${escapeHTML(this.guardianError)}</p>` : ""}
-            ${!hasParticipantLinks ? `<p>${translate("guardian_no_participants")}</p>` : ""}
-          </div>
-          <form id="guardian-form" class="account-form">
+          <h2>${translate("profile_information") || translate("profile")}</h2>
+
+          <form id="fullname-form" class="account-form">
             <div class="form-group">
-              <label for="guardian-first-name">${translate("guardian_first_name")}</label>
-              <input 
+              <label for="fullname-input">${translate("full_name") || translate("account_info_fullname_label")}</label>
+              <input
                 type="text"
-                id="guardian-first-name"
-                name="guardianFirstName"
-                value="${escapeHTML(defaultGuardianFirstName)}"
-                placeholder="${translate("guardian_first_name")}" 
+                id="fullname-input"
+                name="fullName"
+                value="${fullName}"
+                placeholder="${translate("enter_full_name") || translate("account_info_fullname_placeholder")}"
                 required
-                maxlength="120"
-                ${!hasParticipantLinks ? "disabled" : ""}
+                minlength="2"
+                maxlength="100"
+                autocomplete="name"
               />
             </div>
-            <div class="form-group">
-              <label for="guardian-last-name">${translate("guardian_last_name")}</label>
-              <input 
-                type="text"
-                id="guardian-last-name"
-                name="guardianLastName"
-                value="${escapeHTML(defaultGuardianLastName)}"
-                placeholder="${translate("guardian_last_name")}" 
-                required
-                maxlength="120"
-                ${!hasParticipantLinks ? "disabled" : ""}
-              />
-            </div>
-            <div class="form-group">
-              <label for="guardian-relationship">${translate("guardian_relationship")}</label>
-              <input 
-                type="text"
-                id="guardian-relationship"
-                name="guardianRelationship"
-                value="${escapeHTML(guardianRelationship)}"
-                placeholder="${translate("guardian_relationship")}" 
-                maxlength="120"
-                ${!hasParticipantLinks ? "disabled" : ""}
-              />
-            </div>
-            <div class="form-group">
-              <label for="guardian-home-phone">${translate("guardian_phone_home")}</label>
-              <input
-                type="tel"
-                id="guardian-home-phone"
-                name="guardianHomePhone"
-                value="${escapeHTML(guardianHomePhone)}"
-                placeholder="${translate("guardian_phone_home")}" 
-                maxlength="20"
-                ${!hasParticipantLinks ? "disabled" : ""}
-              />
-            </div>
-            <div class="form-group">
-              <label for="guardian-work-phone">${translate("guardian_phone_work")}</label>
-              <input
-                type="tel"
-                id="guardian-work-phone"
-                name="guardianWorkPhone"
-                value="${escapeHTML(guardianWorkPhone)}"
-                placeholder="${translate("guardian_phone_work")}" 
-                maxlength="20"
-                ${!hasParticipantLinks ? "disabled" : ""}
-              />
-            </div>
-            <div class="form-group">
-              <label for="guardian-mobile-phone">${translate("guardian_phone_mobile")}</label>
-              <input
-                type="tel"
-                id="guardian-mobile-phone"
-                name="guardianMobilePhone"
-                value="${escapeHTML(guardianMobilePhone)}"
-                placeholder="${translate("guardian_phone_mobile")}" 
-                maxlength="20"
-                ${!hasParticipantLinks ? "disabled" : ""}
-              />
-            </div>
-            <div class="form-group">
-              <label for="guardian-primary">
-                <input type="checkbox" id="guardian-primary" name="guardianPrimary" ${guardianPrimary ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
-                ${translate("guardian_primary_contact")}
-              </label>
-            </div>
-            <div class="form-group">
-              <label for="guardian-emergency">
-                <input type="checkbox" id="guardian-emergency" name="guardianEmergency" ${guardianEmergency ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
-                ${translate("guardian_emergency_contact")}
-              </label>
-            </div>
-            <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? "disabled" : ""}>
-              ${translate("guardian_save")}
+            <button type="submit" class="btn btn-primary" id="fullname-submit">
+              ${translate("save_profile") || translate("account_info_fullname_button")}
             </button>
           </form>
         </section>
-      ` : ""}
 
-      <!-- Language Preference Section -->
-      <section class="account-section">
-        <h2>${translate("account_info_language_title")}</h2>
-        <p class="section-description">${translate("account_info_language_description")}</p>
-        <form id="language-form" class="account-form">
-          <div class="form-group">
-            <label for="language-select">${translate("account_info_language_label")}</label>
-            <select
-              id="language-select"
-              name="languagePreference"
-              class="form-control"
-            >
-              <option value="" ${!languagePreference ? 'selected' : ''}>${translate("account_info_language_org_default")}</option>
-              <option value="en" ${languagePreference === 'en' ? 'selected' : ''}>English</option>
-              <option value="fr" ${languagePreference === 'fr' ? 'selected' : ''}>Français</option>
-              <option value="uk" ${languagePreference === 'uk' ? 'selected' : ''}>Українська</option>
-              <option value="it" ${languagePreference === 'it' ? 'selected' : ''}>Italiano</option>
-            </select>
+        <!-- Email Section -->
+        <section class="account-section">
+          <h2>${translate("email") || translate("account_info_email_title")}</h2>
+          <div class="warning-box">
+            <p>${translate("account_info_email_warning")}</p>
           </div>
-          <button type="submit" class="btn btn-primary" id="language-submit">
-            ${translate("account_info_language_button")}
+          <form id="email-form" class="account-form">
+            <div class="form-group">
+              <label for="email-input">${translate("email") || translate("account_info_email_label")}</label>
+              <input
+                type="email"
+                id="email-input"
+                name="email"
+                value="${email}"
+                placeholder="${translate("enter_email") || translate("account_info_email_placeholder")}"
+                required
+                autocomplete="email"
+              />
+              <small class="form-text">${translate("account_info_email_warning")}</small>
+            </div>
+            <button type="submit" class="btn btn-primary" id="email-submit">
+              ${translate("account_info_email_button")}
+            </button>
+          </form>
+        </section>
+
+        ${this.isParent ? `
+          <!-- Guardian Information Section (Parents only) -->
+          <section class="account-section">
+            <h2>${translate("guardian_info_title")}</h2>
+            <p class="section-description">${translate("guardian_info_description")}</p>
+            <div class="warning-box">
+              <p>${translate("account_info_guardian_sync_notice")}</p>
+              ${this.guardianError ? `<p>${escapeHTML(this.guardianError)}</p>` : ""}
+              ${!hasParticipantLinks ? `<p>${translate("guardian_no_participants")}</p>` : ""}
+            </div>
+            <form id="guardian-form" class="account-form">
+              <div class="form-group">
+                <label for="guardian-first-name">${translate("guardian_first_name")}</label>
+                <input
+                  type="text"
+                  id="guardian-first-name"
+                  name="guardianFirstName"
+                  value="${escapeHTML(defaultGuardianFirstName)}"
+                  placeholder="${translate("guardian_first_name")}"
+                  required
+                  maxlength="120"
+                  ${!hasParticipantLinks ? "disabled" : ""}
+                />
+              </div>
+              <div class="form-group">
+                <label for="guardian-last-name">${translate("guardian_last_name")}</label>
+                <input
+                  type="text"
+                  id="guardian-last-name"
+                  name="guardianLastName"
+                  value="${escapeHTML(defaultGuardianLastName)}"
+                  placeholder="${translate("guardian_last_name")}"
+                  required
+                  maxlength="120"
+                  ${!hasParticipantLinks ? "disabled" : ""}
+                />
+              </div>
+              <div class="form-group">
+                <label for="guardian-relationship">${translate("guardian_relationship")}</label>
+                <input
+                  type="text"
+                  id="guardian-relationship"
+                  name="guardianRelationship"
+                  value="${escapeHTML(guardianRelationship)}"
+                  placeholder="${translate("guardian_relationship")}"
+                  maxlength="120"
+                  ${!hasParticipantLinks ? "disabled" : ""}
+                />
+              </div>
+              <div class="form-group">
+                <label for="guardian-home-phone">${translate("guardian_phone_home")}</label>
+                <input
+                  type="tel"
+                  id="guardian-home-phone"
+                  name="guardianHomePhone"
+                  value="${escapeHTML(guardianHomePhone)}"
+                  placeholder="${translate("guardian_phone_home")}"
+                  maxlength="20"
+                  ${!hasParticipantLinks ? "disabled" : ""}
+                />
+              </div>
+              <div class="form-group">
+                <label for="guardian-work-phone">${translate("guardian_phone_work")}</label>
+                <input
+                  type="tel"
+                  id="guardian-work-phone"
+                  name="guardianWorkPhone"
+                  value="${escapeHTML(guardianWorkPhone)}"
+                  placeholder="${translate("guardian_phone_work")}"
+                  maxlength="20"
+                  ${!hasParticipantLinks ? "disabled" : ""}
+                />
+              </div>
+              <div class="form-group">
+                <label for="guardian-mobile-phone">${translate("guardian_phone_mobile")}</label>
+                <input
+                  type="tel"
+                  id="guardian-mobile-phone"
+                  name="guardianMobilePhone"
+                  value="${escapeHTML(guardianMobilePhone)}"
+                  placeholder="${translate("guardian_phone_mobile")}"
+                  maxlength="20"
+                  ${!hasParticipantLinks ? "disabled" : ""}
+                />
+              </div>
+              <div class="form-group">
+                <label for="guardian-primary">
+                  <input type="checkbox" id="guardian-primary" name="guardianPrimary" ${guardianPrimary ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
+                  ${translate("guardian_primary_contact")}
+                </label>
+              </div>
+              <div class="form-group">
+                <label for="guardian-emergency">
+                  <input type="checkbox" id="guardian-emergency" name="guardianEmergency" ${guardianEmergency ? "checked" : ""} ${!hasParticipantLinks ? "disabled" : ""}>
+                  ${translate("guardian_emergency_contact")}
+                </label>
+              </div>
+              <button type="submit" class="btn btn-primary" id="guardian-submit" ${!hasParticipantLinks ? "disabled" : ""}>
+                ${translate("guardian_save")}
+              </button>
+            </form>
+          </section>
+        ` : ""}
+
+        <!-- Password Section -->
+        <section class="account-section">
+          <h2>${translate("change_password") || translate("account_info_password_title")}</h2>
+          <form id="password-form" class="account-form">
+            <div class="form-group">
+              <label for="current-password-input">${translate("current_password") || translate("account_info_password_current_label")}</label>
+              <input
+                type="password"
+                id="current-password-input"
+                name="currentPassword"
+                placeholder="${translate("enter_current_password") || ""}"
+                required
+                autocomplete="current-password"
+              />
+            </div>
+            <div class="form-group">
+              <label for="new-password-input">${translate("new_password") || translate("account_info_password_new_label")}</label>
+              <input
+                type="password"
+                id="new-password-input"
+                name="newPassword"
+                placeholder="${translate("enter_new_password") || ""}"
+                required
+                minlength="8"
+                autocomplete="new-password"
+              />
+              <small class="form-text">${translate("error_password_too_short") || "Minimum 8 characters"}</small>
+            </div>
+            <div class="form-group">
+              <label for="confirm-password-input">${translate("confirm_password") || translate("account_info_password_confirm_label")}</label>
+              <input
+                type="password"
+                id="confirm-password-input"
+                name="confirmPassword"
+                placeholder="${translate("confirm_new_password") || ""}"
+                required
+                minlength="8"
+                autocomplete="new-password"
+              />
+            </div>
+            <button type="submit" class="btn btn-primary" id="password-submit">
+              ${translate("change_password") || translate("account_info_password_button")}
+            </button>
+          </form>
+        </section>
+
+        <!-- Language Section -->
+        <section class="account-section">
+          <h2>${translate("language")}</h2>
+          <p class="section-description">${translate("account_info_language_description") || "Select your preferred language"}</p>
+          <div class="language-selector">
+            <button class="language-option ${currentLang === 'en' ? 'active' : ''}" data-lang="en">
+              <span class="language-label">English</span>
+              ${currentLang === 'en' ? '<span class="checkmark">✓</span>' : ''}
+            </button>
+            <button class="language-option ${currentLang === 'fr' ? 'active' : ''}" data-lang="fr">
+              <span class="language-label">Français</span>
+              ${currentLang === 'fr' ? '<span class="checkmark">✓</span>' : ''}
+            </button>
+            <button class="language-option ${currentLang === 'uk' ? 'active' : ''}" data-lang="uk">
+              <span class="language-label">Українська</span>
+              ${currentLang === 'uk' ? '<span class="checkmark">✓</span>' : ''}
+            </button>
+            <button class="language-option ${currentLang === 'it' ? 'active' : ''}" data-lang="it">
+              <span class="language-label">Italiano</span>
+              ${currentLang === 'it' ? '<span class="checkmark">✓</span>' : ''}
+            </button>
+          </div>
+        </section>
+
+        <!-- Notifications Section -->
+        ${this.pushSupported ? `
+        <section class="account-section">
+          <h2>${translate("notifications")}</h2>
+          <p class="section-description">${translate("receive_notifications_about_activities") || "Receive push notifications about activities and updates"}</p>
+          <div class="setting-row">
+            <label for="push-toggle" class="setting-label">
+              <span>${translate("push_notifications")}</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="push-toggle" ${this.pushEnabled ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <small class="form-text" id="push-status-text">
+            ${this.pushEnabled ? (translate("push_enabled") || "Push notifications enabled") : (translate("push_disabled") || "Push notifications disabled")}
+          </small>
+        </section>
+        ` : ''}
+
+        <!-- Account Actions -->
+        <section class="account-section">
+          <button class="btn btn-danger" id="logout-btn">
+            ${translate("logout")}
           </button>
-        </form>
-      </section>
+        </section>
 
-      <!-- WhatsApp Phone Number Section -->
-      <section class="account-section">
-        <h2>${translate("account_info_whatsapp_title") || "WhatsApp Notifications"}</h2>
-        <p class="section-description">${translate("account_info_whatsapp_description") || "Set your WhatsApp phone number to receive notifications via WhatsApp. Phone number must be in international format (e.g., +15551234567)."}</p>
-        <form id="whatsapp-form" class="account-form">
-          <div class="form-group">
-            <label for="whatsapp-input">${translate("account_info_whatsapp_label") || "WhatsApp Phone Number"}</label>
-            <input
-              type="tel"
-              id="whatsapp-input"
-              name="whatsappPhoneNumber"
-              value="${whatsappPhone}"
-              placeholder="${translate("account_info_whatsapp_placeholder") || "+15551234567"}"
-              pattern="^\\+[1-9]\\d{6,14}$"
-              title="${translate("account_info_whatsapp_format_help") || "Format: +[country code][number] (e.g., +15551234567)"}"
-              autocomplete="tel"
-            />
-            <small class="form-text">${translate("account_info_whatsapp_help") || "Leave empty to disable WhatsApp notifications"}</small>
-          </div>
-          <button type="submit" class="btn btn-primary" id="whatsapp-submit">
-            ${translate("account_info_whatsapp_button") || "Update WhatsApp Number"}
-          </button>
-        </form>
-      </section>
-
-      <!-- WhatsApp Connection Section (Baileys) -->
-      ${this.whatsappModule ? this.whatsappModule.render() : ''}
-
-      <!-- Password Section -->
-      <section class="account-section">
-        <h2>${translate("account_info_password_title")}</h2>
-        <form id="password-form" class="account-form">
-          <div class="form-group">
-            <label for="current-password-input">${translate("account_info_password_current_label")}</label>
-            <input 
-              type="password" 
-              id="current-password-input" 
-              name="currentPassword"
-              required
-              autocomplete="current-password"
-            />
-          </div>
-          <div class="form-group">
-            <label for="new-password-input">${translate("account_info_password_new_label")}</label>
-            <input 
-              type="password" 
-              id="new-password-input" 
-              name="newPassword"
-              required
-              minlength="8"
-              autocomplete="new-password"
-            />
-          </div>
-          <div class="form-group">
-            <label for="confirm-password-input">${translate("account_info_password_confirm_label")}</label>
-            <input 
-              type="password" 
-              id="confirm-password-input" 
-              name="confirmPassword"
-              required
-              minlength="8"
-              autocomplete="new-password"
-            />
-          </div>
-          <button type="submit" class="btn btn-primary" id="password-submit">
-            ${translate("account_info_password_button")}
-          </button>
-        </form>
-      </section>
+        <div class="settings-footer">
+          <p>${translate("Made with")} ❤️ ${translate("for Scouts")}</p>
+        </div>
+      </div>
     `;
 
     const appContainer = document.getElementById("app");
@@ -412,7 +451,7 @@ export class AccountInfoModule {
   }
 
   /**
-   * Attach event listeners to forms
+   * Attach event listeners to forms and buttons
    */
   attachEventListeners() {
     // Full name form
@@ -427,33 +466,34 @@ export class AccountInfoModule {
       emailForm.addEventListener("submit", (e) => this.handleEmailUpdate(e));
     }
 
-    // Language preference form
-    const languageForm = document.getElementById("language-form");
-    if (languageForm) {
-      languageForm.addEventListener("submit", (e) => this.handleLanguageUpdate(e));
-    }
-
-    // WhatsApp phone number form
-    const whatsappForm = document.getElementById("whatsapp-form");
-    if (whatsappForm) {
-      whatsappForm.addEventListener("submit", (e) => this.handleWhatsAppUpdate(e));
-    }
-
     // Guardian info form
     const guardianForm = document.getElementById("guardian-form");
     if (guardianForm) {
       guardianForm.addEventListener("submit", (e) => this.handleGuardianUpdate(e));
     }
 
-    // WhatsApp connection module event listeners
-    if (this.whatsappModule) {
-      this.whatsappModule.attachEventListeners();
-    }
-
     // Password form
     const passwordForm = document.getElementById("password-form");
     if (passwordForm) {
       passwordForm.addEventListener("submit", (e) => this.handlePasswordChange(e));
+    }
+
+    // Language selector buttons
+    const languageButtons = document.querySelectorAll(".language-option");
+    languageButtons.forEach(btn => {
+      btn.addEventListener("click", (e) => this.handleLanguageChange(e));
+    });
+
+    // Push notification toggle
+    const pushToggle = document.getElementById("push-toggle");
+    if (pushToggle) {
+      pushToggle.addEventListener("change", (e) => this.handlePushToggle(e));
+    }
+
+    // Logout button
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", () => this.handleLogout());
     }
   }
 
@@ -580,7 +620,7 @@ export class AccountInfoModule {
       });
 
       if (response.success) {
-        this.app.showMessage(translate("account_info_fullname_success"), "success");
+        this.app.showMessage(translate("success_profile_updated") || translate("account_info_fullname_success"), "success");
         this.userData.full_name = response.data.full_name;
 
         // Update stored user name if present
@@ -597,7 +637,7 @@ export class AccountInfoModule {
     } finally {
       this.isLoading = false;
       submitButton.disabled = false;
-      submitButton.textContent = translate("account_info_fullname_button");
+      submitButton.textContent = translate("save_profile") || translate("account_info_fullname_button");
     }
   }
 
@@ -618,12 +658,12 @@ export class AccountInfoModule {
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email || !emailRegex.test(email)) {
-      this.app.showMessage(translate("account_info_email_invalid"), "error");
+      this.app.showMessage(translate("error_email_invalid") || translate("account_info_email_invalid"), "error");
       return;
     }
 
     // Confirm action since it will log them out
-    if (!confirm(translate("account_info_email_warning"))) {
+    if (!confirm(translate("email_changed_logout_warning") || translate("account_info_email_warning"))) {
       return;
     }
 
@@ -663,116 +703,6 @@ export class AccountInfoModule {
   }
 
   /**
-   * Handle language preference update
-   * @param {Event} event - Form submit event
-   */
-  async handleLanguageUpdate(event) {
-    event.preventDefault();
-
-    if (this.isLoading) return;
-
-    const form = event.target;
-    const languageSelect = form.querySelector("#language-select");
-    const languagePreference = languageSelect.value;
-    const submitButton = form.querySelector("#language-submit");
-
-    // Empty value means use organization default
-    if (!languagePreference) {
-      this.app.showMessage(translate("account_info_language_select_required"), "error");
-      return;
-    }
-
-    try {
-      this.isLoading = true;
-      submitButton.disabled = true;
-      submitButton.textContent = translate("loading") || "Loading...";
-
-      debugLog("Updating language preference:", languagePreference);
-
-      const response = await makeApiRequest("v1/users/me/language-preference", {
-        method: "PATCH",
-        body: { languagePreference },
-      });
-
-      if (response.success) {
-        this.app.showMessage(translate("account_info_language_success"), "success");
-        this.userData.language_preference = response.data.language_preference;
-      } else {
-        throw new Error(response.message || translate("account_info_language_error"));
-      }
-    } catch (error) {
-      debugError("Error updating language preference:", error);
-      this.app.showMessage(error.message || translate("account_info_language_error"), "error");
-    } finally {
-      this.isLoading = false;
-      submitButton.disabled = false;
-      submitButton.textContent = translate("account_info_language_button");
-    }
-  }
-
-  /**
-   * Handle WhatsApp phone number update
-   * @param {Event} event - Form submit event
-   */
-  async handleWhatsAppUpdate(event) {
-    event.preventDefault();
-
-    if (this.isLoading) return;
-
-    const form = event.target;
-    const whatsappInput = form.querySelector("#whatsapp-input");
-    const whatsappPhoneNumber = whatsappInput.value.trim();
-    const submitButton = form.querySelector("#whatsapp-submit");
-
-    // Validate phone number format if provided (E.164 format)
-    if (whatsappPhoneNumber) {
-      const e164Regex = /^\+[1-9]\d{6,14}$/;
-      if (!e164Regex.test(whatsappPhoneNumber)) {
-        this.app.showMessage(
-          translate("account_info_whatsapp_invalid_format") ||
-          "Invalid phone number format. Please use international format (e.g., +15551234567)",
-          "error"
-        );
-        return;
-      }
-    }
-
-    try {
-      this.isLoading = true;
-      submitButton.disabled = true;
-      submitButton.textContent = translate("loading") || "Loading...";
-
-      debugLog("Updating WhatsApp phone number:", whatsappPhoneNumber || "(removing)");
-
-      const response = await makeApiRequest("v1/users/me/whatsapp-phone", {
-        method: "PATCH",
-        body: { whatsappPhoneNumber: whatsappPhoneNumber || null },
-      });
-
-      if (response.success) {
-        const successMsg = whatsappPhoneNumber
-          ? translate("account_info_whatsapp_success") || "WhatsApp phone number updated successfully"
-          : translate("account_info_whatsapp_removed") || "WhatsApp phone number removed successfully";
-
-        this.app.showMessage(successMsg, "success");
-        this.userData.whatsapp_phone_number = response.data.whatsapp_phone_number;
-      } else {
-        throw new Error(response.message || translate("account_info_whatsapp_error"));
-      }
-    } catch (error) {
-      debugError("Error updating WhatsApp phone number:", error);
-      this.app.showMessage(
-        error.message || translate("account_info_whatsapp_error") || "Failed to update WhatsApp phone number",
-        "error"
-      );
-    } finally {
-      this.isLoading = false;
-      submitButton.disabled = false;
-      submitButton.textContent = translate("account_info_whatsapp_button") || "Update WhatsApp Number";
-    }
-  }
-
-  /**
    * Handle password change
    * @param {Event} event - Form submit event
    */
@@ -793,17 +723,17 @@ export class AccountInfoModule {
 
     // Validate passwords
     if (!currentPassword || !newPassword || !confirmPassword) {
-      this.app.showMessage(translate("account_info_password_error"), "error");
+      this.app.showMessage(translate("error_password_required") || translate("account_info_password_error"), "error");
       return;
     }
 
     if (newPassword.length < 8) {
-      this.app.showMessage(translate("account_info_password_minlength"), "error");
+      this.app.showMessage(translate("error_password_too_short") || translate("account_info_password_minlength"), "error");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      this.app.showMessage(translate("account_info_password_mismatch"), "error");
+      this.app.showMessage(translate("error_passwords_dont_match") || translate("account_info_password_mismatch"), "error");
       return;
     }
 
@@ -823,7 +753,7 @@ export class AccountInfoModule {
       });
 
       if (response.success) {
-        this.app.showMessage(translate("account_info_password_success"), "success");
+        this.app.showMessage(translate("success_password_changed") || translate("account_info_password_success"), "success");
 
         // Clear the form
         form.reset();
@@ -836,11 +766,185 @@ export class AccountInfoModule {
       }
     } catch (error) {
       debugError("Error changing password:", error);
-      this.app.showMessage(error.message || translate("account_info_password_error"), "error");
+      this.app.showMessage(error.message || translate("error_password_change_failed") || translate("account_info_password_error"), "error");
     } finally {
       this.isLoading = false;
       submitButton.disabled = false;
-      submitButton.textContent = translate("account_info_password_button");
+      submitButton.textContent = translate("change_password") || translate("account_info_password_button");
+    }
+  }
+
+  /**
+   * Handle language change
+   * @param {Event} event - Button click event
+   */
+  async handleLanguageChange(event) {
+    event.preventDefault();
+
+    const button = event.currentTarget;
+    const newLang = button.dataset.lang;
+
+    if (!newLang) return;
+
+    try {
+      debugLog("Changing language to:", newLang);
+
+      // Update app language immediately
+      await this.app.setLanguage(newLang);
+
+      // Show success message
+      this.app.showMessage(translate("Language changed") || "Language changed successfully", "success");
+
+      // Re-render to update UI
+      this.render();
+      this.attachEventListeners();
+    } catch (error) {
+      debugError("Error changing language:", error);
+      this.app.showMessage(translate("Error") || "Failed to change language", "error");
+    }
+  }
+
+  /**
+   * Handle push notification toggle
+   * @param {Event} event - Toggle change event
+   */
+  async handlePushToggle(event) {
+    const enabled = event.target.checked;
+    const statusText = document.getElementById("push-status-text");
+
+    try {
+      if (enabled) {
+        // Request notification permission
+        const permission = await Notification.requestPermission();
+
+        if (permission !== 'granted') {
+          event.target.checked = false;
+          this.app.showMessage(translate("notification_permission_denied") || "Notification permission denied", "error");
+          return;
+        }
+
+        // Subscribe to push notifications
+        await this.subscribeToPush();
+        this.pushEnabled = true;
+
+        if (statusText) {
+          statusText.textContent = translate("push_enabled") || "Push notifications enabled";
+        }
+        this.app.showMessage(translate("push_notifications_enabled") || "Push notifications enabled", "success");
+      } else {
+        // Unsubscribe from push notifications
+        await this.unsubscribeFromPush();
+        this.pushEnabled = false;
+
+        if (statusText) {
+          statusText.textContent = translate("push_disabled") || "Push notifications disabled";
+        }
+        this.app.showMessage(translate("push_notifications_disabled") || "Push notifications disabled", "success");
+      }
+    } catch (error) {
+      debugError("Error toggling push notifications:", error);
+      event.target.checked = !enabled; // Revert toggle state
+      this.app.showMessage(translate("push_notification_error") || "Failed to toggle push notifications", "error");
+    }
+  }
+
+  /**
+   * Subscribe to push notifications
+   */
+  async subscribeToPush() {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+
+      // Check if already subscribed
+      let subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        // Get VAPID public key from config
+        const { urlBase64ToUint8Array } = await import('../functions.js');
+        const { CONFIG } = await import('../config.js');
+
+        const applicationServerKey = urlBase64ToUint8Array(CONFIG.PUSH_NOTIFICATIONS.VAPID_PUBLIC_KEY);
+
+        // Subscribe
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey,
+        });
+      }
+
+      // Send subscription to server
+      const subscriptionData = subscription.toJSON();
+
+      const response = await makeApiRequest('v1/push-subscription', {
+        method: 'POST',
+        body: {
+          endpoint: subscriptionData.endpoint,
+          expirationTime: subscriptionData.expirationTime,
+          keys: {
+            p256dh: subscriptionData.keys.p256dh,
+            auth: subscriptionData.keys.auth
+          }
+        }
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to save subscription');
+      }
+
+      debugLog('Push subscription successful');
+    } catch (error) {
+      debugError('Error subscribing to push:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unsubscribe from push notifications
+   */
+  async unsubscribeFromPush() {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        await subscription.unsubscribe();
+        debugLog('Unsubscribed from push notifications');
+      }
+
+      // Optionally notify server about unsubscription
+      // You may want to add an endpoint for this
+    } catch (error) {
+      debugError('Error unsubscribing from push:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle logout
+   */
+  async handleLogout() {
+    if (!confirm(translate("confirm_logout_message") || translate("confirm_logout") || "Are you sure you want to log out?")) {
+      return;
+    }
+
+    try {
+      // Call logout API
+      await makeApiRequest('auth/logout', { method: 'POST' }).catch(() => {
+        // Ignore errors, we'll clear local data anyway
+      });
+    } catch (error) {
+      debugError('Logout error:', error);
+    } finally {
+      // Clear local storage regardless of API result
+      localStorage.removeItem("jwtToken");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userFullName");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("userRoles");
+      localStorage.removeItem("userPermissions");
+
+      // Redirect to login
+      window.location.href = "/login";
     }
   }
 }

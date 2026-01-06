@@ -656,6 +656,35 @@ input[type="radio"] {
   text-decoration: none;
 }
 
+/* Settings Icon */
+.settings-icon {
+  position: fixed;
+  inset-block-start: var(--safe-area-top, 10px);
+  inset-inline-end: 10px;
+  z-index: var(--z-modal);
+  background-image: var(--gradient-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--color-primary);
+  font-size: 24px;
+  min-inline-size: var(--touch-target-min);
+  min-block-size: var(--touch-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  backdrop-filter: blur(8px);
+  text-decoration: none;
+}
+
+.settings-icon:hover {
+  background-color: var(--color-primary);
+  color: white;
+  transform: scale(1.05);
+  text-decoration: none;
+}
+
 /* ----------------------------------------------------------------------------
    5.4 DASHBOARD & MENUS
    ---------------------------------------------------------------------------- */

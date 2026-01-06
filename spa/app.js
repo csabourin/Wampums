@@ -132,9 +132,6 @@ export const app = {
                         // Register service worker in background
                         this.registerServiceWorker();
 
-                        // Initialize language toggle early (synchronous)
-                        this.initLanguageToggle();
-
                         // Check for existing session (synchronous from localStorage)
                         const session = Login.checkSession();
                         this.isLoggedIn = session.isLoggedIn;
@@ -209,6 +206,11 @@ export const app = {
 
                         this.initCompleted = true;
                         debugLog("App init completed (fast path)");
+
+                        // Add settings icon if logged in
+                        if (this.isLoggedIn) {
+                                this.addSettingsIcon();
+                        }
 
                         // Now perform remaining async operations in background (non-blocking)
                         this.initializeBackgroundTasks();
@@ -529,25 +531,37 @@ export const app = {
                 document.title = `${title} - Wampums`;
         },
 
-        initLanguageToggle() {
-                const toggleButtons = document.querySelectorAll('.lang-btn');
-                toggleButtons.forEach(btn => {
-                        btn.addEventListener('click', () => {
-                                const newLang = btn.dataset.lang;
-                                this.setLanguage(newLang);
-                                toggleButtons.forEach(b => b.classList.remove('active'));
-                                btn.classList.add('active');
-                        });
+        /**
+         * Add settings icon to the page (top right)
+         */
+        addSettingsIcon() {
+                // Remove existing icon if any
+                this.removeSettingsIcon();
+
+                // Create settings icon element
+                const settingsIcon = createElement('a', {
+                        className: 'settings-icon',
+                        text: '⚙️',
+                        attributes: {
+                                href: '/account-info',
+                                'aria-label': this.translate('settings') || 'Settings',
+                                id: 'global-settings-icon'
+                        }
                 });
 
-                // Set initial active button (language is already loaded in init())
-                const savedLang = getStorage('lang', false, CONFIG.DEFAULT_LANG);
-                const normalizedLang = CONFIG.SUPPORTED_LANGS.includes(savedLang) ? savedLang : CONFIG.DEFAULT_LANG;
-                // Remove active class from all buttons first to avoid duplicates
-                toggleButtons.forEach(b => b.classList.remove('active'));
-                const activeBtn = document.querySelector(`.lang-btn[data-lang="${normalizedLang}"]`);
-                if (activeBtn) {
-                        activeBtn.classList.add('active');
+                // Add to body
+                document.body.appendChild(settingsIcon);
+                debugLog('Settings icon added');
+        },
+
+        /**
+         * Remove settings icon from the page
+         */
+        removeSettingsIcon() {
+                const existingIcon = document.getElementById('global-settings-icon');
+                if (existingIcon) {
+                        existingIcon.remove();
+                        debugLog('Settings icon removed');
                 }
         },
 
