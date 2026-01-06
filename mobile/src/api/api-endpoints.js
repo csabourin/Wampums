@@ -1306,6 +1306,41 @@ export const updateBadgeProgress = async (progressId, badgeData) => {
 };
 
 /**
+ * Get badges awaiting delivery (approved but not yet delivered)
+ * @param {Object} options - Request options
+ * @param {boolean} options.forceRefresh - Force cache refresh
+ */
+export const getBadgesAwaitingDelivery = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/badges-awaiting-delivery', {}, { forceRefresh });
+};
+
+/**
+ * Mark a badge as delivered
+ * @param {number} badgeId - Badge progress ID
+ */
+export const markBadgeDelivered = async (badgeId) => {
+  return API.post('/api/mark-badge-delivered', { badge_id: badgeId });
+};
+
+/**
+ * Mark multiple badges as delivered in bulk
+ * @param {Array<number>} badgeIds - Array of badge progress IDs
+ */
+export const markBadgesDeliveredBulk = async (badgeIds) => {
+  return API.post('/api/mark-badges-delivered-bulk', { badge_ids: badgeIds });
+};
+
+/**
+ * Get comprehensive badge tracker summary
+ * Returns participants, badge templates, badge entries, and stats
+ * @param {Object} options - Request options
+ * @param {boolean} options.forceRefresh - Force cache refresh
+ */
+export const getBadgeTrackerSummary = async ({ forceRefresh = false } = {}) => {
+  return API.get('/api/badge-tracker-summary', {}, { forceRefresh });
+};
+
+/**
  * ============================================================================
  * REPORTS & CONTACTS
  * ============================================================================
