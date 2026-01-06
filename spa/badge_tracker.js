@@ -219,34 +219,8 @@ export class BadgeTracker {
     const app = document.getElementById('app');
     setContent(app, `
       <div class="badge-tracker">
-        <a href="#main-content" class="badge-tracker__skip-link">${translate('skip_to_content')}</a>
-
-        <!-- Header -->
-        <header class="badge-tracker__header">
-          <div class="badge-tracker__header-top">
-            <div>
-              <h1 class="badge-tracker__title">
-                <span class="badge-tracker__icon">🐾</span>
-                ${translate('badge_tracker_title') || 'Badges de la Meute'}
-              </h1>
-              <p class="badge-tracker__subtitle">${translate('badge_tracker_subtitle') || 'Suivi des progrès des louveteaux'}</p>
-            </div>
-            <div class="badge-tracker__actions">
-              <button class="badge-tracker__action-btn ${this.viewMode === 'pending' ? 'badge-tracker__action-btn--active' : ''}"
-                      data-action="toggle-view" data-view="pending"
-                      title="${translate('badge_pending_approvals')}">
-                <span class="badge-tracker__action-icon">🕐</span>
-                ${pendingCount > 0 ? `<span class="badge-tracker__action-badge badge-tracker__action-badge--warning">${pendingCount}</span>` : ''}
-              </button>
-              <button class="badge-tracker__action-btn ${this.viewMode === 'delivery' ? 'badge-tracker__action-btn--active' : ''}"
-                      data-action="toggle-view" data-view="delivery"
-                      title="${translate('badge_awaiting_delivery')}">
-                <span class="badge-tracker__action-icon">🎁</span>
-                ${deliveryCount > 0 ? `<span class="badge-tracker__action-badge badge-tracker__action-badge--info">${deliveryCount}</span>` : ''}
-              </button>
-            </div>
-          </div>
-        </header>
+        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        <h1>${translate('badge_tracker_title') || 'Badges de la Meute'}</h1>
 
         <!-- View Tabs -->
         <nav class="badge-tracker__tabs" role="tablist">
