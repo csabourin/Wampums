@@ -377,7 +377,6 @@ export class Dashboard {
 <section class="dashboard-section">
   <h3>${translate("dashboard_day_to_day_section")}</h3>
   <div class="manage-items">
-    <a href="/approve-badges"><i class="fa-solid fa-certificate"></i><span>${translate("approve_badges")}</span></a>
     <a href="/badge-tracker"><i class="fa-solid fa-chart-bar"></i><span>${translate("badge_tracker_title")}</span></a>
     <a href="/parent-contact-list"><i class="fa-solid fa-address-book"></i><span>${translate("parent_contact_list")}</span></a>
     <a href="/medication-dispensing"><i class="fa-solid fa-pills"></i><span>${translate("medication_dispensing_link")}</span></a>
@@ -851,7 +850,8 @@ ${
             </button>
           </div>
         </div>
-      `);
+      `,
+      );
 
       document.body.appendChild(modal);
 

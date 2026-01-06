@@ -39,7 +39,9 @@ export class BadgeTracker {
     this.loading = true;
     this.canManage = false;
     this.canApprove = false;
-    this.modalKeydownHandler = null;
+    this.listenersAttached = false;
+    this.boundClickHandler = null;
+    this.boundSearchHandler = null;
   }
 
   async init() {
@@ -217,34 +219,8 @@ export class BadgeTracker {
     const app = document.getElementById('app');
     setContent(app, `
       <div class="badge-tracker">
-        <a href="#main-content" class="badge-tracker__skip-link">${translate('skip_to_content')}</a>
-
-        <!-- Header -->
-        <header class="badge-tracker__header">
-          <div class="badge-tracker__header-top">
-            <div>
-              <h1 class="badge-tracker__title">
-                <span class="badge-tracker__icon">🐾</span>
-                ${translate('badge_tracker_title') || 'Badges de la Meute'}
-              </h1>
-              <p class="badge-tracker__subtitle">${translate('badge_tracker_subtitle') || 'Suivi des progrès des louveteaux'}</p>
-            </div>
-            <div class="badge-tracker__actions">
-              <button class="badge-tracker__action-btn ${this.viewMode === 'pending' ? 'badge-tracker__action-btn--active' : ''}"
-                      data-action="toggle-view" data-view="pending"
-                      title="${translate('badge_pending_approvals')}">
-                <span class="badge-tracker__action-icon">🕐</span>
-                ${pendingCount > 0 ? `<span class="badge-tracker__action-badge badge-tracker__action-badge--warning">${pendingCount}</span>` : ''}
-              </button>
-              <button class="badge-tracker__action-btn ${this.viewMode === 'delivery' ? 'badge-tracker__action-btn--active' : ''}"
-                      data-action="toggle-view" data-view="delivery"
-                      title="${translate('badge_awaiting_delivery')}">
-                <span class="badge-tracker__action-icon">🎁</span>
-                ${deliveryCount > 0 ? `<span class="badge-tracker__action-badge badge-tracker__action-badge--info">${deliveryCount}</span>` : ''}
-              </button>
-            </div>
-          </div>
-        </header>
+        <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+        <h1>${translate('badge_tracker_title') || 'Badges de la Meute'}</h1>
 
         <!-- View Tabs -->
         <nav class="badge-tracker__tabs" role="tablist">
@@ -720,86 +696,103 @@ export class BadgeTracker {
     const app = document.getElementById('app');
     if (!app) return;
 
-    // Delegation for all actions
-    app.addEventListener('click', async (e) => {
-      const actionEl = e.target.closest('[data-action]');
-      if (!actionEl) return;
+    // Only attach main click listener once using event delegation
+    if (!this.listenersAttached) {
+      this.boundClickHandler = this.handleClick.bind(this);
+      app.addEventListener('click', this.boundClickHandler);
+      this.listenersAttached = true;
+    }
 
-      const action = actionEl.dataset.action;
-      const badgeId = actionEl.dataset.badgeId;
-      const participantId = actionEl.dataset.participantId;
-      const templateId = actionEl.dataset.templateId;
-      const view = actionEl.dataset.view;
-      const starNumber = actionEl.dataset.starNumber;
+    // Search input needs to be reattached after render since it's a new DOM element
+    this.attachSearchListener();
+  }
 
-      switch (action) {
-        case 'set-view':
-        case 'toggle-view':
-          this.viewMode = action === 'toggle-view' && this.viewMode === view ? 'participants' : view;
-          this.render();
-          this.attachEventListeners();
-          break;
-
-        case 'toggle-participant':
-          this.expandedParticipant = this.expandedParticipant === parseInt(participantId) ? null : parseInt(participantId);
-          this.render();
-          this.attachEventListeners();
-          break;
-
-        case 'add-star':
-          this.modalInitialData = null;
-          this.isModalOpen = true;
-          this.renderModal();
-          break;
-
-        case 'add-star-to-badge':
-          this.modalInitialData = {
-            participant_id: parseInt(participantId),
-            template_id: parseInt(templateId),
-            star_number: parseInt(starNumber),
-          };
-          this.isModalOpen = true;
-          this.renderModal();
-          break;
-
-        case 'approve':
-          await this.handleApprove(parseInt(badgeId));
-          break;
-
-        case 'reject':
-          await this.handleReject(parseInt(badgeId));
-          break;
-
-        case 'deliver':
-          await this.handleDeliver(parseInt(badgeId));
-          break;
-
-        case 'deliver-all':
-          await this.handleDeliverAll();
-          break;
-
-        case 'close-modal':
-          this.isModalOpen = false;
-          this.modalInitialData = null;
-          this.renderModal();
-          break;
-      }
-    });
-
-    // Search input
-    const searchInput = app.querySelector('[data-action="search"]');
-    if (searchInput) {
+  attachSearchListener() {
+    const searchInput = document.querySelector('[data-action="search"]');
+    if (searchInput && !searchInput.dataset.listenerAttached) {
+      searchInput.dataset.listenerAttached = 'true';
       searchInput.addEventListener('input', (e) => {
         this.searchTerm = e.target.value;
-        this.render();
-        this.attachEventListeners();
-        // Re-focus search input
-        const newSearchInput = document.querySelector('[data-action="search"]');
-        if (newSearchInput) {
-          newSearchInput.focus();
-          newSearchInput.setSelectionRange(this.searchTerm.length, this.searchTerm.length);
+        // Use requestAnimationFrame to debounce and avoid too frequent re-renders
+        if (this.searchTimeout) {
+          cancelAnimationFrame(this.searchTimeout);
         }
+        this.searchTimeout = requestAnimationFrame(() => {
+          this.render();
+          this.attachSearchListener();
+          // Re-focus search input
+          const newSearchInput = document.querySelector('[data-action="search"]');
+          if (newSearchInput) {
+            newSearchInput.focus();
+            newSearchInput.setSelectionRange(this.searchTerm.length, this.searchTerm.length);
+          }
+        });
       });
+    }
+  }
+
+  async handleClick(e) {
+    const actionEl = e.target.closest('[data-action]');
+    if (!actionEl) return;
+
+    const action = actionEl.dataset.action;
+    const badgeId = actionEl.dataset.badgeId;
+    const participantId = actionEl.dataset.participantId;
+    const templateId = actionEl.dataset.templateId;
+    const view = actionEl.dataset.view;
+    const starNumber = actionEl.dataset.starNumber;
+
+    switch (action) {
+      case 'set-view':
+      case 'toggle-view':
+        this.viewMode = action === 'toggle-view' && this.viewMode === view ? 'participants' : view;
+        this.render();
+        this.attachSearchListener();
+        break;
+
+      case 'toggle-participant':
+        this.expandedParticipant = this.expandedParticipant === parseInt(participantId) ? null : parseInt(participantId);
+        this.render();
+        this.attachSearchListener();
+        break;
+
+      case 'add-star':
+        this.modalInitialData = null;
+        this.isModalOpen = true;
+        this.renderModal();
+        break;
+
+      case 'add-star-to-badge':
+        this.modalInitialData = {
+          participant_id: parseInt(participantId),
+          template_id: parseInt(templateId),
+          star_number: parseInt(starNumber),
+        };
+        this.isModalOpen = true;
+        this.renderModal();
+        break;
+
+      case 'approve':
+        await this.handleApprove(parseInt(badgeId));
+        break;
+
+      case 'reject':
+        await this.handleReject(parseInt(badgeId));
+        break;
+
+      case 'deliver':
+        await this.handleDeliver(parseInt(badgeId));
+        break;
+
+      case 'deliver-all':
+        await this.handleDeliverAll();
+        break;
+
+      case 'close-modal':
+        this.isModalOpen = false;
+        this.modalInitialData = null;
+        this.renderModal();
+        break;
     }
   }
 
@@ -908,7 +901,7 @@ export class BadgeTracker {
         this.showToast(translate('badge_approved_success') || 'Étoile approuvée ✓', 'success');
         await this.loadData(true);
         this.render();
-        this.attachEventListeners();
+        this.attachSearchListener();
       } else {
         this.showToast(result?.message || translate('error'), 'error');
       }
@@ -927,7 +920,7 @@ export class BadgeTracker {
         this.showToast(translate('badge_rejected_success') || 'Étoile rejetée', 'success');
         await this.loadData(true);
         this.render();
-        this.attachEventListeners();
+        this.attachSearchListener();
       } else {
         this.showToast(result?.message || translate('error'), 'error');
       }
@@ -944,7 +937,7 @@ export class BadgeTracker {
         this.showToast(translate('badge_delivered_success') || 'Étoile marquée comme remise ✓', 'success');
         await this.loadData(true);
         this.render();
-        this.attachEventListeners();
+        this.attachSearchListener();
       } else {
         this.showToast(result?.message || translate('error'), 'error');
       }
@@ -967,7 +960,7 @@ export class BadgeTracker {
         this.showToast(`${result.count || deliveryItems.length} ${translate('badge_stars_delivered') || 'étoile(s) marquée(s) comme remise(s)'} ✓`, 'success');
         await this.loadData(true);
         this.render();
-        this.attachEventListeners();
+        this.attachSearchListener();
       } else {
         this.showToast(result?.message || translate('error'), 'error');
       }
@@ -1011,7 +1004,7 @@ export class BadgeTracker {
         this.modalInitialData = null;
         await this.loadData(true);
         this.render();
-        this.attachEventListeners();
+        this.attachSearchListener();
       } else {
         this.showToast(result?.message || translate('error'), 'error');
       }
