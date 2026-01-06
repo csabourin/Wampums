@@ -377,10 +377,10 @@ const LeaderDashboardScreen = () => {
         },
         {
           key: 'badgeDashboard',
-          label: t('badge_dashboard_link'),
+          label: t('badge_tracker_title'),
           iconFamily: 'MaterialCommunityIcons',
           iconName: 'tablet-dashboard',
-          screen: 'BadgeDashboard',
+          screen: 'BadgeTracker',
           permissions: ['badges.view', 'badges.manage'],
         },
         {

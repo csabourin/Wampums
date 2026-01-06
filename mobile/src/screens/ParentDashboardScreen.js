@@ -637,10 +637,10 @@ const ParentDashboardScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('BadgeDashboard')}
+          onPress={() => navigation.navigate('BadgeTracker')}
         >
           <Text style={styles.actionButtonText}>
-            🏅 {t('badge_progress')}
+            🏅 {t('badge_tracker_title')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
