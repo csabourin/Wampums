@@ -26,6 +26,7 @@
     "cors": "^2.8.5",
     "dompurify": "^3.3.0",
     "dotenv": "^10.0.0",
+    "expo-cli": "^4.9.1",
     "express": "^4.17.1",
     "express-rate-limit": "^5.2.6",
     "express-validator": "^6.12.1",
