@@ -1397,6 +1397,42 @@ export async function getBadgeSystemSettings() {
     });
 }
 
+/**
+ * Get badges awaiting physical delivery
+ */
+export async function getBadgesAwaitingDelivery() {
+    return API.getNoCache('badges-awaiting-delivery');
+}
+
+/**
+ * Mark badge as physically delivered
+ */
+export async function markBadgeDelivered(badgeId) {
+    const result = await API.post('mark-badge-delivered', { badge_id: badgeId });
+    await clearBadgeRelatedCaches();
+    return result;
+}
+
+/**
+ * Mark multiple badges as delivered in bulk
+ */
+export async function markBadgesDeliveredBulk(badgeIds) {
+    const result = await API.post('mark-badges-delivered-bulk', { badge_ids: badgeIds });
+    await clearBadgeRelatedCaches();
+    return result;
+}
+
+/**
+ * Get comprehensive badge tracker summary
+ */
+export async function getBadgeTrackerSummary(cacheOptions = {}) {
+    return API.get('badge-tracker-summary', {}, {
+        cacheKey: 'badge_tracker_summary',
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        forceRefresh: cacheOptions.forceRefresh
+    });
+}
+
 // ============================================================================
 // HONORS
 // ============================================================================
