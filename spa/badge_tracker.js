@@ -13,7 +13,6 @@ import { translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { sanitizeHTML } from './utils/SecurityUtils.js';
 import { setContent } from './utils/DOMUtils.js';
-import { showToast } from './utils/ToastUtils.js';
 import { formatDateShort } from './utils/DateUtils.js';
 import { canApproveBadges, canManageBadges, canViewBadges } from './utils/PermissionUtils.js';
 import {
@@ -75,7 +74,13 @@ export class BadgeTracker {
     } catch (error) {
       debugError('[BadgeTracker] Error loading data:', error);
       this.loading = false;
-      showToast(translate('error_loading_data'), 'error');
+      this.showToast(translate('error_loading_data'), 'error');
+    }
+  }
+
+  showToast(message, type = 'info') {
+    if (this.app?.showMessage) {
+      this.app.showMessage(message, type);
     }
   }
 
@@ -900,16 +905,16 @@ export class BadgeTracker {
     try {
       const result = await approveBadge(badgeId);
       if (result?.success) {
-        showToast(translate('badge_approved_success') || 'Étoile approuvée ✓', 'success');
+        this.showToast(translate('badge_approved_success') || 'Étoile approuvée ✓', 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
       } else {
-        showToast(result?.message || translate('error'), 'error');
+        this.showToast(result?.message || translate('error'), 'error');
       }
     } catch (error) {
       debugError('[BadgeTracker] Approve error:', error);
-      showToast(translate('error'), 'error');
+      this.showToast(translate('error'), 'error');
     }
   }
 
@@ -919,16 +924,16 @@ export class BadgeTracker {
     try {
       const result = await rejectBadge(badgeId);
       if (result?.success) {
-        showToast(translate('badge_rejected_success') || 'Étoile rejetée', 'success');
+        this.showToast(translate('badge_rejected_success') || 'Étoile rejetée', 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
       } else {
-        showToast(result?.message || translate('error'), 'error');
+        this.showToast(result?.message || translate('error'), 'error');
       }
     } catch (error) {
       debugError('[BadgeTracker] Reject error:', error);
-      showToast(translate('error'), 'error');
+      this.showToast(translate('error'), 'error');
     }
   }
 
@@ -936,16 +941,16 @@ export class BadgeTracker {
     try {
       const result = await markBadgeDelivered(badgeId);
       if (result?.success) {
-        showToast(translate('badge_delivered_success') || 'Étoile marquée comme remise ✓', 'success');
+        this.showToast(translate('badge_delivered_success') || 'Étoile marquée comme remise ✓', 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
       } else {
-        showToast(result?.message || translate('error'), 'error');
+        this.showToast(result?.message || translate('error'), 'error');
       }
     } catch (error) {
       debugError('[BadgeTracker] Deliver error:', error);
-      showToast(translate('error'), 'error');
+      this.showToast(translate('error'), 'error');
     }
   }
 
@@ -959,16 +964,16 @@ export class BadgeTracker {
       const badgeIds = deliveryItems.map(item => item.id);
       const result = await markBadgesDeliveredBulk(badgeIds);
       if (result?.success) {
-        showToast(`${result.count || deliveryItems.length} ${translate('badge_stars_delivered') || 'étoile(s) marquée(s) comme remise(s)'} ✓`, 'success');
+        this.showToast(`${result.count || deliveryItems.length} ${translate('badge_stars_delivered') || 'étoile(s) marquée(s) comme remise(s)'} ✓`, 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
       } else {
-        showToast(result?.message || translate('error'), 'error');
+        this.showToast(result?.message || translate('error'), 'error');
       }
     } catch (error) {
       debugError('[BadgeTracker] Deliver all error:', error);
-      showToast(translate('error'), 'error');
+      this.showToast(translate('error'), 'error');
     }
   }
 
@@ -979,12 +984,12 @@ export class BadgeTracker {
     const { maxStars } = this.getNextStarInfo(participantId, templateId);
 
     if (!participantId || !templateId) {
-      showToast(translate('missing_required_fields') || translate('error'), 'error');
+      this.showToast(translate('missing_required_fields') || translate('error'), 'error');
       return;
     }
 
     if (!starLevel || (maxStars && starLevel > maxStars)) {
-      showToast(translate('badge_max_stars_reached') || translate('error'), 'error');
+      this.showToast(translate('badge_max_stars_reached') || translate('error'), 'error');
       return;
     }
 
@@ -1001,18 +1006,18 @@ export class BadgeTracker {
     try {
       const result = await saveBadgeProgress(payload);
       if (result?.success) {
-        showToast(translate('badge_star_added') || 'Nouvelle étoile ajoutée', 'success');
+        this.showToast(translate('badge_star_added') || 'Nouvelle étoile ajoutée', 'success');
         this.isModalOpen = false;
         this.modalInitialData = null;
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
       } else {
-        showToast(result?.message || translate('error'), 'error');
+        this.showToast(result?.message || translate('error'), 'error');
       }
     } catch (error) {
       debugError('[BadgeTracker] Add star error:', error);
-      showToast(translate('error'), 'error');
+      this.showToast(translate('error'), 'error');
     }
   }
 
