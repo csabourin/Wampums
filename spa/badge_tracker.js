@@ -14,18 +14,16 @@ import { debugLog, debugError } from './utils/DebugUtils.js';
 import { sanitizeHTML } from './utils/SecurityUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 import { showToast } from './utils/ToastUtils.js';
+import { formatDateShort } from './utils/DateUtils.js';
 import { canApproveBadges, canManageBadges, canViewBadges } from './utils/PermissionUtils.js';
 import {
   getBadgeTrackerSummary,
-  getPendingBadges,
-  getBadgesAwaitingDelivery,
   approveBadge,
   rejectBadge,
   markBadgeDelivered,
   markBadgesDeliveredBulk,
   saveBadgeProgress,
 } from './api/api-endpoints.js';
-import { clearBadgeRelatedCaches } from './indexedDB.js';
 
 export class BadgeTracker {
   constructor(app) {
@@ -42,6 +40,7 @@ export class BadgeTracker {
     this.loading = true;
     this.canManage = false;
     this.canApprove = false;
+    this.modalKeydownHandler = null;
   }
 
   async init() {
@@ -78,6 +77,43 @@ export class BadgeTracker {
       this.loading = false;
       showToast(translate('error_loading_data'), 'error');
     }
+  }
+
+  /**
+   * Determine the maximum number of stars for a template.
+   * @param {Object|null} template - Badge template data.
+   * @returns {number} Maximum star count.
+   */
+  getTemplateLevelCount(template) {
+    if (!template) return 3;
+    if (template.level_count) return template.level_count;
+    if (Array.isArray(template.levels) && template.levels.length > 0) {
+      return template.levels.length;
+    }
+    return 3;
+  }
+
+  /**
+   * Get the next star number and max for a participant/template.
+   * @param {number|null} participantId - Participant ID.
+   * @param {number|null} templateId - Badge template ID.
+   * @returns {{nextStar: number|null, maxStars: number|null}} Next and max star counts.
+   */
+  getNextStarInfo(participantId, templateId) {
+    if (!participantId || !templateId) {
+      return { nextStar: null, maxStars: null };
+    }
+
+    const template = this.templates.find(t => t.id === templateId);
+    const maxStars = this.getTemplateLevelCount(template);
+    const existingStars = this.badges.filter(
+      badge => badge.participant_id === participantId && badge.badge_template_id === templateId
+    );
+    const existingLevels = existingStars.map(star => star.etoiles).filter(Boolean);
+    const highestLevel = existingLevels.length > 0 ? Math.max(...existingLevels) : 0;
+    const nextStar = Math.min(highestLevel + 1, maxStars);
+
+    return { nextStar, maxStars };
   }
 
   // Group badge progress by participant
@@ -191,13 +227,13 @@ export class BadgeTracker {
             <div class="badge-tracker__actions">
               <button class="badge-tracker__action-btn ${this.viewMode === 'pending' ? 'badge-tracker__action-btn--active' : ''}"
                       data-action="toggle-view" data-view="pending"
-                      title="${translate('pending_approvals')}">
+                      title="${translate('badge_pending_approvals')}">
                 <span class="badge-tracker__action-icon">🕐</span>
                 ${pendingCount > 0 ? `<span class="badge-tracker__action-badge badge-tracker__action-badge--warning">${pendingCount}</span>` : ''}
               </button>
               <button class="badge-tracker__action-btn ${this.viewMode === 'delivery' ? 'badge-tracker__action-btn--active' : ''}"
                       data-action="toggle-view" data-view="delivery"
-                      title="${translate('awaiting_delivery')}">
+                      title="${translate('badge_awaiting_delivery')}">
                 <span class="badge-tracker__action-icon">🎁</span>
                 ${deliveryCount > 0 ? `<span class="badge-tracker__action-badge badge-tracker__action-badge--info">${deliveryCount}</span>` : ''}
               </button>
@@ -213,12 +249,12 @@ export class BadgeTracker {
           </button>
           <button class="badge-tracker__tab ${this.viewMode === 'pending' ? 'badge-tracker__tab--active' : ''}"
                   data-action="set-view" data-view="pending" role="tab" aria-selected="${this.viewMode === 'pending'}">
-            🕐 ${translate('approvals') || 'Approbations'}
+            🕐 ${translate('badge_pending_approvals') || 'Approbations'}
             <span class="badge-tracker__tab-count ${pendingCount > 0 ? 'badge-tracker__tab-count--alert' : ''}">${pendingCount}</span>
           </button>
           <button class="badge-tracker__tab ${this.viewMode === 'delivery' ? 'badge-tracker__tab--active' : ''}"
                   data-action="set-view" data-view="delivery" role="tab" aria-selected="${this.viewMode === 'delivery'}">
-            🎁 ${translate('to_deliver') || 'À remettre'}
+            🎁 ${translate('badge_awaiting_delivery') || 'À remettre'}
             <span class="badge-tracker__tab-count">${deliveryCount}</span>
           </button>
         </nav>
@@ -232,7 +268,7 @@ export class BadgeTracker {
         </main>
 
         ${this.canManage ? `
-        <button class="badge-tracker__fab" data-action="add-star" title="${translate('add_star')}">
+        <button class="badge-tracker__fab" data-action="add-star" title="${translate('badge_add_star')}">
           <span>+</span>
         </button>
         ` : ''}
@@ -249,10 +285,10 @@ export class BadgeTracker {
           <span class="badge-tracker__search-icon">🔍</span>
           <input type="search"
                  class="badge-tracker__search-input"
-                 placeholder="${translate('search_participant') || 'Rechercher un louveteau...'}"
+                 placeholder="${translate('badge_search_placeholder') || translate('search_participants') || 'Rechercher un louveteau...'}"
                  value="${sanitizeHTML(this.searchTerm)}"
                  data-action="search"
-                 aria-label="${translate('search_participant')}">
+                 aria-label="${translate('search_participants')}">
         </div>
       </div>
     `;
@@ -263,23 +299,23 @@ export class BadgeTracker {
 
     return `
       <!-- Stats Summary -->
-      <div class="badge-tracker__stats" role="region" aria-label="${translate('statistics')}">
+      <div class="badge-tracker__stats" role="region" aria-label="${translate('badge_statistics')}">
         <div class="badge-tracker__stat-card" data-action="set-view" data-view="participants">
           <div class="badge-tracker__stat-value">${stats.totalParticipants || 0}</div>
           <div class="badge-tracker__stat-label">${translate('participants') || 'Louveteaux'}</div>
         </div>
         <div class="badge-tracker__stat-card">
           <div class="badge-tracker__stat-value">${stats.totalApproved || 0}</div>
-          <div class="badge-tracker__stat-label">${translate('stars') || 'Étoiles'} ★</div>
+          <div class="badge-tracker__stat-label">${translate('badge_stars_label') || translate('badge_stars') || 'Étoiles'} ★</div>
         </div>
         <div class="badge-tracker__stat-card ${stats.pendingApproval > 0 ? 'badge-tracker__stat-card--highlight' : ''}"
              data-action="set-view" data-view="pending">
           <div class="badge-tracker__stat-value">${stats.pendingApproval || 0}</div>
-          <div class="badge-tracker__stat-label">${translate('pending') || 'En attente'}</div>
+          <div class="badge-tracker__stat-label">${translate('badge_status_pending') || 'En attente'}</div>
         </div>
         <div class="badge-tracker__stat-card" data-action="set-view" data-view="delivery">
           <div class="badge-tracker__stat-value">${stats.awaitingDelivery || 0}</div>
-          <div class="badge-tracker__stat-label">${translate('to_deliver') || 'À remettre'}</div>
+          <div class="badge-tracker__stat-label">${translate('badge_awaiting_delivery') || 'À remettre'}</div>
         </div>
       </div>
 
@@ -315,8 +351,8 @@ export class BadgeTracker {
               ${sanitizeHTML(participant.first_name)} ${sanitizeHTML(participant.last_name)}
               ${participant.hasPending || participant.hasUndelivered ? `
                 <span class="badge-tracker__indicators">
-                  ${participant.hasPending ? '<span class="badge-tracker__indicator badge-tracker__indicator--pending" title="En attente"></span>' : ''}
-                  ${participant.hasUndelivered ? '<span class="badge-tracker__indicator badge-tracker__indicator--delivery" title="À remettre"></span>' : ''}
+                  ${participant.hasPending ? `<span class="badge-tracker__indicator badge-tracker__indicator--pending" title="${translate('badge_pending_indicator') || "En attente d'approbation"}"></span>` : ''}
+                  ${participant.hasUndelivered ? `<span class="badge-tracker__indicator badge-tracker__indicator--delivery" title="${translate('badge_delivery_indicator') || 'Badge à remettre'}"></span>` : ''}
                 </span>
               ` : ''}
             </div>
@@ -344,11 +380,10 @@ export class BadgeTracker {
 
     return `
       <div class="badge-tracker__badge-preview">
-        ${displayBadges.map(b => {
-          const template = b.template;
-          const approvedStars = b.stars.filter(s => s.status === 'approved').length;
-          const maxStars = template?.level_count || 3;
-          const hasUndelivered = b.stars.some(s => s.status === 'approved' && !s.delivered_at);
+      ${displayBadges.map(b => {
+        const template = b.template;
+        const maxStars = this.getTemplateLevelCount(template);
+        const hasUndelivered = b.stars.some(s => s.status === 'approved' && !s.delivered_at);
 
           return `
             <div class="badge-tracker__preview-item">
@@ -374,7 +409,7 @@ export class BadgeTracker {
   renderBadgeCard(participantId, badgeData) {
     const template = badgeData.template;
     const stars = badgeData.stars;
-    const maxStars = template?.level_count || 3;
+    const maxStars = this.getTemplateLevelCount(template);
     const approvedCount = stars.filter(s => s.status === 'approved').length;
     const deliveredCount = stars.filter(s => s.delivered_at).length;
     const pendingCount = stars.filter(s => s.status === 'pending').length;
@@ -390,9 +425,9 @@ export class BadgeTracker {
           <div class="badge-tracker__badge-info">
             <h4 class="badge-tracker__badge-title">${sanitizeHTML(template?.name || translate('unknown_badge'))}</h4>
             <p class="badge-tracker__badge-progress-text">
-              ${approvedCount}/${maxStars} ${translate('approved') || 'approuvée(s)'}
-              ${deliveredCount > 0 ? ` • ${deliveredCount} ${translate('delivered') || 'remise(s)'}` : ''}
-              ${pendingCount > 0 ? ` • ${pendingCount} ${translate('pending') || 'en attente'}` : ''}
+              ${approvedCount}/${maxStars} ${translate('badge_status_approved') || 'approuvée(s)'}
+              ${deliveredCount > 0 ? ` • ${deliveredCount} ${translate('badge_delivered') || 'remise(s)'}` : ''}
+              ${pendingCount > 0 ? ` • ${pendingCount} ${translate('badge_status_pending') || 'en attente'}` : ''}
             </p>
           </div>
         </div>
@@ -408,14 +443,16 @@ export class BadgeTracker {
 
   renderStarSlot(participantId, templateId, starNumber, starData) {
     if (!starData) {
+      const ariaLabel = `${translate('badge_add_star') || 'Ajouter une étoile'} ${starNumber}`;
       return `
         <button class="badge-tracker__add-star-btn"
                 data-action="add-star-to-badge"
                 data-participant-id="${participantId}"
                 data-template-id="${templateId}"
                 data-star-number="${starNumber}"
-                ${!this.canManage ? 'disabled' : ''}>
-          <span>+</span> ${translate('star') || 'Étoile'} ${starNumber}
+                ${!this.canManage ? 'disabled' : ''}
+                aria-label="${ariaLabel}">
+          <span>+</span> ${translate('badge_star_label') || translate('badge_star') || 'Étoile'} ${starNumber}
         </button>
       `;
     }
@@ -435,11 +472,13 @@ export class BadgeTracker {
         <div class="badge-tracker__star-icon">★</div>
         ${starData.star_type ? `
           <span class="badge-tracker__star-type badge-tracker__star-type--${starData.star_type}">
-            ${starData.star_type === 'proie' ? '🎯 Proie' : '🐺 Battue'}
+            ${starData.star_type === 'proie'
+              ? `🎯 ${translate('badge_type_proie') || 'Proie'}`
+              : `🐺 ${translate('badge_type_battue') || 'Battue'}`}
           </span>
         ` : ''}
-        ${isPending ? `<span class="badge-tracker__star-status badge-tracker__star-status--pending">${translate('pending') || 'En attente'}</span>` : ''}
-        ${isApproved ? `<span class="badge-tracker__star-status badge-tracker__star-status--needs-delivery">${translate('to_deliver') || 'À remettre'}</span>` : ''}
+        ${isPending ? `<span class="badge-tracker__star-status badge-tracker__star-status--pending">${translate('badge_status_pending') || 'En attente'}</span>` : ''}
+        ${isApproved ? `<span class="badge-tracker__star-status badge-tracker__star-status--needs-delivery">${translate('badge_awaiting_delivery') || 'À remettre'}</span>` : ''}
         ${isDelivered ? `<span class="badge-tracker__star-date">${this.formatDate(starData.delivered_at)}</span>` : ''}
       </div>
     `;
@@ -453,7 +492,7 @@ export class BadgeTracker {
         <div class="badge-tracker__queue-header">
           <h2 class="badge-tracker__queue-title">
             <span class="badge-tracker__queue-icon badge-tracker__queue-icon--pending">🕐</span>
-            ${translate('pending_approvals') || 'Approbations en attente'}
+            ${translate('badge_pending_approvals') || 'Approbations en attente'}
           </h2>
         </div>
         ${pendingItems.length === 0 ? this.renderEmptyState('all-approved') : `
@@ -471,11 +510,11 @@ export class BadgeTracker {
         <div class="badge-tracker__queue-header">
           <h2 class="badge-tracker__queue-title">
             <span class="badge-tracker__queue-icon badge-tracker__queue-icon--delivery">🎁</span>
-            ${translate('awaiting_delivery') || 'Étoiles à remettre'}
+            ${translate('badge_awaiting_delivery') || 'Étoiles à remettre'}
           </h2>
           ${deliveryItems.length > 0 && this.canApprove ? `
             <button class="button button--primary button--sm" data-action="deliver-all">
-              ${translate('mark_all_delivered') || 'Tout marquer comme remis'}
+              ${translate('badge_mark_all_delivered') || 'Tout marquer comme remis'}
             </button>
           ` : ''}
         </div>
@@ -500,7 +539,9 @@ export class BadgeTracker {
             <span class="badge-tracker__queue-star">★ ${item.etoiles}</span>
             ${item.star_type ? `
               <span class="badge-tracker__queue-type badge-tracker__queue-type--${item.star_type}">
-                ${item.star_type === 'proie' ? '🎯 Proie' : '🐺 Battue'}
+                ${item.star_type === 'proie'
+                  ? `🎯 ${translate('badge_type_proie') || 'Proie'}`
+                  : `🐺 ${translate('badge_type_battue') || 'Battue'}`}
               </span>
             ` : ''}
           </div>
@@ -508,8 +549,8 @@ export class BadgeTracker {
           ${item.objectif ? `<div class="badge-tracker__queue-details">${sanitizeHTML(item.objectif)}</div>` : ''}
           <div class="badge-tracker__queue-date">
             ${type === 'pending' ?
-              `${translate('submitted') || 'Soumis le'} ${this.formatDate(item.date_obtention || item.created_at)}` :
-              `${translate('approved') || 'Approuvé le'} ${this.formatDate(item.approval_date)}`}
+              `${translate('badge_submitted_on') || 'Soumis le'} ${this.formatDate(item.date_obtention || item.created_at)}` :
+              `${translate('badge_approved_on') || 'Approuvé le'} ${this.formatDate(item.approval_date)}`}
           </div>
         </div>
         <div class="badge-tracker__queue-actions">
@@ -524,7 +565,7 @@ export class BadgeTracker {
           ${type === 'delivery' && this.canApprove ? `
             <button class="badge-tracker__icon-btn badge-tracker__icon-btn--deliver"
                     data-action="deliver" data-badge-id="${item.id}"
-                    title="${translate('mark_delivered')}">🎁</button>
+                    title="${translate('badge_mark_delivered') || translate('mark_delivered')}">🎁</button>
           ` : ''}
         </div>
       </div>
@@ -535,23 +576,23 @@ export class BadgeTracker {
     const config = {
       'search': {
         icon: '🔍',
-        title: translate('no_results') || 'Aucun résultat',
+        title: translate('no_results_found') || 'Aucun résultat',
         description: translate('try_different_search') || 'Essayez une recherche différente',
       },
       'no-badges': {
         icon: '🎯',
-        title: translate('no_badges_yet') || 'Aucun badge en cours',
-        description: translate('use_plus_to_start') || 'Utilisez le bouton + pour commencer',
+        title: translate('badge_no_progress_title') || 'Aucun badge en cours',
+        description: translate('badge_no_progress_description') || 'Utilisez le bouton + pour commencer',
       },
       'all-approved': {
         icon: '✓',
-        title: translate('all_up_to_date') || 'Tout est à jour!',
-        description: translate('no_pending_approvals') || "Aucune étoile en attente d'approbation",
+        title: translate('badge_all_up_to_date_title') || 'Tout est à jour!',
+        description: translate('badge_no_pending_approvals') || "Aucune étoile en attente d'approbation",
       },
       'all-delivered': {
         icon: '🎁',
-        title: translate('all_delivered') || 'Tout est remis!',
-        description: translate('all_badges_distributed') || 'Toutes les étoiles approuvées ont été distribuées',
+        title: translate('badge_all_delivered_title') || 'Tout est remis!',
+        description: translate('badge_all_delivered_description') || 'Toutes les étoiles approuvées ont été distribuées',
       },
     };
 
@@ -573,15 +614,21 @@ export class BadgeTracker {
     if (!this.isModalOpen) {
       modalContainer.classList.add('hidden');
       setContent(modalContainer, '');
+      document.body.style.overflow = '';
+      if (this.modalKeydownHandler) {
+        document.removeEventListener('keydown', this.modalKeydownHandler);
+        this.modalKeydownHandler = null;
+      }
       return;
     }
 
+    document.body.style.overflow = 'hidden';
     modalContainer.classList.remove('hidden');
     setContent(modalContainer, `
       <div class="badge-tracker__modal-overlay" data-action="close-modal"></div>
       <div class="badge-tracker__modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="badge-tracker__modal-header">
-          <h2 id="modal-title" class="badge-tracker__modal-title">${translate('add_star') || 'Nouvelle étoile'}</h2>
+          <h2 id="modal-title" class="badge-tracker__modal-title">${translate('badge_add_star') || 'Nouvelle étoile'}</h2>
           <button class="badge-tracker__modal-close" data-action="close-modal" aria-label="${translate('close')}">✕</button>
         </div>
         <form id="add-star-form" class="badge-tracker__modal-body">
@@ -612,20 +659,26 @@ export class BadgeTracker {
             </div>
           </div>
 
+          <div class="badge-tracker__star-info hidden" data-star-info>
+            <span class="badge-tracker__star-info-label">${translate('badge_star_label') || translate('badge_star') || 'Étoile'}</span>
+            <span class="badge-tracker__star-info-value" data-star-count></span>
+            <input type="hidden" name="etoiles" value="" data-star-input>
+          </div>
+
           <div class="form-group">
             <label class="form-label form-label--required">${translate('achievement_type') || "Type d'accomplissement"}</label>
             <div class="badge-tracker__type-selector">
               <label class="badge-tracker__type-option ${!this.modalInitialData?.star_type || this.modalInitialData?.star_type === 'proie' ? 'badge-tracker__type-option--selected' : ''}">
-                <input type="radio" name="star_type" value="proie" checked>
+                <input type="radio" name="star_type" value="proie" ${!this.modalInitialData?.star_type || this.modalInitialData?.star_type === 'proie' ? 'checked' : ''}>
                 <span class="badge-tracker__type-icon">🎯</span>
-                <span class="badge-tracker__type-label">Proie</span>
-                <span class="badge-tracker__type-desc">${translate('individual') || 'Individuel'}</span>
+                <span class="badge-tracker__type-label">${translate('badge_type_proie') || 'Proie'}</span>
+                <span class="badge-tracker__type-desc">${translate('badge_type_proie_description') || translate('individual') || 'Individuel'}</span>
               </label>
               <label class="badge-tracker__type-option ${this.modalInitialData?.star_type === 'battue' ? 'badge-tracker__type-option--selected' : ''}">
-                <input type="radio" name="star_type" value="battue">
+                <input type="radio" name="star_type" value="battue" ${this.modalInitialData?.star_type === 'battue' ? 'checked' : ''}>
                 <span class="badge-tracker__type-icon">🐺</span>
-                <span class="badge-tracker__type-label">Battue</span>
-                <span class="badge-tracker__type-desc">${translate('group') || 'Groupe'}</span>
+                <span class="badge-tracker__type-label">${translate('badge_type_battue') || 'Battue'}</span>
+                <span class="badge-tracker__type-desc">${translate('badge_type_battue_description') || translate('group') || 'Groupe'}</span>
               </label>
             </div>
           </div>
@@ -639,7 +692,7 @@ export class BadgeTracker {
           <div class="form-group">
             <label for="modal-description" class="form-label">${translate('description')}</label>
             <textarea id="modal-description" name="description" rows="2"
-                      placeholder="${translate('description_placeholder') || "Détails de l'accomplissement..."}"></textarea>
+                      placeholder="${translate('badge_description_placeholder') || "Détails de l'accomplissement..."}"></textarea>
           </div>
 
           <div class="form-group">
@@ -649,7 +702,7 @@ export class BadgeTracker {
         </form>
         <div class="badge-tracker__modal-footer">
           <button type="button" class="button button--secondary" data-action="close-modal">${translate('cancel')}</button>
-          <button type="submit" form="add-star-form" class="button button--primary">${translate('add_star') || "Ajouter l'étoile"}</button>
+          <button type="submit" form="add-star-form" class="button button--primary">${translate('badge_add_star') || "Ajouter l'étoile"}</button>
         </div>
       </div>
     `);
@@ -749,16 +802,63 @@ export class BadgeTracker {
     const modal = document.getElementById('badge-tracker-modal');
     if (!modal) return;
 
-    // Close on escape
-    const handleEscape = (e) => {
+    const modalElement = modal.querySelector('.badge-tracker__modal');
+    const starInfo = modal.querySelector('[data-star-info]');
+    const starCountEl = modal.querySelector('[data-star-count]');
+    const starInput = modal.querySelector('[data-star-input]');
+    const participantSelect = modal.querySelector('#modal-participant');
+
+    const updateStarInfo = () => {
+      const participantId = parseInt(participantSelect?.value || '', 10);
+      const selectedBadge = modal.querySelector('input[name="badge_template_id"]:checked');
+      const templateId = selectedBadge ? parseInt(selectedBadge.value, 10) : null;
+
+      const { nextStar, maxStars } = this.getNextStarInfo(participantId, templateId);
+      if (!nextStar || !maxStars) {
+        starInfo?.classList.add('hidden');
+        if (starInput) {
+          starInput.value = '';
+        }
+        return;
+      }
+
+      if (starInfo) {
+        starInfo.classList.remove('hidden');
+      }
+      if (starCountEl) {
+        starCountEl.textContent = `#${nextStar} ${translate('badge_star_of') || 'sur'} ${maxStars}`;
+      }
+      if (starInput) {
+        starInput.value = nextStar;
+      }
+    };
+
+    // Close on escape and focus trap
+    this.modalKeydownHandler = (e) => {
       if (e.key === 'Escape' && this.isModalOpen) {
         this.isModalOpen = false;
         this.modalInitialData = null;
         this.renderModal();
-        document.removeEventListener('keydown', handleEscape);
+        return;
+      }
+
+      if (e.key !== 'Tab' || !modalElement) return;
+      const focusable = modalElement.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     };
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', this.modalKeydownHandler);
 
     // Type selector visual update
     modal.querySelectorAll('.badge-tracker__type-option input').forEach(input => {
@@ -775,8 +875,11 @@ export class BadgeTracker {
         modal.querySelectorAll('.badge-tracker__badge-option').forEach(opt =>
           opt.classList.remove('badge-tracker__badge-option--selected'));
         input.closest('.badge-tracker__badge-option').classList.add('badge-tracker__badge-option--selected');
+        updateStarInfo();
       });
     });
+
+    participantSelect?.addEventListener('change', updateStarInfo);
 
     // Form submission
     const form = modal.querySelector('#add-star-form');
@@ -786,13 +889,18 @@ export class BadgeTracker {
         await this.handleAddStar(new FormData(form));
       });
     }
+
+    updateStarInfo();
+
+    const firstFocusable = modalElement?.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    firstFocusable?.focus();
   }
 
   async handleApprove(badgeId) {
     try {
       const result = await approveBadge(badgeId);
       if (result?.success) {
-        showToast(translate('star_approved') || 'Étoile approuvée ✓', 'success');
+        showToast(translate('badge_approved_success') || 'Étoile approuvée ✓', 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
@@ -806,12 +914,12 @@ export class BadgeTracker {
   }
 
   async handleReject(badgeId) {
-    if (!confirm(translate('confirm_reject') || 'Êtes-vous sûr de vouloir rejeter cette étoile?')) return;
+    if (!confirm(translate('badge_confirm_reject') || 'Êtes-vous sûr de vouloir rejeter cette étoile?')) return;
 
     try {
       const result = await rejectBadge(badgeId);
       if (result?.success) {
-        showToast(translate('star_rejected') || 'Étoile rejetée', 'success');
+        showToast(translate('badge_rejected_success') || 'Étoile rejetée', 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
@@ -828,7 +936,7 @@ export class BadgeTracker {
     try {
       const result = await markBadgeDelivered(badgeId);
       if (result?.success) {
-        showToast(translate('star_delivered') || 'Étoile marquée comme remise ✓', 'success');
+        showToast(translate('badge_delivered_success') || 'Étoile marquée comme remise ✓', 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
@@ -845,13 +953,13 @@ export class BadgeTracker {
     const deliveryItems = this.getDeliveryItems();
     if (deliveryItems.length === 0) return;
 
-    if (!confirm(translate('confirm_deliver_all') || `Marquer ${deliveryItems.length} étoile(s) comme remise(s)?`)) return;
+    if (!confirm(translate('badge_confirm_deliver_all') || `Marquer ${deliveryItems.length} étoile(s) comme remise(s)?`)) return;
 
     try {
       const badgeIds = deliveryItems.map(item => item.id);
       const result = await markBadgesDeliveredBulk(badgeIds);
       if (result?.success) {
-        showToast(`${result.count || deliveryItems.length} ${translate('stars_delivered') || 'étoile(s) marquée(s) comme remise(s)'} ✓`, 'success');
+        showToast(`${result.count || deliveryItems.length} ${translate('badge_stars_delivered') || 'étoile(s) marquée(s) comme remise(s)'} ✓`, 'success');
         await this.loadData(true);
         this.render();
         this.attachEventListeners();
@@ -865,19 +973,35 @@ export class BadgeTracker {
   }
 
   async handleAddStar(formData) {
+    const participantId = parseInt(formData.get('participant_id'));
+    const templateId = parseInt(formData.get('badge_template_id'));
+    const starLevel = parseInt(formData.get('etoiles'), 10);
+    const { maxStars } = this.getNextStarInfo(participantId, templateId);
+
+    if (!participantId || !templateId) {
+      showToast(translate('missing_required_fields') || translate('error'), 'error');
+      return;
+    }
+
+    if (!starLevel || (maxStars && starLevel > maxStars)) {
+      showToast(translate('badge_max_stars_reached') || translate('error'), 'error');
+      return;
+    }
+
     const payload = {
-      participant_id: parseInt(formData.get('participant_id')),
-      badge_template_id: parseInt(formData.get('badge_template_id')),
+      participant_id: participantId,
+      badge_template_id: templateId,
       star_type: formData.get('star_type'),
       objectif: formData.get('objectif'),
       description: formData.get('description'),
       date_obtention: formData.get('date_obtention'),
+      etoiles: starLevel,
     };
 
     try {
       const result = await saveBadgeProgress(payload);
       if (result?.success) {
-        showToast(translate('star_added') || 'Nouvelle étoile ajoutée', 'success');
+        showToast(translate('badge_star_added') || 'Nouvelle étoile ajoutée', 'success');
         this.isModalOpen = false;
         this.modalInitialData = null;
         await this.loadData(true);
@@ -895,7 +1019,7 @@ export class BadgeTracker {
   formatDate(dateString) {
     if (!dateString) return '';
     try {
-      return new Date(dateString).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' });
+      return formatDateShort(dateString, this.app?.lang || 'fr');
     } catch {
       return '';
     }

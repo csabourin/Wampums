@@ -9,7 +9,7 @@
  * - battue: Group activity (multiple participants)
  */
 
-import React, { useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { useSafeState } from '../hooks/useSafeState';
 import {
   View,
@@ -19,9 +19,11 @@ import {
   RefreshControl,
   TouchableOpacity,
   TextInput,
-  ScrollView,
   Alert,
+  Image,
+  Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import {
@@ -46,6 +48,7 @@ import {
 import { canViewBadges, canApproveBadges, canManageBadges } from '../utils/PermissionUtils';
 import { debugLog, debugError } from '../utils/DebugUtils';
 import { formatDate } from '../utils/DateUtils';
+import badgeImages from '../../assets/images/_badgeImages';
 
 // View modes for the tracker
 const VIEW_MODES = {
@@ -76,15 +79,17 @@ const BadgeTrackerScreen = () => {
 
   // Modal state
   const [addStarModalVisible, setAddStarModalVisible] = useSafeState(false);
-  const [selectedParticipantForStar, setSelectedParticipantForStar] = useSafeState(null);
   const [starFormData, setStarFormData] = useSafeState({
+    participantId: '',
     templateId: '',
     level: 1,
     objectif: '',
     description: '',
     fierte: '',
     starType: 'proie',
+    dateObtention: formatDate(new Date(), 'YYYY-MM-DD'),
   });
+  const [showDatePicker, setShowDatePicker] = useSafeState(false);
 
   // Permissions state
   const [permissions, setPermissions] = useSafeState({
@@ -152,6 +157,50 @@ const BadgeTrackerScreen = () => {
     setRefreshing(false);
   };
 
+  const templateMap = useMemo(() => {
+    const map = new Map();
+    templates.forEach(template => {
+      map.set(template.id, template);
+    });
+    return map;
+  }, [templates]);
+
+  const getTemplateLevelCount = useCallback((template) => {
+    if (!template) return 3;
+    if (template.level_count) return template.level_count;
+    if (Array.isArray(template.levels) && template.levels.length > 0) {
+      return template.levels.length;
+    }
+    return 3;
+  }, []);
+
+  const getBadgeImageSource = useCallback((template) => {
+    if (!template?.image) return null;
+    if (badgeImages[template.image]) {
+      return badgeImages[template.image];
+    }
+    if (typeof template.image === 'string' && template.image.startsWith('http')) {
+      return { uri: template.image };
+    }
+    return null;
+  }, []);
+
+  const getNextStarInfo = useCallback((participantId, templateId) => {
+    if (!participantId || !templateId) {
+      return { nextStar: null, maxStars: null };
+    }
+
+    const template = templateMap.get(templateId);
+    const maxStars = getTemplateLevelCount(template);
+    const existingStars = badges.filter(
+      badge => badge.participant_id === participantId && badge.badge_template_id === templateId
+    );
+    const existingLevels = existingStars.map(star => star.etoiles).filter(Boolean);
+    const highestLevel = existingLevels.length > 0 ? Math.max(...existingLevels) : 0;
+    const nextStar = Math.min(highestLevel + 1, maxStars);
+    return { nextStar, maxStars };
+  }, [badges, getTemplateLevelCount, templateMap]);
+
   // Build participant records with their badges
   const participantRecords = useMemo(() => {
     const participantMap = new Map();
@@ -160,7 +209,7 @@ const BadgeTrackerScreen = () => {
     participants.forEach(p => {
       participantMap.set(p.id, {
         ...p,
-        badges: [],
+        badgeGroups: new Map(),
         totalStars: 0,
         pendingCount: 0,
         awaitingDelivery: 0,
@@ -170,21 +219,38 @@ const BadgeTrackerScreen = () => {
     // Add badges to participants
     badges.forEach(badge => {
       const participant = participantMap.get(badge.participant_id);
-      if (participant) {
-        participant.badges.push(badge);
-        if (badge.status === 'approved') {
-          participant.totalStars++;
-          if (!badge.delivered_at) {
-            participant.awaitingDelivery++;
-          }
-        } else if (badge.status === 'pending') {
-          participant.pendingCount++;
+      if (!participant) return;
+
+      const template = templateMap.get(badge.badge_template_id);
+      const templateId = badge.badge_template_id;
+
+      if (!participant.badgeGroups.has(templateId)) {
+        participant.badgeGroups.set(templateId, {
+          template,
+          stars: [],
+        });
+      }
+
+      participant.badgeGroups.get(templateId).stars.push(badge);
+
+      if (badge.status === 'approved') {
+        participant.totalStars++;
+        if (!badge.delivered_at) {
+          participant.awaitingDelivery++;
         }
+      } else if (badge.status === 'pending') {
+        participant.pendingCount++;
       }
     });
 
-    return Array.from(participantMap.values());
-  }, [participants, badges]);
+    return Array.from(participantMap.values()).map(record => ({
+      ...record,
+      badgeGroups: Array.from(record.badgeGroups.values()).map(group => ({
+        ...group,
+        stars: group.stars.sort((a, b) => (a.etoiles || 0) - (b.etoiles || 0)),
+      })),
+    }));
+  }, [participants, badges, templateMap]);
 
   // Filter participants by search query
   const filteredParticipants = useMemo(() => {
@@ -193,7 +259,8 @@ const BadgeTrackerScreen = () => {
     const query = searchQuery.toLowerCase();
     return participantRecords.filter(p => {
       const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
-      return fullName.includes(query);
+      const totem = (p.totem || '').toLowerCase();
+      return fullName.includes(query) || totem.includes(query);
     });
   }, [participantRecords, searchQuery]);
 
@@ -201,14 +268,14 @@ const BadgeTrackerScreen = () => {
   const pendingBadges = useMemo(() => {
     return badges.filter(b => b.status === 'pending').map(badge => {
       const participant = participants.find(p => p.id === badge.participant_id);
-      const template = templates.find(t => t.id === badge.badge_template_id);
+      const template = templateMap.get(badge.badge_template_id);
       return {
         ...badge,
         participantName: participant ? `${participant.first_name} ${participant.last_name}` : t('unknown'),
         templateName: template?.name || badge.territoire_chasse || t('badge_unknown_label'),
       };
     });
-  }, [badges, participants, templates]);
+  }, [badges, participants, templateMap]);
 
   // Get badges awaiting delivery
   const deliveryQueue = useMemo(() => {
@@ -216,14 +283,14 @@ const BadgeTrackerScreen = () => {
       .filter(b => b.status === 'approved' && !b.delivered_at)
       .map(badge => {
         const participant = participants.find(p => p.id === badge.participant_id);
-        const template = templates.find(t => t.id === badge.badge_template_id);
+        const template = templateMap.get(badge.badge_template_id);
         return {
           ...badge,
           participantName: participant ? `${participant.first_name} ${participant.last_name}` : t('unknown'),
           templateName: template?.name || badge.territoire_chasse || t('badge_unknown_label'),
         };
       });
-  }, [badges, participants, templates]);
+  }, [badges, participants, templateMap]);
 
   // Handle star approval
   const handleApprove = async (badgeId) => {
@@ -338,22 +405,43 @@ const BadgeTrackerScreen = () => {
   };
 
   // Open add star modal
-  const openAddStarModal = (participant) => {
-    setSelectedParticipantForStar(participant);
+  const openAddStarModal = (participant = null, templateId = null, starNumber = null) => {
+    const participantId = participant?.id || '';
+    const defaultTemplateId = templateId || templates[0]?.id || '';
+    const nextStarInfo = getNextStarInfo(participantId, defaultTemplateId);
+
     setStarFormData({
-      templateId: templates[0]?.id || '',
-      level: 1,
+      participantId,
+      templateId: defaultTemplateId,
+      level: starNumber || nextStarInfo.nextStar || 1,
       objectif: '',
       description: '',
       fierte: '',
       starType: 'proie',
+      dateObtention: formatDate(new Date(), 'YYYY-MM-DD'),
     });
     setAddStarModalVisible(true);
   };
 
+  useEffect(() => {
+    if (!starFormData.participantId || !starFormData.templateId) return;
+    const { nextStar } = getNextStarInfo(starFormData.participantId, starFormData.templateId);
+    if (nextStar && nextStar !== starFormData.level) {
+      setStarFormData(prev => ({ ...prev, level: nextStar }));
+    }
+  }, [starFormData.participantId, starFormData.templateId, getNextStarInfo, starFormData.level]);
+
   // Submit new star
   const handleSubmitStar = async () => {
-    if (!selectedParticipantForStar) return;
+    if (!starFormData.participantId) {
+      toast.show(t('missing_required_fields') || 'Missing required fields', 'error');
+      return;
+    }
+
+    if (!starFormData.templateId) {
+      toast.show(t('missing_required_fields') || 'Missing required fields', 'error');
+      return;
+    }
 
     if (!starFormData.objectif.trim()) {
       toast.show(t('badge_objectif_required') || 'Goal/objective is required', 'error');
@@ -361,10 +449,16 @@ const BadgeTrackerScreen = () => {
     }
 
     try {
-      const template = templates.find(t => t.id === Number(starFormData.templateId));
+      const template = templateMap.get(Number(starFormData.templateId));
+      const { maxStars } = getNextStarInfo(starFormData.participantId, starFormData.templateId);
+
+      if (maxStars && starFormData.level > maxStars) {
+        toast.show(t('badge_max_stars_reached') || 'Maximum stars reached', 'warning');
+        return;
+      }
 
       const badgeData = {
-        participant_id: selectedParticipantForStar.id,
+        participant_id: starFormData.participantId,
         badge_template_id: starFormData.templateId || null,
         territoire_chasse: template?.name || t('badge_custom'),
         etoiles: starFormData.level,
@@ -372,12 +466,13 @@ const BadgeTrackerScreen = () => {
         description: starFormData.description,
         fierte: starFormData.fierte,
         star_type: starFormData.starType,
+        date_obtention: starFormData.dateObtention,
         status: 'pending',
       };
 
       const result = await saveBadgeProgress(badgeData);
       if (result.success) {
-        toast.show(t('badge_submitted_success') || 'Star submitted for approval!', 'success');
+        toast.show(t('badge_star_added') || 'Star submitted for approval!', 'success');
         setAddStarModalVisible(false);
         await loadData(true);
       } else {
@@ -391,7 +486,7 @@ const BadgeTrackerScreen = () => {
 
   // Get template name by ID
   const getTemplateName = (templateId) => {
-    const template = templates.find(t => t.id === templateId);
+    const template = templateMap.get(templateId);
     return template?.name || t('badge_unknown_label');
   };
 
@@ -403,23 +498,82 @@ const BadgeTrackerScreen = () => {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{stats.totalParticipants || 0}</Text>
-          <Text style={styles.statLabel}>{t('badge_participants') || 'Participants'}</Text>
+          <Text style={styles.statLabel}>{t('badge_participants') || t('participants') || 'Participants'}</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.totalStars || 0}</Text>
+          <Text style={styles.statValue}>{stats.totalApproved || stats.totalStars || 0}</Text>
           <Text style={styles.statLabel}>{t('badge_total_stars') || 'Total Stars'}</Text>
         </View>
         <View style={[styles.statCard, styles.statCardWarning]}>
           <Text style={styles.statValue}>{stats.pendingApproval || 0}</Text>
-          <Text style={styles.statLabel}>{t('badge_pending') || 'Pending'}</Text>
+          <Text style={styles.statLabel}>{t('badge_status_pending') || 'Pending'}</Text>
         </View>
         <View style={[styles.statCard, styles.statCardInfo]}>
           <Text style={styles.statValue}>{stats.awaitingDelivery || 0}</Text>
-          <Text style={styles.statLabel}>{t('badge_to_deliver') || 'To Deliver'}</Text>
+          <Text style={styles.statLabel}>{t('badge_awaiting_delivery') || 'To Deliver'}</Text>
         </View>
       </View>
     );
   };
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <View style={styles.headerTop}>
+        <View>
+          <Text style={styles.headerTitle}>
+            🐾 {t('badge_tracker_title') || 'Badges de la Meute'}
+          </Text>
+          <Text style={styles.headerSubtitle}>
+            {t('badge_tracker_subtitle') || 'Suivi des progrès des louveteaux'}
+          </Text>
+        </View>
+        <View style={styles.headerActions}>
+          {permissions.canApprove && (
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                viewMode === VIEW_MODES.PENDING && styles.headerActionButtonActive,
+              ]}
+              onPress={() => setViewMode(viewMode === VIEW_MODES.PENDING ? VIEW_MODES.PARTICIPANTS : VIEW_MODES.PENDING)}
+            >
+              <Text style={[
+                styles.headerActionIcon,
+                viewMode === VIEW_MODES.PENDING && styles.headerActionIconActive,
+              ]}>
+                🕐
+              </Text>
+              {pendingBadges.length > 0 && (
+                <View style={[styles.headerActionBadge, styles.headerActionBadgeWarning]}>
+                  <Text style={styles.headerActionBadgeText}>{pendingBadges.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+          {permissions.canApprove && (
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                viewMode === VIEW_MODES.DELIVERY && styles.headerActionButtonActive,
+              ]}
+              onPress={() => setViewMode(viewMode === VIEW_MODES.DELIVERY ? VIEW_MODES.PARTICIPANTS : VIEW_MODES.DELIVERY)}
+            >
+              <Text style={[
+                styles.headerActionIcon,
+                viewMode === VIEW_MODES.DELIVERY && styles.headerActionIconActive,
+              ]}>
+                🎁
+              </Text>
+              {deliveryQueue.length > 0 && (
+                <View style={[styles.headerActionBadge, styles.headerActionBadgeInfo]}>
+                  <Text style={styles.headerActionBadgeText}>{deliveryQueue.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </View>
+  );
 
   // Render view mode tabs
   const renderViewTabs = () => (
@@ -439,27 +593,190 @@ const BadgeTrackerScreen = () => {
           onPress={() => setViewMode(VIEW_MODES.PENDING)}
         >
           <Text style={[styles.viewTabText, viewMode === VIEW_MODES.PENDING && styles.viewTabTextActive]}>
-            {t('badge_pending_queue') || 'Pending'} ({pendingBadges.length})
+            {t('badge_pending_approvals') || 'Pending'} ({pendingBadges.length})
           </Text>
         </TouchableOpacity>
       )}
 
-      {permissions.canManage && (
+      {permissions.canApprove && (
         <TouchableOpacity
           style={[styles.viewTab, viewMode === VIEW_MODES.DELIVERY && styles.viewTabActive]}
           onPress={() => setViewMode(VIEW_MODES.DELIVERY)}
         >
           <Text style={[styles.viewTabText, viewMode === VIEW_MODES.DELIVERY && styles.viewTabTextActive]}>
-            {t('badge_delivery') || 'Delivery'} ({deliveryQueue.length})
+            {t('badge_awaiting_delivery') || 'Delivery'} ({deliveryQueue.length})
           </Text>
         </TouchableOpacity>
       )}
     </View>
   );
 
+  const renderBadgeImage = (template, style, placeholderStyle = null) => {
+    const source = getBadgeImageSource(template);
+    if (source) {
+      return <Image source={source} style={style} resizeMode="contain" />;
+    }
+    return (
+      <View style={[styles.badgeImageFallback, placeholderStyle]}>
+        <Text style={styles.badgeImageFallbackText}>🏅</Text>
+      </View>
+    );
+  };
+
+  const renderBadgePreview = (badgeGroups) => {
+    if (!badgeGroups || badgeGroups.length === 0) return null;
+
+    const displayBadges = badgeGroups.slice(0, 3);
+    const remaining = badgeGroups.length - 3;
+
+    return (
+      <View style={styles.badgePreview} accessible accessibilityLabel={t('badge_preview_label') || 'Badge preview'}>
+        {displayBadges.map((group, index) => {
+          const template = group.template;
+          const maxStars = getTemplateLevelCount(template);
+          const hasUndelivered = group.stars.some(star => star.status === 'approved' && !star.delivered_at);
+
+          return (
+            <View key={`${template?.id || index}`} style={styles.badgePreviewItem}>
+              {renderBadgeImage(template, styles.badgePreviewImage, styles.badgePreviewImage)}
+              {hasUndelivered && <View style={styles.badgePreviewDeliveryIndicator} />}
+              <View style={styles.badgePreviewStars}>
+                {Array.from({ length: maxStars }).map((_, starIndex) => {
+                  const star = group.stars.find(s => s.etoiles === starIndex + 1);
+                  const starStyle = [
+                    styles.badgePreviewStar,
+                    star?.status === 'pending' && styles.badgePreviewStarPending,
+                    !star && styles.badgePreviewStarEmpty,
+                  ];
+                  return (
+                    <Text key={`${template?.id || index}-star-${starIndex}`} style={starStyle}>
+                      ★
+                    </Text>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+        {remaining > 0 && (
+          <View style={styles.badgePreviewMore}>
+            <Text style={styles.badgePreviewMoreText}>+{remaining}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderStarSlot = (participantId, templateId, starNumber, starData) => {
+    if (!starData) {
+      const isDisabled = !permissions.canManage;
+      return (
+        <TouchableOpacity
+          key={`star-slot-${participantId}-${templateId}-${starNumber}`}
+          style={[styles.addStarSlot, isDisabled && styles.addStarSlotDisabled]}
+          onPress={() => openAddStarModal(participants.find(p => p.id === participantId), templateId, starNumber)}
+          disabled={isDisabled}
+        >
+          <Text style={styles.addStarSlotText}>
+            + {t('badge_star_label') || t('badge_star') || 'Star'} {starNumber}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+
+    const isDelivered = starData.status === 'approved' && starData.delivered_at;
+    const isApproved = starData.status === 'approved' && !starData.delivered_at;
+    const isPending = starData.status === 'pending';
+
+    return (
+      <View
+        key={`star-slot-${participantId}-${templateId}-${starNumber}`}
+        style={[
+          styles.starSlot,
+          isDelivered && styles.starSlotDelivered,
+          isApproved && styles.starSlotApproved,
+          isPending && styles.starSlotPending,
+        ]}
+      >
+        {isDelivered && <Text style={styles.starSlotDeliveryBadge}>✓</Text>}
+        <Text style={[
+          styles.starSlotIcon,
+          (isDelivered || isApproved) && styles.starSlotIconFilled,
+          isPending && styles.starSlotIconPending,
+        ]}>
+          ★
+        </Text>
+        {starData.star_type && (
+          <View style={[
+            styles.starSlotType,
+            starData.star_type === 'proie' ? styles.starSlotTypeProie : styles.starSlotTypeBattue,
+          ]}>
+            <Text style={styles.starSlotTypeText}>
+              {starData.star_type === 'proie'
+                ? `🎯 ${t('badge_type_proie') || 'Proie'}`
+                : `🐺 ${t('badge_type_battue') || 'Battue'}`}
+            </Text>
+          </View>
+        )}
+        {isPending && (
+          <Text style={[styles.starSlotStatus, styles.starSlotStatusPending]}>
+            {t('badge_status_pending') || 'Pending'}
+          </Text>
+        )}
+        {isApproved && (
+          <Text style={[styles.starSlotStatus, styles.starSlotStatusDelivery]}>
+            {t('badge_awaiting_delivery') || 'To deliver'}
+          </Text>
+        )}
+        {isDelivered && (
+          <Text style={styles.starSlotDate}>{formatDate(starData.delivered_at)}</Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderBadgeCard = (participantId, badgeGroup) => {
+    const template = badgeGroup.template;
+    const stars = badgeGroup.stars;
+    const maxStars = getTemplateLevelCount(template);
+    const approvedCount = stars.filter(star => star.status === 'approved').length;
+    const deliveredCount = stars.filter(star => star.delivered_at).length;
+    const pendingCount = stars.filter(star => star.status === 'pending').length;
+
+    return (
+      <View key={`badge-${participantId}-${template?.id || 'unknown'}`} style={styles.badgeCard}>
+        <View style={styles.badgeCardHeader}>
+          <View style={styles.badgeCardImageContainer}>
+            {renderBadgeImage(template, styles.badgeCardImage, styles.badgeCardImage)}
+          </View>
+          <View style={styles.badgeCardInfo}>
+            <Text style={styles.badgeCardTitle}>
+              {template?.name || t('badge_unknown_label')}
+            </Text>
+            <Text style={styles.badgeCardProgress}>
+              {approvedCount}/{maxStars} {t('badge_status_approved') || 'Approved'}
+              {deliveredCount > 0 ? ` • ${deliveredCount} ${t('badge_delivered') || 'Delivered'}` : ''}
+              {pendingCount > 0 ? ` • ${pendingCount} ${t('badge_status_pending') || 'Pending'}` : ''}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.starProgress}>
+          {Array.from({ length: maxStars }).map((_, index) => {
+            const starData = stars.find(star => star.etoiles === index + 1);
+            return renderStarSlot(participantId, template?.id, index + 1, starData || null);
+          })}
+        </View>
+      </View>
+    );
+  };
+
   // Render participant card
   const renderParticipantCard = ({ item: participant }) => {
     const isExpanded = expandedParticipantId === participant.id;
+    const initials = `${participant.first_name?.[0] || ''}${participant.last_name?.[0] || ''}`.toUpperCase();
+    const badgeGroups = participant.badgeGroups || [];
+    const hasPending = participant.pendingCount > 0;
+    const hasDelivery = participant.awaitingDelivery > 0;
 
     return (
       <Card style={styles.participantCard}>
@@ -468,72 +785,35 @@ const BadgeTrackerScreen = () => {
           onPress={() => setExpandedParticipantId(isExpanded ? null : participant.id)}
           activeOpacity={0.7}
         >
+          <View style={styles.participantAvatar}>
+            <Text style={styles.participantAvatarText}>{initials}</Text>
+          </View>
           <View style={styles.participantInfo}>
-            <Text style={styles.participantName}>
-              {participant.first_name} {participant.last_name}
-            </Text>
-            <View style={styles.participantStats}>
-              <Text style={styles.starCount}>{participant.totalStars} {t('stars') || 'stars'}</Text>
-              {participant.pendingCount > 0 && (
-                <View style={styles.pendingBadge}>
-                  <Text style={styles.pendingBadgeText}>{participant.pendingCount} {t('badge_pending_short') || 'pending'}</Text>
-                </View>
-              )}
-              {participant.awaitingDelivery > 0 && (
-                <View style={styles.deliveryBadge}>
-                  <Text style={styles.deliveryBadgeText}>{participant.awaitingDelivery} {t('badge_to_deliver_short') || 'to deliver'}</Text>
+            <View style={styles.participantNameRow}>
+              <Text style={styles.participantName}>
+                {participant.first_name} {participant.last_name}
+              </Text>
+              {(hasPending || hasDelivery) && (
+                <View style={styles.participantIndicators}>
+                  {hasPending && <View style={[styles.indicatorDot, styles.indicatorDotPending]} />}
+                  {hasDelivery && <View style={[styles.indicatorDot, styles.indicatorDotDelivery]} />}
                 </View>
               )}
             </View>
+            {participant.totem ? (
+              <Text style={styles.participantTotem}>{participant.totem}</Text>
+            ) : null}
           </View>
-          <View style={styles.participantActions}>
-            {permissions.canManage && (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => openAddStarModal(participant)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.addButtonText}>+</Text>
-              </TouchableOpacity>
-            )}
-            <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>
-          </View>
+          {renderBadgePreview(badgeGroups)}
+          <Text style={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</Text>
         </TouchableOpacity>
 
         {isExpanded && (
-          <View style={styles.badgesList}>
-            {participant.badges.length === 0 ? (
+          <View style={styles.badgeDetails}>
+            {badgeGroups.length === 0 ? (
               <Text style={styles.noBadgesText}>{t('badge_no_entries') || 'No badges yet'}</Text>
             ) : (
-              participant.badges.map(badge => (
-                <View key={badge.id} style={styles.badgeItem}>
-                  <View style={styles.badgeInfo}>
-                    <Text style={styles.badgeName}>
-                      {getTemplateName(badge.badge_template_id) || badge.territoire_chasse}
-                    </Text>
-                    <Text style={styles.badgeLevel}>
-                      {t('badge_level_label') || 'Level'} {badge.etoiles}
-                    </Text>
-                    {badge.star_type && (
-                      <Text style={styles.starType}>
-                        {badge.star_type === 'proie' ? t('badge_type_proie') || 'Individual' : t('badge_type_battue') || 'Group'}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={[
-                    styles.statusBadge,
-                    badge.status === 'approved' && styles.statusApproved,
-                    badge.status === 'pending' && styles.statusPending,
-                    badge.status === 'rejected' && styles.statusRejected,
-                  ]}>
-                    <Text style={styles.statusText}>
-                      {badge.status === 'approved' && badge.delivered_at
-                        ? t('badge_delivered') || 'Delivered'
-                        : t(`badge_status_${badge.status}`) || badge.status}
-                    </Text>
-                  </View>
-                </View>
-              ))
+              badgeGroups.map(group => renderBadgeCard(participant.id, group))
             )}
           </View>
         )}
@@ -542,50 +822,67 @@ const BadgeTrackerScreen = () => {
   };
 
   // Render pending approval item
-  const renderPendingItem = ({ item: badge }) => (
-    <Card style={styles.queueCard}>
-      <View style={styles.queueHeader}>
-        <Text style={styles.queueName}>{badge.participantName}</Text>
-        <Text style={styles.queueBadge}>{badge.templateName}</Text>
-      </View>
+  const renderPendingItem = ({ item: badge }) => {
+    const template = templateMap.get(badge.badge_template_id);
 
-      <View style={styles.queueDetails}>
-        <Text style={styles.queueLevel}>{t('badge_level_label') || 'Level'}: {badge.etoiles}</Text>
-        {badge.star_type && (
-          <Text style={styles.queueType}>
-            {badge.star_type === 'proie' ? t('badge_type_proie') || 'Individual' : t('badge_type_battue') || 'Group'}
-          </Text>
-        )}
-      </View>
+    return (
+      <Card style={styles.queueCard}>
+        <View style={styles.queueRow}>
+          <View style={styles.queueBadgeIcon}>
+            {renderBadgeImage(template, styles.queueBadgeImage, styles.queueBadgeFallback)}
+          </View>
+          <View style={styles.queueContent}>
+            <View style={styles.queueHeader}>
+              <Text style={styles.queueName}>{badge.participantName}</Text>
+              <Text style={styles.queueBadge}>{badge.templateName}</Text>
+            </View>
 
-      {badge.objectif && (
-        <Text style={styles.queueObjectif} numberOfLines={2}>
-          {t('badge_goal')}: {badge.objectif}
-        </Text>
-      )}
+            <View style={styles.queueDetails}>
+              <Text style={styles.queueLevel}>{t('badge_level_label') || 'Level'}: {badge.etoiles}</Text>
+              {badge.star_type && (
+                <View style={[
+                  styles.queueType,
+                  badge.star_type === 'proie' ? styles.queueTypeProie : styles.queueTypeBattue,
+                ]}>
+                  <Text style={styles.queueTypeText}>
+                    {badge.star_type === 'proie' ? t('badge_type_proie') || 'Proie' : t('badge_type_battue') || 'Battue'}
+                  </Text>
+                </View>
+              )}
+            </View>
 
-      <View style={styles.queueActions}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.approveButton]}
-          onPress={() => handleApprove(badge.id)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.actionButtonText}>{t('approve') || 'Approve'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.rejectButton]}
-          onPress={() => handleReject(badge.id)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.actionButtonText}>{t('reject') || 'Reject'}</Text>
-        </TouchableOpacity>
-      </View>
-    </Card>
-  );
+            {badge.objectif && (
+              <Text style={styles.queueObjectif} numberOfLines={2}>
+                {t('badge_goal')}: {badge.objectif}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.queueActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.approveButton]}
+            onPress={() => handleApprove(badge.id)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.actionButtonText}>{t('approve') || 'Approve'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.rejectButton]}
+            onPress={() => handleReject(badge.id)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.actionButtonText}>{t('reject') || 'Reject'}</Text>
+          </TouchableOpacity>
+        </View>
+      </Card>
+    );
+  };
 
   // Render delivery queue item
   const renderDeliveryItem = ({ item: badge }) => {
     const isSelected = selectedDeliveryItems.has(badge.id);
+    const template = templateMap.get(badge.badge_template_id);
 
     return (
       <Card style={[styles.queueCard, isSelected && styles.selectedCard]}>
@@ -598,12 +895,16 @@ const BadgeTrackerScreen = () => {
             {isSelected && <Text style={styles.checkmark}>✓</Text>}
           </View>
 
+          <View style={styles.queueBadgeIcon}>
+            {renderBadgeImage(template, styles.queueBadgeImage, styles.queueBadgeFallback)}
+          </View>
+
           <View style={styles.deliveryInfo}>
             <Text style={styles.queueName}>{badge.participantName}</Text>
             <Text style={styles.queueBadge}>{badge.templateName}</Text>
             <Text style={styles.queueLevel}>
               {t('badge_level_label') || 'Level'}: {badge.etoiles}
-              {badge.star_type && ` - ${badge.star_type === 'proie' ? t('badge_type_proie') || 'Individual' : t('badge_type_battue') || 'Group'}`}
+              {badge.star_type && ` • ${badge.star_type === 'proie' ? t('badge_type_proie') || 'Proie' : t('badge_type_battue') || 'Battue'}`}
             </Text>
             {badge.approval_date && (
               <Text style={styles.approvalDate}>
@@ -638,7 +939,7 @@ const BadgeTrackerScreen = () => {
             ListEmptyComponent={
               <EmptyState
                 icon="👤"
-                title={searchQuery ? t('no_search_results') || 'No results' : t('no_participants') || 'No participants'}
+                title={searchQuery ? t('no_results_found') || 'No results' : t('no_participants') || 'No participants'}
                 message={searchQuery ? t('try_different_search') || 'Try a different search' : t('no_participants_description') || 'Add participants to track badges'}
               />
             }
@@ -656,8 +957,8 @@ const BadgeTrackerScreen = () => {
             ListEmptyComponent={
               <EmptyState
                 icon="✓"
-                title={t('no_pending_badges') || 'No pending approvals'}
-                message={t('no_pending_badges_description') || 'All badges have been reviewed'}
+                title={t('badge_no_pending_approvals') || 'No pending approvals'}
+                message={t('badge_no_pending_approvals_description') || 'All badges have been reviewed'}
               />
             }
           />
@@ -692,19 +993,35 @@ const BadgeTrackerScreen = () => {
               keyExtractor={item => `delivery-${item.id}`}
               contentContainerStyle={styles.listContainer}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-              ListEmptyComponent={
-                <EmptyState
-                  icon="📦"
-                  title={t('no_delivery_pending') || 'No badges to deliver'}
-                  message={t('no_delivery_pending_description') || 'All approved badges have been delivered'}
-                />
-              }
-            />
+            ListEmptyComponent={
+              <EmptyState
+                icon="📦"
+                title={t('badge_no_delivery_pending') || 'No badges to deliver'}
+                message={t('badge_no_delivery_pending_description') || 'All approved badges have been delivered'}
+              />
+            }
+          />
           </>
         );
 
       default:
         return null;
+    }
+  };
+
+  const selectedParticipant = participants.find(p => p.id === starFormData.participantId) || null;
+  const selectedStarInfo = getNextStarInfo(starFormData.participantId, starFormData.templateId);
+
+  const handleDateChange = (event, selectedDate) => {
+    if (Platform.OS !== 'ios') {
+      setShowDatePicker(false);
+    }
+    if (event.type === 'dismissed') return;
+    if (selectedDate) {
+      setStarFormData(prev => ({
+        ...prev,
+        dateObtention: formatDate(selectedDate, 'YYYY-MM-DD'),
+      }));
     }
   };
 
@@ -718,6 +1035,8 @@ const BadgeTrackerScreen = () => {
 
   return (
     <View style={commonStyles.container}>
+      {renderHeader()}
+
       {/* Stats Summary */}
       {renderStats()}
 
@@ -729,7 +1048,7 @@ const BadgeTrackerScreen = () => {
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
-            placeholder={t('search_placeholder') || 'Search participants...'}
+            placeholder={t('badge_search_placeholder') || t('search_participants') || 'Search participants...'}
             placeholderTextColor={theme.colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -748,6 +1067,16 @@ const BadgeTrackerScreen = () => {
       {/* Content */}
       {renderContent()}
 
+      {permissions.canManage && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => openAddStarModal()}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.fabText}>＋</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Add Star Modal */}
       <Modal
         visible={addStarModalVisible}
@@ -755,105 +1084,218 @@ const BadgeTrackerScreen = () => {
         title={t('badge_add_star') || 'Add Star'}
         scrollable={true}
       >
-        {selectedParticipantForStar && (
-          <View style={styles.modalContent}>
-            <Text style={styles.modalParticipant}>
-              {selectedParticipantForStar.first_name} {selectedParticipantForStar.last_name}
-            </Text>
-
-            {/* Template Selection */}
-            <Text style={styles.inputLabel}>{t('badge_template') || 'Badge Type'}</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={starFormData.templateId}
-                onValueChange={(value) => setStarFormData(prev => ({ ...prev, templateId: value }))}
-                style={styles.picker}
-              >
-                {templates.map(template => (
-                  <Picker.Item key={template.id} label={template.name} value={template.id} />
-                ))}
-              </Picker>
-            </View>
-
-            {/* Level */}
-            <Text style={styles.inputLabel}>{t('badge_level_label') || 'Level'}</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={starFormData.level}
-                onValueChange={(value) => setStarFormData(prev => ({ ...prev, level: value }))}
-                style={styles.picker}
-              >
-                {[1, 2, 3, 4, 5].map(level => (
-                  <Picker.Item key={level} label={`${level}`} value={level} />
-                ))}
-              </Picker>
-            </View>
-
-            {/* Star Type */}
-            <Text style={styles.inputLabel}>{t('badge_star_type') || 'Star Type'}</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={starFormData.starType}
-                onValueChange={(value) => setStarFormData(prev => ({ ...prev, starType: value }))}
-                style={styles.picker}
-              >
-                <Picker.Item label={t('badge_type_proie') || 'Individual (Proie)'} value="proie" />
-                <Picker.Item label={t('badge_type_battue') || 'Group (Battue)'} value="battue" />
-              </Picker>
-            </View>
-
-            {/* Goal/Objective */}
-            <Text style={styles.inputLabel}>{t('badge_goal') || 'Goal/Objective'} *</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              placeholder={t('badge_goal_placeholder') || 'What did they achieve?'}
-              placeholderTextColor={theme.colors.textMuted}
-              value={starFormData.objectif}
-              onChangeText={(value) => setStarFormData(prev => ({ ...prev, objectif: value }))}
-              multiline
-              numberOfLines={3}
-            />
-
-            {/* Description */}
-            <Text style={styles.inputLabel}>{t('badge_description') || 'Description'}</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              placeholder={t('badge_description_placeholder') || 'Additional details...'}
-              placeholderTextColor={theme.colors.textMuted}
-              value={starFormData.description}
-              onChangeText={(value) => setStarFormData(prev => ({ ...prev, description: value }))}
-              multiline
-              numberOfLines={3}
-            />
-
-            {/* Pride/Achievement */}
-            <Text style={styles.inputLabel}>{t('badge_fierte') || 'Pride/Achievement'}</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              placeholder={t('badge_fierte_placeholder') || 'What are they most proud of?'}
-              placeholderTextColor={theme.colors.textMuted}
-              value={starFormData.fierte}
-              onChangeText={(value) => setStarFormData(prev => ({ ...prev, fierte: value }))}
-              multiline
-              numberOfLines={2}
-            />
-
-            {/* Submit Button */}
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handleSubmitStar}
-              activeOpacity={0.7}
+        <View style={styles.modalContent}>
+          <Text style={styles.inputLabel}>{t('participant') || 'Participant'}</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={starFormData.participantId}
+              onValueChange={(value) => setStarFormData(prev => ({ ...prev, participantId: value }))}
+              style={styles.picker}
             >
-              <Text style={styles.submitButtonText}>{t('badge_submit_for_approval') || 'Submit for Approval'}</Text>
+              <Picker.Item label={t('select') || 'Select...'} value="" />
+              {[...participants]
+                .sort((a, b) => a.first_name.localeCompare(b.first_name, 'fr'))
+                .map(participant => (
+                  <Picker.Item
+                    key={participant.id}
+                    label={`${participant.first_name} ${participant.last_name}`}
+                    value={participant.id}
+                  />
+                ))}
+            </Picker>
+          </View>
+
+          {selectedParticipant && (
+            <Text style={styles.modalParticipant}>
+              {selectedParticipant.first_name} {selectedParticipant.last_name}
+            </Text>
+          )}
+
+          <Text style={styles.inputLabel}>{t('badge_template') || t('badge') || 'Badge'}</Text>
+          <View style={styles.badgeSelector}>
+            {templates.map(template => {
+              const isSelected = Number(starFormData.templateId) === template.id;
+              return (
+                <TouchableOpacity
+                  key={template.id}
+                  style={[styles.badgeOption, isSelected && styles.badgeOptionSelected]}
+                  onPress={() => setStarFormData(prev => ({ ...prev, templateId: template.id }))}
+                  activeOpacity={0.8}
+                >
+                  {renderBadgeImage(template, styles.badgeOptionImage, styles.badgeOptionPlaceholder)}
+                  <Text style={styles.badgeOptionName}>{template.name.replace('comme ', '')}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {starFormData.participantId && starFormData.templateId && selectedStarInfo.maxStars && (
+            <View style={styles.starInfo}>
+              <Text style={styles.starInfoLabel}>{t('badge_star_label') || t('badge_star') || 'Star'}</Text>
+              <Text style={styles.starInfoValue}>
+                #{starFormData.level} {t('badge_star_of') || 'of'} {selectedStarInfo.maxStars}
+              </Text>
+            </View>
+          )}
+
+          <Text style={styles.inputLabel}>{t('badge_star_type') || 'Star Type'}</Text>
+          <View style={styles.typeSelector}>
+            <TouchableOpacity
+              style={[styles.typeOption, starFormData.starType === 'proie' && styles.typeOptionSelected]}
+              onPress={() => setStarFormData(prev => ({ ...prev, starType: 'proie' }))}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.typeOptionIcon}>🎯</Text>
+              <Text style={styles.typeOptionLabel}>{t('badge_type_proie') || 'Proie'}</Text>
+              <Text style={styles.typeOptionDesc}>{t('badge_type_proie_description') || t('individual') || 'Individuel'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.typeOption, starFormData.starType === 'battue' && styles.typeOptionSelected]}
+              onPress={() => setStarFormData(prev => ({ ...prev, starType: 'battue' }))}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.typeOptionIcon}>🐺</Text>
+              <Text style={styles.typeOptionLabel}>{t('badge_type_battue') || 'Battue'}</Text>
+              <Text style={styles.typeOptionDesc}>{t('badge_type_battue_description') || t('group') || 'Groupe'}</Text>
             </TouchableOpacity>
           </View>
-        )}
+
+          <Text style={styles.inputLabel}>{t('badge_date_label') || t('badge_date') || 'Date'}</Text>
+          <TouchableOpacity
+            style={styles.dateInput}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.dateInputText}>
+              {starFormData.dateObtention || t('badge_date_placeholder') || 'YYYY-MM-DD'}
+            </Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={starFormData.dateObtention ? new Date(`${starFormData.dateObtention}T00:00:00`) : new Date()}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={handleDateChange}
+            />
+          )}
+
+          <Text style={styles.inputLabel}>{t('badge_goal') || 'Goal/Objective'} *</Text>
+          <TextInput
+            style={[styles.textInput, styles.textArea]}
+            placeholder={t('badge_goal_placeholder') || 'What did they achieve?'}
+            placeholderTextColor={theme.colors.textMuted}
+            value={starFormData.objectif}
+            onChangeText={(value) => setStarFormData(prev => ({ ...prev, objectif: value }))}
+            multiline
+            numberOfLines={3}
+          />
+
+          <Text style={styles.inputLabel}>{t('badge_description') || 'Description'}</Text>
+          <TextInput
+            style={[styles.textInput, styles.textArea]}
+            placeholder={t('badge_description_placeholder') || 'Additional details...'}
+            placeholderTextColor={theme.colors.textMuted}
+            value={starFormData.description}
+            onChangeText={(value) => setStarFormData(prev => ({ ...prev, description: value }))}
+            multiline
+            numberOfLines={3}
+          />
+
+          <Text style={styles.inputLabel}>{t('badge_fierte') || 'Pride/Achievement'}</Text>
+          <TextInput
+            style={[styles.textInput, styles.textArea]}
+            placeholder={t('badge_fierte_placeholder') || 'What are they most proud of?'}
+            placeholderTextColor={theme.colors.textMuted}
+            value={starFormData.fierte}
+            onChangeText={(value) => setStarFormData(prev => ({ ...prev, fierte: value }))}
+            multiline
+            numberOfLines={2}
+          />
+
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmitStar}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.submitButtonText}>{t('badge_submit_for_approval') || 'Submit for Approval'}</Text>
+          </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  // Header
+  header: {
+    backgroundColor: theme.colors.primary,
+    padding: theme.spacing.lg,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
+    color: theme.colors.selectedText,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.selectedText,
+    opacity: 0.9,
+    marginTop: theme.spacing.xs,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  headerActionButton: {
+    width: theme.touchTarget.min,
+    height: theme.touchTarget.min,
+    borderRadius: theme.touchTarget.min / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionButtonActive: {
+    backgroundColor: theme.colors.selectedText,
+    borderColor: theme.colors.selectedText,
+  },
+  headerActionIcon: {
+    fontSize: theme.fontSize.lg,
+    color: theme.colors.selectedText,
+  },
+  headerActionIconActive: {
+    color: theme.colors.primary,
+  },
+  headerActionBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: theme.colors.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionBadgeText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.selectedText,
+    fontWeight: theme.fontWeight.bold,
+  },
+  headerActionBadgeWarning: {
+    backgroundColor: theme.colors.warning,
+  },
+  headerActionBadgeInfo: {
+    backgroundColor: theme.colors.info,
+  },
+
   // Stats
   statsContainer: {
     flexDirection: 'row',
@@ -954,79 +1396,138 @@ const styles = StyleSheet.create({
   },
   participantHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  participantAvatar: {
+    width: theme.touchTarget.min,
+    height: theme.touchTarget.min,
+    borderRadius: theme.touchTarget.min / 2,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  participantAvatarText: {
+    color: theme.colors.selectedText,
+    fontWeight: theme.fontWeight.bold,
+    fontSize: theme.fontSize.base,
   },
   participantInfo: {
     flex: 1,
   },
-  participantName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.bold,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  participantStats: {
+  participantNameRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
     flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    alignItems: 'center',
   },
-  starCount: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.warning,
+  participantName: {
+    fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
   },
-  pendingBadge: {
-    backgroundColor: theme.colors.warning,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.full,
-  },
-  pendingBadgeText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.selectedText,
-  },
-  deliveryBadge: {
-    backgroundColor: theme.colors.info,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.full,
-  },
-  deliveryBadgeText: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.selectedText,
-  },
-  participantActions: {
+  participantIndicators: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+  indicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  addButtonText: {
-    fontSize: theme.fontSize.xl,
-    color: theme.colors.selectedText,
-    fontWeight: theme.fontWeight.bold,
+  indicatorDotPending: {
+    backgroundColor: theme.colors.warning,
+  },
+  indicatorDotDelivery: {
+    backgroundColor: theme.colors.info,
+  },
+  participantTotem: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
+    fontStyle: 'italic',
   },
   expandIcon: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.textMuted,
-    marginLeft: theme.spacing.sm,
   },
 
-  // Badges List
-  badgesList: {
+  // Badge preview
+  badgePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  badgeImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.sm,
+  },
+  badgeImageFallbackText: {
+    fontSize: theme.fontSize.lg,
+  },
+  badgePreviewItem: {
+    width: 36,
+    height: 36,
+    position: 'relative',
+  },
+  badgePreviewImage: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.borderRadius.sm,
+  },
+  badgePreviewStars: {
+    position: 'absolute',
+    bottom: -4,
+    left: '50%',
+    transform: [{ translateX: -14 }],
+    flexDirection: 'row',
+    gap: 1,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 999,
+  },
+  badgePreviewStar: {
+    fontSize: 8,
+    color: theme.colors.warning,
+  },
+  badgePreviewStarPending: {
+    color: theme.colors.warning,
+  },
+  badgePreviewStarEmpty: {
+    color: theme.colors.border,
+  },
+  badgePreviewDeliveryIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.info,
+    borderWidth: 2,
+    borderColor: theme.colors.surface,
+  },
+  badgePreviewMore: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  badgePreviewMoreText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+    fontWeight: theme.fontWeight.semibold,
+  },
+
+  // Badge Details
+  badgeDetails: {
     marginTop: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
   },
   noBadgesText: {
     fontSize: theme.fontSize.sm,
@@ -1035,56 +1536,174 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: theme.spacing.md,
   },
-  badgeItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+
+  // Badge cards
+  badgeCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.sm,
   },
-  badgeInfo: {
+  badgeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  badgeCardImageContainer: {
+    width: 56,
+    height: 56,
+  },
+  badgeCardImage: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.borderRadius.sm,
+  },
+  badgeCardInfo: {
     flex: 1,
   },
-  badgeName: {
+  badgeCardTitle: {
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.semibold,
     color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
-  badgeLevel: {
+  badgeCardProgress: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.textMuted,
   },
-  starType: {
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.info,
-    marginTop: 2,
+  starProgress: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
   },
-  statusBadge: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.border,
+  starSlot: {
+    flex: 1,
+    minWidth: 90,
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+    position: 'relative',
   },
-  statusApproved: {
-    backgroundColor: theme.colors.success,
+  starSlotDelivered: {
+    borderColor: theme.colors.info,
+    backgroundColor: '#E3F2FD',
   },
-  statusPending: {
-    backgroundColor: theme.colors.warning,
+  starSlotApproved: {
+    borderColor: theme.colors.warning,
+    backgroundColor: '#FFFBEB',
   },
-  statusRejected: {
-    backgroundColor: theme.colors.error,
+  starSlotPending: {
+    borderColor: theme.colors.warning,
+    borderStyle: 'dashed',
+    backgroundColor: '#FFF3E0',
   },
-  statusText: {
-    fontSize: theme.fontSize.xs,
+  starSlotIcon: {
+    fontSize: theme.fontSize.xl,
+    color: theme.colors.border,
+  },
+  starSlotIconFilled: {
+    color: theme.colors.warning,
+  },
+  starSlotIconPending: {
+    color: theme.colors.warning,
+  },
+  starSlotDeliveryBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: theme.colors.info,
     color: theme.colors.selectedText,
+    textAlign: 'center',
+    fontSize: theme.fontSize.xs,
+    lineHeight: 20,
+  },
+  starSlotType: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+  },
+  starSlotTypeProie: {
+    backgroundColor: '#EEF2FF',
+  },
+  starSlotTypeBattue: {
+    backgroundColor: '#ECFDF5',
+  },
+  starSlotTypeText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.text,
+  },
+  starSlotStatus: {
+    fontSize: theme.fontSize.xs,
     fontWeight: theme.fontWeight.semibold,
-    textTransform: 'capitalize',
+    textTransform: 'uppercase',
+  },
+  starSlotStatusPending: {
+    color: theme.colors.warning,
+  },
+  starSlotStatusDelivery: {
+    color: theme.colors.info,
+  },
+  starSlotDate: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+  },
+  addStarSlot: {
+    flex: 1,
+    minWidth: 90,
+    padding: theme.spacing.sm,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    borderStyle: 'dashed',
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addStarSlotDisabled: {
+    opacity: 0.5,
+  },
+  addStarSlotText: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.textMuted,
   },
 
   // Queue Cards
   queueCard: {
     marginBottom: theme.spacing.md,
+  },
+  queueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  queueBadgeIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  queueBadgeImage: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.sm,
+  },
+  queueBadgeFallback: {
+    width: 48,
+    height: 48,
+  },
+  queueContent: {
+    flex: 1,
   },
   queueHeader: {
     marginBottom: theme.spacing.sm,
@@ -1102,14 +1721,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.md,
     marginBottom: theme.spacing.sm,
+    alignItems: 'center',
   },
   queueLevel: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.textMuted,
   },
   queueType: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.info,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.full,
+  },
+  queueTypeText: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.text,
+  },
+  queueTypeProie: {
+    backgroundColor: '#EEF2FF',
+  },
+  queueTypeBattue: {
+    backgroundColor: '#ECFDF5',
   },
   queueObjectif: {
     fontSize: theme.fontSize.sm,
@@ -1146,6 +1777,7 @@ const styles = StyleSheet.create({
   deliveryRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   checkbox: {
     width: 24,
@@ -1242,6 +1874,104 @@ const styles = StyleSheet.create({
     height: 50,
     color: theme.colors.text,
   },
+  badgeSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  badgeOption: {
+    width: '30%',
+    alignItems: 'center',
+    padding: theme.spacing.sm,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface,
+  },
+  badgeOptionSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.background,
+  },
+  badgeOptionImage: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.sm,
+  },
+  badgeOptionPlaceholder: {
+    width: 48,
+    height: 48,
+  },
+  badgeOptionName: {
+    fontSize: theme.fontSize.xs,
+    textAlign: 'center',
+    color: theme.colors.text,
+    marginTop: theme.spacing.xs,
+  },
+  starInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  starInfoLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+  },
+  starInfoValue: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.primary,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  typeOption: {
+    flex: 1,
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface,
+  },
+  typeOptionSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.background,
+  },
+  typeOptionIcon: {
+    fontSize: theme.fontSize.xl,
+  },
+  typeOptionLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+    marginTop: theme.spacing.xs,
+  },
+  typeOptionDesc: {
+    fontSize: theme.fontSize.xs,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  dateInput: {
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  dateInputText: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.text,
+  },
   textInput: {
     backgroundColor: theme.colors.background,
     borderRadius: theme.borderRadius.sm,
@@ -1267,6 +1997,27 @@ const styles = StyleSheet.create({
     color: theme.colors.selectedText,
     fontWeight: theme.fontWeight.bold,
     fontSize: theme.fontSize.base,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: theme.spacing.lg,
+    right: theme.spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  fabText: {
+    color: theme.colors.selectedText,
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.bold,
   },
 });
 
