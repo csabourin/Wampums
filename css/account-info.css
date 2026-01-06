@@ -304,3 +304,268 @@ h1 {
     transition: none;
   }
 }
+
+/* ============================================
+   SETTINGS PAGE SPECIFIC STYLES
+   ============================================ */
+
+/* Settings page container */
+.settings-page {
+  padding: 16px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.settings-header {
+  margin-bottom: 24px;
+}
+
+.settings-header h1 {
+  font-size: 1.75rem;
+  color: #333;
+  font-weight: 700;
+  margin: 8px 0 0 0;
+}
+
+/* Profile Summary Card */
+.profile-summary {
+  margin-bottom: 24px;
+}
+
+.profile-card {
+  text-align: center;
+  padding: 24px;
+}
+
+.profile-name {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.profile-role {
+  font-size: 0.95rem;
+  color: #666;
+  text-transform: capitalize;
+}
+
+/* Language Selector */
+.language-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.language-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #fff;
+  border: 2px solid #e5e5ea;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1rem;
+  min-height: 56px;
+  width: 100%;
+  text-align: left;
+}
+
+.language-option:hover {
+  border-color: #4c65ae;
+  background-color: #f8f9fa;
+}
+
+.language-option.active {
+  border-color: #4c65ae;
+  background-color: #e8f0fe;
+}
+
+.language-label {
+  font-weight: 500;
+  color: #333;
+}
+
+.language-option .checkmark {
+  font-size: 1.25rem;
+  color: #4c65ae;
+  font-weight: bold;
+}
+
+/* Setting Row (for toggles) */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+}
+
+.setting-label {
+  font-weight: 500;
+  color: #333;
+  font-size: 1rem;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 51px;
+  height: 31px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 31px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 23px;
+  width: 23px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #34c759;
+}
+
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: 0 0 1px #34c759;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+
+/* Danger button (logout) */
+.btn-danger {
+  background-color: #dc3545;
+  color: #fff;
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  min-height: 44px;
+  text-align: center;
+}
+
+.btn-danger:hover {
+  background-color: #c82333;
+}
+
+.btn-danger:active {
+  transform: scale(0.98);
+}
+
+/* Settings Footer */
+.settings-footer {
+  text-align: center;
+  padding: 32px 16px;
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.settings-footer p {
+  margin: 0;
+}
+
+/* Form helper text */
+.form-text {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+/* Tel input styling */
+.form-group input[type="tel"] {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease;
+  min-height: 44px;
+}
+
+.form-group input[type="tel"]:focus {
+  outline: none;
+  border-color: #4c65ae;
+  box-shadow: 0 0 0 3px rgba(76, 101, 174, 0.1);
+}
+
+/* Checkbox styling for guardian form */
+.form-group input[type="checkbox"] {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.form-group label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* ============================================
+   TABLET/DESKTOP ENHANCEMENTS (768px+)
+   ============================================ */
+
+@media (min-width: 768px) {
+  .settings-page {
+    padding: 32px;
+  }
+
+  .settings-header h1 {
+    font-size: 2.25rem;
+  }
+
+  .profile-card {
+    padding: 32px;
+  }
+
+  .profile-name {
+    font-size: 1.75rem;
+  }
+
+  .language-selector {
+    max-width: 500px;
+  }
+
+  .btn-danger {
+    width: auto;
+    min-width: 200px;
+  }
+
+  .settings-footer {
+    padding: 48px 16px;
+  }
+}

@@ -854,6 +854,10 @@ export class Router {
       this.app.isLoggedIn = false;
       this.app.userRole = null;
       this.app.userFullName = null;
+
+      // Remove settings icon
+      this.app.removeSettingsIcon();
+
       history.pushState(null, "", "/login");
       await this.loadLoginPage();
     } catch (error) {
