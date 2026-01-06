@@ -305,26 +305,57 @@ module.exports = (pool, logger) => {
           });
         }
 
-        const result = await client.query(
-          `INSERT INTO badge_progress
-           (participant_id, organization_id, badge_template_id, territoire_chasse, section, objectif, description, fierte, raison, date_obtention, etoiles, status, star_type)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12)
-           RETURNING *`,
-          [
-            participant_id,
-            organizationId,
-            template.id,
-            template.name,
-            template.section || participantSection || 'general',
-            objectif,
-            description,
-            fierte || false,
-            raison,
-            date_obtention,
-            nextLevel,
-            validStarType
-          ]
+        // Check if star_type column exists
+        const columnCheck = await client.query(
+          `SELECT column_name FROM information_schema.columns
+           WHERE table_name = 'badge_progress' AND column_name = 'star_type'`
         );
+        const hasStarType = columnCheck.rows.length > 0;
+
+        let result;
+        if (hasStarType) {
+          result = await client.query(
+            `INSERT INTO badge_progress
+             (participant_id, organization_id, badge_template_id, territoire_chasse, section, objectif, description, fierte, raison, date_obtention, etoiles, status, star_type)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending', $12)
+             RETURNING *`,
+            [
+              participant_id,
+              organizationId,
+              template.id,
+              template.name,
+              template.section || participantSection || 'general',
+              objectif,
+              description,
+              fierte || false,
+              raison,
+              date_obtention,
+              nextLevel,
+              validStarType
+            ]
+          );
+        } else {
+          // Fallback without star_type column
+          result = await client.query(
+            `INSERT INTO badge_progress
+             (participant_id, organization_id, badge_template_id, territoire_chasse, section, objectif, description, fierte, raison, date_obtention, etoiles, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
+             RETURNING *`,
+            [
+              participant_id,
+              organizationId,
+              template.id,
+              template.name,
+              template.section || participantSection || 'general',
+              objectif,
+              description,
+              fierte || false,
+              raison,
+              date_obtention,
+              nextLevel
+            ]
+          );
+        }
 
         await client.query('COMMIT');
         const inserted = {
@@ -973,8 +1004,40 @@ module.exports = (pool, logger) => {
   router.get('/badges-awaiting-delivery', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
+      // Check if delivered_at column exists
+      let hasDeliveredAt = false;
+      try {
+        const columnCheck = await pool.query(
+          `SELECT column_name FROM information_schema.columns
+           WHERE table_name = 'badge_progress' AND column_name = 'delivered_at'`
+        );
+        hasDeliveredAt = columnCheck.rows.length > 0;
+      } catch (err) {
+        console.log('[badges-awaiting-delivery] Could not check for delivered_at column:', err.message);
+      }
+
+      if (!hasDeliveredAt) {
+        // If column doesn't exist, return empty array (migration needs to be run)
+        return res.json({ success: true, data: [], message: 'Delivery tracking not enabled. Run migrations.' });
+      }
+
       const result = await pool.query(
-        `SELECT bp.*,
+        `SELECT bp.id,
+                bp.participant_id,
+                bp.badge_template_id,
+                bp.territoire_chasse,
+                bp.objectif,
+                bp.description,
+                bp.fierte,
+                bp.raison,
+                bp.date_obtention,
+                bp.etoiles,
+                bp.status,
+                bp.approval_date,
+                bp.section,
+                bp.organization_id,
+                bp.delivered_at,
+                bp.star_type,
                 p.first_name,
                 p.last_name,
                 p.totem,
@@ -987,7 +1050,7 @@ module.exports = (pool, logger) => {
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
          JOIN participants p ON bp.participant_id = p.id
-         JOIN badge_templates bt ON bp.badge_template_id = bt.id
+         LEFT JOIN badge_templates bt ON bp.badge_template_id = bt.id
          WHERE bp.organization_id = $1
            AND bp.status = 'approved'
            AND bp.delivered_at IS NULL
@@ -1032,6 +1095,16 @@ module.exports = (pool, logger) => {
 
       if (!badge_id) {
         return res.status(400).json({ success: false, message: 'Badge ID is required' });
+      }
+
+      // Check if delivered_at column exists
+      const columnCheck = await pool.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_name = 'badge_progress' AND column_name = 'delivered_at'`
+      );
+
+      if (columnCheck.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Delivery tracking not enabled. Run migrations.' });
       }
 
       const result = await pool.query(
@@ -1086,6 +1159,16 @@ module.exports = (pool, logger) => {
         return res.status(400).json({ success: false, message: 'Badge IDs array is required' });
       }
 
+      // Check if delivered_at column exists
+      const columnCheck = await pool.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_name = 'badge_progress' AND column_name = 'delivered_at'`
+      );
+
+      if (columnCheck.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Delivery tracking not enabled. Run migrations.' });
+      }
+
       const result = await pool.query(
         `UPDATE badge_progress
          SET delivered_at = NOW()
@@ -1118,9 +1201,38 @@ module.exports = (pool, logger) => {
   router.get('/badge-tracker-summary', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
+      // Check if new columns exist (migration may not have been run yet)
+      let hasNewColumns = false;
+      try {
+        const columnCheck = await pool.query(
+          `SELECT column_name FROM information_schema.columns
+           WHERE table_name = 'badge_progress' AND column_name = 'delivered_at'`
+        );
+        hasNewColumns = columnCheck.rows.length > 0;
+      } catch (err) {
+        console.log('[badge-tracker-summary] Could not check for new columns:', err.message);
+      }
+
       // Get all badge progress with participant and template info
-      const badgesResult = await pool.query(
-        `SELECT bp.*,
+      // Use LEFT JOIN for badge_templates since some badges may not have a template (legacy data)
+      let badgesQuery;
+      if (hasNewColumns) {
+        badgesQuery = `SELECT bp.id,
+                bp.participant_id,
+                bp.badge_template_id,
+                bp.territoire_chasse,
+                bp.objectif,
+                bp.description,
+                bp.fierte,
+                bp.raison,
+                bp.date_obtention,
+                bp.etoiles,
+                bp.status,
+                bp.approval_date,
+                bp.section,
+                bp.organization_id,
+                bp.delivered_at,
+                bp.star_type,
                 p.first_name,
                 p.last_name,
                 p.totem,
@@ -1133,11 +1245,45 @@ module.exports = (pool, logger) => {
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
          JOIN participants p ON bp.participant_id = p.id
-         JOIN badge_templates bt ON bp.badge_template_id = bt.id
+         LEFT JOIN badge_templates bt ON bp.badge_template_id = bt.id
          WHERE bp.organization_id = $1
-         ORDER BY p.first_name, p.last_name, bt.name, bp.etoiles`,
-        [organizationId]
-      );
+         ORDER BY p.first_name, p.last_name, COALESCE(bt.name, bp.territoire_chasse), bp.etoiles`;
+      } else {
+        // Fallback query without new columns
+        badgesQuery = `SELECT bp.id,
+                bp.participant_id,
+                bp.badge_template_id,
+                bp.territoire_chasse,
+                bp.objectif,
+                bp.description,
+                bp.fierte,
+                bp.raison,
+                bp.date_obtention,
+                bp.etoiles,
+                bp.status,
+                bp.approval_date,
+                bp.section,
+                bp.organization_id,
+                NULL::timestamp AS delivered_at,
+                'proie'::text AS star_type,
+                p.first_name,
+                p.last_name,
+                p.totem,
+                bt.name AS badge_name,
+                bt.template_key,
+                bt.translation_key,
+                bt.section AS badge_section,
+                bt.level_count,
+                bt.image,
+                COALESCE(bt.levels, '[]'::jsonb) AS template_levels
+         FROM badge_progress bp
+         JOIN participants p ON bp.participant_id = p.id
+         LEFT JOIN badge_templates bt ON bp.badge_template_id = bt.id
+         WHERE bp.organization_id = $1
+         ORDER BY p.first_name, p.last_name, COALESCE(bt.name, bp.territoire_chasse), bp.etoiles`;
+      }
+
+      const badgesResult = await pool.query(badgesQuery, [organizationId]);
 
       // Get templates for the organization
       const templatesResult = await pool.query(
