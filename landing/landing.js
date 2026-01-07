@@ -10,41 +10,41 @@ const translations = {
 		badge1: "Planification mobile-first",
 		badge2: "Suivi badges et présences",
 		badge3: "Parents connectés",
-                cta_primary: "Voir une démo",
-                cta_secondary: "Découvrir les fonctions",
-                card_title: "Tout-en-un pour votre groupe",
-                card_subtitle:
-                        "Suivi des membres, activités, badges, documents et sécurité.",
-                stat1_label: "Réunions prêtes",
-                stat2_label: "Présences tracées",
-                stat3_label: "Parents informés",
+		cta_primary: "Voir une démo",
+		cta_secondary: "Découvrir les fonctions",
+		card_title: "Tout-en-un pour votre groupe",
+		card_subtitle:
+			"Suivi des membres, activités, badges, documents et sécurité.",
+		stat1_label: "Réunions prêtes",
+		stat2_label: "Présences tracées",
+		stat3_label: "Parents informés",
 
-                // Solutions
-                solutions_title: "Une trousse complète pour vos opérations",
-                solutions_body:
-                        "Préparez, animez et suivez vos rencontres avec des tableaux de bord clairs pour l’équipe et les parents.",
-                solution1_title: "Préparation hebdomadaire",
-                solution1_note: "Planification, équipes et rappels en quelques minutes.",
-                solution1_feature1: "Agenda partagé des réunions",
-                solution1_feature2: "Activités, objectifs et matériel",
-                solution1_feature3: "Assignations par groupe ou rôle",
-                solution1_feature4: "Rappels automatiques aux parents",
-                solution1_feature5: "Récupération des autorisations",
-                solution2_title: "Suivi terrain",
-                solution2_note: "Présences, progrès et ressources synchronisés sur mobile.",
-                solution2_feature1: "Badges, honneurs et points",
-                solution2_feature2: "Présences et observations en direct",
-                solution2_feature3: "Tableaux de bord ressources et réservations",
-                solution2_feature4: "Notifications et annonces ciblées",
-                solution2_feature5: "Documents et fiches santé centralisés",
-                solution3_title: "Vue direction",
-                solution3_note: "Indicateurs, budgets et conformité pour chaque organisation.",
-                solution3_feature1: "Rapports consolidés par groupe",
-                solution3_feature2: "Gestion des budgets et dépenses",
-                solution3_feature3: "Journal des communications et alertes",
-                solution3_feature4: "Exports sécurisés pour les conseils",
-                solution3_feature5: "Accès API et domaine personnalisé",
-                solution_cta: "Voir la démo",
+		// Solutions
+		solutions_title: "Une trousse complète pour vos opérations",
+		solutions_body:
+			"Préparez, animez et suivez vos rencontres avec des tableaux de bord clairs pour l’équipe et les parents.",
+		solution1_title: "Préparation hebdomadaire",
+		solution1_note: "Planification, équipes et rappels en quelques minutes.",
+		solution1_feature1: "Agenda partagé des réunions",
+		solution1_feature2: "Activités, objectifs et matériel",
+		solution1_feature3: "Assignations par groupe ou rôle",
+		solution1_feature4: "Rappels automatiques aux parents",
+		solution1_feature5: "Récupération des autorisations",
+		solution2_title: "Suivi terrain",
+		solution2_note: "Présences, progrès et ressources synchronisés sur mobile.",
+		solution2_feature1: "Badges, honneurs et points",
+		solution2_feature2: "Présences et observations en direct",
+		solution2_feature3: "Tableaux de bord ressources et réservations",
+		solution2_feature4: "Notifications et annonces ciblées",
+		solution2_feature5: "Documents et fiches santé centralisés",
+		solution3_title: "Vue direction",
+		solution3_note: "Indicateurs, budgets et conformité pour chaque organisation.",
+		solution3_feature1: "Rapports consolidés par groupe",
+		solution3_feature2: "Gestion des budgets et dépenses",
+		solution3_feature3: "Journal des communications et alertes",
+		solution3_feature4: "Exports sécurisés pour les conseils",
+		solution3_feature5: "Accès API et domaine personnalisé",
+		solution_cta: "Voir la démo",
 
 		// Features
 		features_title: "Fonctions conçues pour les unités scoutes",
@@ -53,15 +53,15 @@ const translations = {
 		feature1_title: "Planification des rencontres",
 		feature1_body:
 			"Planifiez les activités hebdomadaires, matériaux et responsabilités, avec un calendrier partagé.",
-		feature2_title: "Présences et progression",
+		feature2_title: "Santé et sécurité",
 		feature2_body:
-			"Consignez les présences, les points et l'avancement des badges ou honneurs.",
-		feature3_title: "Communication aux parents",
+			"Gestion complète des médicaments (planification et distribution), fiches santé et acceptation des risques.",
+		feature3_title: "Logistique et inventaire",
 		feature3_body:
-			"Envoyez des nouvelles, rappels et documents pour que les familles restent alignées.",
-		feature4_title: "Gestion des rôles",
+			"Gérez le covoiturage, l'inventaire du matériel et les réservations de ressources.",
+		feature4_title: "Finances et levées de fonds",
 		feature4_body:
-			"Attribuez les rôles (district, responsables, parents) et sécurisez l'accès aux données.",
+			"Suivi des budgets, dépenses, ventes de calendriers et autres campagnes de financement.",
 		feature5_title: "Documents et consentements",
 		feature5_body:
 			"Stockez fiches santé, autorisations et rapports pour des activités conformes.",
@@ -88,8 +88,8 @@ const translations = {
 			"Consignez les observations pour le rapport de fin de rencontre.",
 		weekly_step3_title: "Après la réunion",
 		weekly_step3_item1: "Envoyez un compte rendu aux parents et à l'équipe.",
-                weekly_step3_item2:
-                        "Mettez à jour les inventaires, les budgets et les documents.",
+		weekly_step3_item2:
+			"Mettez à jour les inventaires, les budgets et les documents.",
 		weekly_step3_item3:
 			"Planifiez la prochaine rencontre à partir du modèle existant.",
 
@@ -106,19 +106,19 @@ const translations = {
 			"Gestion des autorisations, des rôles et des dossiers pour des activités sécuritaires.",
 
 		// FAQ
-                faq_title: "Questions fréquentes",
-                faq1_question: "Comment l’équipe reste-t-elle alignée chaque semaine?",
-                faq1_answer:
-                        "Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés.",
-                faq2_question: "Peut-on travailler en français et en anglais?",
-                faq2_answer:
-                        "Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptés aux réalités locales.",
-                faq3_question: "Comment l'équipe reste-t-elle alignée chaque semaine?",
-                faq3_answer:
-                        "Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés.",
-                faq4_question: "Mes données sont-elles sécurisées?",
-                faq4_answer:
-                        "Absolument. Nous utilisons le chiffrement SSL, des sauvegardes automatiques et respectons les normes de confidentialité canadiennes.",
+		faq_title: "Questions fréquentes",
+		faq1_question: "Comment l’équipe reste-t-elle alignée chaque semaine?",
+		faq1_answer:
+			"Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés.",
+		faq2_question: "Peut-on travailler en français et en anglais?",
+		faq2_answer:
+			"Oui. Les communications, formulaires et tableaux de bord sont bilingues et adaptés aux réalités locales.",
+		faq3_question: "Comment l'équipe reste-t-elle alignée chaque semaine?",
+		faq3_answer:
+			"Les préparations de réunions, rappels et tableaux de bord de ressources gardent les activités, le matériel et les autorisations synchronisés.",
+		faq4_question: "Mes données sont-elles sécurisées?",
+		faq4_answer:
+			"Absolument. Nous utilisons le chiffrement SSL, des sauvegardes automatiques et respectons les normes de confidentialité canadiennes.",
 
 		// CTA
 		cta_title: "Prêt à simplifier la gestion de votre groupe?",
@@ -155,61 +155,61 @@ const translations = {
 		badge1: "Mobile-first planning",
 		badge2: "Badge and attendance tracking",
 		badge3: "Parents stay informed",
-                cta_primary: "See a demo",
-                cta_secondary: "Explore features",
-                card_title: "All-in-one for your troop",
-                card_subtitle:
-                        "Track members, activities, badges, documents, and safety.",
-                stat1_label: "Meetings prepared",
-                stat2_label: "Attendance captured",
-                stat3_label: "Parents updated",
+		cta_primary: "See a demo",
+		cta_secondary: "Explore features",
+		card_title: "All-in-one for your troop",
+		card_subtitle:
+			"Track members, activities, badges, documents, and safety.",
+		stat1_label: "Meetings prepared",
+		stat2_label: "Attendance captured",
+		stat3_label: "Parents updated",
 
-                // Solutions
-                solutions_title: "Built for modern scout leadership",
-                solutions_body:
-                        "Prepare, deliver, and follow up on meetings with clear dashboards for leaders and families.",
-                solution1_title: "Weekly prep",
-                solution1_note: "Plan activities, teams, and reminders in minutes.",
-                solution1_feature1: "Shared meeting calendar",
-                solution1_feature2: "Activities, goals, and materials",
-                solution1_feature3: "Assignments by group or role",
-                solution1_feature4: "Automatic parent reminders",
-                solution1_feature5: "Permission collection",
-                solution2_title: "On-the-ground tracking",
-                solution2_note: "Attendance, progress, and resources synced on mobile.",
-                solution2_feature1: "Badges, honors, and points",
-                solution2_feature2: "Live attendance and observations",
-                solution2_feature3: "Resource and reservation dashboards",
-                solution2_feature4: "Targeted notifications and announcements",
-                solution2_feature5: "Centralized documents and health forms",
-                solution3_title: "Leadership view",
-                solution3_note: "Insights, budgets, and compliance for every organization.",
-                solution3_feature1: "Consolidated group reporting",
-                solution3_feature2: "Budgeting and expense tracking",
-                solution3_feature3: "Communication journal and alerts",
-                solution3_feature4: "Secure exports for councils",
-                solution3_feature5: "API access and custom domains",
-                solution_cta: "View demo",
+		// Solutions
+		solutions_title: "Built for modern scout leadership",
+		solutions_body:
+			"Prepare, deliver, and follow up on meetings with clear dashboards for leaders and families.",
+		solution1_title: "Weekly prep",
+		solution1_note: "Plan activities, teams, and reminders in minutes.",
+		solution1_feature1: "Shared meeting calendar",
+		solution1_feature2: "Activities, goals, and materials",
+		solution1_feature3: "Assignments by group or role",
+		solution1_feature4: "Automatic parent reminders",
+		solution1_feature5: "Permission collection",
+		solution2_title: "On-the-ground tracking",
+		solution2_note: "Attendance, progress, and resources synced on mobile.",
+		solution2_feature1: "Badges, honors, and points",
+		solution2_feature2: "Live attendance and observations",
+		solution2_feature3: "Resource and reservation dashboards",
+		solution2_feature4: "Targeted notifications and announcements",
+		solution2_feature5: "Centralized documents and health forms",
+		solution3_title: "Leadership view",
+		solution3_note: "Insights, budgets, and compliance for every organization.",
+		solution3_feature1: "Consolidated group reporting",
+		solution3_feature2: "Budgeting and expense tracking",
+		solution3_feature3: "Communication journal and alerts",
+		solution3_feature4: "Secure exports for councils",
+		solution3_feature5: "API access and custom domains",
+		solution_cta: "View demo",
 
 		// Features
 		features_title: "Built for weekly scout units",
 		features_body:
 			"Every module fits real-world leadership needs: quick prep, clear follow-up, and tight parent collaboration.",
-		feature1_title: "Meeting planning",
+		feature1_title: "Meeting all-in-one",
 		feature1_body:
-			"Schedule weekly activities, materials, and responsibilities with a shared calendar.",
-		feature2_title: "Attendance & advancement",
-		feature2_body: "Record attendance, points, and badge or honor progress.",
-		feature3_title: "Parent communications",
+			"Schedule weekly activities, materials, attendance and badge progress in one place.",
+		feature2_title: "Health & Safety",
+		feature2_body: "Complete medication management (planning & logs), health forms, and risk acceptance tracking.",
+		feature3_title: "Logistics & Inventory",
 		feature3_body:
-			"Send updates, reminders, and documents so families stay aligned.",
-		feature4_title: "Role management",
+			"Coordinate carpooling, manage equipment inventory, and handle resource reservations.",
+		feature4_title: "Finance & Fundraising",
 		feature4_body:
-			"Assign roles (district, leaders, parents) and secure access to data.",
-		feature5_title: "Documents & consents",
+			"Track budgets, expenses, calendar sales, and other fundraising campaigns.",
+		feature5_title: "Documents & Consents",
 		feature5_body:
 			"Store health forms, permissions, and reports to keep activities compliant.",
-		feature6_title: "Reports & export",
+		feature6_title: "Reports & Export",
 		feature6_body:
 			"Generate reports on participation, advancement, and calendar sales.",
 
@@ -228,7 +228,7 @@ const translations = {
 		weekly_step2_item3: "Record observations for the end-of-meeting report.",
 		weekly_step3_title: "After the meeting",
 		weekly_step3_item1: "Share a recap with parents and the team.",
-                weekly_step3_item2: "Update inventories, budgets, and documents.",
+		weekly_step3_item2: "Update inventories, budgets, and documents.",
 		weekly_step3_item3: "Plan the next gathering using the existing template.",
 
 		// Benefits
@@ -244,19 +244,19 @@ const translations = {
 			"Manage permissions, roles, and records to keep activities safe.",
 
 		// FAQ
-                faq_title: "Frequently asked questions",
-                faq1_question: "How does the team stay aligned each week?",
-                faq1_answer:
-                        "Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync.",
-                faq2_question: "Can we work in English and French?",
-                faq2_answer:
-                        "Yes. Communications, forms, and dashboards are bilingual and tuned for local needs.",
-                faq3_question: "How does the team stay aligned each week?",
-                faq3_answer:
-                        "Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync.",
-                faq4_question: "Is my data secure?",
-                faq4_answer:
-                        "Absolutely. We use SSL encryption, automatic backups, and comply with Canadian privacy standards.",
+		faq_title: "Frequently asked questions",
+		faq1_question: "How does the team stay aligned each week?",
+		faq1_answer:
+			"Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync.",
+		faq2_question: "Can we work in English and French?",
+		faq2_answer:
+			"Yes. Communications, forms, and dashboards are bilingual and tuned for local needs.",
+		faq3_question: "How does the team stay aligned each week?",
+		faq3_answer:
+			"Meeting preparations, reminders, and resource dashboards keep activities, gear, and permissions in sync.",
+		faq4_question: "Is my data secure?",
+		faq4_answer:
+			"Absolutely. We use SSL encryption, automatic backups, and comply with Canadian privacy standards.",
 
 		// CTA
 		cta_title: "Ready to simplify your group management?",
@@ -445,24 +445,24 @@ demoForm.addEventListener("submit", async (e) => {
 			body: JSON.stringify(formData),
 		});
 
-                const data = await response.json();
+		const data = await response.json();
 
-                if (response.ok && data.success) {
-                        // Show success message
-                        formSuccess.classList.add("active");
-                        demoForm.style.display = "none";
+		if (response.ok && data.success) {
+			// Show success message
+			formSuccess.classList.add("active");
+			demoForm.style.display = "none";
 
-                        // Redirect to demo experience after a brief confirmation pause
-                        setTimeout(() => {
-                                window.location.href = "https://demo.wampums.app";
-                        }, 2000);
-                } else {
+			// Redirect to demo experience after a brief confirmation pause
+			setTimeout(() => {
+				window.location.href = "https://demo.wampums.app";
+			}, 2000);
+		} else {
 			// Show error
 			alert(
 				data.message ||
-					(savedLang === "fr"
-						? "Une erreur est survenue. Veuillez reessayer."
-						: "An error occurred. Please try again."),
+				(savedLang === "fr"
+					? "Une erreur est survenue. Veuillez reessayer."
+					: "An error occurred. Please try again."),
 			);
 			submitButton.disabled = false;
 			submitButton.textContent =
