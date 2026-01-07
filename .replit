@@ -9,7 +9,7 @@ channel = "stable-22_11"
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "api.js"]
-build = ["bash", "-c", "rm -rf node_modules && npm install --production"]
+build = ["npm", "ci", "--omit=dev"]
 
 [[ports]]
 localPort = 3000
