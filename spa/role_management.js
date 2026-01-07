@@ -10,7 +10,7 @@ import { app, translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { hasPermission, isDistrictAdmin } from './utils/PermissionUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { deleteCachedData } from './indexedDB.js';
 import {
   getUsers,
@@ -34,6 +34,9 @@ export class RoleManagement {
 
   async init() {
     debugLog('RoleManagement init started');
+
+    // Load page-specific CSS
+    await loadStylesheet("/css/role-management.css");
 
     // Check if user has permission to view roles
     if (!hasPermission('roles.view')) {

@@ -18,7 +18,7 @@ import { canManageCarpools, canViewCarpools, isParent } from './utils/Permission
 import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError } from './utils/DebugUtils.js';
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -37,6 +37,9 @@ export class CarpoolDashboard {
   }
 
   async init() {
+    // Load page-specific CSS
+    await loadStylesheet("/css/carpool.css");
+
     if (!this.hasCarpoolAccess) {
       this.app.router.navigate("/dashboard");
       return;
