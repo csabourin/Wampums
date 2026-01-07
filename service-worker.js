@@ -51,6 +51,13 @@ const staticImages = [
   "/assets/images/6eASt-Paul.png",
 ];
 
+// Font Awesome CDN resources for caching
+const fontAwesomeResources = [
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/solid.min.css",
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/fontawesome.min.css",
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.woff2",
+];
+
 // Requests that should never be cached to avoid stale metadata breaking updates
 const nonCacheablePaths = new Set([
   "/service-worker.js",
@@ -150,6 +157,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Handle Font Awesome CDN resources (cache-first for fast icon loading)
+  if (url.hostname === "cdnjs.cloudflare.com" && url.pathname.includes("font-awesome")) {
+    event.respondWith(handleFontAwesomeRequest(event.request));
+    return;
+  }
+
   // Special handling for images
   if (
     event.request.destination === "image" ||
@@ -202,6 +215,33 @@ self.addEventListener("fetch", (event) => {
 async function fetchNonCacheable(request) {
   await purgeNonCacheableEntries(request);
   return fetch(request, { cache: "no-store" });
+}
+
+/**
+ * Handle Font Awesome CDN requests with cache-first strategy.
+ * Caches CSS and font files for fast icon loading on subsequent visits.
+ */
+async function handleFontAwesomeRequest(request) {
+  const cache = await caches.open(STATIC_CACHE_NAME);
+  const cachedResponse = await cache.match(request);
+
+  if (cachedResponse) {
+    debugLog("Font Awesome resource served from cache:", request.url);
+    return cachedResponse;
+  }
+
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      // Clone and cache the response
+      cache.put(request, networkResponse.clone());
+      debugLog("Font Awesome resource cached:", request.url);
+    }
+    return networkResponse;
+  } catch (error) {
+    debugError("Failed to fetch Font Awesome resource:", error);
+    return new Response("Font resource not available", { status: 404 });
+  }
 }
 
 // Specialized image handling function

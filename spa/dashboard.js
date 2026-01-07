@@ -44,7 +44,8 @@ export class Dashboard {
 
   async init() {
     try {
-      this.applyIconFontLoadingStrategy();
+      // Font Awesome is preloaded in index.html with font-display: swap
+      // No additional loading strategy needed
 
       // Show loading skeleton immediately
       this.isLoading = true;
@@ -69,43 +70,6 @@ export class Dashboard {
       this.isLoading = false;
       this.renderError();
     }
-  }
-
-  /**
-   * Ensure Font Awesome icons use a non-blocking loading strategy.
-   *
-   * The override adds `font-display: swap` so icons fall back to system
-   * fonts until the CDN-delivered font finishes loading. Metric overrides
-   * keep the fallback glyph dimensions close to the final font to mitigate
-   * layout shifts when the icon font swaps in.
-   */
-  applyIconFontLoadingStrategy() {
-    const existingOverride = document.getElementById(
-      "fa-font-display-override",
-    );
-
-    if (existingOverride) {
-      return;
-    }
-
-    const style = document.createElement("style");
-    style.id = "fa-font-display-override";
-    style.textContent = `
-      @font-face {
-        font-family: "Font Awesome 6 Free";
-        font-style: normal;
-        font-weight: 900;
-        font-display: swap;
-        src: url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.woff2") format("woff2"),
-             url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.woff") format("woff");
-        ascent-override: 90%;
-        descent-override: 22%;
-        line-gap-override: 0%;
-        size-adjust: 92%;
-      }
-    `;
-
-    document.head.appendChild(style);
   }
 
   loadPointsCollapsedState() {

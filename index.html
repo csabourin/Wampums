@@ -38,6 +38,19 @@
         <link rel="preconnect" href="/public" crossorigin />
         <link rel="dns-prefetch" href="/public" />
 
+        <!-- Font Awesome CDN preconnect for faster icon loading -->
+        <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+        <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
+
+        <!-- Preload Font Awesome webfont for instant icon display -->
+        <link
+            rel="preload"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.woff2"
+            as="font"
+            type="font/woff2"
+            crossorigin="anonymous"
+        />
+
         <!-- Favicons -->
         <link
             rel="icon"
@@ -162,23 +175,20 @@
             <link rel="stylesheet" href="/css/account-info.css" />
             <link rel="stylesheet" href="/css/role-management.css" />
         </noscript>
-        <!-- FontAwesome loaded asynchronously -->
+        <!-- FontAwesome - using solid.min.css for smaller bundle (only solid icons used) -->
         <link
-            rel="preload"
-            as="style"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/solid.min.css"
             crossorigin="anonymous"
             referrerpolicy="no-referrer"
-            onload="this.rel='stylesheet'"
         />
-        <noscript>
-            <link
-                rel="stylesheet"
-                href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
-                crossorigin="anonymous"
-                referrerpolicy="no-referrer"
-            />
-        </noscript>
+        <!-- FontAwesome base styles (required for icon sizing/spacing) -->
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/fontawesome.min.css"
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+        />
 
         <!-- Import Map for ES Modules -->
         <script type="importmap">
