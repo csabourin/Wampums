@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "2.7.2";
+const APP_VERSION = "2.7.3";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
@@ -158,7 +158,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Handle Font Awesome CDN resources (cache-first for fast icon loading)
-  if (url.hostname === "cdnjs.cloudflare.com" && url.pathname.includes("font-awesome")) {
+  if (
+    url.hostname === "cdnjs.cloudflare.com" &&
+    url.pathname.includes("font-awesome")
+  ) {
     event.respondWith(handleFontAwesomeRequest(event.request));
     return;
   }
