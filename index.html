@@ -51,6 +51,12 @@
             crossorigin="anonymous"
         />
 
+        <!-- Prefetch top dashboard modules for instant navigation -->
+        <link rel="modulepreload" href="/spa/manage_points.js" />
+        <link rel="modulepreload" href="/spa/manage_honors.js" />
+        <link rel="modulepreload" href="/spa/attendance.js" />
+        <link rel="modulepreload" href="/spa/upcoming_meeting.js" />
+
         <!-- Favicons -->
         <link
             rel="icon"
@@ -151,30 +157,10 @@
         <!-- Stylesheets - optimized for performance -->
         <!-- Critical CSS loaded first (main styles) -->
         <link rel="stylesheet" href="/css/styles.css" />
-        <!-- Non-critical CSS loaded with low priority -->
-        <link
-            rel="preload"
-            href="/css/carpool.css"
-            as="style"
-            onload="this.rel='stylesheet'"
-        />
-        <link
-            rel="preload"
-            href="/css/account-info.css"
-            as="style"
-            onload="this.rel='stylesheet'"
-        />
-        <link
-            rel="preload"
-            href="/css/role-management.css"
-            as="style"
-            onload="this.rel='stylesheet'"
-        />
-        <noscript>
-            <link rel="stylesheet" href="/css/carpool.css" />
-            <link rel="stylesheet" href="/css/account-info.css" />
-            <link rel="stylesheet" href="/css/role-management.css" />
-        </noscript>
+
+        <!-- Page-specific CSS loaded on-demand by their modules -->
+        <!-- Removed preload with onload handlers due to CSP restrictions -->
+
         <!-- FontAwesome - using solid.min.css for smaller bundle (only solid icons used) -->
         <link
             rel="stylesheet"

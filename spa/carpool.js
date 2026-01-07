@@ -1,6 +1,6 @@
 import { translate } from "./app.js";
 import { debugError } from "./utils/DebugUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
+import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 
 /**
@@ -22,6 +22,8 @@ export class CarpoolLanding {
    * @returns {Promise<void>}
    */
   async init() {
+    // Load page-specific CSS
+    await loadStylesheet("/css/carpool.css");
     this.render();
     this.attachEventListeners();
   }

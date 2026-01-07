@@ -12,7 +12,7 @@ import { debugLog, debugError } from "../utils/DebugUtils.js";
 import { translate, app as appInstance } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { isParent } from "../utils/PermissionUtils.js";
-import { setContent } from "../utils/DOMUtils.js";
+import { setContent, loadStylesheet } from "../utils/DOMUtils.js";
 import { getStorage, setStorage } from "../utils/StorageUtils.js";
 
 /**
@@ -36,6 +36,10 @@ export class AccountInfoModule {
    */
   async init() {
     debugLog("Initializing Settings Module");
+
+    // Load page-specific CSS
+    await loadStylesheet("/css/account-info.css");
+
     try {
       this.isParent = isParent();
 

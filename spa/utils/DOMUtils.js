@@ -314,6 +314,52 @@ export function scrollToElement(element, options = {}) {
 }
 
 /**
+ * Dynamically load a CSS stylesheet
+ *
+ * Loads a stylesheet file if not already loaded. Uses a cache to prevent
+ * duplicate loading.
+ *
+ * @param {string} href - Path to the CSS file
+ * @returns {Promise<void>} Resolves when stylesheet is loaded
+ *
+ * @example
+ * import { loadStylesheet } from './utils/DOMUtils.js';
+ * await loadStylesheet('/css/carpool.css');
+ */
+const loadedStylesheets = new Set();
+
+export function loadStylesheet(href) {
+  // Already loaded
+  if (loadedStylesheets.has(href)) {
+    return Promise.resolve();
+  }
+
+  // Check if already in DOM (e.g., from previous page load)
+  const existing = document.querySelector(`link[href="${href}"]`);
+  if (existing) {
+    loadedStylesheets.add(href);
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+
+    link.onload = () => {
+      loadedStylesheets.add(href);
+      resolve();
+    };
+
+    link.onerror = () => {
+      reject(new Error(`Failed to load stylesheet: ${href}`));
+    };
+
+    document.head.appendChild(link);
+  });
+}
+
+/**
  * Default export with all functions
  */
 export default {
@@ -326,5 +372,6 @@ export default {
   createFragment,
   insertHTML,
   isInViewport,
-  scrollToElement
+  scrollToElement,
+  loadStylesheet
 };
