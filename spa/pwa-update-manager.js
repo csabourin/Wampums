@@ -101,8 +101,14 @@ class PWAUpdateManager {
         navigator.serviceWorker.addEventListener("controllerchange", () => {
             // Only reload if we expected an update
             if (this.updateAccepted) {
-                // Hard reload to bypass browser cache completely
-                window.location.reload(true);
+                // Show reloading state before reload
+                this.updateProgress("reloading");
+
+                // Give a moment for UI to update, then reload
+                setTimeout(() => {
+                    // Hard reload to bypass browser cache completely
+                    window.location.reload(true);
+                }, 500);
             }
         });
     }
@@ -517,8 +523,14 @@ class PWAUpdateManager {
     async applyUpdate() {
         this.updateAccepted = true;
 
+        // Immediately show updating state on the prompt
+        this.showUpdatingState();
+
         // Clear all caches before updating
         await this.clearAllCaches();
+
+        // Update progress
+        this.updateProgress("activating");
 
         if (this.newWorker) {
             // Tell the new service worker to skip waiting
@@ -528,48 +540,379 @@ class PWAUpdateManager {
             navigator.serviceWorker.controller.postMessage("skipWaiting");
         }
 
-        this.dismissPrompt();
-
-        // Show loading indicator
-        this.showLoadingIndicator();
+        // Start safety timeout for reload
+        this.startUpdateTimeout();
     }
 
     /**
-     * Show loading indicator during update
+     * Transform the update prompt into an updating state with progress
+     */
+    showUpdatingState() {
+        const prompt = document.getElementById("pwa-update-prompt");
+        if (!prompt) {
+            this.showLoadingIndicator();
+            return;
+        }
+
+        const lang =
+            localStorage.getItem("lang") ||
+            localStorage.getItem("language") ||
+            CONFIG.DEFAULT_LANG;
+
+        const messages = this.getUpdateMessages(lang);
+
+        setContent(
+            prompt,
+            `
+            <div class="pwa-update-content pwa-updating">
+                <div class="pwa-update-spinner"></div>
+                <div class="pwa-update-text">
+                    <h3>${messages.updating}</h3>
+                    <p id="pwa-update-status">${messages.clearingCache}</p>
+                </div>
+                <div class="pwa-update-progress">
+                    <div class="pwa-update-progress-bar">
+                        <div class="pwa-update-progress-fill" id="pwa-progress-fill"></div>
+                    </div>
+                    <div class="pwa-update-steps">
+                        <span class="pwa-step active" id="step-cache">1</span>
+                        <span class="pwa-step" id="step-activate">2</span>
+                        <span class="pwa-step" id="step-reload">3</span>
+                    </div>
+                </div>
+                <p class="pwa-update-warning">${messages.doNotClose}</p>
+            </div>
+        `,
+        );
+
+        // Add updating styles if not present
+        this.addUpdatingStyles();
+
+        // Start progress animation
+        this.animateProgress(33);
+    }
+
+    /**
+     * Get localized messages for the update process
+     */
+    getUpdateMessages(lang) {
+        const messages = {
+            fr: {
+                updating: "Mise à jour en cours...",
+                clearingCache: "Effacement du cache...",
+                activating: "Activation de la nouvelle version...",
+                reloading: "Rechargement de l'application...",
+                doNotClose: "Veuillez ne pas fermer cette page",
+                almostDone: "Presque terminé...",
+            },
+            en: {
+                updating: "Updating...",
+                clearingCache: "Clearing cache...",
+                activating: "Activating new version...",
+                reloading: "Reloading application...",
+                doNotClose: "Please do not close this page",
+                almostDone: "Almost done...",
+            },
+            uk: {
+                updating: "Оновлення...",
+                clearingCache: "Очищення кешу...",
+                activating: "Активація нової версії...",
+                reloading: "Перезавантаження застосунку...",
+                doNotClose: "Будь ласка, не закривайте цю сторінку",
+                almostDone: "Майже готово...",
+            },
+        };
+
+        return messages[lang] || messages[CONFIG.DEFAULT_LANG] || messages.fr;
+    }
+
+    /**
+     * Update the progress display
+     */
+    updateProgress(step) {
+        const lang =
+            localStorage.getItem("lang") ||
+            localStorage.getItem("language") ||
+            CONFIG.DEFAULT_LANG;
+        const messages = this.getUpdateMessages(lang);
+
+        const statusEl = document.getElementById("pwa-update-status");
+        const stepCache = document.getElementById("step-cache");
+        const stepActivate = document.getElementById("step-activate");
+        const stepReload = document.getElementById("step-reload");
+
+        if (step === "activating") {
+            if (statusEl) statusEl.textContent = messages.activating;
+            if (stepCache) stepCache.classList.add("completed");
+            if (stepActivate) stepActivate.classList.add("active");
+            this.animateProgress(66);
+        } else if (step === "reloading") {
+            if (statusEl) statusEl.textContent = messages.reloading;
+            if (stepCache) stepCache.classList.add("completed");
+            if (stepActivate) stepActivate.classList.add("completed");
+            if (stepReload) stepReload.classList.add("active");
+            this.animateProgress(100);
+        }
+    }
+
+    /**
+     * Animate the progress bar to a target percentage
+     */
+    animateProgress(targetPercent) {
+        const fill = document.getElementById("pwa-progress-fill");
+        if (fill) {
+            fill.style.width = `${targetPercent}%`;
+        }
+    }
+
+    /**
+     * Start a safety timeout for the update process
+     */
+    startUpdateTimeout() {
+        const lang =
+            localStorage.getItem("lang") ||
+            localStorage.getItem("language") ||
+            CONFIG.DEFAULT_LANG;
+        const messages = this.getUpdateMessages(lang);
+
+        // After 10 seconds, show "almost done" message
+        setTimeout(() => {
+            const statusEl = document.getElementById("pwa-update-status");
+            if (statusEl && document.getElementById("pwa-update-prompt")) {
+                statusEl.textContent = messages.almostDone;
+            }
+        }, 10000);
+
+        // Safety timeout: if update doesn't complete in 45 seconds, force reload
+        setTimeout(() => {
+            if (document.getElementById("pwa-update-prompt") || document.getElementById("pwa-update-loader")) {
+                debugLog("Update timeout reached, forcing reload...");
+                this.updateProgress("reloading");
+
+                // Give a moment for UI to update, then reload
+                setTimeout(() => {
+                    // Hard reload to bypass browser cache completely
+                    window.location.reload(true);
+                }, 500);
+            }
+        }, 45000);
+    }
+
+    /**
+     * Add CSS styles for the updating state
+     */
+    addUpdatingStyles() {
+        if (document.getElementById("pwa-updating-styles")) return;
+
+        const style = document.createElement("style");
+        style.id = "pwa-updating-styles";
+        style.textContent = `
+            .pwa-updating {
+                align-items: center;
+            }
+
+            .pwa-update-spinner {
+                width: 48px;
+                height: 48px;
+                border: 4px solid #e0e0e0;
+                border-top-color: #4c65ae;
+                border-radius: 50%;
+                animation: pwa-spin 1s linear infinite;
+            }
+
+            @keyframes pwa-spin {
+                to { transform: rotate(360deg); }
+            }
+
+            .pwa-update-progress {
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .pwa-update-progress-bar {
+                width: 100%;
+                height: 8px;
+                background: #e0e0e0;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+
+            .pwa-update-progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, #4c65ae, #6b82c9);
+                border-radius: 4px;
+                width: 0%;
+                transition: width 0.5s ease-out;
+            }
+
+            .pwa-update-steps {
+                display: flex;
+                justify-content: space-between;
+                padding: 0 10%;
+            }
+
+            .pwa-step {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                background: #e0e0e0;
+                color: #666;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+            }
+
+            .pwa-step.active {
+                background: #4c65ae;
+                color: white;
+                animation: pwa-pulse 1.5s ease-in-out infinite;
+            }
+
+            .pwa-step.completed {
+                background: #4caf50;
+                color: white;
+                animation: none;
+            }
+
+            @keyframes pwa-pulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+            }
+
+            .pwa-update-warning {
+                font-size: 12px;
+                color: #999;
+                margin: 0;
+                font-style: italic;
+            }
+
+            /* Dark mode support for updating state */
+            @media (prefers-color-scheme: dark) {
+                .pwa-update-spinner {
+                    border-color: #444;
+                    border-top-color: #6b82c9;
+                }
+
+                .pwa-update-progress-bar {
+                    background: #444;
+                }
+
+                .pwa-step {
+                    background: #444;
+                    color: #ccc;
+                }
+
+                .pwa-update-warning {
+                    color: #888;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    /**
+     * Show loading indicator during update (fallback when prompt doesn't exist)
      */
     showLoadingIndicator() {
+        const lang =
+            localStorage.getItem("lang") ||
+            localStorage.getItem("language") ||
+            CONFIG.DEFAULT_LANG;
+        const messages = this.getUpdateMessages(lang);
+
         const loader = document.createElement("div");
         loader.id = "pwa-update-loader";
         setContent(
             loader,
             `
-            <div style="
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: rgba(0, 0, 0, 0.8);
-                color: white;
-                padding: 24px 32px;
-                border-radius: 12px;
-                z-index: 10001;
-                text-align: center;
-            ">
-                <div style="font-size: 32px; margin-bottom: 12px;">⏳</div>
-                <div>Mise à jour en cours...</div>
+            <div class="pwa-update-loader-content">
+                <div class="pwa-update-spinner"></div>
+                <div class="pwa-update-loader-text">
+                    <h3>${messages.updating}</h3>
+                    <p id="pwa-loader-status">${messages.clearingCache}</p>
+                </div>
+                <p class="pwa-update-warning">${messages.doNotClose}</p>
             </div>
         `,
         );
+
+        // Add loader-specific styles
+        this.addLoaderStyles();
+        this.addUpdatingStyles();
+
         document.body.appendChild(loader);
 
-        // Safety timeout: if update doesn't complete in 5 seconds, reload anyway
-        setTimeout(() => {
-            const loaderElement = document.getElementById("pwa-update-loader");
-            if (loaderElement) {
-                // Hard reload to bypass browser cache completely
-                window.location.reload(true);
+        // Start safety timeout
+        this.startUpdateTimeout();
+    }
+
+    /**
+     * Add styles for the standalone loader
+     */
+    addLoaderStyles() {
+        if (document.getElementById("pwa-loader-styles")) return;
+
+        const style = document.createElement("style");
+        style.id = "pwa-loader-styles";
+        style.textContent = `
+            #pwa-update-loader {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.85);
+                z-index: 10001;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
-        }, 5000);
+
+            .pwa-update-loader-content {
+                background: white;
+                padding: 32px;
+                border-radius: 16px;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+                max-width: 90%;
+                width: 320px;
+            }
+
+            .pwa-update-loader-text h3 {
+                margin: 0 0 8px 0;
+                color: #333;
+                font-size: 18px;
+            }
+
+            .pwa-update-loader-text p {
+                margin: 0;
+                color: #666;
+                font-size: 14px;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                .pwa-update-loader-content {
+                    background: #2d2d2d;
+                }
+
+                .pwa-update-loader-text h3 {
+                    color: #fff;
+                }
+
+                .pwa-update-loader-text p {
+                    color: #ccc;
+                }
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     /**
