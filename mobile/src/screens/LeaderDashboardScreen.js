@@ -28,11 +28,22 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 // API and utilities
-import { getOrganizationSettings } from '../api/api-endpoints';
+import {
+  getOrganizationSettings,
+  getParticipants,
+  getGroups,
+  getActivities,
+  getAttendance,
+  getAttendanceDates,
+  getHonors,
+  getBadgeSummary,
+  getBadgeSystemSettings
+} from '../api/api-endpoints';
 import { translate as t } from '../i18n';
 import StorageUtils from '../utils/StorageUtils';
 import CacheManager from '../utils/CacheManager';
 import SecurityUtils from '../utils/SecurityUtils';
+import DateUtils from '../utils/DateUtils';
 import { hasPermission, hasAnyPermission } from '../utils/PermissionUtils';
 import theme, { commonStyles } from '../theme';
 // Static St-Paul image (relative to /mobile/src/screens)
@@ -116,7 +127,7 @@ const LeaderDashboardScreen = () => {
         clearTimeout(saveScrollTimeoutRef.current);
       }
       if (scrollPositionRef.current > 0) {
-        StorageUtils.setItem(SCROLL_KEY, String(scrollPositionRef.current)).catch(() => {});
+        StorageUtils.setItem(SCROLL_KEY, String(scrollPositionRef.current)).catch(() => { });
       }
     };
   }, []);
@@ -124,9 +135,19 @@ const LeaderDashboardScreen = () => {
   /**
    * Reload data when screen comes into focus
    */
+  /**
+   * Reload data when screen comes into focus
+   */
   useFocusEffect(
     useCallback(() => {
       loadDashboardContext();
+
+      // Pro-actively prefetch data for top 7 items to ensure instant access
+      // We do this after a short delay to prioritize UI rendering first
+      const prefetchTimer = setTimeout(() => {
+        prefetchDashboardData();
+      }, 500);
+
       if (!isMounted()) return;
       setScrollReady(false);
       (async () => {
@@ -135,14 +156,61 @@ const LeaderDashboardScreen = () => {
           if (!isMounted()) return;
           const scrollY = y ? parseInt(y, 10) : 0;
           setInitialScrollY(scrollY);
-        } catch {}
+        } catch { }
         if (isMounted()) {
           setScrollReady(true);
         }
       })();
-      return () => {};
+
+      return () => {
+        clearTimeout(prefetchTimer);
+      };
     }, [])
   );
+
+  /**
+   * Pre-fetch data for the most common dashboard actions (Top 7)
+   * This populates the cache so subsequent navigation is instant
+   */
+  const prefetchDashboardData = async () => {
+    try {
+      if (CONFIG.FEATURES.DEBUG_LOGGING) {
+        debugLog('[Dashboard] Starting pro-active data prefetch...');
+      }
+
+      // We run these in parallel but don't await them individually to block
+      // We just want to trigger the network requests and let CacheManager handle storage
+      Promise.all([
+        // 1. Manage Points / Parent Contact / Badge Tracker (Participants)
+        getParticipants().catch(e => debugLog('Prefetch participants failed', e)),
+
+        // 2. Manage Points / Badge Tracker (Groups)
+        getGroups().catch(e => debugLog('Prefetch groups failed', e)),
+
+        // 3. Next Meeting / Activity Calendar
+        getActivities().catch(e => debugLog('Prefetch activities failed', e)),
+
+        // 4. Attendance
+        getAttendance().catch(e => debugLog('Prefetch attendance failed', e)),
+        getAttendanceDates().catch(e => debugLog('Prefetch attendance dates failed', e)),
+
+        // 5. Manage Honors (Current date)
+        getHonors(DateUtils.getTodayISO()).catch(e => debugLog('Prefetch honors failed', e)),
+
+        // 6. Badge Tracker 
+        getBadgeSummary().catch(e => debugLog('Prefetch badge summary failed', e)),
+        getBadgeSystemSettings().catch(e => debugLog('Prefetch badge settings failed', e)),
+      ]).then(() => {
+        if (CONFIG.FEATURES.DEBUG_LOGGING) {
+          debugLog('[Dashboard] Data prefetch complete - Top 7 items ready');
+        }
+      });
+
+    } catch (err) {
+      // Silently fail, this is just optimization
+      debugLog('[Dashboard] Data prefetch error:', err);
+    }
+  };
 
   /**
    * Load user permissions from storage
@@ -278,8 +346,8 @@ const LeaderDashboardScreen = () => {
     const IconComponent = iconFamily === 'MaterialCommunityIcons'
       ? MaterialCommunityIcons
       : iconFamily === 'MaterialIcons'
-      ? MaterialIcons
-      : Ionicons;
+        ? MaterialIcons
+        : Ionicons;
 
     return <IconComponent name={iconName} size={size} color={color} />;
   };
@@ -491,7 +559,7 @@ const LeaderDashboardScreen = () => {
           screen: 'ResourceDashboard',
           permissions: ['resources.view', 'resources.manage'],
         },
-         {
+        {
           key: 'reports',
           label: t('reports'),
           iconFamily: 'Ionicons',
@@ -747,7 +815,7 @@ const LeaderDashboardScreen = () => {
             clearTimeout(saveScrollTimeoutRef.current);
           }
           saveScrollTimeoutRef.current = setTimeout(() => {
-            StorageUtils.setItem(SCROLL_KEY, String(y)).catch(() => {});
+            StorageUtils.setItem(SCROLL_KEY, String(y)).catch(() => { });
           }, 500); // Save 500ms after user stops scrolling
         }}
         scrollEventThrottle={16}
