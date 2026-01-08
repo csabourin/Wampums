@@ -13,7 +13,7 @@ const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 
 // Import middleware
-const { authenticate } = require('../middleware/auth');
+const { authenticate, blockDemoRoles } = require('../middleware/auth');
 const { success, error: errorResponse, asyncHandler } = require('../middleware/response');
 const {
   validateEmail,
@@ -287,6 +287,7 @@ module.exports = (pool, logger) => {
    */
   router.patch('/v1/users/me/name',
     authenticate,
+    blockDemoRoles,
     [validateFullName],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -426,6 +427,7 @@ module.exports = (pool, logger) => {
    */
   router.patch('/v1/users/me/whatsapp-phone',
     authenticate,
+    blockDemoRoles,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
       const { whatsappPhoneNumber } = req.body;
@@ -536,7 +538,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.patch('/v1/users/me/guardian-profile', authenticate, asyncHandler(async (req, res) => {
+  router.patch('/v1/users/me/guardian-profile', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.user.organizationId;
 
@@ -707,6 +709,7 @@ module.exports = (pool, logger) => {
    */
   router.patch('/v1/users/me/email',
     authenticate,
+    blockDemoRoles,
     emailChangeLimiter,
     [normalizeEmailInput, validateEmail],
     checkValidation,
@@ -790,6 +793,7 @@ module.exports = (pool, logger) => {
    */
   router.patch('/v1/users/me/password',
     authenticate,
+    blockDemoRoles,
     passwordChangeLimiter,
     [validateCurrentPassword, validateNewPasswordForChange],
     checkValidation,
