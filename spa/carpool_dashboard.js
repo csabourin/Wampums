@@ -659,11 +659,12 @@ export class CarpoolDashboard {
       modalContainer.className = 'modal-container';
       document.body.appendChild(modalContainer);
     }
-    setContent(modalContainer, modalHTML);
+    // Use innerHTML directly to avoid sanitization issues with forms
+    modalContainer.innerHTML = modalHTML;
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {
-      modalContainer.classList.remove('modal-container--visible');
+      modalContainer.remove();
     };
 
     document.getElementById('close-look-modal')?.addEventListener('click', closeModal);
@@ -1004,11 +1005,12 @@ export class CarpoolDashboard {
       modalContainer.className = 'modal-container';
       document.body.appendChild(modalContainer);
     }
-    setContent(modalContainer, modalHTML);
+    // Use innerHTML directly to avoid sanitization issues with forms
+    modalContainer.innerHTML = modalHTML;
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {
-      modalContainer.classList.remove('modal-container--visible');
+      modalContainer.remove();
     };
 
     // Close modal handlers

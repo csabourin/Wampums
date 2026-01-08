@@ -11,7 +11,7 @@ import {
 import { clearActivityRelatedCaches } from './indexedDB.js';
 import { canViewActivities } from './utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from './utils/SkeletonUtils.js';
-import { debugError } from './utils/DebugUtils.js';
+import { debugError, debugLog } from './utils/DebugUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 
@@ -344,7 +344,8 @@ export class Activities {
       modalContainer.style.zIndex = '10000';
       document.body.appendChild(modalContainer);
     }
-    setContent(modalContainer, modalHTML);
+    // Use innerHTML directly instead of setContent to avoid sanitization issues with forms
+    modalContainer.innerHTML = modalHTML;
     modalContainer.classList.add('modal-container--visible');
 
     // Attach modal event listeners
@@ -363,6 +364,10 @@ export class Activities {
       const formData = new FormData(e.target);
       const data = Object.fromEntries(formData.entries());
 
+      // Debug: Log collected form data
+      debugLog('Form data collected:', data);
+      debugLog('FormData entries:', Array.from(formData.entries()));
+
       // Convert empty strings to null for optional fields
       if (!data.description) data.description = null;
       if (!data.meeting_location_return) data.meeting_location_return = null;
@@ -371,6 +376,9 @@ export class Activities {
       if (isEdit) {
         data.notify_participants = formData.get('notify_participants') === 'on';
       }
+
+      // Debug: Log data being sent to API
+      debugLog('Data being sent to API:', data);
 
       setButtonLoading(submitButton, true);
 
