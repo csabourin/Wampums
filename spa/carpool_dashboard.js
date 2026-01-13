@@ -19,6 +19,7 @@ import { OptimisticUpdateManager, generateOptimisticId } from './utils/Optimisti
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError } from './utils/DebugUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
+import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -92,11 +93,10 @@ export class CarpoolDashboard {
       return;
     }
 
-    // Parse activity_date as local date to avoid timezone shift issues
-    // YYYY-MM-DD strings parsed as new Date() are treated as UTC, which can shift to previous day in local timezone
-    const activityDateString = this.activity.activity_date;
-    const [year, month, day] = activityDateString.split('-').map(Number);
-    const activityDate = new Date(year, month - 1, day); // month is 0-indexed
+    const activityDateString = isoToDateString(this.activity.activity_date);
+    const activityDate = parseDate(activityDateString);
+    const formattedActivityDate = formatDateShort(activityDateString, this.app.lang || 'fr');
+    const activityDateLabel = formattedActivityDate || activityDateString || '';
 
     setContent(container, `
       <section class="page carpool-page">
@@ -112,7 +112,7 @@ export class CarpoolDashboard {
         <!-- Activity Info Card -->
         <div class="activity-info-card">
           <h2>${this.activity.name}</h2>
-          <p class="activity-info-card__date">${activityDate.toLocaleDateString()}</p>
+          <p class="activity-info-card__date">${activityDate ? activityDateLabel : ''}</p>
 
           <div class="activity-info-card__details">
             <div class="info-block">

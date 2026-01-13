@@ -14,6 +14,7 @@ import { skeletonActivityList, setButtonLoading } from './utils/SkeletonUtils.js
 import { debugError, debugLog } from './utils/DebugUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
+import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
 
 export class Activities {
   constructor(app) {
@@ -61,8 +62,17 @@ export class Activities {
       return;
     }
 
-    const upcomingActivities = this.activities.filter(a => new Date(a.activity_date) >= new Date());
-    const pastActivities = this.activities.filter(a => new Date(a.activity_date) < new Date());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const upcomingActivities = this.activities.filter((activity) => {
+      const activityDate = parseDate(isoToDateString(activity.activity_date));
+      return activityDate && activityDate >= today;
+    });
+    const pastActivities = this.activities.filter((activity) => {
+      const activityDate = parseDate(isoToDateString(activity.activity_date));
+      return activityDate && activityDate < today;
+    });
 
     setContent(container, `
       <section class="page activities-page">
@@ -104,14 +114,18 @@ export class Activities {
   }
 
   renderActivityCard(activity) {
-    const activityDate = new Date(activity.activity_date);
-    const isPast = activityDate < new Date();
+    const activityDateString = isoToDateString(activity.activity_date);
+    const activityDate = parseDate(activityDateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPast = activityDate ? activityDate < today : false;
+    const displayDate = formatDateShort(activityDateString, this.app.lang || 'fr');
 
     return `
       <div class="activity-card ${isPast ? 'activity-card--past' : ''}" data-activity-id="${activity.id}">
         <div class="activity-card__header">
           <h3 class="activity-card__title">${escapeHTML(activity.name)}</h3>
-          <span class="activity-card__date">${activityDate.toLocaleDateString()}</span>
+          <span class="activity-card__date">${escapeHTML(displayDate)}</span>
         </div>
 
         ${activity.description ? `

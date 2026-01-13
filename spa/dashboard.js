@@ -19,6 +19,7 @@ import { setContent, clearElement } from "./utils/DOMUtils.js";
 import { getActivities, createActivity } from "./api/api-activities.js";
 import { clearActivityRelatedCaches } from "./indexedDB.js";
 import { skeletonDashboard } from "./utils/SkeletonUtils.js";
+import { formatDateShort, isoToDateString, parseDate } from "./utils/DateUtils.js";
 import {
   hasPermission,
   hasAnyPermission,
@@ -741,8 +742,12 @@ ${
     try {
       const activities = await getActivities();
       const now = new Date();
+      now.setHours(0, 0, 0, 0);
       const upcomingActivities = activities.filter(
-        (a) => new Date(a.activity_date) >= now,
+        (activity) => {
+          const activityDate = parseDate(isoToDateString(activity.activity_date));
+          return activityDate && activityDate >= now;
+        },
       );
 
       const modal = document.createElement("div");
@@ -780,7 +785,7 @@ ${
                     <div style="flex: 1;">
                       <h3 style="margin: 0 0 0.5rem 0;">${escapeHTML(activity.name)}</h3>
                       <p style="margin: 0; color: #666; font-size: 0.9rem;">
-                        ${new Date(activity.activity_date).toLocaleDateString()} - ${activity.departure_time_going}
+                        ${formatDateShort(isoToDateString(activity.activity_date), this.app.lang || "fr")} - ${activity.departure_time_going}
                       </p>
                       <p style="margin: 0.25rem 0 0 0; color: #999; font-size: 0.85rem;">
                         ${escapeHTML(activity.meeting_location_going)}
