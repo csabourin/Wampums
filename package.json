@@ -19,7 +19,7 @@
     "lint:sql-params": "bash -c \"rg --pcre2 \\\"pool\\\\.query\\\\(\\\\s*`(?![^`]*\\\\$\\\\d)\\\" routes utils services middleware && echo \\\"Non-parameterized SQL candidate found\\\" && exit 1 || exit 0\""
   },
   "dependencies": {
-    "@googleapis/chat": "^44.4.0",
+    "@googleapis/chat": "^44.5.0",
     "@supabase/supabase-js": "^2.87.1",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^2.4.3",
