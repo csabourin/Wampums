@@ -95,6 +95,17 @@ async function getCurrentOrganizationId(req, pool, logger) {
   // Try to get from hostname/domain mapping
   const hostname = req.hostname;
 
+  // Fallback for local development
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const envOrgId = process.env.ORGANIZATION_ID;
+    if (envOrgId) {
+      if (logger) {
+        logger.info(`Using fallback ORGANIZATION_ID from ENV for local hostname: ${hostname}`);
+      }
+      return parseInt(envOrgId, 10);
+    }
+  }
+
   try {
     // First try exact match
     let result = await pool.query(

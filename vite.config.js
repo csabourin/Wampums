@@ -101,7 +101,7 @@ export default defineConfig({
     },
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: "http://127.0.0.1:5000",
         changeOrigin: true,
       },
     },
@@ -199,12 +199,12 @@ export default defineConfig({
 
     // Bundle analyzer (only in analysis mode)
     process.env.ANALYZE &&
-      visualizer({
-        open: true,
-        filename: "dist/stats.html",
-        gzipSize: true,
-        brotliSize: true,
-      }),
+    visualizer({
+      open: true,
+      filename: "dist/stats.html",
+      gzipSize: true,
+      brotliSize: true,
+    }),
   ].filter(Boolean),
 
   // Optimize dependencies
