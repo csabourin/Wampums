@@ -19,7 +19,7 @@ import { setContent, clearElement } from "./utils/DOMUtils.js";
 import { getActivities, createActivity } from "./api/api-activities.js";
 import { clearActivityRelatedCaches } from "./indexedDB.js";
 import { skeletonDashboard } from "./utils/SkeletonUtils.js";
-import { formatDateShort, isoToDateString, parseDate } from "./utils/DateUtils.js";
+import { formatDateShort, isoToDateString, parseDate, getTodayISO } from "./utils/DateUtils.js";
 import {
   hasPermission,
   hasAnyPermission,
@@ -91,7 +91,7 @@ export class Dashboard {
    */
   async prefetchCriticalPages() {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = getTodayISO();
 
       // Prefetch all critical data in parallel for maximum performance
       await Promise.allSettled([
@@ -182,8 +182,8 @@ export class Dashboard {
 
         const mergedParticipants = this.participants.length
           ? this.participants.map(
-              (participant) => freshById.get(participant.id) || participant,
-            )
+            (participant) => freshById.get(participant.id) || participant,
+          )
           : freshParticipants;
 
         const mergedIds = new Set(mergedParticipants.map((p) => p.id));
@@ -373,9 +373,8 @@ export class Dashboard {
   </div>
 </section>
 
-${
-  showFinanceSection
-    ? `
+${showFinanceSection
+        ? `
 <!-- FINANCE & BUDGET -->
 <section class="dashboard-section">
   <h3>${translate("dashboard_finance_section")}</h3>
@@ -388,8 +387,8 @@ ${
   </div>
 </section>
 `
-    : ""
-}
+        : ""
+      }
 
 <!-- ADMIN -->
 <section class="dashboard-section">
@@ -408,9 +407,8 @@ ${
   </div>
 </section>
 
-${
-  administrationLinks.length > 0
-    ? `
+${administrationLinks.length > 0
+        ? `
 <!-- ADMINISTRATION -->
 <section class="dashboard-section administration-section">
   <h3>${translate("system_administration") || "System Administration"}</h3>
@@ -419,8 +417,8 @@ ${
   </div>
 </section>
 `
-    : ""
-}
+        : ""
+      }
 
 
 
@@ -772,14 +770,13 @@ ${
             <button type="button" id="close-carpool-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 0.5rem;">✕</button>
           </div>
 
-          ${
-            upcomingActivities.length > 0
-              ? `
+          ${upcomingActivities.length > 0
+          ? `
             <p style="color: #666; margin-bottom: 1rem;">${translate("select_activity_for_carpool")}</p>
             <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
               ${upcomingActivities
-                .map(
-                  (activity) => `
+            .map(
+              (activity) => `
                 <a href="/carpool/${activity.id}" style="padding: 1rem; border: 2px solid #e0e0e0; border-radius: 8px; text-decoration: none; color: inherit; display: block; transition: all 0.2s;">
                   <div style="display: flex; justify-content: space-between; gap: 1rem;">
                     <div style="flex: 1;">
@@ -802,16 +799,16 @@ ${
                   </div>
                 </a>
               `,
-                )
-                .join("")}
+            )
+            .join("")}
             </div>
           `
-              : `
+          : `
             <div style="text-align: center; padding: 2rem; color: #999;">
               <p style="margin-bottom: 1rem;">${translate("no_upcoming_activities")}</p>
             </div>
           `
-          }
+        }
 
           <div style="border-top: 1px solid #e0e0e0; padding-top: 1.5rem; margin-top: 1.5rem;">
             <button type="button" id="quick-create-activity-btn" class="button" style="width: 100%; padding: 0.75rem; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 500;">

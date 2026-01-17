@@ -76,15 +76,26 @@ export function formatDateShort(dateString, lang = 'en') {
 }
 
 /**
- * Parse a date string and return a Date object
- * @param {string} dateString - Date string in YYYY-MM-DD format
+ * Parse a date string and return a Date object in local time
+ * @param {string|Date} dateSource - Date string in YYYY-MM-DD format or Date object
  * @returns {Date|null} Date object or null if invalid
  */
-export function parseDate(dateString) {
-    if (!dateString) return null;
+export function parseDate(dateSource) {
+    if (!dateSource) return null;
 
     try {
-        const [year, month, day] = dateString.split('-').map(Number);
+        if (dateSource instanceof Date) {
+            return new Date(dateSource.getTime());
+        }
+
+        if (typeof dateSource !== 'string') return null;
+
+        // If it's an ISO string with time, convert to date part first
+        const datePart = isoToDateString(dateSource);
+        const [year, month, day] = datePart.split('-').map(Number);
+
+        if (!year || !month || !day) return null;
+
         return new Date(year, month - 1, day);
     } catch (error) {
         debugError('Error parsing date:', error);
@@ -108,21 +119,38 @@ export function isValidDate(dateString) {
 }
 
 /**
- * Convert an ISO date string (with time) to YYYY-MM-DD format
- * @param {string} isoString - ISO date string (e.g., '2025-12-01T00:00:00Z')
+ * Convert an ISO date string (with time) or Date object to YYYY-MM-DD format
+ * Ensures the date is treated as the local day, avoiding timezone shifts.
+ * @param {string|Date} dateSource - ISO date string (e.g., '2025-12-01T00:00:00Z') or Date object
  * @returns {string} Date string in YYYY-MM-DD format
  */
-export function isoToDateString(isoString) {
-    if (!isoString) return '';
+export function isoToDateString(dateSource) {
+    if (!dateSource) return '';
 
     try {
-        if (isoString.includes('T')) {
-            return isoString.split('T')[0];
+        if (dateSource instanceof Date) {
+            return dateSource.toLocaleDateString("en-CA"); // Always returns YYYY-MM-DD
         }
-        return isoString;
+
+        if (typeof dateSource !== 'string') return '';
+
+        // If it's already a YYYY-MM-DD string, return it
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateSource)) {
+            return dateSource;
+        }
+
+        // If it's an ISO string with time (e.g. from database)
+        if (dateSource.includes('T')) {
+            // Split by T to get the date part. 
+            // IMPORTANT: We take the date part literally from the string to avoid timezone shifts
+            // that happen when parsing "2025-01-01T00:00:00Z" as a Date object.
+            return dateSource.split('T')[0];
+        }
+
+        return dateSource;
     } catch (error) {
-        debugError('Error converting ISO to date string:', error);
-        return isoString;
+        debugError('Error converting to date string:', error);
+        return String(dateSource);
     }
 }
 

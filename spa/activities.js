@@ -261,7 +261,7 @@ export class Activities {
           <div class="form-group">
             <label for="activity-date">${translate('activity_date')} <span class="required">*</span></label>
             <input type="date" id="activity-date" name="activity_date"
-                   value="${escapeHTML(activity?.activity_date || '')}" required
+                   value="${escapeHTML(isoToDateString(activity?.activity_date) || '')}" required
                    class="form-control">
           </div>
 
