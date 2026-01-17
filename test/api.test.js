@@ -51,8 +51,8 @@ afterEach(() => {
 
 describe('Authenticated API communication', () => {
   test('returns error when no token is provided', async () => {
-    const res = await request(app).get('/api').query({ action: 'get_form_types' });
-    expect(res.body.success).toBe(false);
+    const res = await request(app).get('/api/form-types');
+    expect(res.status).toBe(401);
   });
 
   test('returns data when valid token is provided', async () => {
@@ -62,10 +62,10 @@ describe('Authenticated API communication', () => {
     const token = jwt.sign({ user_id: 1, organizationId: 1 }, 'testsecret');
 
     const res = await request(app)
-      .get('/api')
-      .set('Authorization', `Bearer ${token}`)
-      .query({ action: 'get_form_types' });
+      .get('/api/form-types')
+      .set('Authorization', `Bearer ${token}`);
 
+    expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data).toEqual(['general']);
   });
