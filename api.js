@@ -87,6 +87,8 @@ const connectSrc = [
   "https://cdnjs.cloudflare.com",
   "https://*.supabase.co", // Supabase storage for equipment photos
   "https://demo.wampums.app", // Demo API
+  "http://localhost:5173", // Development Vite
+  "http://127.0.0.1:5173", // Development Vite (IPv4)
 ];
 
 // Allow the configured API base URL when defined so the SPA can call remote APIs under strict CSP
@@ -148,30 +150,30 @@ const corsOptions = {
       ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
       : isProduction
         ? [
-            'https://wampums.app',
-            'https://*.wampums.app',
-            // Allow localhost for Expo web development in production
-            'http://localhost:*',
-            'http://127.0.0.1:*'
-          ]
+          'https://wampums.app',
+          'https://*.wampums.app',
+          // Allow localhost for Expo web development in production
+          'http://localhost:*',
+          'http://127.0.0.1:*'
+        ]
         : [
-            // Development: localhost with any port (Vite can use random ports)
-            'http://localhost:*',
-            'http://127.0.0.1:*',
-            'https://localhost:*',
-            'https://127.0.0.1:*',
-            // Replit dynamic domains (includes multi-level subdomains like *.worf.replit.dev)
-            'https://*.replit.dev',
-            'https://*.worf.replit.dev',
-            'https://*.repl.co',
-            // Other common dev environments
-            'https://*.codesandbox.io',
-            'https://*.stackblitz.io',
-            'https://*.gitpod.io',
-            // Local .test domains (wampums-1.test from config.js)
-            'http://*.test',
-            'http://*.test:*',
-          ];
+          // Development: localhost with any port (Vite can use random ports)
+          'http://localhost:*',
+          'http://127.0.0.1:*',
+          'https://localhost:*',
+          'https://127.0.0.1:*',
+          // Replit dynamic domains (includes multi-level subdomains like *.worf.replit.dev)
+          'https://*.replit.dev',
+          'https://*.worf.replit.dev',
+          'https://*.repl.co',
+          // Other common dev environments
+          'https://*.codesandbox.io',
+          'https://*.stackblitz.io',
+          'https://*.gitpod.io',
+          // Local .test domains (wampums-1.test from config.js)
+          'http://*.test',
+          'http://*.test:*',
+        ];
 
     // Check if origin matches any allowed pattern
     const isAllowed = allowedPatterns.some(pattern => {

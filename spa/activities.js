@@ -11,9 +11,10 @@ import {
 import { clearActivityRelatedCaches } from './indexedDB.js';
 import { canViewActivities } from './utils/PermissionUtils.js';
 import { skeletonActivityList, setButtonLoading } from './utils/SkeletonUtils.js';
-import { debugError } from './utils/DebugUtils.js';
+import { debugError, debugLog } from './utils/DebugUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
+import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
 
 export class Activities {
   constructor(app) {
@@ -61,8 +62,17 @@ export class Activities {
       return;
     }
 
-    const upcomingActivities = this.activities.filter(a => new Date(a.activity_date) >= new Date());
-    const pastActivities = this.activities.filter(a => new Date(a.activity_date) < new Date());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const upcomingActivities = this.activities.filter((activity) => {
+      const activityDate = parseDate(isoToDateString(activity.activity_date));
+      return activityDate && activityDate >= today;
+    });
+    const pastActivities = this.activities.filter((activity) => {
+      const activityDate = parseDate(isoToDateString(activity.activity_date));
+      return activityDate && activityDate < today;
+    });
 
     setContent(container, `
       <section class="page activities-page">
@@ -104,14 +114,18 @@ export class Activities {
   }
 
   renderActivityCard(activity) {
-    const activityDate = new Date(activity.activity_date);
-    const isPast = activityDate < new Date();
+    const activityDateString = isoToDateString(activity.activity_date);
+    const activityDate = parseDate(activityDateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isPast = activityDate ? activityDate < today : false;
+    const displayDate = formatDateShort(activityDateString, this.app.lang || 'fr');
 
     return `
       <div class="activity-card ${isPast ? 'activity-card--past' : ''}" data-activity-id="${activity.id}">
         <div class="activity-card__header">
           <h3 class="activity-card__title">${escapeHTML(activity.name)}</h3>
-          <span class="activity-card__date">${activityDate.toLocaleDateString()}</span>
+          <span class="activity-card__date">${escapeHTML(displayDate)}</span>
         </div>
 
         ${activity.description ? `
@@ -247,7 +261,7 @@ export class Activities {
           <div class="form-group">
             <label for="activity-date">${translate('activity_date')} <span class="required">*</span></label>
             <input type="date" id="activity-date" name="activity_date"
-                   value="${escapeHTML(activity?.activity_date || '')}" required
+                   value="${escapeHTML(isoToDateString(activity?.activity_date) || '')}" required
                    class="form-control">
           </div>
 
@@ -344,7 +358,8 @@ export class Activities {
       modalContainer.style.zIndex = '10000';
       document.body.appendChild(modalContainer);
     }
-    setContent(modalContainer, modalHTML);
+    // Use innerHTML directly instead of setContent to avoid sanitization issues with forms
+    modalContainer.innerHTML = modalHTML;
     modalContainer.classList.add('modal-container--visible');
 
     // Attach modal event listeners
@@ -363,6 +378,10 @@ export class Activities {
       const formData = new FormData(e.target);
       const data = Object.fromEntries(formData.entries());
 
+      // Debug: Log collected form data
+      debugLog('Form data collected:', data);
+      debugLog('FormData entries:', Array.from(formData.entries()));
+
       // Convert empty strings to null for optional fields
       if (!data.description) data.description = null;
       if (!data.meeting_location_return) data.meeting_location_return = null;
@@ -371,6 +390,9 @@ export class Activities {
       if (isEdit) {
         data.notify_participants = formData.get('notify_participants') === 'on';
       }
+
+      // Debug: Log data being sent to API
+      debugLog('Data being sent to API:', data);
 
       setButtonLoading(submitButton, true);
 

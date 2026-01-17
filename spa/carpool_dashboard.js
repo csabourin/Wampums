@@ -19,6 +19,7 @@ import { OptimisticUpdateManager, generateOptimisticId } from './utils/Optimisti
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError } from './utils/DebugUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
+import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -92,11 +93,10 @@ export class CarpoolDashboard {
       return;
     }
 
-    // Parse activity_date as local date to avoid timezone shift issues
-    // YYYY-MM-DD strings parsed as new Date() are treated as UTC, which can shift to previous day in local timezone
-    const activityDateString = this.activity.activity_date;
-    const [year, month, day] = activityDateString.split('-').map(Number);
-    const activityDate = new Date(year, month - 1, day); // month is 0-indexed
+    const activityDateString = isoToDateString(this.activity.activity_date);
+    const activityDate = parseDate(activityDateString);
+    const formattedActivityDate = formatDateShort(activityDateString, this.app.lang || 'fr');
+    const activityDateLabel = formattedActivityDate || activityDateString || '';
 
     setContent(container, `
       <section class="page carpool-page">
@@ -112,7 +112,7 @@ export class CarpoolDashboard {
         <!-- Activity Info Card -->
         <div class="activity-info-card">
           <h2>${this.activity.name}</h2>
-          <p class="activity-info-card__date">${activityDate.toLocaleDateString()}</p>
+          <p class="activity-info-card__date">${activityDate ? activityDateLabel : ''}</p>
 
           <div class="activity-info-card__details">
             <div class="info-block">
@@ -326,7 +326,7 @@ export class CarpoolDashboard {
                 <div class="unassigned-item__status">
                   ${!p.has_ride_going ? `<span class="badge badge--warning">${translate('needs_ride_going')}</span>` : ''}
                   ${!p.has_ride_return && this.activity.meeting_location_return ?
-                    `<span class="badge badge--warning">${translate('needs_ride_return')}</span>` : ''}
+        `<span class="badge badge--warning">${translate('needs_ride_return')}</span>` : ''}
                 </div>
               </div>
               <button class="button button--small button--primary quick-assign-btn"
@@ -373,11 +373,11 @@ export class CarpoolDashboard {
     return `
       <div class="assignments-list">
         ${Object.entries(groupedByParticipant).map(([participantId, assignments]) => {
-          const firstAssignment = assignments[0];
-          const userId = localStorage.getItem('userId');
-          const canRemove = this.isStaff || firstAssignment.assigned_by === userId;
+      const firstAssignment = assignments[0];
+      const userId = localStorage.getItem('userId');
+      const canRemove = this.isStaff || firstAssignment.assigned_by === userId;
 
-          return `
+      return `
             <div class="assignment-card">
               <div class="assignment-card__header">
                 <strong>${firstAssignment.participant_name}</strong>
@@ -406,7 +406,7 @@ export class CarpoolDashboard {
               `).join('')}
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `;
   }
@@ -620,24 +620,24 @@ export class CarpoolDashboard {
 
           <div class="child-selection-list">
             ${userChildren.map(child => {
-              const assignments = child.carpool_assignments || [];
-              const hasBothDirections = assignments.some(a => a.trip_direction === 'both');
-              const hasGoing = hasBothDirections || assignments.some(a => a.trip_direction === 'to_activity');
-              const hasReturn = hasBothDirections || assignments.some(a => a.trip_direction === 'from_activity');
+      const assignments = child.carpool_assignments || [];
+      const hasBothDirections = assignments.some(a => a.trip_direction === 'both');
+      const hasGoing = hasBothDirections || assignments.some(a => a.trip_direction === 'to_activity');
+      const hasReturn = hasBothDirections || assignments.some(a => a.trip_direction === 'from_activity');
 
-              return `
+      return `
                 <div class="child-selection-card">
                   <div class="child-selection-card__info">
                     <strong>${child.first_name} ${child.last_name}</strong>
                     <div class="child-selection-card__status">
                       ${hasGoing ?
-                        `<span class="badge badge--success">✓ ${translate('has_ride_going')}</span>` :
-                        `<span class="badge badge--warning">${translate('needs_ride_going')}</span>`
-                      }
+          `<span class="badge badge--success">✓ ${translate('has_ride_going')}</span>` :
+          `<span class="badge badge--warning">${translate('needs_ride_going')}</span>`
+        }
                       ${this.activity.meeting_location_return ? (hasReturn ?
-                        `<span class="badge badge--success">✓ ${translate('has_ride_return')}</span>` :
-                        `<span class="badge badge--warning">${translate('needs_ride_return')}</span>`
-                      ) : ''}
+          `<span class="badge badge--success">✓ ${translate('has_ride_return')}</span>` :
+          `<span class="badge badge--warning">${translate('needs_ride_return')}</span>`
+        ) : ''}
                     </div>
                   </div>
                   <button class="button button--primary select-child-btn"
@@ -646,7 +646,7 @@ export class CarpoolDashboard {
                   </button>
                 </div>
               `;
-            }).join('')}
+    }).join('')}
           </div>
         </div>
       </div>
@@ -659,11 +659,12 @@ export class CarpoolDashboard {
       modalContainer.className = 'modal-container';
       document.body.appendChild(modalContainer);
     }
-    setContent(modalContainer, modalHTML);
+    // Use innerHTML directly to avoid sanitization issues with forms
+    modalContainer.innerHTML = modalHTML;
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {
-      modalContainer.classList.remove('modal-container--visible');
+      modalContainer.remove();
     };
 
     document.getElementById('close-look-modal')?.addEventListener('click', closeModal);
@@ -697,9 +698,9 @@ export class CarpoolDashboard {
     const participantsToAssign = participantId
       ? this.participants.filter(p => p.id === participantId)
       : this.participants.filter(p => {
-          const isGuardian = p.guardians && p.guardians.some(g => g.user_id === localStorage.getItem('userId'));
-          return isGuardian || this.isStaff;
-        });
+        const isGuardian = p.guardians && p.guardians.some(g => g.user_id === localStorage.getItem('userId'));
+        return isGuardian || this.isStaff;
+      });
 
     const modalId = 'assignment-modal';
 
@@ -1004,11 +1005,12 @@ export class CarpoolDashboard {
       modalContainer.className = 'modal-container';
       document.body.appendChild(modalContainer);
     }
-    setContent(modalContainer, modalHTML);
+    // Use innerHTML directly to avoid sanitization issues with forms
+    modalContainer.innerHTML = modalHTML;
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {
-      modalContainer.classList.remove('modal-container--visible');
+      modalContainer.remove();
     };
 
     // Close modal handlers

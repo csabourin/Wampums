@@ -1,10 +1,10 @@
 import {
-  getCurrentOrganizationId,
-  fetchParticipants,
-  getOrganizationFormFormats,
-  getOrganizationSettings,
-  getParticipantStatement,
-  linkUserParticipants
+        getCurrentOrganizationId,
+        fetchParticipants,
+        getOrganizationFormFormats,
+        getOrganizationSettings,
+        getParticipantStatement,
+        linkUserParticipants
 } from "./ajax-functions.js";
 import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
@@ -15,9 +15,10 @@ import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
+import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
 
 export class ParentDashboard {
-  constructor(app) {
+        constructor(app) {
                 this.app = app;
                 this.participants = [];
                 this.formStructures = {};
@@ -76,15 +77,15 @@ export class ParentDashboard {
         }
 
         checkAndShowLinkParticipantsDialog() {
-                        const guardianParticipants = JSON.parse(localStorage.getItem("guardianParticipants"));
-                        if (guardianParticipants && guardianParticipants.length > 0) {
-                                        this.showLinkParticipantsDialog(guardianParticipants);
-                                        localStorage.removeItem("guardianParticipants"); // Clear after showing
-                        }
+                const guardianParticipants = JSON.parse(localStorage.getItem("guardianParticipants"));
+                if (guardianParticipants && guardianParticipants.length > 0) {
+                        this.showLinkParticipantsDialog(guardianParticipants);
+                        localStorage.removeItem("guardianParticipants"); // Clear after showing
+                }
         }
 
         showLinkParticipantsDialog(guardianParticipants) {
-                        const dialogContent = `
+                const dialogContent = `
                                         <h2>${translate("link_existing_participants")}</h2>
                                         <p>${translate("existing_participants_found")}</p>
                                         <form id="link-participants-form">
@@ -98,64 +99,64 @@ export class ParentDashboard {
                                         </form>
                         `;
 
-                        const dialog = document.createElement('div');
-                        setContent(dialog, dialogContent);
-                        dialog.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
-                        document.body.appendChild(dialog);
+                const dialog = document.createElement('div');
+                setContent(dialog, dialogContent);
+                dialog.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
+                document.body.appendChild(dialog);
 
                 document.querySelector('#cancel').addEventListener('click', () => {
-                                dialog.remove();
+                        dialog.remove();
                 });
 
-                        document.getElementById('link-participants-form').addEventListener('submit', async (e) => {
-                                        e.preventDefault();
-                                        const formData = new FormData(e.target);
-                                        const selectedParticipants = formData.getAll('link_participants');
+                document.getElementById('link-participants-form').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const selectedParticipants = formData.getAll('link_participants');
 
-                                        try {
-                                                        const result = await linkUserParticipants({ participant_ids: selectedParticipants });
-                                                        if (result.success) {
-                                                                        this.app.showMessage(translate("participants_linked_successfully"));
-                                                                        await this.fetchParticipants(); // Refresh the participants list
-                                                                        this.render(); // Re-render the dashboard
-                                                        } else {
-                                                                        this.app.showMessage(translate("error_linking_participants"), "error");
-                                                        }
-                                        } catch (error) {
-                                                        debugError("Error linking participants:", error);
-                                                        this.app.showMessage(translate("error_linking_participants"), "error");
-                                        }
+                        try {
+                                const result = await linkUserParticipants({ participant_ids: selectedParticipants });
+                                if (result.success) {
+                                        this.app.showMessage(translate("participants_linked_successfully"));
+                                        await this.fetchParticipants(); // Refresh the participants list
+                                        this.render(); // Re-render the dashboard
+                                } else {
+                                        this.app.showMessage(translate("error_linking_participants"), "error");
+                                }
+                        } catch (error) {
+                                debugError("Error linking participants:", error);
+                                this.app.showMessage(translate("error_linking_participants"), "error");
+                        }
 
-                                        document.body.removeChild(dialog);
-                        });
+                        document.body.removeChild(dialog);
+                });
         }
 
         async fetchParticipants() {
-                        try {
-                                        const response = await fetchParticipants(getCurrentOrganizationId());
+                try {
+                        const response = await fetchParticipants(getCurrentOrganizationId());
 
-                                        // Use a Map to store unique participants
-                                        const uniqueParticipants = new Map();
+                        // Use a Map to store unique participants
+                        const uniqueParticipants = new Map();
 
-                                        // Validate response is an array before processing
-                                        if (Array.isArray(response)) {
-                                                response.forEach(participant => {
-                                                                // If this participant isn't in our Map yet, add them
-                                                                if (!uniqueParticipants.has(participant.id)) {
-                                                                                uniqueParticipants.set(participant.id, participant);
-                                                                }
-                                                });
+                        // Validate response is an array before processing
+                        if (Array.isArray(response)) {
+                                response.forEach(participant => {
+                                        // If this participant isn't in our Map yet, add them
+                                        if (!uniqueParticipants.has(participant.id)) {
+                                                uniqueParticipants.set(participant.id, participant);
                                         }
-
-                                        // Convert the Map values back to an array
-                                        this.participants = Array.from(uniqueParticipants.values());
-
-                                        debugLog("Fetched participants:", this.participants);
-                        } catch (error) {
-                                        debugError("Error fetching participants:", error);
-                                        this.participants = [];
-                                        throw error;
+                                });
                         }
+
+                        // Convert the Map values back to an array
+                        this.participants = Array.from(uniqueParticipants.values());
+
+                        debugLog("Fetched participants:", this.participants);
+                } catch (error) {
+                        debugError("Error fetching participants:", error);
+                        this.participants = [];
+                        throw error;
+                }
         }
 
         async fetchParticipantStatements() {
@@ -276,7 +277,7 @@ export class ParentDashboard {
         }
 
         render() {
-                 const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
+                const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
                 const notificationButton = this.shouldShowNotificationButton()
                         ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
                                                 ${translate("enable_notifications")}
@@ -395,7 +396,7 @@ export class ParentDashboard {
         // Check notification permission and decide whether to show the button
         shouldShowNotificationButton() {
                 if ('Notification' in window) {
-                return Notification.permission === "default" || Notification.permission === "denied";
+                        return Notification.permission === "default" || Notification.permission === "denied";
                 } return false;
         }
 
@@ -426,49 +427,49 @@ export class ParentDashboard {
                 }).join("");
         }
 
-renderFormButtons(participant) {
-    debugLog("renderFormButtons called for participant:", participant.id);
-    debugLog("this.formFormats:", this.formFormats);
-    debugLog("Form format keys:", Object.keys(this.formFormats));
+        renderFormButtons(participant) {
+                debugLog("renderFormButtons called for participant:", participant.id);
+                debugLog("this.formFormats:", this.formFormats);
+                debugLog("Form format keys:", Object.keys(this.formFormats));
 
-    // The backend now filters forms based on user permissions
-    // We no longer need to hardcode exclusions here
-    const formButtons = Object.keys(this.formFormats)
-        .map(formType => {
-            const formLabel = translate(formType);
-            const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
-            const statusClass = isCompleted ? "form-btn--completed" : "form-btn--incomplete";
-            const statusIcon = isCompleted ? "✅" : "❌";
+                // The backend now filters forms based on user permissions
+                // We no longer need to hardcode exclusions here
+                const formButtons = Object.keys(this.formFormats)
+                        .map(formType => {
+                                const formLabel = translate(formType);
+                                const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
+                                const statusClass = isCompleted ? "form-btn--completed" : "form-btn--incomplete";
+                                const statusIcon = isCompleted ? "✅" : "❌";
 
-            debugLog(`Rendering form button for: ${formType}, label: ${formLabel}`);
+                                debugLog(`Rendering form button for: ${formType}, label: ${formLabel}`);
 
-            return `
+                                return `
                 <a href="/dynamic-form/${formType}/${participant.id}" class="form-btn ${statusClass}">
                     <span class="form-btn__icon">${statusIcon}</span>
                     <span class="form-btn__label">${formLabel}</span>
                 </a>
             `;
-        })
-        .join("");
+                        })
+                        .join("");
 
-    const badgeButton = `
+                const badgeButton = `
                 <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🏅</span>
                         <span class="form-btn__label">${translate('manage_badge_progress')}</span>
                 </a>
         `;
 
-    const progressReportButton = `
+                const progressReportButton = `
                 <a href="/reports?participantId=${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">📊</span>
                         <span class="form-btn__label">${translate('view_progress_report')}</span>
                 </a>
         `;
 
-    debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge and progress: ${(formButtons + badgeButton + progressReportButton).length}`);
+                debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge and progress: ${(formButtons + badgeButton + progressReportButton).length}`);
 
-    return formButtons + badgeButton + progressReportButton;
-}
+                return formButtons + badgeButton + progressReportButton;
+        }
 
         renderPermissionSlipSection(participant) {
                 return `
@@ -494,21 +495,21 @@ renderFormButtons(participant) {
                 return `
                         <ul class="permission-slip-list">
                                 ${slips.map((slip) => {
-                                        const statusLabel = escapeHTML(this.getPermissionSlipStatusLabel(slip.status));
-                                        const meetingLabel = escapeHTML(this.formatDateSafe(slip.meeting_date));
-                                        const signedDate = slip.signed_at ? escapeHTML(this.formatDateSafe(slip.signed_at)) : '';
-                                        const signer = slip.signed_by ? escapeHTML(slip.signed_by) : '';
-                                        const canSign = slip.status === 'pending';
+                        const statusLabel = escapeHTML(this.getPermissionSlipStatusLabel(slip.status));
+                        const meetingLabel = escapeHTML(this.formatDateSafe(slip.meeting_date));
+                        const signedDate = slip.signed_at ? escapeHTML(this.formatDateSafe(slip.signed_at)) : '';
+                        const signer = slip.signed_by ? escapeHTML(slip.signed_by) : '';
+                        const canSign = slip.status === 'pending';
 
-                                        const signedMeta = signedDate || signer
-                                                ? `<p class="muted-text">${[signedDate ? `${translate("permission_slip_signed_at")}: ${signedDate}` : '', signer ? `${translate("permission_slip_signer")}: ${signer}` : ''].filter(Boolean).join(' · ')}</p>`
-                                                : '';
+                        const signedMeta = signedDate || signer
+                                ? `<p class="muted-text">${[signedDate ? `${translate("permission_slip_signed_at")}: ${signedDate}` : '', signer ? `${translate("permission_slip_signer")}: ${signer}` : ''].filter(Boolean).join(' · ')}</p>`
+                                : '';
 
-                                        const actionArea = canSign
-                                                ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>`
-                                                : `<span class="badge badge-success">${statusLabel}</span>`;
+                        const actionArea = canSign
+                                ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>`
+                                : `<span class="badge badge-success">${statusLabel}</span>`;
 
-                                        return `
+                        return `
                                                 <li class="permission-slip-item">
                                                         <div>
                                                                 <p class="permission-slip-meeting">${translate("meeting_date_label")}: ${meetingLabel}</p>
@@ -518,7 +519,7 @@ renderFormButtons(participant) {
                                                         <div class="permission-slip-actions">${actionArea}</div>
                                                 </li>
                                         `;
-                                }).join("")}
+                }).join("")}
                         </ul>
                 `;
         }
@@ -546,8 +547,8 @@ renderFormButtons(participant) {
                         return translate("meeting_date_label");
                 }
 
-                const parsed = new Date(dateString);
-                if (Number.isNaN(parsed.getTime())) {
+                const parsed = parseDate(dateString);
+                if (!parsed || Number.isNaN(parsed.getTime())) {
                         return translate("meeting_date_label");
                 }
 
@@ -753,7 +754,11 @@ renderFormButtons(participant) {
                 try {
                         const activities = await getActivities();
                         const now = new Date();
-                        const upcomingActivities = activities.filter(a => new Date(a.activity_date) >= now);
+                        now.setHours(0, 0, 0, 0);
+                        const upcomingActivities = activities.filter(a => {
+                                const activityDate = parseDate(isoToDateString(a.activity_date));
+                                return activityDate && activityDate >= now;
+                        });
 
                         if (upcomingActivities.length === 0) {
                                 this.app.showMessage(translate('no_upcoming_activities'), 'info');
@@ -777,7 +782,7 @@ renderFormButtons(participant) {
                                                                                 <div style="flex: 1;">
                                                                                         <h4 style="margin: 0 0 0.5rem 0; color: #333;">${escapeHTML(activity.name)}</h4>
                                                                                         <p style="margin: 0; font-size: 0.9rem; color: #666;">
-                                                                                                ${new Date(activity.activity_date).toLocaleDateString()} - ${activity.departure_time_going}
+                                                                                                ${formatDateShort(isoToDateString(activity.activity_date), this.app.lang || 'fr')} - ${activity.departure_time_going}
                                                                                         </p>
                                                                                         <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #999;">
                                                                                                 ${escapeHTML(activity.meeting_location_going)}
@@ -833,7 +838,7 @@ renderFormButtons(participant) {
 
 
 
-  async requestNotificationPermission() {
+        async requestNotificationPermission() {
                 if ('Notification' in window) {
                         // Proceed with Notification logic
                         if (Notification.permission === 'granted') {
@@ -849,13 +854,13 @@ renderFormButtons(participant) {
                         debugError('This browser does not support notifications.');
                 }
 
-  }
+        }
 
-                renderError() {
-                        const errorMessage = `
+        renderError() {
+                const errorMessage = `
                                 <h1>${translate("error")}</h1>
                                 <p>${translate("error_loading_parent_dashboard")}</p>
                         `;
-                        setContent(document.getElementById("app"), errorMessage);
-                }
+                setContent(document.getElementById("app"), errorMessage);
         }
+}

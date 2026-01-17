@@ -195,33 +195,57 @@ module.exports = (pool, logger) => {
           });
         }
 
-        // Check if device is trusted (2FA)
-        const deviceToken = req.headers['x-device-token'];
-        const isTrustedDevice = await verifyTrustedDevice(pool, user.id, organizationId, deviceToken);
+        // Check if user has demo roles - demo users bypass 2FA for accessibility
+        const demoRoleCheck = await pool.query(
+          `SELECT COUNT(*) as demo_count
+           FROM user_organizations uo
+           CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+           JOIN roles r ON r.id = role_id_text::integer
+           WHERE uo.user_id = $1
+             AND uo.organization_id = $2
+             AND r.role_name IN ('demoadmin', 'demoparent')`,
+          [user.id, organizationId]
+        );
 
-        // If device is not trusted, send 2FA code
-        if (!isTrustedDevice) {
-          const code = generate2FACode();
-          const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-          const userAgent = req.headers['user-agent'] || '';
+        const isDemoUser = parseInt(demoRoleCheck.rows[0].demo_count) > 0;
 
-          // Store the code in database
-          await store2FACode(pool, user.id, organizationId, code, ipAddress, userAgent);
-
-          // Send email with code
-          await send2FAEmail(normalizedEmail, code, user.full_name, organizationId, pool);
-
-          // Return response indicating 2FA is required
-          return res.status(200).json({
-            success: true,
-            requires_2fa: true,
-            message: '2fa_code_sent',
-            user_id: user.id,
+        if (isDemoUser) {
+          logger.info('2FA bypassed for demo user', {
+            userId: user.id,
+            organizationId: organizationId,
             email: normalizedEmail
           });
         }
 
-        // Device is trusted, proceed with normal login
+        // Check if device is trusted (2FA) - skip for demo users
+        if (!isDemoUser) {
+          const deviceToken = req.headers['x-device-token'];
+          const isTrustedDevice = await verifyTrustedDevice(pool, user.id, organizationId, deviceToken);
+
+          // If device is not trusted, send 2FA code
+          if (!isTrustedDevice) {
+            const code = generate2FACode();
+            const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+            const userAgent = req.headers['user-agent'] || '';
+
+            // Store the code in database
+            await store2FACode(pool, user.id, organizationId, code, ipAddress, userAgent);
+
+            // Send email with code
+            await send2FAEmail(normalizedEmail, code, user.full_name, organizationId, pool);
+
+            // Return response indicating 2FA is required
+            return res.status(200).json({
+              success: true,
+              requires_2fa: true,
+              message: '2fa_code_sent',
+              user_id: user.id,
+              email: normalizedEmail
+            });
+          }
+        }
+
+        // Demo users bypass 2FA, trusted devices skip 2FA - proceed with normal login
         // Fetch user's roles and permissions for this organization
         const rolesResult = await pool.query(
           `SELECT DISTINCT r.id as role_id, r.role_name

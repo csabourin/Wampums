@@ -1,15 +1,17 @@
 {
   "name": "wampums",
-  "version": "2.7.3",
+  "version": "2.7.4",
   "description": "Wampums project",
   "main": "api.js",
   "scripts": {
     "dev": "vite",
+    "dev:all": "npm run start & npm run dev",
     "build": "vite build",
     "preview": "vite preview",
     "analyze": "ANALYZE=true vite build",
     "start": "node api.js",
     "start:prod": "NODE_ENV=production node api.js",
+    "postinstall": "npm rebuild bcrypt --build-from-source",
     "test": "jest",
     "lint:api-version": "bash -c \"rg --pcre2 \\\"app\\.use\\(\\\\\"/api(?!/v1)\\\\\"\\\" api.js routes && echo \\\"Non-v1 /api routes found\\\" && exit 1 || exit 0\"",
     "lint:spa-console": "bash -c \"rg \\\"console\\\\.\\\" spa --glob \\\"!spa/utils/DebugUtils.js\\\" --glob \\\"!spa/config.js\\\" && echo \\\"Console usage found in SPA\\\" && exit 1 || exit 0\"",

@@ -66,6 +66,12 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
+    // Debug: Log request body
+    console.log('=== CREATE ACTIVITY REQUEST ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Content-Type:', req.headers['content-type']);
+
     const {
       name,
       description,
@@ -78,8 +84,18 @@ module.exports = (pool) => {
       departure_time_return
     } = req.body;
 
+    // Debug: Log extracted values
+    console.log('Extracted values:', { name, activity_date, meeting_location_going, meeting_time_going, departure_time_going });
+
     // Validation
     if (!name || !activity_date || !meeting_location_going || !meeting_time_going || !departure_time_going) {
+      console.log('Validation failed! Missing fields:', {
+        name: !name,
+        activity_date: !activity_date,
+        meeting_location_going: !meeting_location_going,
+        meeting_time_going: !meeting_time_going,
+        departure_time_going: !departure_time_going
+      });
       return error(res, 'Missing required fields: name, activity_date, meeting_location_going, meeting_time_going, departure_time_going', 400);
     }
 
