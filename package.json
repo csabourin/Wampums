@@ -51,7 +51,7 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-    "jest": "^29.6.1",
+    "jest": "^30.2.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "supertest": "^6.3.3",
     "vite": "^7.2.4",
