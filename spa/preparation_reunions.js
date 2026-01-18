@@ -532,13 +532,23 @@ export class PreparationReunions {
                         return;
                 }
 
+                // Prompt user for meeting focus
+                const focus = prompt(
+                        translate("meeting_focus_prompt") || "What would you like to focus on in this meeting? (e.g., teamwork, outdoor skills, badge work)",
+                        "General meeting with games and learning"
+                );
+
+                if (!focus) {
+                        return; // User cancelled
+                }
+
                 setButtonLoading(btn, true);
                 try {
                         const payload = {
                                 date: dateVal,
                                 section: this.sectionConfig?.name || "Scouts",
                                 duration: "2 hours", // Default, could be configurable
-                                focus: "General meeting with games and learning"
+                                focus: focus
                         };
 
                         const response = await aiGenerateText("meeting_plan", payload);
@@ -569,7 +579,11 @@ export class PreparationReunions {
 
                 } catch (error) {
                         let msg = error.message;
-                        if (error.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+                        if (error.error?.code === 'AI_BUDGET_EXCEEDED') {
+                                msg = translate('ai_budget_exceeded');
+                        } else if (error.error?.code === 'OPENAI_QUOTA_EXCEEDED') {
+                                msg = "OpenAI API quota exceeded. Please add credits to your OpenAI account at platform.openai.com/account/billing";
+                        }
                         this.app.showMessage(translate("error_generating_plan") + ": " + msg, "error");
                         debugError("Magic Generate failed", error);
                 } finally {

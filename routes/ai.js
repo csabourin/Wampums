@@ -53,9 +53,26 @@ router.post(
             });
 
         } catch (err) {
+            // Handle AI budget exceeded (our internal cap)
             if (err.code === "AI_BUDGET_EXCEEDED") {
                 return error(res, err.message, 429, { code: "AI_BUDGET_EXCEEDED" });
             }
+
+            // Handle OpenAI quota/billing errors
+            if (err.code === "insufficient_quota" || err.status === 429) {
+                return error(res, "OpenAI API quota exceeded. Please add credits to your OpenAI account.", 429, {
+                    code: "OPENAI_QUOTA_EXCEEDED",
+                    details: err.message
+                });
+            }
+
+            // Handle other OpenAI errors
+            if (err.status) {
+                return error(res, err.message || "AI service error", err.status, {
+                    code: err.code || "AI_ERROR"
+                });
+            }
+
             throw err;
         }
     })

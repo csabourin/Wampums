@@ -115,21 +115,18 @@ function buildMessages(mode, payload) {
         case "meeting_plan":
             return [
                 {
-                    role: "system", content: `${systemBase} Create a detailed scout meeting plan in JSON format.
+                    role: "system", content: `${systemBase} Create a scout meeting plan in JSON format.
 Output structure:
 {
-  "title": "string",
-  "overview": "string",
-  "timeline": [{ "minuteStart": number, "minuteEnd": number, "name": "string", "objective": "string", "materials": ["string"], "instructions": ["string"], "safety": ["string"] }],
-  "materialsMasterList": ["string"],
-  "badgeMapping": [{ "badge": "string", "requirement": "string", "coveredBy": ["string"] }],
-  "backupPlan": { "ifWeatherBad": "string", "ifTimeRunsShort": "string" }
+  "theme": "string (meeting theme)",
+  "goals": "string (meeting objectives)",
+  "materials": ["string (list of materials needed)"],
+  "timeline": [{ "time": "HH:MM", "duration": "HH:MM", "activity": "string (activity name)" }]
 }` },
                 {
-                    role: "user", content: `Create a ${payload.durationMinutes}-minute meeting for ${payload.participantsCount} scouts.
-Focus Badge: ${payload.badgeFocus}.
-Constraints: ${payload.constraints ? payload.constraints.join(", ") : "none"}.
-Notes: ${payload.notes || "none"}.`
+                    role: "user", content: `Create a ${payload.duration} meeting plan for ${payload.section} scouts on ${payload.date}.
+Focus: ${payload.focus}.
+Generate 5-7 activities with realistic times and durations.`
                 }
             ];
 
@@ -139,17 +136,14 @@ Notes: ${payload.notes || "none"}.`
                     role: "system", content: `${systemBase} Analyze activity risks and suggest mitigations in JSON format.
 Output structure:
 {
-  "risks": [{ "hazard": "string", "whoMightBeHarmed": ["string"], "likelihood": "low"|"medium"|"high", "severity": "low"|"medium"|"high", "mitigations": ["string"], "requiredEquipment": ["string"], "leaderNotes": "string" }],
-  "generalMitigations": ["string"],
-  "emergencyNotes": ["string"]
+  "risks": ["string (brief risk description)"],
+  "mitigation": ["string (brief mitigation strategy)"]
 }` },
                 {
-                    role: "user", content: `Analyze this activity:
-Title: ${payload.activityTitle}
-Description: ${payload.activityDescription}
-Age Range: ${payload.participantsAgeRange}
-Environment: ${payload.environment ? payload.environment.join(", ") : "unknown"}
-Equipment: ${payload.equipment ? payload.equipment.join(", ") : "unknown"}`
+                    role: "user", content: `Analyze these scout activities for safety risks:
+${payload.activityDescription}
+
+Provide 3-5 key risks and corresponding mitigation strategies.`
                 }
             ];
 

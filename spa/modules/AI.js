@@ -1,4 +1,4 @@
-import { getOrganizationId } from "../utils/Session.js"; // Assuming this exists or similar
+import { getAuthHeader } from "../api/api-helpers.js";
 import { debugError } from "../utils/DebugUtils.js";
 
 const API_BASE = '/api/ai';
@@ -10,16 +10,12 @@ const API_BASE = '/api/ai';
  * @returns {Promise<object>} - { data, usage, budget }
  */
 export async function aiGenerateText(mode, payload) {
-    const token = localStorage.getItem('jwt_token');
-    const orgId = localStorage.getItem('organization_id'); // Or from a utility
-
     try {
         const response = await fetch(`${API_BASE}/text`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-                'X-Organization-ID': orgId
+                ...getAuthHeader()
             },
             body: JSON.stringify({ mode, payload })
         });
@@ -45,9 +41,6 @@ export async function aiGenerateText(mode, payload) {
  * @returns {Promise<object>}
  */
 export async function aiParseReceipt(file) {
-    const token = localStorage.getItem('jwt_token');
-    const orgId = localStorage.getItem('organization_id');
-
     const formData = new FormData();
     formData.append('file', file);
 
@@ -55,8 +48,7 @@ export async function aiParseReceipt(file) {
         const response = await fetch(`${API_BASE}/receipt`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-Organization-ID': orgId
+                ...getAuthHeader()
             },
             body: formData
         });
