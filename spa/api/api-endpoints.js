@@ -2706,3 +2706,47 @@ export async function checkAuthStatus() {
 // Alias for backward compatibility
 export const fetchOrganizationId = getOrganizationId;
 export const getParticipantAgeReport = getParticipantAge;
+
+// ============================================================================
+// AI FEATURES
+// ============================================================================
+
+/**
+ * AI Text Generation
+ * @param {string} mode - 'meeting_plan', 'rewrite', 'translate', 'risk_suggest'
+ * @param {object} payload - Data required for the mode
+ */
+export async function aiGenerateText(mode, payload) {
+    return API.post('ai/text', { mode, payload });
+}
+
+/**
+ * AI Receipt Parsing
+ * @param {File} file - Receipt image/PDF
+ */
+export async function aiParseReceipt(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('jwtToken');
+    const response = await fetch(`${CONFIG.API_BASE_URL}/api/ai/receipt`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        body: formData
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const error = new Error(errorData.message || 'Failed to parse receipt');
+        if (errorData.error) error.error = errorData.error;
+        throw error;
+    }
+
+    return await response.json();
+}
+
+// Expose to window for global access
+window.aiGenerateText = aiGenerateText;
+window.aiParseReceipt = aiParseReceipt;

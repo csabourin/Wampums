@@ -862,11 +862,12 @@ export class Expenses {
             document.getElementById("expense-subtotal").value = (data.total - tax).toFixed(2);
           }
 
-          this.app.showMessage(translate("receipt_parsed_success"), "success");
+          this.app.showMessage("receipt_parsed_success", "success");
         } catch (err) {
-          let msg = translate("error_parsing_receipt");
-          if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
-          this.app.showMessage(msg, 'error');
+          console.error("Receipt upload error:", err);
+          let msgKey = "error_parsing_receipt";
+          if (err.error?.code === 'AI_BUDGET_EXCEEDED') msgKey = 'ai_budget_exceeded';
+          this.app.showMessage(msgKey, 'error');
         } finally {
           setButtonLoading(uploadBtn, false);
           fileInput.value = ""; // Reset

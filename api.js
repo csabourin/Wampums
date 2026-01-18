@@ -535,6 +535,7 @@ const googleChatRoutes = require("./routes/google-chat")(pool, logger);
 const medicationRoutes = require("./routes/medication")(pool, logger);
 const activitiesRoutes = require("./routes/activities")(pool);
 const carpoolsRoutes = require("./routes/carpools")(pool);
+const aiRoutes = require("./routes/ai");
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -589,8 +590,17 @@ logger.info("   - PATCH /api/v1/users/me/password");
 
 // Role Management Routes (handles /api/roles, /api/permissions, etc.)
 // Endpoints: roles (GET, POST, DELETE), permissions (GET), users/:id/roles (GET, PUT)
+// Role Management Routes (handles /api/roles, /api/permissions, etc.)
+// Endpoints: roles (GET, POST, DELETE), permissions (GET), users/:id/roles (GET, PUT)
 app.use("/", rolesRoutes);
 logger.info("✅ Role management routes loaded");
+
+// AI Routes
+app.use("/api/ai", aiRoutes);
+logger.info("✅ AI routes loaded");
+logger.info("   - POST /api/ai/text");
+logger.info("   - POST /api/ai/receipt");
+logger.info("   - GET /api/ai/budget");
 logger.info("   - GET /api/roles");
 logger.info("   - POST /api/roles");
 logger.info("   - DELETE /api/roles/:roleId");
