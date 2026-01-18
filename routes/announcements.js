@@ -18,7 +18,8 @@ const { sanitizeInput, sendEmail, sendWhatsApp } = require('../utils');
 const { checkValidation } = require('../middleware/validation');
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
-const { Client } = require('pg');
+const pg = require('pg');
+const { Client } = pg;
 
 /**
  * Normalize and sanitize announcement payload
