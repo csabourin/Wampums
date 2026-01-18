@@ -3,14 +3,14 @@
 
 import { translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
-import { API } from './api/api-core.js';
+import { getPublicPermissionSlip, signPublicPermissionSlip } from './api/api-endpoints.js';
 import { CONFIG } from './config.js';
 import { setContent } from "./utils/DOMUtils.js";
 
 export class PermissionSlipSign {
-  constructor(app, slipId) {
+  constructor(app, token) {
     this.app = app;
-    this.slipId = slipId;
+    this.token = token;
     this.slip = null;
   }
 
@@ -22,7 +22,7 @@ export class PermissionSlipSign {
   }
 
   async init() {
-    debugLog('PermissionSlipSign init with ID:', this.slipId);
+    debugLog('PermissionSlipSign init with token:', this.token);
     await this.loadPermissionSlip();
     this.render();
     this.attachEventListeners();
@@ -30,9 +30,8 @@ export class PermissionSlipSign {
 
   async loadPermissionSlip() {
     try {
-      // Public endpoint to view permission slip - no auth required
-      const response = await fetch(`/api/v1/resources/permission-slips/${this.slipId}/view`);
-      const data = await response.json();
+      // Public endpoint to view permission slip - no auth required (uses token)
+      const data = await getPublicPermissionSlip(this.token);
 
       if (!data.success) {
         throw new Error(data.message || 'Failed to load permission slip');
@@ -171,7 +170,7 @@ export class PermissionSlipSign {
     signBtn.disabled = true;
     setContent(signBtn, '<span class="spinner-border spinner-border-sm"></span> ' + translate('signing'));
     try {
-      const response = await API.patch(`v1/resources/permission-slips/${this.slipId}/sign`, {
+      const response = await signPublicPermissionSlip(this.token, {
         signed_by: guardianName,
         signed_at: new Date().toISOString()
       });

@@ -1421,7 +1421,7 @@ module.exports = (pool) => {
             `INSERT INTO equipment_reservations
              (organization_id, equipment_id, activity_id, meeting_date, date_from, date_to, reserved_quantity, reserved_for, status, notes, created_by)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             RETURNING *`,
+             RETURNING *, (SELECT name FROM equipment_items WHERE id = $2) as equipment_name`,
             [
               organizationId,
               item.equipment_id,
@@ -1622,7 +1622,7 @@ module.exports = (pool) => {
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
-          const signLink = `${baseUrl}/permission-slip/${slip.id}`;
+          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
 
           const subject = `Autorisation parentale requise - ${activityTitle}`;
           const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
@@ -1768,7 +1768,7 @@ module.exports = (pool) => {
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
-          const signLink = `${baseUrl}/permission-slip/${slip.id}`;
+          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
 
           const subject = `Rappel : Autorisation parentale requise - ${activityTitle}`;
           const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
@@ -1919,7 +1919,7 @@ module.exports = (pool) => {
                            deadline_date = EXCLUDED.deadline_date,
                            status = EXCLUDED.status,
                            updated_at = CURRENT_TIMESTAMP
-             RETURNING *`,
+             RETURNING *, (SELECT first_name FROM participants WHERE id = $2) as first_name, (SELECT last_name FROM participants WHERE id = $2) as last_name`,
             [
               organizationId,
               pid,
@@ -1955,22 +1955,25 @@ module.exports = (pool) => {
     }),
   );
 
-  // Public route to view a permission slip (no authentication required)
+  // Secure route to view a permission slip (authentication required)
   router.get(
     "/permission-slips/:id/view",
+    authenticate,
+    requirePermission("activities.view"),
     [param("id").isInt({ min: 1 })],
     checkValidation,
     asyncHandler(async (req, res) => {
       try {
         const slipId = parseInt(req.params.id, 10);
+        const organizationId = await getOrganizationId(req, pool);
 
         const slipResult = await pool.query(
           `SELECT ps.*, p.first_name, p.last_name,
                   (p.first_name || ' ' || p.last_name) AS participant_name
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
-           WHERE ps.id = $1`,
-          [slipId],
+           WHERE ps.id = $1 AND ps.organization_id = $2`,
+          [slipId, organizationId],
         );
 
         if (slipResult.rows.length === 0) {
@@ -1984,9 +1987,11 @@ module.exports = (pool) => {
     }),
   );
 
-  // Public route to sign a permission slip (no authentication required)
+  // Secure route to sign a permission slip (authentication required)
   router.patch(
     "/permission-slips/:id/sign",
+    authenticate,
+    requirePermission("activities.edit"),
     [
       param("id").isInt({ min: 1 }),
       check("signed_by").isString().trim().isLength({ min: 2, max: 200 }),
@@ -1996,11 +2001,12 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const slipId = parseInt(req.params.id, 10);
+        const organizationId = await getOrganizationId(req, pool);
         const { signed_by, signed_at } = req.body;
 
         const slipResult = await pool.query(
-          "SELECT organization_id, participant_id, status FROM permission_slips WHERE id = $1",
-          [slipId],
+          "SELECT organization_id, participant_id, status FROM permission_slips WHERE id = $1 AND organization_id = $2",
+          [slipId, organizationId],
         );
 
         if (slipResult.rows.length === 0) {
@@ -2017,14 +2023,88 @@ module.exports = (pool) => {
                signed_at = COALESCE($3, CURRENT_TIMESTAMP),
                status = 'signed',
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1
+           WHERE id = $1 AND organization_id = $4
            RETURNING *`,
-          [slipId, signed_by, signed_at || null],
+          [slipId, signed_by, signed_at || null, organizationId],
         );
 
-        if (updateResult.rows.length === 0) {
+        return success(
+          res,
+          { permission_slip: updateResult.rows[0] },
+          "Permission slip signed",
+        );
+      } catch (err) {
+        return error(res, err.message || "Error signing permission slip", err.statusCode || 500);
+      }
+    }),
+  );
+
+  // New Public route to view a permission slip by access_token
+  router.get(
+    "/permission-slips/v/:token",
+    [param("token").isUUID()],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const { token } = req.params;
+
+        const slipResult = await pool.query(
+          `SELECT ps.*, p.first_name, p.last_name,
+                  (p.first_name || ' ' || p.last_name) AS participant_name
+           FROM permission_slips ps
+           JOIN participants p ON p.id = ps.participant_id
+           WHERE ps.access_token = $1`,
+          [token],
+        );
+
+        if (slipResult.rows.length === 0) {
           return error(res, "Permission slip not found", 404);
         }
+
+        return success(res, slipResult.rows[0]);
+      } catch (err) {
+        return error(res, err.message || "Error fetching permission slip", err.statusCode || 500);
+      }
+    }),
+  );
+
+  // New Public route to sign a permission slip by access_token
+  router.patch(
+    "/permission-slips/s/:token",
+    [
+      param("token").isUUID(),
+      check("signed_by").isString().trim().isLength({ min: 2, max: 200 }),
+      check("signed_at").optional().isISO8601(),
+    ],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const { token } = req.params;
+        const { signed_by, signed_at } = req.body;
+
+        const slipResult = await pool.query(
+          "SELECT id, status FROM permission_slips WHERE access_token = $1",
+          [token],
+        );
+
+        if (slipResult.rows.length === 0) {
+          return error(res, "Permission slip not found", 404);
+        }
+
+        if (slipResult.rows[0].status === "signed") {
+          return error(res, "Permission slip already signed", 400);
+        }
+
+        const updateResult = await pool.query(
+          `UPDATE permission_slips
+           SET signed_by = $2,
+               signed_at = COALESCE($3, CURRENT_TIMESTAMP),
+               status = 'signed',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE access_token = $1
+           RETURNING *`,
+          [token, signed_by, signed_at || null],
+        );
 
         return success(
           res,

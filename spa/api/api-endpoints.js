@@ -446,6 +446,20 @@ export async function sendPermissionSlipReminders(payload) {
 }
 
 /**
+ * Get public permission slip by token (no auth required)
+ */
+export async function getPublicPermissionSlip(token) {
+    return API.get(`v1/resources/permission-slips/v/${token}`);
+}
+
+/**
+ * Sign public permission slip by token (no auth required)
+ */
+export async function signPublicPermissionSlip(token, payload) {
+    return API.patch(`v1/resources/permission-slips/s/${token}`, payload);
+}
+
+/**
  * Dashboard snapshot for resources and approvals
  */
 export async function getResourceDashboard(params = {}, cacheOptions = {}) {
@@ -2284,11 +2298,11 @@ export async function getBudgetSummaryReport(fiscalYearStart, fiscalYearEnd, cac
  */
 export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, categoryId = null, revenueSource = null, startDate = null, endDate = null) {
     const params = {};
-    
+
     // Use custom date range if provided, otherwise use fiscal year
     const dateStart = startDate || fiscalYearStart;
     const dateEnd = endDate || fiscalYearEnd;
-    
+
     if (startDate && endDate) {
         params.start_date = startDate;
         params.end_date = endDate;
@@ -2296,18 +2310,18 @@ export async function getBudgetRevenueBreakdown(fiscalYearStart, fiscalYearEnd, 
         params.fiscal_year_start = fiscalYearStart;
         params.fiscal_year_end = fiscalYearEnd;
     }
-    
+
     if (categoryId) {
         params.category_id = categoryId;
     }
-    
+
     if (revenueSource && revenueSource !== 'all') {
         params.revenue_source = revenueSource;
     }
-    
+
     // Build cache key with actual date parameters used
     const cacheKey = `budget_revenue_${dateStart}_${dateEnd}_${categoryId || 'all'}_${revenueSource || 'all'}`;
-    
+
     return API.get('v1/budget/reports/revenue-breakdown', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
@@ -2359,7 +2373,7 @@ export async function getExpenseSummary(startDate = null, endDate = null, catego
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
     if (categoryId) params.category_id = categoryId;
-    
+
     const cacheKey = `expense_summary_${startDate || 'all'}_${endDate || 'all'}_${categoryId || 'all'}`;
     return API.get('v1/expenses/summary', params, {
         cacheKey,
@@ -2375,7 +2389,7 @@ export async function getExpensesMonthly(fiscalYearStart = null, fiscalYearEnd =
     if (fiscalYearStart) params.fiscal_year_start = fiscalYearStart;
     if (fiscalYearEnd) params.fiscal_year_end = fiscalYearEnd;
     if (categoryId) params.category_id = categoryId;
-    
+
     const cacheKey = `expenses_monthly_${fiscalYearStart || 'all'}_${fiscalYearEnd || 'all'}_${categoryId || 'all'}`;
     return API.get('v1/expenses/monthly', params, {
         cacheKey,
@@ -2439,7 +2453,7 @@ export async function getExternalRevenueSummary(startDate = null, endDate = null
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
-    
+
     const cacheKey = `external_revenue_summary_${startDate || 'all'}_${endDate || 'all'}`;
     return API.get('v1/revenue/external/summary', params, {
         cacheKey,
@@ -2459,7 +2473,7 @@ export async function getRevenueDashboard(fiscalYearStart = null, fiscalYearEnd 
     const params = {};
     if (fiscalYearStart) params.fiscal_year_start = fiscalYearStart;
     if (fiscalYearEnd) params.fiscal_year_end = fiscalYearEnd;
-    
+
     const cacheKey = `revenue_dashboard_${fiscalYearStart || 'all'}_${fiscalYearEnd || 'all'}`;
     return API.get('v1/revenue/dashboard', params, {
         cacheKey,
@@ -2474,7 +2488,7 @@ export async function getRevenueBySource(startDate = null, endDate = null) {
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
-    
+
     const cacheKey = `revenue_by_source_${startDate || 'all'}_${endDate || 'all'}`;
     return API.get('v1/revenue/by-source', params, {
         cacheKey,
@@ -2489,7 +2503,7 @@ export async function getRevenueByCategory(startDate = null, endDate = null) {
     const params = {};
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
-    
+
     const cacheKey = `revenue_by_category_${startDate || 'all'}_${endDate || 'all'}`;
     return API.get('v1/revenue/by-category', params, {
         cacheKey,
@@ -2505,7 +2519,7 @@ export async function getRevenueComparison(fiscalYearStart, fiscalYearEnd) {
         fiscal_year_start: fiscalYearStart,
         fiscal_year_end: fiscalYearEnd
     };
-    
+
     const cacheKey = `revenue_comparison_${fiscalYearStart}_${fiscalYearEnd}`;
     return API.get('v1/revenue/comparison', params, {
         cacheKey,
@@ -2548,7 +2562,7 @@ export async function getOrganizationSettings(orgId = null) {
         debugLog('No token found, using public organization settings endpoint');
         return getPublicOrganizationSettings();
     }
-    
+
     const params = orgId ? { organization_id: orgId } : {};
     try {
         return await API.get('organization-settings', params, {

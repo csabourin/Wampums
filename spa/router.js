@@ -148,7 +148,7 @@ const routes = {
   "/medication-planning": "medicationPlanning",
   "/medication-dispensing": "medicationDispensing",
   "/permission-slips": "permissionSlipDashboard",
-  "/permission-slip/:id": "permissionSlipSign",
+  "/permission-slip/:token": "permissionSlipSign",
   "/account-info": "accountInfo",
   "/form-builder": "formBuilder",
   "/admin/form-builder": "formBuilder",
