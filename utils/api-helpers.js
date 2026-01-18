@@ -64,7 +64,7 @@ function respondWithOrganizationFallback(res) {
  */
 function handleOrganizationResolutionError(res, error, loggerInstance = logger) {
   if (error instanceof OrganizationNotFoundError) {
-    loggerInstance?.warn('Organization mapping not found; rendering fallback page');
+    loggerInstance?.warn(`Organization mapping not found; rendering fallback page. Error: ${error.message}`);
     respondWithOrganizationFallback(res);
     return true;
   }
@@ -134,8 +134,9 @@ async function getCurrentOrganizationId(req, pool, logger) {
     }
   } catch (error) {
     if (logger) {
-      logger.error('Error getting organization ID:', error.message);
+      logger.error('Error getting organization ID:', error);
     }
+    throw error;
   }
 
   if (logger) {

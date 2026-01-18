@@ -40,10 +40,9 @@ const io = new SocketIO(server, {
 const PORT = process.env.PORT || 5000;
 const HOST = "0.0.0.0";
 
-// Trust proxy is required when running behind a load balancer (e.g. Replit, Heroku, Nginx)
-// This ensures req.hostname, req.ip, and req.protocol are correct
-// '1' means trust the first hop (the immediate proxy)
-app.set("trust proxy", 1);
+// Trust proxy "true" is often safer in PaaS/Cloud environments where the number of hops is variable
+// Use "true" if the app is not directly publicly accessible (e.g. behind Replit/Heroku/AWS LB)
+app.set("trust proxy", true);
 
 // Determine if we're in production mode
 const isProduction = process.env.NODE_ENV === "production";
@@ -237,6 +236,9 @@ const generalLimiter = rateLimit({
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    trustProxy: false
+  }
 });
 
 // Strict rate limiter for authentication endpoints
