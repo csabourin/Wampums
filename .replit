@@ -34,6 +34,8 @@ PORT = "5000"
 ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5000,http://localhost:3000,http://*.localhost:*,https://*.replit.dev,https://*.worf.replit.dev,https://*.repl.co"
 
 [userenv.shared]
+OPENAI_PRICE_OUTPUT_PER_1M = "0.60"
+MINDEE_PRICE_PER_RECEIPT_USD = "0.10"
 
 [userenv.production]
 PORT = "5000"
