@@ -663,7 +663,21 @@ export class ParentDashboard {
                                 this.refreshPermissionSlipSection(participantId);
                         } catch (error) {
                                 debugError("Error signing permission slip", error);
-                                this.app.showMessage(translate("resource_dashboard_error_loading"), "error");
+
+                                // Show specific error message if available
+                                const errorMessage = error?.message || translate("resource_dashboard_error_loading");
+
+                                // Check for specific error cases and provide user-friendly messages
+                                if (errorMessage.includes("already signed")) {
+                                        this.app.showMessage(translate("permission_slip_already_signed"), "warning");
+                                        // Refresh the section to show current state
+                                        await this.loadPermissionSlips(participantId);
+                                        this.refreshPermissionSlipSection(participantId);
+                                } else if (errorMessage.includes("only sign permission slips for your own children")) {
+                                        this.app.showMessage(translate("permission_slip_not_your_child"), "error");
+                                } else {
+                                        this.app.showMessage(errorMessage, "error");
+                                }
                         }
                 });
 

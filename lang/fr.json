@@ -1670,6 +1670,8 @@
   "reservation_saved": "Réservation enregistrée",
   "permission_slip_saved": "Autorisation enregistrée",
   "permission_slip_signed": "Autorisation signée",
+  "permission_slip_already_signed": "Cette autorisation a déjà été signée",
+  "permission_slip_not_your_child": "Vous ne pouvez signer que les autorisations de vos propres enfants",
   "permission_slip_archived": "Autorisation archivée",
   "permission_slip_dashboard_title": "Autorisations parentales",
   "permission_slip_dashboard_description": "Créez des demandes d'autorisation pour les activités et envoyez-les aux parents par courriel",

@@ -1635,6 +1635,8 @@
   "reservation_saved": "Reservation saved",
   "permission_slip_saved": "Permission slip saved",
   "permission_slip_signed": "Permission slip signed",
+  "permission_slip_already_signed": "This permission slip has already been signed",
+  "permission_slip_not_your_child": "You can only sign permission slips for your own children",
   "permission_slip_archived": "Authorization archived",
   "permission_slip_dashboard_title": "Permission Slips",
   "permission_slip_dashboard_description": "Create activity permission requests and send them to parents by email",
