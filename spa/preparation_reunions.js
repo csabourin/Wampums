@@ -528,67 +528,140 @@ export class PreparationReunions {
                         return;
                 }
 
-                if (!confirm(translate("confirm_overwrite_plan"))) {
-                        return;
-                }
+                // Show modal for meeting focus input
+                const modalHTML = `
+			<div class="modal-content">
+				<h2>${translate("meeting_focus_prompt") || "Focus de la réunion"}</h2>
+				<form id="ai-focus-form">
+					<div class="form-group">
+						<label for="meeting-focus">${translate("meeting_focus_label") || "Sur quoi voulez-vous vous concentrer dans cette réunion?"}</label>
+						<textarea id="meeting-focus" name="focus" rows="4" placeholder="${translate("meeting_focus_placeholder") || "Ex: Loup d'honneur pour Romain et Alexandre, jeu de Loik, technique habillement..."}" required></textarea>
+						<small>${translate("meeting_focus_hint") || "Décrivez les activités spéciales, honneurs à remettre, techniques à enseigner, etc."}</small>
+					</div>
+					<div class="modal-actions">
+						<button type="button" class="btn-secondary" data-dismiss="modal">${translate("cancel") || "Annuler"}</button>
+						<button type="submit" class="btn-primary">${translate("generate") || "Générer"}</button>
+					</div>
+				</form>
+			</div>
+		`;
 
-                // Prompt user for meeting focus
-                const focus = prompt(
-                        translate("meeting_focus_prompt") || "What would you like to focus on in this meeting? (e.g., teamwork, outdoor skills, badge work)",
-                        "General meeting with games and learning"
-                );
+                // Create and show modal
+                const modalId = 'ai-focus-modal';
+                const existingModal = document.getElementById(modalId);
+                if (existingModal) existingModal.remove();
 
-                if (!focus) {
-                        return; // User cancelled
-                }
+                const modalDiv = document.createElement('div');
+                modalDiv.id = modalId;
+                modalDiv.className = 'modal';
+                modalDiv.innerHTML = modalHTML;
+                document.body.appendChild(modalDiv);
 
-                setButtonLoading(btn, true);
-                try {
-                        const payload = {
-                                date: dateVal,
-                                section: this.sectionConfig?.name || "Scouts",
-                                duration: "2 hours", // Default, could be configurable
-                                focus: focus
-                        };
+                // Handle form submission
+                const form = document.getElementById('ai-focus-form');
+                const closeModal = () => {
+                        modalDiv.remove();
+                };
 
-                        const response = await aiGenerateText("meeting_plan", payload);
-                        const plan = response.data;
+                // Close on cancel or backdrop click
+                modalDiv.querySelector('[data-dismiss="modal"]')?.addEventListener('click', closeModal);
+                modalDiv.addEventListener('click', (e) => {
+                        if (e.target === modalDiv) closeModal();
+                });
 
-                        // Populate Notes
-                        const notesField = document.getElementById('notes');
-                        if (notesField && plan.theme) {
-                                notesField.value = `Theme: ${plan.theme}\n\nGoals: ${plan.goals || ''}\n\nMaterials: ${plan.materials ? plan.materials.join(', ') : ''}`;
+                form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const focus = document.getElementById('meeting-focus').value.trim();
+
+                        if (!focus) return;
+
+                        closeModal();
+                        setButtonLoading(btn, true);
+
+                        try {
+                                // Get activity templates from section config
+                                const templates = this.sectionConfig?.activityTemplates || [];
+
+                                // Get only the most recent honor (not all of them)
+                                const mostRecentHonor = this.recentHonors && this.recentHonors.length > 0
+                                        ? this.recentHonors[0]
+                                        : null;
+
+                                const payload = {
+                                        date: dateVal,
+                                        section: this.sectionConfig?.name || "Scouts",
+                                        duration: "2 hours",
+                                        focus: focus,
+                                        activityTemplates: templates.map(t => ({
+                                                time: t.time,
+                                                duration: t.duration,
+                                                activity: translate(t.activityKey) || t.activityKey,
+                                                type: translate(t.typeKey) || t.typeKey
+                                        })),
+                                        recentHonor: mostRecentHonor ? {
+                                                name: mostRecentHonor.participant_name,
+                                                honor: mostRecentHonor.honor_name,
+                                                date: mostRecentHonor.date_awarded
+                                        } : null
+                                };
+
+                                const response = await aiGenerateText("meeting_plan", payload);
+                                console.log("AI Response:", response);
+
+                                // The response has structure: {data: {data: {...}, usage: {...}, budget: {...}}}
+                                // We need the inner data object
+                                const plan = response.data?.data || response.data;
+                                console.log("Plan data:", plan);
+
+                                // Populate Notes
+                                const notesField = document.getElementById('notes');
+                                console.log("Notes field found:", !!notesField);
+                                if (notesField && plan.theme) {
+                                        const notesContent = `Thème: ${plan.theme}\n\nObjectifs: ${plan.goals || ''}\n\nMatériel: ${plan.materials ? plan.materials.join(', ') : ''}`;
+                                        notesField.value = notesContent;
+                                        console.log("Notes populated with:", notesContent);
+                                } else {
+                                        console.warn("Could not populate notes - field exists:", !!notesField, "has theme:", !!plan.theme);
+                                }
+
+                                // Populate Activities
+                                if (Array.isArray(plan.timeline)) {
+                                        console.log("Timeline activities:", plan.timeline);
+                                        const newActivities = plan.timeline.map((item, index) => ({
+                                                id: `ai-generated-${index}`,
+                                                position: index,
+                                                time: item.time,
+                                                duration: item.duration,
+                                                activity: item.activity,
+                                                responsable: '',
+                                                materiel: '',
+                                                isDefault: false
+                                        }));
+
+                                        console.log("Mapped activities:", newActivities);
+                                        // Update ActivityManager
+                                        this.activityManager.setSelectedActivities(newActivities);
+                                        this.activityManager.renderActivitiesTable();
+                                        console.log("Activities rendered");
+                                } else {
+                                        console.warn("No timeline array in response");
+                                }
+
+                                this.app.showMessage(translate("plan_generated_success"), "success");
+
+                        } catch (error) {
+                                let msg = error.message;
+                                if (error.error?.code === 'AI_BUDGET_EXCEEDED') {
+                                        msg = translate('ai_budget_exceeded');
+                                } else if (error.error?.code === 'OPENAI_QUOTA_EXCEEDED') {
+                                        msg = "OpenAI API quota exceeded. Please add credits to your OpenAI account at platform.openai.com/account/billing";
+                                }
+                                this.app.showMessage(translate("error_generating_plan") + ": " + msg, "error");
+                                debugError("Magic Generate failed", error);
+                        } finally {
+                                setButtonLoading(btn, false);
                         }
-
-                        // Populate Activities
-                        if (Array.isArray(plan.timeline)) {
-                                const newActivities = plan.timeline.map(item => ({
-                                        time: item.time,
-                                        duration: item.duration,
-                                        description: item.activity,
-                                        responsable: 'all', // Default
-                                        materiel: ''
-                                }));
-
-                                // Update ActivityManager
-                                this.activityManager.setSelectedActivities(newActivities);
-                                this.activityManager.renderActivitiesTable();
-                        }
-
-                        this.app.showMessage(translate("plan_generated_success"), "success");
-
-                } catch (error) {
-                        let msg = error.message;
-                        if (error.error?.code === 'AI_BUDGET_EXCEEDED') {
-                                msg = translate('ai_budget_exceeded');
-                        } else if (error.error?.code === 'OPENAI_QUOTA_EXCEEDED') {
-                                msg = "OpenAI API quota exceeded. Please add credits to your OpenAI account at platform.openai.com/account/billing";
-                        }
-                        this.app.showMessage(translate("error_generating_plan") + ": " + msg, "error");
-                        debugError("Magic Generate failed", error);
-                } finally {
-                        setButtonLoading(btn, false);
-                }
+                });
         }
 
         preventEnterKeyDefault() {

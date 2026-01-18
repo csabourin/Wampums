@@ -113,20 +113,44 @@ function buildMessages(mode, payload) {
 
     switch (mode) {
         case "meeting_plan":
+            // Build template structure if provided
+            let templateContext = "";
+            if (payload.activityTemplates && payload.activityTemplates.length > 0) {
+                payload.activityTemplates.forEach(t => {
+                    templateContext += `- ${t.time} (${t.duration}): ${t.activity} [${t.type}]\n`;
+                });
+                templateContext += "\nUse these as a base structure, but adapt the activities based on the user's focus.";
+            }
+
+            // Add recent honor context if provided
+            let honorContext = "";
+            if (payload.recentHonor) {
+                honorContext = `\n\nMost recent honor to mention: ${payload.recentHonor.name} received ${payload.recentHonor.honor} on ${payload.recentHonor.date}.`;
+            }
+
             return [
                 {
-                    role: "system", content: `${systemBase} Create a scout meeting plan in JSON format.
+                    role: "system", content: `${systemBase} Create a scout meeting plan in JSON format IN FRENCH.
 Output structure:
 {
-  "theme": "string (meeting theme)",
-  "goals": "string (meeting objectives)",
-  "materials": ["string (list of materials needed)"],
-  "timeline": [{ "time": "HH:MM", "duration": "HH:MM", "activity": "string (activity name)" }]
-}` },
+  "theme": "string (meeting theme in French)",
+  "goals": "string (meeting objectives in French)",
+  "materials": ["string (list of materials needed in French)"],
+  "timeline": [{ "time": "HH:MM", "duration": "HH:MM", "activity": "string (activity name in French)" }]
+}
+
+Important context:
+- "Loup d'honneur" is a brief formality at the start of meetings (5-10 minutes), not a ceremony
+- "Trève de l'eau" is a water break that typically comes after active games
+- "Accueil des louveteaux" is the welcome/opening activity
+- Activities should be practical, age-appropriate scout activities
+- Use French terminology for scout activities${templateContext}${honorContext}`
+                },
                 {
                     role: "user", content: `Create a ${payload.duration} meeting plan for ${payload.section} scouts on ${payload.date}.
 Focus: ${payload.focus}.
-Generate 5-7 activities with realistic times and durations.`
+Generate 5-7 activities with realistic times and durations.
+RESPOND IN FRENCH.`
                 }
             ];
 
