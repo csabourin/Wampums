@@ -768,12 +768,12 @@ module.exports = (pool, logger) => {
           expiryMinutes: 60,
         });
 
-        // Store reset token in users table
+        // Store reset token in users table for all matching email accounts
         const tokenUpdate = await pool.query(
           `UPDATE users
            SET reset_token = $1, reset_token_expiry = NOW() + INTERVAL '1 hour'
-           WHERE id = $2`,
-          [hashedToken, user.rows[0].id]
+           WHERE LOWER(email) = $2`,
+          [hashedToken, normalizedEmail]
         );
 
         if (tokenUpdate.rowCount === 0) {
@@ -883,16 +883,22 @@ module.exports = (pool, logger) => {
     checkValidation,
     async (req, res) => {
       try {
-        const { token, new_password } = req.body;
+        const { new_password } = req.body;
+        const token = req.body.token || req.query.token;
         const trimmedPassword = new_password.trim();
 
-        logger.info('Password reset submission received');
+        if (!token) {
+          logger.warn('Password reset attempt without token');
+          return res.status(400).json({ success: false, message: 'token_not_found' });
+        }
+
+        logger.info('Password reset submission received', { hasToken: !!token });
 
         const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
         // Check if token exists in database and is not expired
         const tokenResult = await pool.query(
-          `SELECT id FROM users
+          `SELECT id, email FROM users
            WHERE reset_token = $1 AND reset_token_expiry > NOW()`,
           [hashedToken]
         );
@@ -902,18 +908,20 @@ module.exports = (pool, logger) => {
           return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
         }
 
-        const userId = tokenResult.rows[0].id;
+        const user = tokenResult.rows[0];
+        const userEmail = user.email;
 
         // Hash new password
         const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
-        // Update password and clear reset token
+        // Update password and clear reset token for ALL accounts with this email
+        // This ensures consistent identity across organizations
         await pool.query(
-          'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
-          [hashedPassword, userId]
+          'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE LOWER(email) = LOWER($2)',
+          [hashedPassword, userEmail]
         );
 
-        logger.info('Password reset completed', { userId });
+        logger.info('Password reset completed for email', { email: userEmail });
 
         res.json({
           success: true,
