@@ -25,13 +25,13 @@ export class Register {
                 <input type="password" id="password" name="password" autocomplete="new-password" required>
 
                 <label for="confirm_password">${translate(
-                  "confirm_password"
-                )}:</label>
+      "confirm_password"
+    )}:</label>
                 <input type="password" id="confirm_password" name="confirm_password" autocomplete="new-password" required>
 
                 <label for="account_creation_password">${translate(
-                  "account_creation_password"
-                )}:</label>
+      "account_creation_password"
+    )}:</label>
                 <input type="password" id="account_creation_password" name="account_creation_password" autocomplete="off" required>
 
                 <label for="user_type">${translate("user_type")}:</label>
@@ -79,10 +79,14 @@ export class Register {
         this.showError(result.message);
       }
     } catch (error) {
-      debugError("Registration error:", error);
-
       // Extract validation errors and display them
-      let errorMessage = error.message || translate("error_creating_account");
+      let errorMessage = translate(error.message) || translate("error_creating_account");
+
+      // Specific handling for account_already_exists
+      if (error.message === "account_already_exists") {
+        this.app.router.navigate("/reset-password?error=account_already_exists");
+        return;
+      }
 
       // Check if there are specific validation errors
       if (error.message && error.message.includes('Validation failed:')) {

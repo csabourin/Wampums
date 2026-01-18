@@ -130,7 +130,7 @@ const routes = {
   "/reset-password": "resetPassword",
   "/reports": "reports",
   "/preparation-reunions": "preparation_reunions",
-   "/register-organization": "registerOrganization",
+  "/register-organization": "registerOrganization",
   "/manage-users-participants": "manageUsersParticipants",
   "/dynamic-form/fiche_sante/:id": "ficheSante",
   "/create-organization": "createOrganization",
@@ -184,7 +184,7 @@ export class Router {
     this.currentModuleInstance = null;
   }
 
-   navigate(path) {
+  navigate(path) {
     debugLog("Navigating to:", path);
     history.pushState(null, "", path);
     this.route(path);
@@ -209,12 +209,12 @@ export class Router {
     }
     const [routeName, param] = this.getRouteNameAndParam(path);
     const dynamicFormMatch = path.match(/^\/dynamic-form\/([^\/]+)\/(\d+)$/);
-      if (dynamicFormMatch) {
-        const formType = dynamicFormMatch[1];
-        const participantId = dynamicFormMatch[2];
-        await this.loadDynamicForm(formType, participantId);
-        return;
-      }
+    if (dynamicFormMatch) {
+      const formType = dynamicFormMatch[1];
+      const participantId = dynamicFormMatch[2];
+      await this.loadDynamicForm(formType, participantId);
+      return;
+    }
 
     // Check session
     const session = Login.checkSession();
@@ -234,12 +234,12 @@ export class Router {
       };
       // Allow access to login, register, permission slip signing, and index pages without being logged in
       if (!this.app.isLoggedIn && !["login", "register", "resetPassword", "permissionSlipSign"].includes(routeName)) {
-          if (path !== "/login") {
-              debugWarn('Redirecting to login from route:', routeName);
-              history.pushState(null, "", "/login");
-          }
-          await this.loadLoginPage();
-          return;
+        if (path !== "/login") {
+          debugWarn('Redirecting to login from route:', routeName);
+          history.pushState(null, "", "/login");
+        }
+        await this.loadLoginPage();
+        return;
 
       }
 
@@ -252,12 +252,12 @@ export class Router {
             await this.loadDashboard();
           }
           break;
-          case 'PrintableGroupParticipantReport':
+        case 'PrintableGroupParticipantReport':
           const PrintableGroupParticipantReport = await this.loadModule('PrintableGroupParticipantReport');
           const report = new PrintableGroupParticipantReport(this.app);
           await report.init();
           break;
-          case "admin":
+        case "admin":
           if (!guard(canAccessAdminPanel())) {
             break;
           }
@@ -307,10 +307,10 @@ export class Router {
             break;
           }
           const RevenueDashboard = await this.loadModule('RevenueDashboard');
-        const revenueDashboard = new RevenueDashboard(this.app);
-        await revenueDashboard.init();
-        break;
-      case "resourceDashboard":
+          const revenueDashboard = new RevenueDashboard(this.app);
+          await revenueDashboard.init();
+          break;
+        case "resourceDashboard":
           if (!guard(canViewInventory())) {
             break;
           }
@@ -368,9 +368,9 @@ export class Router {
           }
           await this.loadCalendarsPage(param);
           break;
-          case "createOrganization":
+        case "createOrganization":
           if (!guard(canCreateOrganization())) {
-              break;
+            break;
           }
           const CreateOrganization = await this.loadModule('CreateOrganization');
           const createOrganization = new CreateOrganization(this.app);
@@ -400,7 +400,7 @@ export class Router {
             await this.loadLoginPage();
           }
           break;
-          case "registerOrganization":
+        case "registerOrganization":
           const RegisterOrganization = await this.loadModule('RegisterOrganization');
           const registerOrganization = new RegisterOrganization(this.app);
           await registerOrganization.init();
@@ -408,7 +408,7 @@ export class Router {
         case "logout":
           await this.handleLogout();
           break;
-          case "resetPassword":
+        case "resetPassword":
           await this.loadResetPasswordPage();
           break;
         case "attendance":
@@ -417,19 +417,19 @@ export class Router {
           }
           await this.loadAttendance();
           break;
-          case "UpcomingMeeting":
+        case "UpcomingMeeting":
           if (!guard(canViewActivities() || canViewParticipants())) {
             break;
           }
           await this.loadUpcomingMeeting();
           break;
-          case "formulaireInscription":
+        case "formulaireInscription":
           if (!guard(isParent() || canViewParticipants())) {
             break;
           }
           await this.loadFormulaireInscription(param);
           break;
-          case "mailingList":
+        case "mailingList":
           if (!guard(canSendCommunications())) {
             break;
           }
@@ -483,7 +483,7 @@ export class Router {
           }
           await this.loadParentContactList();
           break;
-          case 'reports':
+        case 'reports':
           if (!guard(canViewReports())) {
             break;
           }
@@ -516,7 +516,7 @@ export class Router {
         case "badgeForm":
           await this.loadBadgeForm(param);
           break;
-          case 'preparation_reunions':
+        case 'preparation_reunions':
           await this.loadPreparationReunions();
           break;
         case "accountInfo":
@@ -636,17 +636,17 @@ export class Router {
   }
 
   getRouteNameAndParam(path) {
-      const cleanPath = path.split("?")[0];
-      const parts = cleanPath.split("/");
-      debugLog('[ROUTER DEBUG] Path:', cleanPath, 'Parts:', parts);
-      debugLog('[ROUTER DEBUG] Checking:', `/${parts[1]}/:id`, 'Exists:', !!routes[`/${parts[1]}/:id`]);
-      if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
-        debugLog('[ROUTER DEBUG] Matched parameterized route:', routes[`/${parts[1]}/:id`], 'Param:', parts[2]);
-        return [routes[`/${parts[1]}/:id`], parts[2]];
-      }
-      debugLog(`Path: ${cleanPath}, RouteName: ${routes[cleanPath]}`);
-      debugLog('[ROUTER DEBUG] Route name:', routes[cleanPath] || "notFound");
-      return [routes[cleanPath] || "notFound", null];
+    const cleanPath = path.split("?")[0];
+    const parts = cleanPath.split("/");
+    debugLog('[ROUTER DEBUG] Path:', cleanPath, 'Parts:', parts);
+    debugLog('[ROUTER DEBUG] Checking:', `/${parts[1]}/:id`, 'Exists:', !!routes[`/${parts[1]}/:id`]);
+    if (parts.length > 2 && routes[`/${parts[1]}/:id`]) {
+      debugLog('[ROUTER DEBUG] Matched parameterized route:', routes[`/${parts[1]}/:id`], 'Param:', parts[2]);
+      return [routes[`/${parts[1]}/:id`], parts[2]];
+    }
+    debugLog(`Path: ${cleanPath}, RouteName: ${routes[cleanPath]}`);
+    debugLog('[ROUTER DEBUG] Route name:', routes[cleanPath] || "notFound");
+    return [routes[cleanPath] || "notFound", null];
   }
 
 
@@ -725,7 +725,7 @@ export class Router {
     await reports.init();
   }
 
-  async loadUpcomingMeeting(){
+  async loadUpcomingMeeting() {
     const UpcomingMeeting = await this.loadModule('UpcomingMeeting');
     const upcomingMeeting = new UpcomingMeeting(this.app);
     upcomingMeeting.init();
@@ -758,9 +758,10 @@ export class Router {
   async loadResetPasswordPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    const errorParam = urlParams.get('error');
     const ResetPassword = await this.loadModule('ResetPassword');
     const resetPassword = new ResetPassword(this.app);
-    resetPassword.render(token);
+    resetPassword.render(token, errorParam);
   }
 
   async loadManageParticipants() {
@@ -794,7 +795,7 @@ export class Router {
     await parentContactList.init();
   }
 
-  async loadMailingList(){
+  async loadMailingList() {
     const MailingList = await this.loadModule('MailingList');
     const mailingList = new MailingList(this.app);
     await mailingList.init();
@@ -845,7 +846,7 @@ export class Router {
   }
 
   reloadCurrentRoute() {
-      this.route(window.location.pathname);
+    this.route(window.location.pathname);
   }
 
   async handleLogout() {
@@ -873,27 +874,27 @@ export class Router {
 }
 
 export function initRouter(app) {
-    const router = new Router(app);
+  const router = new Router(app);
 
-    // Handle navigation
-    document.addEventListener("click", (e) => {
-        if (e.target.matches("a")) {
-            const url = e.target.getAttribute("href");
-            // Only handle valid internal URLs
-            if (url && url !== '#' && url !== '' && !url.startsWith('javascript:')) {
-                e.preventDefault();
-                history.pushState(null, "", url);
-                router.route(url);
-            }
-        }
-    });
+  // Handle navigation
+  document.addEventListener("click", (e) => {
+    if (e.target.matches("a")) {
+      const url = e.target.getAttribute("href");
+      // Only handle valid internal URLs
+      if (url && url !== '#' && url !== '' && !url.startsWith('javascript:')) {
+        e.preventDefault();
+        history.pushState(null, "", url);
+        router.route(url);
+      }
+    }
+  });
 
-    // Handle back/forward browser buttons
-    window.addEventListener("popstate", () => {
-        router.route(window.location.pathname);
-    });
+  // Handle back/forward browser buttons
+  window.addEventListener("popstate", () => {
+    router.route(window.location.pathname);
+  });
 
-    return router;
+  return router;
 }
 
 export function navigate(path) {
