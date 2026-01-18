@@ -18,6 +18,7 @@ import { validateMoney, validateDateField, validateRequired } from "./utils/Vali
 import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { setButtonLoading } from './utils/SkeletonUtils.js';
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -424,7 +425,7 @@ export class Expenses {
 
   renderActionButtons() {
     const canEdit = canManageFinance();
-    
+
     if (!canEdit) {
       return '';
     }
@@ -568,7 +569,7 @@ export class Expenses {
       monthData.total += item.total_amount;
     });
 
-    const months = Array.from(monthlyMap.values()).sort((a, b) => 
+    const months = Array.from(monthlyMap.values()).sort((a, b) =>
       new Date(b.month) - new Date(a.month)
     );
 
@@ -582,9 +583,9 @@ export class Expenses {
 
   renderMonthSection(monthData) {
     const monthDate = new Date(monthData.month);
-    const monthLabel = monthDate.toLocaleDateString(this.app.lang || "en", { 
-      year: 'numeric', 
-      month: 'long' 
+    const monthLabel = monthDate.toLocaleDateString(this.app.lang || "en", {
+      year: 'numeric',
+      month: 'long'
     });
 
     return `
@@ -721,6 +722,11 @@ export class Expenses {
             <form id="expense-form">
               <div class="form-row">
                 <div class="form-group">
+                   <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
+                      <button type="button" class="button button--secondary" id="upload-receipt-btn">📸 ${translate("upload_receipt")}</button>
+                      <input type="file" id="receipt-upload-input" accept="image/*,.pdf" style="display:none">
+                      <small style="display:block; margin-top:5px; color:#666;">${translate("upload_receipt_help")}</small>
+                   </div>
                   <label for="expense-date">${translate("date")}*</label>
                   <input type="date" id="expense-date" required
                          value="${expense ? expense.expense_date : getTodayISO()}">
@@ -831,11 +837,48 @@ export class Expenses {
 
     document.body.insertAdjacentHTML("beforeend", modalHTML);
 
+    // Receipt Upload Handler
+    const uploadBtn = document.getElementById("upload-receipt-btn");
+    const fileInput = document.getElementById("receipt-upload-input");
+
+    if (uploadBtn && fileInput) {
+      uploadBtn.addEventListener("click", () => fileInput.click());
+
+      fileInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setButtonLoading(uploadBtn, true);
+        try {
+          const response = await window.aiParseReceipt(file);
+          const data = response.data; // { vendor, date, total, tax... }
+
+          // Fill Form
+          if (data.date) document.getElementById("expense-date").value = data.date;
+          if (data.vendor) document.getElementById("expense-description").value = data.vendor;
+          if (data.total) {
+            document.getElementById("expense-amount").value = data.total;
+            const tax = (data.tax || 0);
+            document.getElementById("expense-subtotal").value = (data.total - tax).toFixed(2);
+          }
+
+          this.app.showMessage(translate("receipt_parsed_success"), "success");
+        } catch (err) {
+          let msg = translate("error_parsing_receipt");
+          if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+          this.app.showMessage(msg, 'error');
+        } finally {
+          setButtonLoading(uploadBtn, false);
+          fileInput.value = ""; // Reset
+        }
+      });
+    }
+
     // Tax calculator
     document.getElementById("calculate-taxes-btn").addEventListener("click", () => {
       const subtotal = parseFloat(document.getElementById("expense-subtotal").value) || 0;
       const taxes = this.calculateTaxes(subtotal);
-      
+
       document.getElementById("tax-gst").textContent = this.formatCurrency(taxes.gst);
       document.getElementById("tax-qst").textContent = this.formatCurrency(taxes.qst);
       document.getElementById("tax-total").textContent = this.formatCurrency(taxes.total);
@@ -1030,7 +1073,7 @@ export class Expenses {
     try {
       await createExpensesBulk(expenses);
       this.app.showMessage(translate("bulk_expenses_created", { count: expenses.length }), "success");
-      
+
       document.getElementById("bulk-expense-modal").remove();
       await this.refreshExpenseData();
     } catch (error) {

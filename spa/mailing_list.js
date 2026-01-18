@@ -5,9 +5,10 @@ import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { canSendCommunications } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { setButtonLoading } from './utils/SkeletonUtils.js';
 
 export class MailingList {
-  constructor(app) {
+        constructor(app) {
                 this.app = app;
                 this.mailingList = {};
                 this.announcements = [];
@@ -86,14 +87,14 @@ export class MailingList {
                                         <select id="announcement-template">
                                                 <option value="">${translate("choose_template")}</option>
                                                 ${this.templates
-                                                        .map(
-                                                                (template, index) => `
+                                .map(
+                                        (template, index) => `
                                                                         <option value="${index}">${escapeHTML(
-                                                                                template.title || template.key || translate("template")
-                                                                        )}</option>
+                                                template.title || template.key || translate("template")
+                                        )}</option>
                                                                 `
-                                                        )
-                                                        .join("")}
+                                )
+                                .join("")}
                                         </select>
                                 </label>
                         `
@@ -112,20 +113,24 @@ export class MailingList {
                                 <label class="input-group">
                                         <span>${translate("announcement_message")}</span>
                                         <textarea id="announcement-message" name="announcement-message" rows="5" required></textarea>
+                                        <div class="ai-toolbar" style="margin-top: 5px; display: flex; gap: 10px;">
+                                                <button type="button" class="button button--small button--secondary" id="ai-rewrite-btn">✨ ${translate("rewrite_professional")}</button>
+                                                <button type="button" class="button button--small button--secondary" id="ai-translate-btn">🌐 ${translate("translate_en_fr")}</button>
+                                        </div>
                                 </label>
                                 <div class="input-group roles">
                                         <span>${translate("recipient_roles")}</span>
                                         <div class="role-options">
                                                 ${roles
-                                                        .map(
-                                                                (role) => `
+                                .map(
+                                        (role) => `
                                                                         <label>
                                                                                 <input type="checkbox" name="recipient-role" value="${role.key}" checked />
                                                                                 ${role.label}
                                                                         </label>
                                                                 `
-                                                        )
-                                                        .join("")}
+                                )
+                                .join("")}
                                         </div>
                                 </div>
                                 ${this.renderGroupFilters()}
@@ -135,11 +140,11 @@ export class MailingList {
                                 </label>
                                 <div class="form-actions">
                                         <button type="submit" id="send-announcement" class="primary" ${this.isSubmitting ? "disabled" : ""}>${translate(
-                                                "send_now"
-                                        )}</button>
+                                        "send_now"
+                                )}</button>
                                         <button type="button" id="save-announcement-draft" ${this.isSubmitting ? "disabled" : ""}>${translate(
-                                                "save_draft"
-                                        )}</button>
+                                        "save_draft"
+                                )}</button>
                                 </div>
                         </form>
                 `;
@@ -155,15 +160,15 @@ export class MailingList {
                                 <span>${translate("select_groups")}</span>
                                 <div class="group-options">
                                         ${this.groups
-                                                .map(
-                                                        (group) => `
+                                .map(
+                                        (group) => `
                                                                 <label>
                                                                         <input type="checkbox" name="recipient-group" value="${group.id}" />
                                                                         ${escapeHTML(group.name)}
                                                                 </label>
                                                         `
-                                                )
-                                                .join("")}
+                                )
+                                .join("")}
                                 </div>
                         </div>
                 `;
@@ -178,43 +183,42 @@ export class MailingList {
                         <h2>${translate("announcement_history")}</h2>
                         <div class="announcement-list">
                                 ${this.announcements
-                                        .map((announcement) => {
-                                                const statusLabel = translate(announcement.status) || announcement.status;
-                                                const scheduled = announcement.scheduled_at
-                                                        ? `${translate("scheduled_for")}: ${this.formatDateTime(announcement.scheduled_at)}`
-                                                        : "";
-                                                const sent = announcement.sent_at
-                                                        ? `${translate("sent_at")}: ${this.formatDateTime(announcement.sent_at)}`
-                                                        : "";
-                                                const groups = Array.isArray(announcement.recipient_groups)
-                                                        ? announcement.recipient_groups
-                                                                        .map((id) => this.groups.find((group) => group.id === id)?.name)
-                                                                        .filter(Boolean)
-                                                        : [];
-                                                const logs = Array.isArray(announcement.logs) ? announcement.logs : [];
-                                                const deliverySummary = this.getDeliverySummary(logs);
-                                                const pushFailureLabel = translate("push_failed").replace(
-                                                        "{count}",
-                                                        deliverySummary.push.failed
-                                                );
+                                .map((announcement) => {
+                                        const statusLabel = translate(announcement.status) || announcement.status;
+                                        const scheduled = announcement.scheduled_at
+                                                ? `${translate("scheduled_for")}: ${this.formatDateTime(announcement.scheduled_at)}`
+                                                : "";
+                                        const sent = announcement.sent_at
+                                                ? `${translate("sent_at")}: ${this.formatDateTime(announcement.sent_at)}`
+                                                : "";
+                                        const groups = Array.isArray(announcement.recipient_groups)
+                                                ? announcement.recipient_groups
+                                                        .map((id) => this.groups.find((group) => group.id === id)?.name)
+                                                        .filter(Boolean)
+                                                : [];
+                                        const logs = Array.isArray(announcement.logs) ? announcement.logs : [];
+                                        const deliverySummary = this.getDeliverySummary(logs);
+                                        const pushFailureLabel = translate("push_failed").replace(
+                                                "{count}",
+                                                deliverySummary.push.failed
+                                        );
 
-                                                return `
+                                        return `
                                                         <div class="announcement-item">
                                                                 <div class="announcement-meta">
                                                                         <div class="announcement-title">${escapeHTML(announcement.subject)}</div>
                                                                         <div class="announcement-status">${statusLabel}</div>
                                                                 </div>
                                                                 <div class="announcement-details">
-                                                                        <div>${translate("recipient_roles")}: ${
-                                                                                announcement.recipient_roles
-                                                                                        ?.map((role) => translate(role) || role)
-                                                                                        .join(", ") || translate("no_data_available")
-                                                                        }</div>
+                                                                        <div>${translate("recipient_roles")}: ${announcement.recipient_roles
+                                                        ?.map((role) => translate(role) || role)
+                                                        .join(", ") || translate("no_data_available")
+                                                }</div>
                                                                         ${groups.length
-                                                                                ? `<div>${translate("select_groups")}: ${groups
-                                                                                                .map((group) => escapeHTML(group))
-                                                                                                .join(", ")}</div>`
-                                                                                : ""}
+                                                        ? `<div>${translate("select_groups")}: ${groups
+                                                                .map((group) => escapeHTML(group))
+                                                                .join(", ")}</div>`
+                                                        : ""}
                                                                         ${scheduled ? `<div>${scheduled}</div>` : ""}
                                                                         ${sent ? `<div>${sent}</div>` : ""}
                                                                 </div>
@@ -224,30 +228,30 @@ export class MailingList {
                                                                         <span class="badge warning">${translate("failed")}: ${deliverySummary.email.failed}</span>
                                                                         <span class="badge info">${translate("push_notifications")}: ${deliverySummary.push.sent}</span>
                                                                         ${deliverySummary.push.failed
-                                                                                ? `<span class="badge warning">${pushFailureLabel}</span>`
-                                                                                : ""}
+                                                        ? `<span class="badge warning">${pushFailureLabel}</span>`
+                                                        : ""}
                                                                 </div>
                                                                 ${logs.length
-                                                                        ? `<details>
+                                                        ? `<details>
                                                                                         <summary>${translate("delivery_logs")}</summary>
                                                                                         <ul>
                                                                                                 ${logs
-                                                                                                        .slice(0, 5)
-                                                                                                        .map((log) => `
+                                                                .slice(0, 5)
+                                                                .map((log) => `
                                                                                                                 <li>
                                                                                                                         ${escapeHTML(log.channel)} - ${escapeHTML(log.status)}
                                                                                                                         ${log.recipient_email ? `(${escapeHTML(log.recipient_email)})` : ""}
                                                                                                                         ${log.error_message ? `: ${escapeHTML(log.error_message)}` : ""}
                                                                                                                 </li>
                                                                                                         `)
-                                                                                                        .join("")}
+                                                                .join("")}
                                                                                         </ul>
                                                                                 </details>`
-                                                                        : ""}
+                                                        : ""}
                                                         </div>
                                                 `;
-                                        })
-                                        .join("")}
+                                })
+                                .join("")}
                         </div>
                 `;
         }
@@ -311,8 +315,8 @@ export class MailingList {
                                                         ${this.renderEmails(emails)}
                                                 </div>
                                                 <button class="copy-role-emails" data-role="${role}">${translate(
-                                                        "copy_emails_for"
-                                                )} ${translate(role)}</button>
+                                        "copy_emails_for"
+                                )} ${translate(role)}</button>
                                         </div>
                                 `;
                         }
@@ -374,169 +378,217 @@ export class MailingList {
                         });
                 }
 
-                const templateSelect = document.getElementById("announcement-template");
-                if (templateSelect) {
-                        templateSelect.addEventListener("change", (event) => this.applyTemplate(event.target.value));
-                }
+                templateSelect.addEventListener("change", (event) => this.applyTemplate(event.target.value));
         }
+
+        // AI Buttons
+        const rewriteBtn = document.getElementById("ai-rewrite-btn");
+        if(rewriteBtn) {
+                rewriteBtn.addEventListener("click", async () => {
+                        const msgArea = document.getElementById("announcement-message");
+                        const text = msgArea.value;
+                        if (!text) return;
+
+                        setButtonLoading(rewriteBtn, true);
+                        try {
+                                const res = await window.aiGenerateText("rewrite", { text, tone: "professional" });
+                                msgArea.value = res.data.text;
+                                this.showFeedback(translate("rewrite_success"), "success");
+                        } catch (err) {
+                                let msg = err.message;
+                                if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+                                this.showFeedback(translate("error") + ": " + msg, "error");
+                        } finally {
+                                setButtonLoading(rewriteBtn, false);
+                        }
+                });
+        }
+
+        const translateBtn = document.getElementById("ai-translate-btn");
+        if(translateBtn) {
+                translateBtn.addEventListener("click", async () => {
+                        const msgArea = document.getElementById("announcement-message");
+                        const text = msgArea.value;
+                        if (!text) return;
+
+                        const currentLang = this.app.lang || CONFIG.DEFAULT_LANG;
+                        // Simple logic: if en -> fr, else -> en
+                        const from = currentLang === 'fr' ? 'fr' : 'en';
+                        const to = from === 'fr' ? 'en' : 'fr';
+
+                        setButtonLoading(translateBtn, true);
+                        try {
+                                const res = await window.aiGenerateText("translate", { text, from, to });
+                                msgArea.value = res.data.text;
+                                this.showFeedback(translate("translate_success"), "success");
+                        } catch (err) {
+                                let msg = err.message;
+                                if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+                                this.showFeedback(translate("error") + ": " + msg, "error");
+                        } finally {
+                                setButtonLoading(translateBtn, false);
+                        }
+                });
+        }
+}
 
         async handleAnnouncementSubmit(saveAsDraft = false) {
-                if (this.isSubmitting) return;
+        if (this.isSubmitting) return;
 
-                const subject = document.getElementById("announcement-subject")?.value?.trim();
-                const message = document.getElementById("announcement-message")?.value?.trim();
-                const scheduledAt = document.getElementById("announcement-scheduled-at")?.value;
-                const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
-                const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
+        const subject = document.getElementById("announcement-subject")?.value?.trim();
+        const message = document.getElementById("announcement-message")?.value?.trim();
+        const scheduledAt = document.getElementById("announcement-scheduled-at")?.value;
+        const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
+        const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
 
-                const recipientRoles = roleCheckboxes.map((input) => input.value);
-                const recipientGroupIds = groupCheckboxes.map((input) => Number(input.value));
+        const recipientRoles = roleCheckboxes.map((input) => input.value);
+        const recipientGroupIds = groupCheckboxes.map((input) => Number(input.value));
 
-                if (!subject || !message) {
-                        this.showFeedback(translate("error_loading_mailing_list"), "error");
-                        return;
-                }
-
-                this.isSubmitting = true;
-                this.toggleFormDisabled(true);
-                this.showFeedback(translate("announcement_sending"), "info");
-
-                try {
-                        const response = await createAnnouncement({
-                                subject,
-                                message: sanitizeHTML(message, { stripAll: true }),
-                                recipient_roles: recipientRoles,
-                                recipient_group_ids: recipientGroupIds,
-                                scheduled_at: scheduledAt || null,
-                                save_as_draft: saveAsDraft,
-                                send_now: !saveAsDraft,
-                        });
-
-                        if (!response?.success) {
-                                throw new Error(response?.message || "Failed to send announcement");
-                        }
-
-                        this.announcements = [response.data, ...this.announcements];
-                        this.render();
-                        this.attachEventListeners();
-                        this.showFeedback(
-                                saveAsDraft ? translate("announcement_saved") : translate("announcement_sent"),
-                                "success"
-                        );
-                        this.clearForm();
-                } catch (error) {
-                        debugError("Error sending announcement:", error);
-                        this.showFeedback(error.message || translate("announcement_send_failed"), "error");
-                } finally {
-                        this.isSubmitting = false;
-                        this.toggleFormDisabled(false);
-                }
+        if (!subject || !message) {
+                this.showFeedback(translate("error_loading_mailing_list"), "error");
+                return;
         }
 
-        applyTemplate(index) {
-                if (!this.templates?.length || index === "") {
-                        return;
-                }
+        this.isSubmitting = true;
+        this.toggleFormDisabled(true);
+        this.showFeedback(translate("announcement_sending"), "info");
 
-                const template = this.templates[Number(index)];
-                if (!template) {
-                        return;
-                }
-
-                const subjectField = document.getElementById("announcement-subject");
-                const messageField = document.getElementById("announcement-message");
-
-                if (subjectField) subjectField.value = template.subject || "";
-                if (messageField) messageField.value = template.body || "";
-        }
-
-        toggleFormDisabled(disabled) {
-                const form = document.getElementById("announcement-form");
-                if (!form) return;
-
-                Array.from(form.elements).forEach((element) => {
-                        element.disabled = disabled;
-                });
-        }
-
-        clearForm() {
-                const form = document.getElementById("announcement-form");
-                if (!form) return;
-                form.reset();
-        }
-
-        showFeedback(message, type = "info") {
-                const feedbackEl = document.getElementById("announcement-feedback");
-                if (!feedbackEl) return;
-                feedbackEl.textContent = message;
-                feedbackEl.className = `status-message ${type}`;
-        }
-
-        getDeliverySummary(logs) {
-                const summary = {
-                        email: { sent: 0, failed: 0 },
-                        push: { sent: 0, failed: 0 },
-                };
-
-                logs.forEach((log) => {
-                        if (log.channel === "email") {
-                                if (log.status === "sent") summary.email.sent += 1;
-                                if (log.status === "failed") summary.email.failed += 1;
-                        }
-                        if (log.channel === "push") {
-                                if (log.status === "sent") summary.push.sent += 1;
-                                if (log.status === "failed") summary.push.failed += 1;
-                        }
+        try {
+                const response = await createAnnouncement({
+                        subject,
+                        message: sanitizeHTML(message, { stripAll: true }),
+                        recipient_roles: recipientRoles,
+                        recipient_group_ids: recipientGroupIds,
+                        scheduled_at: scheduledAt || null,
+                        save_as_draft: saveAsDraft,
+                        send_now: !saveAsDraft,
                 });
 
-                return summary;
-        }
-
-        formatDateTime(dateString) {
-                if (!dateString) return "";
-                try {
-                        const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
-                        const locale = lang === 'en' ? 'en-CA' : lang === 'uk' ? 'uk-UA' : 'fr-CA';
-                        return new Date(dateString).toLocaleString(locale);
-                } catch (error) {
-                        debugLog("Unable to format date", error);
-                        return dateString;
-                }
-        }
-
-        copyRoleEmailsToClipboard(role) {
-                const emailsByRole = this.mailingList?.emails_by_role || {};
-                const emails = emailsByRole[role] || [];
-
-                let emailString;
-                if (role === 'parent') {
-                        const uniqueParentEmails = [...new Set(emails.map((entry) => entry.email))];
-                        emailString = uniqueParentEmails.join(", ");
-                } else {
-                        const uniqueRoleEmails = [...new Set(emails)];
-                        emailString = uniqueRoleEmails.join(", ");
+                if (!response?.success) {
+                        throw new Error(response?.message || "Failed to send announcement");
                 }
 
-                if (!emailString) {
-                        alert(translate("no_data_available"));
-                        return;
-                }
+                this.announcements = [response.data, ...this.announcements];
+                this.render();
+                this.attachEventListeners();
+                this.showFeedback(
+                        saveAsDraft ? translate("announcement_saved") : translate("announcement_sent"),
+                        "success"
+                );
+                this.clearForm();
+        } catch (error) {
+                debugError("Error sending announcement:", error);
+                this.showFeedback(error.message || translate("announcement_send_failed"), "error");
+        } finally {
+                this.isSubmitting = false;
+                this.toggleFormDisabled(false);
+        }
+}
 
-                navigator.clipboard
-                        .writeText(emailString)
-                        .then(() => {
-                                alert(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`);
-                        })
-                        .catch((error) => {
-                                debugError("Failed to copy emails:", error);
-                        });
+applyTemplate(index) {
+        if (!this.templates?.length || index === "") {
+                return;
         }
 
-        renderError() {
-                const errorMessage = `
+        const template = this.templates[Number(index)];
+        if (!template) {
+                return;
+        }
+
+        const subjectField = document.getElementById("announcement-subject");
+        const messageField = document.getElementById("announcement-message");
+
+        if (subjectField) subjectField.value = template.subject || "";
+        if (messageField) messageField.value = template.body || "";
+}
+
+toggleFormDisabled(disabled) {
+        const form = document.getElementById("announcement-form");
+        if (!form) return;
+
+        Array.from(form.elements).forEach((element) => {
+                element.disabled = disabled;
+        });
+}
+
+clearForm() {
+        const form = document.getElementById("announcement-form");
+        if (!form) return;
+        form.reset();
+}
+
+showFeedback(message, type = "info") {
+        const feedbackEl = document.getElementById("announcement-feedback");
+        if (!feedbackEl) return;
+        feedbackEl.textContent = message;
+        feedbackEl.className = `status-message ${type}`;
+}
+
+getDeliverySummary(logs) {
+        const summary = {
+                email: { sent: 0, failed: 0 },
+                push: { sent: 0, failed: 0 },
+        };
+
+        logs.forEach((log) => {
+                if (log.channel === "email") {
+                        if (log.status === "sent") summary.email.sent += 1;
+                        if (log.status === "failed") summary.email.failed += 1;
+                }
+                if (log.channel === "push") {
+                        if (log.status === "sent") summary.push.sent += 1;
+                        if (log.status === "failed") summary.push.failed += 1;
+                }
+        });
+
+        return summary;
+}
+
+formatDateTime(dateString) {
+        if (!dateString) return "";
+        try {
+                const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
+                const locale = lang === 'en' ? 'en-CA' : lang === 'uk' ? 'uk-UA' : 'fr-CA';
+                return new Date(dateString).toLocaleString(locale);
+        } catch (error) {
+                debugLog("Unable to format date", error);
+                return dateString;
+        }
+}
+
+copyRoleEmailsToClipboard(role) {
+        const emailsByRole = this.mailingList?.emails_by_role || {};
+        const emails = emailsByRole[role] || [];
+
+        let emailString;
+        if (role === 'parent') {
+                const uniqueParentEmails = [...new Set(emails.map((entry) => entry.email))];
+                emailString = uniqueParentEmails.join(", ");
+        } else {
+                const uniqueRoleEmails = [...new Set(emails)];
+                emailString = uniqueRoleEmails.join(", ");
+        }
+
+        if (!emailString) {
+                alert(translate("no_data_available"));
+                return;
+        }
+
+        navigator.clipboard
+                .writeText(emailString)
+                .then(() => {
+                        alert(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`);
+                })
+                .catch((error) => {
+                        debugError("Failed to copy emails:", error);
+                });
+}
+
+renderError() {
+        const errorMessage = `
                                                 <h1>${translate("error")}</h1>
                                                 <p>${translate("error_loading_mailing_list")}</p>
                                 `;
-                setContent(document.getElementById("app"), errorMessage);
-        }
+        setContent(document.getElementById("app"), errorMessage);
+}
 }

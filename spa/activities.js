@@ -241,7 +241,10 @@ export class Activities {
           <h2 id="activity-modal-title">
             ${isEdit ? translate('edit_activity') : translate('add_activity')}
           </h2>
-          <button class="ghost-button" id="close-activity-modal" aria-label="${translate('close')}">✕</button>
+          <div style="display:flex; gap:10px;">
+             <button class="button button--small button--secondary" id="magic-generate-btn">✨ ${translate('magic_generate')}</button>
+             <button class="ghost-button" id="close-activity-modal" aria-label="${translate('close')}">✕</button>
+          </div>
         </header>
 
         <form class="modal__content" id="activity-form">
@@ -372,6 +375,12 @@ export class Activities {
     modalContainer.querySelector('.modal__backdrop')?.addEventListener('click', closeModal);
 
     // Form submission
+    // Magic Generate (AI)
+    document.getElementById('magic-generate-btn')?.addEventListener('click', () => {
+      this.showMagicGenerateModal();
+    });
+
+    // Form submission
     document.getElementById('activity-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitButton = e.target.querySelector('button[type="submit"]');
@@ -419,6 +428,98 @@ export class Activities {
         setButtonLoading(submitButton, false);
       }
     });
+
+    // --- End attached event listeners ---
+  }
+
+  showMagicGenerateModal() {
+    const modalId = 'magic-generate-modal';
+    const content = `
+      <div class="modal__backdrop"></div>
+      <div class="modal">
+        <header class="modal__header">
+          <h2>✨ ${translate('magic_generate_meeting')}</h2>
+          <button class="ghost-button close-magic">✕</button>
+        </header>
+        <form id="magic-form" class="modal__content">
+          <div class="form-group">
+            <label>${translate('duration_minutes')}</label>
+            <input type="number" name="duration" value="120" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>${translate('badge_focus')}</label>
+            <input type="text" name="badge" placeholder="e.g. Pioneer, First Aid" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>${translate('participants_count')}</label>
+            <input type="number" name="count" value="12" class="form-control">
+          </div>
+          <div class="modal__actions">
+            <button type="submit" class="button button--primary">✨ ${translate('generate')}</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    // Create container
+    let container = document.getElementById(modalId);
+    if (!container) {
+      container = document.createElement('div');
+      container.id = modalId;
+      container.className = 'modal-container modal-container--visible';
+      document.body.appendChild(container);
+    }
+    container.innerHTML = content;
+
+    // Events
+    const close = () => container.remove();
+    container.querySelector('.close-magic').onclick = close;
+    container.querySelector('.modal__backdrop').onclick = close;
+
+    container.querySelector('form').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = e.target.querySelector('button');
+      setButtonLoading(btn, true);
+
+      try {
+        const formData = new FormData(e.target);
+        const payload = {
+          durationMinutes: parseInt(formData.get('duration')) || 120,
+          badgeFocus: formData.get('badge') || "General",
+          participantsCount: parseInt(formData.get('count')) || 12
+        };
+
+        const response = await window.aiGenerateText("meeting_plan", payload);
+        const plan = response.data; // The generated JSON
+
+        // Fill the activity form
+        const nameInput = document.getElementById('activity-name');
+        const descInput = document.getElementById('activity-description');
+
+        if (nameInput) nameInput.value = plan.title;
+        if (descInput) {
+          // Format the plan nicely
+          let desc = plan.overview + "\n\n";
+          desc += `Timeline:\n`;
+          plan.timeline.forEach(t => {
+            desc += `- ${t.minuteStart}-${t.minuteEnd}m: ${t.name} (${t.objective})\n`;
+          });
+          desc += `\nMaterials: ${plan.materialsMasterList.join(', ')}`;
+          descInput.value = desc;
+        }
+
+        this.app.showMessage(translate('magic_generated_success'), 'success');
+        close();
+      } catch (err) {
+        let msg = translate('magic_generate_error');
+        if (err.error?.code === 'AI_BUDGET_EXCEEDED') {
+          msg = translate('ai_budget_exceeded');
+        }
+        this.app.showMessage(msg, 'error');
+      } finally {
+        setButtonLoading(btn, false);
+      }
+    };
   }
 
   async deleteActivity(activityId) {
