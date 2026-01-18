@@ -1991,7 +1991,7 @@ module.exports = (pool) => {
   router.patch(
     "/permission-slips/:id/sign",
     authenticate,
-    requirePermission("activities.edit"),
+    requirePermission("permission_slips.sign"),
     [
       param("id").isInt({ min: 1 }),
       check("signed_by").isString().trim().isLength({ min: 2, max: 200 }),
@@ -2015,6 +2015,36 @@ module.exports = (pool) => {
 
         if (slipResult.rows[0].status === "signed") {
           return error(res, "Permission slip already signed", 400);
+        }
+
+        const participantId = slipResult.rows[0].participant_id;
+
+        // Check if user has parent-only access (no staff roles)
+        // If so, verify they're linked to this participant
+        const rolesQuery = `
+          SELECT DISTINCT r.role_name
+          FROM user_organizations uo
+          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+          JOIN roles r ON r.id = role_id_text::integer
+          WHERE uo.user_id = $1 AND uo.organization_id = $2
+        `;
+        const rolesResult = await pool.query(rolesQuery, [req.user.id, organizationId]);
+        const userRoles = rolesResult.rows.map(row => row.role_name);
+
+        // Define staff roles that have organization-wide access
+        const staffRoles = ['district', 'unitadmin', 'leader', 'admin', 'animation', 'demoadmin'];
+        const isStaff = userRoles.some(role => staffRoles.includes(role));
+
+        // If user is parent-only, verify they're linked to this participant
+        if (!isStaff) {
+          const linkCheck = await pool.query(
+            "SELECT 1 FROM user_participants WHERE user_id = $1 AND participant_id = $2",
+            [req.user.id, participantId],
+          );
+
+          if (linkCheck.rows.length === 0) {
+            return error(res, "You can only sign permission slips for your own children", 403);
+          }
         }
 
         const updateResult = await pool.query(

@@ -107,6 +107,7 @@ export const ROLE_BUNDLES = {
       "communications.send",
       "reports.view",
       "badges.view",
+      "permission_slips.sign",
     ],
     level: 1,
     scope: "organization",
@@ -165,7 +166,7 @@ export const ROLE_BUNDLES = {
     displayName: "Parent",
     description:
       "Guardian-level access scoped to linked participants and household communications.",
-    permissions: ["participants.view"],
+    permissions: ["participants.view", "permission_slips.sign"],
     level: 0,
     scope: "self",
     conflictsWith: ["demoparent"],
