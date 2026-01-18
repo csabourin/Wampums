@@ -272,7 +272,7 @@ export const app = {
                         debugLog("Organization settings already fetched, skipping");
                         return;
                 }
-                
+
                 // Store the promise so other callers can wait for it
                 if (!this._settingsPromise) {
                         this._settingsPromise = this._doFetchOrganizationSettings();
@@ -722,8 +722,13 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
         const jwtToken = getStorage('jwtToken');
         const isLoggedIn = !!jwtToken;
 
-        // Use public endpoint for unauthenticated users to avoid 401 errors
-        window.earlyOrgSettingsFetch = isLoggedIn
+        // Determine if we are on a public page (where we shouldn't force auth)
+        const publicPages = ['/login', '/reset-password', '/register', '/permission-slip'];
+        const isPublicPage = publicPages.some(path => window.location.pathname.startsWith(path));
+
+        // Use public endpoint for unauthenticated users OR if on a public page
+        // to avoid 401 errors that might trigger redirects
+        window.earlyOrgSettingsFetch = (isLoggedIn && !isPublicPage)
                 ? getOrganizationSettings(storedOrgId).catch(error => {
                         debugError("Early org settings fetch failed, will retry later:", error);
                         return null;

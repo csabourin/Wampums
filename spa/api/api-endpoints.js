@@ -2570,8 +2570,13 @@ export async function getOrganizationSettings(orgId = null) {
             cacheDuration: CONFIG.CACHE_DURATION.LONG
         });
     } catch (error) {
-        debugWarn('Falling back to public organization settings:', error);
-        return getPublicOrganizationSettings();
+        // If we get a 401, it means the token is invalid/expired.
+        // Fall back to the public endpoint which doesn't require auth.
+        if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+            debugWarn('Authenticated organization-settings failed (401), falling back to public endpoint');
+            return getPublicOrganizationSettings();
+        }
+        throw error;
     }
 }
 

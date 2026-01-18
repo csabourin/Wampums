@@ -58,8 +58,13 @@ export async function handleResponse(response) {
             localStorage.removeItem("userId");
 
             // Optionally redirect to login if not already there
-            if (window.location.pathname !== '/login') {
+            const publicPages = ['/login', '/reset-password', '/register', '/permission-slip', '/public/'];
+            const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
+
+            if (!isPublicPage) {
                 window.location.href = '/login';
+            } else {
+                debugWarn('[API] 401 error on public page, skipping automatic redirect');
             }
         }
 
@@ -310,7 +315,7 @@ export async function batchApiRequests(requests, concurrency = 3) {
  * Error handling wrapper for functions
  */
 export function withErrorHandling(fn) {
-    return async function(...args) {
+    return async function (...args) {
         try {
             return await fn.apply(this, args);
         } catch (error) {
