@@ -220,19 +220,20 @@ async function getUserEmailLanguage(pool, userEmail, organizationId) {
  * @param {string} html - Optional HTML content
  * @returns {Promise<boolean>} Success status
  */
-  async function sendEmail(to, subject, message, html = null) {
-    try {
-      // Prefer Brevo transactional API when available
-      if (brevoApiKeyValue) {
-        if (!brevoTransactionalApi) {
-          const apiKey = brevoClient.authentications['api-key'];
-          apiKey.apiKey = brevoApiKeyValue;
-          brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
-        }
+async function sendEmail(to, subject, message, html = null, fromNameOverride = null) {
+  try {
+    const activeSenderName = fromNameOverride || senderName;
+    // Prefer Brevo transactional API when available
+    if (brevoApiKeyValue) {
+      if (!brevoTransactionalApi) {
+        const apiKey = brevoClient.authentications['api-key'];
+        apiKey.apiKey = brevoApiKeyValue;
+        brevoTransactionalApi = new Brevo.TransactionalEmailsApi();
+      }
 
-      logger.info("Sending email via Brevo API", { to, from: senderEmail });
+      logger.info("Sending email via Brevo API", { to, from: senderEmail, fromName: activeSenderName });
       const apiPayload = {
-        sender: { email: senderEmail, name: senderName },
+        sender: { email: senderEmail, name: activeSenderName },
         to: [{ email: to }],
         subject,
         textContent: message,
@@ -335,7 +336,7 @@ async function sendWhatsApp(to, message, organizationId = null, whatsappService 
       }
     }
 
-    
+
   } catch (error) {
     logger.error("Error in sendWhatsApp:", error.message || error);
   }

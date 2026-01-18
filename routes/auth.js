@@ -831,7 +831,16 @@ module.exports = (pool, logger) => {
           <p>${ignore}</p>
         `;
 
-        const emailSent = await sendEmail(normalizedEmail, subject, message, html);
+        // Fetch organization name for the email sender profile
+        const orgResult = await pool.query(
+          `SELECT setting_value->>'name' as org_name
+           FROM organization_settings
+           WHERE organization_id = $1 AND setting_key = 'organization_info'`,
+          [organizationId]
+        );
+        const orgName = orgResult.rows[0]?.org_name || 'Wampums';
+
+        const emailSent = await sendEmail(normalizedEmail, subject, message, html, orgName);
 
         if (!emailSent) {
           logger.error('Failed to send password reset email', { email: normalizedEmail });
