@@ -908,20 +908,20 @@ module.exports = (pool, logger) => {
           return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
         }
 
-        const user = tokenResult.rows[0];
-        const userEmail = user.email;
+        const userId = tokenResult.rows[0].id;
+        const userEmail = tokenResult.rows[0].email;
 
         // Hash new password
         const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
 
-        // Update password and clear reset token for ALL accounts with this email
-        // This ensures consistent identity across organizations
+        // Update password and clear reset token for the user
+        // We use ID here for precision, as we've already identified the user by their valid token
         await pool.query(
-          'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE LOWER(email) = LOWER($2)',
-          [hashedPassword, userEmail]
+          'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
+          [hashedPassword, userId]
         );
 
-        logger.info('Password reset completed for email', { email: userEmail });
+        logger.info('Password reset completed successfully', { userId, email: userEmail });
 
         res.json({
           success: true,
