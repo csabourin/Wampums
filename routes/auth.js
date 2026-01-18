@@ -18,17 +18,17 @@ const { validationResult } = require('express-validator');
 // Import middleware
 const { authenticate } = require('../middleware/auth');
 const { ROLE_PRIORITY } = require('../config/role-constants');
-  const {
-    validateEmail,
-    validatePassword,
-    validateStrongPassword,
-    validateNewPassword,
-    validateToken,
-    validateFullName,
-    checkValidation,
-    normalizeEmailInput,
-    normalizeEmailValue
-  } = require('../middleware/validation');
+const {
+  validateEmail,
+  validatePassword,
+  validateStrongPassword,
+  validateNewPassword,
+  validateToken,
+  validateFullName,
+  checkValidation,
+  normalizeEmailInput,
+  normalizeEmailValue
+} = require('../middleware/validation');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError } = require('../utils/api-helpers');
@@ -178,7 +178,7 @@ module.exports = (pool, logger) => {
         if (storedHash && storedHash.startsWith('$2y$')) {
           storedHash = '$2a$' + storedHash.substring(4);
         }
-        
+
         const passwordValid = await bcrypt.compare(trimmedPassword, storedHash);
 
         if (!passwordValid) {
@@ -312,18 +312,18 @@ module.exports = (pool, logger) => {
           organization_id: organizationId
         };
 
-      if (guardianResult.rows.length > 0) {
-        response.guardian_participants = guardianResult.rows;
-      }
+        if (guardianResult.rows.length > 0) {
+          response.guardian_participants = guardianResult.rows;
+        }
 
-      res.json(response);
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Login error:', error);
-      res.status(500).json({
-        success: false,
+        res.json(response);
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Login error:', error);
+        res.status(500).json({
+          success: false,
           message: 'internal_server_error'
         });
       }
@@ -530,114 +530,14 @@ module.exports = (pool, logger) => {
     validateStrongPassword,
     validateFullName,
     checkValidation,
-      async (req, res) => {
-        const client = await pool.connect();
-        try {
-          const organizationId = await getCurrentOrganizationId(req, pool, logger);
-          const { email, password, full_name, user_type } = req.body;
-          const normalizedEmail = normalizeEmailValue(email);
-          const trimmedPassword = password.trim();
-          const role = mapRequestedRole(user_type);
-
-          await client.query('BEGIN');
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
-
-        // Insert user
-        // Parent role users are auto-verified, animation role requires admin approval
-        const result = await client.query(
-          `INSERT INTO users (email, password, full_name, is_verified)
-           VALUES ($1, $2, $3, $4)
-           RETURNING id, email, full_name, is_verified`,
-          [normalizedEmail, hashedPassword, full_name, role === 'parent']
-        );
-
-        const userId = result.rows[0].id;
-
-        // Get role ID from roles table
-        const roleResult = await client.query(
-          `SELECT id FROM roles WHERE role_name = $1`,
-          [role]
-        );
-
-        if (roleResult.rows.length === 0) {
-          throw new Error(`Role '${role}' not found in roles table`);
-        }
-
-        const roleId = roleResult.rows[0].id;
-
-        // Link user to organization with the requested role (parent by default)
-        await client.query(
-          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
-           VALUES ($1, $2, $3)`,
-          [userId, organizationId, JSON.stringify([roleId])]
-        );
-
-        await client.query('COMMIT');
-
-        if (role === 'animation') {
-          await sendAdminVerificationEmail(
-            pool,
-            organizationId,
-            full_name,
-            normalizedEmail,
-            getEmailTranslations(req)
-          );
-        }
-
-        res.status(201).json({
-          success: true,
-          data: result.rows[0],
-          message: 'registration_successful_await_verification'
-        });
-      } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-        await client.query('ROLLBACK');
-        logger.error('Error registering user:', error);
-
-        // Handle duplicate email error (PostgreSQL error code 23505)
-        if (error.code === '23505' && error.constraint === 'users_email_key') {
-          return res.status(400).json({
-            success: false,
-            message: 'account_already_exists'
-          });
-        }
-
-        res.status(500).json({ success: false, message: 'registration_error' });
-      } finally {
-        client.release();
-      }
-    });
-
-  /**
-   * @swagger
-   * /api/auth/register:
-   *   post:
-   *     summary: Register new user
-   *     description: Register a new user account (requires admin approval)
-   *     tags: [Authentication]
-   *     responses:
-   *       201:
-   *         description: User registered successfully
-   *       400:
-   *         description: Validation error
-   */
-  router.post('/api/auth/register',
-    validateEmail,
-    validateStrongPassword,
-    validateFullName,
-    checkValidation,
     async (req, res) => {
-        const client = await pool.connect();
-        try {
-          const organizationId = await getCurrentOrganizationId(req, pool, logger);
-          const { email, password, full_name, user_type } = req.body;
-          const normalizedEmail = normalizeEmailValue(email);
-          const trimmedPassword = password.trim();
-          const role = mapRequestedRole(user_type);
+      const client = await pool.connect();
+      try {
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const { email, password, full_name, user_type } = req.body;
+        const normalizedEmail = normalizeEmailValue(email);
+        const trimmedPassword = password.trim();
+        const role = mapRequestedRole(user_type);
 
         await client.query('BEGIN');
 
@@ -692,9 +592,109 @@ module.exports = (pool, logger) => {
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        await client.query('ROLLBACK');
+        logger.error('Error registering user:', error);
+
+        // Handle duplicate email error (PostgreSQL error code 23505)
+        if (error.code === '23505' && error.constraint === 'users_email_key') {
+          return res.status(400).json({
+            success: false,
+            message: 'account_already_exists'
+          });
+        }
+
+        res.status(500).json({ success: false, message: 'registration_error' });
+      } finally {
+        client.release();
       }
+    });
+
+  /**
+   * @swagger
+   * /api/auth/register:
+   *   post:
+   *     summary: Register new user
+   *     description: Register a new user account (requires admin approval)
+   *     tags: [Authentication]
+   *     responses:
+   *       201:
+   *         description: User registered successfully
+   *       400:
+   *         description: Validation error
+   */
+  router.post('/api/auth/register',
+    validateEmail,
+    validateStrongPassword,
+    validateFullName,
+    checkValidation,
+    async (req, res) => {
+      const client = await pool.connect();
+      try {
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const { email, password, full_name, user_type } = req.body;
+        const normalizedEmail = normalizeEmailValue(email);
+        const trimmedPassword = password.trim();
+        const role = mapRequestedRole(user_type);
+
+        await client.query('BEGIN');
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+
+        // Insert user
+        // Parent role users are auto-verified, animation role requires admin approval
+        const result = await client.query(
+          `INSERT INTO users (email, password, full_name, is_verified)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, email, full_name, is_verified`,
+          [normalizedEmail, hashedPassword, full_name, role === 'parent']
+        );
+
+        const userId = result.rows[0].id;
+
+        // Get role ID from roles table
+        const roleResult = await client.query(
+          `SELECT id FROM roles WHERE role_name = $1`,
+          [role]
+        );
+
+        if (roleResult.rows.length === 0) {
+          throw new Error(`Role '${role}' not found in roles table`);
+        }
+
+        const roleId = roleResult.rows[0].id;
+
+        // Link user to organization with the requested role (parent by default)
+        await client.query(
+          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
+           VALUES ($1, $2, $3)`,
+          [userId, organizationId, JSON.stringify([roleId])]
+        );
+
+        await client.query('COMMIT');
+
+        if (role === 'animation') {
+          await sendAdminVerificationEmail(
+            pool,
+            organizationId,
+            full_name,
+            normalizedEmail,
+            getEmailTranslations(req)
+          );
+        }
+
+        res.status(201).json({
+          success: true,
+          data: result.rows[0],
+          message: 'registration_successful_await_verification'
+        });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
         await client.query('ROLLBACK');
         logger.error('Error registering user:', error);
 
@@ -728,11 +728,11 @@ module.exports = (pool, logger) => {
   router.post('/api/auth/request-reset',
     passwordResetLimiter,
     validateEmail,
-      checkValidation,
-      async (req, res) => {
-        try {
-          const { email } = req.body;
-          const normalizedEmail = normalizeEmailValue(email);
+    checkValidation,
+    async (req, res) => {
+      try {
+        const { email } = req.body;
+        const normalizedEmail = normalizeEmailValue(email);
 
         logger.info('Password reset request received', {
           email: normalizedEmail,
@@ -788,9 +788,12 @@ module.exports = (pool, logger) => {
           });
         }
 
-        // Get the domain for the reset link
-        const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS || 'wampums.app';
-        const baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+        // Get the domain for the reset link from the request host to support multiple organizations/domains
+        const host = req.get('host') || 'wampums.app';
+        // Determine protocol - prefer https, but respect x-forwarded-proto if behind a proxy (like Replit or Load Balancer)
+        const forwardedProto = req.headers['x-forwarded-proto'];
+        const protocol = forwardedProto ? forwardedProto.split(',')[0].trim() : (req.secure ? 'https' : 'http');
+        const baseUrl = `${protocol}://${host}`;
         const resetLink = `${baseUrl}/reset-password?token=${rawResetToken}`;
 
         // Send password reset email with localization
@@ -843,9 +846,9 @@ module.exports = (pool, logger) => {
           ...(process.env.NODE_ENV !== 'production' && { resetToken: rawResetToken })
         });
       } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
         logger.error('Error requesting password reset:', error);
         res.status(500).json({ success: false, message: error.message });
       }
@@ -908,9 +911,9 @@ module.exports = (pool, logger) => {
           message: 'password_reset_successful'
         });
       } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
         logger.error('Error resetting password:', error);
         res.status(500).json({ success: false, message: error.message });
       }
