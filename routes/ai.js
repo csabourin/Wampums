@@ -4,7 +4,7 @@ const router = express.Router();
 const { authenticate, getOrganizationId } = require("../middleware/auth");
 const { success, error, asyncHandler } = require("../middleware/response");
 const { generateText } = require("../services/openai");
-const { parseReceipt } = require("../services/mindee");
+const { parseReceipt } = require("../services/veryfi");
 const { getBudgetStatus } = require("../services/ai-budget");
 
 // Multer for receipt uploads (memory storage)
@@ -79,11 +79,13 @@ router.post(
             };
 
             const result = await parseReceipt(req.file.buffer, req.file.originalname, userContext);
-
             const budgetStatus = await getBudgetStatus();
 
+            // result contains { data: { vendor... }, usage: { ... } }
+            // Flatten so frontend gets { vendor..., usage..., budget... }
             return success(res, {
-                ...result,
+                ...result.data,
+                usage: result.usage,
                 budget: budgetStatus
             });
 

@@ -9,9 +9,12 @@ let mindeeClient = null;
 try {
     if (process.env.MINDEE_API_KEY) {
         mindeeClient = new mindee.Client({ apiKey: process.env.MINDEE_API_KEY });
+        console.log("Mindee client initialized successfully");
+    } else {
+        console.warn("MINDEE_API_KEY not found in environment");
     }
 } catch (e) {
-    console.warn("Mindee client init failed (missing key?)");
+    console.warn("Mindee client init failed:", e.message);
 }
 
 // Configurable cost per receipt (USD)
@@ -22,7 +25,10 @@ const COST_PER_RECEIPT_USD = 0.10;
  * Parse a receipt image buffer
  */
 async function parseReceipt(fileBuffer, originalFilename, userContext) {
+    let budgetReserved = false;
+
     if (!mindeeClient) {
+        console.error("Mindee Error: API key not configured");
         throw new Error("Mindee API key not configured");
     }
 
@@ -31,11 +37,13 @@ async function parseReceipt(fileBuffer, originalFilename, userContext) {
     if (!isReserved) {
         throw { code: "AI_BUDGET_EXCEEDED", message: "Monthly AI budget cap reached." };
     }
+    budgetReserved = true;
 
     let success = false;
     let errorCode = null;
 
     try {
+        console.log("Calling Mindee API...");
         // 2. Call Mindee
         const inputSource = mindeeClient.docFromBuffer(fileBuffer, originalFilename);
         const apiResponse = await mindeeClient.parse(
@@ -43,6 +51,7 @@ async function parseReceipt(fileBuffer, originalFilename, userContext) {
             inputSource
         );
 
+        console.log("Mindee API response received");
         const doc = apiResponse.document;
         if (!doc) throw new Error("No document returned from Mindee");
 
@@ -75,8 +84,10 @@ async function parseReceipt(fileBuffer, originalFilename, userContext) {
     } catch (error) {
         errorCode = "MINDEE_ERROR";
         console.error("Mindee Error:", error);
-        // Release budget if call failed
-        await releaseBudget(COST_PER_RECEIPT_USD);
+        // Release budget if call failed AND it was reserved
+        if (budgetReserved) {
+            await releaseBudget(COST_PER_RECEIPT_USD);
+        }
         throw error;
     } finally {
         // 4. Log Usage

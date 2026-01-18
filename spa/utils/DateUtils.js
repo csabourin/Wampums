@@ -26,17 +26,10 @@ export function getTodayISO() {
  * @returns {string} Formatted date string
  */
 export function formatDate(dateString, lang = 'en', options = null) {
-    if (!dateString) return '';
+    const date = parseDate(dateString);
+    if (!date) return '';
 
     try {
-        // Always parse as local date to avoid timezone issues
-        const [year, month, day] = dateString.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-
-        if (isNaN(date.getTime())) {
-            return '';
-        }
-
         const defaultOptions = {
             weekday: 'long',
             year: 'numeric',
@@ -47,7 +40,7 @@ export function formatDate(dateString, lang = 'en', options = null) {
         return date.toLocaleDateString(lang, options || defaultOptions);
     } catch (error) {
         debugError('Error formatting date:', error);
-        return dateString;
+        return String(dateString);
     }
 }
 
@@ -58,12 +51,10 @@ export function formatDate(dateString, lang = 'en', options = null) {
  * @returns {string} Formatted date string
  */
 export function formatDateShort(dateString, lang = 'en') {
-    if (!dateString) return '';
+    const date = parseDate(dateString);
+    if (!date) return '';
 
     try {
-        const [year, month, day] = dateString.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-
         return date.toLocaleDateString(lang, {
             year: 'numeric',
             month: 'short',
@@ -71,7 +62,7 @@ export function formatDateShort(dateString, lang = 'en') {
         });
     } catch (error) {
         debugError('Error formatting date short:', error);
-        return dateString;
+        return String(dateString);
     }
 }
 

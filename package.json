@@ -21,6 +21,7 @@
   "dependencies": {
     "@googleapis/chat": "^44.5.0",
     "@supabase/supabase-js": "^2.87.1",
+    "@veryfi/veryfi-sdk": "^1.4.6",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^3.0.3",
     "body-parser": "^1.20.3",
@@ -36,8 +37,10 @@
     "heic-convert": "^2.1.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mindee": "^4.36.2",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.11",
+    "openai": "^6.16.0",
     "pg": "^8.13.1",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
