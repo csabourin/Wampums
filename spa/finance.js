@@ -18,7 +18,9 @@ import {
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { debugError } from "./utils/DebugUtils.js";
+import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { aiParseReceipt } from "./modules/AI.js";
+import { setButtonLoading } from "./utils/SkeletonUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { clearFinanceRelatedCaches } from "./indexedDB.js";
 import { LoadingStateManager, CacheWithTTL, retryWithBackoff } from "./utils/PerformanceUtils.js";
@@ -380,23 +382,23 @@ export class Finance {
             <select id="participant_select" name="participant_id" required>
               <option value="">${translate("select_participant")}</option>
               ${this.participants
-                .map(
-                  (p) => `
+        .map(
+          (p) => `
                     <option value="${p.id}">${escapeHTML(p.first_name || "")} ${escapeHTML(p.last_name || "")}</option>
                   `
-                )
-                .join("")}
+        )
+        .join("")}
             </select>
             <label for="fee_definition">${translate("select_fee_definition")}</label>
             <select id="fee_definition" name="fee_definition_id" required>
               <option value="">${translate("select_fee_definition")}</option>
               ${this.getSortedFeeDefinitions()
-                .map(
-                  (def) => `
+        .map(
+          (def) => `
                     <option value="${def.id}">${this.formatYearRange(def.year_start, def.year_end)}</option>
                   `
-                )
-                .join("")}
+        )
+        .join("")}
             </select>
             <label for="registration_total">${translate("registration_fee_label")}</label>
             <input type="number" step="0.01" min="0" id="registration_total" name="total_registration_fee" required>
@@ -829,6 +831,51 @@ export class Finance {
 
     const paymentModal = document.getElementById('payment-modal');
     if (paymentModal) {
+      document.getElementById('ai-scan-receipt-btn')?.addEventListener('click', () => {
+        document.getElementById('receipt-upload-input')?.click();
+      });
+
+      document.getElementById('receipt-upload-input')?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const btn = document.getElementById('ai-scan-receipt-btn');
+        const status = document.getElementById('scan-status');
+
+        // Ensure setButtonLoading and aiParseReceipt are defined or imported
+        // For this example, assuming they are globally available or part of `this.app`
+        // If not, you'd need to define them or adjust the call.
+        // For now, I'll assume `setButtonLoading` is available.
+        // `aiParseReceipt` is also assumed to be available.
+
+        if (btn) setButtonLoading(btn, true);
+        if (status) status.textContent = translate("scanning_receipt");
+
+        try {
+          const result = await aiParseReceipt(file);
+          const data = result.data;
+
+          if (data.total) document.getElementById('expense-amount').value = data.total;
+          if (data.date) document.getElementById('expense-date').value = data.date;
+          if (data.vendor) document.getElementById('expense-merchant').value = data.vendor;
+          // Use category or items for description if available, otherwise just "Receipt from [Vendor]"
+          if (data.vendor) document.getElementById('expense-description').value = `${translate("purchase_at")} ${data.vendor}`;
+
+          this.app.showMessage(translate("receipt_scanned_success"), "success");
+          if (status) status.textContent = "";
+
+        } catch (error) {
+          let msg = error.message;
+          if (error.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+          this.app.showMessage(translate("error_scanning_receipt") + ": " + msg, "error");
+          if (status) status.textContent = translate("scan_failed");
+        } finally {
+          if (btn) setButtonLoading(btn, false);
+          // Reset input so same file can be selected again
+          e.target.value = '';
+        }
+      });
+
       paymentModal.querySelector('.modal-close')?.addEventListener('click', () => this.closeModal(paymentModal));
       paymentModal.addEventListener('click', (e) => {
         if (e.target === paymentModal) {
@@ -1110,8 +1157,8 @@ export class Finance {
       const payments = this.paymentsCache.get(feeId);
       setContent(historyContainer, payments.length
         ? payments
-            .map(
-              (payment) => `
+          .map(
+            (payment) => `
                 <div class="finance-list__row" data-payment-id="${payment.id}">
                   <div>
                     <p class="finance-meta">${formatDateShort(payment.payment_date)}</p>
@@ -1123,8 +1170,8 @@ export class Finance {
                   </div>
                 </div>
               `
-            )
-            .join("")
+          )
+          .join("")
         : `<p class="finance-helper">${translate("no_payments")}</p>`);
     } catch (error) {
       debugError('Error loading payments', error);

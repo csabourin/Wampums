@@ -19,6 +19,7 @@ import { canApproveFinance, canManageFinance } from "./utils/PermissionUtils.js"
 import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { setButtonLoading } from './utils/SkeletonUtils.js';
+import { aiParseReceipt } from "./modules/AI.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -850,7 +851,7 @@ export class Expenses {
 
         setButtonLoading(uploadBtn, true);
         try {
-          const response = await window.aiParseReceipt(file);
+          const response = await aiParseReceipt(file);
           const data = response.data; // { vendor, date, total, tax... }
 
           // Fill Form

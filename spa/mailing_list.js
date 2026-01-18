@@ -1,4 +1,5 @@
 import { getMailingList, getAnnouncements, createAnnouncement, getGroups } from "./ajax-functions.js";
+import { aiGenerateText } from "./modules/AI.js";
 import { debugLog, debugError } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { escapeHTML, sanitizeHTML } from "./utils/SecurityUtils.js";
@@ -378,217 +379,219 @@ export class MailingList {
                         });
                 }
 
-                templateSelect.addEventListener("change", (event) => this.applyTemplate(event.target.value));
+                const templateSelect = document.getElementById("announcement-template");
+                if (templateSelect) {
+                        templateSelect.addEventListener("change", (event) => this.applyTemplate(event.target.value));
+                }
+
+                // AI Buttons
+                const rewriteBtn = document.getElementById("ai-rewrite-btn");
+                if (rewriteBtn) {
+                        rewriteBtn.addEventListener("click", async () => {
+                                const msgArea = document.getElementById("announcement-message");
+                                const text = msgArea.value;
+                                if (!text) return;
+
+                                setButtonLoading(rewriteBtn, true);
+                                try {
+                                        const res = await aiGenerateText("rewrite", { text, tone: "professional" });
+                                        msgArea.value = res.data.text;
+                                        this.showFeedback(translate("rewrite_success"), "success");
+                                } catch (err) {
+                                        let msg = err.message;
+                                        if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+                                        this.showFeedback(translate("error") + ": " + msg, "error");
+                                } finally {
+                                        setButtonLoading(rewriteBtn, false);
+                                }
+                        });
+                }
+
+                const translateBtn = document.getElementById("ai-translate-btn");
+                if (translateBtn) {
+                        translateBtn.addEventListener("click", async () => {
+                                const msgArea = document.getElementById("announcement-message");
+                                const text = msgArea.value;
+                                if (!text) return;
+
+                                const currentLang = this.app.lang || CONFIG.DEFAULT_LANG;
+                                // Simple logic: if en -> fr, else -> en
+                                const from = currentLang === 'fr' ? 'fr' : 'en';
+                                const to = from === 'fr' ? 'en' : 'fr';
+
+                                setButtonLoading(translateBtn, true);
+                                try {
+                                        const res = await aiGenerateText("translate", { text, from, to });
+                                        msgArea.value = res.data.text;
+                                        this.showFeedback(translate("translate_success"), "success");
+                                } catch (err) {
+                                        let msg = err.message;
+                                        if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+                                        this.showFeedback(translate("error") + ": " + msg, "error");
+                                } finally {
+                                        setButtonLoading(translateBtn, false);
+                                }
+                        });
+                }
         }
-
-        // AI Buttons
-        const rewriteBtn = document.getElementById("ai-rewrite-btn");
-        if(rewriteBtn) {
-                rewriteBtn.addEventListener("click", async () => {
-                        const msgArea = document.getElementById("announcement-message");
-                        const text = msgArea.value;
-                        if (!text) return;
-
-                        setButtonLoading(rewriteBtn, true);
-                        try {
-                                const res = await window.aiGenerateText("rewrite", { text, tone: "professional" });
-                                msgArea.value = res.data.text;
-                                this.showFeedback(translate("rewrite_success"), "success");
-                        } catch (err) {
-                                let msg = err.message;
-                                if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
-                                this.showFeedback(translate("error") + ": " + msg, "error");
-                        } finally {
-                                setButtonLoading(rewriteBtn, false);
-                        }
-                });
-        }
-
-        const translateBtn = document.getElementById("ai-translate-btn");
-        if(translateBtn) {
-                translateBtn.addEventListener("click", async () => {
-                        const msgArea = document.getElementById("announcement-message");
-                        const text = msgArea.value;
-                        if (!text) return;
-
-                        const currentLang = this.app.lang || CONFIG.DEFAULT_LANG;
-                        // Simple logic: if en -> fr, else -> en
-                        const from = currentLang === 'fr' ? 'fr' : 'en';
-                        const to = from === 'fr' ? 'en' : 'fr';
-
-                        setButtonLoading(translateBtn, true);
-                        try {
-                                const res = await window.aiGenerateText("translate", { text, from, to });
-                                msgArea.value = res.data.text;
-                                this.showFeedback(translate("translate_success"), "success");
-                        } catch (err) {
-                                let msg = err.message;
-                                if (err.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
-                                this.showFeedback(translate("error") + ": " + msg, "error");
-                        } finally {
-                                setButtonLoading(translateBtn, false);
-                        }
-                });
-        }
-}
 
         async handleAnnouncementSubmit(saveAsDraft = false) {
-        if (this.isSubmitting) return;
+                if (this.isSubmitting) return;
 
-        const subject = document.getElementById("announcement-subject")?.value?.trim();
-        const message = document.getElementById("announcement-message")?.value?.trim();
-        const scheduledAt = document.getElementById("announcement-scheduled-at")?.value;
-        const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
-        const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
+                const subject = document.getElementById("announcement-subject")?.value?.trim();
+                const message = document.getElementById("announcement-message")?.value?.trim();
+                const scheduledAt = document.getElementById("announcement-scheduled-at")?.value;
+                const roleCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-role"]:checked'));
+                const groupCheckboxes = Array.from(document.querySelectorAll('input[name="recipient-group"]:checked'));
 
-        const recipientRoles = roleCheckboxes.map((input) => input.value);
-        const recipientGroupIds = groupCheckboxes.map((input) => Number(input.value));
+                const recipientRoles = roleCheckboxes.map((input) => input.value);
+                const recipientGroupIds = groupCheckboxes.map((input) => Number(input.value));
 
-        if (!subject || !message) {
-                this.showFeedback(translate("error_loading_mailing_list"), "error");
-                return;
+                if (!subject || !message) {
+                        this.showFeedback(translate("error_loading_mailing_list"), "error");
+                        return;
+                }
+
+                this.isSubmitting = true;
+                this.toggleFormDisabled(true);
+                this.showFeedback(translate("announcement_sending"), "info");
+
+                try {
+                        const response = await createAnnouncement({
+                                subject,
+                                message: sanitizeHTML(message, { stripAll: true }),
+                                recipient_roles: recipientRoles,
+                                recipient_group_ids: recipientGroupIds,
+                                scheduled_at: scheduledAt || null,
+                                save_as_draft: saveAsDraft,
+                                send_now: !saveAsDraft,
+                        });
+
+                        if (!response?.success) {
+                                throw new Error(response?.message || "Failed to send announcement");
+                        }
+
+                        this.announcements = [response.data, ...this.announcements];
+                        this.render();
+                        this.attachEventListeners();
+                        this.showFeedback(
+                                saveAsDraft ? translate("announcement_saved") : translate("announcement_sent"),
+                                "success"
+                        );
+                        this.clearForm();
+                } catch (error) {
+                        debugError("Error sending announcement:", error);
+                        this.showFeedback(error.message || translate("announcement_send_failed"), "error");
+                } finally {
+                        this.isSubmitting = false;
+                        this.toggleFormDisabled(false);
+                }
         }
 
-        this.isSubmitting = true;
-        this.toggleFormDisabled(true);
-        this.showFeedback(translate("announcement_sending"), "info");
+        applyTemplate(index) {
+                if (!this.templates?.length || index === "") {
+                        return;
+                }
 
-        try {
-                const response = await createAnnouncement({
-                        subject,
-                        message: sanitizeHTML(message, { stripAll: true }),
-                        recipient_roles: recipientRoles,
-                        recipient_group_ids: recipientGroupIds,
-                        scheduled_at: scheduledAt || null,
-                        save_as_draft: saveAsDraft,
-                        send_now: !saveAsDraft,
+                const template = this.templates[Number(index)];
+                if (!template) {
+                        return;
+                }
+
+                const subjectField = document.getElementById("announcement-subject");
+                const messageField = document.getElementById("announcement-message");
+
+                if (subjectField) subjectField.value = template.subject || "";
+                if (messageField) messageField.value = template.body || "";
+        }
+
+        toggleFormDisabled(disabled) {
+                const form = document.getElementById("announcement-form");
+                if (!form) return;
+
+                Array.from(form.elements).forEach((element) => {
+                        element.disabled = disabled;
+                });
+        }
+
+        clearForm() {
+                const form = document.getElementById("announcement-form");
+                if (!form) return;
+                form.reset();
+        }
+
+        showFeedback(message, type = "info") {
+                const feedbackEl = document.getElementById("announcement-feedback");
+                if (!feedbackEl) return;
+                feedbackEl.textContent = message;
+                feedbackEl.className = `status-message ${type}`;
+        }
+
+        getDeliverySummary(logs) {
+                const summary = {
+                        email: { sent: 0, failed: 0 },
+                        push: { sent: 0, failed: 0 },
+                };
+
+                logs.forEach((log) => {
+                        if (log.channel === "email") {
+                                if (log.status === "sent") summary.email.sent += 1;
+                                if (log.status === "failed") summary.email.failed += 1;
+                        }
+                        if (log.channel === "push") {
+                                if (log.status === "sent") summary.push.sent += 1;
+                                if (log.status === "failed") summary.push.failed += 1;
+                        }
                 });
 
-                if (!response?.success) {
-                        throw new Error(response?.message || "Failed to send announcement");
+                return summary;
+        }
+
+        formatDateTime(dateString) {
+                if (!dateString) return "";
+                try {
+                        const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
+                        const locale = lang === 'en' ? 'en-CA' : lang === 'uk' ? 'uk-UA' : 'fr-CA';
+                        return new Date(dateString).toLocaleString(locale);
+                } catch (error) {
+                        debugLog("Unable to format date", error);
+                        return dateString;
+                }
+        }
+
+        copyRoleEmailsToClipboard(role) {
+                const emailsByRole = this.mailingList?.emails_by_role || {};
+                const emails = emailsByRole[role] || [];
+
+                let emailString;
+                if (role === 'parent') {
+                        const uniqueParentEmails = [...new Set(emails.map((entry) => entry.email))];
+                        emailString = uniqueParentEmails.join(", ");
+                } else {
+                        const uniqueRoleEmails = [...new Set(emails)];
+                        emailString = uniqueRoleEmails.join(", ");
                 }
 
-                this.announcements = [response.data, ...this.announcements];
-                this.render();
-                this.attachEventListeners();
-                this.showFeedback(
-                        saveAsDraft ? translate("announcement_saved") : translate("announcement_sent"),
-                        "success"
-                );
-                this.clearForm();
-        } catch (error) {
-                debugError("Error sending announcement:", error);
-                this.showFeedback(error.message || translate("announcement_send_failed"), "error");
-        } finally {
-                this.isSubmitting = false;
-                this.toggleFormDisabled(false);
-        }
-}
-
-applyTemplate(index) {
-        if (!this.templates?.length || index === "") {
-                return;
-        }
-
-        const template = this.templates[Number(index)];
-        if (!template) {
-                return;
-        }
-
-        const subjectField = document.getElementById("announcement-subject");
-        const messageField = document.getElementById("announcement-message");
-
-        if (subjectField) subjectField.value = template.subject || "";
-        if (messageField) messageField.value = template.body || "";
-}
-
-toggleFormDisabled(disabled) {
-        const form = document.getElementById("announcement-form");
-        if (!form) return;
-
-        Array.from(form.elements).forEach((element) => {
-                element.disabled = disabled;
-        });
-}
-
-clearForm() {
-        const form = document.getElementById("announcement-form");
-        if (!form) return;
-        form.reset();
-}
-
-showFeedback(message, type = "info") {
-        const feedbackEl = document.getElementById("announcement-feedback");
-        if (!feedbackEl) return;
-        feedbackEl.textContent = message;
-        feedbackEl.className = `status-message ${type}`;
-}
-
-getDeliverySummary(logs) {
-        const summary = {
-                email: { sent: 0, failed: 0 },
-                push: { sent: 0, failed: 0 },
-        };
-
-        logs.forEach((log) => {
-                if (log.channel === "email") {
-                        if (log.status === "sent") summary.email.sent += 1;
-                        if (log.status === "failed") summary.email.failed += 1;
+                if (!emailString) {
+                        alert(translate("no_data_available"));
+                        return;
                 }
-                if (log.channel === "push") {
-                        if (log.status === "sent") summary.push.sent += 1;
-                        if (log.status === "failed") summary.push.failed += 1;
-                }
-        });
 
-        return summary;
-}
-
-formatDateTime(dateString) {
-        if (!dateString) return "";
-        try {
-                const lang = this.app?.lang || this.app?.language || localStorage.getItem('lang') || localStorage.getItem('language') || CONFIG.DEFAULT_LANG;
-                const locale = lang === 'en' ? 'en-CA' : lang === 'uk' ? 'uk-UA' : 'fr-CA';
-                return new Date(dateString).toLocaleString(locale);
-        } catch (error) {
-                debugLog("Unable to format date", error);
-                return dateString;
-        }
-}
-
-copyRoleEmailsToClipboard(role) {
-        const emailsByRole = this.mailingList?.emails_by_role || {};
-        const emails = emailsByRole[role] || [];
-
-        let emailString;
-        if (role === 'parent') {
-                const uniqueParentEmails = [...new Set(emails.map((entry) => entry.email))];
-                emailString = uniqueParentEmails.join(", ");
-        } else {
-                const uniqueRoleEmails = [...new Set(emails)];
-                emailString = uniqueRoleEmails.join(", ");
+                navigator.clipboard
+                        .writeText(emailString)
+                        .then(() => {
+                                alert(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`);
+                        })
+                        .catch((error) => {
+                                debugError("Failed to copy emails:", error);
+                        });
         }
 
-        if (!emailString) {
-                alert(translate("no_data_available"));
-                return;
-        }
-
-        navigator.clipboard
-                .writeText(emailString)
-                .then(() => {
-                        alert(`${translate("emails_copied_to_clipboard_for")} ${translate(role)}`);
-                })
-                .catch((error) => {
-                        debugError("Failed to copy emails:", error);
-                });
-}
-
-renderError() {
-        const errorMessage = `
+        renderError() {
+                const errorMessage = `
                                                 <h1>${translate("error")}</h1>
                                                 <p>${translate("error_loading_mailing_list")}</p>
                                 `;
-        setContent(document.getElementById("app"), errorMessage);
-}
+                setContent(document.getElementById("app"), errorMessage);
+        }
 }

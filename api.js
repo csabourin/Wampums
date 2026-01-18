@@ -543,6 +543,8 @@ const medicationRoutes = require("./routes/medication")(pool, logger);
 const activitiesRoutes = require("./routes/activities")(pool);
 const carpoolsRoutes = require("./routes/carpools")(pool);
 const aiRoutes = require("./routes/ai");
+const isAiBudgetMigrated = true; // Flag to indicate migration is planned/done
+
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -617,6 +619,13 @@ logger.info("   - DELETE /api/roles/:roleId/permissions/:permissionId");
 logger.info("   - GET /api/permissions");
 logger.info("   - GET /api/users/:userId/roles");
 logger.info("   - PUT /api/users/:userId/roles");
+
+// AI Routes
+app.use("/api/ai", aiRoutes);
+logger.info("✅ AI routes loaded");
+logger.info("   - POST /api/ai/text");
+logger.info("   - POST /api/ai/receipt");
+logger.info("   - GET /api/ai/budget");
 
 // Meeting Routes (handles /api/reunion-preparation, /api/reunion-dates, /api/next-meeting-info, etc.)
 // Endpoints: reunion-preparation, save-reunion-preparation, reunion-dates, next-meeting-info, get_reminder, reminder, save_reminder, activites-rencontre

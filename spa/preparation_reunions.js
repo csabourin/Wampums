@@ -17,6 +17,8 @@ import { FormManager } from "./modules/FormManager.js";
 import { DateManager } from "./modules/DateManager.js";
 import { PrintManager } from "./modules/PrintManager.js";
 import { getActiveSectionConfig, getHonorLabel } from "./utils/meetingSections.js";
+import { aiGenerateText } from "./modules/AI.js";
+import { setButtonLoading } from "./utils/SkeletonUtils.js";
 
 export class PreparationReunions {
         constructor(app) {
@@ -278,11 +280,15 @@ export class PreparationReunions {
                                         <select id="date-select">
                                         <option value="">${translate("select_date")}</option>
                                                 ${availableDates.map(date =>
-                                                        `<option value="${date}" ${date === this.formatDateForInput(this.currentMeetingData?.date) ? 'selected' : ''}>${this.dateManager.formatDate(date, this.app.lang)}</option>`
-                                                ).join('')}
+                        `<option value="${date}" ${date === this.formatDateForInput(this.currentMeetingData?.date) ? 'selected' : ''}>${this.dateManager.formatDate(date, this.app.lang)}</option>`
+                ).join('')}
                                         </select>
                                 </div>
-                                <p><button id="new-meeting">${translate("new_meeting")}</button></p>
+                                <p>
+                                        <button id="new-meeting">${translate("new_meeting")}</button>
+                                        <button id="magic-generate-btn" class="button button--secondary" style="margin-left: 10px;">✨ ${translate("magic_generate_plan")}</button>
+                                        <button id="analyze-risks-btn" class="button button--secondary" style="margin-left: 10px;">🛡️ ${translate("analyze_risks")}</button>
+                                </p>
 
                                 <form id="reunion-form">
                                         <div class="form-row">
@@ -453,6 +459,122 @@ export class PreparationReunions {
                 document.getElementById('date-select').addEventListener('change', (e) => {
                         this.loadMeeting(e.target.value);
                 });
+
+                // Magic Generate Button
+                const magicBtn = document.getElementById('magic-generate-btn');
+                if (magicBtn) {
+                        magicBtn.addEventListener('click', () => this.handleMagicGenerate());
+                }
+
+                // Analyze Risks Button
+                const riskBtn = document.getElementById('analyze-risks-btn');
+                if (riskBtn) {
+                        riskBtn.addEventListener('click', () => this.handleRiskAnalysis());
+                }
+        }
+
+        async handleRiskAnalysis() {
+                const btn = document.getElementById('analyze-risks-btn');
+                const activities = this.activityManager?.getSelectedActivities() || [];
+
+                if (activities.length === 0) {
+                        this.app.showMessage(translate("add_activities_first"), "warning");
+                        return;
+                }
+
+                setButtonLoading(btn, true);
+                try {
+                        // Extract plain text descriptions
+                        const activityDescriptions = activities.map(a =>
+                                `${a.time} - ${a.description} (${a.endroit || ''})`
+                        ).join('\n');
+
+                        const response = await aiGenerateText("risk_suggest", {
+                                activityTitle: "Meeting Activities",
+                                activityDescription: activityDescriptions
+                        });
+
+                        const risks = response.data.risks || [];
+                        const mitigation = response.data.mitigation || [];
+
+                        let riskText = "\n\n--- SAFETY ANALYSIS ---\n";
+                        riskText += "RISKS:\n" + risks.map(r => "- " + r).join("\n");
+                        riskText += "\n\nMITIGATION:\n" + mitigation.map(m => "- " + m).join("\n");
+
+                        const notesField = document.getElementById('notes');
+                        if (notesField) {
+                                notesField.value += riskText;
+                                // Scroll to bottom
+                                notesField.scrollTop = notesField.scrollHeight;
+                        }
+
+                        this.app.showMessage(translate("risk_analysis_complete"), "success");
+
+                } catch (error) {
+                        let msg = error.message;
+                        if (error.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+                        this.app.showMessage(translate("error_analyzing_risks") + ": " + msg, "error");
+                } finally {
+                        setButtonLoading(btn, false);
+                }
+        }
+
+        async handleMagicGenerate() {
+                const btn = document.getElementById('magic-generate-btn');
+                const dateVal = document.getElementById('date')?.value;
+
+                if (!dateVal) {
+                        this.app.showMessage(translate("please_select_date_first"), "warning");
+                        return;
+                }
+
+                if (!confirm(translate("confirm_overwrite_plan"))) {
+                        return;
+                }
+
+                setButtonLoading(btn, true);
+                try {
+                        const payload = {
+                                date: dateVal,
+                                section: this.sectionConfig?.name || "Scouts",
+                                duration: "2 hours", // Default, could be configurable
+                                focus: "General meeting with games and learning"
+                        };
+
+                        const response = await aiGenerateText("meeting_plan", payload);
+                        const plan = response.data;
+
+                        // Populate Notes
+                        const notesField = document.getElementById('notes');
+                        if (notesField && plan.theme) {
+                                notesField.value = `Theme: ${plan.theme}\n\nGoals: ${plan.goals || ''}\n\nMaterials: ${plan.materials ? plan.materials.join(', ') : ''}`;
+                        }
+
+                        // Populate Activities
+                        if (Array.isArray(plan.timeline)) {
+                                const newActivities = plan.timeline.map(item => ({
+                                        time: item.time,
+                                        duration: item.duration,
+                                        description: item.activity,
+                                        responsable: 'all', // Default
+                                        materiel: ''
+                                }));
+
+                                // Update ActivityManager
+                                this.activityManager.setSelectedActivities(newActivities);
+                                this.activityManager.renderActivitiesTable();
+                        }
+
+                        this.app.showMessage(translate("plan_generated_success"), "success");
+
+                } catch (error) {
+                        let msg = error.message;
+                        if (error.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
+                        this.app.showMessage(translate("error_generating_plan") + ": " + msg, "error");
+                        debugError("Magic Generate failed", error);
+                } finally {
+                        setButtonLoading(btn, false);
+                }
         }
 
         preventEnterKeyDefault() {
