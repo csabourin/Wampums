@@ -40,6 +40,11 @@ const io = new SocketIO(server, {
 const PORT = process.env.PORT || 5000;
 const HOST = "0.0.0.0";
 
+// Trust proxy is required when running behind a load balancer (e.g. Replit, Heroku, Nginx)
+// This ensures req.hostname, req.ip, and req.protocol are correct
+// '1' means trust the first hop (the immediate proxy)
+app.set("trust proxy", 1);
+
 // Determine if we're in production mode
 const isProduction = process.env.NODE_ENV === "production";
 
