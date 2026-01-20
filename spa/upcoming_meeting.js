@@ -219,6 +219,23 @@ export class UpcomingMeeting {
                                                                                                                                 .activities,
                                                                                                 );
                                                                 }
+                                                                // If activities are empty, use activity templates from meetingSections
+                                                                if (
+                                                                                (!this.meetingDetails.activities ||
+                                                                                                this.meetingDetails.activities.length === 0) &&
+                                                                                response.meetingSections?.sections
+                                                                ) {
+                                                                                const defaultSection = response.meetingSections.defaultSection;
+                                                                                const sectionData = response.meetingSections.sections[defaultSection];
+                                                                                if (sectionData?.activityTemplates) {
+                                                                                                this.meetingDetails.activities = sectionData.activityTemplates.map(template => ({
+                                                                                                                time: template.time,
+                                                                                                                activity: translate(template.activityKey) || template.activityKey,
+                                                                                                                duration: template.duration,
+                                                                                                                type: template.typeKey
+                                                                                                }));
+                                                                                }
+                                                                }
                                                                 // Calculate meeting end time from activities
                                                                 this.meetingDetails.endTime =
                                                                                 this.calculateMeetingEndTime(

@@ -136,7 +136,13 @@ Output structure:
   "theme": "string (meeting theme in French)",
   "goals": "string (meeting objectives in French)",
   "materials": ["string (list of materials needed in French)"],
-  "timeline": [{ "time": "HH:MM", "duration": "HH:MM", "activity": "string (activity name in French)" }]
+  "timeline": [{ 
+    "time": "HH:MM", 
+    "duration": "HH:MM", 
+    "activity": "string (activity name in French)",
+    "responsable": "string (optional: name of leader responsible for this activity)",
+    "materiel": "string (optional: specific materials needed for this activity)"
+  }]
 }
 
 Important context:
@@ -144,12 +150,15 @@ Important context:
 - "Trève de l'eau" is a water break that typically comes after active games
 - "Accueil des louveteaux" is the welcome/opening activity
 - Activities should be practical, age-appropriate scout activities
-- Use French terminology for scout activities${templateContext}${honorContext}`
+- Use French terminology for scout activities
+- Include 'responsable' for activities when a specific leader should handle it
+- Include 'materiel' for activities that need specific equipment${templateContext}${honorContext}`
                 },
                 {
                     role: "user", content: `Create a ${payload.duration} meeting plan for ${payload.section} scouts on ${payload.date}.
 Focus: ${payload.focus}.
 Generate 5-7 activities with realistic times and durations.
+For each activity, if relevant, suggest which leader (responsable) should handle it and what specific materials (materiel) are needed.
 RESPOND IN FRENCH.`
                 }
             ];

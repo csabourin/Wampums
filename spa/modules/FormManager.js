@@ -44,7 +44,11 @@ export class FormManager {
          * Populate form with meeting data
          */
         async populateForm(meetingData, currentDate) {
+                console.log("=== POPULATE FORM ===");
+                console.log("1. Meeting data received:", meetingData);
+                
                 if (!meetingData) {
+                        console.log("No meeting data, resetting form");
                         this.resetForm(currentDate);
                         return;
                 }
@@ -81,9 +85,16 @@ export class FormManager {
                 }
 
                 // Combine default and saved activities
+                console.log("2. Processing activities...");
                 const defaultActivities = this.activityManager.initializePlaceholderActivities();
+                console.log("   - Default activities count:", defaultActivities.length);
+                
                 const loadedActivities = meetingData.activities || [];
+                console.log("   - Loaded activities count:", loadedActivities.length);
+                console.log("   - Loaded activities data:", loadedActivities);
+                
                 const totalActivities = Math.max(defaultActivities.length, loadedActivities.length);
+                console.log("   - Total activities to render:", totalActivities);
 
                 const selectedActivities = [];
 
@@ -91,16 +102,28 @@ export class FormManager {
                         const defaultActivity = defaultActivities[i] || {};
                         const savedActivity = loadedActivities[i] || {};
 
-                        selectedActivities.push({
+                        const merged = {
                                 ...defaultActivity,
                                 ...savedActivity,
                                 position: i,
                                 isDefault: savedActivity.isDefault === undefined ? true : savedActivity.isDefault
+                        };
+
+                        console.log(`   - Activity ${i} merged:`, {
+                                time: merged.time,
+                                activity: merged.activity,
+                                responsable: merged.responsable,
+                                materiel: merged.materiel,
+                                isDefault: merged.isDefault
                         });
+
+                        selectedActivities.push(merged);
                 }
 
+                console.log("3. Setting selected activities and rendering...");
                 this.activityManager.setSelectedActivities(selectedActivities);
                 this.activityManager.renderActivitiesTable();
+                console.log("   - Form population complete");
         }
 
         /**
@@ -122,24 +145,40 @@ export class FormManager {
          * Extract form data for submission
          */
         extractFormData() {
+                console.log("=== EXTRACT FORM DATA ===");
+                
                 const updatedActivities = this.activityManager.getSelectedActivitiesFromDOM();
+                console.log("1. Updated activities from DOM:", updatedActivities);
+                
                 const honorValues = Array.from(document.getElementById('youth-of-honor').querySelectorAll('li'))
                         .map(li => li.textContent.trim())
                         .filter(Boolean);
+                console.log("2. Honor values extracted:", honorValues);
 
                 if (this.sectionConfig?.honorField?.required && honorValues.length === 0) {
                         this.app.showMessage(translate("meeting_section_honor_required"), "error");
                         throw new Error("Honoree required for this section");
                 }
 
+                const animateurValue = document.getElementById('animateur-responsable').value;
+                const dateValue = document.getElementById('date').value;
+                const endraitValue = document.getElementById('endroit').value;
+                const notesValue = document.getElementById('notes').value;
+                
+                console.log("3. Form field values:");
+                console.log("   - animateur-responsable:", animateurValue);
+                console.log("   - date:", dateValue);
+                console.log("   - endroit:", endraitValue);
+                console.log("   - notes length:", notesValue.length);
+
                 return {
                         organization_id: this.app.organizationId,
-                        animateur_responsable: document.getElementById('animateur-responsable').value,
-                        date: document.getElementById('date').value,
+                        animateur_responsable: animateurValue,
+                        date: dateValue,
                         youth_of_honor: honorValues,
-                        endroit: document.getElementById('endroit').value,
+                        endroit: endraitValue,
                         activities: updatedActivities,
-                        notes: document.getElementById('notes').value,
+                        notes: notesValue,
                 };
         }
 

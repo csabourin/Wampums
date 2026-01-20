@@ -1,7 +1,8 @@
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { isoToDateString } from "./utils/DateUtils.js";
 import {
         getActivitesRencontre,
         getAnimateurs,
@@ -20,6 +21,19 @@ import { getActiveSectionConfig, getHonorLabel } from "./utils/meetingSections.j
 import { aiGenerateText } from "./modules/AI.js";
 import { setButtonLoading } from "./utils/SkeletonUtils.js";
 
+/**
+ * PreparationReunions - Main controller for meeting preparation page
+ * Manages loading, editing, and saving meeting plans with activity templates
+ * 
+ * Features:
+ * - Load next meeting by default with proper date assignment
+ * - Load previous meetings as templates (activities only, no notes)
+ * - AI-powered meeting plan generation (activities with responsible/material)
+ * - Risk analysis for safety planning
+ * - Reminders and meeting notes
+ * - Mobile-optimized UI
+ */
+
 export class PreparationReunions {
         constructor(app) {
                 this.app = app;
@@ -31,6 +45,8 @@ export class PreparationReunions {
                 this.meetingSections = {};
                 this.sectionConfig = null;
                 this.sectionKey = null;
+                this.previousMeetings = []; // Cache for template meetings
+                this.isLoadingTemplate = false; // Flag to track if loading a template
 
                 // Initialize managers (will be set up after data is fetched)
                 this.activityManager = null;
@@ -55,17 +71,14 @@ export class PreparationReunions {
                         const reminder = await this.fetchReminder();
                         this.formManager.setReminder(reminder);
 
-                        // Determine current meeting BEFORE rendering
-                        const currentMeeting = await this.determineCurrentMeeting();
-                        this.currentMeetingData = currentMeeting;
-                        // Set the current date in dateManager to match the meeting we're displaying
-                        this.dateManager.setCurrentDate(currentMeeting.date);
+                        // Load the default next meeting
+                        const nextMeeting = await this.loadNextMeeting();
+                        this.currentMeetingData = nextMeeting;
+                        this.isLoadingTemplate = false;
 
-                        // Render the page now that we have the meeting data
+                        // Render the page
                         this.render();
-                        await this.formManager.populateForm(currentMeeting, currentMeeting.date);
-
-                        // Populate reminder form after DOM is rendered
+                        await this.formManager.populateForm(nextMeeting, nextMeeting.date);
                         this.formManager.populateReminderForm();
 
                         // Attach event listeners
@@ -154,7 +167,11 @@ export class PreparationReunions {
 
         async fetchMeetingData(date) {
                 try {
-                        const response = await getReunionPreparation(date);
+                        // Normalize date to YYYY-MM-DD format to avoid timezone issues
+                        const normalizedDate = isoToDateString(date);
+                        debugLog("Fetching meeting data for date:", normalizedDate);
+                        
+                        const response = await getReunionPreparation(normalizedDate);
                         if (response.success && response.preparation) {
                                 if (!response.preparation.youth_of_honor && response.preparation.louveteau_dhonneur) {
                                         response.preparation.youth_of_honor = response.preparation.louveteau_dhonneur;
@@ -169,6 +186,8 @@ export class PreparationReunions {
                                 if (typeof response.preparation.youth_of_honor === 'string') {
                                         response.preparation.youth_of_honor = [response.preparation.youth_of_honor];
                                 }
+                                // Normalize the date in the preparation object
+                                response.preparation.date = isoToDateString(response.preparation.date);
                                 return response.preparation;
                         }
                         return null;
@@ -178,31 +197,86 @@ export class PreparationReunions {
                 }
         }
 
-        async determineCurrentMeeting() {
+        /**
+         * Load the next scheduled meeting or create a new one
+         * This is the default meeting when the page loads
+         */
+        async loadNextMeeting() {
                 const meetingDate = this.dateManager.getNextMeetingDate();
                 const plannedMeeting = await this.fetchMeetingData(meetingDate);
 
-                if (!plannedMeeting) {
-                        // Populate default values if no data is found
-                        const selectedActivities = this.activityManager.initializePlaceholderActivities();
-                        this.activityManager.setSelectedActivities(selectedActivities);
-
-                        // Set the default animateur_responsable (if available)
-                        const defaultAnimateur = this.animateurs.find(a => a.full_name === this.organizationSettings.organization_info?.animateur_responsable);
-                        return {
-                                animateur_responsable: defaultAnimateur?.id || '',
-                                date: meetingDate,
-                                youth_of_honor: this.recentHonors.map(h => `${h.first_name} ${h.last_name}`),
-                                endroit: this.organizationSettings.organization_info?.endroit || '',
-                                activities: selectedActivities,
-                                notes: ''
-                        };
+                if (plannedMeeting) {
+                        return plannedMeeting;
                 }
-                return plannedMeeting;
+
+                // Create default meeting for next date
+                const selectedActivities = this.activityManager.initializePlaceholderActivities();
+                this.activityManager.setSelectedActivities(selectedActivities);
+
+                const defaultAnimateur = this.animateurs.find(
+                        a => a.full_name === this.organizationSettings.organization_info?.animateur_responsable
+                );
+
+                return {
+                        animateur_responsable: defaultAnimateur?.id || '',
+                        date: meetingDate,
+                        youth_of_honor: this.recentHonors.map(h => `${h.first_name} ${h.last_name}`),
+                        endroit: this.organizationSettings.organization_info?.endroit || '',
+                        activities: selectedActivities,
+                        notes: ''
+                };
+        }
+
+        /**
+         * Load a previous meeting as a template
+         * Populates activities but NOT notes to avoid AI-generated content
+         */
+        async loadMeetingAsTemplate(date) {
+                this.dateManager.setCurrentDate(date);
+                this.isLoadingTemplate = true;
+
+                try {
+                        const templateMeeting = await this.fetchMeetingData(date);
+                        if (!templateMeeting) {
+                                this.app.showMessage(translate("meeting_not_found"), "warning");
+                                return;
+                        }
+
+                        // Create a new meeting based on template but with next available date
+                        const nextDate = this.dateManager.getNextMeetingDate();
+                        const newMeeting = {
+                                animateur_responsable: templateMeeting.animateur_responsable || '',
+                                date: nextDate,
+                                youth_of_honor: [], // Don't copy honors
+                                endroit: templateMeeting.endroit || this.organizationSettings.organization_info?.endroit || '',
+                                activities: templateMeeting.activities || [],
+                                notes: '' // Important: Don't copy notes when using as template
+                        };
+
+                        this.currentMeetingData = newMeeting;
+                        this.dateManager.setCurrentDate(nextDate);
+                        await this.formManager.populateForm(newMeeting, nextDate);
+                        this.app.showMessage(translate("template_loaded_successfully"), "success");
+                } catch (error) {
+                        debugError("Error loading meeting as template:", error);
+                        this.app.showMessage(translate("error_loading_meeting_template"), "error");
+                } finally {
+                        this.isLoadingTemplate = false;
+                }
+        }
+
+        /**
+         * Determine current meeting (deprecated in favor of explicit loadNextMeeting)
+         * Kept for backward compatibility
+         */
+        async determineCurrentMeeting() {
+                return this.loadNextMeeting();
         }
 
         async loadMeeting(date) {
                 this.dateManager.setCurrentDate(date);
+                this.isLoadingTemplate = true;
+
                 try {
                         const meetingData = await this.fetchMeetingData(date);
                         if (meetingData) {
@@ -214,6 +288,8 @@ export class PreparationReunions {
                 } catch (error) {
                         debugError("Error loading meeting data:", error);
                         this.app.showMessage(translate("error_loading_meeting_data"), "error");
+                } finally {
+                        this.isLoadingTemplate = false;
                 }
         }
 
@@ -273,24 +349,27 @@ export class PreparationReunions {
 
                 const content = `
                         <div class="preparation-reunions">
-                                <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+                                <a href="/dashboard" class="button button--ghost button--sm">← ${translate("back")}</a>
                                 <h1>${translate("preparation_reunions")}</h1>
 
-                                <div class="date-navigation">
-                                        <select id="date-select">
-                                        <option value="">${translate("select_date")}</option>
-                                                ${availableDates.map(date =>
+                                <div class="meeting-controls">
+                                        <div class="date-navigation">
+                                                <label for="date-select" class="sr-only">${translate("select_date")}</label>
+                                                <select id="date-select" aria-label="${translate("select_date")}">
+                                                        <option value="">${translate("select_date")}</option>
+                                                        ${availableDates.map(date =>
                         `<option value="${date}" ${date === this.formatDateForInput(this.currentMeetingData?.date) ? 'selected' : ''}>${this.dateManager.formatDate(date, this.app.lang)}</option>`
                 ).join('')}
-                                        </select>
+                                                </select>
+                        </div>
+                        <div class="meeting-actions">
+                                                <button id="new-meeting" class="button button--secondary" title="${translate("new_meeting")}">${translate("new_meeting")}</button>
+                                                <button id="magic-generate-btn" class="button button--secondary" title="${translate("magic_generate_plan")}">✨ ${translate("magic_generate_plan")}</button>
+                                                <button id="analyze-risks-btn" class="button button--secondary" title="${translate("analyze_risks")}">🛡️ ${translate("analyze_risks")}</button>
+                                        </div>
                                 </div>
-                                <p>
-                                        <button id="new-meeting">${translate("new_meeting")}</button>
-                                        <button id="magic-generate-btn" class="button button--secondary" style="margin-left: 10px;">✨ ${translate("magic_generate_plan")}</button>
-                                        <button id="analyze-risks-btn" class="button button--secondary" style="margin-left: 10px;">🛡️ ${translate("analyze_risks")}</button>
-                                </p>
 
-                                <form id="reunion-form">
+                                <form id="reunion-form" class="form-layout">
                                         <div class="form-row">
                                                 <div class="form-group">
                                                         <label for="animateur-responsable">${translate("animateur_responsable")}:</label>
@@ -316,48 +395,47 @@ export class PreparationReunions {
                                                         <input type="text" id="endroit" value="${escapeHTML(this.organizationSettings.organization_info?.endroit || '')}" required>
                                                 </div>
                                         </div>
-                                        <table id="activities-table">
-                                                <thead>
-                                                        <tr>
-                                                                <th>${translate("heure_et_duree")}</th>
-                                                                <th>${translate("activite_responsable_materiel")}</th>
-                                                        </tr>
-                                                </thead>
-                                                <tbody>
-                                                        <!-- Activities will be populated here -->
-                                                </tbody>
-                                        </table>
+                                        <div id="activities-container" class="activities-grid">
+                                                <div class="activities-grid__header">
+                                                        <div class="activities-grid__header-cell">${translate("heure_et_duree")}</div>
+                                                        <div class="activities-grid__header-cell">${translate("activite_responsable_materiel")}</div>
+                                                </div>
+                                                <div id="activities-list" class="activities-grid__body">
+                                                </div>
+                                        </div>
                                         <div class="form-group">
                                                 <label for="notes">${translate("notes")}:</label>
-                                                <textarea id="notes" rows="4"></textarea>
+                                                <textarea id="notes" rows="4" placeholder="${translate("meeting_notes_placeholder") || 'Notes for this meeting...'}"></textarea>
                                         </div>
-                                        <div class="form-actions">
-                                                <button type="submit">${translate("save")}</button>
-                                                <button type="button" id="print-button">${translate("print")}</button>
-                                                <button type="button" id="toggle-quick-edit">${translate("toggle_quick_edit_mode")}</button>
+                                        <div class="form-actions form-actions--mobile">
+                                                <button type="submit" class="button button--primary">${translate("save")}</button>
+                                                <button type="button" id="print-button" class="button button--secondary">${translate("print")}</button>
+                                                <button type="button" id="toggle-quick-edit" class="button button--ghost">${translate("toggle_quick_edit_mode")}</button>
                                         </div>
                                 </form>
 
                                 <h2>${translate("set_reminder")}</h2>
-                                <form id="reminder-form">
+                                <form id="reminder-form" class="form-layout">
                                         <div class="form-group">
                                                 <label for="reminder-text">${translate("reminder_text")}:</label>
-                                                <textarea id="reminder-text" rows="3"></textarea>
+                                                <textarea id="reminder-text" rows="3" placeholder="${translate("reminder_placeholder") || 'Reminder text...'}"></textarea>
                                         </div>
-                                        <div class="form-group">
-                                                <label for="reminder-date">${translate("reminder_date")}:</label>
-                                                <input type="date" id="reminder-date" required>
+                                        <div class="form-row">
+                                                <div class="form-group">
+                                                        <label for="reminder-date">${translate("reminder_date")}:</label>
+                                                        <input type="date" id="reminder-date" required>
+                                                </div>
+                                                <div class="form-group form-group--checkbox">
+                                                        <label for="recurring-reminder" class="label--checkbox">
+                                                                <input type="checkbox" id="recurring-reminder">
+                                                                <span>${translate("recurring_reminder")}</span>
+                                                        </label>
+                                                </div>
                                         </div>
-                                        <div class="form-group">
-                                                <label for="recurring-reminder">
-                                                        <input type="checkbox" id="recurring-reminder">
-                                                        ${translate("recurring_reminder")}
-                                                </label>
-                                        </div>
-                                        <button type="submit">${translate("save_reminder")}</button>
+                                        <button type="submit" class="button button--primary">${translate("save_reminder")}</button>
                                 </form>
 
-                                <p><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
+                                <p class="footer-nav"><a href="/dashboard">${translate("back_to_dashboard")}</a></p>
                         </div>
                         <div id="description-modal" class="modal hidden">
                                 <div class="modal-content">
@@ -392,33 +470,39 @@ export class PreparationReunions {
                 document.getElementById('reminder-form').addEventListener('submit', (e) => this.handleReminderSubmit(e));
 
                 // Activity changes
-                document.querySelector('#activities-table').addEventListener('change', (e) => {
+                document.getElementById('activities-container').addEventListener('change', (e) => {
+                        const row = e.target.closest('.activity-row');
+                        if (!row) return;
+
                         if (e.target.classList.contains('activity-select')) {
                                 this.activityManager.updateActivityDetails(e.target);
                                 e.target.setAttribute('data-default', 'false');
-                                e.target.closest('.activity-row').setAttribute('data-default', 'false');
+                                row.setAttribute('data-default', 'false');
                         } else if (e.target.classList.contains('activity-responsable')) {
                                 if (e.target.value === 'other') {
                                         this.activityManager.switchResponsableToInput(e.target);
                                 } else {
                                         e.target.setAttribute('data-default', 'false');
-                                        e.target.closest('.activity-row').setAttribute('data-default', 'false');
+                                        row.setAttribute('data-default', 'false');
                                 }
                         }
                 });
 
                 // Activity input changes
-                document.querySelector('#activities-table').addEventListener('input', (e) => {
+                document.getElementById('activities-container').addEventListener('input', (e) => {
+                        const row = e.target.closest('.activity-row');
+                        if (!row) return;
+
                         if (e.target.classList.contains('activity-time') ||
                                 e.target.classList.contains('activity-duration') ||
                                 e.target.classList.contains('activity-materiel')) {
                                 e.target.setAttribute('data-default', 'false');
-                                e.target.closest('.activity-row').setAttribute('data-default', 'false');
+                                row.setAttribute('data-default', 'false');
                         }
                 });
 
-                // Description modal
-                document.querySelector('#activities-table').addEventListener('click', (e) => {
+                // Description modal and activity actions
+                document.getElementById('activities-container').addEventListener('click', (e) => {
                         if (e.target.classList.contains('description-btn')) {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -426,9 +510,9 @@ export class PreparationReunions {
                                 this.showDescriptionModal(description);
                         } else if (e.target.classList.contains('edit-activity-btn')) {
                                 this.activityManager.toggleActivityEdit(e.target.closest('.activity-row'));
-                        } else if (e.target.matches('.add-row-btn')) {
+                        } else if (e.target.classList.contains('add-row-btn')) {
                                 this.activityManager.addActivityRow(e.target.dataset.position);
-                        } else if (e.target.matches('.delete-row-btn')) {
+                        } else if (e.target.classList.contains('delete-row-btn')) {
                                 this.activityManager.deleteActivityRow(e.target.dataset.position);
                         }
                 });
@@ -530,21 +614,24 @@ export class PreparationReunions {
 
                 // Show modal for meeting focus input
                 const modalHTML = `
-			<div class="modal-content">
-				<h2>${translate("meeting_focus_prompt") || "Focus de la réunion"}</h2>
-				<form id="ai-focus-form">
-					<div class="form-group">
-						<label for="meeting-focus">${translate("meeting_focus_label") || "Sur quoi voulez-vous vous concentrer dans cette réunion?"}</label>
-						<textarea id="meeting-focus" name="focus" rows="4" placeholder="${translate("meeting_focus_placeholder") || "Ex: Loup d'honneur pour Romain et Alexandre, jeu de Loik, technique habillement..."}" required></textarea>
-						<small>${translate("meeting_focus_hint") || "Décrivez les activités spéciales, honneurs à remettre, techniques à enseigner, etc."}</small>
-					</div>
-					<div class="modal-actions">
-						<button type="button" class="btn-secondary" data-dismiss="modal">${translate("cancel") || "Annuler"}</button>
-						<button type="submit" class="btn-primary">${translate("generate") || "Générer"}</button>
-					</div>
-				</form>
-			</div>
-		`;
+                        <div class="modal-content">
+                                <div class="modal-header">
+                                        <h2>${translate("meeting_focus_prompt") || "Focus de la réunion"}</h2>
+                                        <button type="button" class="modal-close" data-dismiss="modal" aria-label="${translate("close") || "Close"}">&times;</button>
+                                </div>
+                                <form id="ai-focus-form">
+                                        <div class="form-group">
+                                                <label for="meeting-focus">${translate("meeting_focus_label") || "Sur quoi voulez-vous vous concentrer dans cette réunion?"}</label>
+                                                <textarea id="meeting-focus" name="focus" rows="4" placeholder="${translate("meeting_focus_placeholder") || "Ex: Loup d'honneur pour Romain et Alexandre, jeu de Loik, technique habillement..."}" required></textarea>
+                                                <small>${translate("meeting_focus_hint") || "Décrivez les activités spéciales, honneurs à remettre, techniques à enseigner, etc."}</small>
+                                        </div>
+                                        <div class="modal-actions">
+                                                <button type="button" class="button button--secondary" data-dismiss="modal">${translate("cancel") || "Annuler"}</button>
+                                                <button type="submit" class="button button--primary">${translate("generate") || "Générer"}</button>
+                                        </div>
+                                </form>
+                        </div>
+                `;
 
                 // Create and show modal
                 const modalId = 'ai-focus-modal';
@@ -557,17 +644,40 @@ export class PreparationReunions {
                 modalDiv.innerHTML = modalHTML;
                 document.body.appendChild(modalDiv);
 
+                // Show modal by adding show class after a brief delay for CSS transition
+                requestAnimationFrame(() => {
+                        modalDiv.classList.add('show');
+                        modalDiv.setAttribute('aria-hidden', 'false');
+                });
+
+                // Focus the textarea for better UX
+                const focusTextarea = document.getElementById('meeting-focus');
+                if (focusTextarea) {
+                        focusTextarea.focus();
+                }
+
                 // Handle form submission
                 const form = document.getElementById('ai-focus-form');
                 const closeModal = () => {
                         modalDiv.remove();
                 };
 
-                // Close on cancel or backdrop click
-                modalDiv.querySelector('[data-dismiss="modal"]')?.addEventListener('click', closeModal);
+                // Close on cancel, close button, or backdrop click
+                modalDiv.querySelectorAll('[data-dismiss="modal"]').forEach(el => {
+                        el.addEventListener('click', closeModal);
+                });
                 modalDiv.addEventListener('click', (e) => {
                         if (e.target === modalDiv) closeModal();
                 });
+
+                // Close on Escape key
+                const handleEscape = (e) => {
+                        if (e.key === 'Escape') {
+                                closeModal();
+                                document.removeEventListener('keydown', handleEscape);
+                        }
+                };
+                document.addEventListener('keydown', handleEscape);
 
                 form.addEventListener('submit', async (e) => {
                         e.preventDefault();
@@ -606,45 +716,47 @@ export class PreparationReunions {
                                 };
 
                                 const response = await aiGenerateText("meeting_plan", payload);
-                                console.log("AI Response:", response);
+                                debugLog("AI Response:", response);
 
-                                // The response has structure: {data: {data: {...}, usage: {...}, budget: {...}}}
-                                // We need the inner data object
+                                // Extract the plan data from nested response structure
                                 const plan = response.data?.data || response.data;
-                                console.log("Plan data:", plan);
+                                debugLog("Plan data:", plan);
 
-                                // Populate Notes
-                                const notesField = document.getElementById('notes');
-                                console.log("Notes field found:", !!notesField);
-                                if (notesField && plan.theme) {
-                                        const notesContent = `Thème: ${plan.theme}\n\nObjectifs: ${plan.goals || ''}\n\nMatériel: ${plan.materials ? plan.materials.join(', ') : ''}`;
-                                        notesField.value = notesContent;
-                                        console.log("Notes populated with:", notesContent);
-                                } else {
-                                        console.warn("Could not populate notes - field exists:", !!notesField, "has theme:", !!plan.theme);
-                                }
-
-                                // Populate Activities
+                                // Populate Activities ONLY - do NOT fill notes when using template
                                 if (Array.isArray(plan.timeline)) {
-                                        console.log("Timeline activities:", plan.timeline);
-                                        const newActivities = plan.timeline.map((item, index) => ({
-                                                id: `ai-generated-${index}`,
-                                                position: index,
-                                                time: item.time,
-                                                duration: item.duration,
-                                                activity: item.activity,
-                                                responsable: '',
-                                                materiel: '',
-                                                isDefault: false
-                                        }));
+                                        debugLog("Timeline activities:", plan.timeline);
 
-                                        console.log("Mapped activities:", newActivities);
-                                        // Update ActivityManager
+                                        const newActivities = plan.timeline.map((item, index) => {
+                                                // Handle materiel - could be string, array, or from materials field
+                                                let materiel = '';
+                                                if (item.materiel) {
+                                                        materiel = Array.isArray(item.materiel) ? item.materiel.join(', ') : item.materiel;
+                                                } else if (item.materials) {
+                                                        materiel = Array.isArray(item.materials) ? item.materials.join(', ') : item.materials;
+                                                }
+
+                                                return {
+                                                        id: `ai-generated-${index}`,
+                                                        position: index,
+                                                        time: item.time || '',
+                                                        duration: item.duration || '00:00',
+                                                        activity: item.activity || '',
+                                                        activityKey: null,
+                                                        typeKey: null,
+                                                        responsable: item.responsable || '', // Include if mentioned by AI
+                                                        materiel: materiel, // Include if mentioned by AI
+                                                        isDefault: false
+                                                };
+                                        });
+
+                                        debugLog("Mapped activities:", newActivities);
+
+                                        // Update ActivityManager with new activities
                                         this.activityManager.setSelectedActivities(newActivities);
                                         this.activityManager.renderActivitiesTable();
-                                        console.log("Activities rendered");
+                                        debugLog("Activities rendered");
                                 } else {
-                                        console.warn("No timeline array in response");
+                                        debugWarn("No timeline array in response");
                                 }
 
                                 this.app.showMessage(translate("plan_generated_success"), "success");
@@ -696,13 +808,55 @@ export class PreparationReunions {
                 let formData;
                 try {
                         formData = this.formManager.extractFormData();
+                        debugLog("=== SAVING MEETING ===");
+                        debugLog("1. Extracted form data:", formData);
+                        debugLog("   - animateur_responsable:", formData.animateur_responsable);
+                        debugLog("   - date (before normalize):", formData.date);
+                        debugLog("   - youth_of_honor:", formData.youth_of_honor);
+                        debugLog("   - endroit:", formData.endroit);
+                        debugLog("   - notes:", formData.notes);
+                        debugLog("   - activities (raw):", formData.activities);
+
+                        // Normalize date to YYYY-MM-DD format to avoid timezone issues
+                        formData.date = isoToDateString(formData.date);
+                        debugLog("2. After date normalization:", formData.date);
+
+                        // Ensure activities are properly serialized as JSON array
+                        if (formData.activities && typeof formData.activities !== 'string') {
+                                debugLog("3. Serializing activities...");
+                                debugLog("   - Activities array length:", formData.activities.length);
+                                formData.activities.forEach((act, idx) => {
+                                        debugLog(`   - Activity ${idx}:`, {
+                                                time: act.time,
+                                                duration: act.duration,
+                                                activity: act.activity,
+                                                responsable: act.responsable,
+                                                materiel: act.materiel,
+                                                isDefault: act.isDefault
+                                        });
+                                });
+                                formData.activities = JSON.stringify(formData.activities);
+                                debugLog("   - Serialized to string");
+                        }
+
+                        debugLog("4. Final form data to save:", {
+                                organization_id: formData.organization_id,
+                                animateur_responsable: formData.animateur_responsable,
+                                date: formData.date,
+                                endroit: formData.endroit,
+                                youth_of_honor: formData.youth_of_honor,
+                                notes: formData.notes.substring(0, 100) + (formData.notes.length > 100 ? '...' : ''),
+                                activitiesLength: JSON.parse(formData.activities).length
+                        });
                 } catch (error) {
                         debugError("Validation error saving reunion preparation:", error);
                         return false;
                 }
 
                 try {
-                        await saveReunionPreparation(formData);
+                        const response = await saveReunionPreparation(formData);
+                        debugLog("5. Save response:", response);
+                        
                         // Clear the reunion_dates cache so upcoming_meeting page gets fresh data
                         await deleteCachedData('reunion_dates');
                         this.app.showMessage(translate("reunion_preparation_saved"), "success");

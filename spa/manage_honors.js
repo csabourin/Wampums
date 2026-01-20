@@ -3,6 +3,7 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { deleteCachedData } from "./indexedDB.js";
 
 export class ManageHonors {
   constructor(app) {
@@ -317,17 +318,17 @@ export class ManageHonors {
     });
 
     document.getElementById('close-modal').addEventListener('click', () => {
-      this.closeReasonModal();
+      this.cancelHonorProcess();
     });
 
     document.getElementById('cancel-honors').addEventListener('click', () => {
-      this.closeReasonModal();
+      this.cancelHonorProcess();
     });
 
     // Close on overlay click
     document.getElementById('honor-reason-modal').addEventListener('click', (e) => {
       if (e.target.id === 'honor-reason-modal') {
-        this.closeReasonModal();
+        this.cancelHonorProcess();
       }
     });
 
@@ -349,7 +350,7 @@ export class ManageHonors {
     // Save the reason
     this.pendingHonors[this.currentHonorIndex].reason = reason;
 
-    // Close modal and move to next
+    // Close modal only (without resetting)
     this.closeReasonModal();
     this.currentHonorIndex++;
     this.showReasonModal();
@@ -360,11 +361,16 @@ export class ManageHonors {
     if (modal) {
       modal.remove();
     }
-    // Reset if cancelled
-    if (this.currentHonorIndex < this.pendingHonors.length) {
-      this.pendingHonors = [];
-      this.currentHonorIndex = 0;
+  }
+
+  cancelHonorProcess() {
+    const modal = document.getElementById('honor-reason-modal');
+    if (modal) {
+      modal.remove();
     }
+    // Reset when cancelled
+    this.pendingHonors = [];
+    this.currentHonorIndex = 0;
   }
 
   async submitHonors() {
@@ -375,21 +381,79 @@ export class ManageHonors {
     }));
 
     try {
+      // Optimistic update: immediately update the UI with new honors
+      this.optimisticallyAddHonors(honors);
+      this.processHonors();
+      this.updateHonorsListUI();
+      this.app.showMessage(translate("honors_awarded_successfully"), "success");
+
+      // Award the honors on the server
       const result = await awardHonor(honors);
-      if (result.status === "success") {
-        await this.fetchData();
-        this.processHonors();
-        this.updateHonorsListUI();
-        this.app.showMessage(translate("honors_awarded_successfully"), "success");
-      } else {
+      if (result.success !== true) {
         throw new Error(result.message || "Unknown error occurred");
       }
+
+      // Clear cache to ensure fresh data on next load
+      await this.clearHonorsCaches();
     } catch (error) {
       debugError("Error:", error);
       this.app.showMessage(`${translate("error_awarding_honor")}: ${error.message}`, "error");
+      // Refresh data to undo optimistic update on error
+      await this.fetchData();
+      this.processHonors();
+      this.updateHonorsListUI();
     } finally {
       this.pendingHonors = [];
       this.currentHonorIndex = 0;
+    }
+  }
+
+  /**
+   * Optimistically add honors to the local data without waiting for server response
+   */
+  optimisticallyAddHonors(honors) {
+    honors.forEach(honor => {
+      // Add to allHonors array
+      this.allHonors.push({
+        participant_id: honor.participantId,
+        date: honor.date,
+        reason: honor.reason,
+        created_at: new Date().toISOString()
+      });
+
+      // Update the participant's honored status
+      const participant = this.allParticipants.find(p => p.participant_id === honor.participantId);
+      if (participant) {
+        debugLog(`Optimistically marking participant ${participant.participant_id} as honored`);
+      }
+    });
+
+    debugLog('Optimistic update complete:', this.allHonors);
+  }
+
+  /**
+   * Clear all honors-related caches
+   */
+  async clearHonorsCaches() {
+    try {
+      // Build cache keys for different dates that might be cached
+      const cacheKeysToDelete = [
+        `v1/honors`,
+        `v1/honors?date=${this.currentDate}`,
+        `v1/honors/history`,
+        `recent_honors`
+      ];
+
+      for (const key of cacheKeysToDelete) {
+        try {
+          await deleteCachedData(key);
+          debugLog(`Deleted cache for key: ${key}`);
+        } catch (err) {
+          debugWarn(`Could not delete cache for key ${key}:`, err);
+        }
+      }
+    } catch (error) {
+      debugError('Error clearing honors caches:', error);
     }
   }
 

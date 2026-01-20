@@ -83,12 +83,18 @@ export class ActivityManager {
                         return this.renderActivityRow(activity, index);
                 }).join('');
 
-                setContent(document.querySelector('#activities-table tbody'), activitiesHtml);
+                // Get the activities list container
+                const container = document.getElementById('activities-list');
+
+                if (container) {
+                        setContent(container, activitiesHtml);
+                }
+
                 this.addDurationListeners();
         }
 
         /**
-         * Render a single activity row
+         * Render a single activity row using div-based grid layout
          */
         renderActivityRow(a, index) {
                 const safeDuration = typeof a.duration === 'string' && a.duration.includes(':')
@@ -99,8 +105,16 @@ export class ActivityManager {
                 const activityName = a.activity || (a.activityKey ? translate(a.activityKey) : translate("default_activity_name"));
                 const time = a.time || '18:30';
                 const duration = safeDuration || '00:00';
-                const responsable = a.responsable || translate("default_responsable");
                 const materiel = a.materiel || '';
+
+                console.log(`[renderActivityRow ${index}] Rendering:`, {
+                        activityName,
+                        time,
+                        duration,
+                        responsable: a.responsable,
+                        materiel,
+                        isDefault: a.isDefault
+                });
 
                 const responsableExists = !a.responsable || this.animateurs.some(animateur => animateur.full_name === a.responsable);
                 const responsableField = responsableExists ? `
@@ -112,37 +126,36 @@ export class ActivityManager {
                                 <option value="other">${translate("other")}</option>
                         </select>
                 ` : `
-                        <input type="text" value="${a.responsable}" class="responsable-input" data-default="${a.isDefault}" contenteditable="true">
+                        <input type="text" value="${a.responsable}" class="responsable-input" data-default="${a.isDefault}">
                 `;
 
                 return `
-                        <tr class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
-                                <td><div class="activity-time-container">
+                        <div class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
+                                <div class="activity-row__time">
                                         <input type="time" value="${time}" class="activity-time">
-                                        <input type="text" value="${duration}" class="activity-duration">
-                                        </div>
-                                </td>
-                                <td>
-                                <div class="activity-container">
-                                        <select class="activity-select" data-default="${a.isDefault}">
-                                                ${isCustomActivity ? `<option>${activityName}</option>` : ''}
-                                                <option value="">${translate("select_activity")}</option>
-                                                ${this.activities.map(act => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
-                                        </select>
-                                        <button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
+                                        <input type="text" value="${duration}" class="activity-duration" placeholder="00:00">
                                 </div>
-                                <div>
-                                <div class="responsable-container">
-                                        ${responsableField}
+                                <div class="activity-row__details">
+                                        <div class="activity-row__activity">
+                                                <select class="activity-select" data-default="${a.isDefault}">
+                                                        ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ''}
+                                                        <option value="">${translate("select_activity")}</option>
+                                                        ${this.activities.map(act => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
+                                                </select>
+                                                <button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
+                                        </div>
+                                        <div class="activity-row__responsable">
+                                                ${responsableField}
+                                        </div>
+                                        <div class="activity-row__materiel">
+                                                <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
+                                        </div>
+                                        <div class="activity-row__actions">
+                                                <button type="button" class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
+                                                <button type="button" class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
+                                        </div>
                                 </div>
-                                <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
-                                        </div>
-                                        <div class="actions">
-                                                <button class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
-                                                <button class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
-                                        </div>
-                                </td>
-                        </tr>
+                        </div>
                 `;
         }
 
@@ -151,13 +164,14 @@ export class ActivityManager {
          */
         updateActivityDetails(selectElement) {
                 const selectedOption = selectElement.options[selectElement.selectedIndex];
-                const activityId = selectedOption.getAttribute('data-id');
+                const activityId = selectedOption?.getAttribute('data-id');
                 const activity = this.activities.find(a => a.id == activityId);
 
+                const row = selectElement.closest('.activity-row');
+                if (!row) return;
+
                 if (activity) {
-                        const row = selectElement.closest('.activity-row');
                         const durationInput = row.querySelector('.activity-duration');
-                        const materielInput = row.querySelector('.activity-materiel');
                         let descriptionButton = row.querySelector('.description-btn');
 
                         const totalMinutes = activity.estimated_time_max || 0;
@@ -178,10 +192,10 @@ export class ActivityManager {
                         } else if (descriptionButton) {
                                 descriptionButton.style.display = 'none';
                         }
-
-                        row.setAttribute('data-default', 'false');
-                        selectElement.setAttribute('data-default', 'false');
                 }
+
+                row.setAttribute('data-default', 'false');
+                selectElement.setAttribute('data-default', 'false');
         }
 
         /**
@@ -225,8 +239,8 @@ export class ActivityManager {
          * Toggle activity edit mode (switch from select to input)
          */
         toggleActivityEdit(row) {
-                const container = row.querySelector('.activity-container');
-                const select = container.querySelector('.activity-select');
+                const container = row.querySelector('.activity-row__activity');
+                const select = container?.querySelector('.activity-select');
                 if (select) {
                         const input = document.createElement('input');
                         input.type = 'text';
@@ -242,7 +256,9 @@ export class ActivityManager {
          * Switch responsable from select to input
          */
         switchResponsableToInput(select) {
-                const container = select.closest('.responsable-container');
+                const container = select.closest('.activity-row__responsable');
+                if (!container) return;
+
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.className = 'responsable-input';
@@ -349,33 +365,68 @@ export class ActivityManager {
         }
 
         /**
-         * Get selected activities from the DOM
+         * Get all activities from the DOM for saving
+         * Returns all activities, reading their current state from the DOM
          */
         getSelectedActivitiesFromDOM() {
-                const activitiesContainer = document.querySelector('#activities-table');
+                console.log("=== GET ACTIVITIES FROM DOM ===");
+                
+                const activitiesContainer = document.getElementById('activities-list');
+                if (!activitiesContainer) {
+                        console.warn("No activities container found");
+                        return [];
+                }
 
-                return Array.from(activitiesContainer.querySelectorAll('.activity-row'))
-                        .filter(row => row.getAttribute('data-default') === 'false')
-                        .map((row) => {
-                                const index = row.getAttribute('data-id').split('-')[1];
-                                const activity = this.selectedActivities[index];
+                const rows = Array.from(activitiesContainer.querySelectorAll('.activity-row'));
+                console.log("Found activity rows:", rows.length);
 
-                                const responsableInput = row.querySelector('.responsable-input');
-                                const responsableSelect = row.querySelector('.activity-responsable');
-                                const responsable = responsableInput ? responsableInput.value : responsableSelect ? responsableSelect.value : '';
+                // Get ALL activities from DOM
+                const activities = rows.map((row, rowIndex) => {
+                        const dataId = row.getAttribute('data-id');
+                        const position = parseInt(row.getAttribute('data-position'), 10);
+                        const dataDefault = row.getAttribute('data-default');
+                        // Use position to get the activity from selectedActivities array
+                        const activity = this.selectedActivities[position] || {};
 
-                                return {
-                                        ...activity,
-                                        position: parseInt(row.getAttribute('data-position'), 10),
-                                        id: row.getAttribute('data-id'),
-                                        time: row.querySelector('.activity-time').value,
-                                        duration: row.querySelector('.activity-duration').value,
-                                        activity: row.querySelector('.activity-input')?.value || row.querySelector('.activity-select')?.value,
-                                        responsable: responsable,
-                                        materiel: row.querySelector('.activity-materiel').value,
-                                        isDefault: false
-                                };
+                        const responsableInput = row.querySelector('.responsable-input');
+                        const responsableSelect = row.querySelector('.activity-responsable');
+                        const responsable = responsableInput ? responsableInput.value : responsableSelect ? responsableSelect.value : '';
+
+                        const activityInput = row.querySelector('.activity-input');
+                        const activitySelect = row.querySelector('.activity-select');
+                        const activityValue = activityInput?.value || activitySelect?.value;
+
+                        const timeValue = row.querySelector('.activity-time').value;
+                        const durationValue = row.querySelector('.activity-duration').value;
+                        const materielValue = row.querySelector('.activity-materiel').value;
+
+                        const result = {
+                                ...activity,
+                                position: position,
+                                id: dataId,
+                                time: timeValue,
+                                duration: durationValue,
+                                activity: activityValue,
+                                responsable: responsable,
+                                materiel: materielValue,
+                                // Mark as non-default if it was modified or is AI-generated
+                                isDefault: dataDefault === 'true' && !dataId?.startsWith('ai-generated')
+                        };
+
+                        console.log(`  Activity ${rowIndex}:`, {
+                                time: timeValue,
+                                duration: durationValue,
+                                activity: activityValue,
+                                responsable: responsable,
+                                materiel: materielValue,
+                                isDefault: result.isDefault
                         });
+
+                        return result;
+                });
+
+                console.log("Total activities extracted:", activities.length);
+                return activities;
         }
 
         /**
