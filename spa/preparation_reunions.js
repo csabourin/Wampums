@@ -20,6 +20,7 @@ import { PrintManager } from "./modules/PrintManager.js";
 import { getActiveSectionConfig, getHonorLabel } from "./utils/meetingSections.js";
 import { aiGenerateText } from "./modules/AI.js";
 import { setButtonLoading } from "./utils/SkeletonUtils.js";
+import { mergeTimelineWithTemplates } from "./utils/MeetingPlanUtils.js";
 
 /**
  * PreparationReunions - Main controller for meeting preparation page
@@ -169,10 +170,22 @@ export class PreparationReunions {
                 try {
                         // Normalize date to YYYY-MM-DD format to avoid timezone issues
                         const normalizedDate = isoToDateString(date);
-                        debugLog("Fetching meeting data for date:", normalizedDate);
+                        debugLog("=== FETCH MEETING DATA ===");
+                        debugLog("1. Input date:", date);
+                        debugLog("2. Normalized date:", normalizedDate);
                         
                         const response = await getReunionPreparation(normalizedDate);
+                        debugLog("3. Backend response:", response);
+                        
                         if (response.success && response.preparation) {
+                                debugLog("4. Meeting data found!");
+                                debugLog("   - animateur_responsable:", response.preparation.animateur_responsable);
+                                debugLog("   - date:", response.preparation.date);
+                                debugLog("   - endroit:", response.preparation.endroit);
+                                debugLog("   - youth_of_honor (raw):", response.preparation.youth_of_honor);
+                                debugLog("   - activities (raw):", typeof response.preparation.activities, response.preparation.activities?.substring?.(0, 100));
+                                debugLog("   - notes:", response.preparation.notes?.substring?.(0, 50));
+                                
                                 if (!response.preparation.youth_of_honor && response.preparation.louveteau_dhonneur) {
                                         response.preparation.youth_of_honor = response.preparation.louveteau_dhonneur;
                                 }
@@ -181,15 +194,36 @@ export class PreparationReunions {
                                 }
                                 // Parse the activities JSON string
                                 if (typeof response.preparation.activities === 'string') {
+                                        debugLog("5. Parsing activities from string...");
                                         response.preparation.activities = JSON.parse(response.preparation.activities);
+                                        debugLog("   - Parsed activities count:", response.preparation.activities?.length);
                                 }
+                                // Parse youth_of_honor if it's a JSON string
                                 if (typeof response.preparation.youth_of_honor === 'string') {
-                                        response.preparation.youth_of_honor = [response.preparation.youth_of_honor];
+                                        debugLog("6. Parsing youth_of_honor from string...");
+                                        try {
+                                                // Try to parse as JSON array first
+                                                response.preparation.youth_of_honor = JSON.parse(response.preparation.youth_of_honor);
+                                                debugLog("   - Parsed as JSON array:", response.preparation.youth_of_honor);
+                                        } catch (e) {
+                                                // If not JSON, wrap single value in array
+                                                response.preparation.youth_of_honor = [response.preparation.youth_of_honor];
+                                                debugLog("   - Wrapped as single value:", response.preparation.youth_of_honor);
+                                        }
                                 }
                                 // Normalize the date in the preparation object
                                 response.preparation.date = isoToDateString(response.preparation.date);
+                                debugLog("7. Final processed meeting data:", {
+                                        animateur_responsable: response.preparation.animateur_responsable,
+                                        date: response.preparation.date,
+                                        endroit: response.preparation.endroit,
+                                        youth_of_honor: response.preparation.youth_of_honor,
+                                        activities_count: response.preparation.activities?.length,
+                                        has_notes: !!response.preparation.notes
+                                });
                                 return response.preparation;
                         }
+                        debugLog("4. No meeting data found for this date");
                         return null;
                 } catch (error) {
                         debugError("Error fetching meeting data:", error);
@@ -202,13 +236,18 @@ export class PreparationReunions {
          * This is the default meeting when the page loads
          */
         async loadNextMeeting() {
+                debugLog("=== LOAD NEXT MEETING (INIT) ===");
                 const meetingDate = this.dateManager.getNextMeetingDate();
+                debugLog("1. Next meeting date:", meetingDate);
+                
                 const plannedMeeting = await this.fetchMeetingData(meetingDate);
 
                 if (plannedMeeting) {
+                        debugLog("2. Found existing meeting for next date");
                         return plannedMeeting;
                 }
 
+                debugLog("2. No existing meeting found, creating default");
                 // Create default meeting for next date
                 const selectedActivities = this.activityManager.initializePlaceholderActivities();
                 this.activityManager.setSelectedActivities(selectedActivities);
@@ -274,17 +313,34 @@ export class PreparationReunions {
         }
 
         async loadMeeting(date) {
+                debugLog("=== LOAD MEETING ===");
+                debugLog("1. Date selected:", date);
+                
                 this.dateManager.setCurrentDate(date);
                 this.isLoadingTemplate = true;
 
                 try {
                         const meetingData = await this.fetchMeetingData(date);
+                        debugLog("2. Meeting data returned:", meetingData ? "Found" : "Not found");
+                        
                         if (meetingData) {
                                 this.currentMeetingData = meetingData;
+                                debugLog("3. Using existing meeting data");
                         } else {
                                 this.currentMeetingData = this.createNewMeeting(date);
+                                debugLog("3. Created new default meeting");
                         }
+                        
+                        debugLog("4. Calling populateForm with:", {
+                                animateur_responsable: this.currentMeetingData.animateur_responsable,
+                                date: this.currentMeetingData.date,
+                                endroit: this.currentMeetingData.endroit,
+                                youth_of_honor: this.currentMeetingData.youth_of_honor,
+                                activities_count: this.currentMeetingData.activities?.length
+                        });
+                        
                         await this.formManager.populateForm(this.currentMeetingData, this.dateManager.getCurrentDate());
+                        debugLog("5. Form populated successfully");
                 } catch (error) {
                         debugError("Error loading meeting data:", error);
                         this.app.showMessage(translate("error_loading_meeting_data"), "error");
@@ -365,7 +421,6 @@ export class PreparationReunions {
                         <div class="meeting-actions">
                                                 <button id="new-meeting" class="button button--secondary" title="${translate("new_meeting")}">${translate("new_meeting")}</button>
                                                 <button id="magic-generate-btn" class="button button--secondary" title="${translate("magic_generate_plan")}">✨ ${translate("magic_generate_plan")}</button>
-                                                <button id="analyze-risks-btn" class="button button--secondary" title="${translate("analyze_risks")}">🛡️ ${translate("analyze_risks")}</button>
                                         </div>
                                 </div>
 
@@ -551,56 +606,7 @@ export class PreparationReunions {
                 }
 
                 // Analyze Risks Button
-                const riskBtn = document.getElementById('analyze-risks-btn');
-                if (riskBtn) {
-                        riskBtn.addEventListener('click', () => this.handleRiskAnalysis());
-                }
-        }
-
-        async handleRiskAnalysis() {
-                const btn = document.getElementById('analyze-risks-btn');
-                const activities = this.activityManager?.getSelectedActivities() || [];
-
-                if (activities.length === 0) {
-                        this.app.showMessage(translate("add_activities_first"), "warning");
-                        return;
-                }
-
-                setButtonLoading(btn, true);
-                try {
-                        // Extract plain text descriptions
-                        const activityDescriptions = activities.map(a =>
-                                `${a.time} - ${a.description} (${a.endroit || ''})`
-                        ).join('\n');
-
-                        const response = await aiGenerateText("risk_suggest", {
-                                activityTitle: "Meeting Activities",
-                                activityDescription: activityDescriptions
-                        });
-
-                        const risks = response.data.risks || [];
-                        const mitigation = response.data.mitigation || [];
-
-                        let riskText = "\n\n--- SAFETY ANALYSIS ---\n";
-                        riskText += "RISKS:\n" + risks.map(r => "- " + r).join("\n");
-                        riskText += "\n\nMITIGATION:\n" + mitigation.map(m => "- " + m).join("\n");
-
-                        const notesField = document.getElementById('notes');
-                        if (notesField) {
-                                notesField.value += riskText;
-                                // Scroll to bottom
-                                notesField.scrollTop = notesField.scrollHeight;
-                        }
-
-                        this.app.showMessage(translate("risk_analysis_complete"), "success");
-
-                } catch (error) {
-                        let msg = error.message;
-                        if (error.error?.code === 'AI_BUDGET_EXCEEDED') msg = translate('ai_budget_exceeded');
-                        this.app.showMessage(translate("error_analyzing_risks") + ": " + msg, "error");
-                } finally {
-                        setButtonLoading(btn, false);
-                }
+                // (Risk assessment removed)
         }
 
         async handleMagicGenerate() {
@@ -697,6 +703,40 @@ export class PreparationReunions {
                                         ? this.recentHonors[0]
                                         : null;
 
+                                // Provide mandatory start sequence and Scouts du Canada glossary
+                                const glossary = [
+                                        { term: "Proie", definition: "présentation au groupe" },
+                                        { term: "tannière", definition: "sous-groupe autrefois appelés sizaines" },
+                                        { term: "Rocher du conseil", definition: "rassemblement où l'on peut demander des badges et des étoiles et parler librement" }
+                                ];
+
+                                const meetingDefaults = {
+                                        mandatoryAgenda: [
+                                                { time: "18:45", duration: "00:05", activity: "Accueil des louveteaux" },
+                                                { duration: "00:10", activity: "Présence / Loup d'honneur / Prière / Mot de bienvenue / Actualités" }
+                                        ],
+                                        instructions: "Include the mandatory agenda at the very start of the plan, at the meeting start time. Use Scouts du Canada terminology and respect provided activity templates."
+                                };
+
+                                // Allowed leader names to avoid random names
+                                const allowedResponsables = (this.animateurs || [])
+                                        .map(a => a.full_name)
+                                        .filter(Boolean);
+
+                                // Hard constraints to force template usage and valid responsibles
+                                const constraints = {
+                                        useTemplateActivities: true,
+                                        templateStrictness: "strict-order-duration",
+                                        noInventedNames: true,
+                                        allowedResponsables,
+                                        missingResponsablePolicy: "leaveEmpty",
+                                        outputSchema: {
+                                                type: "object",
+                                                fields: ["timeline[]", "time", "duration", "activity", "responsable", "materials|materiel"]
+                                        },
+                                        instructions: "Do not add or remove blocks beyond mandatoryAgenda + provided activityTemplates. Only choose responsibles from allowedResponsables; otherwise leave empty."
+                                };
+
                                 const payload = {
                                         date: dateVal,
                                         section: this.sectionConfig?.name || "Scouts",
@@ -712,7 +752,10 @@ export class PreparationReunions {
                                                 name: mostRecentHonor.participant_name,
                                                 honor: mostRecentHonor.honor_name,
                                                 date: mostRecentHonor.date_awarded
-                                        } : null
+                                        } : null,
+                                        glossary,
+                                        meetingDefaults,
+                                        constraints
                                 };
 
                                 const response = await aiGenerateText("meeting_plan", payload);
@@ -722,42 +765,15 @@ export class PreparationReunions {
                                 const plan = response.data?.data || response.data;
                                 debugLog("Plan data:", plan);
 
-                                // Populate Activities ONLY - do NOT fill notes when using template
-                                if (Array.isArray(plan.timeline)) {
-                                        debugLog("Timeline activities:", plan.timeline);
-
-                                        const newActivities = plan.timeline.map((item, index) => {
-                                                // Handle materiel - could be string, array, or from materials field
-                                                let materiel = '';
-                                                if (item.materiel) {
-                                                        materiel = Array.isArray(item.materiel) ? item.materiel.join(', ') : item.materiel;
-                                                } else if (item.materials) {
-                                                        materiel = Array.isArray(item.materials) ? item.materials.join(', ') : item.materials;
-                                                }
-
-                                                return {
-                                                        id: `ai-generated-${index}`,
-                                                        position: index,
-                                                        time: item.time || '',
-                                                        duration: item.duration || '00:00',
-                                                        activity: item.activity || '',
-                                                        activityKey: null,
-                                                        typeKey: null,
-                                                        responsable: item.responsable || '', // Include if mentioned by AI
-                                                        materiel: materiel, // Include if mentioned by AI
-                                                        isDefault: false
-                                                };
-                                        });
-
-                                        debugLog("Mapped activities:", newActivities);
-
-                                        // Update ActivityManager with new activities
-                                        this.activityManager.setSelectedActivities(newActivities);
-                                        this.activityManager.renderActivitiesTable();
-                                        debugLog("Activities rendered");
-                                } else {
-                                        debugWarn("No timeline array in response");
-                                }
+                                // Merge AI output with templates, validating responsibles
+                                const mergedActivities = mergeTimelineWithTemplates(
+                                        plan.timeline,
+                                        templates,
+                                        allowedResponsables,
+                                        translate
+                                );
+                                this.activityManager.setSelectedActivities(mergedActivities);
+                                this.activityManager.renderActivitiesTable();
 
                                 this.app.showMessage(translate("plan_generated_success"), "success");
 
@@ -857,8 +873,9 @@ export class PreparationReunions {
                         const response = await saveReunionPreparation(formData);
                         debugLog("5. Save response:", response);
                         
-                        // Clear the reunion_dates cache so upcoming_meeting page gets fresh data
+                        // Clear both the reunion_dates cache and the specific meeting cache
                         await deleteCachedData('reunion_dates');
+                        await deleteCachedData(`reunion_preparation_${formData.date}`);
                         this.app.showMessage(translate("reunion_preparation_saved"), "success");
                         // Force refresh to get fresh dates from server
                         await this.fetchAvailableDates(true);

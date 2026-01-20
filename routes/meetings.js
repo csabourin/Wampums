@@ -64,10 +64,22 @@ module.exports = (pool, logger) => {
 
       if (result.rows.length > 0) {
         const preparation = result.rows[0];
-        // Parse JSON fields
+        
+        // Parse JSON fields - check if already parsed (JSONB columns return objects)
         try {
-          preparation.youth_of_honor = JSON.parse(preparation.youth_of_honor || '[]');
-          preparation.activities = JSON.parse(preparation.activities || '[]');
+          // If youth_of_honor is a string, parse it; if already an object/array, use as-is
+          if (typeof preparation.youth_of_honor === 'string') {
+            preparation.youth_of_honor = JSON.parse(preparation.youth_of_honor || '[]');
+          } else if (!Array.isArray(preparation.youth_of_honor)) {
+            preparation.youth_of_honor = preparation.youth_of_honor ? [preparation.youth_of_honor] : [];
+          }
+          
+          // If activities is a string, parse it; if already an object/array, use as-is
+          if (typeof preparation.activities === 'string') {
+            preparation.activities = JSON.parse(preparation.activities || '[]');
+          } else if (!Array.isArray(preparation.activities)) {
+            preparation.activities = [];
+          }
         } catch (e) {
           logger.warn('Error parsing reunion preparation JSON fields:', e);
           preparation.youth_of_honor = preparation.youth_of_honor
