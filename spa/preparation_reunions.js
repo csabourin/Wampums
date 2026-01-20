@@ -460,7 +460,7 @@ export class PreparationReunions {
                                         </div>
                                         <div class="form-group">
                                                 <label for="notes">${translate("notes")}:</label>
-                                                <textarea id="notes" rows="4" placeholder="${translate("meeting_notes_placeholder") || 'Notes for this meeting...'}"></textarea>
+                                                <textarea id="notes" rows="4" placeholder="${translate("meeting_notes_placeholder")}"></textarea>
                                         </div>
                                         <div class="form-actions form-actions--mobile">
                                                 <button type="submit" class="button button--primary">${translate("save")}</button>
@@ -473,7 +473,7 @@ export class PreparationReunions {
                                 <form id="reminder-form" class="form-layout">
                                         <div class="form-group">
                                                 <label for="reminder-text">${translate("reminder_text")}:</label>
-                                                <textarea id="reminder-text" rows="3" placeholder="${translate("reminder_placeholder") || 'Reminder text...'}"></textarea>
+                                                <textarea id="reminder-text" rows="3" placeholder="${translate("reminder_placeholder")}"></textarea>
                                         </div>
                                         <div class="form-row">
                                                 <div class="form-group">
@@ -622,18 +622,18 @@ export class PreparationReunions {
                 const modalHTML = `
                         <div class="modal-content">
                                 <div class="modal-header">
-                                        <h2>${translate("meeting_focus_prompt") || "Focus de la réunion"}</h2>
-                                        <button type="button" class="modal-close" data-dismiss="modal" aria-label="${translate("close") || "Close"}">&times;</button>
+                                        <h2>${translate("meeting_focus_prompt")}</h2>
+                                        <button type="button" class="modal-close" data-dismiss="modal" aria-label="${translate("close")}">&times;</button>
                                 </div>
                                 <form id="ai-focus-form">
                                         <div class="form-group">
-                                                <label for="meeting-focus">${translate("meeting_focus_label") || "Sur quoi voulez-vous vous concentrer dans cette réunion?"}</label>
-                                                <textarea id="meeting-focus" name="focus" rows="4" placeholder="${translate("meeting_focus_placeholder") || "Ex: Loup d'honneur pour Romain et Alexandre, jeu de Loik, technique habillement..."}" required></textarea>
-                                                <small>${translate("meeting_focus_hint") || "Décrivez les activités spéciales, honneurs à remettre, techniques à enseigner, etc."}</small>
+                                                <label for="meeting-focus">${translate("meeting_focus_label")}</label>
+                                                <textarea id="meeting-focus" name="focus" rows="4" placeholder="${translate("meeting_focus_placeholder")}" required></textarea>
+                                                <small>${translate("meeting_focus_hint")}</small>
                                         </div>
                                         <div class="modal-actions">
-                                                <button type="button" class="button button--secondary" data-dismiss="modal">${translate("cancel") || "Annuler"}</button>
-                                                <button type="submit" class="button button--primary">${translate("generate") || "Générer"}</button>
+                                                <button type="button" class="button button--secondary" data-dismiss="modal">${translate("cancel")}</button>
+                                                <button type="submit" class="button button--primary">${translate("generate")}</button>
                                         </div>
                                 </form>
                         </div>
