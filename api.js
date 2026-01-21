@@ -127,6 +127,7 @@ app.use(
         connectSrc,
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
+        frameAncestors: ["'self'", "https://*.replit.dev", "https://*.repl.co", "https://*.replit.com"],
         upgradeInsecureRequests: isProduction ? [] : null,
       },
     },
