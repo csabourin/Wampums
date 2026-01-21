@@ -136,6 +136,7 @@ app.use(
       includeSubDomains: true,
       preload: true,
     },
+    xFrameOptions: false, // Disabled - using CSP frame-ancestors instead for Replit webview support
   }),
 );
 
