@@ -7077,6 +7077,89 @@ details p {
   color: var(--color-text);
 }
 
+.status-badge.status-pending {
+  background-color: var(--color-warning);
+  color: var(--color-text);
+}
+
+.status-badge.status-signed {
+  background-color: var(--color-success);
+  color: white;
+}
+
+/* Permission Slip Date Quick Links */
+.date-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.date-quick-link {
+  padding: 0.625rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border: 2px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.date-quick-link:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-secondary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.date-quick-link:active {
+  transform: translateY(0);
+}
+
+.date-quick-link.has-pending {
+  border-color: var(--color-warning);
+  background-color: #fff9ed;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.date-quick-link.has-pending:hover {
+  border-color: var(--color-warning);
+  background-color: #fff4d6;
+}
+
+.date-quick-link.complete {
+  border-color: var(--color-success);
+  background-color: #f0fdf7;
+  color: var(--color-success);
+}
+
+.date-quick-link.complete:hover {
+  border-color: var(--color-success);
+  background-color: #dff8ed;
+}
+
+@media (max-width: 768px) {
+  .date-quick-links {
+    flex-direction: column;
+  }
+
+  .date-quick-link {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .fundraiser-card-body {
   margin-bottom: 1rem;
 }

@@ -1468,6 +1468,7 @@ module.exports = (pool) => {
     [
       query("meeting_date").optional().isISO8601(),
       query("participant_id").optional().isInt({ min: 1 }),
+      query("activity_id").optional().isInt({ min: 1 }),
     ],
     checkValidation,
     asyncHandler(async (req, res) => {
@@ -1478,6 +1479,9 @@ module.exports = (pool) => {
           : null;
         const participantId = req.query.participant_id
           ? parseInt(req.query.participant_id, 10)
+          : null;
+        const activityId = req.query.activity_id
+          ? parseInt(req.query.activity_id, 10)
           : null;
         const params = [organizationId];
         let filter = "";
@@ -1512,11 +1516,20 @@ module.exports = (pool) => {
           filter += ` AND ps.participant_id = $${params.length}`;
         }
 
+        if (activityId) {
+          params.push(activityId);
+          filter += ` AND ps.activity_id = $${params.length}`;
+        }
+
         const result = await pool.query(
-          `SELECT ps.*, p.first_name, p.last_name, g.prenom AS guardian_first_name, g.nom AS guardian_last_name
+          `SELECT ps.*,
+                  p.first_name, p.last_name,
+                  g.prenom AS guardian_first_name, g.nom AS guardian_last_name,
+                  a.name AS activity_name, a.description AS activity_description, a.activity_date
            FROM permission_slips ps
            JOIN participants p ON p.id = ps.participant_id
            LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
+           LEFT JOIN activities a ON a.id = ps.activity_id
            WHERE ps.organization_id = $1 ${filter}
            ORDER BY ps.meeting_date DESC, p.first_name`,
           params,
@@ -1541,7 +1554,8 @@ module.exports = (pool) => {
     blockDemoRoles,
     requirePermission("communications.send"),
     [
-      check("meeting_date").isISO8601(),
+      check("meeting_date").optional().isISO8601(),
+      check("activity_id").optional().isInt({ min: 1 }),
       check("activity_title")
         .optional()
         .isString()
@@ -1554,10 +1568,15 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { meeting_date, activity_title, participant_ids } = req.body;
+        const { meeting_date, activity_id, activity_title, participant_ids } = req.body;
 
-        const normalizedDate = parseDate(meeting_date);
-        if (!normalizedDate) {
+        // Require either activity_id or meeting_date
+        if (!activity_id && !meeting_date) {
+          return error(res, "Either activity_id or meeting_date must be provided", 400);
+        }
+
+        const normalizedDate = meeting_date ? parseDate(meeting_date) : null;
+        if (meeting_date && !normalizedDate) {
           return error(res, "Invalid meeting date", 400);
         }
 
@@ -1572,11 +1591,19 @@ module.exports = (pool) => {
           LEFT JOIN user_participants up ON up.participant_id = p.id
           LEFT JOIN users u ON u.id = up.user_id
           WHERE ps.organization_id = $1
-            AND ps.meeting_date = $2
             AND ps.status = 'pending'
             AND ps.email_sent = false`;
 
-        const params = [organizationId, normalizedDate];
+        const params = [organizationId];
+
+        // Filter by activity_id (preferred) or meeting_date (legacy)
+        if (activity_id) {
+          params.push(activity_id);
+          query += ` AND ps.activity_id = $${params.length}`;
+        } else if (normalizedDate) {
+          params.push(normalizedDate);
+          query += ` AND ps.meeting_date = $${params.length}`;
+        }
 
         if (activity_title) {
           params.push(activity_title);
@@ -1688,7 +1715,8 @@ module.exports = (pool) => {
     blockDemoRoles,
     requirePermission("communications.send"),
     [
-      check("meeting_date").isISO8601(),
+      check("meeting_date").optional().isISO8601(),
+      check("activity_id").optional().isInt({ min: 1 }),
       check("activity_title")
         .optional()
         .isString()
@@ -1701,10 +1729,15 @@ module.exports = (pool) => {
     asyncHandler(async (req, res) => {
       try {
         const organizationId = await getOrganizationId(req, pool);
-        const { meeting_date, activity_title, participant_ids } = req.body;
+        const { meeting_date, activity_id, activity_title, participant_ids } = req.body;
 
-        const normalizedDate = parseDate(meeting_date);
-        if (!normalizedDate) {
+        // Require either activity_id or meeting_date
+        if (!activity_id && !meeting_date) {
+          return error(res, "Either activity_id or meeting_date must be provided", 400);
+        }
+
+        const normalizedDate = meeting_date ? parseDate(meeting_date) : null;
+        if (meeting_date && !normalizedDate) {
           return error(res, "Invalid meeting date", 400);
         }
 
@@ -1719,11 +1752,19 @@ module.exports = (pool) => {
           LEFT JOIN user_participants up ON up.participant_id = p.id
           LEFT JOIN users u ON u.id = up.user_id
           WHERE ps.organization_id = $1
-            AND ps.meeting_date = $2
             AND ps.status = 'pending'
             AND ps.email_sent = true`;
 
-        const params = [organizationId, normalizedDate];
+        const params = [organizationId];
+
+        // Filter by activity_id (preferred) or meeting_date (legacy)
+        if (activity_id) {
+          params.push(activity_id);
+          query += ` AND ps.activity_id = $${params.length}`;
+        } else if (normalizedDate) {
+          params.push(normalizedDate);
+          query += ` AND ps.meeting_date = $${params.length}`;
+        }
 
         if (activity_title) {
           params.push(activity_title);
@@ -1839,7 +1880,8 @@ module.exports = (pool) => {
       check("participant_ids.*").optional({ nullable: true }).isInt({ min: 1 }),
       check("participant_id").optional({ nullable: true }).isInt({ min: 1 }),
       check("guardian_id").optional({ nullable: true }).isInt({ min: 1 }),
-      check("meeting_date").notEmpty().isISO8601(),
+      check("activity_id").optional({ nullable: true }).isInt({ min: 1 }),
+      check("meeting_date").optional({ nullable: true }).isISO8601(),
       check("meeting_id").optional({ nullable: true }).isInt({ min: 1 }),
       check("activity_title")
         .optional({ nullable: true })
@@ -1865,6 +1907,7 @@ module.exports = (pool) => {
           participant_ids,
           participant_id,
           guardian_id,
+          activity_id,
           meeting_date,
           meeting_id,
           activity_title,
@@ -1886,11 +1929,42 @@ module.exports = (pool) => {
           );
         }
 
+        // Determine meeting_date, activity_title, and activity_description
+        let finalMeetingDate = meeting_date;
+        let finalActivityTitle = activity_title;
+        let finalActivityDescription = activity_description;
+
+        // If activity_id provided, fetch activity details and use them
+        if (activity_id) {
+          const activityResult = await pool.query(
+            'SELECT name, description, activity_date FROM activities WHERE id = $1 AND organization_id = $2',
+            [activity_id, organizationId]
+          );
+
+          if (activityResult.rows.length === 0) {
+            return error(res, 'Activity not found', 404);
+          }
+
+          const activity = activityResult.rows[0];
+          finalMeetingDate = activity.activity_date;
+          finalActivityTitle = activity.name;
+          finalActivityDescription = activity.description;
+        } else {
+          // Legacy mode: require meeting_date if no activity_id
+          if (!meeting_date) {
+            return error(
+              res,
+              "Either activity_id or meeting_date must be provided",
+              400
+            );
+          }
+        }
+
         if (meeting_id) {
           await verifyMeeting(meeting_id, organizationId);
         }
 
-        const normalizedDate = parseDate(meeting_date);
+        const normalizedDate = parseDate(finalMeetingDate);
         if (!normalizedDate) {
           return error(res, "Invalid meeting date", 400);
         }
@@ -1908,12 +1982,13 @@ module.exports = (pool) => {
           const insertResult = await pool.query(
             `INSERT INTO permission_slips
              (organization_id, participant_id, guardian_id, meeting_id, meeting_date,
-              activity_title, activity_description, deadline_date, consent_payload, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              activity_id, activity_title, activity_description, deadline_date, consent_payload, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              ON CONFLICT (organization_id, participant_id, meeting_date)
              DO UPDATE SET consent_payload = EXCLUDED.consent_payload,
                            guardian_id = EXCLUDED.guardian_id,
                            meeting_id = EXCLUDED.meeting_id,
+                           activity_id = EXCLUDED.activity_id,
                            activity_title = EXCLUDED.activity_title,
                            activity_description = EXCLUDED.activity_description,
                            deadline_date = EXCLUDED.deadline_date,
@@ -1926,8 +2001,9 @@ module.exports = (pool) => {
               guardian_id || null,
               meeting_id || null,
               normalizedDate,
-              activity_title || null,
-              activity_description || null,
+              activity_id || null,
+              finalActivityTitle || null,
+              finalActivityDescription || null,
               normalizedDeadline,
               consent_payload,
               status,

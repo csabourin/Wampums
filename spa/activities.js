@@ -177,6 +177,9 @@ export class Activities {
           <button class="button button--small button--secondary view-carpools-btn" data-activity-id="${activity.id}">
             ${translate('view_carpools')}
           </button>
+          <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
+            ${translate('manage_permission_slips')}
+          </button>
           <button class="button button--small button--outline edit-activity-btn" data-activity-id="${activity.id}">
             ${translate('edit')}
           </button>
@@ -226,6 +229,14 @@ export class Activities {
       btn.addEventListener('click', (e) => {
         const activityId = parseInt(e.target.dataset.activityId);
         window.location.hash = `/carpool/${activityId}`;
+      });
+    });
+
+    // View permission slips buttons
+    document.querySelectorAll('.view-permission-slips-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const activityId = parseInt(e.target.dataset.activityId);
+        window.location.hash = `/permission-slips/${activityId}`;
       });
     });
   }

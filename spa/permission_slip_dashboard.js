@@ -17,10 +17,13 @@ import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 
 export class PermissionSlipDashboard {
-  constructor(app) {
+  constructor(app, options = {}) {
     this.app = app;
+    this.activityId = options.activityId || null;
+    this.activity = null; // Store activity details when activityId provided
     this.activityDate = getTodayISO();
     this.permissionSlips = [];
+    this.allPermissionSlips = []; // All slips across all dates for quick links
     this.dashboardSummary = { permission_summary: [] };
     this.groups = [];
     this.participants = [];
@@ -31,6 +34,10 @@ export class PermissionSlipDashboard {
 
   async init() {
     try {
+      // Load activity details if activityId provided
+      if (this.activityId) {
+        await this.loadActivity();
+      }
       await this.loadData();
       this.render();
       this.attachEventHandlers();
@@ -40,16 +47,49 @@ export class PermissionSlipDashboard {
     }
   }
 
+  async loadActivity() {
+    try {
+      const { getActivity } = await import('./api/api-activities.js');
+      this.activity = await getActivity(this.activityId);
+      this.activityDate = this.activity.activity_date;
+      debugLog('Loaded activity:', this.activity);
+    } catch (error) {
+      debugError('Error loading activity:', error);
+      throw error;
+    }
+  }
+
   async loadData(forceRefresh = false) {
-    const params = { meeting_date: this.activityDate };
-    const [slipResponse, summaryResponse, groupsResponse, participantsResponse] = await Promise.all([
-      getPermissionSlips(params, { forceRefresh }),
+    // Build params based on whether we're viewing by activity or date
+    let params = {};
+    let slipParams = {};
+
+    if (this.activityId) {
+      // Activity mode: filter by activity_id
+      params.activity_id = this.activityId;
+      slipParams.activity_id = this.activityId;
+    } else {
+      // Legacy mode: filter by meeting_date
+      params.meeting_date = this.activityDate;
+    }
+
+    const [slipsResponse, allSlipsResponse, summaryResponse, groupsResponse, participantsResponse] = await Promise.all([
+      getPermissionSlips(slipParams, { forceRefresh }), // Slips for this activity/date
+      this.activityId ? Promise.resolve({ data: { permission_slips: [] } }) : getPermissionSlips({}, { forceRefresh }), // All slips for quick links (only in legacy mode)
       getResourceDashboard(params, { forceRefresh }),
       getGroups(),
       getParticipants()
     ]);
 
-    this.permissionSlips = slipResponse?.data?.permission_slips || slipResponse?.permission_slips || [];
+    this.permissionSlips = slipsResponse?.data?.permission_slips || slipsResponse?.permission_slips || [];
+
+    // In activity mode, don't load all slips (not needed for quick links)
+    if (this.activityId) {
+      this.allPermissionSlips = this.permissionSlips;
+    } else {
+      this.allPermissionSlips = allSlipsResponse?.data?.permission_slips || allSlipsResponse?.permission_slips || [];
+    }
+
     this.dashboardSummary = summaryResponse?.data || summaryResponse || { permission_summary: [] };
     this.groups = groupsResponse?.data || groupsResponse?.groups || [];
     this.participants = participantsResponse?.data || participantsResponse?.participants || [];
@@ -69,13 +109,31 @@ export class PermissionSlipDashboard {
     const signedCount = permissionSummary.find(s => s.status === 'signed')?.count || 0;
     const pendingCount = permissionSummary.find(s => s.status === 'pending')?.count || 0;
 
-    setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
-      <section class="page permission-slip-dashboard">
-        <div class="card">
+    // Back button - different depending on mode
+    const backButton = this.activityId
+      ? `<a href="/activities" class="button button--ghost">← ${translate("back_to_activities")}</a>`
+      : `<a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>`;
+
+    // Header - different depending on mode
+    const headerHtml = this.activityId && this.activity
+      ? `<div class="card">
+          <h1>${escapeHTML(translate("permission_slips_for_activity"))} "${escapeHTML(this.activity.name)}"</h1>
+          <p class="subtitle">
+            <strong>${translate("activity_date_label")}:</strong> ${formatDate(this.activity.activity_date, this.app.lang || 'fr')}
+          </p>
+          ${this.activity.description ? `<p>${escapeHTML(this.activity.description)}</p>` : ''}
+        </div>`
+      : `<div class="card">
           <h1>${escapeHTML(translate("permission_slip_dashboard_title"))}</h1>
           <p class="subtitle">${escapeHTML(translate("permission_slip_dashboard_description"))}</p>
-        </div>
+        </div>`;
+
+    setContent(container, `
+      ${backButton}
+      <section class="page permission-slip-dashboard">
+        ${headerHtml}
+
+        ${!this.activityId ? this.renderDateQuickLinks() : ''}
 
         <div class="card">
           <h2>${escapeHTML(translate("dashboard_summary_title"))}</h2>
@@ -95,10 +153,12 @@ export class PermissionSlipDashboard {
 
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
-            <div class="stacked" style="min-width: 240px; margin: 0;">
-              <span>${escapeHTML(translate("activity_date_label"))}</span>
-              <input type="date" id="activityDateInput" value="${escapeHTML(this.activityDate)}" />
-            </div>
+            ${!this.activityId ? `
+              <div class="stacked" style="min-width: 240px; margin: 0;">
+                <span>${escapeHTML(translate("activity_date_label"))}</span>
+                <input type="date" id="activityDateInput" value="${escapeHTML(this.activityDate)}" />
+              </div>
+            ` : ''}
             <div style="margin-left: auto; text-align: right;">
               <h2 style="margin: 0 0 8px 0;">${escapeHTML(translate("permission_slip_section_title"))}</h2>
               <button id="toggleCreateFormBtn" class="btn primary">
@@ -114,6 +174,75 @@ export class PermissionSlipDashboard {
       </section>
     `);
 
+  }
+
+  renderDateQuickLinks() {
+    // Group ALL permission slips by date to show quick navigation
+    const dateMap = new Map();
+
+    this.allPermissionSlips.forEach(slip => {
+      const date = slip.meeting_date;
+      if (!dateMap.has(date)) {
+        dateMap.set(date, {
+          date: date,
+          pending: 0,
+          total: 0,
+          activities: new Set()
+        });
+      }
+      const dateInfo = dateMap.get(date);
+      dateInfo.total++;
+      if (slip.status === 'pending') {
+        dateInfo.pending++;
+      }
+      if (slip.activity_title) {
+        dateInfo.activities.add(slip.activity_title);
+      }
+    });
+
+    if (dateMap.size === 0) {
+      return '';
+    }
+
+    // Sort dates chronologically
+    const sortedDates = Array.from(dateMap.entries())
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]));
+
+    const hasAnyPending = sortedDates.some(([_, info]) => info.pending > 0);
+
+    if (!hasAnyPending) {
+      return '';
+    }
+
+    const dateLinks = sortedDates.map(([date, info]) => {
+      const isPending = info.pending > 0;
+      const isComplete = info.pending === 0;
+      const statusIcon = isComplete ? '✓' : '';
+      const pendingText = isPending ? ` (${info.pending})` : '';
+      const activityNames = Array.from(info.activities).join(', ');
+
+      return `
+        <button
+          class="date-quick-link ${isPending ? 'has-pending' : 'complete'}"
+          data-date="${date}"
+          title="${escapeHTML(activityNames)}"
+        >
+          ${formatDate(date, this.app.lang || 'fr')}${pendingText} ${statusIcon}
+        </button>
+      `;
+    }).join('');
+
+    return `
+      <div class="card">
+        <h2>${escapeHTML(translate("dates_with_pending_signatures"))}</h2>
+        <p style="color: #666; font-size: 0.9em; margin-bottom: 12px;">
+          ${escapeHTML(translate("click_date_to_view_signatures"))}
+        </p>
+        <div class="date-quick-links">
+          ${dateLinks}
+        </div>
+      </div>
+    `;
   }
 
   renderCreateForm() {
@@ -135,21 +264,29 @@ export class PermissionSlipDashboard {
 
     return `
       <form id="permissionSlipForm" class="stacked" style="border: 1px solid #ddd; padding: 20px; border-radius: 4px; margin-bottom: 20px; background: #f9f9f9;">
-        <div class="grid grid-2">
-          <label class="stacked">
-            <span>${escapeHTML(translate("activity_title_label"))} *</span>
-            <input type="text" name="activity_title" required maxlength="200" />
-          </label>
-          <label class="stacked">
-            <span>${escapeHTML(translate("deadline_date_label"))}</span>
-            <input type="date" name="deadline_date" />
-          </label>
-        </div>
+        ${this.activityId && this.activity ? `
+          <!-- Activity mode: show activity info, hide manual entry fields -->
+          <div style="background: #e7f2ee; padding: 12px; border-radius: 4px; margin-bottom: 16px;">
+            <p style="margin: 0; color: #0f7a5a;"><strong>${translate("activity_label")}:</strong> ${escapeHTML(this.activity.name)}</p>
+          </div>
+        ` : `
+          <!-- Legacy mode: show manual entry fields -->
+          <div class="grid grid-2">
+            <label class="stacked">
+              <span>${escapeHTML(translate("activity_title_label"))} *</span>
+              <input type="text" name="activity_title" required maxlength="200" />
+            </label>
+            <label class="stacked">
+              <span>${escapeHTML(translate("deadline_date_label"))}</span>
+              <input type="date" name="deadline_date" />
+            </label>
+          </div>
 
-        <label class="stacked">
-          <span>${escapeHTML(translate("activity_description_label"))}</span>
-          <textarea id="activityDescriptionInput" rows="4" placeholder="${escapeHTML(translate("activity_description_label"))}"></textarea>
-        </label>
+          <label class="stacked">
+            <span>${escapeHTML(translate("activity_description_label"))}</span>
+            <textarea id="activityDescriptionInput" rows="4" placeholder="${escapeHTML(translate("activity_description_label"))}"></textarea>
+          </label>
+        `}
 
           <label class="stacked">
             <span>${escapeHTML(translate("select_group_label"))} *</span>
@@ -277,6 +414,24 @@ export class PermissionSlipDashboard {
   }
 
   attachEventHandlers() {
+    // Date quick links
+    document.querySelectorAll('.date-quick-link').forEach(button => {
+      button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const date = e.currentTarget.getAttribute('data-date');
+        if (date) {
+          this.activityDate = date;
+          await this.clearPermissionSlipCaches();
+          await this.refreshData(true);
+          // Scroll to the activity date input to show context
+          const dateInput = document.getElementById("activityDateInput");
+          if (dateInput) {
+            dateInput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      });
+    });
+
     // Activity date change
     const activityDateInput = document.getElementById("activityDateInput");
     if (activityDateInput) {
@@ -560,19 +715,26 @@ export class PermissionSlipDashboard {
     // Build payload, only including non-empty values
     const payload = {
       participant_ids: participantIds,
-      meeting_date: this.activityDate,
       status: 'pending'
     };
 
-    // Only add optional fields if they have values
-    if (activityTitle && activityTitle.trim()) {
-      payload.activity_title = activityTitle.trim();
+    // If activityId provided, use it (new mode)
+    if (this.activityId) {
+      payload.activity_id = this.activityId;
+    } else {
+      // Legacy mode: use manual entry
+      payload.meeting_date = this.activityDate;
+
+      if (activityTitle && activityTitle.trim()) {
+        payload.activity_title = activityTitle.trim();
+      }
+
+      if (activityDescription && activityDescription.trim()) {
+        payload.activity_description = activityDescription.trim();
+      }
     }
 
-    if (activityDescription && activityDescription.trim()) {
-      payload.activity_description = activityDescription.trim();
-    }
-
+    // Deadline is optional in both modes
     if (deadlineDate && deadlineDate.trim()) {
       payload.deadline_date = deadlineDate;
     }
@@ -641,15 +803,20 @@ export class PermissionSlipDashboard {
   }
 
   async handleSendEmails(date, activityTitle) {
-    if (!confirm(`${translate("send_emails_to_parents")} - ${activityTitle}?`)) {
+    if (!confirm(`${translate("send_emails_confirm")} "${activityTitle}"?\n\n${translate("emails_only_not_sent_note")}`)) {
       return;
     }
 
     try {
-      const payload = {
-        meeting_date: date,
-        activity_title: activityTitle
-      };
+      const payload = {};
+
+      // Prefer activity_id if available
+      if (this.activityId) {
+        payload.activity_id = this.activityId;
+      } else {
+        payload.meeting_date = date;
+        payload.activity_title = activityTitle;
+      }
 
       const result = await sendPermissionSlipEmails(payload);
       const data = result?.data || result;
@@ -663,15 +830,20 @@ export class PermissionSlipDashboard {
   }
 
   async handleSendReminders(date, activityTitle) {
-    if (!confirm(`${translate("send_reminder_emails")} - ${activityTitle}?`)) {
+    if (!confirm(`${translate("send_reminder_confirm")} "${activityTitle}"?\n\n${translate("reminder_only_unsigned_note")}`)) {
       return;
     }
 
     try {
-      const payload = {
-        meeting_date: date,
-        activity_title: activityTitle
-      };
+      const payload = {};
+
+      // Prefer activity_id if available
+      if (this.activityId) {
+        payload.activity_id = this.activityId;
+      } else {
+        payload.meeting_date = date;
+        payload.activity_title = activityTitle;
+      }
 
       const result = await sendPermissionSlipReminders(payload);
       const data = result?.data || result;

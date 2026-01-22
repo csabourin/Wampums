@@ -148,6 +148,7 @@ const routes = {
   "/medication-planning": "medicationPlanning",
   "/medication-dispensing": "medicationDispensing",
   "/permission-slips": "permissionSlipDashboard",
+  "/permission-slips/:activityId": "permissionSlipDashboardActivity",
   "/permission-slip/:token": "permissionSlipSign",
   "/account-info": "accountInfo",
   "/form-builder": "formBuilder",
@@ -354,6 +355,15 @@ export class Router {
           const PermissionSlipDashboard = await this.loadModule('PermissionSlipDashboard');
           const permissionSlipDashboard = new PermissionSlipDashboard(this.app);
           await permissionSlipDashboard.init();
+          break;
+        case "permissionSlipDashboardActivity":
+          if (!guard(canViewParticipants())) {
+            break;
+          }
+          const PermissionSlipDashboardActivity = await this.loadModule('PermissionSlipDashboard');
+          const activityId = parseInt(param);
+          const permissionSlipDashboardActivity = new PermissionSlipDashboardActivity(this.app, { activityId });
+          await permissionSlipDashboardActivity.init();
           break;
         case "permissionSlipSign":
           // Public route - allow anyone to sign permission slips via email link

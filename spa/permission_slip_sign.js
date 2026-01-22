@@ -176,9 +176,8 @@ export class PermissionSlipSign {
       });
 
       if (response.success) {
-        // Reload to show success state
-        await this.loadPermissionSlip();
-        this.render();
+        // Show immediate success feedback
+        this.showSuccessMessage(guardianName);
       } else {
         throw new Error(response.message || 'Failed to sign');
       }
@@ -188,6 +187,51 @@ export class PermissionSlipSign {
       signBtn.disabled = false;
       setContent(signBtn, '<i class="fas fa-signature"></i> ' + translate('sign_permission_slip'));
     }
+  }
+
+  showSuccessMessage(guardianName) {
+    const appDiv = document.getElementById('app');
+    const locale = this.getLocale();
+    const activityDate = new Date(this.slip.meeting_date).toLocaleDateString(locale);
+
+    setContent(appDiv, `
+      <div class="container mt-5">
+        <div class="card">
+          <div class="card-header bg-success text-white">
+            <h3><i class="fas fa-check-circle"></i> ${translate('permission_slip_title')}</h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-success text-center" style="font-size: 1.1rem;">
+              <h4 style="color: #0f7a5a; margin-bottom: 1rem;">
+                <i class="fas fa-check-circle" style="font-size: 2rem;"></i>
+              </h4>
+              <p style="font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem;">
+                ${translate('signature_registered_success')}
+              </p>
+              <p style="margin-bottom: 0;">
+                ${translate('thank_you_signature')}
+              </p>
+            </div>
+
+            <div class="mt-4">
+              <h5>${this.slip.activity_title || translate('activity')}</h5>
+              <div class="mb-2">
+                <strong>${translate('activity_date_label')}:</strong> ${activityDate}
+              </div>
+              <div class="mb-2">
+                <strong>${translate('participant')}:</strong> ${this.slip.participant_name}
+              </div>
+              <div class="mb-2">
+                <strong>${translate('signed_by')}:</strong> ${guardianName}
+              </div>
+              <div class="mb-2">
+                <strong>${translate('signed_on')}:</strong> ${new Date().toLocaleString(locale)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
   }
 
   showError(message) {
