@@ -320,6 +320,21 @@ export async function canViewUsers() {
 }
 
 /**
+ * Check if user can manage users (edit, delete, assign roles, etc.)
+ * @returns {Promise<boolean>} True if user can manage users
+ */
+export async function canManageUsers() {
+  const permissions = await getUserPermissions();
+  return hasAnyPermission([
+    'users.edit',
+    'users.delete',
+    'users.assign_roles',
+    'users.invite',
+    'users.assign_district'
+  ], permissions);
+}
+
+/**
  * Check if user can send communications
  * @returns {Promise<boolean>} True if user can send communications
  */
@@ -446,6 +461,7 @@ export default {
   canViewGroups,
   canViewParticipants,
   canViewUsers,
+  canManageUsers,
   canSendCommunications,
   isDistrictAdmin,
   canViewFundraisers,

@@ -1222,6 +1222,23 @@ export const updateUserProfile = async (profileData) => {
 };
 
 /**
+ * Approve a user (set is_verified to true)
+ * @param {string} userId - User ID (UUID)
+ */
+export const approveUser = async (userId) => {
+  return API.post('approve-user', { user_id: userId });
+};
+
+/**
+ * Update user role
+ * @param {string} userId - User ID (UUID)
+ * @param {string} role - New role name
+ */
+export const updateUserRole = async (userId, role) => {
+  return API.post('update-user-role', { user_id: userId, role });
+};
+
+/**
  * Change user password
  */
 export const changePassword = async (passwordData) => {
