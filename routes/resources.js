@@ -1809,7 +1809,44 @@ module.exports = (pool) => {
           return error(res, "Invalid meeting date", 400);
         }
 
-        // Build query to find unsigned permission slips (without guardian join - we'll get all guardians separately)
+        // First, check if there are any pending (unsigned) permission slips at all
+        let pendingCheckQuery = `
+          SELECT COUNT(*) as pending_count
+          FROM permission_slips ps
+          WHERE ps.organization_id = $1
+            AND ps.status = 'pending'
+            AND ps.email_sent = true`;
+
+        const pendingCheckParams = [organizationId];
+
+        if (activity_id) {
+          pendingCheckParams.push(activity_id);
+          pendingCheckQuery += ` AND ps.activity_id = $${pendingCheckParams.length}`;
+        } else if (normalizedDate) {
+          pendingCheckParams.push(normalizedDate);
+          pendingCheckQuery += ` AND ps.meeting_date = $${pendingCheckParams.length}`;
+        }
+
+        if (activity_title) {
+          pendingCheckParams.push(activity_title);
+          pendingCheckQuery += ` AND ps.activity_title = $${pendingCheckParams.length}`;
+        }
+
+        if (participant_ids && participant_ids.length > 0) {
+          pendingCheckParams.push(participant_ids);
+          pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+        }
+
+        const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
+        const pendingCount = parseInt(pendingCheckResult.rows[0].pending_count);
+
+        // If no pending slips exist, all have been signed
+        if (pendingCount === 0) {
+          return success(res, { sent: 0, total: 0 }, "All permission slips have been signed");
+        }
+
+        // Build query to find unsigned permission slips that can receive reminders
+        // (24-hour cooldown between reminders to prevent spamming)
         let query = `
           SELECT ps.*, p.first_name, p.last_name,
                  COALESCE(ps.guardians_emailed, '[]'::jsonb) AS guardians_emailed
@@ -1817,7 +1854,8 @@ module.exports = (pool) => {
           JOIN participants p ON p.id = ps.participant_id
           WHERE ps.organization_id = $1
             AND ps.status = 'pending'
-            AND ps.email_sent = true`;
+            AND ps.email_sent = true
+            AND (ps.reminder_sent_at IS NULL OR ps.reminder_sent_at < NOW() - INTERVAL '1 day')`;
 
         const params = [organizationId];
 
@@ -1842,8 +1880,9 @@ module.exports = (pool) => {
 
         const slipsResult = await pool.query(query, params);
 
+        // If pending slips exist but none are eligible (all reminded within 24 hours)
         if (slipsResult.rows.length === 0) {
-          return success(res, { sent: 0, total: 0 }, "All reminders have already been sent");
+          return success(res, { sent: 0, total: pendingCount }, "Reminders were sent recently. Please wait 24 hours between reminders.");
         }
 
         let sentCount = 0;
