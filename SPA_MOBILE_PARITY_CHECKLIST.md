@@ -272,13 +272,13 @@
 
 | Feature | SPA | Mobile | Status | Action Required |
 |---------|-----|--------|--------|-----------------|
-| Permission slip CRUD | ✅ | ⚠️ | ⚠️ | Verify mobile CRUD |
+| Permission slip CRUD | ✅ | ✅ | ✅ | Mobile has savePermissionSlip API |
 | Permission slip signing | ✅ | ✅ | ✅ | None |
 | Token-based public signing | ✅ | ✅ | ✅ | None |
 | Status tracking | ✅ | ✅ | ✅ | None |
-| Email distribution | ✅ | ❌ | ❌ Mobile | Mobile can't send email directly |
-| Email reminders | ✅ | ❌ | ❌ Mobile | Mobile can't send email directly |
-| Permission slip archiving | ✅ | ⚠️ | ⚠️ | Verify mobile archiving |
+| Email distribution | ✅ | ✅ | ✅ | Mobile has sendPermissionSlipEmails API |
+| Email reminders | ✅ | ✅ | ✅ | Mobile has sendPermissionSlipReminders API |
+| Permission slip archiving | ✅ | ✅ | ✅ | Mobile has archivePermissionSlip API |
 | Multi-activity support | ✅ | ⚠️ | ⚠️ | Verify mobile multi-activity |
 
 ---
@@ -289,7 +289,7 @@
 |---------|-----|--------|--------|-----------------|
 | Mailing list management | ✅ | ✅ | ✅ | None |
 | Parent contact list | ✅ | ✅ | ✅ | None |
-| Announcements | ✅ | ❌ | ❌ Mobile | Add announcements to mobile |
+| Announcements | ✅ | ⚠️ | ⚠️ | Mobile has basic announcements (MailingListScreen); verify parity (edit/delete, filters, notifications) |
 | WhatsApp integration (Baileys) | ✅ | ❌ | ❌ Mobile | Consider mobile WhatsApp |
 
 ---
@@ -303,7 +303,7 @@
 | Form submission | ✅ | ✅ | ✅ | None |
 | Registration form | ✅ | ✅ | ✅ | None |
 | Guardian forms | ✅ | ⚠️ | ⚠️ | Verify mobile guardian forms |
-| Conditional field logic | ✅ | ⚠️ | ⚠️ | Verify mobile conditional fields |
+| Conditional field logic | ✅ | ✅ | ✅ | Mobile supports dependsOn-based conditional visibility |
 | Multi-language form definitions | ✅ | ✅ | ✅ | None |
 | Rich text editor (WYSIWYG) | ✅ | ❌ | ❌ Mobile | Limited on mobile; may need alternative |
 | Form permissions management | ✅ | ✅ | ✅ | None |
@@ -410,7 +410,7 @@
 | **AI Text Generation** | ✅ | ❌ | ❌ Mobile | Add AI features to mobile |
 | **Receipt OCR** | ✅ | ❌ | ❌ Mobile | Add OCR to mobile |
 | **Biometric Auth** | ❌ | ✅ (enabled) | ❌ SPA | SPA could use WebAuthn |
-| **Secure Token Storage** | localStorage | SecureStore | 🔄 | Mobile more secure |
+| **Secure Token Storage** | localStorage | SecureStore (small keys) + AsyncStorage (JWTs) | 🔄 | Mobile: small keys in SecureStore, JWTs in AsyncStorage (size limits) |
 | **Deep Linking** | ✅ (routes) | ⚠️ | ⚠️ | Verify mobile deep links |
 
 ---
@@ -423,10 +423,10 @@
 |------------------|-------------------|----------|
 | **Users/Roles** | getPendingUsers, approveUser, getRoleAuditLog, updateUserRoleBundles | High |
 | **Participants** | getParticipantsWithUsers, getParticipantsWithDocuments, removeParticipantFromOrganization | Medium |
-| **Guardians** | getGuardians, saveGuardian, saveGuardianFormSubmission, linkGuardianToParticipant, removeGuardians | High |
+| **Guardians** | Guardian management UI (dedicated list/edit screen, link to participant flow) - API exists | Medium |
 | **Reports** | getHealthContactReport, getLeaveAloneReport, getMediaAuthorizationReport | Medium |
 | **Finance** | getFinanceReport (detailed), getBudgetRevenueBreakdown, getRevenueComparison | Medium |
-| **Permission Slips** | savePermissionSlip, archivePermissionSlip, sendPermissionSlipEmails, sendPermissionSlipReminders | High |
+| **Permission Slips** | Permission slip functions exist - verify UI parity for create/edit/archive flows | Low |
 | **Fundraisers** | archiveFundraiser, updateCalendarEntry, updateCalendarPayment | Medium |
 | **Announcements** | getAnnouncements, createAnnouncement | Medium |
 | **Forms** | getFormTypes, getFormStructure, importSISC | Low |
@@ -513,13 +513,13 @@
 
 ### P0 - Critical (Blocking Issues)
 
-1. ❌ **Mobile: Missing guardian management API endpoints** - Parents can't manage guardians
-2. ❌ **Mobile: Missing permission slip create/edit functionality** - Only view/sign works
+1. ⚠️ **Mobile: Verify guardian management UI parity** - API exists; confirm edit/remove, multiple guardians, and error states match SPA
+2. ⚠️ **Mobile: Verify permission slip create/edit flows** - Create/send/archive implemented; validate parity with SPA
 3. ⚠️ **Mobile: Verify email verification flow** - Registration may be incomplete
 
 ### P1 - High Priority (Core Feature Gaps)
 
-4. ❌ **Mobile: Add announcements feature** - Communication gap
+4. ⚠️ **Mobile: Verify announcements feature parity** - Basic support exists in MailingListScreen; check edit/delete/filters
 5. ❌ **Mobile: Missing user role audit log viewing** - Admin oversight
 6. ⚠️ **Mobile: Verify user approval workflow** - Admin onboarding
 7. ❌ **Mobile: Add receipt scanning/OCR** - Finance convenience
@@ -547,9 +547,9 @@
 
 ### Short Term (1-2 Sprints)
 
-1. **Add missing guardian API endpoints to mobile** - Critical for parent users
-2. **Implement permission slip create/edit on mobile** - Currently view-only
-3. **Add announcements screen to mobile** - Basic communication
+1. **Verify guardian management UI parity** - API exists; ensure edit/remove flows match SPA
+2. **Verify permission slip create/edit/archive flows** - Functions exist; validate UI parity
+3. **Verify announcements parity in MailingListScreen** - Basic support exists; check edit/delete/filters
 4. **Verify and fix email verification on mobile** - Registration flow
 
 ### Medium Term (3-4 Sprints)
@@ -641,6 +641,14 @@
 
 Use this checklist to verify items marked with ⚠️:
 
+**Already Verified:**
+- [x] Mobile conditional field logic works (DynamicFormRenderer has dependsOn support)
+- [x] Mobile guardian API endpoints exist (getGuardians, saveGuardian, linkGuardianToParticipant, removeGuardians)
+- [x] Mobile permission slip APIs exist (save, archive, sendEmails, sendReminders)
+- [x] Mobile announcements basic support exists (MailingListScreen uses v1/announcements)
+
+**Needs Verification:**
+
 - [ ] Mobile email verification flow works
 - [ ] Mobile admin has user approval UI
 - [ ] Mobile shows news on dashboard
@@ -668,12 +676,12 @@ Use this checklist to verify items marked with ⚠️:
 - [ ] Mobile fundraiser archiving works
 - [ ] Mobile equipment photo upload works
 - [ ] Mobile bulk reservations work
-- [ ] Mobile permission slip CRUD works
-- [ ] Mobile permission slip archiving works
+- [x] Mobile permission slip CRUD works (API verified: savePermissionSlip)
+- [x] Mobile permission slip archiving works (API verified: archivePermissionSlip)
 - [ ] Mobile push notifications work
 - [ ] Mobile image optimization works
 - [ ] Mobile deep linking works
 
 ---
 
-*Document generated from codebase analysis. Last updated: 2026-01-23*
+*Document generated from codebase analysis. Last updated: 2026-01-23 (revised after code review)*
