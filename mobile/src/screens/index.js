@@ -36,6 +36,7 @@ export { default as BadgeFormScreen } from './BadgeFormScreen';
 export { default as FinanceScreen } from './FinanceScreen';
 export { default as FormPermissionsScreen } from './FormPermissionsScreen';
 export { default as GroupsScreen } from './GroupsScreen';
+export { default as GuardianManagementScreen } from './GuardianManagementScreen';
 export { default as HealthFormScreen } from './HealthFormScreen';
 export { default as ParentContactListScreen } from './ParentContactListScreen';
 export { default as ParticipantDocumentsScreen } from './ParticipantDocumentsScreen';

@@ -4,7 +4,7 @@
  * Mirrors spa/permission_slip_sign.js functionality
  * Allows parents/guardians to view and sign permission slips
  * Can be accessed via deep link from email
- * Public screen - no authentication required
+ * Supports both authenticated (slipId) and public (token) access
  */
 
 import React, { useEffect } from 'react';
@@ -28,10 +28,15 @@ import {
   useToast,
 } from '../components';
 import DateUtils from '../utils/DateUtils';
-import CONFIG from '../config';
+import {
+  viewPermissionSlipByToken,
+  signPermissionSlipByToken,
+  signPermissionSlip,
+} from '../api/api-endpoints';
+import { debugLog, debugError } from '../utils/DebugUtils';
 
 const PermissionSlipSignScreen = ({ route, navigation }) => {
-  const { slipId } = route.params;
+  const { slipId, token } = route.params || {};
   const [loading, setLoading] = useSafeState(true);
   const [error, setError] = useSafeState('');
   const [slip, setSlip] = useSafeState(null);
@@ -40,25 +45,35 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
   const [isSigning, setIsSigning] = useSafeState(false);
   const toast = useToast();
 
+  // Determine if this is public (token-based) or authenticated (slipId-based) access
+  const isPublicAccess = !!token;
+
   useEffect(() => {
     loadPermissionSlip();
-  }, [slipId]);
+  }, [slipId, token]);
 
   const loadPermissionSlip = async () => {
     try {
       setError('');
-      // Public endpoint - no auth required
-      const response = await fetch(
-        `${CONFIG.API.BASE_URL}/v1/resources/permission-slips/${slipId}/view`
-      );
-      const data = await response.json();
+      debugLog('[PermissionSlipSign] Loading slip, isPublicAccess:', isPublicAccess);
 
-      if (!data.success) {
-        throw new Error(data.message || t('failed_to_load_permission_slip'));
+      let response;
+      if (isPublicAccess) {
+        // Public token-based endpoint
+        response = await viewPermissionSlipByToken(token);
+      } else {
+        // Authenticated endpoint (fallback for existing flow)
+        response = await signPermissionSlip(slipId, { view_only: true });
       }
 
-      setSlip(data.data);
+      if (!response.success) {
+        throw new Error(response.message || t('failed_to_load_permission_slip'));
+      }
+
+      setSlip(response.data);
+      debugLog('[PermissionSlipSign] Loaded slip:', response.data);
     } catch (err) {
+      debugError('[PermissionSlipSign] Error loading slip:', err);
       setError(err.message || t('error_loading_permission_slip'));
     } finally {
       setLoading(false);
@@ -86,34 +101,36 @@ const PermissionSlipSignScreen = ({ route, navigation }) => {
 
     try {
       setIsSigning(true);
+      debugLog('[PermissionSlipSign] Signing slip, isPublicAccess:', isPublicAccess);
 
-      const response = await fetch(
-        `${CONFIG.API.BASE_URL}/v1/resources/permission-slips/${slipId}/sign`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            signed_by: guardianName.trim(),
-            signed_at: new Date().toISOString(),
-          }),
-        }
-      );
+      const payload = {
+        signed_by: guardianName.trim(),
+        signed_at: new Date().toISOString(),
+        consent: consentChecked,
+      };
 
-      const data = await response.json();
+      let response;
+      if (isPublicAccess) {
+        // Public token-based endpoint
+        response = await signPermissionSlipByToken(token, payload);
+      } else {
+        // Authenticated endpoint (fallback for existing flow)
+        response = await signPermissionSlip(slipId, payload);
+      }
 
-      if (data.success) {
+      if (response.success) {
         toast.show(t('permission_slip_signed_successfully'), 'success');
+        debugLog('[PermissionSlipSign] Slip signed successfully');
         // Reload to show success state
         await loadPermissionSlip();
         // Reset form
         setGuardianName('');
         setConsentChecked(false);
       } else {
-        throw new Error(data.message || t('error_signing_slip'));
+        throw new Error(response.message || t('error_signing_slip'));
       }
     } catch (err) {
+      debugError('[PermissionSlipSign] Error signing slip:', err);
       toast.show(err.message || t('error_signing_slip'), 'error');
     } finally {
       setIsSigning(false);

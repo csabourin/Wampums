@@ -1730,14 +1730,15 @@ module.exports = (pool) => {
             ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString("fr-CA")}`
             : "";
 
-          // Generate link using request domain
+          // Generate links using request domain
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
-          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const webSignLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           const subject = `Autorisation parentale requise - ${activityTitle}`;
-          const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
+          const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur un des liens ci-dessous :\n\nSur le web : ${webSignLink}\nSur mobile : ${mobileSignLink}\n\n${deadlineText}\n\nMerci !`;
 
           const htmlBody = `
             <h2>Autorisation parentale requise</h2>
@@ -1745,7 +1746,10 @@ module.exports = (pool) => {
             <p>Nous organisons l'activité suivante : <strong>${activityTitle}</strong></p>
             <p><strong>Date de l'activité :</strong> ${activityDate}</p>
             ${activityDescription ? `<div>${activityDescription}</div>` : ""}
-            <p><a href="${signLink}" style="display: inline-block; padding: 12px 24px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 4px;">Signer l'autorisation</a></p>
+            <p>
+              <a href="${webSignLink}" style="display: inline-block; padding: 12px 24px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 4px; margin: 4px;">Signer sur le web</a>
+              <a href="${mobileSignLink}" style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; margin: 4px;">Ouvrir dans l'app mobile</a>
+            </p>
             ${deadlineText ? `<p><em>${deadlineText}</em></p>` : ""}
             <p>Merci !</p>
           `;
@@ -1996,14 +2000,15 @@ module.exports = (pool) => {
             ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString("fr-CA")}`
             : "";
 
-          // Generate link using request domain
+          // Generate links using request domain
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
-          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const webSignLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           const subject = `Rappel : Autorisation parentale requise - ${activityTitle}`;
-          const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
+          const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur un des liens ci-dessous :\n\nSur le web : ${webSignLink}\nSur mobile : ${mobileSignLink}\n\n${deadlineText}\n\nMerci !`;
 
           const htmlBody = `
             <h2>Rappel : Autorisation parentale requise</h2>
@@ -2011,7 +2016,10 @@ module.exports = (pool) => {
             <p>Ceci est un rappel concernant l'autorisation parentale pour l'activité : <strong>${activityTitle}</strong></p>
             <p><strong>Date de l'activité :</strong> ${activityDate}</p>
             <p>Nous n'avons pas encore reçu votre signature.</p>
-            <p><a href="${signLink}" style="display: inline-block; padding: 12px 24px; background-color: #cc6600; color: white; text-decoration: none; border-radius: 4px;">Signer l'autorisation maintenant</a></p>
+            <p>
+              <a href="${webSignLink}" style="display: inline-block; padding: 12px 24px; background-color: #cc6600; color: white; text-decoration: none; border-radius: 4px; margin: 4px;">Signer sur le web</a>
+              <a href="${mobileSignLink}" style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; margin: 4px;">Ouvrir dans l'app mobile</a>
+            </p>
             ${deadlineText ? `<p><em>${deadlineText}</em></p>` : ""}
             <p>Merci !</p>
           `;

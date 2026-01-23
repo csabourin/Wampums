@@ -634,11 +634,26 @@ const ParticipantDetailScreen = () => {
           </Text>
         </Card>
 
-        <Card style={styles.placeholderCard}>
-          <Text style={styles.placeholderText}>
-            {t('Guardian Contacts')} - {t('Coming soon')}
-          </Text>
-        </Card>
+        {/* Guardian Management */}
+        {!isNewParticipant && (
+          <Card style={styles.card}>
+            <View style={styles.actionCardHeader}>
+              <Text style={styles.sectionTitle}>{t('Guardian Contacts')}</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.button, styles.actionCardButton]}
+              onPress={() =>
+                navigation.navigate('GuardianManagement', {
+                  participantId: participant?.id,
+                  participantName: `${participant?.firstName} ${participant?.lastName}`,
+                })
+              }
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>{t('manage_guardians')}</Text>
+            </TouchableOpacity>
+          </Card>
+        )}
 
         <Card style={styles.placeholderCard}>
           <Text style={styles.placeholderText}>
@@ -799,6 +814,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 15,
+  },
+  actionCardHeader: {
+    marginBottom: 10,
+  },
+  actionCardButton: {
+    backgroundColor: '#007AFF',
+    marginTop: 5,
   },
   fieldContainer: {
     marginBottom: 15,

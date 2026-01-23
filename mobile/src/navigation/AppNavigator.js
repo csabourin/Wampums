@@ -67,6 +67,7 @@ import FinanceScreen from '../screens/FinanceScreen';
 import ParentFinanceScreen from '../screens/ParentFinanceScreen';
 import FormPermissionsScreen from '../screens/FormPermissionsScreen';
 import GroupsScreen from '../screens/GroupsScreen';
+import GuardianManagementScreen from '../screens/GuardianManagementScreen';
 import HealthFormScreen from '../screens/HealthFormScreen';
 import ParentContactListScreen from '../screens/ParentContactListScreen';
 import ParticipantDocumentsScreen from '../screens/ParticipantDocumentsScreen';
@@ -327,6 +328,15 @@ const AppNavigator = ({ userPermissions, onLogout }) => {
         options={{
           headerShown: true,
           title: t('manage_groups'),
+        }}
+      />
+
+      <Stack.Screen
+        name="GuardianManagement"
+        component={GuardianManagementScreen}
+        options={{
+          headerShown: true,
+          title: t('guardian_management'),
         }}
       />
 
