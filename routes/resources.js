@@ -1725,7 +1725,8 @@ module.exports = (pool) => {
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
-          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const webSignLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;
@@ -1985,7 +1986,8 @@ module.exports = (pool) => {
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
-          const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const webSignLink = `${baseUrl}/permission-slip/${slip.access_token}`;
+          const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
           // Send to ALL recipients
           let slipSentCount = 0;

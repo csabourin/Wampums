@@ -50,6 +50,7 @@ const lazyModules = {
   ManageParticipants: () => import('./manage_participants.js').then(m => m.ManageParticipants),
   ManageUsersParticipants: () => import('./manage_users_participants.js').then(m => m.ManageUsersParticipants),
   ManageGroups: () => import('./manage_groups.js').then(m => m.ManageGroups),
+  GuardianManagement: () => import('./guardian-management.js').then(m => m.initGuardianManagement),
   ViewParticipantDocuments: () => import('./view_participant_documents.js').then(m => m.ViewParticipantDocuments),
   ParentContactList: () => import('./parent_contact_list.js').then(m => m.ParentContactList),
   ApproveBadges: () => import('./approve_badges.js').then(m => m.ApproveBadges),
@@ -115,6 +116,7 @@ const routes = {
   "/manageHonors": "manageHonors",
   "/manage-participants": "manageParticipants",
   "/manage-groups": "manageGroups",
+  "/guardian-management": "guardianManagement",
   "/view-participant-documents": "viewParticipantDocuments",
   "/approve-badges": "approveBadges",
   "/badge-dashboard": "badgeDashboard",
@@ -480,6 +482,13 @@ export class Router {
             break;
           }
           await this.loadManageGroups();
+          break;
+        case "guardianManagement":
+          if (!guard(canViewParticipants())) {
+            break;
+          }
+          const GuardianManagement = await this.loadModule('GuardianManagement');
+          await GuardianManagement(this.app);
           break;
         case "viewParticipantDocuments":
           if (!guard(canViewParticipants())) {

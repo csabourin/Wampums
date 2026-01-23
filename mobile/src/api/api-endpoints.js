@@ -1169,6 +1169,23 @@ export const viewPermissionSlip = async (id) => {
 };
 
 /**
+ * View permission slip by public token (no auth required)
+ * @param {string} token - Access token from email link
+ */
+export const viewPermissionSlipByToken = async (token) => {
+  return API.public(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/v/${token}`, null, 'GET');
+};
+
+/**
+ * Sign permission slip by public token (no auth required)
+ * @param {string} token - Access token from email link
+ * @param {Object} payload - Signature data (signed_by, consent)
+ */
+export const signPermissionSlipByToken = async (token, payload) => {
+  return API.public(`${CONFIG.ENDPOINTS.RESOURCES}/permission-slips/s/${token}`, payload, 'PATCH');
+};
+
+/**
  * Get dashboard snapshot for resources and approvals
  * @param {Object} params - Query parameters (e.g., meeting_date)
  * @param {Object} cacheOptions - Cache options (forceRefresh)

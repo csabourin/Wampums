@@ -31,6 +31,7 @@
     "web": {
       "favicon": "./assets/images/favicon-32x32.png"
     },
+    "scheme": "wampums",
     "extra": {
       "eas": {
         "projectId": "b8c9d86d-7eab-4c33-95c6-9ed6c9c14ddd"
