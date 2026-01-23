@@ -6,7 +6,7 @@ import { isoToDateString } from "./utils/DateUtils.js";
 import {
         getActivitesRencontre,
         getAnimateurs,
-        getRecentHonors,
+        getHonorsHistory,
         saveReunionPreparation,
         getReunionDates,
         getReunionPreparation
@@ -46,6 +46,7 @@ export class PreparationReunions {
                 this.meetingSections = {};
                 this.sectionConfig = null;
                 this.sectionKey = null;
+                this.previousMeetingDate = null;
                 this.previousMeetings = []; // Cache for template meetings
                 this.isLoadingTemplate = false; // Flag to track if loading a template
 
@@ -54,6 +55,84 @@ export class PreparationReunions {
                 this.formManager = null;
                 this.dateManager = null;
                 this.printManager = null;
+        }
+
+        /**
+         * Determine the meeting date that precedes the provided meeting date.
+         * @param {string} meetingDate - Current meeting date (YYYY-MM-DD)
+         * @returns {string|null} Previous meeting date (YYYY-MM-DD) or null
+         */
+        getPreviousMeetingDate(meetingDate) {
+                if (!meetingDate) return null;
+                const parsedDate = new Date(`${meetingDate}T00:00:00`);
+                if (Number.isNaN(parsedDate.getTime())) return null;
+
+                const meetingDay = this.organizationSettings.organization_info?.meeting_day;
+                const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const targetDayIndex = daysOfWeek.indexOf(meetingDay);
+                const daysInWeek = 7;
+
+                if (targetDayIndex >= 0) {
+                        const previousDate = new Date(parsedDate);
+                        for (let i = 1; i <= daysInWeek; i += 1) {
+                                previousDate.setDate(previousDate.getDate() - 1);
+                                if (previousDate.getDay() === targetDayIndex) {
+                                        return previousDate.toISOString().split('T')[0];
+                                }
+                        }
+                }
+
+                const availableDates = this.dateManager.getAvailableDates() || [];
+                const previousMeeting = availableDates
+                        .filter(dateValue => dateValue < meetingDate)
+                        .sort((a, b) => new Date(a) - new Date(b))
+                        .pop();
+
+                return previousMeeting || null;
+        }
+
+        /**
+         * Format honors for display in the meeting preparation UI.
+         * @param {object} honor - Honor record from API.
+         * @returns {string} Display string including name and reason.
+         */
+        formatHonorDisplay(honor) {
+                if (!honor) return '';
+                const nameParts = [honor.first_name, honor.last_name].filter(Boolean);
+                const name = nameParts.join(' ').trim() || honor.participant_name || '';
+                const reason = typeof honor.reason === 'string' ? honor.reason.trim() : '';
+                if (!name && !reason) return '';
+                return `${name}${reason ? ` — ${reason}` : ''}`.trim();
+        }
+
+        /**
+         * Load honors from the meeting preceding the provided date.
+         * @param {string} meetingDate - Current meeting date (YYYY-MM-DD)
+         */
+        async updateHonorsForMeeting(meetingDate) {
+                const previousMeetingDate = this.getPreviousMeetingDate(meetingDate);
+                this.previousMeetingDate = previousMeetingDate;
+                if (!previousMeetingDate) {
+                        this.recentHonors = [];
+                        this.formManager?.setRecentHonors(this.recentHonors);
+                        return;
+                }
+
+                try {
+                        const response = await getHonorsHistory({
+                                startDate: previousMeetingDate,
+                                endDate: previousMeetingDate
+                        });
+                        const honors = response?.data?.honors || response?.honors || [];
+                        this.recentHonors = honors
+                                .map(honor => this.formatHonorDisplay(honor))
+                                .filter(Boolean);
+                        this.formManager?.setRecentHonors(this.recentHonors);
+                } catch (error) {
+                        debugError("Error loading honors for previous meeting:", error);
+                        this.recentHonors = [];
+                        this.formManager?.setRecentHonors(this.recentHonors);
+                }
         }
 
         async init() {
@@ -96,7 +175,7 @@ export class PreparationReunions {
                 const appSettings = await this.app.waitForOrganizationSettings();
 
                 // Load data with individual error handling to prevent total failure
-                const [activitiesResponse, animateursResponse, honorsResponse] = await Promise.all([
+                const [activitiesResponse, animateursResponse] = await Promise.all([
                         getActivitesRencontre().catch(error => {
                                 debugError("Error loading activities:", error);
                                 return { data: [] };
@@ -104,17 +183,13 @@ export class PreparationReunions {
                         getAnimateurs().catch(error => {
                                 debugError("Error loading animateurs:", error);
                                 return { animateurs: [] };
-                        }),
-                        getRecentHonors().catch(error => {
-                                debugError("Error loading recent honors:", error);
-                                return { data: [] };
                         })
                 ]);
 
                 // Handle both array response and object response with data property
                 this.activities = Array.isArray(activitiesResponse) ? activitiesResponse : (activitiesResponse?.data || []);
                 this.animateurs = Array.isArray(animateursResponse) ? animateursResponse : (animateursResponse?.animateurs || []);
-                this.recentHonors = Array.isArray(honorsResponse) ? honorsResponse : (honorsResponse?.data || []);
+                this.recentHonors = [];
 
                 // Use app's organization settings to avoid race condition
                 this.organizationSettings = appSettings || {};
@@ -239,7 +314,8 @@ export class PreparationReunions {
                 debugLog("=== LOAD NEXT MEETING (INIT) ===");
                 const meetingDate = this.dateManager.getNextMeetingDate();
                 debugLog("1. Next meeting date:", meetingDate);
-                
+                await this.updateHonorsForMeeting(meetingDate);
+
                 const plannedMeeting = await this.fetchMeetingData(meetingDate);
 
                 if (plannedMeeting) {
@@ -259,7 +335,7 @@ export class PreparationReunions {
                 return {
                         animateur_responsable: defaultAnimateur?.id || '',
                         date: meetingDate,
-                        youth_of_honor: this.recentHonors.map(h => `${h.first_name} ${h.last_name}`),
+                        youth_of_honor: [...this.recentHonors],
                         endroit: this.organizationSettings.organization_info?.endroit || '',
                         activities: selectedActivities,
                         notes: ''
@@ -283,10 +359,11 @@ export class PreparationReunions {
 
                         // Create a new meeting based on template but with next available date
                         const nextDate = this.dateManager.getNextMeetingDate();
+                        await this.updateHonorsForMeeting(nextDate);
                         const newMeeting = {
                                 animateur_responsable: templateMeeting.animateur_responsable || '',
                                 date: nextDate,
-                                youth_of_honor: [], // Don't copy honors
+                                youth_of_honor: [...this.recentHonors],
                                 endroit: templateMeeting.endroit || this.organizationSettings.organization_info?.endroit || '',
                                 activities: templateMeeting.activities || [],
                                 notes: '' // Important: Don't copy notes when using as template
@@ -320,6 +397,7 @@ export class PreparationReunions {
                 this.isLoadingTemplate = true;
 
                 try {
+                        await this.updateHonorsForMeeting(date);
                         const meetingData = await this.fetchMeetingData(date);
                         debugLog("2. Meeting data returned:", meetingData ? "Found" : "Not found");
                         
@@ -357,7 +435,7 @@ export class PreparationReunions {
                 return {
                         date: newDate,
                         animateur_responsable: '',
-                        youth_of_honor: [],
+                        youth_of_honor: [...this.recentHonors],
                         endroit: this.organizationSettings.organization_info?.endroit || '',
                         activities: selectedActivities,
                         notes: ''
@@ -365,7 +443,9 @@ export class PreparationReunions {
         }
 
         async createAndLoadNewMeeting() {
-                const newMeetingData = this.createNewMeeting();
+                const newDate = this.dateManager.createNewMeetingDate();
+                await this.updateHonorsForMeeting(newDate);
+                const newMeetingData = this.createNewMeeting(newDate);
                 this.currentMeetingData = newMeetingData;
                 this.render();
                 await this.formManager.populateForm(newMeetingData, this.dateManager.getCurrentDate());
@@ -392,6 +472,7 @@ export class PreparationReunions {
                 const defaultAnimateur = this.animateurs.find(a => a.full_name === this.organizationSettings.organization_info?.animateur_responsable);
                 const availableDates = this.dateManager.getAvailableDates();
                 const honorLabel = getHonorLabel(this.sectionConfig, translate);
+                const honorListItems = this.formManager?.getHonorListItems(this.recentHonors) || '';
 
                 if (this.activityManager) {
                         this.activityManager.setSectionConfig(this.sectionConfig);
@@ -442,7 +523,7 @@ export class PreparationReunions {
                                                 <div class="form-group">
                                                         <label for="youth-of-honor">${honorLabel}:</label>
                                                         <ul id="youth-of-honor" class="honor-list" contenteditable="true">
-                                                                ${this.recentHonors.map(h => `<li>${escapeHTML(`${h.first_name} ${h.last_name}`)}</li>`).join('')}
+                                                                ${honorListItems}
                                                         </ul>
                                                 </div>
                                                 <div class="form-group">
