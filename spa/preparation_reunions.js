@@ -3,6 +3,7 @@ import { translate } from "./app.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { isoToDateString } from "./utils/DateUtils.js";
+import { formatHonorText } from "./utils/HonorUtils.js";
 import {
         getActivitesRencontre,
         getAnimateurs,
@@ -41,6 +42,7 @@ export class PreparationReunions {
                 this.activities = [];
                 this.animateurs = [];
                 this.recentHonors = [];
+                this.recentHonorsRaw = [];
                 this.organizationSettings = {};
                 this.currentMeetingData = null;
                 this.meetingSections = {};
@@ -77,7 +79,7 @@ export class PreparationReunions {
                         for (let i = 1; i <= daysInWeek; i += 1) {
                                 previousDate.setDate(previousDate.getDate() - 1);
                                 if (previousDate.getDay() === targetDayIndex) {
-                                        return previousDate.toISOString().split('T')[0];
+                                        return isoToDateString(previousDate);
                                 }
                         }
                 }
@@ -92,20 +94,6 @@ export class PreparationReunions {
         }
 
         /**
-         * Format honors for display in the meeting preparation UI.
-         * @param {object} honor - Honor record from API.
-         * @returns {string} Display string including name and reason.
-         */
-        formatHonorDisplay(honor) {
-                if (!honor) return '';
-                const nameParts = [honor.first_name, honor.last_name].filter(Boolean);
-                const name = nameParts.join(' ').trim() || honor.participant_name || '';
-                const reason = typeof honor.reason === 'string' ? honor.reason.trim() : '';
-                if (!name && !reason) return '';
-                return `${name}${reason ? ` — ${reason}` : ''}`.trim();
-        }
-
-        /**
          * Load honors from the meeting preceding the provided date.
          * @param {string} meetingDate - Current meeting date (YYYY-MM-DD)
          */
@@ -114,6 +102,7 @@ export class PreparationReunions {
                 this.previousMeetingDate = previousMeetingDate;
                 if (!previousMeetingDate) {
                         this.recentHonors = [];
+                        this.recentHonorsRaw = [];
                         this.formManager?.setRecentHonors(this.recentHonors);
                         return;
                 }
@@ -124,13 +113,15 @@ export class PreparationReunions {
                                 endDate: previousMeetingDate
                         });
                         const honors = response?.data?.honors || response?.honors || [];
+                        this.recentHonorsRaw = honors;
                         this.recentHonors = honors
-                                .map(honor => this.formatHonorDisplay(honor))
+                                .map(honor => formatHonorText(honor))
                                 .filter(Boolean);
                         this.formManager?.setRecentHonors(this.recentHonors);
                 } catch (error) {
                         debugError("Error loading honors for previous meeting:", error);
                         this.recentHonors = [];
+                        this.recentHonorsRaw = [];
                         this.formManager?.setRecentHonors(this.recentHonors);
                 }
         }
@@ -190,6 +181,7 @@ export class PreparationReunions {
                 this.activities = Array.isArray(activitiesResponse) ? activitiesResponse : (activitiesResponse?.data || []);
                 this.animateurs = Array.isArray(animateursResponse) ? animateursResponse : (animateursResponse?.animateurs || []);
                 this.recentHonors = [];
+                this.recentHonorsRaw = [];
 
                 // Use app's organization settings to avoid race condition
                 this.organizationSettings = appSettings || {};
@@ -780,8 +772,8 @@ export class PreparationReunions {
                                 const templates = this.sectionConfig?.activityTemplates || [];
 
                                 // Get only the most recent honor (not all of them)
-                                const mostRecentHonor = this.recentHonors && this.recentHonors.length > 0
-                                        ? this.recentHonors[0]
+                                const mostRecentHonor = this.recentHonorsRaw && this.recentHonorsRaw.length > 0
+                                        ? this.recentHonorsRaw[0]
                                         : null;
 
                                 // Provide mandatory start sequence and Scouts du Canada glossary

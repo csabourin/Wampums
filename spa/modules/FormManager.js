@@ -1,6 +1,7 @@
 import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { setContent } from "../utils/DOMUtils.js";
+import { formatHonorText } from "../utils/HonorUtils.js";
 
 /**
  * FormManager - Handles form population, validation, and data extraction
@@ -39,13 +40,7 @@ export class FormManager {
          * @returns {string} Display-ready honor text.
          */
         formatHonorText(honor) {
-                if (!honor) return '';
-                if (typeof honor === 'string') return honor;
-                const nameParts = [honor.first_name, honor.last_name].filter(Boolean);
-                const name = nameParts.join(' ').trim() || honor.participant_name || '';
-                const reason = typeof honor.reason === 'string' ? honor.reason.trim() : '';
-                if (!name && !reason) return '';
-                return `${name}${reason ? ` — ${reason}` : ''}`.trim();
+                return formatHonorText(honor);
         }
 
         /**
