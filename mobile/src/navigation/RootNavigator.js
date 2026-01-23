@@ -3,20 +3,53 @@
  *
  * Top-level navigator that switches between auth and app navigators
  * based on authentication state
+ * Handles deep linking for public features (e.g., permission slip signing)
  */
 
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Linking from 'expo-linking';
 import AuthNavigator from './AuthNavigator';
 import AppNavigator from './AppNavigator';
+import PermissionSlipSignScreen from '../screens/PermissionSlipSignScreen';
 import StorageUtils from '../utils/StorageUtils';
 import CONFIG from '../config';
 import { LoadingSpinner } from '../components';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
+import { translate as t } from '../i18n';
 
 const Stack = createStackNavigator();
+
+// Deep linking configuration
+const linking = {
+  prefixes: [
+    'wampums://', // Custom scheme
+    'https://wampums.com', // Production web URL
+    'https://*.wampums.com', // Subdomains
+  ],
+  config: {
+    screens: {
+      PublicPermissionSlipSign: {
+        path: 'permission-slip/:token',
+        parse: {
+          token: (token) => token,
+        },
+      },
+      App: {
+        screens: {
+          PermissionSlipSign: 'app/permission-slip-sign/:slipId?',
+        },
+      },
+      Auth: {
+        screens: {
+          Login: 'login',
+        },
+      },
+    },
+  },
+};
 
 const RootNavigator = () => {
   debugLog('🔵 [RootNavigator] Component rendering');
@@ -79,8 +112,19 @@ const RootNavigator = () => {
     debugLog('🔵 [RootNavigator] Creating SafeAreaProvider');
     return (
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer linking={linking} fallback={<LoadingSpinner message="Loading..." />}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {/* Public screens accessible without authentication */}
+            <Stack.Screen
+              name="PublicPermissionSlipSign"
+              component={PermissionSlipSignScreen}
+              options={{
+                headerShown: true,
+                title: t('sign_permission_slip'),
+              }}
+            />
+
+            {/* Auth-dependent screens */}
             {isAuthenticated ? (
               <Stack.Screen name="App">
                 {() => {

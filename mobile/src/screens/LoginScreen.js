@@ -76,6 +76,22 @@ const LoginScreen = ({ navigation, onLogin }) => {
     }
   };
 
+  // Map error messages to user-friendly translations
+  const translateErrorMessage = (message) => {
+    const errorMappings = {
+      account_not_verified_login:
+        t('account_not_verified_login') ||
+        t('account_not_verified') ||
+        'Your account is not yet verified. Please wait for district verification.',
+      account_not_verified:
+        t('account_not_verified') || 'Your account is not yet verified.',
+      invalid_credentials: t('invalid_email_or_password'),
+      invalid_email_or_password: t('invalid_email_or_password'),
+    };
+
+    return errorMappings[message] || message;
+  };
+
   const handleLogin = async () => {
     setError('');
     setLoading(true);
@@ -98,10 +114,13 @@ const LoginScreen = ({ navigation, onLogin }) => {
           }
         }
       } else {
-        setError(response.message || t('invalid_email_or_password'));
+        // Translate error message to user-friendly format
+        const friendlyMessage = translateErrorMessage(response.message);
+        setError(friendlyMessage || t('invalid_email_or_password'));
       }
     } catch (err) {
-      setError(err.message || t('invalid_email_or_password'));
+      const friendlyMessage = translateErrorMessage(err.message);
+      setError(friendlyMessage || t('invalid_email_or_password'));
     } finally {
       setLoading(false);
     }
