@@ -15,7 +15,8 @@ const {
 const { success, error, asyncHandler } = require("../middleware/response");
 const { checkValidation } = require("../middleware/validation");
 const { handleOrganizationResolutionError } = require("../utils/api-helpers");
-const { sendEmail, sanitizeInput } = require("../utils/index");
+const { sendEmail, getUserEmailLanguage } = require("../utils/index");
+const { buildPermissionSlipEmailContent } = require("../utils/permission-slip-email");
 const {
   MAX_FILE_SIZE,
   OUTPUT_MIME_TYPE,
@@ -1720,44 +1721,34 @@ module.exports = (pool) => {
             continue;
           }
 
-          // Prepare email content
-          const activityTitle = sanitizeInput(slip.activity_title || "Activité");
-          const activityDate = new Date(slip.meeting_date).toLocaleDateString(
-            "fr-CA",
-          );
-          const activityDescription = sanitizeInput(slip.activity_description || "");
-          const deadlineText = slip.deadline_date
-            ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString("fr-CA")}`
-            : "";
-          const participantName = sanitizeInput(
-            `${slip.first_name || ""} ${slip.last_name || ""}`.trim(),
-          ) || "Participant";
-
           // Generate link using request domain
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
 
-          const subject = `Autorisation parentale requise - ${activityTitle} - ${participantName}`;
-          const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
-
-          const htmlBody = `
-            <h2>Autorisation parentale requise</h2>
-            <p>Bonjour,</p>
-            <p>Nous organisons l'activité suivante : <strong>${activityTitle}</strong></p>
-            <p><strong>Date de l'activité :</strong> ${activityDate}</p>
-            ${activityDescription ? `<div>${activityDescription}</div>` : ""}
-            <p><a href="${signLink}" style="display: inline-block; padding: 12px 24px; background-color: #0066cc; color: white; text-decoration: none; border-radius: 4px;">Signer l'autorisation</a></p>
-            ${deadlineText ? `<p><em>${deadlineText}</em></p>` : ""}
-            <p>Merci !</p>
-          `;
-
           // Send to ALL recipients
           let slipSentCount = 0;
           const newGuardiansEmailed = [...guardiansEmailed];
 
           for (const recipient of emailRecipients) {
+            const recipientLanguage = await getUserEmailLanguage(
+              pool,
+              recipient.email,
+              organizationId,
+            );
+            const { subject, textBody, htmlBody } =
+              buildPermissionSlipEmailContent({
+                activityTitle: slip.activity_title,
+                activityDescription: slip.activity_description,
+                meetingDate: slip.meeting_date,
+                deadlineDate: slip.deadline_date,
+                participantFirstName: slip.first_name,
+                participantLastName: slip.last_name,
+                signLink,
+                languageCode: recipientLanguage,
+                isReminder: false,
+              });
             const emailSent = await sendEmail(
               recipient.email,
               subject,
@@ -1990,42 +1981,33 @@ module.exports = (pool) => {
             continue;
           }
 
-          // Prepare reminder email content
-          const activityTitle = sanitizeInput(slip.activity_title || "Activité");
-          const activityDate = new Date(slip.meeting_date).toLocaleDateString(
-            "fr-CA",
-          );
-          const deadlineText = slip.deadline_date
-            ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString("fr-CA")}`
-            : "";
-          const participantName = sanitizeInput(
-            `${slip.first_name || ""} ${slip.last_name || ""}`.trim(),
-          ) || "Participant";
-
           // Generate link using request domain
           const protocol = req.protocol;
           const host = req.get("host");
           const baseUrl = `${protocol}://${host}`;
           const signLink = `${baseUrl}/permission-slip/${slip.access_token}`;
 
-          const subject = `Rappel : Autorisation parentale requise - ${activityTitle} - ${participantName}`;
-          const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
-
-          const htmlBody = `
-            <h2>Rappel : Autorisation parentale requise</h2>
-            <p>Bonjour,</p>
-            <p>Ceci est un rappel concernant l'autorisation parentale pour l'activité : <strong>${activityTitle}</strong></p>
-            <p><strong>Date de l'activité :</strong> ${activityDate}</p>
-            <p>Nous n'avons pas encore reçu votre signature.</p>
-            <p><a href="${signLink}" style="display: inline-block; padding: 12px 24px; background-color: #cc6600; color: white; text-decoration: none; border-radius: 4px;">Signer l'autorisation maintenant</a></p>
-            ${deadlineText ? `<p><em>${deadlineText}</em></p>` : ""}
-            <p>Merci !</p>
-          `;
-
           // Send to ALL recipients
           let slipSentCount = 0;
 
           for (const recipient of emailRecipients) {
+            const recipientLanguage = await getUserEmailLanguage(
+              pool,
+              recipient.email,
+              organizationId,
+            );
+            const { subject, textBody, htmlBody } =
+              buildPermissionSlipEmailContent({
+                activityTitle: slip.activity_title,
+                activityDescription: slip.activity_description,
+                meetingDate: slip.meeting_date,
+                deadlineDate: slip.deadline_date,
+                participantFirstName: slip.first_name,
+                participantLastName: slip.last_name,
+                signLink,
+                languageCode: recipientLanguage,
+                isReminder: true,
+              });
             const emailSent = await sendEmail(
               recipient.email,
               subject,
