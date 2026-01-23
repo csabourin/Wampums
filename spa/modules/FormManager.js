@@ -26,6 +26,42 @@ export class FormManager {
         }
 
         /**
+         * Update the recent honors list used for default population.
+         * @param {Array<string|object>} honors - Honors list.
+         */
+        setRecentHonors(honors) {
+                this.recentHonors = Array.isArray(honors) ? honors : [];
+        }
+
+        /**
+         * Format honor text for display.
+         * @param {string|object} honor - Honor string or honor record.
+         * @returns {string} Display-ready honor text.
+         */
+        formatHonorText(honor) {
+                if (!honor) return '';
+                if (typeof honor === 'string') return honor;
+                const nameParts = [honor.first_name, honor.last_name].filter(Boolean);
+                const name = nameParts.join(' ').trim() || honor.participant_name || '';
+                const reason = typeof honor.reason === 'string' ? honor.reason.trim() : '';
+                if (!name && !reason) return '';
+                return `${name}${reason ? ` — ${reason}` : ''}`.trim();
+        }
+
+        /**
+         * Build HTML list items for honors.
+         * @param {Array<string|object>} honors - Honors list.
+         * @returns {string} HTML list items.
+         */
+        getHonorListItems(honors = []) {
+                return (honors || [])
+                        .map(honor => this.formatHonorText(honor))
+                        .filter(Boolean)
+                        .map(text => `<li>${escapeHTML(text)}</li>`)
+                        .join('');
+        }
+
+        /**
          * Convert ISO date string to yyyy-MM-dd format for HTML date inputs
          */
         formatDateForInput(dateString) {
@@ -60,11 +96,14 @@ export class FormManager {
                 const honorList = document.getElementById("youth-of-honor");
                 const honorData = meetingData.youth_of_honor ?? meetingData.louveteau_dhonneur;
                 if (Array.isArray(honorData)) {
-                        setContent(honorList, honorData.map(honor => `<li>${escapeHTML(honor)}</li>`).join(''));
+                        const honorsHtml = honorData.length > 0
+                                ? this.getHonorListItems(honorData)
+                                : this.getHonorListItems(this.recentHonors);
+                        setContent(honorList, honorsHtml);
                 } else if (typeof honorData === 'string') {
-                        setContent(honorList, `<li>${escapeHTML(honorData)}</li>`);
+                        setContent(honorList, this.getHonorListItems([honorData]));
                 } else {
-                        setContent(honorList, this.recentHonors.map(h => `<li>${escapeHTML(`${h.first_name} ${h.last_name}`)}</li>`).join(''));
+                        setContent(honorList, this.getHonorListItems(this.recentHonors));
                 }
 
                 document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';

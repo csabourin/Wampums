@@ -8,6 +8,7 @@ import {
 import { getReunionDates, getReunionPreparation } from "./ajax-functions.js";
 import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { escapeHTML } from "./utils/SecurityUtils.js";
 
 export class UpcomingMeeting {
                 constructor(app) {
@@ -356,6 +357,22 @@ export class UpcomingMeeting {
                                                 translate(
                                                                 "no_location_specified",
                                                 );
+                                const honorValues = Array.isArray(this.meetingDetails?.youth_of_honor)
+                                                ? this.meetingDetails.youth_of_honor
+                                                : this.meetingDetails?.youth_of_honor
+                                                                ? [this.meetingDetails.youth_of_honor]
+                                                                : [];
+                                const honorsHtml =
+                                                honorValues.length > 0
+                                                                ? honorValues
+                                                                                  .map(
+                                                                                                  (honor) =>
+                                                                                                                  `<li>${escapeHTML(honor)}</li>`,
+                                                                                  )
+                                                                                  .join(
+                                                                                                  "",
+                                                                                  )
+                                                                : `<li>${translate("no_honors_on_this_date")}</li>`;
                                 const activities =
                                                 this.meetingDetails
                                                                 ?.activities ||
@@ -378,6 +395,10 @@ export class UpcomingMeeting {
                                                 <div class="upcoming-meeting">
                                                                 <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
                                                                 <h1>${translate("upcoming_meeting")}</h1>
+                                                                <div class="meeting-details">
+                                                                                <h2>${translate("honors")}</h2>
+                                                                                <ul>${honorsHtml}</ul>
+                                                                </div>
                                                                 <div class="meeting-details">
                                                                                 <p>${meetingDate}</p>
                                                                                 <p><strong>${translate("location")}:</strong> ${location}</p>
