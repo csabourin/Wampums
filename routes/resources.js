@@ -1614,7 +1614,7 @@ module.exports = (pool) => {
         const slipsResult = await pool.query(query, params);
 
         if (slipsResult.rows.length === 0) {
-          return success(res, { sent: 0 }, "No permission slips to send");
+          return success(res, { sent: 0, total: 0 }, "All emails have already been sent");
         }
 
         let sentCount = 0;
@@ -1761,7 +1761,7 @@ module.exports = (pool) => {
           res,
           {
             sent: sentCount,
-            total_slips: slipsResult.rows.length,
+            total: slipsResult.rows.length,
             emails_sent: emailDetails,
             failed: failedEmails,
           },
@@ -1843,7 +1843,7 @@ module.exports = (pool) => {
         const slipsResult = await pool.query(query, params);
 
         if (slipsResult.rows.length === 0) {
-          return success(res, { sent: 0 }, "No reminders to send");
+          return success(res, { sent: 0, total: 0 }, "All reminders have already been sent");
         }
 
         let sentCount = 0;
@@ -1983,7 +1983,7 @@ module.exports = (pool) => {
           res,
           {
             sent: sentCount,
-            total_slips: slipsResult.rows.length,
+            total: slipsResult.rows.length,
             emails_sent: emailDetails,
             failed: failedEmails,
           },
