@@ -1612,16 +1612,16 @@ module.exports = (pool) => {
 
         const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
         const unsentCount = parseInt(pendingCheckResult.rows[0].unsent_count);
-        const sentCount = parseInt(pendingCheckResult.rows[0].sent_count);
+        const alreadySentCount = parseInt(pendingCheckResult.rows[0].sent_count);
 
         // If no pending slips exist at all
-        if (unsentCount === 0 && sentCount === 0) {
+        if (unsentCount === 0 && alreadySentCount === 0) {
           return success(res, { sent: 0, total: 0 }, "No pending permission slips found");
         }
 
         // If pending slips exist but all have been sent already
         if (unsentCount === 0) {
-          return success(res, { sent: 0, total: sentCount }, "All pending permission slips have already been emailed");
+          return success(res, { sent: 0, total: alreadySentCount }, "All pending permission slips have already been emailed");
         }
 
         // Build query to find permission slips (without guardian join - we'll get all guardians separately)
