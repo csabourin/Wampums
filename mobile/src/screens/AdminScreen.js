@@ -46,6 +46,7 @@ import {
 } from '../components';
 import {
   canViewUsers,
+  canManageUsers,
   canSendCommunications,
 } from '../utils/PermissionUtils';
 import SecurityUtils from '../utils/SecurityUtils';
@@ -85,7 +86,7 @@ const AdminScreen = ({ navigation }) => {
       const perms = {
         canAccessAdmin: false, // Function doesn't exist, set to false
         canCreateOrg: false, // Function doesn't exist, set to false
-        canManageUsers: false, // Function doesn't exist, set to false
+        canManageUsers: await canManageUsers(),
         canViewUsers: await canViewUsers(),
         canSendCommunications: await canSendCommunications(),
       };
@@ -391,7 +392,7 @@ const AdminScreen = ({ navigation }) => {
                     <TableCell>{user.email}</TableCell>
                     <TableCell>{user.role || t('no_role')}</TableCell>
                     <TableCell>
-                      {user.is_approved ? t('approved') : t('pending')}
+                      {user.is_verified ? t('approved') : t('pending')}
                     </TableCell>
                     {permissions.canManageUsers && (
                       <TableCell>
@@ -403,7 +404,7 @@ const AdminScreen = ({ navigation }) => {
                           >
                             <Text style={styles.actionButtonText}>✏️</Text>
                           </TouchableOpacity>
-                          {!user.is_approved && (
+                          {!user.is_verified && (
                             <TouchableOpacity
                               style={styles.actionButton}
                               onPress={() => handleApproveUserConfirm(user)}

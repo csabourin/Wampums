@@ -17,6 +17,7 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { translate as t } from '../i18n';
 import theme, { commonStyles } from '../theme';
 import {
@@ -54,6 +55,7 @@ const MailingListScreen = ({ navigation }) => {
   const [showComposerModal, setShowComposerModal] = useSafeState(false);
   const [selectedRoles, setSelectedRoles] = useSafeState(new Set(['parent', 'leader']));
   const [selectedGroups, setSelectedGroups] = useSafeState(new Set());
+  const [selectedTemplate, setSelectedTemplate] = useSafeState('');
 
   const [formData, setFormData] = useSafeState({
     subject: '',
@@ -145,6 +147,27 @@ const MailingListScreen = ({ navigation }) => {
     setSelectedGroups(newSelectedGroups);
   };
 
+  const applyTemplate = (templateIndex) => {
+    if (!templateIndex) {
+      setSelectedTemplate('');
+      return;
+    }
+
+    const index = parseInt(templateIndex, 10);
+    const template = templates[index];
+
+    if (!template) {
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      subject: template.subject || '',
+      message: template.body || '',
+    });
+    setSelectedTemplate(templateIndex);
+  };
+
   const handleSendAnnouncement = async (saveAsDraft = false) => {
     if (!formData.subject || !formData.message) {
       toast.show(t('fill_required_fields'), 'warning');
@@ -182,6 +205,7 @@ const MailingListScreen = ({ navigation }) => {
           message: '',
           scheduled_at: '',
         });
+        setSelectedTemplate('');
         setSelectedRoles(new Set(['parent', 'leader']));
         setSelectedGroups(new Set());
         await loadData();
@@ -445,6 +469,29 @@ const MailingListScreen = ({ navigation }) => {
         title={t('compose_announcement')}
       >
         <ScrollView style={styles.modalContent}>
+          {/* Template Picker */}
+          {templates.length > 0 && (
+            <View style={styles.templateSection}>
+              <Text style={styles.templateLabel}>{t('choose_template')}</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedTemplate}
+                  onValueChange={(value) => applyTemplate(value)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label={t('choose_template')} value="" />
+                  {templates.map((template, index) => (
+                    <Picker.Item
+                      key={index}
+                      label={template.title || template.key || `Template ${index + 1}`}
+                      value={String(index)}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          )}
+
           <FormField
             label={t('announcement_subject')}
             value={formData.subject}
@@ -685,6 +732,26 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     maxHeight: '80%',
+  },
+  templateSection: {
+    marginBottom: theme.spacing.md,
+  },
+  templateLabel: {
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.background,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
   },
   rolesSection: {
     marginVertical: theme.spacing.md,
