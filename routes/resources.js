@@ -15,7 +15,7 @@ const {
 const { success, error, asyncHandler } = require("../middleware/response");
 const { checkValidation } = require("../middleware/validation");
 const { handleOrganizationResolutionError } = require("../utils/api-helpers");
-const { sendEmail } = require("../utils/index");
+const { sendEmail, sanitizeInput } = require("../utils/index");
 const {
   MAX_FILE_SIZE,
   OUTPUT_MIME_TYPE,
@@ -1721,14 +1721,17 @@ module.exports = (pool) => {
           }
 
           // Prepare email content
-          const activityTitle = slip.activity_title || "Activité";
+          const activityTitle = sanitizeInput(slip.activity_title || "Activité");
           const activityDate = new Date(slip.meeting_date).toLocaleDateString(
             "fr-CA",
           );
-          const activityDescription = slip.activity_description || "";
+          const activityDescription = sanitizeInput(slip.activity_description || "");
           const deadlineText = slip.deadline_date
             ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString("fr-CA")}`
             : "";
+          const participantName = sanitizeInput(
+            `${slip.first_name || ""} ${slip.last_name || ""}`.trim(),
+          ) || "Participant";
 
           // Generate links using request domain
           const protocol = req.protocol;
@@ -1737,8 +1740,8 @@ module.exports = (pool) => {
           const webSignLink = `${baseUrl}/permission-slip/${slip.access_token}`;
           const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
-          const subject = `Autorisation parentale requise - ${activityTitle}`;
-          const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur un des liens ci-dessous :\n\nSur le web : ${webSignLink}\nSur mobile : ${mobileSignLink}\n\n${deadlineText}\n\nMerci !`;
+          const subject = `Autorisation parentale requise - ${activityTitle} - ${participantName}`;
+          const textBody = `Bonjour,\n\nNous organisons l'activité suivante : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\n${activityDescription}\n\nVeuillez signer l'autorisation parentale en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
 
           const htmlBody = `
             <h2>Autorisation parentale requise</h2>
@@ -1992,13 +1995,16 @@ module.exports = (pool) => {
           }
 
           // Prepare reminder email content
-          const activityTitle = slip.activity_title || "Activité";
+          const activityTitle = sanitizeInput(slip.activity_title || "Activité");
           const activityDate = new Date(slip.meeting_date).toLocaleDateString(
             "fr-CA",
           );
           const deadlineText = slip.deadline_date
             ? `Date limite de signature : ${new Date(slip.deadline_date).toLocaleDateString("fr-CA")}`
             : "";
+          const participantName = sanitizeInput(
+            `${slip.first_name || ""} ${slip.last_name || ""}`.trim(),
+          ) || "Participant";
 
           // Generate links using request domain
           const protocol = req.protocol;
@@ -2007,8 +2013,8 @@ module.exports = (pool) => {
           const webSignLink = `${baseUrl}/permission-slip/${slip.access_token}`;
           const mobileSignLink = `wampums://permission-slip/${slip.access_token}`;
 
-          const subject = `Rappel : Autorisation parentale requise - ${activityTitle}`;
-          const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur un des liens ci-dessous :\n\nSur le web : ${webSignLink}\nSur mobile : ${mobileSignLink}\n\n${deadlineText}\n\nMerci !`;
+          const subject = `Rappel : Autorisation parentale requise - ${activityTitle} - ${participantName}`;
+          const textBody = `Bonjour,\n\nCeci est un rappel concernant l'autorisation parentale pour l'activité : ${activityTitle}\n\nDate de l'activité : ${activityDate}\n\nNous n'avons pas encore reçu votre signature. Veuillez signer l'autorisation en cliquant sur le lien ci-dessous :\n${signLink}\n\n${deadlineText}\n\nMerci !`;
 
           const htmlBody = `
             <h2>Rappel : Autorisation parentale requise</h2>
