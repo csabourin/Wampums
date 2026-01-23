@@ -1657,7 +1657,7 @@ module.exports = (pool) => {
 
         const slipsResult = await pool.query(query, params);
 
-        let sentCount = 0;
+        let emailsSentCount = 0;
         const failedEmails = [];
         const emailDetails = [];
 
@@ -1759,7 +1759,7 @@ module.exports = (pool) => {
 
             if (emailSent) {
               slipSentCount++;
-              sentCount++;
+              emailsSentCount++;
               // Track guardian IDs that were emailed
               if (recipient.type === 'guardian' && !newGuardiansEmailed.includes(recipient.id)) {
                 newGuardiansEmailed.push(recipient.id);
@@ -1794,12 +1794,12 @@ module.exports = (pool) => {
         return success(
           res,
           {
-            sent: sentCount,
+            sent: emailsSentCount,
             total: slipsResult.rows.length,
             emails_sent: emailDetails,
             failed: failedEmails,
           },
-          `${sentCount} email(s) sent successfully to guardians/parents`,
+          `${emailsSentCount} email(s) sent successfully to guardians/parents`,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
