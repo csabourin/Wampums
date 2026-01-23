@@ -1580,6 +1580,49 @@ module.exports = (pool) => {
           return error(res, "Invalid meeting date", 400);
         }
 
+        // First, check if there are any pending permission slips at all (regardless of email status)
+        let pendingCheckQuery = `
+          SELECT
+            COUNT(*) FILTER (WHERE ps.email_sent = false) as unsent_count,
+            COUNT(*) FILTER (WHERE ps.email_sent = true) as sent_count
+          FROM permission_slips ps
+          WHERE ps.organization_id = $1
+            AND ps.status = 'pending'`;
+
+        const pendingCheckParams = [organizationId];
+
+        if (activity_id) {
+          pendingCheckParams.push(activity_id);
+          pendingCheckQuery += ` AND ps.activity_id = $${pendingCheckParams.length}`;
+        } else if (normalizedDate) {
+          pendingCheckParams.push(normalizedDate);
+          pendingCheckQuery += ` AND ps.meeting_date = $${pendingCheckParams.length}`;
+        }
+
+        if (activity_title) {
+          pendingCheckParams.push(activity_title);
+          pendingCheckQuery += ` AND ps.activity_title = $${pendingCheckParams.length}`;
+        }
+
+        if (participant_ids && participant_ids.length > 0) {
+          pendingCheckParams.push(participant_ids);
+          pendingCheckQuery += ` AND ps.participant_id = ANY($${pendingCheckParams.length})`;
+        }
+
+        const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
+        const unsentCount = parseInt(pendingCheckResult.rows[0].unsent_count);
+        const sentCount = parseInt(pendingCheckResult.rows[0].sent_count);
+
+        // If no pending slips exist at all
+        if (unsentCount === 0 && sentCount === 0) {
+          return success(res, { sent: 0, total: 0 }, "No pending permission slips found");
+        }
+
+        // If pending slips exist but all have been sent already
+        if (unsentCount === 0) {
+          return success(res, { sent: 0, total: sentCount }, "All pending permission slips have already been emailed");
+        }
+
         // Build query to find permission slips (without guardian join - we'll get all guardians separately)
         let query = `
           SELECT ps.*, p.first_name, p.last_name,
@@ -1612,10 +1655,6 @@ module.exports = (pool) => {
         }
 
         const slipsResult = await pool.query(query, params);
-
-        if (slipsResult.rows.length === 0) {
-          return success(res, { sent: 0, total: 0 }, "All emails have already been sent");
-        }
 
         let sentCount = 0;
         const failedEmails = [];
@@ -1840,9 +1879,9 @@ module.exports = (pool) => {
         const pendingCheckResult = await pool.query(pendingCheckQuery, pendingCheckParams);
         const pendingCount = parseInt(pendingCheckResult.rows[0].pending_count);
 
-        // If no pending slips exist, all have been signed
+        // If no pending slips exist (among those that received the initial email), all sent slips have been signed
         if (pendingCount === 0) {
-          return success(res, { sent: 0, total: 0 }, "All permission slips have been signed");
+          return success(res, { sent: 0, total: 0 }, "All permission slips that were sent have been signed");
         }
 
         // Build query to find unsigned permission slips that can receive reminders

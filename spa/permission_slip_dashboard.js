@@ -820,7 +820,19 @@ export class PermissionSlipDashboard {
 
       const result = await sendPermissionSlipEmails(payload);
       const data = result?.data || result;
-      this.app.showMessage(`${translate("emails_sent_successfully")}: ${data.sent}/${data.total}`, "success");
+      const message = result?.message || "";
+
+      // Show appropriate message based on response
+      if (data.sent === 0 && data.total === 0) {
+        // Check message to determine which translation to use
+        if (message.includes("No pending")) {
+          this.app.showMessage(translate("no_pending_permission_slips"), "info");
+        } else {
+          this.app.showMessage(translate("all_permission_slips_emailed"), "info");
+        }
+      } else {
+        this.app.showMessage(`${translate("emails_sent_successfully")}: ${data.sent}/${data.total}`, "success");
+      }
       await this.clearPermissionSlipCaches();
       await this.refreshData(true);
     } catch (error) {
@@ -847,7 +859,21 @@ export class PermissionSlipDashboard {
 
       const result = await sendPermissionSlipReminders(payload);
       const data = result?.data || result;
-      this.app.showMessage(`${translate("reminder_sent_successfully")}: ${data.sent}/${data.total}`, "success");
+      const message = result?.message || "";
+
+      // Show appropriate message based on response
+      if (data.sent === 0) {
+        // Check message to determine which translation to use
+        if (message.includes("signed")) {
+          this.app.showMessage(translate("all_sent_slips_signed"), "info");
+        } else if (message.includes("24 hours") || message.includes("recently")) {
+          this.app.showMessage(translate("reminder_cooldown_active"), "warning");
+        } else {
+          this.app.showMessage(`${translate("reminder_sent_successfully")}: 0/${data.total}`, "info");
+        }
+      } else {
+        this.app.showMessage(`${translate("reminder_sent_successfully")}: ${data.sent}/${data.total}`, "success");
+      }
       await this.clearPermissionSlipCaches();
       await this.refreshData(true);
     } catch (error) {
