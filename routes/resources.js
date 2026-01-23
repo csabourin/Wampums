@@ -1580,16 +1580,12 @@ module.exports = (pool) => {
           return error(res, "Invalid meeting date", 400);
         }
 
-        // Build query to find permission slips
+        // Build query to find permission slips (without guardian join - we'll get all guardians separately)
         let query = `
           SELECT ps.*, p.first_name, p.last_name,
-                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.courriel AS guardian_email,
-                 u.email AS parent_email
+                 COALESCE(ps.guardians_emailed, '[]'::jsonb) AS guardians_emailed
           FROM permission_slips ps
           JOIN participants p ON p.id = ps.participant_id
-          LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
-          LEFT JOIN user_participants up ON up.participant_id = p.id
-          LEFT JOIN users u ON u.id = up.user_id
           WHERE ps.organization_id = $1
             AND ps.status = 'pending'
             AND ps.email_sent = false`;
@@ -1623,14 +1619,64 @@ module.exports = (pool) => {
 
         let sentCount = 0;
         const failedEmails = [];
+        const emailDetails = [];
 
         for (const slip of slipsResult.rows) {
-          const recipientEmail = slip.guardian_email || slip.parent_email;
+          // Get ALL guardians linked to this participant
+          const guardiansResult = await pool.query(
+            `SELECT DISTINCT g.id, g.prenom, g.nom, g.courriel
+             FROM participant_guardians pg
+             JOIN parents_guardians g ON pg.guardian_id = g.id
+             WHERE pg.participant_id = $1
+               AND g.courriel IS NOT NULL
+               AND g.courriel != ''`,
+            [slip.participant_id]
+          );
 
-          if (!recipientEmail) {
+          // Also get parent user emails as fallback
+          const parentUsersResult = await pool.query(
+            `SELECT DISTINCT u.id, u.email, u.full_name
+             FROM user_participants up
+             JOIN users u ON u.id = up.user_id
+             WHERE up.participant_id = $1
+               AND u.email IS NOT NULL
+               AND u.email != ''`,
+            [slip.participant_id]
+          );
+
+          // Collect all unique email addresses
+          const emailRecipients = [];
+          const guardiansEmailed = slip.guardians_emailed || [];
+
+          // Add guardian emails
+          for (const guardian of guardiansResult.rows) {
+            if (guardian.courriel && !emailRecipients.some(r => r.email === guardian.courriel)) {
+              emailRecipients.push({
+                email: guardian.courriel,
+                name: `${guardian.prenom || ''} ${guardian.nom || ''}`.trim(),
+                type: 'guardian',
+                id: guardian.id
+              });
+            }
+          }
+
+          // Add parent user emails (if not already included)
+          for (const parent of parentUsersResult.rows) {
+            if (parent.email && !emailRecipients.some(r => r.email === parent.email)) {
+              emailRecipients.push({
+                email: parent.email,
+                name: parent.full_name || '',
+                type: 'parent_user',
+                id: parent.id
+              });
+            }
+          }
+
+          if (emailRecipients.length === 0) {
             failedEmails.push({
               participant_id: slip.participant_id,
-              reason: "No email address",
+              participant_name: `${slip.first_name} ${slip.last_name}`,
+              reason: "No guardian or parent email addresses found",
             });
             continue;
           }
@@ -1665,28 +1711,49 @@ module.exports = (pool) => {
             <p>Merci !</p>
           `;
 
-          const emailSent = await sendEmail(
-            recipientEmail,
-            subject,
-            textBody,
-            htmlBody,
-          );
+          // Send to ALL recipients
+          let slipSentCount = 0;
+          const newGuardiansEmailed = [...guardiansEmailed];
 
-          if (emailSent) {
-            // Mark email as sent
+          for (const recipient of emailRecipients) {
+            const emailSent = await sendEmail(
+              recipient.email,
+              subject,
+              textBody,
+              htmlBody,
+            );
+
+            if (emailSent) {
+              slipSentCount++;
+              sentCount++;
+              // Track guardian IDs that were emailed
+              if (recipient.type === 'guardian' && !newGuardiansEmailed.includes(recipient.id)) {
+                newGuardiansEmailed.push(recipient.id);
+              }
+              emailDetails.push({
+                participant_id: slip.participant_id,
+                participant_name: `${slip.first_name} ${slip.last_name}`,
+                email: recipient.email,
+                recipient_type: recipient.type
+              });
+            } else {
+              failedEmails.push({
+                participant_id: slip.participant_id,
+                participant_name: `${slip.first_name} ${slip.last_name}`,
+                email: recipient.email,
+                reason: "Email send failed",
+              });
+            }
+          }
+
+          // Mark email as sent if at least one email was successfully sent
+          if (slipSentCount > 0) {
             await pool.query(
               `UPDATE permission_slips
-               SET email_sent = true, email_sent_at = CURRENT_TIMESTAMP
+               SET email_sent = true, email_sent_at = CURRENT_TIMESTAMP, guardians_emailed = $2
                WHERE id = $1`,
-              [slip.id],
+              [slip.id, JSON.stringify(newGuardiansEmailed)],
             );
-            sentCount++;
-          } else {
-            failedEmails.push({
-              participant_id: slip.participant_id,
-              email: recipientEmail,
-              reason: "Email send failed",
-            });
           }
         }
 
@@ -1694,10 +1761,11 @@ module.exports = (pool) => {
           res,
           {
             sent: sentCount,
-            total: slipsResult.rows.length,
+            total_slips: slipsResult.rows.length,
+            emails_sent: emailDetails,
             failed: failedEmails,
           },
-          `${sentCount} email(s) sent successfully`,
+          `${sentCount} email(s) sent successfully to guardians/parents`,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
@@ -1741,16 +1809,12 @@ module.exports = (pool) => {
           return error(res, "Invalid meeting date", 400);
         }
 
-        // Build query to find unsigned permission slips
+        // Build query to find unsigned permission slips (without guardian join - we'll get all guardians separately)
         let query = `
           SELECT ps.*, p.first_name, p.last_name,
-                 g.prenom AS guardian_first_name, g.nom AS guardian_last_name, g.courriel AS guardian_email,
-                 u.email AS parent_email
+                 COALESCE(ps.guardians_emailed, '[]'::jsonb) AS guardians_emailed
           FROM permission_slips ps
           JOIN participants p ON p.id = ps.participant_id
-          LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
-          LEFT JOIN user_participants up ON up.participant_id = p.id
-          LEFT JOIN users u ON u.id = up.user_id
           WHERE ps.organization_id = $1
             AND ps.status = 'pending'
             AND ps.email_sent = true`;
@@ -1784,14 +1848,63 @@ module.exports = (pool) => {
 
         let sentCount = 0;
         const failedEmails = [];
+        const emailDetails = [];
 
         for (const slip of slipsResult.rows) {
-          const recipientEmail = slip.guardian_email || slip.parent_email;
+          // Get ALL guardians linked to this participant
+          const guardiansResult = await pool.query(
+            `SELECT DISTINCT g.id, g.prenom, g.nom, g.courriel
+             FROM participant_guardians pg
+             JOIN parents_guardians g ON pg.guardian_id = g.id
+             WHERE pg.participant_id = $1
+               AND g.courriel IS NOT NULL
+               AND g.courriel != ''`,
+            [slip.participant_id]
+          );
 
-          if (!recipientEmail) {
+          // Also get parent user emails as fallback
+          const parentUsersResult = await pool.query(
+            `SELECT DISTINCT u.id, u.email, u.full_name
+             FROM user_participants up
+             JOIN users u ON u.id = up.user_id
+             WHERE up.participant_id = $1
+               AND u.email IS NOT NULL
+               AND u.email != ''`,
+            [slip.participant_id]
+          );
+
+          // Collect all unique email addresses
+          const emailRecipients = [];
+
+          // Add guardian emails
+          for (const guardian of guardiansResult.rows) {
+            if (guardian.courriel && !emailRecipients.some(r => r.email === guardian.courriel)) {
+              emailRecipients.push({
+                email: guardian.courriel,
+                name: `${guardian.prenom || ''} ${guardian.nom || ''}`.trim(),
+                type: 'guardian',
+                id: guardian.id
+              });
+            }
+          }
+
+          // Add parent user emails (if not already included)
+          for (const parent of parentUsersResult.rows) {
+            if (parent.email && !emailRecipients.some(r => r.email === parent.email)) {
+              emailRecipients.push({
+                email: parent.email,
+                name: parent.full_name || '',
+                type: 'parent_user',
+                id: parent.id
+              });
+            }
+          }
+
+          if (emailRecipients.length === 0) {
             failedEmails.push({
               participant_id: slip.participant_id,
-              reason: "No email address",
+              participant_name: `${slip.first_name} ${slip.last_name}`,
+              reason: "No guardian or parent email addresses found",
             });
             continue;
           }
@@ -1825,28 +1938,44 @@ module.exports = (pool) => {
             <p>Merci !</p>
           `;
 
-          const emailSent = await sendEmail(
-            recipientEmail,
-            subject,
-            textBody,
-            htmlBody,
-          );
+          // Send to ALL recipients
+          let slipSentCount = 0;
 
-          if (emailSent) {
-            // Mark reminder as sent
+          for (const recipient of emailRecipients) {
+            const emailSent = await sendEmail(
+              recipient.email,
+              subject,
+              textBody,
+              htmlBody,
+            );
+
+            if (emailSent) {
+              slipSentCount++;
+              sentCount++;
+              emailDetails.push({
+                participant_id: slip.participant_id,
+                participant_name: `${slip.first_name} ${slip.last_name}`,
+                email: recipient.email,
+                recipient_type: recipient.type
+              });
+            } else {
+              failedEmails.push({
+                participant_id: slip.participant_id,
+                participant_name: `${slip.first_name} ${slip.last_name}`,
+                email: recipient.email,
+                reason: "Email send failed",
+              });
+            }
+          }
+
+          // Mark reminder as sent if at least one email was successfully sent
+          if (slipSentCount > 0) {
             await pool.query(
               `UPDATE permission_slips
                SET reminder_sent = true, reminder_sent_at = CURRENT_TIMESTAMP
                WHERE id = $1`,
               [slip.id],
             );
-            sentCount++;
-          } else {
-            failedEmails.push({
-              participant_id: slip.participant_id,
-              email: recipientEmail,
-              reason: "Email send failed",
-            });
           }
         }
 
@@ -1854,10 +1983,11 @@ module.exports = (pool) => {
           res,
           {
             sent: sentCount,
-            total: slipsResult.rows.length,
+            total_slips: slipsResult.rows.length,
+            emails_sent: emailDetails,
             failed: failedEmails,
           },
-          `${sentCount} reminder(s) sent successfully`,
+          `${sentCount} reminder(s) sent successfully to guardians/parents`,
         );
       } catch (err) {
         if (handleOrganizationResolutionError(res, err)) {
