@@ -119,19 +119,21 @@ function buildPermissionSlipEmailContent({
     )
     : "";
 
-  const subjectTemplate = isReminder
-    ? getTranslationValue(
-      translations,
-      fallbackTranslations,
-      "permission_slip_reminder_subject_with_participant",
-      "Reminder: Parent permission required - {activityTitle} - {participantName}",
-    )
-    : getTranslationValue(
-      translations,
-      fallbackTranslations,
-      "permission_slip_email_subject_with_participant",
-      "Parent permission required - {activityTitle} - {participantName}",
-    );
+  const subjectKeyWithParticipant = isReminder
+    ? "permission_slip_reminder_subject_with_participant"
+    : "permission_slip_email_subject_with_participant";
+  const subjectKey = isReminder
+    ? "permission_slip_reminder_subject"
+    : "permission_slip_email_subject";
+  const defaultSubject = isReminder
+    ? "Reminder: Parent permission required - {activityTitle} - {participantName}"
+    : "Parent permission required - {activityTitle} - {participantName}";
+  const subjectTemplate =
+    translations?.[subjectKeyWithParticipant] ||
+    translations?.[subjectKey] ||
+    fallbackTranslations?.[subjectKeyWithParticipant] ||
+    fallbackTranslations?.[subjectKey] ||
+    defaultSubject;
 
   const subject = formatTranslation(subjectTemplate, {
     activityTitle: sanitizedActivityTitle,

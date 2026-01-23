@@ -60,4 +60,20 @@ describe("Permission slip email content", () => {
     expect(result.htmlBody).toContain("We have not yet received your signature.");
     expect(result.htmlBody).toContain("Sign the permission slip now");
   });
+
+  test("falls back to localized subjects without participant when missing", () => {
+    const result = buildPermissionSlipEmailContent({
+      activityTitle: "Camp",
+      activityDescription: "",
+      meetingDate: "2026-06-01",
+      deadlineDate: null,
+      participantFirstName: "Alex",
+      participantLastName: "Rivers",
+      signLink: "https://example.com/permission-slip/token",
+      languageCode: "uk",
+      isReminder: false,
+    });
+
+    expect(result.subject).toBe("Потрібен дозвіл батьків - Camp");
+  });
 });
