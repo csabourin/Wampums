@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@googleapis/chat": "^44.5.0",
-    "@supabase/supabase-js": "^2.87.1",
+    "@supabase/supabase-js": "^2.91.0",
     "@veryfi/veryfi-sdk": "^1.4.6",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^3.0.3",
