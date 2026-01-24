@@ -5358,7 +5358,7 @@ body.online .pending-update { display: none; }
 
 .honors-table__row {
   display: grid;
-  grid-template-columns: 3rem 1fr 6rem 10rem;
+  grid-template-columns: 3rem 1fr 6rem 10rem 3rem;
   gap: var(--space-md);
   padding: var(--space-lg);
   border-block-end: 1px solid var(--color-border);
@@ -5530,21 +5530,24 @@ body.online .pending-update { display: none; }
   grid-column: 5;
   justify-content: center;
   position: relative;
+  pointer-events: all; /* Ensure clicks work even if row is disabled */
+  z-index: 1; /* Ensure it's above row content */
 }
 
 .honor-actions {
   position: relative;
   display: inline-block;
+  pointer-events: all; /* Always clickable */
 }
 
 .honor-actions__trigger {
   background: none;
-  border: none;
+  border: 1px solid var(--color-border);
   font-size: 1.5rem;
   line-height: 1;
   padding: var(--space-xs) var(--space-sm);
   cursor: pointer;
-  color: var(--color-text-light);
+  color: var(--color-primary);
   border-radius: var(--radius-sm);
   transition: all var(--transition-base);
   pointer-events: all;
@@ -5552,25 +5555,34 @@ body.online .pending-update { display: none; }
   -webkit-user-select: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  min-width: 44px; /* Touch-friendly minimum size */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .honor-actions__trigger:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: var(--color-primary);
+  background-color: var(--color-primary-light);
+  color: white;
+  border-color: var(--color-primary);
 }
 
 .honor-actions__trigger:active {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--color-primary);
   transform: scale(0.95);
 }
 
 .honors-table__row:hover .honor-actions__trigger {
-  color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .honors-table__row:hover .honor-actions__trigger:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.3);
   color: white;
+  border-color: white;
 }
 
 .honor-actions__menu {
@@ -5579,12 +5591,13 @@ body.online .pending-update { display: none; }
   right: 0;
   background: white;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   min-width: 200px;
   padding: var(--space-xs);
-  z-index: 100;
+  z-index: 1000; /* High z-index to appear above everything */
   display: none;
   margin-top: var(--space-xs);
+  border: 1px solid var(--color-border);
 }
 
 .honor-actions__menu.show {
