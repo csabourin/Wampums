@@ -539,6 +539,11 @@ export class ManageHonors {
 
       // Clear cache to ensure fresh data on next load
       await this.clearHonorsCaches();
+
+      // Fetch fresh data to get the actual honor IDs from the server
+      await this.fetchData();
+      this.processHonors();
+      this.updateHonorsListUI();
     } catch (error) {
       debugError("Error:", error);
       this.app.showMessage(`${translate("error_awarding_honor")}: ${error.message}`, "error");
