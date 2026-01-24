@@ -5366,6 +5366,7 @@ body.online .pending-update { display: none; }
   transition: all var(--transition-base);
   align-items: center;
   background-color: white;
+  position: relative; /* Create stacking context for z-index control */
 }
 
 .honors-table__row:nth-child(even) {
@@ -5385,10 +5386,15 @@ body.online .pending-update { display: none; }
   font-weight: var(--font-weight-semibold);
 }
 
+/* Raise active row above siblings when menu is open */
+.honors-table__row.menu-open {
+  z-index: var(--z-overlay);
+}
+
 .honors-table__row.disabled {
-  opacity: 0.5;
   cursor: not-allowed;
-  pointer-events: none;
+  background-color: #e9f3ef; /* soften without affecting child opacity */
+  color: var(--color-text-muted);
 }
 
 .honors-table__row.disabled:hover {
@@ -5436,7 +5442,7 @@ body.online .pending-update { display: none; }
 
 .participant-reason {
   font-size: var(--font-size-xs);
-  color: var(--color-text-light);
+  color: var(--color-text-primary);
   font-weight: var(--font-weight-normal);
   font-style: italic;
   display: block; /* Show reason on all screen sizes */
@@ -5453,7 +5459,7 @@ body.online .pending-update { display: none; }
 .honors-table__row:hover .participant-last-honor,
 .honors-table__row.selected .participant-reason,
 .honors-table__row.selected .participant-last-honor {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--color-text-primary);
 }
 
 .honors-table__cell--count {
@@ -5530,14 +5536,14 @@ body.online .pending-update { display: none; }
   grid-column: 5;
   justify-content: center;
   position: relative;
-  pointer-events: all; /* Ensure clicks work even if row is disabled */
+  pointer-events: all; /* Allow this cell to remain interactive */
   z-index: 1; /* Ensure it's above row content */
 }
 
 .honor-actions {
   position: relative;
   display: inline-block;
-  pointer-events: all; /* Always clickable */
+  pointer-events: all; /* Keep actions wrapper interactive */
 }
 
 .honor-actions__trigger {

@@ -313,13 +313,22 @@ export class ManageHonors {
         e.stopPropagation();
         const honorId = trigger.dataset.honorId;
         const menu = document.querySelector(`.honor-actions__menu[data-honor-id="${honorId}"]`);
+        const row = trigger.closest('.honors-table__row');
 
         // Close all other menus
         document.querySelectorAll('.honor-actions__menu.show').forEach(m => {
           if (m !== menu) m.classList.remove('show');
         });
+        // Remove menu-open from all rows except current
+        document.querySelectorAll('.honors-table__row.menu-open').forEach(r => {
+          if (r !== row) r.classList.remove('menu-open');
+        });
 
+        const isNowOpen = !menu.classList.contains('show');
         menu.classList.toggle('show');
+        if (row) {
+          row.classList.toggle('menu-open', isNowOpen);
+        }
       });
     });
 
@@ -329,9 +338,11 @@ export class ManageHonors {
         e.stopPropagation();
         const action = item.dataset.action;
         const honorId = parseInt(item.dataset.honorId);
+        const row = item.closest('.honors-table__row');
 
         // Close menu
         document.querySelectorAll('.honor-actions__menu.show').forEach(m => m.classList.remove('show'));
+        if (row) row.classList.remove('menu-open');
 
         switch (action) {
           case 'edit-reason':
@@ -353,6 +364,7 @@ export class ManageHonors {
     // Store the handler function so we can remove it later
     this.documentClickHandler = () => {
       document.querySelectorAll('.honor-actions__menu.show').forEach(m => m.classList.remove('show'));
+      document.querySelectorAll('.honors-table__row.menu-open').forEach(r => r.classList.remove('menu-open'));
     };
 
     // Close menus when clicking outside
@@ -535,7 +547,6 @@ export class ManageHonors {
       this.optimisticallyAddHonors(honors);
       this.processHonors();
       this.updateHonorsListUI();
-      this.app.showMessage(translate("honors_awarded_successfully"), "success");
 
       // Award the honors on the server
       const result = await awardHonor(honors);
@@ -543,13 +554,14 @@ export class ManageHonors {
         throw new Error(result.message || "Unknown error occurred");
       }
 
-      // Clear cache to ensure fresh data on next load
-      await this.clearHonorsCaches();
-
-      // Fetch fresh data to get the actual honor IDs from the server
-      await this.fetchData();
+      // Merge returned honor IDs into optimistic entries to avoid refetch
+      this.applyAwardResults(result);
       this.processHonors();
       this.updateHonorsListUI();
+      this.app.showMessage(translate("honors_awarded_successfully"), "success");
+
+      // Clear cache so next navigation loads fresh data, without immediate GET
+      await this.clearHonorsCaches();
     } catch (error) {
       debugError("Error:", error);
       this.app.showMessage(`${translate("error_awarding_honor")}: ${error.message}`, "error");
@@ -560,6 +572,45 @@ export class ManageHonors {
     } finally {
       this.pendingHonors = [];
       this.currentHonorIndex = 0;
+    }
+  }
+
+  /**
+   * Apply API award results to in-memory honors, setting IDs and deduping.
+   * @param {Object} apiResult - Response from awardHonor()
+   */
+  applyAwardResults(apiResult) {
+    try {
+      const data = apiResult?.data || apiResult || {};
+      const results = Array.isArray(data.results) ? data.results : [];
+
+      results.forEach(r => {
+        const participantId = r.participantId;
+        const action = r.action;
+        const honorId = r.honorId;
+
+        if (action === 'awarded' && honorId) {
+          // Find the optimistic honor (no id yet) for this participant/date
+          const optimistic = this.allHonors.find(h =>
+            h.participant_id === participantId &&
+            h.date === this.currentDate &&
+            (h.id === undefined || h.id === null)
+          );
+          if (optimistic) {
+            optimistic.id = honorId;
+          }
+        } else if (action === 'already_awarded') {
+          // Remove any optimistic duplicate (without id) added for this participant/date
+          this.allHonors = this.allHonors.filter(h => {
+            const isOptimisticDuplicate = h.participant_id === participantId &&
+              h.date === this.currentDate &&
+              (h.id === undefined || h.id === null);
+            return !isOptimisticDuplicate;
+          });
+        }
+      });
+    } catch (err) {
+      debugWarn('Failed to apply award results optimistically:', err);
     }
   }
 
