@@ -305,10 +305,11 @@ export class Budgets {
   }
 
   async invalidateBudgetCaches({ categoryId = null } = {}) {
+    const fy = this.getCurrentFiscalYearData();
     await clearBudgetCaches({
       categoryId,
-      fiscalYearStart: this.fiscalYear.start,
-      fiscalYearEnd: this.fiscalYear.end,
+      fiscalYearStart: fy.start,
+      fiscalYearEnd: fy.end,
     });
     this.summaryReport = null;
     this.revenueBreakdown = null;
@@ -555,6 +556,7 @@ export class Budgets {
   }
 
   renderPlanning() {
+    const fy = this.getCurrentFiscalYearData();
     return `
       <div class="planning-content">
         <div class="section-header">
@@ -565,7 +567,7 @@ export class Budgets {
         </div>
 
         <div class="planning-info">
-          <p>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></p>
+          <p>${translate("fiscal_year")}: <strong>${escapeHTML(fy.label)}</strong></p>
         </div>
 
         <div id="plans-list">
@@ -692,6 +694,7 @@ export class Budgets {
     `;
   }
 
+            const fy = this.getCurrentFiscalYearData();
   async renderReports() {
     // Load revenue breakdown data first since it's async
     await this.loadRevenueBreakdown();
@@ -716,6 +719,7 @@ export class Budgets {
   async loadRevenueBreakdown() {
     // Load revenue breakdown data with filters
     try {
+      const fy = this.getCurrentFiscalYearData();
       const categoryId =
         this.revenueFilters.category && this.revenueFilters.category !== "all"
           ? this.revenueFilters.category
@@ -727,8 +731,8 @@ export class Budgets {
           : null;
 
       const response = await getBudgetRevenueBreakdown(
-        this.fiscalYear.start,
-        this.fiscalYear.end,
+        fy.start,
+        fy.end,
         categoryId,
         revenueSource,
       );
@@ -749,6 +753,8 @@ export class Budgets {
       return `<p class="no-data">${translate("no_budget_data")}</p>`;
     }
 
+    const fy = this.getCurrentFiscalYearData();
+
     const categories = this.summaryReport.categories;
     const totals = this.summaryReport.totals || {};
 
@@ -764,7 +770,7 @@ export class Budgets {
       <div class="profit-loss-statement">
         <h2>${translate("profit_loss_statement")}</h2>
         <div class="statement-period muted-text">
-          ${translate("fiscal_year")}: ${escapeHTML(this.fiscalYear.label)}
+          ${translate("fiscal_year")}: ${escapeHTML(fy.label)}
         </div>
 
         <div class="statement-section">
@@ -1646,6 +1652,7 @@ export class Budgets {
 
   showPlanModal(plan = null) {
     const isEdit = !!plan;
+    const fy = this.getCurrentFiscalYearData();
     const modalHTML = `
       <div class="modal-overlay" id="plan-modal">
         <div class="modal-content">
@@ -1674,12 +1681,12 @@ export class Budgets {
                 <div class="form-group">
                   <label for="plan-fy-start">${translate("fiscal_year")} ${translate("start_date")}</label>
                   <input type="date" id="plan-fy-start" required
-                         value="${plan ? plan.fiscal_year_start : this.fiscalYear.start}">
+                         value="${plan ? plan.fiscal_year_start : fy.start}">
                 </div>
                 <div class="form-group">
                   <label for="plan-fy-end">${translate("end_date")}</label>
                   <input type="date" id="plan-fy-end" required
-                         value="${plan ? plan.fiscal_year_end : this.fiscalYear.end}">
+                         value="${plan ? plan.fiscal_year_end : fy.end}">
                 </div>
               </div>
               <div class="form-row">
