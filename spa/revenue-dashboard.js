@@ -11,6 +11,7 @@ import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { getTodayISO } from "./utils/DateUtils.js";
 import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { getCurrentFiscalYear, getFiscalYearOptions } from "./utils/FiscalYearUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -27,11 +28,8 @@ export class RevenueDashboard {
     this.comparisonData = null;
     this.categories = [];
     this.activeTab = "overview";
-    this.fiscalYear = this.getCurrentFiscalYear();
-    this.customDateRange = {
-      start: this.fiscalYear.start,
-      end: this.fiscalYear.end
-    };
+    this.selectedFiscalYear = null;
+    this.fiscalYearOptions = [];
 
     // Loading state management
     this.loadingManager = new LoadingStateManager();
@@ -39,26 +37,19 @@ export class RevenueDashboard {
   }
 
   /**
-   * Calculate current fiscal year (Sept 1 - Aug 31)
+   * Initialize fiscal year configuration from organization settings
    */
-  getCurrentFiscalYear() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-indexed
+  initializeFiscalYear() {
+    this.fiscalYearOptions = getFiscalYearOptions(this.app.organizationSettings);
+    const current = getCurrentFiscalYear(this.app.organizationSettings);
+    this.selectedFiscalYear = current.year;
+  }
 
-    if (month >= 8) { // September or later
-      return {
-        start: `${year}-09-01`,
-        end: `${year + 1}-08-31`,
-        label: `${year}-${year + 1}`
-      };
-    } else {
-      return {
-        start: `${year - 1}-09-01`,
-        end: `${year}-08-31`,
-        label: `${year - 1}-${year}`
-      };
-    }
+  /**
+   * Get currently selected fiscal year data
+   */
+  getCurrentFiscalYearData() {
+    return this.fiscalYearOptions.find(fy => fy.year === this.selectedFiscalYear) || this.fiscalYearOptions[this.fiscalYearOptions.length - 1];
   }
 
   async init() {
@@ -73,6 +64,10 @@ export class RevenueDashboard {
     try {
       // Render loading state immediately
       this.renderLoading();
+
+      // Initialize fiscal year from organization settings
+      await this.app.waitForOrganizationSettings();
+      this.initializeFiscalYear();
 
       await this.loadCategories();
       await this.loadAllData();
@@ -109,24 +104,23 @@ export class RevenueDashboard {
 
   async loadAllData() {
     return this.loadingManager.withLoading('all-data', async () => {
+      const fy = this.getCurrentFiscalYearData();
       // Individual load methods have their own error handling
       // Don't throw here - allow page to render with partial data
       await Promise.all([
-        this.loadDashboardData(),
-        this.loadBySourceData(),
-        this.loadByCategoryData(),
+        this.loadDashboardData(fy),
+        this.loadBySourceData(fy),
+        this.loadByCategoryData(fy),
         this.loadComparisonData()
       ]);
     });
   }
 
-  async loadDashboardData() {
+  async loadDashboardData(fy = null) {
+    if (!fy) fy = this.getCurrentFiscalYearData();
     try {
       const response = await retryWithBackoff(
-        () => getRevenueDashboard(
-          this.customDateRange.start,
-          this.customDateRange.end
-        ),
+        () => getRevenueDashboard(fy.start, fy.end),
         { maxRetries: 2 }
       );
       this.dashboardData = response?.data || null;
@@ -137,12 +131,10 @@ export class RevenueDashboard {
     }
   }
 
-  async loadBySourceData() {
+  async loadBySourceData(fy = null) {
+    if (!fy) fy = this.getCurrentFiscalYearData();
     try {
-      const response = await getRevenueBySource(
-        this.customDateRange.start,
-        this.customDateRange.end
-      );
+      const response = await getRevenueBySource(fy.start, fy.end);
       this.bySourceData = response?.data || [];
       debugLog("Loaded by source data", this.bySourceData);
     } catch (error) {
@@ -151,12 +143,10 @@ export class RevenueDashboard {
     }
   }
 
-  async loadByCategoryData() {
+  async loadByCategoryData(fy = null) {
+    if (!fy) fy = this.getCurrentFiscalYearData();
     try {
-      const response = await getRevenueByCategory(
-        this.customDateRange.start,
-        this.customDateRange.end
-      );
+      const response = await getRevenueByCategory(fy.start, fy.end);
       this.byCategoryData = response?.data || [];
       debugLog("Loaded by category data", this.byCategoryData);
     } catch (error) {
@@ -166,11 +156,9 @@ export class RevenueDashboard {
   }
 
   async loadComparisonData() {
+    const fy = this.getCurrentFiscalYearData();
     try {
-      const response = await getRevenueComparison(
-        this.fiscalYear.start,
-        this.fiscalYear.end
-      );
+      const response = await getRevenueComparison(fy.start, fy.end);
       this.comparisonData = response?.data || null;
       debugLog("Loaded comparison data", this.comparisonData);
     } catch (error) {
@@ -212,9 +200,6 @@ export class RevenueDashboard {
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("revenue_dashboard")}</h1>
-            <div class="fiscal-year-display">
-              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
-            </div>
           </div>
         </div>
         <div class="loading-container">
@@ -228,6 +213,7 @@ export class RevenueDashboard {
   async render() {
     const container = document.getElementById("app");
     if (!container) return;
+    const fy = this.getCurrentFiscalYearData();
 
     setContent(container, `
       <div class="page-container revenue-dashboard-page">
@@ -235,13 +221,15 @@ export class RevenueDashboard {
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("revenue_dashboard")}</h1>
-            <div class="fiscal-year-display">
-              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+            <div class="fiscal-year-selector">
+              <label for="fiscal-year-select">${translate("fiscal_year")}:</label>
+              <select id="fiscal-year-select" class="fiscal-year-select">
+                ${this.fiscalYearOptions.map(fy => `<option value="${fy.year}" ${fy.year === this.selectedFiscalYear ? 'selected' : ''}>${fy.label}</option>`).join('')}
+              </select>
             </div>
           </div>
         </div>
 
-        ${this.renderDateRangeSelector()}
         ${this.renderSummaryCards()}
 
         <div class="tab-navigation">
@@ -264,31 +252,6 @@ export class RevenueDashboard {
         </div>
       </div>
     `);
-  }
-
-  renderDateRangeSelector() {
-    return `
-      <div class="date-range-selector">
-        <div class="date-range-inputs">
-          <div class="form-group">
-            <label for="date-range-start">${translate("start_date")}</label>
-            <input type="date" id="date-range-start" value="${this.customDateRange.start}">
-          </div>
-          <div class="form-group">
-            <label for="date-range-end">${translate("end_date")}</label>
-            <input type="date" id="date-range-end" value="${this.customDateRange.end}">
-          </div>
-          <div class="form-actions">
-            <button class="btn btn-primary" id="apply-date-range-btn">
-              ${translate("apply")}
-            </button>
-            <button class="btn btn-secondary" id="reset-to-fiscal-year-btn">
-              ${translate("reset_to_fiscal_year")}
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
   }
 
   renderSummaryCards() {
@@ -609,6 +572,22 @@ export class RevenueDashboard {
   }
 
   attachEventListeners() {
+    // Fiscal year dropdown
+    const fySelect = document.getElementById("fiscal-year-select");
+    if (fySelect) {
+      fySelect.addEventListener("change", async (e) => {
+        try {
+          this.selectedFiscalYear = parseInt(e.target.value);
+          await this.loadAllData();
+          this.render();
+          this.attachEventListeners();
+        } catch (error) {
+          debugError("Error changing fiscal year:", error);
+          this.app.showMessage(translate("error_loading_data"), "error");
+        }
+      });
+    }
+
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
@@ -618,53 +597,11 @@ export class RevenueDashboard {
       });
     });
 
-    // Date range selector
-    const applyDateRangeBtn = document.getElementById("apply-date-range-btn");
-    if (applyDateRangeBtn) {
-      applyDateRangeBtn.addEventListener("click", () => this.applyDateRange());
-    }
-
-    const resetToFiscalYearBtn = document.getElementById("reset-to-fiscal-year-btn");
-    if (resetToFiscalYearBtn) {
-      resetToFiscalYearBtn.addEventListener("click", () => this.resetToFiscalYear());
-    }
-
     // Export button
     const exportDashboardBtn = document.getElementById("export-dashboard-btn");
     if (exportDashboardBtn) {
       exportDashboardBtn.addEventListener("click", () => this.exportDashboard());
     }
-  }
-
-  async applyDateRange() {
-    const startDate = document.getElementById("date-range-start").value;
-    const endDate = document.getElementById("date-range-end").value;
-
-    if (!startDate || !endDate) {
-      this.app.showMessage(translate("please_select_date_range"), "warning");
-      return;
-    }
-
-    if (new Date(startDate) > new Date(endDate)) {
-      this.app.showMessage(translate("start_date_before_end_date"), "error");
-      return;
-    }
-
-    this.customDateRange.start = startDate;
-    this.customDateRange.end = endDate;
-
-    await this.loadAllData();
-    this.render();
-    this.attachEventListeners();
-  }
-
-  async resetToFiscalYear() {
-    this.customDateRange.start = this.fiscalYear.start;
-    this.customDateRange.end = this.fiscalYear.end;
-
-    await this.loadAllData();
-    this.render();
-    this.attachEventListeners();
   }
 
   exportDashboard() {

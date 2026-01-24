@@ -384,6 +384,9 @@ ${showFinanceSection
     ${hasPermission("finance.view") ? `<a href="/finance?tab=reports"><i class="fa-solid fa-chart-pie"></i><span>${translate("financial_report")}</span></a>` : ""}
     ${hasAnyPermission("finance.manage", "finance.view") ? `<a href="/expenses"><i class="fa-solid fa-wallet"></i><span>${translate("expense_tracking")}</span></a>` : ""}
     ${hasAnyPermission("finance.manage", "finance.view") ? `<a href="/external-revenue"><i class="fa-solid fa-hand-holding-dollar"></i><span>${translate("external_revenue")}</span></a>` : ""}
+    ${hasAnyPermission("finance.view", "fundraisers.view") ? `<a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>` : ""}
+    ${hasPermission("fundraisers.view") ? `<a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>` : ""}
+    ${hasPermission("budget.view") ? `<a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>` : ""}
   </div>
 </section>
 `
@@ -399,9 +402,6 @@ ${showFinanceSection
     ${hasPermission("users.view") ? `<a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>` : ""}
     <a href="/account-info"><i class="fa-solid fa-user-circle"></i><span>${translate("account_info")}</span></a>
     ${hasPermission("communications.send") ? `<a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>` : ""}
-    ${hasPermission("fundraisers.view") ? `<a href="/fundraisers"><i class="fa-solid fa-hand-holding-heart"></i><span>${translate("fundraisers")}</span></a>` : ""}
-    ${hasAnyPermission("finance.view", "fundraisers.view") ? `<a href="/revenue-dashboard"><i class="fa-solid fa-chart-column"></i><span>${translate("revenue_dashboard")}</span></a>` : ""}
-    ${hasPermission("budget.view") ? `<a href="/budgets"><i class="fa-solid fa-sack-dollar"></i><span>${translate("budget_management")}</span></a>` : ""}
     ${showReports ? `<a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>` : ""}
     ${showReports ? `<a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>` : ""}
   </div>
