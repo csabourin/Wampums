@@ -20,6 +20,7 @@ export class ManageHonors {
     this.currentHonorIndex = 0; // Track which honor we're entering
     this.recentlyAwardedHonors = []; // Track recently awarded honors for undo window
     this.UNDO_WINDOW_MS = 10 * 60 * 1000; // 10 minutes undo window
+    this.documentClickHandler = null; // Store reference to document click handler to prevent memory leaks
   }
 
   async init() {
@@ -274,6 +275,11 @@ export class ManageHonors {
    * Attach event listeners for honor action menus (edit, delete, undo)
    */
   attachHonorActionListeners() {
+    // Remove previous document click handler to prevent memory leaks
+    if (this.documentClickHandler) {
+      document.removeEventListener('click', this.documentClickHandler);
+    }
+
     // Toggle menu on trigger click
     document.querySelectorAll('.honor-actions__trigger').forEach(trigger => {
       trigger.addEventListener('click', (e) => {
@@ -317,10 +323,13 @@ export class ManageHonors {
       });
     });
 
-    // Close menus when clicking outside
-    document.addEventListener('click', () => {
+    // Store the handler function so we can remove it later
+    this.documentClickHandler = () => {
       document.querySelectorAll('.honor-actions__menu.show').forEach(m => m.classList.remove('show'));
-    });
+    };
+
+    // Close menus when clicking outside
+    document.addEventListener('click', this.documentClickHandler);
   }
 
   handleItemClick(event) {

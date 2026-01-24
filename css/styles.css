@@ -5294,7 +5294,7 @@ body.online .pending-update { display: none; }
 
 .honors-table__header {
   display: grid;
-  grid-template-columns: 3rem 1fr 6rem 10rem;
+  grid-template-columns: 3rem 1fr 6rem 10rem 3rem;
   gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
   background-color: var(--color-primary);
@@ -5486,7 +5486,7 @@ body.online .pending-update { display: none; }
 @media (max-width: 768px) {
   .honors-table__header,
   .honors-table__row {
-    grid-template-columns: 2.5rem 1fr 5rem 9rem;
+    grid-template-columns: 2.5rem 1fr 5rem 9rem 3rem;
     gap: var(--space-sm);
     padding: var(--space-md);
   }
@@ -5509,7 +5509,7 @@ body.online .pending-update { display: none; }
 @media (max-width: 480px) {
   .honors-table__header,
   .honors-table__row {
-    grid-template-columns: 2.5rem 1fr 4rem;
+    grid-template-columns: 2.5rem 1fr 4rem 3rem;
     gap: var(--space-sm);
   }
 
@@ -5652,13 +5652,8 @@ body.online .pending-update { display: none; }
   color: white;
 }
 
-/* Mobile-specific adjustments */
+/* Mobile-specific adjustments for honor actions menu */
 @media (max-width: 768px) {
-  .honors-table__header,
-  .honors-table__row {
-    grid-template-columns: 2.5rem 1fr 5rem 9rem 3rem;
-  }
-
   .honor-actions__menu {
     right: auto;
     left: 50%;
@@ -5673,11 +5668,6 @@ body.online .pending-update { display: none; }
 }
 
 @media (max-width: 480px) {
-  .honors-table__header,
-  .honors-table__row {
-    grid-template-columns: 2.5rem 1fr 4rem 3rem;
-  }
-
   .honors-table__cell--actions {
     grid-column: 4;
   }

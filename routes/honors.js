@@ -252,10 +252,27 @@ module.exports = (pool, logger) => {
     asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const honorId = parseInt(req.params.id);
-      const { date, reason } = req.body;
+      let { date, reason } = req.body;
 
-      if (!date && !reason) {
+      // Validation
+      if (!date && reason === undefined) {
         return errorResponse(res, 'At least one field (date or reason) must be provided', 400);
+      }
+
+      if (date) {
+        // Validate date format (YYYY-MM-DD)
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (!dateRegex.test(date) || isNaN(new Date(date).getTime())) {
+          return errorResponse(res, 'Invalid date format. Use YYYY-MM-DD', 400);
+        }
+      }
+
+      if (reason !== undefined) {
+        // Trim and validate reason length
+        reason = String(reason).trim();
+        if (reason.length > 1000) {
+          return errorResponse(res, 'Reason must be 1000 characters or less', 400);
+        }
       }
 
       const client = await pool.connect();
