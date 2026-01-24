@@ -74,6 +74,10 @@ export class ManageHonors {
     const today = getTodayISO();
     const isCurrentDate = this.currentDate === today;
 
+    debugLog('[processHonors] Current date:', this.currentDate);
+    debugLog('[processHonors] All honors received:', this.allHonors);
+    debugLog('[processHonors] Sample honor:', this.allHonors[0]);
+
     // Create a flat list of participants instead of grouping by group
     this.honorsData.names = [];
 
@@ -90,6 +94,17 @@ export class ManageHonors {
       const honorReason = currentHonor ? (currentHonor.reason || "") : "";
       const honorId = currentHonor ? currentHonor.id : null;
       const honorCreatedAt = currentHonor ? currentHonor.created_at : null;
+
+      // Debug logging for participants with honors
+      if (honorsForDate.length > 0) {
+        debugLog(`[processHonors] ${participant.first_name} ${participant.last_name}:`, {
+          honorsForDate: honorsForDate.length,
+          currentHonor,
+          honorId,
+          honorCreatedAt,
+          honored_today: true
+        });
+      }
 
       // Check if honor is within undo window (10 minutes)
       const canUndo = honorCreatedAt && (new Date() - new Date(honorCreatedAt)) < this.UNDO_WINDOW_MS;
@@ -191,6 +206,17 @@ export class ManageHonors {
 
     // Show contextual menu for honored participants
     const showMenu = participant.honored_today && participant.honor_id;
+
+    // Debug logging for participants with honors
+    if (participant.honored_today) {
+      debugLog(`[renderParticipantItem] ${participant.first_name}:`, {
+        honored_today: participant.honored_today,
+        honor_id: participant.honor_id,
+        showMenu,
+        reason: participant.reason
+      });
+    }
+
     const menuHtml = showMenu ? `
       <div class="honor-actions">
         <button class="honor-actions__trigger" data-honor-id="${participant.honor_id}" aria-label="${translate("actions")}">
