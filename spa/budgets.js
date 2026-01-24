@@ -27,6 +27,7 @@ import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.
 import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
 import { canViewBudget } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { getCurrentFiscalYear, getFiscalYearOptions, createFiscalYearDropdownHTML } from "./utils/FiscalYearUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -45,7 +46,8 @@ export class Budgets {
     this.revenueBreakdown = null;
     this.budgetPlans = [];
     this.activeTab = "overview";
-    this.fiscalYear = this.getCurrentFiscalYear();
+    this.selectedFiscalYear = null;
+    this.fiscalYearOptions = [];
     this.revenueFilters = {
       source: "all",
       category: "all",
@@ -77,27 +79,19 @@ export class Budgets {
   }
 
   /**
-   * Calculate current fiscal year (Sept 1 - Aug 31)
+   * Initialize fiscal year configuration from organization settings
    */
-  getCurrentFiscalYear() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-indexed
+  initializeFiscalYear() {
+    this.fiscalYearOptions = getFiscalYearOptions(this.app.organizationSettings);
+    const current = getCurrentFiscalYear(this.app.organizationSettings);
+    this.selectedFiscalYear = current.year;
+  }
 
-    if (month >= 8) {
-      // September or later (month 8 = September)
-      return {
-        start: `${year}-09-01`,
-        end: `${year + 1}-08-31`,
-        label: `${year}-${year + 1}`,
-      };
-    } else {
-      return {
-        start: `${year - 1}-09-01`,
-        end: `${year}-08-31`,
-        label: `${year - 1}-${year}`,
-      };
-    }
+  /**
+   * Get currently selected fiscal year data
+   */
+  getCurrentFiscalYearData() {
+    return this.fiscalYearOptions.find(fy => fy.year === this.selectedFiscalYear) || this.fiscalYearOptions[this.fiscalYearOptions.length - 1];
   }
 
   async init() {
@@ -119,6 +113,10 @@ export class Budgets {
     try {
       // Render loading state immediately
       this.renderLoading();
+
+      // Initialize fiscal year from organization settings
+      await this.app.waitForOrganizationSettings();
+      this.initializeFiscalYear();
 
       await this.loadCoreData();
 
@@ -147,6 +145,7 @@ export class Budgets {
     return this.loadingManager.withLoading('core-data', async () => {
       debugLog("Loading budget data...");
       // Load data with individual error handling and retry logic
+      const fy = this.getCurrentFiscalYearData();
       const [categories, items, expenses, summary, plans] = await Promise.all([
         retryWithBackoff(
           () => getBudgetCategories({}, { forceRefresh }),
@@ -169,8 +168,8 @@ export class Budgets {
         }),
         retryWithBackoff(
           () => getBudgetExpenses({
-            start_date: this.fiscalYear.start,
-            end_date: this.fiscalYear.end,
+            start_date: fy.start,
+            end_date: fy.end,
           }, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
@@ -178,14 +177,14 @@ export class Budgets {
           return { data: [] };
         }),
         retryWithBackoff(
-          () => getBudgetSummaryReport(this.fiscalYear.start, this.fiscalYear.end, { forceRefresh }),
+          () => getBudgetSummaryReport(fy.start, fy.end, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
           debugError("Error loading budget summary:", error);
           return { data: null };
         }),
         retryWithBackoff(
-          () => getBudgetPlans(this.fiscalYear.start, this.fiscalYear.end, { forceRefresh }),
+          () => getBudgetPlans(fy.start, fy.end, { forceRefresh }),
           { maxRetries: 2 }
         ).catch(error => {
           debugError("Error loading budget plans:", error);
@@ -224,9 +223,6 @@ export class Budgets {
           <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
           <div class="page-header-content">
             <h1>${translate("budget_management")}</h1>
-            <div class="fiscal-year-display">
-              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
-            </div>
           </div>
         </div>
         <div class="loading-container">
@@ -242,6 +238,7 @@ export class Budgets {
     if (!container) return;
 
     const tabContent = await this.renderTabContent();
+    const fyData = this.getCurrentFiscalYearData();
 
     setContent(container, `
       <div class="page-container budgets-page">
@@ -249,8 +246,11 @@ export class Budgets {
         <div class="page-header">
           <div class="page-header-content">
             <h1>${translate("budget_management")}</h1>
-            <div class="fiscal-year-display">
-              <span>${translate("fiscal_year")}: <strong>${escapeHTML(this.fiscalYear.label)}</strong></span>
+            <div class="fiscal-year-selector">
+              <label for="fiscal-year-select">${translate("fiscal_year")}:</label>
+              <select id="fiscal-year-select" class="fiscal-year-select">
+                ${this.fiscalYearOptions.map(fy => `<option value="${fy.year}" ${fy.year === this.selectedFiscalYear ? 'selected' : ''}>${fy.label}</option>`).join('')}
+              </select>
             </div>
           </div>
         </div>
@@ -1048,6 +1048,21 @@ export class Budgets {
   attachEventListeners() {
     // MEMORY LEAK FIX: Use AbortController signal for all event listeners
     const { signal } = this.abortController;
+
+    // Fiscal year dropdown
+    const fySelect = document.getElementById("fiscal-year-select");
+    if (fySelect) {
+      fySelect.addEventListener("change", async (e) => {
+        try {
+          this.selectedFiscalYear = parseInt(e.target.value);
+          await this.loadCoreData(false);
+          await this.renderAndBind();
+        } catch (error) {
+          debugError("Error changing fiscal year:", error);
+          this.app.showMessage(translate("error_loading_data"), "error");
+        }
+      }, { signal });
+    }
 
     // Tab navigation
     document.querySelectorAll(".tab-btn").forEach((btn) => {
