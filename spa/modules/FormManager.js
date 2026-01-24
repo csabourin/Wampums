@@ -102,6 +102,19 @@ export class FormManager {
 
                 document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';
 
+                // Set duration override if available (for special meetings)
+                const durationOverrideField = document.getElementById("duration-override");
+                if (durationOverrideField) {
+                        durationOverrideField.value = meetingData.duration_override || '';
+                        // Update ActivityManager with the override
+                        if (meetingData.duration_override) {
+                                this.activityManager.setMeetingLength(
+                                        this.activityManager.meetingLengthMinutes,
+                                        meetingData.duration_override
+                                );
+                        }
+                }
+
                 // Prepopulate the notes and fetch reminders
                 const notes = meetingData.notes || '';
                 if (this.reminder) {
@@ -119,12 +132,14 @@ export class FormManager {
 
                 // Combine default and saved activities
                 console.log("2. Processing activities...");
-                const defaultActivities = this.activityManager.initializePlaceholderActivities();
-                console.log("   - Default activities count:", defaultActivities.length);
                 
                 const loadedActivities = meetingData.activities || [];
                 console.log("   - Loaded activities count:", loadedActivities.length);
                 console.log("   - Loaded activities data:", loadedActivities);
+                
+                // Initialize placeholder activities considering existing activities
+                const defaultActivities = this.activityManager.initializePlaceholderActivities(loadedActivities);
+                console.log("   - Default activities count:", defaultActivities.length);
                 
                 const totalActivities = Math.max(defaultActivities.length, loadedActivities.length);
                 console.log("   - Total activities to render:", totalActivities);
@@ -169,7 +184,7 @@ export class FormManager {
                 document.getElementById("endroit").value = this.organizationSettings.organization_info?.endroit || '';
                 document.getElementById("notes").value = '';
 
-                const selectedActivities = this.activityManager.initializePlaceholderActivities().map(activity => ({...activity, isDefault: true}));
+                const selectedActivities = this.activityManager.initializePlaceholderActivities(null).map(activity => ({...activity, isDefault: true}));
                 this.activityManager.setSelectedActivities(selectedActivities);
                 this.activityManager.renderActivitiesTable();
         }
@@ -199,13 +214,18 @@ export class FormManager {
                 const endraitValue = document.getElementById('endroit').value;
                 const notesValue = document.getElementById('notes').value;
                 
+                // Extract duration override if provided
+                const durationOverrideField = document.getElementById('duration-override');
+                const durationOverride = durationOverrideField?.value ? parseInt(durationOverrideField.value, 10) : null;
+                
                 console.log("3. Form field values:");
                 console.log("   - animateur-responsable:", animateurValue);
                 console.log("   - date:", dateValue);
                 console.log("   - endroit:", endraitValue);
                 console.log("   - notes length:", notesValue.length);
+                console.log("   - duration-override:", durationOverride);
 
-                return {
+                const formData = {
                         organization_id: this.app.organizationId,
                         animateur_responsable: animateurValue,
                         date: dateValue,
@@ -214,6 +234,13 @@ export class FormManager {
                         activities: updatedActivities,
                         notes: notesValue,
                 };
+
+                // Only include duration_override if it's set
+                if (durationOverride) {
+                        formData.duration_override = durationOverride;
+                }
+
+                return formData;
         }
 
         /**

@@ -13,6 +13,8 @@ export class ActivityManager {
     this.activityTemplates = activityTemplates;
     this.selectedActivities = [];
     this.sectionConfig = null;
+    this.meetingLengthMinutes = 120; // Default: 2 hours
+    this.durationOverride = null; // Optional override for special meetings
   }
 
   /**
@@ -23,14 +25,64 @@ export class ActivityManager {
   }
 
   /**
-   * Initialize placeholder activities with defaults
+   * Set meeting length and optional duration override
    */
-  initializePlaceholderActivities() {
-    if (!this.activityTemplates || this.activityTemplates.length === 0) {
-      return [];
+  setMeetingLength(lengthMinutes, durationOverride = null) {
+    this.meetingLengthMinutes = lengthMinutes || 120;
+    this.durationOverride = durationOverride;
+  }
+
+  /**
+   * Calculate actual meeting duration based on activities
+   */
+  calculateMeetingDuration(activities) {
+    if (!Array.isArray(activities) || activities.length === 0) {
+      return 0;
     }
 
-    return this.activityTemplates.map((template, index) => ({
+    const times = activities
+      .filter(a => a.time && a.duration)
+      .map(a => {
+        const [hours, minutes] = (a.time || '').split(':').map(Number);
+        const [durHours, durMinutes] = (a.duration || '00:00').split(':').map(Number);
+        const startMinutes = (hours || 0) * 60 + (minutes || 0);
+        const duration = (durHours || 0) * 60 + (durMinutes || 0);
+        return { start: startMinutes, duration };
+      });
+
+    if (times.length === 0) {
+      return 0;
+    }
+
+    const firstStart = Math.min(...times.map(t => t.start));
+    const lastEnd = Math.max(...times.map(t => t.start + t.duration));
+    return Math.max(0, lastEnd - firstStart);
+  }
+
+  /**
+   * Initialize placeholder activities with defaults
+   */
+  initializePlaceholderActivities(existingActivities = null) {
+    // Determine the planned duration (use override if special meeting, otherwise use default)
+    const plannedDuration = this.durationOverride || this.meetingLengthMinutes;
+    
+    // Calculate actual duration if we have existing activities
+    let actualDuration = 0;
+    if (existingActivities && Array.isArray(existingActivities) && existingActivities.length > 0) {
+      actualDuration = this.calculateMeetingDuration(existingActivities);
+    }
+
+    // Only add template placeholders if actual duration < planned duration
+    if (actualDuration >= plannedDuration) {
+      return existingActivities || [];
+    }
+
+    // Create templates
+    if (!this.activityTemplates || this.activityTemplates.length === 0) {
+      return existingActivities || [];
+    }
+
+    const templates = this.activityTemplates.map((template, index) => ({
       id: template.id || `template-${index}`,
       position: template.position ?? index,
       time: template.time || '18:30',
@@ -42,6 +94,15 @@ export class ActivityManager {
       description: template.description || '',
       isDefault: true,
     }));
+
+    // If there are existing activities, merge them
+    if (existingActivities && Array.isArray(existingActivities) && existingActivities.length > 0) {
+      const nonDefaultActivities = existingActivities.filter(a => !a.isDefault);
+      return [...nonDefaultActivities, ...templates];
+    }
+
+    return templates;
+  }
   }
 
   /**

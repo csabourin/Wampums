@@ -2165,5 +2165,8 @@
   "badge_star_type": "Star type",
   "badge_custom": "Custom badge",
   "badge_deliver_selected": "Deliver selected",
-  "badge_date_placeholder": "Select a date"
-}
+  "badge_date_placeholder": "Select a date",
+  "special_meeting_duration": "Special Meeting Duration (optional)",
+  "leave_empty_for_default": "Leave empty to use default",
+  "duration_minutes_placeholder": "Duration in minutes",
+  "duration_override_help": "Override the standard meeting duration for special meetings (camps, multi-day events, etc.). Leave empty to use the default 2-hour meeting length."

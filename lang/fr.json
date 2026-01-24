@@ -2200,5 +2200,8 @@
   "badge_star_type": "Type d'étoile",
   "badge_custom": "Badge personnalisé",
   "badge_deliver_selected": "Remettre la sélection",
-  "badge_date_placeholder": "Sélectionner une date"
-}
+  "badge_date_placeholder": "Sélectionner une date",
+  "special_meeting_duration": "Durée spéciale de réunion (optionnel)",
+  "leave_empty_for_default": "Laisser vide pour utiliser la valeur par défaut",
+  "duration_minutes_placeholder": "Durée en minutes",
+  "duration_override_help": "Remplacez la durée standard de la réunion pour les réunions spéciales (camps, événements multi-jours, etc.). Laissez vide pour utiliser la durée de réunion par défaut de 2 heures."

@@ -4302,14 +4302,13 @@ body.online .pending-update { display: none; }
 }
 
 .meeting-actions button {
-  flex: 1 1 calc(50% - var(--space-xs));
-  min-inline-size: 130px;
+  flex: 1 1 auto;
+  min-inline-size: 100px;
   font-size: var(--font-size-sm);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-sm);
   font-weight: var(--font-weight-bold);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
   box-shadow: var(--shadow-md);
   transition: all var(--transition-base);
 }
@@ -4582,11 +4581,13 @@ body.online .pending-update { display: none; }
   padding: var(--space-sm);
   border-radius: var(--radius-md);
   border: 2px solid var(--color-primary);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  min-inline-size: 0;
 }
 
 .activity-row__time input {
   flex: 1 1 auto;
+  min-inline-size: 80px;
   padding: var(--space-sm);
   border: none;
   border-radius: var(--radius-sm);
@@ -4598,14 +4599,15 @@ body.online .pending-update { display: none; }
   color: var(--color-primary);
 }
 
-/* Ensure time and duration stay side-by-side with sensible widths */
+/* Ensure time and duration inputs are responsive */
 .activity-row__time .activity-time {
-  min-inline-size: 120px;
+  flex: 1 1 100px;
+  min-inline-size: 80px;
 }
 
 .activity-row__time .activity-duration {
-  flex: 0 0 96px;
-  min-inline-size: 96px;
+  flex: 1 1 70px;
+  min-inline-size: 70px;
 }
 
 .activity-row__time input[type="time"] {
@@ -4631,17 +4633,16 @@ body.online .pending-update { display: none; }
   display: flex;
   gap: var(--space-sm);
   align-items: stretch;
-  min-inline-size: 0; /* Allow text truncation */
+  flex-wrap: wrap;
+  min-inline-size: 0;
 }
 
 .activity-row__activity select,
 .activity-row__activity input,
 .activity-select,
 .activity-input {
-  flex: 1;
-  min-inline-size: 0;
-  inline-size: 100%;
-  max-inline-size: 100%;
+  flex: 1 1 auto;
+  min-inline-size: 120px;
   padding: var(--space-sm);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -4705,7 +4706,7 @@ body.online .pending-update { display: none; }
 .activity-responsable,
 .responsable-input {
   inline-size: 100%;
-  min-inline-size: 0;
+  min-inline-size: 100px;
   padding: var(--space-sm);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -4730,7 +4731,7 @@ body.online .pending-update { display: none; }
 .activity-row__materiel input,
 .activity-materiel {
   inline-size: 100%;
-  min-inline-size: 0;
+  min-inline-size: 100px;
   padding: var(--space-sm);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-sm);

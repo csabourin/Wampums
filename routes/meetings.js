@@ -153,6 +153,7 @@ module.exports = (pool, logger) => {
     check('endroit').optional().trim().isLength({ max: 500 }).withMessage('endroit must not exceed 500 characters'),
     check('notes').optional().trim().isLength({ max: 5000 }).withMessage('notes must not exceed 5000 characters'),
     check('animateur_responsable').optional().trim().isLength({ max: 200 }).withMessage('animateur_responsable must not exceed 200 characters'),
+    check('duration_override').optional().isInt({ min: 15 }).withMessage('duration_override must be at least 15 minutes'),
     check('youth_of_honor').optional({ nullable: true }).custom(value =>
       Array.isArray(value) || typeof value === 'string'
     ).withMessage('youth_of_honor must be an array or string'),
@@ -167,7 +168,7 @@ module.exports = (pool, logger) => {
       }
 
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const { date, youth_of_honor, endroit, activities, notes, animateur_responsable } = req.body;
+      const { date, youth_of_honor, endroit, activities, notes, animateur_responsable, duration_override } = req.body;
       const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
       let sectionKey = meetingSections.defaultSection;
       try {
@@ -210,8 +211,8 @@ module.exports = (pool, logger) => {
       // This prevents race conditions and duplicate key errors
       const result = await pool.query(
         `INSERT INTO reunion_preparations
-         (organization_id, date, youth_of_honor, endroit, activities, notes, animateur_responsable)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (organization_id, date, youth_of_honor, endroit, activities, notes, animateur_responsable, duration_override)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (organization_id, date)
          DO UPDATE SET
            youth_of_honor = EXCLUDED.youth_of_honor,
@@ -219,9 +220,10 @@ module.exports = (pool, logger) => {
            activities = EXCLUDED.activities,
            notes = EXCLUDED.notes,
            animateur_responsable = EXCLUDED.animateur_responsable,
+           duration_override = EXCLUDED.duration_override,
            updated_at = CURRENT_TIMESTAMP
          RETURNING *`,
-        [organizationId, date, honorJson, endroit, activitiesJson, notes, animateur_responsable]
+        [organizationId, date, honorJson, endroit, activitiesJson, notes, animateur_responsable, duration_override || null]
       );
       const savedPreparation = result.rows[0];
       try {

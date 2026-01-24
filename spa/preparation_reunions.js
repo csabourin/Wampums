@@ -133,6 +133,12 @@ export class PreparationReunions {
 
                         // Initialize managers after data is loaded
                         this.activityManager = new ActivityManager(this.app, this.animateurs, this.activities, this.sectionConfig);
+                        
+                        // Set meeting length from organization settings (default: 120 minutes = 2 hours)
+                        const meetingLengthSetting = this.organizationSettings.meeting_length || {};
+                        const meetingLengthMinutes = meetingLengthSetting.duration_minutes || 120;
+                        this.activityManager.setMeetingLength(meetingLengthMinutes);
+                        
                         this.dateManager = new DateManager(this.organizationSettings);
                         this.formManager = new FormManager(this.app, this.organizationSettings, this.animateurs, this.recentHonors, this.activityManager, this.sectionConfig);
                         this.printManager = new PrintManager(this.activityManager, this.sectionConfig);
@@ -317,7 +323,8 @@ export class PreparationReunions {
 
                 debugLog("2. No existing meeting found, creating default");
                 // Create default meeting for next date
-                const selectedActivities = this.activityManager.initializePlaceholderActivities();
+                // Pass null for existing activities since this is a new meeting
+                const selectedActivities = this.activityManager.initializePlaceholderActivities(null);
                 this.activityManager.setSelectedActivities(selectedActivities);
 
                 const defaultAnimateur = this.animateurs.find(
@@ -421,7 +428,7 @@ export class PreparationReunions {
 
         createNewMeeting(date = null) {
                 const newDate = date || this.dateManager.createNewMeetingDate();
-                const selectedActivities = this.activityManager.initializePlaceholderActivities();
+                const selectedActivities = this.activityManager.initializePlaceholderActivities(null);
                 this.activityManager.setSelectedActivities(selectedActivities);
 
                 return {
@@ -522,6 +529,15 @@ export class PreparationReunions {
                                                 <div class="form-group">
                                                         <label for="endroit">${translate("endroit")}:</label>
                                                         <input type="text" id="endroit" value="${escapeHTML(this.organizationSettings.organization_info?.endroit || '')}" required>
+                                                </div>
+                                        </div>
+                                        <div class="form-row">
+                                                <div class="form-group">
+                                                        <label for="duration-override">
+                                                                ${translate("special_meeting_duration")}:
+                                                                <small style="font-weight: normal; color: var(--color-text-muted); font-size: var(--font-size-xs);">(${translate("leave_empty_for_default")})</small>
+                                                        </label>
+                                                        <input type="number" id="duration-override" min="15" step="15" placeholder="${translate("duration_minutes_placeholder")}" title="${translate("duration_override_help")}">
                                                 </div>
                                         </div>
                                         <div id="activities-container" class="activities-grid">

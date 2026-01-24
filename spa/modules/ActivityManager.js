@@ -13,6 +13,8 @@ export class ActivityManager {
                 this.activities = activities;
                 this.selectedActivities = [];
                 this.sectionConfig = sectionConfig;
+                this.meetingLengthMinutes = 120; // Default: 2 hours
+                this.durationOverride = null; // Optional override for special meetings
         }
 
         /**
@@ -24,9 +26,69 @@ export class ActivityManager {
         }
 
         /**
-         * Initialize placeholder activities with default values
+         * Set meeting length and optional duration override
+         * @param {number} lengthMinutes - Planned meeting duration in minutes (e.g., 120 for 2 hours)
+         * @param {number|null} durationOverride - Optional override for special meetings
          */
-        initializePlaceholderActivities() {
+        setMeetingLength(lengthMinutes, durationOverride = null) {
+                this.meetingLengthMinutes = lengthMinutes || 120;
+                this.durationOverride = durationOverride;
+        }
+
+        /**
+         * Calculate actual meeting duration based on activities
+         * @param {Array} activities - Activities to analyze
+         * @returns {number} Total duration in minutes
+         */
+        calculateMeetingDuration(activities) {
+                if (!Array.isArray(activities) || activities.length === 0) {
+                        return 0;
+                }
+
+                // Get start time from first activity and end time from last
+                const times = activities
+                        .filter(a => a.time && a.duration)
+                        .map(a => {
+                                const [hours, minutes] = (a.time || '').split(':').map(Number);
+                                const [durHours, durMinutes] = (a.duration || '00:00').split(':').map(Number);
+                                const startMinutes = (hours || 0) * 60 + (minutes || 0);
+                                const duration = (durHours || 0) * 60 + (durMinutes || 0);
+                                return { start: startMinutes, duration };
+                        });
+
+                if (times.length === 0) {
+                        return 0;
+                }
+
+                // Total duration = last activity end time - first activity start time
+                const firstStart = Math.min(...times.map(t => t.start));
+                const lastEnd = Math.max(...times.map(t => t.start + t.duration));
+                return Math.max(0, lastEnd - firstStart);
+        }
+
+        /**
+         * Initialize placeholder activities with default values
+         * Only includes templates if actual meeting duration < planned duration
+         * @param {Array} existingActivities - Current activities (if any)
+         * @returns {Array} Placeholder activities
+         */
+        initializePlaceholderActivities(existingActivities = null) {
+                // Determine the planned duration (use override if special meeting, otherwise use default)
+                const plannedDuration = this.durationOverride || this.meetingLengthMinutes;
+                
+                // Calculate actual duration if we have existing activities
+                let actualDuration = 0;
+                if (existingActivities && Array.isArray(existingActivities) && existingActivities.length > 0) {
+                        actualDuration = this.calculateMeetingDuration(existingActivities);
+                }
+
+                // Only add template placeholders if actual duration < planned duration
+                // This prevents re-adding templates when the user has already filled the time
+                if (actualDuration >= plannedDuration) {
+                        return existingActivities || [];
+                }
+
+                // Create templates for remaining time
                 const templates = getSectionActivityTemplates(this.sectionConfig);
 
                 const placeholders = templates.map((template, index) => {
@@ -43,7 +105,7 @@ export class ActivityManager {
                         };
                 });
 
-                return placeholders.map((ph, index) => {
+                const defaultActivities = placeholders.map((ph, index) => {
                         const matchingActivity = this.activities.find(a => a.type === ph.type) || {};
                         return {
                                 ...matchingActivity,
@@ -55,6 +117,15 @@ export class ActivityManager {
                                 position: index
                         };
                 });
+
+                // If there are existing activities, merge them
+                if (existingActivities && Array.isArray(existingActivities) && existingActivities.length > 0) {
+                        // Mark existing non-default activities and append templates
+                        const nonDefaultActivities = existingActivities.filter(a => !a.isDefault);
+                        return [...nonDefaultActivities, ...defaultActivities];
+                }
+
+                return defaultActivities;
         }
 
         /**
