@@ -11,7 +11,25 @@
  *   const current = getCurrentFiscalYear(app.organizationSettings);
  */
 
-import { debugLog, debugError } from './DebugUtils.js';
+import { debugError } from './DebugUtils.js';
+
+/**
+ * Calculate the end date for a fiscal year given its start date
+ * 
+ * @param {number} fiscalYearStart - Starting year of fiscal period
+ * @param {number} month - Start month (1-12)
+ * @param {number} day - Start day (1-31)
+ * @returns {string} ISO date string for fiscal year end (YYYY-MM-DD)
+ */
+function calculateFiscalYearEndDate(fiscalYearStart, month, day) {
+  // End date is the day before next fiscal year start
+  const endMonth = month === 1 ? 12 : month - 1;
+  const endYear = month === 1 ? fiscalYearStart : fiscalYearStart + 1;
+  const endDay = endMonth === 12 ? 31 : new Date(endYear, endMonth, 0).getDate();
+  const endMonthStr = String(endMonth).padStart(2, '0');
+  const endDayStr = String(endDay).padStart(2, '0');
+  return `${endYear}-${endMonthStr}-${endDayStr}`;
+}
 
 /**
  * Get fiscal year start date from organization settings
@@ -86,15 +104,7 @@ export function calculateFiscalYear(dateArg, organizationSettings) {
   const dayStr = String(day).padStart(2, '0');
   
   const startDate = `${fiscalYearStart}-${monthStr}-${dayStr}`;
-  
-  // Calculate end date (day before fiscal year start next year)
-  const endYear = fiscalYearEnd;
-  const endMonth = month - 1 === 0 ? 12 : month - 1;
-  const endDay = endMonth === 12 ? 31 : new Date(endYear, endMonth, 0).getDate();
-  const endMonthStr = String(endMonth).padStart(2, '0');
-  const endDayStr = String(endDay).padStart(2, '0');
-  
-  const endDateStr = `${endYear}-${endMonthStr}-${endDayStr}`;
+  const endDateStr = calculateFiscalYearEndDate(fiscalYearStart, month, day);
   
   return {
     year: fiscalYearStart,
@@ -132,17 +142,12 @@ export function getFiscalYearOptions(organizationSettings, yearsBack = 3, yearsA
   for (let i = yearsBack; i > 0; i--) {
     const year = current.year - i;
     const startYear = year;
-    const endYear = year + 1;
+    const endYear = startYear + 1;
     
     const monthStr = String(month).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
     const startDate = `${startYear}-${monthStr}-${dayStr}`;
-    
-    const endMonth = month - 1 === 0 ? 12 : month - 1;
-    const endDay = endMonth === 12 ? 31 : new Date(endYear, endMonth, 0).getDate();
-    const endMonthStr = String(endMonth).padStart(2, '0');
-    const endDayStr = String(endDay).padStart(2, '0');
-    const endDate = `${endYear}-${endMonthStr}-${endDayStr}`;
+    const endDate = calculateFiscalYearEndDate(startYear, month, day);
     
     options.push({
       year: startYear,
@@ -159,17 +164,12 @@ export function getFiscalYearOptions(organizationSettings, yearsBack = 3, yearsA
   for (let i = 1; i <= yearsAhead; i++) {
     const year = current.year + i;
     const startYear = year;
-    const endYear = year + 1;
+    const endYear = startYear + 1;
     
     const monthStr = String(month).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
     const startDate = `${startYear}-${monthStr}-${dayStr}`;
-    
-    const endMonth = month - 1 === 0 ? 12 : month - 1;
-    const endDay = endMonth === 12 ? 31 : new Date(endYear, endMonth, 0).getDate();
-    const endMonthStr = String(endMonth).padStart(2, '0');
-    const endDayStr = String(endDay).padStart(2, '0');
-    const endDate = `${endYear}-${endMonthStr}-${endDayStr}`;
+    const endDate = calculateFiscalYearEndDate(startYear, month, day);
     
     options.push({
       year: startYear,
@@ -186,10 +186,9 @@ export function getFiscalYearOptions(organizationSettings, yearsBack = 3, yearsA
  * Format fiscal year label
  * 
  * @param {number} year - Starting year of fiscal period
- * @param {object} organizationSettings - Organization settings object
  * @returns {string} Formatted label like "2024 – 2025"
  */
-export function formatFiscalYearLabel(year, organizationSettings) {
+export function formatFiscalYearLabel(year) {
   const endYear = year + 1;
   return `${year} – ${endYear}`;
 }
@@ -214,13 +213,14 @@ export function createFiscalYearDropdownHTML(organizationSettings, selectedYear 
 }
 
 /**
- * Parse fiscal year from ISO dates
+ * Parse fiscal year from an ISO start date
+ * 
+ * Note: Fiscal year is derived solely from the start date.
  * 
  * @param {string} startDate - ISO date string (YYYY-MM-DD)
- * @param {string} endDate - ISO date string (YYYY-MM-DD)
  * @returns {number} Fiscal year (start year)
  */
-export function getFiscalYearFromDates(startDate, endDate) {
+export function getFiscalYearFromDates(startDate) {
   const year = parseInt(startDate.split('-')[0], 10);
   return year;
 }
