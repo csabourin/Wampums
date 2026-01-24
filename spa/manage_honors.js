@@ -1,9 +1,11 @@
 import { getHonorsAndParticipants, awardHonor } from "./ajax-functions.js";
+import { updateHonor, deleteHonor } from "./api/api-endpoints.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { deleteCachedData } from "./indexedDB.js";
+import { sanitizeHTML } from "./utils/SecurityUtils.js";
 
 export class ManageHonors {
   constructor(app) {
@@ -16,6 +18,8 @@ export class ManageHonors {
     this.currentSort = { key: "name", order: "asc" };
     this.pendingHonors = []; // Store honors being processed
     this.currentHonorIndex = 0; // Track which honor we're entering
+    this.recentlyAwardedHonors = []; // Track recently awarded honors for undo window
+    this.UNDO_WINDOW_MS = 10 * 60 * 1000; // 10 minutes undo window
   }
 
   async init() {
@@ -80,8 +84,14 @@ export class ManageHonors {
         honor => honor.participant_id === participant.participant_id && new Date(honor.date) <= new Date(this.currentDate)
       ).length;
 
-      // Get the reason from the honor if it exists
-      const honorReason = honorsForDate.length > 0 ? honorsForDate[0].reason || "" : "";
+      // Get the honor details for the current date
+      const currentHonor = honorsForDate.length > 0 ? honorsForDate[0] : null;
+      const honorReason = currentHonor ? (currentHonor.reason || "") : "";
+      const honorId = currentHonor ? currentHonor.id : null;
+      const honorCreatedAt = currentHonor ? currentHonor.created_at : null;
+
+      // Check if honor is within undo window (10 minutes)
+      const canUndo = honorCreatedAt && (new Date() - new Date(honorCreatedAt)) < this.UNDO_WINDOW_MS;
 
       // Get the most recent honor date (excluding current date)
       const previousHonors = this.allHonors.filter(
@@ -98,6 +108,9 @@ export class ManageHonors {
         total_honors: totalHonors,
         last_honor_date: lastHonorDate,
         reason: honorReason,
+        honor_id: honorId,
+        honor_created_at: honorCreatedAt,
+        can_undo: canUndo,
         visible: isCurrentDate || honorsForDate.length > 0
       };
 
@@ -173,10 +186,36 @@ export class ManageHonors {
     const lastHonorDateFormatted = participant.last_honor_date
       ? formatDate(participant.last_honor_date, this.app.lang)
       : "-";
-    const reasonText = participant.reason ? participant.reason : "";
+    const reasonText = participant.reason ? sanitizeHTML(participant.reason) : "";
+
+    // Show contextual menu for honored participants
+    const showMenu = participant.honored_today && participant.honor_id;
+    const menuHtml = showMenu ? `
+      <div class="honor-actions">
+        <button class="honor-actions__trigger" data-honor-id="${participant.honor_id}" aria-label="${translate("actions")}">
+          ⋮
+        </button>
+        <div class="honor-actions__menu" data-honor-id="${participant.honor_id}">
+          <button class="honor-actions__item" data-action="edit-reason" data-honor-id="${participant.honor_id}">
+            ✏️ ${translate("edit_reason")}
+          </button>
+          <button class="honor-actions__item" data-action="edit-date" data-honor-id="${participant.honor_id}">
+            📅 ${translate("change_date")}
+          </button>
+          ${participant.can_undo ? `
+            <button class="honor-actions__item honor-actions__item--undo" data-action="undo" data-honor-id="${participant.honor_id}">
+              ⏪ ${translate("undo")} (${this.getUndoTimeRemaining(participant.honor_created_at)})
+            </button>
+          ` : ''}
+          <button class="honor-actions__item honor-actions__item--danger" data-action="delete" data-honor-id="${participant.honor_id}">
+            🗑️ ${translate("delete")}
+          </button>
+        </div>
+      </div>
+    ` : '';
 
     return `
-      <div class="honors-table__row ${selectedClass} ${disabledClass}" data-participant-id="${participant.participant_id}" data-group-id="${participant.group_id}">
+      <div class="honors-table__row ${selectedClass} ${disabledClass}" data-participant-id="${participant.participant_id}" data-group-id="${participant.group_id}" data-honor-id="${participant.honor_id || ''}">
         <div class="honors-table__cell honors-table__cell--checkbox">
           <input type="checkbox" id="participant-${participant.participant_id}" ${isDisabled ? "disabled" : ""} ${participant.honored_today ? "checked" : ""}>
         </div>
@@ -193,8 +232,20 @@ export class ManageHonors {
         <div class="honors-table__cell honors-table__cell--date">
           ${lastHonorDateFormatted}
         </div>
+        ${showMenu ? `<div class="honors-table__cell honors-table__cell--actions">${menuHtml}</div>` : ''}
       </div>
     `;
+  }
+
+  /**
+   * Get remaining time for undo window in human-readable format
+   */
+  getUndoTimeRemaining(createdAt) {
+    const now = new Date();
+    const created = new Date(createdAt);
+    const remainingMs = this.UNDO_WINDOW_MS - (now - created);
+    const remainingMinutes = Math.ceil(remainingMs / 60000);
+    return `${remainingMinutes}min`;
   }
 
   attachEventListeners() {
@@ -214,6 +265,62 @@ export class ManageHonors {
     });
 
     document.getElementById("awardHonorButton").addEventListener("click", () => this.awardHonor());
+
+    // Attach honor action listeners
+    this.attachHonorActionListeners();
+  }
+
+  /**
+   * Attach event listeners for honor action menus (edit, delete, undo)
+   */
+  attachHonorActionListeners() {
+    // Toggle menu on trigger click
+    document.querySelectorAll('.honor-actions__trigger').forEach(trigger => {
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const honorId = trigger.dataset.honorId;
+        const menu = document.querySelector(`.honor-actions__menu[data-honor-id="${honorId}"]`);
+
+        // Close all other menus
+        document.querySelectorAll('.honor-actions__menu.show').forEach(m => {
+          if (m !== menu) m.classList.remove('show');
+        });
+
+        menu.classList.toggle('show');
+      });
+    });
+
+    // Handle menu item clicks
+    document.querySelectorAll('.honor-actions__item').forEach(item => {
+      item.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const action = item.dataset.action;
+        const honorId = parseInt(item.dataset.honorId);
+
+        // Close menu
+        document.querySelectorAll('.honor-actions__menu.show').forEach(m => m.classList.remove('show'));
+
+        switch (action) {
+          case 'edit-reason':
+            await this.showEditReasonModal(honorId);
+            break;
+          case 'edit-date':
+            await this.showEditDateModal(honorId);
+            break;
+          case 'undo':
+            await this.handleUndoHonor(honorId);
+            break;
+          case 'delete':
+            await this.handleDeleteHonor(honorId);
+            break;
+        }
+      });
+    });
+
+    // Close menus when clicking outside
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.honor-actions__menu.show').forEach(m => m.classList.remove('show'));
+    });
   }
 
   handleItemClick(event) {
@@ -237,6 +344,8 @@ export class ManageHonors {
 
     // Attach event listeners to list items only
     this.attachEventListenersToListItems();
+    // Attach honor action listeners
+    this.attachHonorActionListeners();
   }
 
 
@@ -506,5 +615,216 @@ export class ManageHonors {
       <p>${translate("error_loading_honors")}</p>
     `;
     setContent(document.getElementById("app"), errorMessage);
+  }
+
+  /**
+   * Show modal to edit honor reason
+   */
+  async showEditReasonModal(honorId) {
+    const honor = this.allHonors.find(h => h.id === honorId);
+    if (!honor) return;
+
+    const modalHtml = `
+      <div class="modal-overlay" id="edit-reason-modal">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2>${translate("edit_reason")}</h2>
+            <button class="modal-close" id="close-edit-modal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form id="edit-reason-form">
+              <div class="form-group">
+                <label for="edit-reason-input">${translate("honor_reason_label")}:</label>
+                <textarea
+                  id="edit-reason-input"
+                  class="form-control"
+                  rows="3"
+                  required
+                  autofocus
+                >${sanitizeHTML(honor.reason || '')}</textarea>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="button button--secondary" id="cancel-edit-reason">
+                  ${translate("cancel")}
+                </button>
+                <button type="submit" class="button button--primary">
+                  ${translate("save")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const form = document.getElementById('edit-reason-form');
+    const closeBtn = document.getElementById('close-edit-modal');
+    const cancelBtn = document.getElementById('cancel-edit-reason');
+    const modal = document.getElementById('edit-reason-modal');
+
+    const closeModal = () => modal.remove();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newReason = document.getElementById('edit-reason-input').value.trim();
+
+      if (!newReason) {
+        this.app.showMessage(translate("honor_reason_required"), "error");
+        return;
+      }
+
+      try {
+        await updateHonor(honorId, { reason: newReason });
+        this.app.showMessage(translate("honor_updated_successfully"), "success");
+        closeModal();
+        await this.clearHonorsCaches();
+        await this.fetchData();
+        this.processHonors();
+        this.updateHonorsListUI();
+      } catch (error) {
+        debugError("Error updating honor reason:", error);
+        this.app.showMessage(translate("error_updating_honor"), "error");
+      }
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target.id === 'edit-reason-modal') closeModal();
+    });
+
+    setTimeout(() => document.getElementById('edit-reason-input')?.focus(), 100);
+  }
+
+  /**
+   * Show modal to edit honor date
+   */
+  async showEditDateModal(honorId) {
+    const honor = this.allHonors.find(h => h.id === honorId);
+    if (!honor) return;
+
+    const modalHtml = `
+      <div class="modal-overlay" id="edit-date-modal">
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h2>${translate("change_date")}</h2>
+            <button class="modal-close" id="close-date-modal">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="warning-text">⚠️ ${translate("changing_date_warning")}</p>
+            <form id="edit-date-form">
+              <div class="form-group">
+                <label for="edit-date-input">${translate("new_date")}:</label>
+                <input
+                  type="date"
+                  id="edit-date-input"
+                  class="form-control"
+                  value="${honor.date}"
+                  required
+                  autofocus
+                />
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="button button--secondary" id="cancel-edit-date">
+                  ${translate("cancel")}
+                </button>
+                <button type="submit" class="button button--primary">
+                  ${translate("save")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const form = document.getElementById('edit-date-form');
+    const closeBtn = document.getElementById('close-date-modal');
+    const cancelBtn = document.getElementById('cancel-edit-date');
+    const modal = document.getElementById('edit-date-modal');
+
+    const closeModal = () => modal.remove();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newDate = document.getElementById('edit-date-input').value;
+
+      if (!newDate) {
+        this.app.showMessage(translate("date_required"), "error");
+        return;
+      }
+
+      try {
+        await updateHonor(honorId, { date: newDate });
+        this.app.showMessage(translate("honor_date_updated_successfully"), "success");
+        closeModal();
+        await this.clearHonorsCaches();
+        await this.fetchData();
+        this.processHonors();
+        this.updateHonorsListUI();
+      } catch (error) {
+        debugError("Error updating honor date:", error);
+        this.app.showMessage(translate("error_updating_honor"), "error");
+      }
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target.id === 'edit-date-modal') closeModal();
+    });
+
+    setTimeout(() => document.getElementById('edit-date-input')?.focus(), 100);
+  }
+
+  /**
+   * Handle undo honor (quick delete within time window)
+   */
+  async handleUndoHonor(honorId) {
+    const honor = this.allHonors.find(h => h.id === honorId);
+    if (!honor) return;
+
+    try {
+      await deleteHonor(honorId);
+      this.app.showMessage(translate("honor_undone_successfully"), "success");
+      await this.clearHonorsCaches();
+      await this.fetchData();
+      this.processHonors();
+      this.updateHonorsListUI();
+    } catch (error) {
+      debugError("Error undoing honor:", error);
+      this.app.showMessage(translate("error_undoing_honor"), "error");
+    }
+  }
+
+  /**
+   * Handle delete honor (with confirmation)
+   */
+  async handleDeleteHonor(honorId) {
+    const honor = this.allHonors.find(h => h.id === honorId);
+    if (!honor) return;
+
+    const participant = this.allParticipants.find(p => p.participant_id === honor.participant_id);
+    const participantName = participant ? `${participant.first_name} ${participant.last_name}` : '';
+
+    if (!confirm(`${translate("confirm_delete_honor")} ${participantName}?`)) {
+      return;
+    }
+
+    try {
+      await deleteHonor(honorId);
+      this.app.showMessage(translate("honor_deleted_successfully"), "success");
+      await this.clearHonorsCaches();
+      await this.fetchData();
+      this.processHonors();
+      this.updateHonorsListUI();
+    } catch (error) {
+      debugError("Error deleting honor:", error);
+      this.app.showMessage(translate("error_deleting_honor"), "error");
+    }
   }
 }

@@ -1511,6 +1511,25 @@ export async function getAvailableDates() {
     return API.get('available-dates');
 }
 
+/**
+ * Update honor (date or reason) - v1 permission-based
+ * @param {number} honorId - Honor ID
+ * @param {Object} updates - Fields to update { date?, reason? }
+ * @returns {Promise}
+ */
+export async function updateHonor(honorId, updates) {
+    return API.patch(`v1/honors/${honorId}`, updates);
+}
+
+/**
+ * Delete honor and associated points - v1 permission-based
+ * @param {number} honorId - Honor ID
+ * @returns {Promise}
+ */
+export async function deleteHonor(honorId) {
+    return API.delete(`v1/honors/${honorId}`);
+}
+
 // ============================================================================
 // ATTENDANCE
 // ============================================================================

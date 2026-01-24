@@ -68,9 +68,10 @@ module.exports = (pool, logger) => {
         [organizationId]
       );
 
-      // Get honors
+      // Get honors with audit trail
       const honorsResult = await pool.query(
-        `SELECT h.id, h.participant_id, h.date::text as date, h.reason
+        `SELECT h.id, h.participant_id, h.date::text as date, h.reason,
+                h.created_at, h.created_by, h.updated_at, h.updated_by
          FROM honors h
          JOIN participants p ON h.participant_id = p.id
          JOIN participant_organizations po ON p.id = po.participant_id
@@ -172,11 +173,14 @@ module.exports = (pool, logger) => {
             // Honor already exists - skip
             results.push({ participantId, success: true, action: 'already_awarded' });
           } else {
-            // Add new honor with organization_id and reason
-            await client.query(
-              `INSERT INTO honors (participant_id, date, organization_id, reason) VALUES ($1, $2, $3, $4)`,
-              [participantId, honorDate, organizationId, reason]
+            // Add new honor with organization_id, reason, and audit trail
+            const honorResult = await client.query(
+              `INSERT INTO honors (participant_id, date, organization_id, reason, created_by, created_at)
+               VALUES ($1, $2, $3, $4, $5, NOW())
+               RETURNING id`,
+              [participantId, honorDate, organizationId, reason, req.user.id]
             );
+            const honorId = honorResult.rows[0].id;
 
             // Get participant's group for proper point tracking
             const groupResult = await client.query(
@@ -186,20 +190,229 @@ module.exports = (pool, logger) => {
             );
             const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
 
-            // Add points for the honor based on organization rules
+            // Add points for the honor based on organization rules, linked to honor
             await client.query(
-              `INSERT INTO points (participant_id, group_id, value, created_at, organization_id)
-               VALUES ($1, $2, $3, $4, $5)`,
-              [participantId, groupId, honorPoints, honorDate, organizationId]
+              `INSERT INTO points (participant_id, group_id, value, created_at, organization_id, honor_id)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [participantId, groupId, honorPoints, honorDate, organizationId, honorId]
             );
 
-            logger.info(`[honor] Participant ${participantId} awarded honor on ${honorDate}, points: +${honorPoints}`);
-            results.push({ participantId, success: true, action: 'awarded', points: honorPoints });
+            logger.info(`[honor] Participant ${participantId} awarded honor on ${honorDate} by user ${req.user.id}, points: +${honorPoints}`);
+            results.push({ participantId, success: true, action: 'awarded', points: honorPoints, honorId });
           }
         }
 
         await client.query('COMMIT');
         return success(res, { results }, 'Honor(s) awarded successfully', 200);
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    })
+  );
+
+  /**
+   * @swagger
+   * /api/v1/honors/{id}:
+   *   patch:
+   *     summary: Update honor (v1)
+   *     description: Update honor date or reason. Points date will be updated to match honor date.
+   *     tags: [Honors]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     requestBody:
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               date:
+   *                 type: string
+   *                 format: date
+   *               reason:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Honor updated successfully
+   *       404:
+   *         description: Honor not found
+   */
+  router.patch('/v1/honors/:id',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('honors.create'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const honorId = parseInt(req.params.id);
+      const { date, reason } = req.body;
+
+      if (!date && !reason) {
+        return errorResponse(res, 'At least one field (date or reason) must be provided', 400);
+      }
+
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+
+        // Verify honor exists and belongs to organization
+        const checkResult = await client.query(
+          `SELECT h.id, h.date, h.participant_id
+           FROM honors h
+           JOIN participants p ON h.participant_id = p.id
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE h.id = $1 AND po.organization_id = $2`,
+          [honorId, organizationId]
+        );
+
+        if (checkResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Honor not found', 404);
+        }
+
+        const currentHonor = checkResult.rows[0];
+
+        // Update honor
+        const updateFields = [];
+        const updateParams = [honorId, organizationId, req.user.id];
+        let paramIndex = 4;
+
+        if (date) {
+          updateFields.push(`date = $${paramIndex}`);
+          updateParams.push(date);
+          paramIndex++;
+        }
+
+        if (reason !== undefined) {
+          updateFields.push(`reason = $${paramIndex}`);
+          updateParams.push(reason);
+          paramIndex++;
+        }
+
+        updateFields.push('updated_at = NOW()');
+        updateFields.push('updated_by = $3');
+
+        const updateQuery = `
+          UPDATE honors
+          SET ${updateFields.join(', ')}
+          WHERE id = $1 AND organization_id = $2
+          RETURNING *
+        `;
+
+        const updateResult = await client.query(updateQuery, updateParams);
+
+        // If date was changed, update associated points date
+        if (date && date !== currentHonor.date) {
+          await client.query(
+            `UPDATE points
+             SET created_at = $1
+             WHERE honor_id = $2 AND organization_id = $3`,
+            [date, honorId, organizationId]
+          );
+          logger.info(`[honor] Updated honor ${honorId} date from ${currentHonor.date} to ${date}, points date synced`);
+        }
+
+        await client.query('COMMIT');
+
+        return success(res, updateResult.rows[0], 'Honor updated successfully');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    })
+  );
+
+  /**
+   * @swagger
+   * /api/v1/honors/{id}:
+   *   delete:
+   *     summary: Delete honor (v1)
+   *     description: Delete honor and associated points (CASCADE)
+   *     tags: [Honors]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Honor deleted successfully
+   *       404:
+   *         description: Honor not found
+   */
+  router.delete('/v1/honors/:id',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('honors.create'),
+    asyncHandler(async (req, res) => {
+      const organizationId = await getOrganizationId(req, pool);
+      const honorId = parseInt(req.params.id);
+
+      const client = await pool.connect();
+
+      try {
+        await client.query('BEGIN');
+
+        // Verify honor exists and belongs to organization, get details for logging
+        const checkResult = await client.query(
+          `SELECT h.id, h.participant_id, h.date, h.reason,
+                  p.first_name, p.last_name
+           FROM honors h
+           JOIN participants p ON h.participant_id = p.id
+           JOIN participant_organizations po ON p.id = po.participant_id
+           WHERE h.id = $1 AND po.organization_id = $2`,
+          [honorId, organizationId]
+        );
+
+        if (checkResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 'Honor not found', 404);
+        }
+
+        const honor = checkResult.rows[0];
+
+        // Delete associated points first (if not using CASCADE)
+        // Points will be deleted automatically via CASCADE if foreign key is set up correctly
+        // But we'll be explicit for clarity and to get count
+        const pointsResult = await client.query(
+          `DELETE FROM points WHERE honor_id = $1 AND organization_id = $2 RETURNING id, value`,
+          [honorId, organizationId]
+        );
+
+        // Delete the honor
+        await client.query(
+          `DELETE FROM honors WHERE id = $1 AND organization_id = $2`,
+          [honorId, organizationId]
+        );
+
+        await client.query('COMMIT');
+
+        logger.info(
+          `[honor] Deleted honor ${honorId} for participant ${honor.participant_id} ` +
+          `(${honor.first_name} ${honor.last_name}) on ${honor.date}. ` +
+          `Removed ${pointsResult.rows.length} associated point(s). Deleted by user ${req.user.id}`
+        );
+
+        return success(res, {
+          deleted: true,
+          honorId,
+          participantId: honor.participant_id,
+          date: honor.date,
+          pointsRemoved: pointsResult.rows.length
+        }, 'Honor deleted successfully');
       } catch (error) {
         await client.query('ROLLBACK');
         throw error;
@@ -246,6 +459,7 @@ module.exports = (pool, logger) => {
 
       let query = `
         SELECT h.id, h.date::text as date, h.reason,
+               h.created_at, h.created_by, h.updated_at, h.updated_by,
                p.id as participant_id, p.first_name, p.last_name,
                g.name as group_name
         FROM honors h
@@ -348,9 +562,10 @@ module.exports = (pool, logger) => {
         [organizationId]
       );
 
-      // Get honors
+      // Get honors with audit trail
       const honorsResult = await pool.query(
-        `SELECT h.id, h.participant_id, h.date::text as date, h.reason
+        `SELECT h.id, h.participant_id, h.date::text as date, h.reason,
+                h.created_at, h.created_by, h.updated_at, h.updated_by
          FROM honors h
          JOIN participants p ON h.participant_id = p.id
          JOIN participant_organizations po ON p.id = po.participant_id
@@ -557,6 +772,7 @@ module.exports = (pool, logger) => {
 
       let query = `
         SELECT h.id, h.date::text as date, h.reason,
+               h.created_at, h.created_by, h.updated_at, h.updated_by,
                p.id as participant_id, p.first_name, p.last_name,
                g.name as group_name
         FROM honors h
