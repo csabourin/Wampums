@@ -61,23 +61,12 @@ export class ActivityManager {
          * Render the activities table
          */
         renderActivitiesTable() {
-                const defaultActivities = this.initializePlaceholderActivities();
-                const totalActivities = Math.max(this.selectedActivities.length, defaultActivities.length);
-
-                const activitiesToRender = [];
-                for (let i = 0; i < totalActivities; i++) {
-                        const savedActivity = this.selectedActivities[i] || {};
-                        const defaultActivity = defaultActivities[i] || {};
-
-                        const activity = {
-                                ...defaultActivity,
-                                ...savedActivity,
-                                position: i,
-                                isDefault: savedActivity.isDefault === undefined ? true : savedActivity.isDefault
-                        };
-
-                        activitiesToRender.push(activity);
-                }
+                // Simply render the current selectedActivities array
+                // No merging with defaults - defaults should only be used when initializing
+                const activitiesToRender = this.selectedActivities.map((activity, index) => ({
+                        ...activity,
+                        position: index
+                }));
 
                 const activitiesHtml = activitiesToRender.map((activity, index) => {
                         return this.renderActivityRow(activity, index);
@@ -200,6 +189,9 @@ export class ActivityManager {
          * Add a new activity row at the specified position
          */
         addActivityRow(position) {
+                // Sync from DOM first to preserve any unsaved changes
+                this.selectedActivities = this.getSelectedActivitiesFromDOM();
+                
                 const newActivity = {
                         position: parseInt(position) + 1,
                         time: "",
@@ -219,6 +211,9 @@ export class ActivityManager {
          * Delete an activity row at the specified position
          */
         deleteActivityRow(position) {
+                // Sync from DOM first to preserve any unsaved changes
+                this.selectedActivities = this.getSelectedActivitiesFromDOM();
+                
                 this.selectedActivities.splice(position, 1);
                 this.recalculatePositions();
                 this.renderActivitiesTable();
