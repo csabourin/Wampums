@@ -396,7 +396,12 @@ export class BadgeDashboard {
           .join("")
       : `<span class="badge-chip badge-chip--muted">${translate("badge_no_entries")}</span>`;
 
-    const addBadgeAction = record.badges.length ? "" : ``;
+    const addBadgeAction = `<button class="badge-chip badge-chip--add" data-action="add-badge" data-participant-id="${record.id}" title="${translate("badge_add_button") || "Add star"}">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 3v10M3 8h10"/>
+      </svg>
+      ${translate("badge_add_button") || "Add star"}
+    </button>`;
 
     return `
       <article class="badge-table__row" role="row" data-participant-id="${record.id}">

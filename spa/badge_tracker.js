@@ -680,11 +680,12 @@ export class BadgeTracker {
             <label for="modal-date" class="form-label form-label--required">${translate('achievement_date') || "Date d'obtention"}</label>
             <input type="date" id="modal-date" name="date_obtention" required value="${new Date().toISOString().split('T')[0]}">
           </div>
+
+          <div class="badge-tracker__modal-footer">
+            <button type="button" class="button button--secondary" data-action="close-modal">${translate('cancel')}</button>
+            <button type="submit" class="button button--primary">${translate('badge_add_star') || "Ajouter l'étoile"}</button>
+          </div>
         </form>
-        <div class="badge-tracker__modal-footer">
-          <button type="button" class="button button--secondary" data-action="close-modal">${translate('cancel')}</button>
-          <button type="submit" form="add-star-form" class="button button--primary">${translate('badge_add_star') || "Ajouter l'étoile"}</button>
-        </div>
       </div>
     `);
 
@@ -757,7 +758,7 @@ export class BadgeTracker {
         break;
 
       case 'add-star':
-        this.modalInitialData = null;
+        this.modalInitialData = this.expandedParticipant ? { participant_id: this.expandedParticipant } : null;
         this.isModalOpen = true;
         this.renderModal();
         break;
@@ -881,11 +882,16 @@ export class BadgeTracker {
 
     // Form submission
     const form = modal.querySelector('#add-star-form');
-    if (form) {
+    if (form && !form.dataset.listenerAttached) {
+      form.dataset.listenerAttached = 'true';
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
+        debugLog('[BadgeTracker] Form submitted');
         await this.handleAddStar(new FormData(form));
       });
+      debugLog('[BadgeTracker] Form submit listener attached');
+    } else if (!form) {
+      debugError('[BadgeTracker] Form not found in modal');
     }
 
     updateStarInfo();
