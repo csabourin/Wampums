@@ -5439,7 +5439,7 @@ body.online .pending-update { display: none; }
   color: var(--color-text-light);
   font-weight: var(--font-weight-normal);
   font-style: italic;
-  display: none; /* Hidden by default, shown only on mobile */
+  display: block; /* Show reason on all screen sizes */
 }
 
 .participant-last-honor {
