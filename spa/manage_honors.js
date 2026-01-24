@@ -196,7 +196,8 @@ export class ManageHonors {
   }
 
   renderParticipantItem(participant) {
-    const isDisabled = this.isPastDate() || participant.honored_today;
+    // Only disable if past date - honored participants should remain interactive for menu access
+    const isDisabled = this.isPastDate();
     const selectedClass = participant.honored_today ? "selected" : "";
     const disabledClass = isDisabled ? "disabled" : "";
     const lastHonorDateFormatted = participant.last_honor_date
@@ -244,7 +245,7 @@ export class ManageHonors {
     return `
       <div class="honors-table__row ${selectedClass} ${disabledClass}" data-participant-id="${participant.participant_id}" data-group-id="${participant.group_id}" data-honor-id="${participant.honor_id || ''}">
         <div class="honors-table__cell honors-table__cell--checkbox">
-          <input type="checkbox" id="participant-${participant.participant_id}" ${isDisabled ? "disabled" : ""} ${participant.honored_today ? "checked" : ""}>
+          <input type="checkbox" id="participant-${participant.participant_id}" ${isDisabled || participant.honored_today ? "disabled" : ""} ${participant.honored_today ? "checked" : ""}>
         </div>
         <div class="honors-table__cell honors-table__cell--name">
           <label for="participant-${participant.participant_id}">
@@ -359,6 +360,11 @@ export class ManageHonors {
   }
 
   handleItemClick(event) {
+    // Don't handle click if it came from the actions menu or trigger
+    if (event.target.closest('.honor-actions')) {
+      return;
+    }
+
     const item = event.currentTarget;
     const checkbox = item.querySelector('input[type="checkbox"]');
     if (checkbox.disabled) return;
