@@ -27,7 +27,7 @@ import { LoadingStateManager, retryWithBackoff } from "./utils/PerformanceUtils.
 import { validateMoney, validateRequired } from "./utils/ValidationUtils.js";
 import { canViewBudget } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
-import { getCurrentFiscalYear, getFiscalYearOptions, createFiscalYearDropdownHTML } from "./utils/FiscalYearUtils.js";
+import { getCurrentFiscalYear, getFiscalYearOptions } from "./utils/FiscalYearUtils.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
@@ -238,7 +238,6 @@ export class Budgets {
     if (!container) return;
 
     const tabContent = await this.renderTabContent();
-    const fyData = this.getCurrentFiscalYearData();
 
     setContent(container, `
       <div class="page-container budgets-page">
@@ -694,7 +693,6 @@ export class Budgets {
     `;
   }
 
-            const fy = this.getCurrentFiscalYearData();
   async renderReports() {
     // Load revenue breakdown data first since it's async
     await this.loadRevenueBreakdown();

@@ -213,7 +213,6 @@ export class RevenueDashboard {
   async render() {
     const container = document.getElementById("app");
     if (!container) return;
-    const fy = this.getCurrentFiscalYearData();
 
     setContent(container, `
       <div class="page-container revenue-dashboard-page">
