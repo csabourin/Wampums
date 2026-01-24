@@ -44,16 +44,15 @@ export class FormManager {
         }
 
         /**
-         * Build HTML list items for honors.
+         * Build plain text list for honors (one per line).
          * @param {Array<string|object>} honors - Honors list.
-         * @returns {string} HTML list items.
+         * @returns {string} Plain text, one honor per line.
          */
         getHonorListItems(honors = []) {
                 return (honors || [])
                         .map(honor => this.formatHonorText(honor))
                         .filter(Boolean)
-                        .map(text => `<li>${escapeHTML(text)}</li>`)
-                        .join('');
+                        .join('\n');
         }
 
         /**
@@ -88,17 +87,17 @@ export class FormManager {
                 document.getElementById("date").value = this.formatDateForInput(meetingData.date || currentDate);
 
                 // Handle Louveteau d'honneur
-                const honorList = document.getElementById("youth-of-honor");
+                const honorTextarea = document.getElementById("youth-of-honor");
                 const honorData = meetingData.youth_of_honor ?? meetingData.louveteau_dhonneur;
                 if (Array.isArray(honorData)) {
-                        const honorsHtml = honorData.length > 0
+                        const honorsText = honorData.length > 0
                                 ? this.getHonorListItems(honorData)
                                 : this.getHonorListItems(this.recentHonors);
-                        setContent(honorList, honorsHtml);
+                        honorTextarea.value = honorsText;
                 } else if (typeof honorData === 'string') {
-                        setContent(honorList, this.getHonorListItems([honorData]));
+                        honorTextarea.value = this.getHonorListItems([honorData]);
                 } else {
-                        setContent(honorList, this.getHonorListItems(this.recentHonors));
+                        honorTextarea.value = this.getHonorListItems(this.recentHonors);
                 }
 
                 document.getElementById("endroit").value = meetingData.endroit || this.organizationSettings.organization_info?.endroit || '';
@@ -166,7 +165,7 @@ export class FormManager {
         resetForm(currentDate) {
                 document.getElementById("animateur-responsable").value = '';
                 document.getElementById("date").value = this.formatDateForInput(currentDate);
-                setContent(document.getElementById("youth-of-honor"), '');
+                document.getElementById("youth-of-honor").value = '';
                 document.getElementById("endroit").value = this.organizationSettings.organization_info?.endroit || '';
                 document.getElementById("notes").value = '';
 
@@ -184,8 +183,9 @@ export class FormManager {
                 const updatedActivities = this.activityManager.getSelectedActivitiesFromDOM();
                 console.log("1. Updated activities from DOM:", updatedActivities);
                 
-                const honorValues = Array.from(document.getElementById('youth-of-honor').querySelectorAll('li'))
-                        .map(li => li.textContent.trim())
+                const honorValues = document.getElementById('youth-of-honor').value
+                        .split('\n')
+                        .map(line => line.trim())
                         .filter(Boolean);
                 console.log("2. Honor values extracted:", honorValues);
 

@@ -135,25 +135,23 @@ export class ActivityManager {
                                         <input type="time" value="${time}" class="activity-time">
                                         <input type="text" value="${duration}" class="activity-duration" placeholder="00:00">
                                 </div>
-                                <div class="activity-row__details">
-                                        <div class="activity-row__activity">
-                                                <select class="activity-select" data-default="${a.isDefault}">
-                                                        ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ''}
-                                                        <option value="">${translate("select_activity")}</option>
-                                                        ${this.activities.map(act => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
-                                                </select>
-                                                <button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
-                                        </div>
-                                        <div class="activity-row__responsable">
-                                                ${responsableField}
-                                        </div>
-                                        <div class="activity-row__materiel">
-                                                <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
-                                        </div>
-                                        <div class="activity-row__actions">
-                                                <button type="button" class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
-                                                <button type="button" class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
-                                        </div>
+                                <div class="activity-row__activity">
+                                        <select class="activity-select" data-default="${a.isDefault}">
+                                                ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ''}
+                                                <option value="">${translate("select_activity")}</option>
+                                                ${this.activities.map(act => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
+                                        </select>
+                                        <button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
+                                </div>
+                                <div class="activity-row__responsable">
+                                        ${responsableField}
+                                </div>
+                                <div class="activity-row__materiel">
+                                        <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
+                                </div>
+                                <div class="activity-row__actions">
+                                        <button type="button" class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
+                                        <button type="button" class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
                                 </div>
                         </div>
                 `;

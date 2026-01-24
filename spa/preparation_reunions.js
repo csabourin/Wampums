@@ -513,10 +513,11 @@ export class PreparationReunions {
                                         </div>
                                         <div class="form-row">
                                                 <div class="form-group">
-                                                        <label for="youth-of-honor">${honorLabel}:</label>
-                                                        <ul id="youth-of-honor" class="honor-list" contenteditable="true">
-                                                                ${honorListItems}
-                                                        </ul>
+                                                        <label for="youth-of-honor">
+                                                                ${honorLabel}:
+                                                                <small style="font-weight: normal; color: var(--color-text-muted); font-size: var(--font-size-xs);">(${translate("one_per_line")})</small>
+                                                        </label>
+                                                        <textarea id="youth-of-honor" class="honor-textarea" rows="3" placeholder="${translate("enter_names_one_per_line")}">${honorListItems}</textarea>
                                                 </div>
                                                 <div class="form-group">
                                                         <label for="endroit">${translate("endroit")}:</label>
