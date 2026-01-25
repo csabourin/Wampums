@@ -198,13 +198,13 @@ module.exports = (pool, logger, whatsappService) => {
       }
 
       // Send test message
-      const success = await whatsappService.sendMessage(organizationId, phoneNumber, message);
+      const result = await whatsappService.sendMessage(organizationId, phoneNumber, message);
 
       res.json({
-        success,
-        message: success
+        success: result.success,
+        message: result.success
           ? 'Test message sent successfully'
-          : 'Failed to send test message. Make sure WhatsApp is connected.',
+          : result.error || 'Failed to send test message. Make sure WhatsApp is connected.',
       });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {

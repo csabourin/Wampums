@@ -313,7 +313,7 @@ async function sendResetEmail(to, subject, message) {
  * @param {string} message - Message text (up to 1600 characters for WhatsApp)
  * @param {number|null} organizationId - Organization ID (for Baileys lookup)
  * @param {object|null} whatsappService - WhatsApp Baileys service instance (optional)
- * @returns {Promise<boolean>} Success status
+ * @returns {Promise<{success: boolean, error?: string}>} Result with success status and optional error
  */
 async function sendWhatsApp(to, message, organizationId = null, whatsappService = null) {
   try {
@@ -323,22 +323,25 @@ async function sendWhatsApp(to, message, organizationId = null, whatsappService 
 
       if (isConnected) {
         logger.info("Using Baileys to send WhatsApp message", { to, organizationId });
-        const success = await whatsappService.sendMessage(organizationId, to, message);
+        const result = await whatsappService.sendMessage(organizationId, to, message);
 
-        if (success) {
+        if (result.success) {
           logger.info("WhatsApp message sent successfully via Baileys");
-          return true;
+          return { success: true };
         } else {
-          logger.warn("Baileys failed to send message");
+          logger.warn("Baileys failed to send message:", result.error);
+          return { success: false, error: result.error };
         }
       } else {
         logger.info("Baileys not connected for organization", { organizationId });
+        return { success: false, error: "WhatsApp is not connected" };
       }
     }
 
-
+    return { success: false, error: "WhatsApp service not available" };
   } catch (error) {
     logger.error("Error in sendWhatsApp:", error.message || error);
+    return { success: false, error: error.message || "Unknown error" };
   }
 }
 

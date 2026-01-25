@@ -431,7 +431,7 @@ class WhatsAppBaileysService {
    * @param {number} organizationId - Organization ID
    * @param {string} phoneNumber - Recipient phone number in E.164 format
    * @param {string} message - Message text
-   * @returns {Promise<boolean>} Success status
+   * @returns {Promise<{success: boolean, error?: string}>} Result with success status and optional error message
    */
   async sendMessage(organizationId, phoneNumber, message) {
     try {
@@ -439,7 +439,10 @@ class WhatsAppBaileysService {
 
       if (!connectionObj || !connectionObj.isConnected) {
         logger.warn(`WhatsApp not connected for organization ${organizationId}`);
-        return false;
+        return { 
+          success: false, 
+          error: 'WhatsApp is not connected. Please reconnect via QR code.' 
+        };
       }
 
       // Format phone number for WhatsApp (remove + and add @s.whatsapp.net)
@@ -449,14 +452,67 @@ class WhatsAppBaileysService {
       const delay = Math.floor(Math.random() * 3000) + 2000;
       await new Promise(resolve => setTimeout(resolve, delay));
 
-      // Send message
-      await connectionObj.sock.sendMessage(formattedNumber, { text: message });
-
-      logger.info(`Message sent successfully to ${phoneNumber} for org ${organizationId}`);
-      return true;
+      // Send message with comprehensive error handling
+      try {
+        await connectionObj.sock.sendMessage(formattedNumber, { text: message });
+        logger.info(`Message sent successfully to ${phoneNumber} for org ${organizationId}`);
+        return { success: true };
+      } catch (sendError) {
+        logger.error(`Baileys error sending message for org ${organizationId}:`, sendError);
+        
+        // Parse Baileys-specific errors
+        const errorMessage = sendError.message || String(sendError);
+        
+        // Session expired or corrupted
+        if (errorMessage.includes('tctoken') || 
+            errorMessage.includes('session') || 
+            errorMessage.includes('invalid children') ||
+            errorMessage.includes('not open')) {
+          
+          logger.warn(`WhatsApp session corrupted for org ${organizationId}, clearing connection`);
+          
+          // Clear the corrupted session
+          try {
+            await this.clearAuthState(organizationId);
+            this.connections.delete(organizationId);
+          } catch (cleanupError) {
+            logger.error(`Error cleaning up corrupted session for org ${organizationId}:`, cleanupError);
+          }
+          
+          return { 
+            success: false, 
+            error: 'WhatsApp session expired or corrupted. Please disconnect and reconnect via QR code.' 
+          };
+        }
+        
+        // Rate limiting
+        if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+          return { 
+            success: false, 
+            error: 'WhatsApp rate limit reached. Please wait before sending more messages.' 
+          };
+        }
+        
+        // Invalid phone number
+        if (errorMessage.includes('jid') || errorMessage.includes('invalid number')) {
+          return { 
+            success: false, 
+            error: 'Invalid phone number format. Use international format (e.g., +15551234567).' 
+          };
+        }
+        
+        // Generic Baileys error
+        return { 
+          success: false, 
+          error: `Failed to send message: ${errorMessage.substring(0, 100)}` 
+        };
+      }
     } catch (error) {
-      logger.error(`Error sending WhatsApp message for org ${organizationId}:`, error);
-      return false;
+      logger.error(`Unexpected error in sendMessage for org ${organizationId}:`, error);
+      return { 
+        success: false, 
+        error: 'An unexpected error occurred. Please try again or reconnect WhatsApp.' 
+      };
     }
   }
 
