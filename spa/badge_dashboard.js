@@ -24,10 +24,11 @@ import {
   OptimisticUpdateManager,
   generateOptimisticId,
 } from "./utils/OptimisticUpdateManager.js";
+import { BaseModule } from "./utils/BaseModule.js";
 
-export class BadgeDashboard {
+export class BadgeDashboard extends BaseModule {
   constructor(app) {
-    this.app = app;
+    super(app);
     this.groups = [];
     this.participants = [];
     this.badgeEntries = [];
@@ -41,6 +42,7 @@ export class BadgeDashboard {
     this.sortDirection = "asc";
     this.modalContainerId = "badge-dashboard-modal";
     this.optimisticManager = new OptimisticUpdateManager();
+    this.infiniteScrollObserver = null;
   }
 
   async init() {
@@ -496,14 +498,14 @@ export class BadgeDashboard {
     const sortDirectionButton = document.getElementById("badge-sort-direction");
     const refreshButton = document.getElementById("badge-refresh");
 
-    sortSelect?.addEventListener("change", (event) => {
+    this.addEventListener(sortSelect, "change", (event) => {
       this.sortKey = event.target.value;
       this.sortRecords();
       this.resetVisibleCount();
       this.updateRows();
     });
 
-    sortDirectionButton?.addEventListener("click", () => {
+    this.addEventListener(sortDirectionButton, "click", () => {
       this.sortDirection = this.sortDirection === "asc" ? "desc" : "asc";
       sortDirectionButton.textContent =
         this.sortDirection === "asc" ? "↑" : "↓";
@@ -512,39 +514,37 @@ export class BadgeDashboard {
       this.updateRows();
     });
 
-    refreshButton?.addEventListener("click", () => this.refreshFromNetwork());
+    this.addEventListener(refreshButton, "click", () => this.refreshFromNetwork());
 
-    document
-      .getElementById("badge-table-body")
-      ?.addEventListener("click", (event) => {
-        const actionButton = event.target.closest("button[data-action]");
-        if (!actionButton) return;
+    this.addEventListener(document.getElementById("badge-table-body"), "click", (event) => {
+      const actionButton = event.target.closest("button[data-action]");
+      if (!actionButton) return;
 
-        const { action, participantId, badgeName, starIndex, templateId } =
-          actionButton.dataset;
-        if (!participantId) return;
+      const { action, participantId, badgeName, starIndex, templateId } =
+        actionButton.dataset;
+      if (!participantId) return;
 
-        if (action === "star-details") {
-          this.openBadgeModal(
-            parseInt(participantId, 10),
-            templateId ? parseInt(templateId, 10) : badgeName,
-            false,
-            parseInt(starIndex, 10),
-          );
-        }
+      if (action === "star-details") {
+        this.openBadgeModal(
+          parseInt(participantId, 10),
+          templateId ? parseInt(templateId, 10) : badgeName,
+          false,
+          parseInt(starIndex, 10),
+        );
+      }
 
-        if (action === "edit-participant") {
-          this.openBadgeModal(
-            parseInt(participantId, 10),
-            templateId ? parseInt(templateId, 10) : badgeName || null,
-            true,
-          );
-        }
+      if (action === "edit-participant") {
+        this.openBadgeModal(
+          parseInt(participantId, 10),
+          templateId ? parseInt(templateId, 10) : badgeName || null,
+          true,
+        );
+      }
 
-        if (action === "add-badge") {
-          this.openAddBadgeModal(parseInt(participantId, 10));
-        }
-      });
+      if (action === "add-badge") {
+        this.openAddBadgeModal(parseInt(participantId, 10));
+      }
+    });
 
     this.setupInfiniteScroll();
   }
@@ -553,7 +553,8 @@ export class BadgeDashboard {
     const sentinel = document.getElementById("badge-table-sentinel");
     if (!sentinel) return;
 
-    const observer = new IntersectionObserver(
+    // Use managed IntersectionObserver that auto-disconnects on destroy
+    this.infiniteScrollObserver = this.createIntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
@@ -565,7 +566,7 @@ export class BadgeDashboard {
       { rootMargin: "200px" },
     );
 
-    observer.observe(sentinel);
+    this.infiniteScrollObserver.observe(sentinel);
   }
 
   sortRecords() {
@@ -1079,7 +1080,7 @@ export class BadgeDashboard {
               debugLog("Badge entry created successfully:", result.data);
 
               // Reopen modal in edit mode with the newly added badge
-              setTimeout(() => {
+              this.setTimeout(() => {
                 const addedBadgeTemplateId = payload.badge_template_id;
                 this.openBadgeModal(
                   participantId,
@@ -1251,8 +1252,23 @@ export class BadgeDashboard {
         <p><button class="ghost-button" id="badge-refresh">${translate("retry")}</button></p>
       </section>
     `);
-    document
-      .getElementById("badge-refresh")
-      ?.addEventListener("click", () => this.refreshFromNetwork());
+    this.addEventListener(document.getElementById("badge-refresh"), "click", () => this.refreshFromNetwork());
+  }
+
+  /**
+   * Clean up resources when navigating away
+   * Called automatically by router
+   */
+  destroy() {
+    super.destroy();
+    // Clear data references
+    this.groups = [];
+    this.participants = [];
+    this.badgeEntries = [];
+    this.badgeSettings = null;
+    this.templates = [];
+    this.records = [];
+    this.sortedRecords = [];
+    this.infiniteScrollObserver = null;
   }
 }

@@ -30,10 +30,11 @@ import {
   canManageForms,
 } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
+import { BaseModule } from "./utils/BaseModule.js";
 
-export class Dashboard {
+export class Dashboard extends BaseModule {
   constructor(app) {
-    this.app = app;
+    super(app);
     this.groups = [];
     this.participants = [];
     this.newsItems = [];
@@ -671,44 +672,36 @@ ${administrationLinks.length > 0
   // EVENT LISTENERS
   // -----------------------------
   attachEventListeners() {
-    const logout = document.getElementById("logout-link");
-    if (logout) {
-      logout.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.lazyLogout();
-      });
-    }
+    this.addEventListener(document.getElementById("logout-link"), "click", (e) => {
+      e.preventDefault();
+      this.lazyLogout();
+    });
 
-    const toggleBtn = document.getElementById("toggle-points-btn");
-    if (toggleBtn) {
-      toggleBtn.addEventListener("click", () => this.togglePointsVisibility());
-    }
+    this.addEventListener(document.getElementById("toggle-points-btn"), "click", () => {
+      this.togglePointsVisibility();
+    });
 
-    const refreshBtn = document.getElementById("refresh-news-btn");
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", () => this.loadNews(true));
-    }
+    this.addEventListener(document.getElementById("refresh-news-btn"), "click", () => {
+      this.loadNews(true);
+    });
 
-    const carpoolBtn = document.getElementById("carpool-quick-access");
-    if (carpoolBtn) {
-      carpoolBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+    this.addEventListener(document.getElementById("carpool-quick-access"), "click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-        if (this.app?.router) {
-          this.app.router.navigate("/carpool");
+      if (this.app?.router) {
+        this.app.router.navigate("/carpool");
+      }
+
+      try {
+        await this.showCarpoolQuickAccess();
+      } catch (error) {
+        debugError("Error opening carpool quick access:", error);
+        if (typeof this.app?.showMessage === "function") {
+          this.app.showMessage("error_loading_activities", "error");
         }
-
-        try {
-          await this.showCarpoolQuickAccess();
-        } catch (error) {
-          debugError("Error opening carpool quick access:", error);
-          if (typeof this.app?.showMessage === "function") {
-            this.app.showMessage("error_loading_activities", "error");
-          }
-        }
-      });
-    }
+      }
+    });
   }
 
   async lazyLogout() {
@@ -1000,7 +993,7 @@ ${administrationLinks.length > 0
         this.app.showToast(translate("activity_created_success"), "success");
 
         // Redirect to the carpool page for this new activity
-        setTimeout(() => {
+        this.setTimeout(() => {
           window.location.hash = `/carpool/${newActivity.id}`;
         }, 500);
       } catch (error) {
@@ -1064,5 +1057,17 @@ ${administrationLinks.length > 0
       <p>${translate("error_loading_dashboard")}</p>
     `,
     );
+  }
+
+  /**
+   * Clean up resources when navigating away
+   * Called automatically by router
+   */
+  destroy() {
+    super.destroy();
+    // Clear data references
+    this.groups = [];
+    this.participants = [];
+    this.newsItems = [];
   }
 }

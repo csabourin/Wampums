@@ -27,12 +27,13 @@ import { LoadingStateManager, CacheWithTTL, retryWithBackoff } from "./utils/Per
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { BaseModule } from "./utils/BaseModule.js";
 
 const DEFAULT_CURRENCY = "CAD";
 
-export class Finance {
+export class Finance extends BaseModule {
   constructor(app) {
-    this.app = app;
+    super(app);
     this.feeDefinitions = [];
     this.participantFees = [];
     this.participants = [];
@@ -1124,7 +1125,7 @@ export class Finance {
     if (existingModal && existingModal.classList.contains('show')) {
       this.closeModal(existingModal);
       // Small delay to allow close animation
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => this.setTimeout(resolve, 100));
     }
 
     const modal = document.getElementById('payment-modal');
@@ -1313,7 +1314,7 @@ export class Finance {
     if (existingModal && existingModal.classList.contains('show')) {
       this.closeModal(existingModal);
       // Small delay to allow close animation
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => this.setTimeout(resolve, 100));
     }
 
     const modal = document.getElementById('plan-modal');
@@ -1426,5 +1427,22 @@ export class Finance {
       debugError('Error deleting payment plan', error);
       this.app.showMessage(translate('error_saving_changes'), 'error');
     }
+  }
+
+  /**
+   * Clean up resources when navigating away
+   * Called automatically by router
+   */
+  destroy() {
+    super.destroy();
+    // Clear data references
+    this.feeDefinitions = [];
+    this.participantFees = [];
+    this.participants = [];
+    this.financeSummary = null;
+    // Clear caches
+    this.paymentsCache.clear();
+    this.paymentPlanCache.clear();
+    this.lastPaymentAmounts.clear();
   }
 }
