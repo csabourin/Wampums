@@ -1,5 +1,5 @@
 // Version should match package.json and config.js
-const APP_VERSION = "3.0.5";
+const APP_VERSION = "3.0.6";
 const CACHE_NAME = `wampums-app-v${APP_VERSION}`;
 const STATIC_CACHE_NAME = `wampums-static-v${APP_VERSION}`;
 const API_CACHE_NAME = `wampums-api-v${APP_VERSION}`;
