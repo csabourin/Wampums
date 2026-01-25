@@ -1125,7 +1125,7 @@ export class Finance extends BaseModule {
     if (existingModal && existingModal.classList.contains('show')) {
       this.closeModal(existingModal);
       // Small delay to allow close animation
-      await new Promise(resolve => this.setTimeout(resolve, 100));
+      await new Promise(resolve => window.setTimeout(resolve, 100));
     }
 
     const modal = document.getElementById('payment-modal');
@@ -1314,7 +1314,7 @@ export class Finance extends BaseModule {
     if (existingModal && existingModal.classList.contains('show')) {
       this.closeModal(existingModal);
       // Small delay to allow close animation
-      await new Promise(resolve => this.setTimeout(resolve, 100));
+      await new Promise(resolve => window.setTimeout(resolve, 100));
     }
 
     const modal = document.getElementById('plan-modal');

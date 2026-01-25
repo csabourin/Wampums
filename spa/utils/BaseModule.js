@@ -179,7 +179,8 @@ export class BaseModule {
    * Create a managed timeout that is automatically cleared on destroy
    * @param {Function} callback - Function to execute
    * @param {number} delay - Delay in milliseconds
-   * @returns {number} Timeout ID (can be used with clearTimeout if needed early)
+   * @returns {number|null} Timeout ID (can be used with clearTimeout if needed early), or null if module is destroyed
+   * @note If using in a Promise (e.g., await new Promise(resolve => this.setTimeout(resolve, ms))), use window.setTimeout instead to avoid hanging promises when destroy is called
    */
   setTimeout(callback, delay) {
     if (this._destroyed) {
@@ -320,7 +321,7 @@ export class BaseModule {
   /**
    * Create a managed ResizeObserver that is automatically disconnected on destroy
    * @param {Function} callback - Observer callback function
-   * @returns {ResizeObserver} The observer instance
+   * @returns {ResizeObserver|null} The observer instance, or null if module is destroyed
    */
   createResizeObserver(callback) {
     if (this._destroyed) {
@@ -341,7 +342,7 @@ export class BaseModule {
   /**
    * Create a managed MutationObserver that is automatically disconnected on destroy
    * @param {Function} callback - Observer callback function
-   * @returns {MutationObserver} The observer instance
+   * @returns {MutationObserver|null} The observer instance, or null if module is destroyed
    */
   createMutationObserver(callback) {
     if (this._destroyed) {
@@ -363,7 +364,7 @@ export class BaseModule {
    * Create a managed IntersectionObserver that is automatically disconnected on destroy
    * @param {Function} callback - Observer callback function
    * @param {Object} options - IntersectionObserver options
-   * @returns {IntersectionObserver} The observer instance
+   * @returns {IntersectionObserver|null} The observer instance, or null if module is destroyed
    */
   createIntersectionObserver(callback, options = {}) {
     if (this._destroyed) {
@@ -541,9 +542,6 @@ export class BaseModule {
 
     // Clean up all subscriptions
     this.removeAllSubscriptions();
-
-    // Create new controller for potential reuse (though modules are typically not reused)
-    this._abortController = new AbortController();
   }
 }
 
@@ -667,9 +665,6 @@ export function initializeCleanup(instance) {
 
     // Clean up all subscriptions
     this.removeAllSubscriptions();
-
-    // Create new controller
-    this._abortController = new AbortController();
 
     // Call original destroy if it existed
     if (originalDestroy) {
