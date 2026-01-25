@@ -401,8 +401,13 @@ class WhatsAppBaileysService {
         return false;
       }
 
-      // Logout from WhatsApp
+      // MEMORY LEAK FIX: Remove all event listeners before logout
       if (connectionObj.sock) {
+        try {
+          connectionObj.sock.ev.removeAllListeners();
+        } catch (e) {
+          // Ignore if already removed
+        }
         await connectionObj.sock.logout();
       }
 
@@ -576,6 +581,8 @@ class WhatsAppBaileysService {
         const connectionObj = this.connections.get(organizationId);
         if (connectionObj.sock) {
           try {
+            // MEMORY LEAK FIX: Remove all event listeners before closing
+            connectionObj.sock.ev.removeAllListeners();
             connectionObj.sock.end();
           } catch (e) {
             // Socket might already be closed, ignore errors
@@ -583,10 +590,72 @@ class WhatsAppBaileysService {
         }
         this.connections.delete(organizationId);
       }
+
+      // Also clean up reconnect attempts and message queue for this org
+      this.reconnectAttempts.delete(organizationId);
+      this.messageQueue.delete(organizationId);
     } catch (error) {
       logger.error(`Error clearing WhatsApp auth state for org ${organizationId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Clean up all data for an organization (call when org is deleted)
+   * @param {number} organizationId - Organization ID
+   * @returns {Promise<void>}
+   */
+  async cleanupOrganization(organizationId) {
+    logger.info(`Cleaning up WhatsApp data for organization ${organizationId}`);
+
+    // Disconnect if connected
+    if (this.connections.has(organizationId)) {
+      const connectionObj = this.connections.get(organizationId);
+      if (connectionObj.sock) {
+        try {
+          connectionObj.sock.ev.removeAllListeners();
+          connectionObj.sock.end();
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+      this.connections.delete(organizationId);
+    }
+
+    // Clean up all Maps
+    this.reconnectAttempts.delete(organizationId);
+    this.messageQueue.delete(organizationId);
+
+    logger.info(`WhatsApp cleanup complete for organization ${organizationId}`);
+  }
+
+  /**
+   * Graceful shutdown - clean up all connections
+   * Call this when the server is shutting down
+   * @returns {Promise<void>}
+   */
+  async shutdown() {
+    logger.info('WhatsApp Baileys service shutting down...');
+
+    // Close all active connections
+    for (const [organizationId, connectionObj] of this.connections) {
+      try {
+        if (connectionObj.sock) {
+          connectionObj.sock.ev.removeAllListeners();
+          connectionObj.sock.end();
+        }
+        logger.info(`Closed WhatsApp connection for org ${organizationId}`);
+      } catch (error) {
+        logger.error(`Error closing WhatsApp connection for org ${organizationId}:`, error);
+      }
+    }
+
+    // Clear all Maps
+    this.connections.clear();
+    this.messageQueue.clear();
+    this.reconnectAttempts.clear();
+
+    logger.info('WhatsApp Baileys service shutdown complete');
   }
 }
 

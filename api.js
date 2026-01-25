@@ -425,6 +425,93 @@ process.on("unhandledRejection", (reason, promise) => {
   }
 });
 
+// ============================================
+// GRACEFUL SHUTDOWN HANDLER
+// ============================================
+// Handles SIGTERM/SIGINT for clean server shutdown
+// Cleans up all services to prevent memory leaks and zombie connections
+
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal) {
+  if (isShuttingDown) {
+    logger.warn(`Shutdown already in progress, ignoring ${signal}`);
+    return;
+  }
+
+  isShuttingDown = true;
+  logger.info(`Received ${signal}. Starting graceful shutdown...`);
+  console.log(`\n[${signal}] Starting graceful shutdown...`);
+
+  const shutdownTimeout = setTimeout(() => {
+    logger.error('Graceful shutdown timed out, forcing exit');
+    console.error('Graceful shutdown timed out after 30s, forcing exit');
+    process.exit(1);
+  }, 30000);
+
+  try {
+    // 1. Stop accepting new connections
+    if (server.listening) {
+      await new Promise((resolve) => {
+        server.close((err) => {
+          if (err) {
+            logger.error('Error closing HTTP server:', err);
+          } else {
+            logger.info('HTTP server closed');
+          }
+          resolve();
+        });
+      });
+    }
+
+    // 2. Close Socket.io connections
+    if (io) {
+      await new Promise((resolve) => {
+        io.close((err) => {
+          if (err) {
+            logger.error('Error closing Socket.io:', err);
+          } else {
+            logger.info('Socket.io closed');
+          }
+          resolve();
+        });
+      });
+    }
+
+    // 3. Shutdown WhatsApp service (defined later in the file)
+    if (typeof whatsappService !== 'undefined' && whatsappService?.shutdown) {
+      await whatsappService.shutdown();
+      logger.info('WhatsApp service shutdown complete');
+    }
+
+    // 4. Shutdown Google Chat service (defined later in the file)
+    if (typeof googleChatService !== 'undefined' && googleChatService?.shutdown) {
+      googleChatService.shutdown();
+      logger.info('Google Chat service shutdown complete');
+    }
+
+    // 5. Close database pool
+    if (pool) {
+      await pool.end();
+      logger.info('Database pool closed');
+    }
+
+    clearTimeout(shutdownTimeout);
+    logger.info('Graceful shutdown complete');
+    console.log('Graceful shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(shutdownTimeout);
+    logger.error('Error during graceful shutdown:', error);
+    console.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+}
+
+// Register shutdown handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Validate JWT secret is configured
 // Support legacy environment variable name `JWT_SECRET` for backward compatibility
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;

@@ -334,7 +334,30 @@ class GoogleChatService {
    */
   clearClient(organizationId) {
     this.clients.delete(organizationId);
+    this.messageQueue.delete(organizationId);
     logger.info(`Cleared cached Google Chat client for organization ${organizationId}`);
+  }
+
+  /**
+   * Clean up all data for an organization (call when org is deleted)
+   * MEMORY LEAK FIX: Ensures Map entries don't persist for deleted organizations
+   * @param {number} organizationId - Organization ID
+   */
+  cleanupOrganization(organizationId) {
+    this.clients.delete(organizationId);
+    this.messageQueue.delete(organizationId);
+    logger.info(`Google Chat cleanup complete for organization ${organizationId}`);
+  }
+
+  /**
+   * Graceful shutdown - clean up all cached clients
+   * Call this when the server is shutting down
+   */
+  shutdown() {
+    logger.info('Google Chat service shutting down...');
+    this.clients.clear();
+    this.messageQueue.clear();
+    logger.info('Google Chat service shutdown complete');
   }
 }
 
