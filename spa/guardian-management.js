@@ -14,10 +14,10 @@ import { showToast } from './utils/ToastUtils.js';
 import {
   getGuardiansForParticipant,
   saveGuardian,
-  removeGuardian,
+  removeGuardians,
   linkGuardianToParticipant,
 } from './api/api-endpoints.js';
-import { isValidEmail } from './utils/ValidationUtils.js';
+import { validateEmail } from './utils/ValidationUtils.js';
 
 export class GuardianManagementModule {
   constructor(app, participantId, participantName) {
@@ -354,7 +354,7 @@ export class GuardianManagementModule {
       showToast(translate('relationship_required'), 'warning');
       return false;
     }
-    if (guardianData.courriel && !isValidEmail(guardianData.courriel)) {
+    if (guardianData.courriel && !validateEmail(guardianData.courriel)) {
       showToast(translate('invalid_email'), 'warning');
       return false;
     }
@@ -456,7 +456,7 @@ export class GuardianManagementModule {
     try {
       debugLog('[GuardianManagement] Removing guardian:', guardianId);
 
-      const response = await removeGuardian(this.participantId, guardianId);
+      const response = await removeGuardians(this.participantId, [guardianId]);
 
       if (response.success) {
         showToast(translate('guardian_removed_successfully'), 'success');

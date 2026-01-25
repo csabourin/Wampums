@@ -18,13 +18,6 @@ export class ActivityWidget extends BaseModule {
 		debugLog("App object:", app);
 		this.currentActivities = [];
 		this.updateIntervalId = null;
-
-		// Automatically initialize the widget after construction.
-		// We intentionally do not await here because constructors cannot be async.
-		// Any initialization errors are logged but do not prevent object creation.
-		this.init().catch((error) => {
-			debugError("Failed to initialize ActivityWidget:", error);
-		});
 	}
 
 	async init() {

@@ -235,8 +235,30 @@ app.use(cors(corsOptions));
 // RATE LIMITING WITH MEMORY CLEANUP
 // ============================================
 
+// Named constants for configuration
+const GRACEFUL_SHUTDOWN_TIMEOUT_MS = 30000;
+const RATE_LIMITER_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
 // Custom MemoryStore wrapper with periodic cleanup
 // Prevents unbounded memory growth from accumulated IP entries
+/**
+ * CleanableMemoryStore - Rate limiter memory store with automatic expiration cleanup
+ *
+ * Implements a Map-based store for express-rate-limit that periodically cleans up
+ * expired entries to prevent unbounded memory growth. Each entry has an associated
+ * reset time, and entries are considered expired when the reset time has passed.
+ *
+ * This solves a common memory leak in rate limiting where old IPs accumulate
+ * indefinitely. The cleanup() method should be called periodically (e.g., every 5 minutes)
+ * to remove expired entries.
+ *
+ * @class CleanableMemoryStore
+ * @param {number} windowMs - Time window for rate limiting in milliseconds (e.g., 15 * 60 * 1000 for 15 minutes)
+ *
+ * @example
+ * const store = new CleanableMemoryStore(15 * 60 * 1000);
+ * setInterval(() => store.cleanup(), 5 * 60 * 1000);
+ */
 class CleanableMemoryStore {
   constructor(windowMs) {
     this.windowMs = windowMs;
@@ -244,13 +266,17 @@ class CleanableMemoryStore {
     this.resetTime = new Map();
   }
 
-  // Increment hit count for a key
+  /**
+   * Increment the hit count for a key
+   * @param {string} key - The key to increment (usually IP address)
+   * @returns {Promise<{totalHits: number, resetTime: Date}>} Current hits and reset time
+   */
   async increment(key) {
     const now = Date.now();
-    const resetTime = this.resetTime.get(key);
+    const resetTimeValue = this.resetTime.get(key);
 
     // If entry expired, reset it
-    if (resetTime && now > resetTime) {
+    if (resetTimeValue && now > resetTimeValue) {
       this.hits.delete(key);
       this.resetTime.delete(key);
     }
@@ -264,11 +290,15 @@ class CleanableMemoryStore {
 
     return {
       totalHits: currentHits,
-      resetTime: this.resetTime.get(key)
+      resetTime: new Date(this.resetTime.get(key))
     };
   }
 
-  // Decrement hit count (for skipSuccessfulRequests)
+  /**
+   * Decrement the hit count for a key (for skipSuccessfulRequests)
+   * @param {string} key - The key to decrement
+   * @returns {Promise<void>}
+   */
   async decrement(key) {
     const currentHits = this.hits.get(key) || 0;
     if (currentHits > 0) {
@@ -276,19 +306,27 @@ class CleanableMemoryStore {
     }
   }
 
-  // Reset a specific key
+  /**
+   * Reset a specific key (remove it from the store)
+   * @param {string} key - The key to reset
+   * @returns {Promise<void>}
+   */
   async resetKey(key) {
     this.hits.delete(key);
     this.resetTime.delete(key);
   }
 
-  // Get current hit count
+  /**
+   * Get the current hit count for a key
+   * @param {string} key - The key to retrieve
+   * @returns {Promise<{totalHits: number, resetTime: Date}|undefined>} Hit info or undefined if not found or expired
+   */
   async get(key) {
     const now = Date.now();
-    const resetTime = this.resetTime.get(key);
+    const resetTimeValue = this.resetTime.get(key);
 
-    // If entry expired, return null
-    if (resetTime && now > resetTime) {
+    // If entry expired, return undefined
+    if (resetTimeValue && now > resetTimeValue) {
       this.hits.delete(key);
       this.resetTime.delete(key);
       return undefined;
@@ -301,11 +339,15 @@ class CleanableMemoryStore {
 
     return {
       totalHits,
-      resetTime: this.resetTime.get(key)
+      resetTime: new Date(this.resetTime.get(key))
     };
   }
 
-  // Clean up expired entries - call periodically to free memory
+  /**
+   * Clean up expired entries to free memory
+   * Should be called periodically to prevent unbounded growth
+   * @returns {number} Number of entries removed
+   */
   cleanup() {
     const now = Date.now();
     let cleaned = 0;
@@ -321,12 +363,18 @@ class CleanableMemoryStore {
     return cleaned;
   }
 
-  // Get current store size (for monitoring)
+  /**
+   * Get the current number of entries in the store
+   * @returns {number} Number of active entries
+   */
   get size() {
     return this.hits.size;
   }
 
-  // Clear all entries
+  /**
+   * Clear all entries from the store
+   * @returns {void}
+   */
   clear() {
     this.hits.clear();
     this.resetTime.clear();
@@ -389,7 +437,7 @@ const rateLimiterCleanupInterval = setInterval(() => {
       passwordReset: { cleaned: passwordResetCleaned, remaining: passwordResetStore.size }
     });
   }
-}, 5 * 60 * 1000); // Run every 5 minutes
+}, RATE_LIMITER_CLEANUP_INTERVAL_MS); // Run every 5 minutes
 
 // Prevent cleanup interval from keeping the process alive during shutdown
 rateLimiterCleanupInterval.unref();
@@ -563,6 +611,29 @@ process.on("unhandledRejection", (reason, promise) => {
 
 let isShuttingDown = false;
 
+/**
+ * Graceful shutdown handler
+ *
+ * Orchestrates a controlled shutdown sequence when the server receives a termination signal
+ * (SIGTERM/SIGINT). This ensures that all resources are properly cleaned up and prevents
+ * memory leaks and zombie connections.
+ *
+ * Shutdown sequence:
+ * 1. Stop accepting new connections (close HTTP server)
+ * 2. Close Socket.io connections
+ * 3. Shutdown WhatsApp service
+ * 4. Shutdown Google Chat service
+ * 5. Close database pool
+ * 6. Clear rate limiter stores and stop cleanup interval
+ *
+ * If shutdown takes longer than GRACEFUL_SHUTDOWN_TIMEOUT_MS (30 seconds), the process
+ * is forcefully terminated to prevent hanging.
+ *
+ * @async
+ * @param {string} signal - The signal received ('SIGTERM' or 'SIGINT')
+ * @returns {Promise<void>}
+ * @throws Will exit the process with code 1 if shutdown fails or times out
+ */
 async function gracefulShutdown(signal) {
   if (isShuttingDown) {
     logger.warn(`Shutdown already in progress, ignoring ${signal}`);
@@ -575,9 +646,9 @@ async function gracefulShutdown(signal) {
 
   const shutdownTimeout = setTimeout(() => {
     logger.error('Graceful shutdown timed out, forcing exit');
-    console.error('Graceful shutdown timed out after 30s, forcing exit');
+    console.error(`Graceful shutdown timed out after ${GRACEFUL_SHUTDOWN_TIMEOUT_MS / 1000}s, forcing exit`);
     process.exit(1);
-  }, 30000);
+  }, GRACEFUL_SHUTDOWN_TIMEOUT_MS);
 
   try {
     // 1. Stop accepting new connections
@@ -645,10 +716,6 @@ async function gracefulShutdown(signal) {
   }
 }
 
-// Register shutdown handlers
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
 // Validate JWT secret is configured
 // Support legacy environment variable name `JWT_SECRET` for backward compatibility
 const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
@@ -665,12 +732,6 @@ if (!jwtKey) {
   );
   process.exit(1);
 }
-
-
-
-app.use((err, req, res, next) => {
-  handleError(err, req, res, next);
-});
 
 // ============================================
 // API DOCUMENTATION (Swagger/OpenAPI)
@@ -1306,6 +1367,10 @@ if (require.main === module) {
     } catch (error) {
       logger.error("Error restoring WhatsApp connections:", error);
     }
+
+    // Register shutdown handlers after all services are initialized
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   });
 }
 

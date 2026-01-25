@@ -559,6 +559,28 @@ class WhatsAppBaileysService {
   }
 
   /**
+   * Disconnect socket and remove connection object
+   * Private helper to avoid code duplication between clearAuthState and cleanupOrganization
+   * @private
+   * @param {number} organizationId - Organization ID
+   */
+  _disconnectSocket(organizationId) {
+    if (this.connections.has(organizationId)) {
+      const connectionObj = this.connections.get(organizationId);
+      if (connectionObj.sock) {
+        try {
+          // MEMORY LEAK FIX: Remove all event listeners before closing
+          connectionObj.sock.ev.removeAllListeners();
+          connectionObj.sock.end();
+        } catch (e) {
+          // Socket might already be closed, ignore errors
+        }
+      }
+      this.connections.delete(organizationId);
+    }
+  }
+
+  /**
    * Clear stored WhatsApp authentication state to force a fresh pairing
    * @param {number} organizationId - Organization ID
    * @returns {Promise<void>}
@@ -576,20 +598,8 @@ class WhatsAppBaileysService {
         [organizationId]
       );
 
-      // Close and remove existing socket
-      if (this.connections.has(organizationId)) {
-        const connectionObj = this.connections.get(organizationId);
-        if (connectionObj.sock) {
-          try {
-            // MEMORY LEAK FIX: Remove all event listeners before closing
-            connectionObj.sock.ev.removeAllListeners();
-            connectionObj.sock.end();
-          } catch (e) {
-            // Socket might already be closed, ignore errors
-          }
-        }
-        this.connections.delete(organizationId);
-      }
+      // Use private helper to disconnect socket
+      this._disconnectSocket(organizationId);
 
       // Also clean up reconnect attempts and message queue for this org
       this.reconnectAttempts.delete(organizationId);
@@ -608,23 +618,13 @@ class WhatsAppBaileysService {
   async cleanupOrganization(organizationId) {
     logger.info(`Cleaning up WhatsApp data for organization ${organizationId}`);
 
-    // Disconnect if connected
-    if (this.connections.has(organizationId)) {
-      const connectionObj = this.connections.get(organizationId);
-      if (connectionObj.sock) {
-        try {
-          connectionObj.sock.ev.removeAllListeners();
-          connectionObj.sock.end();
-        } catch (e) {
-          // Ignore errors
-        }
-      }
-      this.connections.delete(organizationId);
+    // Reuse auth + connection cleanup logic to ensure consistent behavior
+    try {
+      await this.clearAuthState(organizationId);
+    } catch (error) {
+      // Log but don't re-throw to ensure cleanup continues
+      logger.warn(`Warning during auth state cleanup for org ${organizationId}:`, error);
     }
-
-    // Clean up all Maps
-    this.reconnectAttempts.delete(organizationId);
-    this.messageQueue.delete(organizationId);
 
     logger.info(`WhatsApp cleanup complete for organization ${organizationId}`);
   }

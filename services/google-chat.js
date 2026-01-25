@@ -333,9 +333,7 @@ class GoogleChatService {
    * @param {number} organizationId - Organization ID
    */
   clearClient(organizationId) {
-    this.clients.delete(organizationId);
-    this.messageQueue.delete(organizationId);
-    logger.info(`Cleared cached Google Chat client for organization ${organizationId}`);
+    this.cleanupOrganization(organizationId);
   }
 
   /**

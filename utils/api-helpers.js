@@ -293,9 +293,9 @@ function handleError(err, req, res, next, logger) {
   if (logger) {
     logger.error(err.stack);
   } else {
-    logger.error(err.stack);
+    console.error(err.stack);
   }
-  res.status(500).json({ success: false, error: err.message });
+  res.status(500).json({ success: false, message: err.message });
 }
 
 /**
