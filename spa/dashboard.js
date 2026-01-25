@@ -402,6 +402,7 @@ ${showFinanceSection
     ${hasPermission("groups.view") ? `<a href="/manage-groups"><i class="fa-solid fa-people-group"></i><span>${translate("manage_groups")}</span></a>` : ""}
     ${hasPermission("users.view") ? `<a href="/manage-users-participants"><i class="fa-solid fa-user-gear"></i><span>${translate("manage_users_participants")}</span></a>` : ""}
     <a href="/account-info"><i class="fa-solid fa-user-circle"></i><span>${translate("account_info")}</span></a>
+    ${hasPermission("communications.send") ? `<a href="/communications"><i class="fa-solid fa-comments"></i><span>${translate("communications_title") || "Communications"}</span></a>` : ""}
     ${hasPermission("communications.send") ? `<a href="/mailing-list"><i class="fa-solid fa-envelope-open-text"></i><span>${translate("mailing_list")}</span></a>` : ""}
     ${showReports ? `<a href="/reports"><i class="fa-solid fa-chart-line"></i><span>${translate("reports")}</span></a>` : ""}
     ${showReports ? `<a href="/group-participant-report"><i class="fa-solid fa-table-list"></i><span>${translate("feuille_participants")}</span></a>` : ""}

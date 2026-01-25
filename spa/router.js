@@ -90,7 +90,8 @@ const lazyModules = {
   CarpoolDashboard: () => import('./carpool_dashboard.js').then(m => m.CarpoolDashboard),
   RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement),
   DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement),
-  FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions)
+  FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
+  CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings)
 };
 
 // Cache for loaded modules
@@ -160,7 +161,8 @@ const routes = {
   "/carpool/:id": "carpool",
   "/role-management": "roleManagement",
   "/district-management": "districtManagement",
-  "/form-permissions": "formPermissions"
+  "/form-permissions": "formPermissions",
+  "/communications": "communications"
 
 };
 
@@ -399,6 +401,15 @@ export class Router {
             break;
           }
           await this.loadParentFinance();
+          break;
+        case "communications":
+          if (!guard(canSendCommunications() || canAccessAdminPanel())) {
+            break;
+          }
+          const CommunicationSettings = await this.loadModule('CommunicationSettings');
+          const communicationSettings = new CommunicationSettings(this.app);
+          this.currentModuleInstance = communicationSettings;
+          await communicationSettings.init();
           break;
         case "login":
           if (this.app.isLoggedIn) {
