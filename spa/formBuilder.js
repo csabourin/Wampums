@@ -1,9 +1,9 @@
 /**
  * Form Builder Module
- * 
+ *
  * Allows admins to create and edit form formats stored in organization_form_formats table
  * Supports drag-and-drop reordering, field management, conditional logic, and translations
- * 
+ *
  * @module formBuilder
  */
 
@@ -14,13 +14,14 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
 import { JSONFormRenderer } from "./JSONFormRenderer.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { BaseModule } from "./utils/BaseModule.js";
 
 /**
  * FormBuilder class - Main form builder component
  */
-export class FormBuilder {
+export class FormBuilder extends BaseModule {
     constructor(app) {
-        this.app = app;
+        super(app);
         this.formFormats = [];
         this.userOrganizations = [];
         this.currentFormat = null;
@@ -424,13 +425,13 @@ export class FormBuilder {
 
         // Close modal buttons
         document.querySelectorAll(".modal .close").forEach(btn => {
-            btn.addEventListener("click", (e) => {
+            this.addEventListener(btn, "click", (e) => {
                 e.target.closest(".modal").style.display = "none";
             });
         });
 
-        // Click outside modal to close
-        window.addEventListener("click", (e) => {
+        // Click outside modal to close (using managed listener for cleanup)
+        this.addWindowEventListener("click", (e) => {
             if (e.target.classList.contains("modal")) {
                 e.target.style.display = "none";
             }
@@ -1156,5 +1157,20 @@ export class FormBuilder {
         this.currentFormat = null;
         this.currentFields = [];
         document.getElementById("form-editor").style.display = "none";
+    }
+
+    /**
+     * Clean up resources when navigating away
+     * Called automatically by router
+     */
+    destroy() {
+        super.destroy();
+        // Clear data references
+        this.formFormats = [];
+        this.userOrganizations = [];
+        this.currentFormat = null;
+        this.currentFields = [];
+        this.draggedElement = null;
+        this.draggedIndex = null;
     }
 }

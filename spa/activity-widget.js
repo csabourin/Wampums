@@ -9,20 +9,22 @@ import {
 } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { BaseModule } from "./utils/BaseModule.js";
 
-export class ActivityWidget {
+export class ActivityWidget extends BaseModule {
 	constructor(app) {
+		super(app);
 		debugLog("ActivityWidget constructor called");
 		debugLog("App object:", app);
-		this.app = app;
 		this.currentActivities = [];
-		this.init();
+		this.updateIntervalId = null;
 	}
 
 	async init() {
 		// Clear any previous intervals before setting a new one
-		if (this.updateInterval) {
-			clearInterval(this.updateInterval);
+		if (this.updateIntervalId) {
+			this.clearInterval(this.updateIntervalId);
+			this.updateIntervalId = null;
 		}
 
 		debugLog("ActivityWidget init called");
@@ -47,7 +49,8 @@ export class ActivityWidget {
 		this.updateActivityWidget();
 
 		// Poll every 5 minutes (300000ms) instead of every minute to reduce bandwidth
-		this.updateInterval = setInterval(() => {
+		// Using managed interval that auto-clears on destroy
+		this.updateIntervalId = this.setInterval(() => {
 			this.updateActivityWidget();
 		}, 300000);
 	}
@@ -287,5 +290,21 @@ export class ActivityWidget {
 
 	addMinutes(time, minutes) {
 		return new Date(time.getTime() + minutes * 60000);
+	}
+
+	/**
+	 * Clean up resources when navigating away
+	 * Called automatically by router
+	 */
+	destroy() {
+		super.destroy();
+		this.currentActivities = [];
+		this.preparationDate = null;
+		this.updateIntervalId = null;
+		// Remove widget element if it exists
+		const widget = document.getElementById("activity-widget");
+		if (widget) {
+			widget.remove();
+		}
 	}
 }
