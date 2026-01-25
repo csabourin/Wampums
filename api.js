@@ -231,6 +231,113 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// ============================================
+// RATE LIMITING WITH MEMORY CLEANUP
+// ============================================
+
+// Custom MemoryStore wrapper with periodic cleanup
+// Prevents unbounded memory growth from accumulated IP entries
+class CleanableMemoryStore {
+  constructor(windowMs) {
+    this.windowMs = windowMs;
+    this.hits = new Map();
+    this.resetTime = new Map();
+  }
+
+  // Increment hit count for a key
+  async increment(key) {
+    const now = Date.now();
+    const resetTime = this.resetTime.get(key);
+
+    // If entry expired, reset it
+    if (resetTime && now > resetTime) {
+      this.hits.delete(key);
+      this.resetTime.delete(key);
+    }
+
+    const currentHits = (this.hits.get(key) || 0) + 1;
+    this.hits.set(key, currentHits);
+
+    if (!this.resetTime.has(key)) {
+      this.resetTime.set(key, now + this.windowMs);
+    }
+
+    return {
+      totalHits: currentHits,
+      resetTime: this.resetTime.get(key)
+    };
+  }
+
+  // Decrement hit count (for skipSuccessfulRequests)
+  async decrement(key) {
+    const currentHits = this.hits.get(key) || 0;
+    if (currentHits > 0) {
+      this.hits.set(key, currentHits - 1);
+    }
+  }
+
+  // Reset a specific key
+  async resetKey(key) {
+    this.hits.delete(key);
+    this.resetTime.delete(key);
+  }
+
+  // Get current hit count
+  async get(key) {
+    const now = Date.now();
+    const resetTime = this.resetTime.get(key);
+
+    // If entry expired, return null
+    if (resetTime && now > resetTime) {
+      this.hits.delete(key);
+      this.resetTime.delete(key);
+      return undefined;
+    }
+
+    const totalHits = this.hits.get(key);
+    if (totalHits === undefined) {
+      return undefined;
+    }
+
+    return {
+      totalHits,
+      resetTime: this.resetTime.get(key)
+    };
+  }
+
+  // Clean up expired entries - call periodically to free memory
+  cleanup() {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [key, resetTime] of this.resetTime) {
+      if (now > resetTime) {
+        this.hits.delete(key);
+        this.resetTime.delete(key);
+        cleaned++;
+      }
+    }
+
+    return cleaned;
+  }
+
+  // Get current store size (for monitoring)
+  get size() {
+    return this.hits.size;
+  }
+
+  // Clear all entries
+  clear() {
+    this.hits.clear();
+    this.resetTime.clear();
+  }
+}
+
+// Create stores for each rate limiter
+const generalStore = new CleanableMemoryStore(15 * 60 * 1000);
+const authStore = new CleanableMemoryStore(15 * 60 * 1000);
+const passwordResetStore = new CleanableMemoryStore(60 * 60 * 1000);
+
 // Rate limiting configuration - relaxed limits for development
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -238,6 +345,7 @@ const generalLimiter = rateLimit({
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
+  store: generalStore,
   validate: {
     trustProxy: false
   }
@@ -251,6 +359,7 @@ const authLimiter = rateLimit({
     "Too many login attempts from this IP, please try again after 15 minutes.",
   standardHeaders: true,
   legacyHeaders: false,
+  store: authStore,
   skipSuccessfulRequests: false,
 });
 
@@ -262,7 +371,28 @@ const passwordResetLimiter = rateLimit({
     "Too many password reset requests from this IP, please try again after an hour.",
   standardHeaders: true,
   legacyHeaders: false,
+  store: passwordResetStore,
 });
+
+// Periodic cleanup of rate limiter stores (every 5 minutes)
+// Prevents memory growth from expired entries
+const rateLimiterCleanupInterval = setInterval(() => {
+  const generalCleaned = generalStore.cleanup();
+  const authCleaned = authStore.cleanup();
+  const passwordResetCleaned = passwordResetStore.cleanup();
+
+  const totalCleaned = generalCleaned + authCleaned + passwordResetCleaned;
+  if (totalCleaned > 0) {
+    logger.debug(`Rate limiter cleanup: removed ${totalCleaned} expired entries`, {
+      general: { cleaned: generalCleaned, remaining: generalStore.size },
+      auth: { cleaned: authCleaned, remaining: authStore.size },
+      passwordReset: { cleaned: passwordResetCleaned, remaining: passwordResetStore.size }
+    });
+  }
+}, 5 * 60 * 1000); // Run every 5 minutes
+
+// Prevent cleanup interval from keeping the process alive during shutdown
+rateLimiterCleanupInterval.unref();
 
 // Apply general rate limiter to all routes
 app.use(generalLimiter);
@@ -495,6 +625,13 @@ async function gracefulShutdown(signal) {
       await pool.end();
       logger.info('Database pool closed');
     }
+
+    // 6. Clear rate limiter stores and stop cleanup interval
+    clearInterval(rateLimiterCleanupInterval);
+    generalStore.clear();
+    authStore.clear();
+    passwordResetStore.clear();
+    logger.info('Rate limiter stores cleared');
 
     clearTimeout(shutdownTimeout);
     logger.info('Graceful shutdown complete');
