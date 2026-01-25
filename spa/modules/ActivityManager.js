@@ -1,6 +1,7 @@
 import { translate } from "../app.js";
 import { getSectionActivityTemplates } from "../utils/meetingSections.js";
 import { setContent } from "../utils/DOMUtils.js";
+import { debugLog, debugWarn } from "../utils/DebugUtils.js";
 
 /**
  * ActivityManager - Handles all activity-related operations
@@ -167,7 +168,7 @@ export class ActivityManager {
                 const duration = safeDuration || '00:00';
                 const materiel = a.materiel || '';
 
-                console.log(`[renderActivityRow ${index}] Rendering:`, {
+                debugLog(`[renderActivityRow ${index}] Rendering:`, {
                         activityName,
                         time,
                         duration,
@@ -433,16 +434,16 @@ export class ActivityManager {
          * Returns all activities, reading their current state from the DOM
          */
         getSelectedActivitiesFromDOM() {
-                console.log("=== GET ACTIVITIES FROM DOM ===");
+                debugLog("=== GET ACTIVITIES FROM DOM ===");
                 
                 const activitiesContainer = document.getElementById('activities-list');
                 if (!activitiesContainer) {
-                        console.warn("No activities container found");
+                        debugWarn("No activities container found");
                         return [];
                 }
 
                 const rows = Array.from(activitiesContainer.querySelectorAll('.activity-row'));
-                console.log("Found activity rows:", rows.length);
+                debugLog("Found activity rows:", rows.length);
 
                 // Get ALL activities from DOM
                 const activities = rows.map((row, rowIndex) => {
@@ -477,7 +478,7 @@ export class ActivityManager {
                                 isDefault: dataDefault === 'true' && !dataId?.startsWith('ai-generated')
                         };
 
-                        console.log(`  Activity ${rowIndex}:`, {
+                        debugLog(`  Activity ${rowIndex}:`, {
                                 time: timeValue,
                                 duration: durationValue,
                                 activity: activityValue,
@@ -489,7 +490,7 @@ export class ActivityManager {
                         return result;
                 });
 
-                console.log("Total activities extracted:", activities.length);
+                debugLog("Total activities extracted:", activities.length);
                 return activities;
         }
 

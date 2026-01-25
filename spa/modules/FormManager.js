@@ -2,6 +2,7 @@ import { translate } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { setContent } from "../utils/DOMUtils.js";
 import { formatHonorText } from "../utils/HonorUtils.js";
+import { debugLog } from "../utils/DebugUtils.js";
 
 /**
  * FormManager - Handles form population, validation, and data extraction
@@ -74,11 +75,11 @@ export class FormManager {
          * Populate form with meeting data
          */
         async populateForm(meetingData, currentDate) {
-                console.log("=== POPULATE FORM ===");
-                console.log("1. Meeting data received:", meetingData);
+                debugLog("=== POPULATE FORM ===");
+                debugLog("1. Meeting data received:", meetingData);
                 
                 if (!meetingData) {
-                        console.log("No meeting data, resetting form");
+                        debugLog("No meeting data, resetting form");
                         this.resetForm(currentDate);
                         return;
                 }
@@ -131,18 +132,18 @@ export class FormManager {
                 }
 
                 // Combine default and saved activities
-                console.log("2. Processing activities...");
+                debugLog("2. Processing activities...");
                 
                 const loadedActivities = meetingData.activities || [];
-                console.log("   - Loaded activities count:", loadedActivities.length);
-                console.log("   - Loaded activities data:", loadedActivities);
+                debugLog("   - Loaded activities count:", loadedActivities.length);
+                debugLog("   - Loaded activities data:", loadedActivities);
                 
                 // Initialize placeholder activities considering existing activities
                 const defaultActivities = this.activityManager.initializePlaceholderActivities(loadedActivities);
-                console.log("   - Default activities count:", defaultActivities.length);
+                debugLog("   - Default activities count:", defaultActivities.length);
                 
                 const totalActivities = Math.max(defaultActivities.length, loadedActivities.length);
-                console.log("   - Total activities to render:", totalActivities);
+                debugLog("   - Total activities to render:", totalActivities);
 
                 const selectedActivities = [];
 
@@ -157,7 +158,7 @@ export class FormManager {
                                 isDefault: savedActivity.isDefault === undefined ? true : savedActivity.isDefault
                         };
 
-                        console.log(`   - Activity ${i} merged:`, {
+                        debugLog(`   - Activity ${i} merged:`, {
                                 time: merged.time,
                                 activity: merged.activity,
                                 responsable: merged.responsable,
@@ -168,10 +169,10 @@ export class FormManager {
                         selectedActivities.push(merged);
                 }
 
-                console.log("3. Setting selected activities and rendering...");
+                debugLog("3. Setting selected activities and rendering...");
                 this.activityManager.setSelectedActivities(selectedActivities);
                 this.activityManager.renderActivitiesTable();
-                console.log("   - Form population complete");
+                debugLog("   - Form population complete");
         }
 
         /**
@@ -193,16 +194,16 @@ export class FormManager {
          * Extract form data for submission
          */
         extractFormData() {
-                console.log("=== EXTRACT FORM DATA ===");
+                debugLog("=== EXTRACT FORM DATA ===");
                 
                 const updatedActivities = this.activityManager.getSelectedActivitiesFromDOM();
-                console.log("1. Updated activities from DOM:", updatedActivities);
+                debugLog("1. Updated activities from DOM:", updatedActivities);
                 
                 const honorValues = document.getElementById('youth-of-honor').value
                         .split('\n')
                         .map(line => line.trim())
                         .filter(Boolean);
-                console.log("2. Honor values extracted:", honorValues);
+                debugLog("2. Honor values extracted:", honorValues);
 
                 if (this.sectionConfig?.honorField?.required && honorValues.length === 0) {
                         this.app.showMessage(translate("meeting_section_honor_required"), "error");
@@ -218,12 +219,12 @@ export class FormManager {
                 const durationOverrideField = document.getElementById('duration-override');
                 const durationOverride = durationOverrideField?.value ? parseInt(durationOverrideField.value, 10) : null;
                 
-                console.log("3. Form field values:");
-                console.log("   - animateur-responsable:", animateurValue);
-                console.log("   - date:", dateValue);
-                console.log("   - endroit:", endraitValue);
-                console.log("   - notes length:", notesValue.length);
-                console.log("   - duration-override:", durationOverride);
+                debugLog("3. Form field values:");
+                debugLog("   - animateur-responsable:", animateurValue);
+                debugLog("   - date:", dateValue);
+                debugLog("   - endroit:", endraitValue);
+                debugLog("   - notes length:", notesValue.length);
+                debugLog("   - duration-override:", durationOverride);
 
                 const formData = {
                         organization_id: this.app.organizationId,
