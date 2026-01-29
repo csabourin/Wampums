@@ -1531,7 +1531,8 @@ module.exports = (pool) => {
            JOIN participants p ON p.id = ps.participant_id
            LEFT JOIN parents_guardians g ON g.id = ps.guardian_id
            LEFT JOIN activities a ON a.id = ps.activity_id
-           WHERE ps.organization_id = $1 ${filter}
+           WHERE ps.organization_id = $1
+             AND ps.status != 'archived' ${filter}
            ORDER BY ps.meeting_date DESC, p.first_name`,
           params,
         );
