@@ -4,13 +4,14 @@ import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { isoToDateString } from "./utils/DateUtils.js";
 import { formatHonorText } from "./utils/HonorUtils.js";
-getActivitesRencontre,
+import {
+        getActivitesRencontre,
         getAnimateurs,
         getHonorsHistory,
         saveReunionPreparation,
         getReunionDates,
         getReunionPreparation,
-        getBadgeSummary,
+        getBadgeSystemSettings,
         getParticipants
 } from "./ajax-functions.js";
 import { saveReminder, getReminder } from "./api/api-endpoints.js";
@@ -173,7 +174,7 @@ export class PreparationReunions {
                 const appSettings = await this.app.waitForOrganizationSettings();
 
                 // Load data with individual error handling to prevent total failure
-                const [activitiesResponse, animateursResponse, badgeSummaryResponse, participantsResponse] = await Promise.all([
+                const [activitiesResponse, animateursResponse, badgeSettingsResponse, participantsResponse] = await Promise.all([
                         getActivitesRencontre().catch(error => {
                                 debugError("Error loading activities:", error);
                                 return { data: [] };
@@ -182,13 +183,13 @@ export class PreparationReunions {
                                 debugError("Error loading animateurs:", error);
                                 return { animateurs: [] };
                         }),
-                        getBadgeSummary({ forceRefresh: false }).catch(error => {
-                                debugError("Error loading badge summary:", error);
-                                return { data: { templates: [] } };
+                        getBadgeSystemSettings().catch(error => {
+                                debugError("Error loading badge settings:", error);
+                                return { templates: [] };
                         }),
                         getParticipants().catch(error => {
                                 debugError("Error loading participants:", error);
-                                return [];
+                                return { data: [] };
                         })
                 ]);
 
@@ -196,11 +197,12 @@ export class PreparationReunions {
                 this.activities = Array.isArray(activitiesResponse) ? activitiesResponse : (activitiesResponse?.data || []);
                 this.animateurs = Array.isArray(animateursResponse) ? animateursResponse : (animateursResponse?.animateurs || []);
 
-                const badgeSummary = badgeSummaryResponse?.data || badgeSummaryResponse || {};
-                this.badgeTemplates = badgeSummary.templates || [];
+                const badgeSettings = badgeSettingsResponse?.data || badgeSettingsResponse || {};
+                this.badgeTemplates = badgeSettings.templates || [];
 
-                const participants = Array.isArray(participantsResponse) ? participantsResponse : (participantsResponse?.participants || []);
-                this.participants = participants;
+                // API v1 returns { success: true, data: [...] }
+                const participantsList = Array.isArray(participantsResponse) ? participantsResponse : (participantsResponse?.data || participantsResponse?.participants || []);
+                this.participants = participantsList;
                 this.recentHonors = [];
                 this.recentHonorsRaw = [];
 
