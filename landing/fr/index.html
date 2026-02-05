@@ -325,59 +325,260 @@
 					</article>
 				</div>
 			</section>
-			<!-- Features Section -->
-			<section class="section" id="features">
-				<h2 data-i18n="features_title">
-					Fonctions concues pour les unites scoutes
-				</h2>
-				<p data-i18n="features_body">
-					Chaque module est pense pour les realites des equipes de responsables
-					et du district : preparation rapide, suivi clair et collaboration avec
-					les parents.
-				</p>
-				<div class="grid" role="list">
-					<article class="card" role="listitem">
-						<h3 data-i18n="feature1_title">Planification des rencontres</h3>
-						<p class="meta" data-i18n="feature1_body">
-							Planifiez les activites hebdomadaires, materiaux et
-							responsabilites, avec un calendrier partage.
-						</p>
-					</article>
-					<article class="card" role="listitem">
-						<h3 data-i18n="feature2_title">Presences et progression</h3>
-						<p class="meta" data-i18n="feature2_body">
-							Consignez les presences, les points et l'avancement des badges ou
-							honneurs.
-						</p>
-					</article>
-					<article class="card" role="listitem">
-						<h3 data-i18n="feature3_title">Communication aux parents</h3>
-						<p class="meta" data-i18n="feature3_body">
-							Envoyez des nouvelles, rappels et documents pour que les familles
-							restent alignees.
-						</p>
-					</article>
-					<article class="card" role="listitem">
-						<h3 data-i18n="feature4_title">Gestion des roles</h3>
-						<p class="meta" data-i18n="feature4_body">
-							Attribuez les roles (district, responsables, parents) et securisez
-							l'acces aux donnees.
-						</p>
-					</article>
-					<article class="card" role="listitem">
-						<h3 data-i18n="feature5_title">Documents et consentements</h3>
-						<p class="meta" data-i18n="feature5_body">
-							Stockez fiches sante, autorisations et rapports pour des activites
-							conformes.
-						</p>
-					</article>
-					<article class="card" role="listitem">
-						<h3 data-i18n="feature6_title">Rapports et export</h3>
-						<p class="meta" data-i18n="feature6_body">
-							Generez des rapports sur la participation, la progression et les
-							ventes de calendriers.
-						</p>
-					</article>
+			<!-- Fonctions par audience -->
+			<section class="section section-center" id="features">
+				<h2>Tout ce dont votre groupe a besoin, pour chaque rôle</h2>
+				<p>Wampums offre aux responsables, aux parents et aux administrateurs chacun une expérience adaptée. Explorez les fonctions disponibles pour votre rôle.</p>
+
+				<div class="tabs" role="tablist" aria-label="Fonctions par audience">
+					<button role="tab" aria-selected="true" aria-controls="tab-leaders" id="btn-leaders" class="tab-btn tab-btn--active">Responsables</button>
+					<button role="tab" aria-selected="false" aria-controls="tab-parents" id="btn-parents" class="tab-btn">Parents</button>
+					<button role="tab" aria-selected="false" aria-controls="tab-admin" id="btn-admin" class="tab-btn">Administrateurs</button>
+				</div>
+
+				<!-- Onglet Responsables -->
+				<div role="tabpanel" id="tab-leaders" class="tab-panel tab-panel--active" aria-labelledby="btn-leaders">
+					<div class="feature-group">
+						<h3 class="feature-group__title">Préparation des rencontres</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Plans de réunion assistés par IA</h4>
+								<p class="meta">Générez des plans complets avec activités, responsables assignés et matériel requis. Réutilisez les réunions précédentes comme modèles.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Analyse des risques</h4>
+								<p class="meta">Évaluation IA intégrée pour la planification sécuritaire des sorties et activités spéciales.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Calendrier des activités</h4>
+								<p class="meta">Planifiez et gérez les activités avec dates, heures, lieux et points de rencontre.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Rappels automatiques</h4>
+								<p class="meta">Les parents reçoivent un rappel avant chaque réunion avec la logistique et les autorisations manquantes.</p>
+							</article>
+						</div>
+					</div>
+
+					<div class="feature-group">
+						<h3 class="feature-group__title">Suivi terrain</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Présences sur mobile</h4>
+								<p class="meta">Prenez les présences sur votre téléphone avec gestion des invités, mises à jour optimistes et file d'attente hors-ligne.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Suivi des badges et honneurs</h4>
+								<p class="meta">Système de badges multi-niveaux avec flux d'approbation (en attente, approuvé, remis) et opérations en lot.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Système de points</h4>
+								<p class="meta">Attribuez des points par groupe ou individuellement. Vues triables avec support hors-ligne.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Distribution de médicaments</h4>
+								<p class="meta">Suivez les exigences médicales, planifiez les fenêtres de distribution avec alertes chronométrées et enregistrez chaque dose.</p>
+							</article>
+						</div>
+					</div>
+
+					<div class="feature-group">
+						<h3 class="feature-group__title">Communication</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Intégration WhatsApp</h4>
+								<p class="meta">Connectez-vous par code QR et envoyez des annonces directement via WhatsApp avec suivi de livraison en temps réel.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Courriel et listes de diffusion</h4>
+								<p class="meta">Listes de diffusion par rôle avec modèles et compositeur d'annonces intégré.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Google Chat</h4>
+								<p class="meta">Configurez des espaces Google Chat pour les notifications automatisées à votre équipe.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Autorisations parentales</h4>
+								<p class="meta">Créez, envoyez et suivez les formulaires d'autorisation. Voyez qui a signé et relancez les retardataires.</p>
+							</article>
+						</div>
+					</div>
+
+					<div class="feature-group">
+						<h3 class="feature-group__title">Logistique et matériel</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Coordination du covoiturage</h4>
+								<p class="meta">Les parents offrent des places, les responsables assignent les participants. Accès rapide aux véhicules par activité.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Gestion de l'inventaire</h4>
+								<p class="meta">Cataloguez l'équipement avec photos, suivez les emplacements de rangement et l'état du matériel.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Réservation de matériel</h4>
+								<p class="meta">Réservez l'équipement pour les activités avec détection automatique des conflits de chevauchement.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Tableau de bord ressources</h4>
+								<p class="meta">Vue d'ensemble de l'équipement réservé pour chaque date de rencontre.</p>
+							</article>
+						</div>
+					</div>
+				</div>
+
+				<!-- Onglet Parents -->
+				<div role="tabpanel" id="tab-parents" class="tab-panel" aria-labelledby="btn-parents" hidden>
+					<div class="feature-group">
+						<h3 class="feature-group__title">Mes enfants</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Tableau de bord parent</h4>
+								<p class="meta">Voyez les activités, la progression des badges, les événements à venir et les documents en attente de tous vos enfants.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Progression des badges</h4>
+								<p class="meta">Suivez l'avancement des badges et honneurs de chaque enfant avec des indicateurs visuels.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Formulaires d'inscription</h4>
+								<p class="meta">Inscrivez de nouveaux participants ou mettez à jour les informations via des formulaires dynamiques et personnalisables.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Rapports de progrès</h4>
+								<p class="meta">Accédez aux rapports individuels couvrant la présence, les badges et la participation.</p>
+							</article>
+						</div>
+					</div>
+
+					<div class="feature-group">
+						<h3 class="feature-group__title">Documents et paiements</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Paiements en ligne</h4>
+								<p class="meta">Payez les cotisations et les frais d'activité directement par carte de crédit (Stripe). Soldes en temps réel.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Autorisations parentales</h4>
+								<p class="meta">Signez les formulaires d'autorisation depuis un lien sécurisé sur votre téléphone. Aucune impression nécessaire.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Fiches santé</h4>
+								<p class="meta">Soumettez et mettez à jour les informations médicales, allergies et contacts d'urgence de votre enfant en ligne.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>États de compte</h4>
+								<p class="meta">Consultez le total facturé, les paiements effectués et le solde dû par enfant avec le détail des frais.</p>
+							</article>
+						</div>
+					</div>
+
+					<div class="feature-group">
+						<h3 class="feature-group__title">Rester connecté</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Coordination du covoiturage</h4>
+								<p class="meta">Offrez des places ou consultez votre covoiturage assigné pour chaque activité. Sachez qui conduit votre enfant.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Répertoire des parents</h4>
+								<p class="meta">Annuaire consultable des autres parents de votre groupe pour la communication directe.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Fil de nouvelles</h4>
+								<p class="meta">Restez informé avec les annonces du groupe et les mises à jour des responsables sur votre tableau de bord.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Notifications push</h4>
+								<p class="meta">Activez les notifications instantanées pour les réunions, rappels et annonces importantes.</p>
+							</article>
+						</div>
+					</div>
+				</div>
+
+				<!-- Onglet Administrateurs -->
+				<div role="tabpanel" id="tab-admin" class="tab-panel" aria-labelledby="btn-admin" hidden>
+					<div class="feature-group">
+						<h3 class="feature-group__title">Finances et levées de fonds</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Gestion des frais</h4>
+								<p class="meta">Définissez les cotisations, assignez-les aux participants et créez des plans de paiement avec échéanciers.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Suivi des dépenses</h4>
+								<p class="meta">Enregistrez et catégorisez les dépenses par méthode de paiement. Saisie rapide par analyse IA de reçus.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Gestion des budgets</h4>
+								<p class="meta">Planifiez les budgets par catégorie et suivez les dépenses réelles tout au long de l'année.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Gestion des levées de fonds</h4>
+								<p class="meta">Créez et gérez les campagnes avec calendriers, suivi des ventes par participant et archivage.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Tableau de bord des revenus</h4>
+								<p class="meta">Vue consolidée de toutes les sources de revenus (cotisations, levées de fonds, externes) avec support d'année fiscale.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Paiements Stripe en ligne</h4>
+								<p class="meta">Acceptez les paiements par carte de crédit des parents. Réconciliation automatique avec les dossiers de frais.</p>
+							</article>
+						</div>
+					</div>
+
+					<div class="feature-group">
+						<h3 class="feature-group__title">Organisation et accès</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Système de rôles et permissions</h4>
+								<p class="meta">40+ permissions granulaires pour les participants, groupes, activités, finances, badges, covoiturage et formulaires.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Gestion de district</h4>
+								<p class="meta">Supervision au niveau du district avec assignation de rôles inter-organisations et journalisation d'audit.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Support multi-unités</h4>
+								<p class="meta">Gérez plusieurs sections depuis un seul compte. Basculez entre les organisations facilement.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Importation SISC</h4>
+								<p class="meta">Importez participants, tuteurs et utilisateurs depuis des fichiers CSV pour une intégration rapide.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Constructeur de formulaires</h4>
+								<p class="meta">Constructeur glisser-déposer avec logique conditionnelle, traductions et copie de formulaires entre unités.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Gestion des tuteurs</h4>
+								<p class="meta">Suivi des relations parent/tuteur avec jumelage de participants et flux d'approbation.</p>
+							</article>
+						</div>
+					</div>
+
+					<div class="feature-group">
+						<h3 class="feature-group__title">Rapports et conformité</h3>
+						<div class="grid" role="list">
+							<article class="card" role="listitem">
+								<h4>Rapports santé et médical</h4>
+								<p class="meta">Fiches santé, allergies, médicaments et statuts de vaccination pour tous les participants.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Rapports de conformité</h4>
+								<p class="meta">Autorisations de départ seul, autorisations médias et documents manquants en un coup d'oeil.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Rapports participants</h4>
+								<p class="meta">Progrès, âge, points, honneurs, présences et listes de groupe imprimables.</p>
+							</article>
+							<article class="card" role="listitem">
+								<h4>Rapports financiers</h4>
+								<p class="meta">Revenus par source, suivi budgétaire, ventilation des paiements par méthode et soldes impayés.</p>
+							</article>
+						</div>
+					</div>
 				</div>
 			</section>
 
