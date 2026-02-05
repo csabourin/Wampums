@@ -197,12 +197,20 @@ export class PreparationReunions {
                 this.activities = Array.isArray(activitiesResponse) ? activitiesResponse : (activitiesResponse?.data || []);
                 this.animateurs = Array.isArray(animateursResponse) ? animateursResponse : (animateursResponse?.animateurs || []);
 
+                // Debug badge settings response structure
+                debugLog("Badge settings response:", badgeSettingsResponse);
                 const badgeSettings = badgeSettingsResponse?.data || badgeSettingsResponse || {};
-                this.badgeTemplates = badgeSettings.templates || [];
+                debugLog("Badge settings extracted:", badgeSettings);
+                // Handle multiple possible response structures
+                this.badgeTemplates = badgeSettings.templates || badgeSettings?.data?.templates || [];
+                debugLog("Badge templates:", this.badgeTemplates);
 
+                // Debug participants response
+                debugLog("Participants response:", participantsResponse);
                 // API v1 returns { success: true, data: [...] }
                 const participantsList = Array.isArray(participantsResponse) ? participantsResponse : (participantsResponse?.data || participantsResponse?.participants || []);
                 this.participants = participantsList;
+                debugLog("Participants list:", this.participants);
                 this.recentHonors = [];
                 this.recentHonorsRaw = [];
 

@@ -2,6 +2,7 @@ import { translate } from "../app.js";
 import { getSectionActivityTemplates } from "../utils/meetingSections.js";
 import { setContent } from "../utils/DOMUtils.js";
 import { debugLog, debugWarn } from "../utils/DebugUtils.js";
+import { AchievementModal } from "./AchievementModal.js";
 
 /**
  * ActivityManager - Handles all activity-related operations
@@ -18,6 +19,7 @@ export class ActivityManager {
                 this.participants = participants;
                 this.meetingLengthMinutes = 120; // Default: 2 hours
                 this.durationOverride = null; // Optional override for special meetings
+                this.achievementModal = null; // Will hold the AchievementModal instance
         }
 
         /**
@@ -230,34 +232,17 @@ export class ActivityManager {
                                                 <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
                                         </div>
                                         <div class="activity-row__actions">
-                                                <button type="button" class="toggle-achievement-btn ${hasAchievement ? 'active' : ''}" title="${translate("badge_add_star") || 'Achievement'}">★</button>
+                                                <button type="button" class="toggle-achievement-btn ${hasAchievement ? 'active' : ''}" title="${translate("badge_add_star") || 'Achievement'}" data-activity-index="${index}">★</button>
                                                 <button type="button" class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
                                                 <button type="button" class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
                                         </div>
                                 </div>
-                                <div class="activity-achievement-panel ${hasAchievement ? '' : 'hidden'}" style="background: #f8f9fa; padding: 10px; margin: 5px 0 15px 40px; border-radius: 4px; border-left: 3px solid #ffd700;">
-                                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                                <div style="flex: 1; min-width: 200px;">
-                                                        <label style="display: block; font-size: 0.8em; color: #666;">${translate("badge") || "Badge"}</label>
-                                                        <select class="achievement-badge-select" style="width: 100%;">
-                                                                <option value="">${translate("select_badge") || "Select Badge..."}</option>
-                                                                ${badgeOptions}
-                                                        </select>
-                                                </div>
-                                                <div style="width: 120px;">
-                                                        <label style="display: block; font-size: 0.8em; color: #666;">${translate("type") || "Type"}</label>
-                                                        <select class="achievement-type-select" style="width: 100%;">
-                                                                <option value="proie" ${starType === 'proie' ? 'selected' : ''}>${translate("badge_type_proie") || "Proie"}</option>
-                                                                <option value="battue" ${starType === 'battue' ? 'selected' : ''}>${translate("badge_type_battue") || "Battue"}</option>
-                                                        </select>
-                                                </div>
-                                                <div class="achievement-participants-container" style="flex: 1; min-width: 200px; ${starType === 'battue' ? 'display: none;' : ''}">
-                                                        <label style="display: block; font-size: 0.8em; color: #666;">${translate("participants") || "Participants"}</label>
-                                                        <select class="achievement-participants-select" multiple style="width: 100%; height: 38px;">
-                                                                ${participantOptions}
-                                                        </select>
-                                                </div>
-                                        </div>
+                                <!-- Achievement summary display -->
+                                <div class="achievement-summary ${hasAchievement ? '' : 'hidden'}" 
+                                     data-badge-id="${a.badge_template_id || ''}" 
+                                     data-type="${starType}" 
+                                     data-participants="${participantIds.join(',')}">
+                                        ${this.renderAchievementSummary(a.badge_template_id, starType, participantIds)}
                                 </div>
                         </div>
                 `;
@@ -482,42 +467,128 @@ export class ActivityManager {
 
                 containers.forEach(container => {
                         const toggleBtn = container.querySelector('.toggle-achievement-btn');
-                        const panel = container.querySelector('.activity-achievement-panel');
-                        const typeSelect = container.querySelector('.achievement-type-select');
-                        const participantsContainer = container.querySelector('.achievement-participants-container');
+                        const activityIndex = toggleBtn?.dataset.activityIndex;
 
-                        // Toggle Panel
-                        if (toggleBtn && panel) {
+                        // Open Modal on Click
+                        if (toggleBtn) {
                                 // Remove existing listener to avoid duplicates if called multiple times
                                 const newBtn = toggleBtn.cloneNode(true);
                                 toggleBtn.parentNode.replaceChild(newBtn, toggleBtn);
 
                                 newBtn.addEventListener('click', () => {
-                                        const isHidden = panel.classList.contains('hidden');
-                                        if (isHidden) {
-                                                panel.classList.remove('hidden');
-                                                newBtn.classList.add('active');
-                                        } else {
-                                                panel.classList.add('hidden');
-                                                newBtn.classList.remove('active');
-                                        }
-                                });
-                        }
-
-                        // Toggle Participants based on Type
-                        if (typeSelect && participantsContainer) {
-                                const newSelect = typeSelect.cloneNode(true);
-                                typeSelect.parentNode.replaceChild(newSelect, typeSelect);
-
-                                newSelect.addEventListener('change', (e) => {
-                                        if (e.target.value === 'battue') {
-                                                participantsContainer.style.display = 'none';
-                                        } else {
-                                                participantsContainer.style.display = 'block';
-                                        }
+                                        this.openAchievementModal(parseInt(activityIndex, 10), container);
                                 });
                         }
                 });
+        }
+
+        /**
+         * Render achievement summary for display under activity row
+         * @param {string|number} badgeId - Selected badge template ID
+         * @param {string} starType - 'proie' or 'battue'
+         * @param {Array} participantIds - Array of selected participant IDs
+         * @returns {string} HTML string for the summary
+         */
+        renderAchievementSummary(badgeId, starType, participantIds = []) {
+                const badge = this.badgeTemplates.find(t => String(t.id) === String(badgeId));
+                const badgeName = badge ? (translate(badge.translation_key) || badge.name) : translate("no_badge_selected") || "No badge selected";
+                const badgeImage = badge?.image || badge?.image_url || '';
+
+                const typeLabel = starType === 'battue'
+                        ? (translate("badge_type_battue") || "Battue")
+                        : (translate("badge_type_proie") || "Proie");
+
+                let participantNames = '';
+                if (starType !== 'battue' && participantIds.length > 0) {
+                        const names = participantIds.map(id => {
+                                const p = this.participants.find(p => String(p.id) === String(id));
+                                return p ? `${p.first_name} ${p.last_name}` : '';
+                        }).filter(Boolean);
+                        participantNames = names.join(', ');
+                }
+
+                return `
+                        <div class="achievement-summary__content">
+                                ${badgeImage ? `<img src="${badgeImage}" alt="${badgeName}" class="achievement-summary__image" />` : ''}
+                                <div class="achievement-summary__details">
+                                        <span class="achievement-summary__badge">${badgeName}</span>
+                                        <span class="achievement-summary__type">(${typeLabel})</span>
+                                        ${participantNames ? `<span class="achievement-summary__participants">→ ${participantNames}</span>` : ''}
+                                </div>
+                        </div>
+                `;
+        }
+
+        /**
+         * Open achievement modal for a specific activity
+         * @param {number} activityIndex - Index of the activity row
+         * @param {HTMLElement} container - The activity row container element
+         */
+        openAchievementModal(activityIndex, container) {
+                // Get current values from summary panel data attributes
+                const summaryPanel = container.querySelector('.achievement-summary');
+
+                const existingData = {
+                        badge_template_id: summaryPanel?.dataset.badgeId || null,
+                        star_type: summaryPanel?.dataset.type || 'proie',
+                        participant_ids: summaryPanel?.dataset.participants ? summaryPanel.dataset.participants.split(',').filter(Boolean) : [],
+                        activityIndex
+                };
+
+                debugLog("Opening achievement modal with data:", existingData);
+                debugLog("Badge templates available:", this.badgeTemplates);
+                debugLog("Participants available:", this.participants);
+
+                // Create and open the modal
+                this.achievementModal = new AchievementModal(
+                        this.badgeTemplates,
+                        this.participants,
+                        (data) => this.handleAchievementSave(data, container)
+                );
+
+                this.achievementModal.open(existingData);
+        }
+
+        /**
+         * Handle save from achievement modal
+         * @param {Object} data - Modal save data
+         * @param {HTMLElement} container - The activity row container element
+         */
+        handleAchievementSave(data, container) {
+                debugLog("Achievement modal save data:", data);
+
+                // Update summary panel data attributes and content
+                const summaryPanel = container.querySelector('.achievement-summary');
+                const toggleBtn = container.querySelector('.toggle-achievement-btn');
+
+                if (summaryPanel) {
+                        summaryPanel.dataset.badgeId = data.badge_template_id || '';
+                        summaryPanel.dataset.type = data.star_type || 'proie';
+                        summaryPanel.dataset.participants = (data.participant_ids || []).join(',');
+
+                        // Update visual content
+                        summaryPanel.innerHTML = this.renderAchievementSummary(
+                                data.badge_template_id,
+                                data.star_type,
+                                data.participant_ids
+                        );
+
+                        // Show/hide based on whether a badge is selected
+                        if (data.badge_template_id) {
+                                summaryPanel.classList.remove('hidden');
+                        } else {
+                                summaryPanel.classList.add('hidden');
+                        }
+                }
+
+                // Update star button appearance
+                if (toggleBtn) {
+                        if (data.badge_template_id) {
+                                toggleBtn.classList.add('active');
+                        } else {
+                                toggleBtn.classList.remove('active');
+                        }
+                }
         }
 
         /**
@@ -556,15 +627,15 @@ export class ActivityManager {
                         const durationValue = row.querySelector('.activity-duration').value;
                         const materielValue = row.querySelector('.activity-materiel').value;
 
-                        // Achievement Data
+                        // Achievement Data - read from summary panel data attributes
                         const container = row.closest('.activity-row-container');
-                        const badgeSelect = container?.querySelector('.achievement-badge-select');
-                        const typeSelect = container?.querySelector('.achievement-type-select');
-                        const participantsSelect = container?.querySelector('.achievement-participants-select');
+                        const summaryPanel = container?.querySelector('.achievement-summary');
 
-                        const badgeTemplateId = badgeSelect?.value || null;
-                        const starType = typeSelect?.value || 'proie';
-                        const participantIds = participantsSelect ? Array.from(participantsSelect.selectedOptions).map(opt => opt.value) : [];
+                        const badgeTemplateId = summaryPanel?.dataset.badgeId || null;
+                        const starType = summaryPanel?.dataset.type || 'proie';
+                        const participantIds = summaryPanel?.dataset.participants
+                                ? summaryPanel.dataset.participants.split(',').filter(Boolean)
+                                : [];
 
                         const result = {
                                 ...activity,
