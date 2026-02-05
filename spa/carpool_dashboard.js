@@ -19,6 +19,7 @@ import { OptimisticUpdateManager, generateOptimisticId } from './utils/Optimisti
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError } from './utils/DebugUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
+import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
 
 export class CarpoolDashboard {
@@ -86,9 +87,10 @@ export class CarpoolDashboard {
 
     if (!this.activity) {
       setContent(container, `
-        <section class="page">
-          <div class="error-state">${translate('activity_not_found')}</div>
-        </section>
+        ${buildNotFoundMarkup({
+          messageKey: 'activity_not_found',
+          resourceLabel: translate('activity')
+        })}
       `);
       return;
     }

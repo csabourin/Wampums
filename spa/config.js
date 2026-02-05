@@ -76,6 +76,13 @@ export const CONFIG = {
     DEFAULT_CURRENCY: "CAD",
 
     /**
+     * Default time format preference
+     */
+    TIME_FORMAT: {
+        DEFAULT: "24h",
+    },
+
+    /**
      * Supported Languages
      */
     SUPPORTED_LANGS: ["en", "fr", "uk", "it", "id"],
@@ -92,6 +99,7 @@ export const CONFIG = {
         USER_ID: "userId",
         LANGUAGE: "language",
         THEME: "theme",
+        TIME_FORMAT: "timeFormat",
     },
 
     /**
@@ -368,3 +376,4 @@ Object.freeze(CONFIG.PUSH_NOTIFICATIONS);
 Object.freeze(CONFIG.FEATURES);
 Object.freeze(CONFIG.INDEXEDDB);
 Object.freeze(CONFIG.SERVICE_WORKER);
+Object.freeze(CONFIG.TIME_FORMAT);

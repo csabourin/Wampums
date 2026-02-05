@@ -10126,6 +10126,40 @@ details p {
   display: block;
 }
 
+.not-found-state {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.not-found-state__card {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border: 1px solid var(--color-border, #e0e0e0);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.not-found-state__message {
+  margin: 0.75rem 0 0;
+  color: var(--color-text-muted, #666);
+}
+
+.not-found-state__detail {
+  margin: 0.5rem 0 0;
+  color: var(--color-text-muted, #666);
+  font-weight: 600;
+}
+
+.not-found-state__actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: center;
+}
+
 /* Finance page payment buttons */
 .finance-actions {
   margin-top: 1rem;

@@ -669,6 +669,17 @@ module.exports = (pool, logger) => {
       [organizationId]
     );
 
+    const paymentMethods = await pool.query(
+      `SELECT COALESCE(pay.method, 'unknown') AS method,
+              COALESCE(SUM(pay.amount), 0) AS total_paid
+       FROM payments pay
+       JOIN participant_fees pf ON pf.id = pay.participant_fee_id
+       WHERE pf.organization_id = $1
+       GROUP BY COALESCE(pay.method, 'unknown')
+       ORDER BY total_paid DESC`,
+      [organizationId]
+    );
+
     const totalsRow = totalsResult.rows[0];
     const totalBilled = toNumeric(totalsRow.total_billed);
     const totalPaid = toNumeric(totalsRow.total_paid);
@@ -691,6 +702,10 @@ module.exports = (pool, logger) => {
         total_billed: toNumeric(row.total_billed),
         total_paid: toNumeric(row.total_paid),
         total_outstanding: toNumeric(row.total_billed) - toNumeric(row.total_paid)
+      })),
+      payment_methods: paymentMethods.rows.map((row) => ({
+        method: row.method,
+        total_paid: toNumeric(row.total_paid)
       }))
     };
 

@@ -1386,10 +1386,29 @@ export class Reports {
 		}).format(Number(amount) || 0);
 	}
 
+	formatPercent(numerator, denominator) {
+		if (!denominator || denominator <= 0) {
+			return new Intl.NumberFormat(this.app.lang || "en", {
+				style: "percent",
+				maximumFractionDigits: 0,
+			}).format(0);
+		}
+		const ratio = Math.max(0, Number(numerator) || 0) / denominator;
+		return new Intl.NumberFormat(this.app.lang || "en", {
+			style: "percent",
+			maximumFractionDigits: 0,
+		}).format(ratio);
+	}
+
 	renderFinancialReport(data) {
 		const totals = data?.totals || {};
 		const definitions = data?.definitions || [];
 		const participants = data?.participants || [];
+		const paymentMethods = data?.payment_methods || [];
+		const paymentMethodsTotal = paymentMethods.reduce(
+			(acc, item) => acc + (Number(item.total_paid) || 0),
+			0,
+		);
 
 		const definitionRows = definitions
 			.map(
@@ -1425,6 +1444,24 @@ export class Reports {
 			)
 			.join("");
 
+		const paymentMethodRows = paymentMethods
+			.map((methodRow) => {
+				const methodKey = methodRow.method || "unknown";
+				const methodLabel = translate(methodKey) || translate("unknown");
+				return `
+                        <div class="finance-list__row">
+                                <div>
+                                        <p class="finance-meta">${methodLabel}</p>
+                                </div>
+                                <div class="finance-row-values">
+                                        <span>${this.formatCurrency(methodRow.total_paid)}</span>
+                                        <span>${this.formatPercent(methodRow.total_paid, paymentMethodsTotal)}</span>
+                                </div>
+                        </div>
+                `;
+			})
+			.join("");
+
 		return `
                         <div class="report-surface financial-report">
                                 <div class="finance-stats">
@@ -1442,6 +1479,10 @@ export class Reports {
                                         </div>
                                 </div>
                                 <div class="finance-grid">
+                                        <section class="finance-card">
+                                                <h3>${translate("by_payment_method")}</h3>
+                                                ${paymentMethodRows || `<p class="finance-helper">${translate("no_payments")}</p>`}
+                                        </section>
                                         <section class="finance-card">
                                                 <h3>${translate("by_year")}</h3>
                                                 ${definitionRows || `<p class="finance-helper">${translate("no_definitions")}</p>`}

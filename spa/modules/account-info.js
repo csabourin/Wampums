@@ -14,6 +14,7 @@ import { escapeHTML } from "../utils/SecurityUtils.js";
 import { isParent } from "../utils/PermissionUtils.js";
 import { setContent, loadStylesheet } from "../utils/DOMUtils.js";
 import { getStorage, setStorage } from "../utils/StorageUtils.js";
+import { CONFIG, getStorageKey } from "../config.js";
 
 /**
  * Settings/Account Information Management Class
@@ -139,7 +140,10 @@ export class AccountInfoModule {
     const roles = Array.isArray(this.userData?.roles) ? this.userData.roles.join(", ") : "";
 
     // Get current UI language (not just preference)
-    const currentLang = this.app.lang || getStorage('lang', false, 'fr');
+    const currentLang = this.app.lang || getStorage('lang', false, CONFIG.DEFAULT_LANG);
+    const timeFormatKey = getStorageKey("TIME_FORMAT");
+    const defaultTimeFormat = CONFIG?.TIME_FORMAT?.DEFAULT || "24h";
+    const currentTimeFormat = getStorage(timeFormatKey, false, defaultTimeFormat);
 
     const guardianData = this.guardianProfile?.guardian || {};
     const nameParts = fullName ? fullName.split(" ") : [];
@@ -393,6 +397,21 @@ export class AccountInfoModule {
           </div>
         </section>
 
+        <!-- Time Format Section -->
+        <section class="account-section">
+          <h2>${translate("time_format")}</h2>
+          <p class="section-description">${translate("time_format_description")}</p>
+          <div class="setting-row">
+            <label for="time-format-select" class="setting-label">
+              <span>${translate("time_format")}</span>
+            </label>
+            <select id="time-format-select" class="settings-select">
+              <option value="24h" ${currentTimeFormat === "24h" ? "selected" : ""}>${translate("time_format_24h")}</option>
+              <option value="12h" ${currentTimeFormat === "12h" ? "selected" : ""}>${translate("time_format_12h")}</option>
+            </select>
+          </div>
+        </section>
+
         <!-- Notifications Section -->
         ${this.pushSupported ? `
         <section class="account-section">
@@ -492,6 +511,11 @@ export class AccountInfoModule {
     const pushToggle = document.getElementById("push-toggle");
     if (pushToggle) {
       pushToggle.addEventListener("change", (e) => this.handlePushToggle(e));
+    }
+
+    const timeFormatSelect = document.getElementById("time-format-select");
+    if (timeFormatSelect) {
+      timeFormatSelect.addEventListener("change", (e) => this.handleTimeFormatChange(e));
     }
 
     // Logout button
@@ -806,6 +830,22 @@ export class AccountInfoModule {
       debugError("Error changing language:", error);
       this.app.showMessage(translate("Error") || "Failed to change language", "error");
     }
+  }
+
+  /**
+   * Handle time format change
+   * @param {Event} event - Select change event
+   */
+  handleTimeFormatChange(event) {
+    const selected = event.target.value;
+    const timeFormatKey = getStorageKey("TIME_FORMAT");
+    const normalized = selected === "12h" ? "12h" : "24h";
+
+    setStorage(timeFormatKey, normalized);
+    this.app.showMessage(translate("data_saved"), "success");
+
+    this.render();
+    this.attachEventListeners();
   }
 
   /**

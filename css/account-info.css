@@ -408,6 +408,21 @@ h1 {
   font-size: 1rem;
 }
 
+.settings-select {
+  min-width: 160px;
+  padding: 10px 12px;
+  border: 2px solid #e5e5ea;
+  border-radius: 8px;
+  background-color: #fff;
+  font-size: 1rem;
+}
+
+.settings-select:focus {
+  outline: none;
+  border-color: #4c65ae;
+  box-shadow: 0 0 0 2px rgba(76, 101, 174, 0.2);
+}
+
 /* Toggle Switch */
 .toggle-switch {
   position: relative;
