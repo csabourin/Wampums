@@ -24,6 +24,7 @@ import { setButtonLoading } from "./utils/SkeletonUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { clearFinanceRelatedCaches } from "./indexedDB.js";
 import { LoadingStateManager, CacheWithTTL, retryWithBackoff, withButtonLoading, debounce } from "./utils/PerformanceUtils.js";
+import { exportToCSV } from "./utils/ExportUtils.js";
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
@@ -579,7 +580,14 @@ export class Finance extends BaseModule {
     return `
       <section class="finance-grid">
         <article class="finance-card finance-card--highlight">
-          <h2>${translate("financial_report")}</h2>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>${translate("financial_report")}</h2>
+            ${CONFIG.FEATURES.EXPORT_REPORTS ? `
+              <button class="button button--secondary" id="export-finance-csv">
+                <span class="button-icon">⬇️</span> ${translate("export_csv")}
+              </button>
+            ` : ''}
+          </div>
           <div class="finance-stats">
             <div>
               <p class="finance-stat__label">${translate("total_billed")}</p>
@@ -605,6 +613,27 @@ export class Finance extends BaseModule {
         </article>
       </section>
     `;
+  }
+
+  exportFinanceReport() {
+    const summary = this.financeSummary || {};
+    const participants = summary.participants || [];
+
+    if (!participants.length) {
+      this.app.showMessage(translate("no_data_to_export"), "warning");
+      return;
+    }
+
+    const columns = [
+      { key: "first_name", label: translate("first_name") },
+      { key: "last_name", label: translate("last_name") },
+      { key: "total_billed", label: translate("total_billed"), format: (val) => val.toFixed(2) },
+      { key: "total_paid", label: translate("total_paid"), format: (val) => val.toFixed(2) },
+      { key: "total_outstanding", label: translate("outstanding_balance"), format: (val) => val.toFixed(2) }
+    ];
+
+    const filename = `finance_report_${formatDateShort(new Date()).replace(/\//g, '-')}`;
+    exportToCSV(participants, columns, filename);
   }
 
   renderPaymentModal() {
@@ -719,6 +748,12 @@ export class Finance extends BaseModule {
         this.attachEventListeners();
       });
     });
+
+    // Export listener
+    const exportBtn = document.getElementById('export-finance-csv');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => this.exportFinanceReport());
+    }
 
     // Search listener
     const searchInput = document.getElementById('finance-search');
