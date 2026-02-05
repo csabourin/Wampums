@@ -246,56 +246,260 @@
           </article>
         </div>
       </section>
-      <!-- Features -->
-      <section class="section" id="features">
-        <h2>Built for weekly scout units</h2>
-        <p>
-          Every module supports real-world leadership workflows: fast preparation,
-          clear follow-up, and strong parent collaboration.
-        </p>
+      <!-- Features by Audience -->
+      <section class="section section-center" id="features">
+        <h2>Everything your group needs, for every role</h2>
+        <p>Wampums gives leaders, parents, and administrators each their own tailored experience. Explore what's available for your role.</p>
 
-        <div class="grid" role="list">
-          <article class="card" role="listitem">
-            <h3>Meeting planning</h3>
-            <p class="meta">
-              Plan weekly activities, materials, and responsibilities with a shared calendar.
-            </p>
-          </article>
+        <div class="tabs" role="tablist" aria-label="Features by audience">
+          <button role="tab" aria-selected="true" aria-controls="tab-leaders" id="btn-leaders" class="tab-btn tab-btn--active">Leaders</button>
+          <button role="tab" aria-selected="false" aria-controls="tab-parents" id="btn-parents" class="tab-btn">Parents</button>
+          <button role="tab" aria-selected="false" aria-controls="tab-admin" id="btn-admin" class="tab-btn">Administrators</button>
+        </div>
 
-          <article class="card" role="listitem">
-            <h3>Attendance & advancement</h3>
-            <p class="meta">
-              Capture attendance, points, and badge or honor progress.
-            </p>
-          </article>
+        <!-- Leaders Tab -->
+        <div role="tabpanel" id="tab-leaders" class="tab-panel tab-panel--active" aria-labelledby="btn-leaders">
+          <div class="feature-group">
+            <h3 class="feature-group__title">Meeting Preparation</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>AI-Assisted Meeting Plans</h4>
+                <p class="meta">Generate full meeting plans with activities, responsible leaders, and required materials. Use previous meetings as templates.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Risk Analysis</h4>
+                <p class="meta">Built-in AI risk assessment for safety planning before outings and special activities.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Activity Calendar</h4>
+                <p class="meta">Schedule and manage activities with dates, times, locations, and meeting points.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Automatic Reminders</h4>
+                <p class="meta">Parents receive reminders before each meeting with logistics and outstanding permissions.</p>
+              </article>
+            </div>
+          </div>
 
-          <article class="card" role="listitem">
-            <h3>Parent communications</h3>
-            <p class="meta">
-              Send updates, reminders, and documents so families stay aligned.
-            </p>
-          </article>
+          <div class="feature-group">
+            <h3 class="feature-group__title">On-the-Ground Tracking</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Mobile Attendance</h4>
+                <p class="meta">Take attendance on your phone with guest support, optimistic updates, and offline queuing.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Badge &amp; Honor Tracking</h4>
+                <p class="meta">Multi-level star/badge system with approval workflows (pending, approved, delivered) and bulk operations.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Points System</h4>
+                <p class="meta">Award points by group or individual. Sortable views with offline support and optimistic updates.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Medication Dispensing</h4>
+                <p class="meta">Track medication requirements, schedule dispensing windows with timed alerts, and record distribution events.</p>
+              </article>
+            </div>
+          </div>
 
-          <article class="card" role="listitem">
-            <h3>Role management</h3>
-            <p class="meta">
-              Assign roles (district, leaders, parents) and secure access to data.
-            </p>
-          </article>
+          <div class="feature-group">
+            <h3 class="feature-group__title">Communication</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>WhatsApp Integration</h4>
+                <p class="meta">Connect via QR code and send announcements directly through WhatsApp with real-time delivery status.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Email &amp; Mailing Lists</h4>
+                <p class="meta">Role-based mailing lists with templates and a built-in announcement composer.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Google Chat</h4>
+                <p class="meta">Configure Google Chat spaces for automated notifications to your leadership team.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Permission Slips</h4>
+                <p class="meta">Create, email, and track permission forms. See who has signed and send reminders to those who haven't.</p>
+              </article>
+            </div>
+          </div>
 
-          <article class="card" role="listitem">
-            <h3>Documents & consents</h3>
-            <p class="meta">
-              Store health forms, permissions, and reports to help keep activities compliant.
-            </p>
-          </article>
+          <div class="feature-group">
+            <h3 class="feature-group__title">Logistics &amp; Equipment</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Carpool Coordination</h4>
+                <p class="meta">Parents offer rides, leaders assign participants. Quick-access modal shows vehicles and seats per activity.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Inventory Management</h4>
+                <p class="meta">Catalog equipment with photos, track storage locations, and manage condition status.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Material Reservations</h4>
+                <p class="meta">Reserve equipment for upcoming activities with automatic conflict detection for overlapping bookings.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Resource Dashboard</h4>
+                <p class="meta">At-a-glance view of what equipment is reserved for each meeting date.</p>
+              </article>
+            </div>
+          </div>
+        </div>
 
-          <article class="card" role="listitem">
-            <h3>Reports & export</h3>
-            <p class="meta">
-              Generate reports on participation, advancement, and fundraising (e.g., calendar sales).
-            </p>
-          </article>
+        <!-- Parents Tab -->
+        <div role="tabpanel" id="tab-parents" class="tab-panel" aria-labelledby="btn-parents" hidden>
+          <div class="feature-group">
+            <h3 class="feature-group__title">My Children</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Parent Dashboard</h4>
+                <p class="meta">See all your children's activities, badge progress, upcoming events, and outstanding documents in one place.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Badge Progress</h4>
+                <p class="meta">View each child's badge and honor advancement with visual progress indicators.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Registration Forms</h4>
+                <p class="meta">Register new participants or update existing information through dynamic, customizable forms.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Progress Reports</h4>
+                <p class="meta">Access per-participant progress reports covering attendance, badges, and participation.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <h3 class="feature-group__title">Documents &amp; Payments</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Online Payments</h4>
+                <p class="meta">Pay membership fees and activity costs directly via credit card (Stripe). See outstanding balances in real time.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Permission Slips</h4>
+                <p class="meta">Sign permission forms from a secure link on your phone. No printing or scanning needed.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Health Forms</h4>
+                <p class="meta">Submit and update your child's health information, allergies, and emergency contacts digitally.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Financial Statements</h4>
+                <p class="meta">View total billed, total paid, and outstanding balance per child with detailed fee breakdowns.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <h3 class="feature-group__title">Stay Connected</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Carpool Coordination</h4>
+                <p class="meta">Offer rides or see your assigned carpool for each activity. Know who's driving your child.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Parent Contact Directory</h4>
+                <p class="meta">Searchable directory of other parents in your group for direct communication.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>News Feed</h4>
+                <p class="meta">Stay informed with group announcements and updates from leadership on your dashboard.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Push Notifications</h4>
+                <p class="meta">Opt in to receive instant notifications about meetings, reminders, and announcements.</p>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <!-- Administrators Tab -->
+        <div role="tabpanel" id="tab-admin" class="tab-panel" aria-labelledby="btn-admin" hidden>
+          <div class="feature-group">
+            <h3 class="feature-group__title">Finance &amp; Fundraising</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Fee Management</h4>
+                <p class="meta">Define membership fees, assign to participants, and create payment plans with installment schedules.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Expense Tracking</h4>
+                <p class="meta">Record and categorize expenses with payment method tracking. AI receipt parsing for quick entry.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Budget Management</h4>
+                <p class="meta">Plan budgets by category and track spending against actuals throughout the year.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Fundraiser Management</h4>
+                <p class="meta">Create and manage fundraisers with calendar views, per-participant sales tracking, and archiving.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Revenue Dashboard</h4>
+                <p class="meta">Consolidated view across all revenue sources (fees, fundraisers, external) with fiscal year support.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Online Stripe Payments</h4>
+                <p class="meta">Accept credit card payments from parents. Automatic reconciliation with participant fee records.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <h3 class="feature-group__title">Organization &amp; Access</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Role &amp; Permission System</h4>
+                <p class="meta">40+ granular permissions across participants, groups, activities, finance, badges, carpools, and forms.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>District Management</h4>
+                <p class="meta">District-level oversight with cross-organization role assignment and audit logging.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Multi-Unit Support</h4>
+                <p class="meta">Manage multiple sections from a single login. Switch between organizations seamlessly.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>SISC Data Import</h4>
+                <p class="meta">Import participants, guardians, and users from CSV files for fast onboarding.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Form Builder</h4>
+                <p class="meta">Drag-and-drop form builder with conditional logic, translations, and cross-unit form copying.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Guardian Management</h4>
+                <p class="meta">Parent/guardian relationship tracking with participant linking and approval workflows.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="feature-group">
+            <h3 class="feature-group__title">Reporting &amp; Compliance</h3>
+            <div class="grid" role="list">
+              <article class="card" role="listitem">
+                <h4>Health &amp; Medical Reports</h4>
+                <p class="meta">Health forms, allergies, medications, and vaccination status reports across all participants.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Compliance Reports</h4>
+                <p class="meta">Leave-alone authorization, media authorization, and missing documents at a glance.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Participant Reports</h4>
+                <p class="meta">Progress, age, points, honors, attendance, and printable group roster reports.</p>
+              </article>
+              <article class="card" role="listitem">
+                <h4>Financial Reports</h4>
+                <p class="meta">Revenue by source, budget tracking, payment breakdowns by method, and outstanding balances.</p>
+              </article>
+            </div>
+          </div>
         </div>
       </section>
 

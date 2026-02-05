@@ -46,28 +46,116 @@ const translations = {
 		solution3_feature5: "Accès API et domaine personnalisé",
 		solution_cta: "Voir la démo",
 
-		// Features
-		features_title: "Fonctions conçues pour les unités scoutes",
-		features_body:
-			"Chaque module est pensé pour les réalités des équipes de responsables et du district : préparation rapide, suivi clair et collaboration avec les parents.",
-		feature1_title: "Planification des rencontres",
-		feature1_body:
-			"Planifiez les activités hebdomadaires, matériaux et responsabilités, avec un calendrier partagé.",
-		feature2_title: "Santé et sécurité",
-		feature2_body:
-			"Gestion complète des médicaments (planification et distribution), fiches santé et acceptation des risques.",
-		feature3_title: "Logistique et inventaire",
-		feature3_body:
-			"Gérez le covoiturage, l'inventaire du matériel et les réservations de ressources.",
-		feature4_title: "Finances et levées de fonds",
-		feature4_body:
-			"Suivi des budgets, dépenses, ventes de calendriers et autres campagnes de financement.",
-		feature5_title: "Documents et consentements",
-		feature5_body:
-			"Stockez fiches santé, autorisations et rapports pour des activités conformes.",
-		feature6_title: "Rapports et export",
-		feature6_body:
-			"Générez des rapports sur la participation, la progression et les ventes de calendriers.",
+		// Features (tabbed)
+		features_title: "Tout ce dont votre groupe a besoin, pour chaque rôle",
+		features_body: "Wampums offre aux responsables, aux parents et aux administrateurs chacun une expérience adaptée. Explorez les fonctions disponibles pour votre rôle.",
+		tab_leaders: "Responsables",
+		tab_parents: "Parents",
+		tab_admin: "Administrateurs",
+
+		// Leaders tab
+		fg_meeting_prep: "Préparation des rencontres",
+		f_ai_plans: "Plans de réunion assistés par IA",
+		f_ai_plans_d: "Générez des plans complets avec activités, responsables assignés et matériel requis. Réutilisez les réunions précédentes comme modèles.",
+		f_risk: "Analyse des risques",
+		f_risk_d: "Évaluation IA intégrée pour la planification sécuritaire des sorties et activités spéciales.",
+		f_calendar: "Calendrier des activités",
+		f_calendar_d: "Planifiez et gérez les activités avec dates, heures, lieux et points de rencontre.",
+		f_reminders: "Rappels automatiques",
+		f_reminders_d: "Les parents reçoivent un rappel avant chaque réunion avec la logistique et les autorisations manquantes.",
+		fg_field_tracking: "Suivi terrain",
+		f_attendance: "Présences sur mobile",
+		f_attendance_d: "Prenez les présences sur votre téléphone avec gestion des invités, mises à jour optimistes et file d'attente hors-ligne.",
+		f_badges: "Suivi des badges et honneurs",
+		f_badges_d: "Système de badges multi-niveaux avec flux d'approbation (en attente, approuvé, remis) et opérations en lot.",
+		f_points: "Système de points",
+		f_points_d: "Attribuez des points par groupe ou individuellement. Vues triables avec support hors-ligne.",
+		f_meds: "Distribution de médicaments",
+		f_meds_d: "Suivez les exigences médicales, planifiez les fenêtres de distribution avec alertes chronométrées et enregistrez chaque dose.",
+		fg_communication: "Communication",
+		f_whatsapp: "Intégration WhatsApp",
+		f_whatsapp_d: "Connectez-vous par code QR et envoyez des annonces directement via WhatsApp avec suivi de livraison en temps réel.",
+		f_email: "Courriel et listes de diffusion",
+		f_email_d: "Listes de diffusion par rôle avec modèles et compositeur d'annonces intégré.",
+		f_gchat: "Google Chat",
+		f_gchat_d: "Configurez des espaces Google Chat pour les notifications automatisées à votre équipe.",
+		f_perms: "Autorisations parentales",
+		f_perms_d: "Créez, envoyez et suivez les formulaires d'autorisation. Voyez qui a signé et relancez les retardataires.",
+		fg_logistics: "Logistique et matériel",
+		f_carpool: "Coordination du covoiturage",
+		f_carpool_d: "Les parents offrent des places, les responsables assignent les participants. Accès rapide aux véhicules par activité.",
+		f_inventory: "Gestion de l'inventaire",
+		f_inventory_d: "Cataloguez l'équipement avec photos, suivez les emplacements de rangement et l'état du matériel.",
+		f_reservations: "Réservation de matériel",
+		f_reservations_d: "Réservez l'équipement pour les activités avec détection automatique des conflits de chevauchement.",
+		f_resources: "Tableau de bord ressources",
+		f_resources_d: "Vue d'ensemble de l'équipement réservé pour chaque date de rencontre.",
+
+		// Parents tab
+		fg_my_children: "Mes enfants",
+		f_parent_dash: "Tableau de bord parent",
+		f_parent_dash_d: "Voyez les activités, la progression des badges, les événements à venir et les documents en attente de tous vos enfants.",
+		f_badge_progress: "Progression des badges",
+		f_badge_progress_d: "Suivez l'avancement des badges et honneurs de chaque enfant avec des indicateurs visuels.",
+		f_reg_forms: "Formulaires d'inscription",
+		f_reg_forms_d: "Inscrivez de nouveaux participants ou mettez à jour les informations via des formulaires dynamiques et personnalisables.",
+		f_progress_reports: "Rapports de progrès",
+		f_progress_reports_d: "Accédez aux rapports individuels couvrant la présence, les badges et la participation.",
+		fg_docs_payments: "Documents et paiements",
+		f_online_pay: "Paiements en ligne",
+		f_online_pay_d: "Payez les cotisations et les frais d'activité directement par carte de crédit (Stripe). Soldes en temps réel.",
+		f_perm_sign: "Autorisations parentales",
+		f_perm_sign_d: "Signez les formulaires d'autorisation depuis un lien sécurisé sur votre téléphone. Aucune impression nécessaire.",
+		f_health: "Fiches santé",
+		f_health_d: "Soumettez et mettez à jour les informations médicales, allergies et contacts d'urgence de votre enfant en ligne.",
+		f_statements: "États de compte",
+		f_statements_d: "Consultez le total facturé, les paiements effectués et le solde dû par enfant avec le détail des frais.",
+		fg_stay_connected: "Rester connecté",
+		f_carpool_parent: "Coordination du covoiturage",
+		f_carpool_parent_d: "Offrez des places ou consultez votre covoiturage assigné pour chaque activité. Sachez qui conduit votre enfant.",
+		f_directory: "Répertoire des parents",
+		f_directory_d: "Annuaire consultable des autres parents de votre groupe pour la communication directe.",
+		f_newsfeed: "Fil de nouvelles",
+		f_newsfeed_d: "Restez informé avec les annonces du groupe et les mises à jour des responsables sur votre tableau de bord.",
+		f_push: "Notifications push",
+		f_push_d: "Activez les notifications instantanées pour les réunions, rappels et annonces importantes.",
+
+		// Admin tab
+		fg_finance: "Finances et levées de fonds",
+		f_fees: "Gestion des frais",
+		f_fees_d: "Définissez les cotisations, assignez-les aux participants et créez des plans de paiement avec échéanciers.",
+		f_expenses: "Suivi des dépenses",
+		f_expenses_d: "Enregistrez et catégorisez les dépenses par méthode de paiement. Saisie rapide par analyse IA de reçus.",
+		f_budgets: "Gestion des budgets",
+		f_budgets_d: "Planifiez les budgets par catégorie et suivez les dépenses réelles tout au long de l'année.",
+		f_fundraisers: "Gestion des levées de fonds",
+		f_fundraisers_d: "Créez et gérez les campagnes avec calendriers, suivi des ventes par participant et archivage.",
+		f_revenue: "Tableau de bord des revenus",
+		f_revenue_d: "Vue consolidée de toutes les sources de revenus avec support d'année fiscale.",
+		f_stripe: "Paiements Stripe en ligne",
+		f_stripe_d: "Acceptez les paiements par carte de crédit des parents. Réconciliation automatique avec les dossiers de frais.",
+		fg_org: "Organisation et accès",
+		f_roles: "Système de rôles et permissions",
+		f_roles_d: "40+ permissions granulaires pour les participants, groupes, activités, finances, badges, covoiturage et formulaires.",
+		f_district: "Gestion de district",
+		f_district_d: "Supervision au niveau du district avec assignation de rôles inter-organisations et journalisation d'audit.",
+		f_multi_unit: "Support multi-unités",
+		f_multi_unit_d: "Gérez plusieurs sections depuis un seul compte. Basculez entre les organisations facilement.",
+		f_import: "Importation SISC",
+		f_import_d: "Importez participants, tuteurs et utilisateurs depuis des fichiers CSV pour une intégration rapide.",
+		f_form_builder: "Constructeur de formulaires",
+		f_form_builder_d: "Constructeur glisser-déposer avec logique conditionnelle, traductions et copie entre unités.",
+		f_guardians: "Gestion des tuteurs",
+		f_guardians_d: "Suivi des relations parent/tuteur avec jumelage de participants et flux d'approbation.",
+		fg_reports: "Rapports et conformité",
+		f_health_reports: "Rapports santé et médical",
+		f_health_reports_d: "Fiches santé, allergies, médicaments et statuts de vaccination pour tous les participants.",
+		f_compliance: "Rapports de conformité",
+		f_compliance_d: "Autorisations de départ seul, autorisations médias et documents manquants en un coup d'oeil.",
+		f_participant_reports: "Rapports participants",
+		f_participant_reports_d: "Progrès, âge, points, honneurs, présences et listes de groupe imprimables.",
+		f_finance_reports: "Rapports financiers",
+		f_finance_reports_d: "Revenus par source, suivi budgétaire, ventilation des paiements par méthode et soldes impayés.",
 
 		// Weekly
 		weekly_title: "Prêt pour chaque réunion hebdomadaire",
@@ -191,27 +279,116 @@ const translations = {
 		solution3_feature5: "API access and custom domains",
 		solution_cta: "View demo",
 
-		// Features
-		features_title: "Built for weekly scout units",
-		features_body:
-			"Every module fits real-world leadership needs: quick prep, clear follow-up, and tight parent collaboration.",
-		feature1_title: "Meeting all-in-one",
-		feature1_body:
-			"Schedule weekly activities, materials, attendance and badge progress in one place.",
-		feature2_title: "Health & Safety",
-		feature2_body: "Complete medication management (planning & logs), health forms, and risk acceptance tracking.",
-		feature3_title: "Logistics & Inventory",
-		feature3_body:
-			"Coordinate carpooling, manage equipment inventory, and handle resource reservations.",
-		feature4_title: "Finance & Fundraising",
-		feature4_body:
-			"Track budgets, expenses, calendar sales, and other fundraising campaigns.",
-		feature5_title: "Documents & Consents",
-		feature5_body:
-			"Store health forms, permissions, and reports to keep activities compliant.",
-		feature6_title: "Reports & Export",
-		feature6_body:
-			"Generate reports on participation, advancement, and calendar sales.",
+		// Features (tabbed)
+		features_title: "Everything your group needs, for every role",
+		features_body: "Wampums gives leaders, parents, and administrators each their own tailored experience. Explore what's available for your role.",
+		tab_leaders: "Leaders",
+		tab_parents: "Parents",
+		tab_admin: "Administrators",
+
+		// Leaders tab
+		fg_meeting_prep: "Meeting Preparation",
+		f_ai_plans: "AI-Assisted Meeting Plans",
+		f_ai_plans_d: "Generate full meeting plans with activities, responsible leaders, and required materials. Use previous meetings as templates.",
+		f_risk: "Risk Analysis",
+		f_risk_d: "Built-in AI risk assessment for safety planning before outings and special activities.",
+		f_calendar: "Activity Calendar",
+		f_calendar_d: "Schedule and manage activities with dates, times, locations, and meeting points.",
+		f_reminders: "Automatic Reminders",
+		f_reminders_d: "Parents receive reminders before each meeting with logistics and outstanding permissions.",
+		fg_field_tracking: "On-the-Ground Tracking",
+		f_attendance: "Mobile Attendance",
+		f_attendance_d: "Take attendance on your phone with guest support, optimistic updates, and offline queuing.",
+		f_badges: "Badge & Honor Tracking",
+		f_badges_d: "Multi-level star/badge system with approval workflows (pending, approved, delivered) and bulk operations.",
+		f_points: "Points System",
+		f_points_d: "Award points by group or individual. Sortable views with offline support and optimistic updates.",
+		f_meds: "Medication Dispensing",
+		f_meds_d: "Track medication requirements, schedule dispensing windows with timed alerts, and record distribution events.",
+		fg_communication: "Communication",
+		f_whatsapp: "WhatsApp Integration",
+		f_whatsapp_d: "Connect via QR code and send announcements directly through WhatsApp with real-time delivery status.",
+		f_email: "Email & Mailing Lists",
+		f_email_d: "Role-based mailing lists with templates and a built-in announcement composer.",
+		f_gchat: "Google Chat",
+		f_gchat_d: "Configure Google Chat spaces for automated notifications to your leadership team.",
+		f_perms: "Permission Slips",
+		f_perms_d: "Create, email, and track permission forms. See who has signed and send reminders to those who haven't.",
+		fg_logistics: "Logistics & Equipment",
+		f_carpool: "Carpool Coordination",
+		f_carpool_d: "Parents offer rides, leaders assign participants. Quick-access modal shows vehicles and seats per activity.",
+		f_inventory: "Inventory Management",
+		f_inventory_d: "Catalog equipment with photos, track storage locations, and manage condition status.",
+		f_reservations: "Material Reservations",
+		f_reservations_d: "Reserve equipment for upcoming activities with automatic conflict detection for overlapping bookings.",
+		f_resources: "Resource Dashboard",
+		f_resources_d: "At-a-glance view of what equipment is reserved for each meeting date.",
+
+		// Parents tab
+		fg_my_children: "My Children",
+		f_parent_dash: "Parent Dashboard",
+		f_parent_dash_d: "See all your children's activities, badge progress, upcoming events, and outstanding documents in one place.",
+		f_badge_progress: "Badge Progress",
+		f_badge_progress_d: "View each child's badge and honor advancement with visual progress indicators.",
+		f_reg_forms: "Registration Forms",
+		f_reg_forms_d: "Register new participants or update existing information through dynamic, customizable forms.",
+		f_progress_reports: "Progress Reports",
+		f_progress_reports_d: "Access per-participant progress reports covering attendance, badges, and participation.",
+		fg_docs_payments: "Documents & Payments",
+		f_online_pay: "Online Payments",
+		f_online_pay_d: "Pay membership fees and activity costs directly via credit card (Stripe). See outstanding balances in real time.",
+		f_perm_sign: "Permission Slips",
+		f_perm_sign_d: "Sign permission forms from a secure link on your phone. No printing or scanning needed.",
+		f_health: "Health Forms",
+		f_health_d: "Submit and update your child's health information, allergies, and emergency contacts digitally.",
+		f_statements: "Financial Statements",
+		f_statements_d: "View total billed, total paid, and outstanding balance per child with detailed fee breakdowns.",
+		fg_stay_connected: "Stay Connected",
+		f_carpool_parent: "Carpool Coordination",
+		f_carpool_parent_d: "Offer rides or see your assigned carpool for each activity. Know who's driving your child.",
+		f_directory: "Parent Contact Directory",
+		f_directory_d: "Searchable directory of other parents in your group for direct communication.",
+		f_newsfeed: "News Feed",
+		f_newsfeed_d: "Stay informed with group announcements and updates from leadership on your dashboard.",
+		f_push: "Push Notifications",
+		f_push_d: "Opt in to receive instant notifications about meetings, reminders, and announcements.",
+
+		// Admin tab
+		fg_finance: "Finance & Fundraising",
+		f_fees: "Fee Management",
+		f_fees_d: "Define membership fees, assign to participants, and create payment plans with installment schedules.",
+		f_expenses: "Expense Tracking",
+		f_expenses_d: "Record and categorize expenses with payment method tracking. AI receipt parsing for quick entry.",
+		f_budgets: "Budget Management",
+		f_budgets_d: "Plan budgets by category and track spending against actuals throughout the year.",
+		f_fundraisers: "Fundraiser Management",
+		f_fundraisers_d: "Create and manage fundraisers with calendar views, per-participant sales tracking, and archiving.",
+		f_revenue: "Revenue Dashboard",
+		f_revenue_d: "Consolidated view across all revenue sources (fees, fundraisers, external) with fiscal year support.",
+		f_stripe: "Online Stripe Payments",
+		f_stripe_d: "Accept credit card payments from parents. Automatic reconciliation with participant fee records.",
+		fg_org: "Organization & Access",
+		f_roles: "Role & Permission System",
+		f_roles_d: "40+ granular permissions across participants, groups, activities, finance, badges, carpools, and forms.",
+		f_district: "District Management",
+		f_district_d: "District-level oversight with cross-organization role assignment and audit logging.",
+		f_multi_unit: "Multi-Unit Support",
+		f_multi_unit_d: "Manage multiple sections from a single login. Switch between organizations seamlessly.",
+		f_import: "SISC Data Import",
+		f_import_d: "Import participants, guardians, and users from CSV files for fast onboarding.",
+		f_form_builder: "Form Builder",
+		f_form_builder_d: "Drag-and-drop form builder with conditional logic, translations, and cross-unit form copying.",
+		f_guardians: "Guardian Management",
+		f_guardians_d: "Parent/guardian relationship tracking with participant linking and approval workflows.",
+		fg_reports: "Reporting & Compliance",
+		f_health_reports: "Health & Medical Reports",
+		f_health_reports_d: "Health forms, allergies, medications, and vaccination status reports across all participants.",
+		f_compliance: "Compliance Reports",
+		f_compliance_d: "Leave-alone authorization, media authorization, and missing documents at a glance.",
+		f_participant_reports: "Participant Reports",
+		f_participant_reports_d: "Progress, age, points, honors, attendance, and printable group roster reports.",
+		f_finance_reports: "Financial Reports",
+		f_finance_reports_d: "Revenue by source, budget tracking, payment breakdowns by method, and outstanding balances.",
 
 		// Weekly
 		weekly_title: "Ready for every weekly meeting",
@@ -319,6 +496,62 @@ buttons.forEach((button) => {
 // Load saved language preference or default to French
 const savedLang = localStorage.getItem("wampums-lang") || "fr";
 applyTranslations(savedLang);
+
+// Audience Tab Switching
+function initTabs() {
+	const tabBtns = document.querySelectorAll('.tab-btn');
+	const tabPanels = document.querySelectorAll('.tab-panel');
+
+	if (!tabBtns.length) return;
+
+	tabBtns.forEach(btn => {
+		btn.addEventListener('click', () => {
+			const targetId = btn.getAttribute('aria-controls');
+
+			// Deactivate all tabs
+			tabBtns.forEach(b => {
+				b.classList.remove('tab-btn--active');
+				b.setAttribute('aria-selected', 'false');
+			});
+
+			tabPanels.forEach(p => {
+				p.classList.remove('tab-panel--active');
+				p.setAttribute('hidden', '');
+			});
+
+			// Activate selected tab
+			btn.classList.add('tab-btn--active');
+			btn.setAttribute('aria-selected', 'true');
+
+			const panel = document.getElementById(targetId);
+			if (panel) {
+				panel.classList.add('tab-panel--active');
+				panel.removeAttribute('hidden');
+			}
+		});
+
+		// Keyboard arrow navigation
+		btn.addEventListener('keydown', (e) => {
+			const btns = Array.from(tabBtns);
+			const idx = btns.indexOf(btn);
+			let next = null;
+
+			if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+				next = btns[(idx + 1) % btns.length];
+			} else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+				next = btns[(idx - 1 + btns.length) % btns.length];
+			}
+
+			if (next) {
+				e.preventDefault();
+				next.focus();
+				next.click();
+			}
+		});
+	});
+}
+
+initTabs();
 
 // Demo Modal Functionality
 const demoModal = document.getElementById("demoModal");
