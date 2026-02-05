@@ -1385,7 +1385,7 @@ export class BadgeTracker {
     if (!this.attendanceDates || this.attendanceDates.length === 0) {
       try {
         const response = await getAttendanceDates();
-        this.attendanceDates = Array.isArray(response) ? response : (response?.dates || []);
+        this.attendanceDates = response?.data || (Array.isArray(response) ? response : []);
       } catch (error) {
         debugError('[BadgeTracker] Error fetching attendance dates:', error);
         this.showToast(translate('error_loading_dates') || 'Erreur de chargement des dates', 'error');
@@ -1479,10 +1479,16 @@ export class BadgeTracker {
 
       try {
         const response = await getAttendance(selectedDate);
-        const attendanceData = response?.success ? response.attendance : (response?.data || {});
+        const records = response?.data || (Array.isArray(response) ? response : []);
+        const attendanceMap = {};
+        if (Array.isArray(records)) {
+          records.forEach(r => {
+            attendanceMap[r.participant_id] = r.status;
+          });
+        }
 
         presentParticipants = this.participants.filter(p => {
-          const status = attendanceData[p.id];
+          const status = attendanceMap[p.id];
           return status === 'present' || status === 'late';
         });
 
