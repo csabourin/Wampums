@@ -20,6 +20,7 @@ import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtil
 import { debugError } from './utils/DebugUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
+import { withButtonLoading } from './utils/PerformanceUtils.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -1023,16 +1024,19 @@ export class CarpoolDashboard {
     // Form submission
     const form = modalContainer.querySelector('form');
     if (form && onSubmit) {
-      form.addEventListener('submit', async (e) => {
+      form.addEventListener('submit', (e) => {
         e.preventDefault();
+        const submitBtn = form.querySelector('button[type="submit"]');
         const formData = new FormData(form);
 
-        try {
-          await onSubmit(formData);
-          closeModal();
-        } catch (error) {
-          this.app.showMessage(error.message || translate('error_occurred'), 'error');
-        }
+        withButtonLoading(submitBtn, async () => {
+          try {
+            await onSubmit(formData);
+            closeModal();
+          } catch (error) {
+            this.app.showMessage(error.message || translate('error_occurred'), 'error');
+          }
+        });
       });
     }
   }

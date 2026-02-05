@@ -2,6 +2,7 @@
  * Performance and State Management Utilities
  */
 import { debugLog } from './DebugUtils.js';
+import { setButtonLoading } from './SkeletonUtils.js';
 
 
 /**
@@ -20,6 +21,23 @@ export function debounce(func, wait = 300) {
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
+}
+
+/**
+ * Wraps an async operation with button loading state management
+ * @param {HTMLButtonElement} button - Button to disable/show loading state
+ * @param {Function} asyncFn - Async function to execute
+ * @returns {Promise} Result of the async function
+ */
+export async function withButtonLoading(button, asyncFn) {
+  if (button.disabled) return;
+
+  setButtonLoading(button, true);
+  try {
+    return await asyncFn();
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 /**

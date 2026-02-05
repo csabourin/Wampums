@@ -15,6 +15,7 @@ import { debugError, debugLog } from './utils/DebugUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
 import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
+import { debounce } from './utils/PerformanceUtils.js';
 
 export class Activities {
   constructor(app) {
@@ -22,6 +23,7 @@ export class Activities {
     this.activities = [];
     this.selectedActivity = null;
     this.isLoading = true;
+    this.searchTerm = '';
   }
 
   async init() {
@@ -65,11 +67,19 @@ export class Activities {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const upcomingActivities = this.activities.filter((activity) => {
+    const term = this.searchTerm.toLowerCase();
+
+    const filteredActivities = this.activities.filter(activity => {
+      if (!term) return true;
+      return activity.name.toLowerCase().includes(term) ||
+        (activity.description && activity.description.toLowerCase().includes(term));
+    });
+
+    const upcomingActivities = filteredActivities.filter((activity) => {
       const activityDate = parseDate(isoToDateString(activity.activity_date));
       return activityDate && activityDate >= today;
     });
-    const pastActivities = this.activities.filter((activity) => {
+    const pastActivities = filteredActivities.filter((activity) => {
       const activityDate = parseDate(isoToDateString(activity.activity_date));
       return activityDate && activityDate < today;
     });
@@ -83,6 +93,10 @@ export class Activities {
             <button class="button button--primary" id="add-activity-btn">
               ${translate('add_activity')}
             </button>
+          </div>
+
+          <div class="search-container" style="margin-top: 1rem;">
+             <input type="search" id="activities-search" class="search-input" style="width: 100%; padding: 0.5rem;" placeholder="${translate('search')}..." value="${escapeHTML(this.searchTerm)}">
           </div>
         </header>
 
@@ -239,6 +253,21 @@ export class Activities {
         window.location.hash = `/permission-slips/${activityId}`;
       });
     });
+    // Search listener
+    const searchInput = document.getElementById('activities-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', debounce((e) => {
+        this.searchTerm = e.target.value;
+        this.render();
+        this.attachEventListeners();
+        // Restore focus
+        const newInput = document.getElementById('activities-search');
+        if (newInput) {
+          newInput.focus();
+          newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+        }
+      }, 300));
+    }
   }
 
   showActivityModal(activity = null) {

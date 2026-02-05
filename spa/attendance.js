@@ -21,6 +21,7 @@ import { canViewAttendance } from "./utils/PermissionUtils.js";
 import { normalizeParticipantList } from "./utils/ParticipantRoleUtils.js";
 import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { withButtonLoading, debounce } from "./utils/PerformanceUtils.js";
 
 export class Attendance {
   constructor(app) {
@@ -37,6 +38,7 @@ export class Attendance {
     this.freshContent = ``;
     this.isInitialized = false;
     this.isLoading = true;
+    this.searchTerm = '';
     // Optimistic update manager for instant attendance updates
     this.optimisticManager = new OptimisticUpdateManager();
   }
@@ -318,6 +320,9 @@ export class Attendance {
             ${this.renderDateOptions()}
           </select>
         </div>
+        <div class="search-container" style="margin-bottom: 1rem;">
+          <input type="search" id="attendance-search" class="search-input" style="width: 100%; padding: 0.5rem;" placeholder="${translate("search")}..." value="${escapeHTML(this.searchTerm)}">
+        </div>
         <div id="attendance-list" class="attendance-list">
           <!-- This will be filled by renderGroupsAndNames() -->
         </div>
@@ -369,8 +374,18 @@ export class Attendance {
 
   renderGroupsAndNames() {
     const fragment = document.createDocumentFragment();
+    const term = this.searchTerm.toLowerCase();
 
     Object.values(this.groups).forEach((group) => {
+      // Filter participants if search term exists
+      const filteredParticipants = group.participants.filter(p => {
+        if (!term) return true;
+        const name = `${p.first_name} ${p.last_name}`.toLowerCase();
+        return name.includes(term);
+      });
+
+      if (filteredParticipants.length === 0) return;
+
       let groupDiv = document.createElement("div");
       groupDiv.classList.add("group-card");
 
@@ -381,7 +396,9 @@ export class Attendance {
       groupHeader.textContent = group.name;
       groupDiv.appendChild(groupHeader);
 
-      group.participants.forEach((participant) => {
+
+
+      filteredParticipants.forEach((participant) => {
         const status = this.attendanceData[participant.id] || "present";
         const statusClass =
           status === "present" && !this.attendanceData[participant.id]
@@ -450,14 +467,33 @@ export class Attendance {
     }
 
     document.querySelectorAll(".status-btn").forEach((button) => {
-      button.addEventListener("click", (e) =>
-        this.updateStatus(e.target.dataset.status),
-      );
+      button.addEventListener("click", (e) => {
+        withButtonLoading(e.target, () => this.updateStatus(e.target.dataset.status));
+      });
     });
 
     const addGuestButton = document.getElementById("addGuestButton");
     if (addGuestButton) {
-      addGuestButton.addEventListener("click", () => this.addGuest());
+      addGuestButton.addEventListener("click", (e) => {
+        withButtonLoading(e.target, () => this.addGuest());
+      });
+    }
+
+    // Search listener
+    const searchInput = document.getElementById('attendance-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', debounce((e) => {
+        this.searchTerm = e.target.value;
+        // Re-render only list
+        this.render(); // This re-renders whole content including search input
+        this.attachEventListeners();
+        // Restore focus
+        const newInput = document.getElementById('attendance-search');
+        if (newInput) {
+          newInput.focus();
+          newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+        }
+      }, 300));
     }
   }
 

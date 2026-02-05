@@ -23,7 +23,7 @@ import { aiParseReceipt } from "./modules/AI.js";
 import { setButtonLoading } from "./utils/SkeletonUtils.js";
 import { formatDateShort, getTodayISO } from "./utils/DateUtils.js";
 import { clearFinanceRelatedCaches } from "./indexedDB.js";
-import { LoadingStateManager, CacheWithTTL, retryWithBackoff } from "./utils/PerformanceUtils.js";
+import { LoadingStateManager, CacheWithTTL, retryWithBackoff, withButtonLoading, debounce } from "./utils/PerformanceUtils.js";
 import { validateMoney, validateDateField, validatePositiveInteger } from "./utils/ValidationUtils.js";
 import { canManageFinance, canViewFinance } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
@@ -51,6 +51,7 @@ export class Finance extends BaseModule {
 
     this.sortField = 'name'; // Default sort field: name, outstanding, total
     this.sortDirection = 'asc'; // asc or desc
+    this.searchTerm = '';
   }
 
   async init() {
@@ -371,7 +372,12 @@ export class Finance extends BaseModule {
 
     return `
       <div class="finance-section">
-        <h2>${translate("participant_fees")}</h2>
+        <div class="finance-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2>${translate("participant_fees")}</h2>
+          <div class="search-container">
+            <input type="search" id="finance-search" class="search-input" placeholder="${translate("search")}..." value="${escapeHTML(this.searchTerm)}">
+          </div>
+        </div>
         ${sortedFees.length > 0 ? this.renderParticipantFeesTable(sortedFees) : `<p class="finance-helper">${translate("no_participant_fees")}</p>`}
       </div>
 
@@ -437,7 +443,12 @@ export class Finance extends BaseModule {
   }
 
   getSortedParticipantFees() {
-    const fees = [...this.participantFees];
+    const fees = [...this.participantFees].filter(fee => {
+      if (!this.searchTerm) return true;
+      const term = this.searchTerm.toLowerCase();
+      const name = `${fee.first_name} ${fee.last_name}`.toLowerCase();
+      return name.includes(term);
+    });
     fees.sort((a, b) => {
       let valA, valB;
 
@@ -709,6 +720,22 @@ export class Finance extends BaseModule {
       });
     });
 
+    // Search listener
+    const searchInput = document.getElementById('finance-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', debounce((e) => {
+        this.searchTerm = e.target.value;
+        this.render();
+        this.attachEventListeners();
+        // Restore focus to search input
+        const newInput = document.getElementById('finance-search');
+        if (newInput) {
+          newInput.focus();
+          newInput.setSelectionRange(newInput.value.length, newInput.value.length);
+        }
+      }, 300));
+    }
+
     // Sort button listeners
     document.querySelectorAll('.sort-btn').forEach((btn) => {
       btn.addEventListener('click', (e) => {
@@ -728,7 +755,11 @@ export class Finance extends BaseModule {
 
     const definitionForm = document.getElementById('fee-definition-form');
     if (definitionForm) {
-      definitionForm.addEventListener('submit', (e) => this.handleDefinitionSubmit(e));
+      definitionForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const submitBtn = definitionForm.querySelector('button[type="submit"]');
+        withButtonLoading(submitBtn, () => this.handleDefinitionSubmit(e));
+      });
     }
 
     const resetDefinition = document.getElementById('reset-definition-form');
@@ -744,17 +775,23 @@ export class Finance extends BaseModule {
       btn.addEventListener('click', async (e) => {
         const id = e.currentTarget.dataset.id;
         if (confirm(translate('confirm_delete'))) {
-          await deleteFeeDefinition(id);
-          await this.loadCoreData();
-          this.render();
-          this.attachEventListeners();
+          await withButtonLoading(e.currentTarget, async () => {
+            await deleteFeeDefinition(id);
+            await this.loadCoreData();
+            this.render();
+            this.attachEventListeners();
+          });
         }
       });
     });
 
     const participantFeeForm = document.getElementById('participant-fee-form');
     if (participantFeeForm) {
-      participantFeeForm.addEventListener('submit', (e) => this.handleParticipantFeeSubmit(e));
+      participantFeeForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const submitBtn = participantFeeForm.querySelector('button[type="submit"]');
+        withButtonLoading(submitBtn, () => this.handleParticipantFeeSubmit(e));
+      });
     }
 
     const participantSelect = document.getElementById('participant_select');
@@ -884,7 +921,11 @@ export class Finance extends BaseModule {
         }
       });
       const paymentForm = document.getElementById('payment-form');
-      paymentForm?.addEventListener('submit', (e) => this.handlePaymentSubmit(e));
+      paymentForm?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const submitBtn = paymentForm.querySelector('button[type="submit"]');
+        withButtonLoading(submitBtn, () => this.handlePaymentSubmit(e));
+      });
       document.getElementById('add-payment-row')?.addEventListener('click', () => this.addPaymentRow());
     }
 
@@ -897,8 +938,14 @@ export class Finance extends BaseModule {
         }
       });
       const planForm = document.getElementById('plan-form');
-      planForm?.addEventListener('submit', (e) => this.handlePlanSubmit(e));
-      document.getElementById('delete-plan-btn')?.addEventListener('click', () => this.handlePlanDelete());
+      planForm?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const submitBtn = planForm.querySelector('button[type="submit"]');
+        withButtonLoading(submitBtn, () => this.handlePlanSubmit(e));
+      });
+      document.getElementById('delete-plan-btn')?.addEventListener('click', (e) => {
+        withButtonLoading(e.target, () => this.handlePlanDelete());
+      });
     }
   }
 
