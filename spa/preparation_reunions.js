@@ -4,13 +4,7 @@ import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { isoToDateString } from "./utils/DateUtils.js";
 import { formatHonorText } from "./utils/HonorUtils.js";
-import {
-        getActivitesRencontre,
-        getAnimateurs,
-        getHonorsHistory,
-        saveReunionPreparation,
-        getReunionDates,
-        getActivitesRencontre,
+getActivitesRencontre,
         getAnimateurs,
         getHonorsHistory,
         saveReunionPreparation,
