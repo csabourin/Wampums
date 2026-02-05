@@ -2,7 +2,7 @@ import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { isoToDateString } from "./utils/DateUtils.js";
+import { isoToDateString, formatDate, parseDate } from "./utils/DateUtils.js";
 import { formatHonorText } from "./utils/HonorUtils.js";
 import {
         getActivitesRencontre,
@@ -490,6 +490,103 @@ export class PreparationReunions {
                 return dateString.split('T')[0];
         }
 
+        /**
+         * Determine the meeting date that follows the provided meeting date.
+         * @param {string} meetingDate - Current meeting date (YYYY-MM-DD)
+         * @returns {string|null} Next meeting date (YYYY-MM-DD) or null
+         */
+        getNextMeetingDateAfter(meetingDate) {
+                const normalizedDate = this.formatDateForInput(meetingDate);
+                if (!normalizedDate) return null;
+
+                const availableDates = this.dateManager.getAvailableDates() || [];
+                const nextMeeting = availableDates
+                        .filter(dateValue => dateValue > normalizedDate)
+                        .sort((a, b) => new Date(a) - new Date(b))
+                        .shift();
+
+                if (nextMeeting) {
+                        return nextMeeting;
+                }
+
+                const parsedDate = parseDate(normalizedDate);
+                if (!parsedDate) return null;
+
+                const daysInWeek = 7;
+                const nextDate = new Date(parsedDate);
+                nextDate.setDate(parsedDate.getDate() + daysInWeek);
+                return isoToDateString(nextDate);
+        }
+
+        /**
+         * Get upcoming birthdays between the meeting date and the next meeting date.
+         * @param {string} meetingDate - Current meeting date (YYYY-MM-DD)
+         * @returns {{startDate: string|null, endDate: string|null, entries: Array}}
+         */
+        getUpcomingBirthdays(meetingDate) {
+                const startDate = this.formatDateForInput(meetingDate);
+                const endDate = this.getNextMeetingDateAfter(startDate);
+
+                if (!startDate || !endDate) {
+                        return { startDate, endDate, entries: [] };
+                }
+
+                const start = parseDate(startDate);
+                const end = parseDate(endDate);
+                if (!start || !end) {
+                        return { startDate, endDate, entries: [] };
+                }
+
+                const startYear = start.getFullYear();
+                const endYear = end.getFullYear();
+                const candidateYears = startYear === endYear ? [startYear] : [startYear, endYear];
+                const participants = Array.isArray(this.participants) ? this.participants : [];
+
+                const entries = participants.reduce((acc, participant) => {
+                        const birthDateRaw = participant.date_naissance || participant.date_of_birth;
+                        if (!birthDateRaw) return acc;
+
+                        const birthDate = parseDate(isoToDateString(birthDateRaw));
+                        if (!birthDate) return acc;
+
+                        const birthMonth = birthDate.getMonth();
+                        const birthDay = birthDate.getDate();
+                        let birthdayInRange = null;
+
+                        candidateYears.forEach(year => {
+                                const daysInMonth = new Date(year, birthMonth + 1, 0).getDate();
+                                const safeDay = Math.min(birthDay, daysInMonth);
+                                const candidate = new Date(year, birthMonth, safeDay);
+
+                                if (candidate >= start && candidate < end) {
+                                        if (!birthdayInRange || candidate < birthdayInRange) {
+                                                birthdayInRange = candidate;
+                                        }
+                                }
+                        });
+
+                        if (!birthdayInRange) return acc;
+
+                        const fullName = [participant.first_name, participant.last_name].filter(Boolean).join(' ').trim();
+                        const displayName = fullName || participant.full_name || translate('unknown');
+
+                        acc.push({
+                                id: participant.id,
+                                name: displayName,
+                                date: isoToDateString(birthdayInRange)
+                        });
+                        return acc;
+                }, []);
+
+                entries.sort((a, b) => {
+                        const dateCompare = a.date.localeCompare(b.date);
+                        if (dateCompare !== 0) return dateCompare;
+                        return a.name.localeCompare(b.name);
+                });
+
+                return { startDate, endDate, entries };
+        }
+
         render() {
                 const rawNextMeetingDate = this.currentMeetingData?.date || this.dateManager.getNextMeetingDate();
                 const nextMeetingDate = this.formatDateForInput(rawNextMeetingDate);
@@ -497,6 +594,20 @@ export class PreparationReunions {
                 const availableDates = this.dateManager.getAvailableDates();
                 const honorLabel = getHonorLabel(this.sectionConfig, translate);
                 const honorListItems = this.formManager?.getHonorListItems(this.recentHonors) || '';
+                const birthdays = this.getUpcomingBirthdays(nextMeetingDate);
+                const birthdayRangeLabel = birthdays.startDate && birthdays.endDate
+                        ? `${translate("birthdays_between")} ${formatDate(birthdays.startDate, this.app.lang, { month: 'long', day: 'numeric' })} - ${formatDate(birthdays.endDate, this.app.lang, { month: 'long', day: 'numeric' })}`
+                        : translate("birthdays_range_unavailable");
+                const birthdayItems = birthdays.entries.length > 0
+                        ? `<ul class="birthday-list">
+                                ${birthdays.entries.map(entry => `
+                                        <li>
+                                                <span>${escapeHTML(entry.name)}</span>
+                                                <span>${formatDate(entry.date, this.app.lang, { month: 'long', day: 'numeric' })}</span>
+                                        </li>
+                                `).join('')}
+                        </ul>`
+                        : `<p class="empty-state">${translate("no_upcoming_birthdays")}</p>`;
 
                 if (this.activityManager) {
                         this.activityManager.setSectionConfig(this.sectionConfig);
@@ -527,6 +638,12 @@ export class PreparationReunions {
                                                 <button id="new-meeting" class="button button--secondary" title="${translate("new_meeting")}">${translate("new_meeting")}</button>
                                                 <button id="magic-generate-btn" class="button button--secondary" title="${translate("magic_generate_plan")}">✨ ${translate("magic_generate_plan")}</button>
                                         </div>
+                                </div>
+
+                                <h2>${translate("upcoming_birthdays")}</h2>
+                                <div class="birthday-section">
+                                        <p class="section-description">${birthdayRangeLabel}</p>
+                                        ${birthdayItems}
                                 </div>
 
                                 <form id="reunion-form" class="form-layout">
