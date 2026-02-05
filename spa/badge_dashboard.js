@@ -394,8 +394,8 @@ export class BadgeDashboard extends BaseModule {
     const { showGroupTag = false } = options;
     const badges = record.badges.length
       ? record.badges
-          .map((badge) => this.renderBadgeChip(record.id, badge))
-          .join("")
+        .map((badge) => this.renderBadgeChip(record.id, badge))
+        .join("")
       : `<span class="badge-chip badge-chip--muted">${translate("badge_no_entries")}</span>`;
 
     const addBadgeAction = `<button class="badge-chip badge-chip--add" data-action="add-badge" data-participant-id="${record.id}" title="${translate("badge_add_button") || "Add star"}">
@@ -706,9 +706,8 @@ export class BadgeDashboard extends BaseModule {
           <button class="ghost-button" id="close-badge-modal" aria-label="${translate("close")}">✕</button>
         </header>
 
-        ${
-          hasExistingBadges
-            ? `
+        ${hasExistingBadges
+        ? `
         <nav class="modal__tabs">
           <button type="button" class="tab-button ${!showAddForm ? "active" : ""}" data-tab="edit">
             ${translate("badge_edit_tab") || "Edit"}
@@ -719,28 +718,26 @@ export class BadgeDashboard extends BaseModule {
           </button>
         </nav>
         `
-            : ""
-        }
+        : ""
+      }
 
         <section class="modal__content">
-          ${
-            hasExistingBadges
-              ? `
+          ${hasExistingBadges
+        ? `
           <div class="tab-content ${!showAddForm ? "active" : ""}" data-content="edit">
             <div class="form-group-compact">
               <label for="badge-select">${translate("badge")}</label>
               <select id="badge-select" name="badge">${badgeOptions}</select>
             </div>
 
-            ${
-              entries.length > 0
-                ? `
+            ${entries.length > 0
+          ? `
             <details class="badge-history-toggle" ${entries.length <= 2 ? "open" : ""}>
               <summary>${translate("badge_entry_history") || "History"} (${entries.length})</summary>
               <ol class="badge-history-compact">
                 ${entries
-                  .map(
-                    (entry) => `
+            .map(
+              (entry) => `
                   <li>
                     <span class="badge-hist-status">${translate(`badge_status_${entry.status || "pending"}`).substring(0, 3)}</span>
                     <span class="badge-hist-date">${this.formatReadableDate(entry.date_obtention)}</span>
@@ -748,25 +745,25 @@ export class BadgeDashboard extends BaseModule {
                     ${entry.objectif ? `<p class="badge-hist-text">${entry.objectif}</p>` : ""}
                   </li>
                 `,
-                  )
-                  .join("")}
+            )
+            .join("")}
               </ol>
             </details>
             `
-                : ""
-            }
+          : ""
+        }
 
             <form id="badge-edit-form" data-participant-id="${participantId}" data-badge-name="${badge?.name || ""}">
               <div class="form-group-compact">
                 <label for="badge-entry-select">${translate("badge_select_entry") || "Entry"} (${levelLabel} #${defaultEntry?.etoiles || ""})</label>
                 <select id="badge-entry-select" name="entry">
                   ${entries
-                    .map(
-                      (entry) => `
+          .map(
+            (entry) => `
                     <option value="${entry.id}">⭐${entry.etoiles} · ${this.formatReadableDate(entry.date_obtention)}</option>
                   `,
-                    )
-                    .join("")}
+          )
+          .join("")}
                 </select>
               </div>
 
@@ -802,8 +799,8 @@ export class BadgeDashboard extends BaseModule {
             </form>
           </div>
           `
-              : ""
-          }
+        : ""
+      }
 
           <div class="tab-content ${showAddForm || !hasExistingBadges ? "active" : ""}" data-content="add">
             <form id="badge-add-form" data-participant-id="${participantId}">
@@ -971,6 +968,8 @@ export class BadgeDashboard extends BaseModule {
           },
 
           successFn: (result) => {
+            if (result.queued) return; // Keep optimistic state
+
             // Replace optimistic data with real server data
             this.replaceBadgeEntry(result.data);
             this.buildRecords();
@@ -1065,6 +1064,16 @@ export class BadgeDashboard extends BaseModule {
             },
 
             successFn: (result) => {
+              if (result.queued) {
+                // Close the modal since we can't edit the offline ID yet
+                // The optimistic entry remains in the list
+                this.setTimeout(() => {
+                  const modal = document.getElementById(this.modalContainerId);
+                  if (modal) modal.classList.add("hidden");
+                }, 500);
+                return;
+              }
+
               // Remove optimistic entry and add real data
               this.badgeEntries = this.badgeEntries.filter(
                 (entry) => !entry._optimistic,

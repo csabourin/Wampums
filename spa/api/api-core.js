@@ -102,6 +102,12 @@ export async function handleResponse(response) {
 /**
  * Core API request function
  */
+import { offlineManager } from "../modules/OfflineManager.js";
+
+// ... (imports remain)
+
+// ...
+
 export async function makeApiRequest(endpoint, options = {}) {
     const {
         method = 'GET',
@@ -129,6 +135,27 @@ export async function makeApiRequest(endpoint, options = {}) {
 
     if (body && method !== 'GET') {
         requestConfig.body = JSON.stringify(body);
+    }
+
+    // Offline Handling for Write Operations
+    if (offlineManager.isOffline && method !== 'GET') {
+        debugLog(`[Offline] Queueing ${method} ${url}`);
+        try {
+            await offlineManager.queueMutation(url, {
+                method,
+                headers: requestConfig.headers,
+                body: requestConfig.body
+            });
+
+            return {
+                success: true,
+                queued: true,
+                message: offlineManager.getTranslation('offline.savedLocally')
+            };
+        } catch (error) {
+            debugError('Failed to queue offline mutation:', error);
+            throw new Error('Failed to save offline: ' + error.message);
+        }
     }
 
     let lastError;

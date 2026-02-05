@@ -659,6 +659,11 @@ export class Attendance {
         },
 
         successFn: async (result) => {
+          // Handle offline queued state
+          if (result.queued) {
+            return; // Keep optimistic state
+          }
+
           // Success: Update cache with new data
           this.app.showMessage(translate("attendance_updated"), "success");
           // Clear API-level cache to ensure fresh data on next fetch

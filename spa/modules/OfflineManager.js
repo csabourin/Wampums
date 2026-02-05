@@ -26,7 +26,12 @@ const CRITICAL_ENDPOINTS = [
     '/api/v1/participants',
     '/api/v1/groups',
     '/api/initial-data',
-    '/api/organization-settings'
+    '/api/organization-settings',
+    '/api/v1/badges/summary',
+    '/api/v1/badges/settings',
+    '/api/v1/attendance/dates',
+    '/api/v1/activities?days=30',
+    '/api/v1/health/report'
 ];
 
 /**
@@ -69,13 +74,13 @@ export class OfflineManager {
         debugLog('OfflineManager: Device is online');
         this.isOffline = false;
         this.updateOnlineStatus();
-        
+
         // Show toast notification
         this.showToast(this.getTranslation('connection.restored'), 'success');
-        
+
         // Dispatch custom event
         this.dispatchEvent('offlineStatusChanged', { isOffline: false });
-        
+
         // Sync pending data
         await this.syncPendingData();
     }
@@ -87,10 +92,10 @@ export class OfflineManager {
         debugLog('OfflineManager: Device is offline');
         this.isOffline = true;
         this.updateOnlineStatus();
-        
+
         // Show toast notification
         this.showToast(this.getTranslation('connection.lost'), 'info');
-        
+
         // Dispatch custom event
         this.dispatchEvent('offlineStatusChanged', { isOffline: true });
     }
@@ -101,7 +106,7 @@ export class OfflineManager {
     updateOnlineStatus() {
         const wasOffline = this.isOffline;
         this.isOffline = !navigator.onLine;
-        
+
         if (wasOffline !== this.isOffline) {
             this.dispatchEvent('offlineStatusChanged', { isOffline: this.isOffline });
         }
@@ -136,24 +141,24 @@ export class OfflineManager {
         try {
             // Try network first
             const response = await fetch(url, options);
-            
+
             if (response.ok) {
                 // Clone response to cache it
                 const cloneForCache = response.clone();
                 const data = await cloneForCache.json();
-                
+
                 // Cache the data
                 await this.cacheData(url, data, cacheDuration);
-                
+
                 return response;
             }
 
             // If response is not OK, try cache
             return this.getCachedResponse(url);
-            
+
         } catch (error) {
             debugWarn('OfflineManager: Network request failed, trying cache', error);
-            
+
             // Network failed, try cache
             return this.getCachedResponse(url);
         }
@@ -167,7 +172,7 @@ export class OfflineManager {
             // Queue mutation for later sync
             debugLog('OfflineManager: Queueing mutation while offline', { url, method: options.method });
             await this.queueMutation(url, options);
-            
+
             // Return a queued response
             return new Response(
                 JSON.stringify({
@@ -324,9 +329,9 @@ export class OfflineManager {
             try {
                 const url = `${CONFIG.API_BASE_URL}${endpoint}`;
                 debugLog(`OfflineManager: Pre-caching ${endpoint}`);
-                
+
                 const response = await fetch(url, { headers });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     await this.cacheData(url, data, CACHE_DURATION.CRITICAL);
@@ -359,7 +364,7 @@ export class OfflineManager {
     async getCachedResponse(url) {
         try {
             const cachedData = await getCachedData(url);
-            
+
             if (cachedData) {
                 debugLog('OfflineManager: Serving from cache', url);
                 return new Response(JSON.stringify(cachedData), {
@@ -404,18 +409,18 @@ export class OfflineManager {
         try {
             // Get offline data from IndexedDB
             const offlineData = await getOfflineData();
-            
+
             // Ensure offlineData is an array
             const dataArray = Array.isArray(offlineData) ? offlineData : [];
             const count = dataArray.length;
-            
+
             this.pendingMutations = dataArray;
-            
+
             debugLog('OfflineManager: Pending mutations count', count);
-            
+
             // Dispatch event
             this.dispatchEvent('pendingCountChanged', { count });
-            
+
         } catch (error) {
             debugError('OfflineManager: Failed to get pending count', error);
             // Set empty array as fallback
