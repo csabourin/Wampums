@@ -29,11 +29,13 @@ import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDateShort, isoToDateString } from "./utils/DateUtils.js";
 import { canViewReports, isParent } from "./utils/PermissionUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { exportToCSV } from "./utils/ExportUtils.js";
+import { CONFIG } from "./config.js";
 
 const REPORT_CURRENCY = "CAD";
 
 export class Reports {
-  constructor(app) {
+	constructor(app) {
 		this.app = app;
 		this.participantList = [];
 		this.selectedParticipantId = null;
@@ -235,6 +237,12 @@ export class Reports {
                                                                 <span class="button-icon">🖨️</span>
                                                                 ${translate("print_report")}
                                                         </button>
+                                                        ${CONFIG.FEATURES.EXPORT_REPORTS ? `
+                                                        <button id="export-report" class="button button--secondary" type="button" style="margin-left: 0.5rem;">
+                                                                <span class="button-icon">⬇️</span>
+                                                                ${translate("export_csv")}
+                                                        </button>
+                                                        ` : ''}
                                                         <button id="close-report-modal" class="button button--ghost close" type="button" aria-label="${translate("close")}">
                                                                 <span class="button-icon">✕</span>
                                                         </button>
@@ -275,6 +283,10 @@ export class Reports {
 		document
 			.getElementById("print-report")
 			?.addEventListener("click", () => this.printReport());
+
+		document
+			.getElementById("export-report")
+			?.addEventListener("click", () => this.exportCurrentReport());
 	}
 
 	openReportModal(title) {
@@ -356,8 +368,12 @@ export class Reports {
 				"missing-fields": translate("missing_fields_report"),
 			};
 
+
 			// Open modal with report title
 			this.openReportModal(reportTitles[reportType] || translate("report"));
+
+			this.currentReportType = reportType;
+			this.currentReportData = null; // Reset previous data
 
 			let reportData;
 			let reportContent;
@@ -372,26 +388,32 @@ export class Reports {
 					break;
 				case "allergies":
 					reportData = await getAllergiesReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderAllergiesReport(reportData.data);
 					break;
 				case "medication":
 					reportData = await getMedicationReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderMedicationReport(reportData.data);
 					break;
 				case "vaccines":
 					reportData = await getVaccineReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderVaccineReport(reportData.data);
 					break;
 				case "leave-alone":
 					reportData = await getLeaveAloneReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderLeaveAloneReport(reportData.data);
 					break;
 				case "media-authorization":
 					reportData = await getMediaAuthorizationReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderMediaAuthorizationReport(reportData.data);
 					break;
 				case "missing-documents":
 					reportData = await getMissingDocumentsReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderMissingDocumentsReport(reportData.data);
 					break;
 				case "attendance":
@@ -400,24 +422,29 @@ export class Reports {
 					if (!reportData) {
 						throw new Error("No data received from getAttendanceReport");
 					}
+					this.currentReportData = reportData; // Attendance report structure might be different
 					reportContent = this.renderAttendanceReport(reportData);
 					break;
 				case "honors":
 					reportData = await getHonorsReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderHonorsReport(reportData.data);
 					break;
 				case "participant-age":
 					reportData = await getParticipantAgeReport(); // Fetch the report data
+					this.currentReportData = reportData.participants;
 					reportContent = this.renderParticipantAgeReport(
 						reportData.participants,
 					);
 					break;
 				case "points":
 					reportData = await getPointsReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderPointsReport(reportData.data);
 					break;
 				case "financial":
 					reportData = await getFinanceReport();
+					this.currentReportData = reportData.data;
 					reportContent = this.renderFinancialReport(reportData.data);
 					break;
 				case "time-since-registration":
@@ -470,6 +497,8 @@ export class Reports {
 				a.last_name.localeCompare(b.last_name),
 			);
 
+			this.currentReportData = sortedParticipants;
+
 			// Render the report and return the content
 			const reportContent = this.renderHealthReport(sortedParticipants);
 			return reportContent; // Return the generated reportContent
@@ -496,20 +525,20 @@ export class Reports {
 		participants.forEach((participant) => {
 			const epipen =
 				participant.epipen === "1" ||
-				participant.epipen === "true" ||
-				participant.epipen === true
+					participant.epipen === "true" ||
+					participant.epipen === true
 					? "<strong> EPIPEN </strong>"
 					: "";
 			const leaveAlone =
 				participant.leave_alone === "1" ||
-				participant.leave_alone === "true" ||
-				participant.leave_alone === true
+					participant.leave_alone === "true" ||
+					participant.leave_alone === true
 					? "🗸"
 					: "";
 			const mediaConsent =
 				participant.media_consent === "1" ||
-				participant.media_consent === "true" ||
-				participant.media_consent === true
+					participant.media_consent === "true" ||
+					participant.media_consent === true
 					? ""
 					: "🚫"; // Show 🚫 if no media consent
 
@@ -570,6 +599,17 @@ export class Reports {
 				throw new Error("No form structure found");
 			}
 
+			// Store data for export - we need to calculate missing fields per submission
+			this.currentReportData = response.data.map(submission => {
+				const formTypeData = formStructure.data[formType];
+				const structure = formTypeData?.form_structure;
+				const missing = structure ? this.getMissingFields(submission.submission_data, structure) : [];
+				return {
+					...submission,
+					missing_fields: missing.join(', ')
+				};
+			}).filter(item => item.missing_fields); // Only keep items with missing fields
+
 			const missingFieldsReport = this.generateMissingFieldsReport(
 				response.data,
 				formStructure.data,
@@ -583,44 +623,160 @@ export class Reports {
 		}
 	}
 
-	generateMissingFieldsReport(submissions, formStructures, formType) {
-		let reportContent = "<h2>" + translate("missing_fields_report") + "</h2>";
-		reportContent +=
-			"<table><thead><tr><th>" +
-			translate("name") +
-			"</th><th>" +
-			translate("missing_fields") +
-			"</th></tr></thead><tbody>";
 
-		submissions.forEach((submission) => {
-			const formTypeData = formStructures[formType]; // Get the form type data
+	exportCurrentReport() {
+		if (!this.currentReportData) {
+			this.app.showMessage(translate("no_data_to_export"), "warning");
+			return;
+		}
 
-			// Extract the actual form structure (which contains the fields array)
-			const formStructure = formTypeData?.form_structure;
+		const dateStr = formatDateShort(new Date()).replace(/\//g, '-');
+		const filename = `${this.currentReportType}_report_${dateStr}`;
+		let columns = [];
+		let data = this.currentReportData;
 
-			if (!formStructure || !formStructure.fields) {
-				debugError("Invalid form structure for form type:", formType);
-				return; // Skip this submission if form structure is invalid
-			}
+		switch (this.currentReportType) {
+			case "health":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "leave_alone", label: translate("leave_alone"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
+					{ key: "media_consent", label: translate("media_consent"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
+					{ key: "health_issues", label: translate("health_issues") },
+					{ key: "allergies", label: translate("allergies") },
+					{ key: "epipen", label: translate("epipen"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") },
+					{ key: "injuries", label: translate("injuries") },
+					{ key: "swimming_level", label: translate("swimming_level") }
+				];
+				break;
+			case "allergies":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "allergies", label: translate("allergies") },
+					{ key: "epipen", label: translate("epipen"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") }
+				];
+				break;
+			case "medication":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "medication", label: translate("medication") }
+				];
+				break;
+			case "vaccines":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "vaccines_up_to_date", label: translate("vaccines_up_to_date"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") }
+				];
+				break;
+			case "leave-alone":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "leave_alone", label: translate("leave_alone"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") }
+				];
+				break;
+			case "media-authorization":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "media_consent", label: translate("media_consent"), format: (v) => (v === '1' || v === true || v === 'true') ? translate("yes") : translate("no") }
+				];
+				break;
+			case "attendance":
+				// Attendance is special - dynamic columns based on dates
+				// data is { data: [...participants] } - we stored 'reportData' which contains .data
+				// Wait, we stored `this.currentReportData = reportData;` where reportData has .data array
 
-			// Get the participant's first and last name (assuming they're available in the submission_data)
-			const firstName = submission.first_name || "-";
-			const lastName = submission.last_name || "-";
+				const attendanceData = data.data || [];
+				if (!attendanceData.length) {
+					this.app.showMessage(translate("no_data_to_export"), "warning");
+					return;
+				}
 
-			// Get missing fields
-			const missingFields = this.getMissingFields(
-				submission.submission_data,
-				formStructure,
-			).map((field) => translate(field));
+				data = attendanceData; // Override data to be the array of participants
 
-			if (missingFields.length > 0) {
-				reportContent += `<tr><td>${firstName} ${lastName}</td><td>${missingFields.join(", ")}</td></tr>`;
-			}
-		});
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "total_days", label: translate("total_days") },
+					{ key: "days_absent", label: translate("days_absent") },
+					{ key: "days_late", label: translate("days_late") }
+				];
 
-		reportContent += "</tbody></table>";
-		return reportContent;
+				// Extract unique dates
+				const uniqueDates = new Set();
+				data.forEach(p => {
+					(p.attendance || []).forEach(a => {
+						if (a.date) uniqueDates.add(isoToDateString(a.date));
+					});
+				});
+
+				Array.from(uniqueDates).sort().forEach(date => {
+					columns.push({
+						key: `date_${date}`,
+						label: formatDateShort(date),
+						format: (_, row) => {
+							const att = (row.attendance || []).find(a => isoToDateString(a.date) === date);
+							return att ? (translate(att.status) || att.status) : '';
+						}
+					});
+				});
+				break;
+			case "missing-fields":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "missing_fields", label: translate("missing_fields") }
+				];
+				break;
+			case "financial":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "total_billed", label: translate("total_billed"), format: v => Number(v || 0).toFixed(2) },
+					{ key: "total_paid", label: translate("total_paid"), format: v => Number(v || 0).toFixed(2) },
+					{ key: "total_outstanding", label: translate("outstanding_balance"), format: v => Number(v || 0).toFixed(2) }
+				];
+				break;
+			case "participant-age":
+				columns = [
+					{ key: "first_name", label: translate("first_name") },
+					{ key: "last_name", label: translate("last_name") },
+					{ key: "group_name", label: translate("group") },
+					{ key: "date_naissance", label: translate("birthdate"), format: v => v ? formatDateShort(v) : '' },
+					{ key: "age", label: translate("age") }
+				];
+				break;
+			default:
+				// Fallback for types not explicitly handled or generic types
+				// check if data is array of objects
+				if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+					// Try to auto-detect columns from first item
+					Object.keys(data[0]).forEach(key => {
+						if (typeof data[0][key] !== 'object' && typeof data[0][key] !== 'function') {
+							columns.push({ key, label: translate(key) || key });
+						}
+					});
+				} else {
+					this.app.showMessage(translate("export_not_supported_for_type"), "warning");
+					return;
+				}
+		}
+
+		exportToCSV(data, columns, filename);
 	}
+
 
 	getMissingFields(submissionData, formStructure) {
 		const missingFields = [];
@@ -688,8 +844,8 @@ export class Reports {
 				</thead>
 				<tbody>
 					${data
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
@@ -697,8 +853,8 @@ export class Reports {
 							<td>${item.epipen === "on" || item.epipen === "true" || item.epipen === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -721,16 +877,16 @@ export class Reports {
 				</thead>
 				<tbody>
 					${data
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${item.medication || "-"}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -753,16 +909,16 @@ export class Reports {
 				</thead>
 				<tbody>
 					${data
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${item.vaccines_up_to_date === "on" || item.vaccines_up_to_date === "true" || item.vaccines_up_to_date === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -785,16 +941,16 @@ export class Reports {
 				</thead>
 				<tbody>
 					${data
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.date_naissance ? new Date(item.date_naissance).toLocaleDateString() : translate("unknown")}</td>
 							<td>${item.age !== null ? item.age : translate("unknown")}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -817,16 +973,16 @@ export class Reports {
 				</thead>
 				<tbody>
 					${data
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${item.can_leave_alone === "on" || item.can_leave_alone === "true" || item.can_leave_alone === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -849,16 +1005,16 @@ export class Reports {
 				</thead>
 				<tbody>
 					${data
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${item.media_authorized === "on" || item.media_authorized === "true" || item.media_authorized === true ? translate("yes") : translate("no")}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -881,16 +1037,16 @@ export class Reports {
 				</thead>
 				<tbody>
 					${reportData
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.first_name} ${item.last_name}</td>
 							<td>${item.group_name || translate("no_group")}</td>
 							<td>${this.formatMissingDocuments(item.missing_documents)}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -1045,14 +1201,14 @@ export class Reports {
 									<td>${item.first_name} ${item.last_name}</td>
 									<td>${item.group_name || translate("no_group")}</td>
 									${uniqueDates
-										.map(
-											(date) => `
+						.map(
+							(date) => `
 											<td style="background-color: ${statusColors[attendanceMap[date]] || "#FFFFFF"};">
 													${attendanceMap[date] || ""}
 											</td>
 									`,
-										)
-										.join("")}
+						)
+						.join("")}
 							</tr>
 					`;
 			})
@@ -1085,8 +1241,8 @@ export class Reports {
 				</thead>
 				<tbody>
 					${data
-						.map(
-							(item) => `
+				.map(
+					(item) => `
 						<tr>
 							<td>${item.honor_name}</td>
 							<td>${item.category || "-"}</td>
@@ -1094,8 +1250,8 @@ export class Reports {
 							<td>${Array.isArray(item.recipients) ? item.recipients.join(", ") : item.recipients}</td>
 						</tr>
 					`,
-						)
-						.join("")}
+				)
+				.join("")}
 				</tbody>
 			</table>
 		`;
@@ -1255,44 +1411,44 @@ export class Reports {
 
 		const timelineEvents = progressData
 			? [
-					...(progressData.attendance || []).map((item) => ({
-						type: "attendance",
-						date: item.date,
-						status: item.status,
-					})),
-					...(progressData.honors || []).map((item) => ({
-						type: "honor",
-						date: item.date,
-						reason: item.reason,
-					})),
-					...(progressData.badges || []).map((item) => ({
-						type: "badge",
-						date: item.date,
-						badgeName: translate(item.translation_key) || item.badge_name || item.territoire_chasse,
-						level: item.etoiles,
-						section: item.badge_section,
-					})),
-				].sort((a, b) => new Date(a.date) - new Date(b.date))
+				...(progressData.attendance || []).map((item) => ({
+					type: "attendance",
+					date: item.date,
+					status: item.status,
+				})),
+				...(progressData.honors || []).map((item) => ({
+					type: "honor",
+					date: item.date,
+					reason: item.reason,
+				})),
+				...(progressData.badges || []).map((item) => ({
+					type: "badge",
+					date: item.date,
+					badgeName: translate(item.translation_key) || item.badge_name || item.territoire_chasse,
+					level: item.etoiles,
+					section: item.badge_section,
+				})),
+			].sort((a, b) => new Date(a.date) - new Date(b.date))
 			: [];
 
 		const timeline = timelineEvents.length
 			? timelineEvents
-					.map((event) => {
-						let title = "";
-						let meta = "";
-						if (event.type === "attendance") {
-							title = translate(event.status) || translate("attendance");
-							meta = translate("attendance_status");
-						} else if (event.type === "honor") {
-							title = translate("honor_awarded");
-							meta = event.reason || translate("no_reason_provided");
-						} else {
-							title = translate("badge_star") || translate("badge");
-							const levelLabel = translate("badge_level_label") || translate("badge_star_label") || translate("stars_count");
-							meta = `${event.badgeName || ""} · ${levelLabel} ${event.level || 0}${event.section ? ` · ${event.section}` : ""}`;
-						}
+				.map((event) => {
+					let title = "";
+					let meta = "";
+					if (event.type === "attendance") {
+						title = translate(event.status) || translate("attendance");
+						meta = translate("attendance_status");
+					} else if (event.type === "honor") {
+						title = translate("honor_awarded");
+						meta = event.reason || translate("no_reason_provided");
+					} else {
+						title = translate("badge_star") || translate("badge");
+						const levelLabel = translate("badge_level_label") || translate("badge_star_label") || translate("stars_count");
+						meta = `${event.badgeName || ""} · ${levelLabel} ${event.level || 0}${event.section ? ` · ${event.section}` : ""}`;
+					}
 
-						return `
+					return `
                                 <article class="timeline-item timeline-item--${event.type}">
                                         <div class="timeline-dot" aria-hidden="true"></div>
                                         <div class="timeline-content">
@@ -1302,26 +1458,26 @@ export class Reports {
                                         </div>
                                 </article>
                         `;
-					})
-					.join("")
+				})
+				.join("")
 			: `<p class="muted">${translate("participant_progress_empty")}</p>`;
 
 		const pointsGraph = progressData
 			? this.buildPointsGraph(progressData.pointEvents || [])
 			: {
-					svg: `<div class="chart-placeholder">${translate("no_points_data")}</div>`,
-					min: 0,
-					max: 0,
-				};
+				svg: `<div class="chart-placeholder">${translate("no_points_data")}</div>`,
+				min: 0,
+				max: 0,
+			};
 
 		const attendanceChips = progressData
 			? Object.entries(progressData.totals.attendance || {})
-					.map(
-						([status, count]) => `
+				.map(
+					([status, count]) => `
                         <span class="chip">${translate(status) || status}: ${count}</span>
                 `,
-					)
-					.join("")
+				)
+				.join("")
 			: "";
 
 		const offlineNotice = isOffline
@@ -1343,9 +1499,8 @@ export class Reports {
                         <div class="participant-progress">
                                 ${offlineNotice}
                                 ${participantSelector}
-                                ${
-																	progressData
-																		? `
+                                ${progressData
+				? `
                                         <div class="report-card">
                                                 <header class="report-card__header">
                                                         <div>
@@ -1372,8 +1527,8 @@ export class Reports {
                                                 </div>
                                         </div>
                                 `
-																		: `<p class="muted">${translate("select_participant_prompt")}</p>`
-																}
+				: `<p class="muted">${translate("select_participant_prompt")}</p>`
+			}
                         </div>
                 `;
 	}
@@ -1530,6 +1685,7 @@ export class Reports {
 			}
 
 			const progressData = response?.data?.progress || null;
+			this.currentReportData = progressData;
 			const markup = this.renderParticipantProgressReport(progressData);
 			return markup;
 		} catch (error) {

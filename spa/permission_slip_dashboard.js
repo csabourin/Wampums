@@ -15,6 +15,7 @@ import { getGroups } from "./api/api-endpoints.js";
 import { getParticipants } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { withButtonLoading } from "./utils/PerformanceUtils.js";
 
 export class PermissionSlipDashboard {
   constructor(app, options = {}) {
@@ -142,10 +143,10 @@ export class PermissionSlipDashboard {
               <div class="summary-label">${escapeHTML(translate("permission_slip_status"))}</div>
               <ul class="summary-list">
                 ${permissionSummary.length === 0
-                  ? `<li>${escapeHTML(translate("no_data_available"))}</li>`
-                  : permissionSummary
-                      .map((row) => `<li>${escapeHTML(row.status)}: <strong>${row.count}</strong></li>`)
-                      .join('')}
+        ? `<li>${escapeHTML(translate("no_data_available"))}</li>`
+        : permissionSummary
+          .map((row) => `<li>${escapeHTML(row.status)}: <strong>${row.count}</strong></li>`)
+          .join('')}
               </ul>
             </div>
           </div>
@@ -395,11 +396,11 @@ export class PermissionSlipDashboard {
                     <td>${slip.signed_at ? escapeHTML(formatDate(slip.signed_at, this.app.lang || 'fr')) : '-'}</td>
                     <td>
                       ${[
-                        slip.status === 'pending'
-                          ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_sign"))}</button>`
-                          : '',
-                        `<button class="btn link archive-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_archive"))}</button>`
-                      ].filter(Boolean).join(' ')}
+          slip.status === 'pending'
+            ? `<button class="btn link sign-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_sign"))}</button>`
+            : '',
+          `<button class="btn link archive-slip" data-id="${slip.id}">${escapeHTML(translate("permission_slip_archive"))}</button>`
+        ].filter(Boolean).join(' ')}
                     </td>
                   </tr>
                 `).join('')}
@@ -489,29 +490,30 @@ export class PermissionSlipDashboard {
     // Form submission
     const form = document.getElementById("permissionSlipForm");
     if (form) {
-      form.addEventListener("submit", async (e) => {
+      form.addEventListener("submit", (e) => {
         e.preventDefault();
-        await this.handleFormSubmit(e);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        withButtonLoading(submitBtn, () => this.handleFormSubmit(e));
       });
     }
 
     // Send emails buttons
     document.querySelectorAll('.btn-send-emails').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
-        await this.handleSendEmails(date, activityTitle);
+        withButtonLoading(btn, () => this.handleSendEmails(date, activityTitle));
       });
     });
 
     // Send reminders buttons
     document.querySelectorAll('.btn-send-reminders').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.preventDefault();
         const activityTitle = btn.getAttribute('data-activity-title');
         const date = btn.getAttribute('data-date');
-        await this.handleSendReminders(date, activityTitle);
+        withButtonLoading(btn, () => this.handleSendReminders(date, activityTitle));
       });
     });
 
@@ -523,15 +525,17 @@ export class PermissionSlipDashboard {
         const signerName = prompt(translate("permission_slip_signer"));
         if (!signerName) return;
 
-        try {
-          await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
-          this.app.showMessage(translate("permission_slip_signed"), "success");
-          await this.clearPermissionSlipCaches();
-          await this.refreshData(true);
-        } catch (error) {
-          debugError("Error signing permission slip", error);
-          this.app.showMessage(translate("permission_slip_error_loading"), "error");
-        }
+        withButtonLoading(event.currentTarget, async () => {
+          try {
+            await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
+            this.app.showMessage(translate("permission_slip_signed"), "success");
+            await this.clearPermissionSlipCaches();
+            await this.refreshData(true);
+          } catch (error) {
+            debugError("Error signing permission slip", error);
+            this.app.showMessage(translate("permission_slip_error_loading"), "error");
+          }
+        });
       });
     });
 
@@ -543,15 +547,17 @@ export class PermissionSlipDashboard {
           return;
         }
 
-        try {
-          await archivePermissionSlip(slipId);
-          this.app.showMessage(translate("permission_slip_archived"), "success");
-          await this.clearPermissionSlipCaches();
-          await this.refreshData(true);
-        } catch (error) {
-          debugError("Error archiving permission slip", error);
-          this.app.showMessage(translate("permission_slip_error_loading"), "error");
-        }
+        withButtonLoading(event.currentTarget, async () => {
+          try {
+            await archivePermissionSlip(slipId);
+            this.app.showMessage(translate("permission_slip_archived"), "success");
+            await this.clearPermissionSlipCaches();
+            await this.refreshData(true);
+          } catch (error) {
+            debugError("Error archiving permission slip", error);
+            this.app.showMessage(translate("permission_slip_error_loading"), "error");
+          }
+        });
       });
     });
 
