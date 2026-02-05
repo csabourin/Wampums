@@ -2265,5 +2265,20 @@
   "special_meeting_duration": "Special Meeting Duration (optional)",
   "leave_empty_for_default": "Leave empty to use default",
   "duration_minutes_placeholder": "Duration in minutes",
-  "duration_override_help": "Override the standard meeting duration for special meetings (camps, multi-day events, etc.). Leave empty to use the default 2-hour meeting length."
+  "duration_override_help": "Override the standard meeting duration for special meetings (camps, multi-day events, etc.). Leave empty to use the default 2-hour meeting length.",
+  "award_group_badge_retroactive": "Award Group Badge (Past Date)",
+  "select_attendance_date": "Select a date with attendance",
+  "present_and_late": "Present and Late",
+  "retroactive_badge_success": "Group badge awarded successfully",
+  "no_present_participants": "No participants were present on this date",
+  "error_loading_dates": "Error loading attendance dates",
+  "no_attendance_data": "No attendance data available",
+  "unprocessed_achievements_title": "Unprocessed Achievements",
+  "unprocessed_achievements_desc": "You have planned achievements from past meetings that have not been awarded yet.",
+  "review_and_award": "Review & Award",
+  "confirm_award": "Confirm Award",
+  "processing": "Processing",
+  "achievements_awarded_success": "Achievements awarded successfully",
+  "no_updates_needed": "No updates needed",
+  "error_processing_awards": "Error processing awards"
 }

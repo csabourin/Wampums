@@ -2300,5 +2300,20 @@
   "special_meeting_duration": "Durée spéciale de réunion (optionnel)",
   "leave_empty_for_default": "Laisser vide pour utiliser la valeur par défaut",
   "duration_minutes_placeholder": "Durée en minutes",
-  "duration_override_help": "Remplacez la durée standard de la réunion pour les réunions spéciales (camps, événements multi-jours, etc.). Laissez vide pour utiliser la durée de réunion par défaut de 2 heures."
+  "duration_override_help": "Remplacez la durée standard de la réunion pour les réunions spéciales (camps, événements multi-jours, etc.). Laissez vide pour utiliser la durée de réunion par défaut de 2 heures.",
+  "award_group_badge_retroactive": "Attribuer badge de groupe (date passée)",
+  "select_attendance_date": "Sélectionner une date avec présence",
+  "present_and_late": "Présents et en retard",
+  "retroactive_badge_success": "Badge de groupe attribué avec succès",
+  "no_present_participants": "Aucun participant n'était présent à cette date",
+  "error_loading_dates": "Erreur de chargement des dates",
+  "no_attendance_data": "Aucune donnée de présence disponible",
+  "unprocessed_achievements_title": "Réalisations non traitées",
+  "unprocessed_achievements_desc": "Vous avez des réalisations prévues lors de réunions passées qui n'ont pas encore été attribuées.",
+  "review_and_award": "Passer en revue et attribuer",
+  "confirm_award": "Confirmer l'attribution",
+  "processing": "Traitement",
+  "achievements_awarded_success": "Réalisations attribuées avec succès",
+  "no_updates_needed": "Aucune mise à jour nécessaire",
+  "error_processing_awards": "Erreur lors de l'attribution des badges"
 }

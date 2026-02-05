@@ -25,6 +25,8 @@ import {
   getUnprocessedAchievements,
   getReunionPreparation,
   saveReunionPreparation,
+  getAttendance,
+  getAttendanceDates,
 } from './api/api-endpoints.js';
 
 export class BadgeTracker {
@@ -46,6 +48,7 @@ export class BadgeTracker {
     this.boundClickHandler = null;
     this.boundSearchHandler = null;
     this.unprocessedMeetings = [];
+    this.attendanceDates = [];
   }
 
   async init() {
@@ -238,6 +241,14 @@ export class BadgeTracker {
               <p style="margin: 0; font-size: 0.9em;">${translate('unprocessed_achievements_desc') || 'You have planned achievements from past meetings that have not been awarded yet.'}</p>
             </div>
             <button id="process-backlog-btn" class="button button--small button--primary">${translate('review_and_award') || 'Review & Award'}</button>
+          </div>
+        ` : ''}
+
+        ${this.canManage ? `
+          <div class="badge-tracker__actions" style="margin-bottom: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="button button--secondary button--sm" data-action="open-retroactive-modal">
+              📅 ${translate('award_group_badge_retroactive') || 'Attribuer badge de groupe (date passée)'}
+            </button>
           </div>
         ` : ''}
 
@@ -790,6 +801,10 @@ export class BadgeTracker {
         };
         this.isModalOpen = true;
         this.renderModal();
+        break;
+
+      case 'open-retroactive-modal':
+        await this.openRetroactiveAwardModal();
         break;
 
       case 'approve':
@@ -1362,6 +1377,191 @@ export class BadgeTracker {
       debugError("Error processing catch-up:", error);
       this.showToast(translate("error_processing_awards") || "Error", "error");
       btn.disabled = false;
+    }
+  }
+
+  async openRetroactiveAwardModal() {
+    // 1. Fetch attendance dates if not already loaded
+    if (!this.attendanceDates || this.attendanceDates.length === 0) {
+      try {
+        const response = await getAttendanceDates();
+        this.attendanceDates = Array.isArray(response) ? response : (response?.dates || []);
+      } catch (error) {
+        debugError('[BadgeTracker] Error fetching attendance dates:', error);
+        this.showToast(translate('error_loading_dates') || 'Erreur de chargement des dates', 'error');
+        return;
+      }
+    }
+
+    if (!this.attendanceDates || this.attendanceDates.length === 0) {
+      this.showToast(translate('no_attendance_data') || 'Aucune donnée de présence disponible', 'warning');
+      return;
+    }
+
+    const modalContent = `
+      <div id="retroactive-award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div class="modal-content" style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 700px; border-radius: 8px;">
+          <h2 style="margin-top: 0;">${translate('award_group_badge_retroactive') || 'Attribuer badge de groupe (date passée)'}</h2>
+          
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label for="retro-date-select" style="display: block; margin-bottom: 5px; font-weight: bold;">${translate('select_attendance_date') || 'Sélectionner une date avec présence'}</label>
+            <select id="retro-date-select" class="form-control" style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 16px;">
+              <option value="">${translate('select') || 'Sélectionner...'}</option>
+              ${this.attendanceDates.map(date => `<option value="${date}">${this.formatDate(date)}</option>`).join('')}
+            </select>
+          </div>
+
+          <div id="retro-presence-preview" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; display: none;">
+            <div id="retro-presence-count" style="font-weight: bold; margin-bottom: 10px;"></div>
+            <div id="retro-presence-list" style="font-size: 0.9em; color: #666; max-height: 100px; overflow-y: auto;"></div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: bold;">${translate('badge')}</label>
+            <div class="badge-tracker__badge-selector" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 300px; overflow-y: auto; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+              ${this.templates.map(template => `
+                <label class="badge-tracker__badge-option" style="cursor: pointer; border: 1px solid #ddd; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; transition: all 0.2s;">
+                  <input type="radio" name="retro_badge_template_id" value="${template.id}" required style="position: absolute; opacity: 0; width: 0; height: 0;">
+                  ${template.image ?
+        `<img src="/assets/images/${template.image}" alt="" style="width: 40px; height: 40px; object-fit: contain;">` :
+        '<span style="font-size: 32px;">🏅</span>'}
+                  <span style="font-size: 0.85em; display: inline-block;">${sanitizeHTML(template.name.replace('comme ', ''))}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="margin-top: 20px; text-align: right; display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="button button--ghost" id="close-retro-modal">${translate('cancel')}</button>
+            <button class="button button--primary" id="confirm-retro-btn" disabled>${translate('confirm')}</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Add styles for radio selection
+    const styleId = 'retro-modal-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .badge-tracker__badge-option:has(input:checked) {
+          border-color: #4CAF50 !important;
+          background-color: #e8f5e9 !important;
+          box-shadow: 0 0 0 2px #4CAF50;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    const modalContainer = document.createElement('div');
+    modalContainer.id = 'retro-modal-container';
+    modalContainer.innerHTML = modalContent;
+    document.body.appendChild(modalContainer);
+
+    const dateSelect = document.getElementById('retro-date-select');
+    const confirmBtn = document.getElementById('confirm-retro-btn');
+    const previewArea = document.getElementById('retro-presence-preview');
+    const countEl = document.getElementById('retro-presence-count');
+    const listEl = document.getElementById('retro-presence-list');
+    let presentParticipants = [];
+
+    dateSelect.addEventListener('change', async (e) => {
+      const selectedDate = e.target.value;
+      if (!selectedDate) {
+        previewArea.style.display = 'none';
+        confirmBtn.disabled = true;
+        return;
+      }
+
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = (translate('loading') || 'Chargement') + '...';
+
+      try {
+        const response = await getAttendance(selectedDate);
+        const attendanceData = response?.success ? response.attendance : (response?.data || {});
+
+        presentParticipants = this.participants.filter(p => {
+          const status = attendanceData[p.id];
+          return status === 'present' || status === 'late';
+        });
+
+        if (presentParticipants.length > 0) {
+          countEl.textContent = `${presentParticipants.length} ${translate('participants')} ${translate('present_and_late') || 'présents ou en retard'}`;
+          listEl.textContent = presentParticipants.map(p => `${p.first_name} ${p.last_name}`).join(', ');
+          previewArea.style.display = 'block';
+
+          const badgeChecked = document.querySelector('input[name="retro_badge_template_id"]:checked');
+          if (badgeChecked) confirmBtn.disabled = false;
+        } else {
+          countEl.textContent = translate('no_present_participants') || 'Aucun participant présent à cette date';
+          listEl.textContent = '';
+          previewArea.style.display = 'block';
+          confirmBtn.disabled = true;
+        }
+      } catch (error) {
+        debugError('[BadgeTracker] Error fetching attendance for preview:', error);
+      } finally {
+        confirmBtn.textContent = translate('confirm');
+      }
+    });
+
+    modalContainer.addEventListener('change', (e) => {
+      if (e.target.name === 'retro_badge_template_id' && dateSelect.value && presentParticipants.length > 0) {
+        confirmBtn.disabled = false;
+      }
+    });
+
+    document.getElementById('close-retro-modal').addEventListener('click', () => modalContainer.remove());
+    confirmBtn.addEventListener('click', () => {
+      const templateRadio = document.querySelector('input[name="retro_badge_template_id"]:checked');
+      if (!templateRadio) return;
+      this.processRetroactiveAward(dateSelect.value, parseInt(templateRadio.value), presentParticipants, modalContainer);
+    });
+  }
+
+  async processRetroactiveAward(date, templateId, presentParticipants, modalContainer) {
+    const btn = document.getElementById('confirm-retro-btn');
+    btn.disabled = true;
+    btn.textContent = (translate('processing') || 'Traitement') + '...';
+
+    const updates = [];
+    const template = this.templates.find(t => t.id === templateId);
+
+    for (const participant of presentParticipants) {
+      // Determine level (next star)
+      const { nextStar } = this.getNextStarInfo(participant.id, templateId);
+
+      if (!nextStar) continue; // Already has max stars
+
+      updates.push(saveBadgeProgress({
+        participant_id: participant.id,
+        badge_template_id: templateId,
+        etoiles: nextStar,
+        star_type: 'battue',
+        status: 'approved',
+        date_obtention: date,
+        objectif: template?.name || 'Badge de groupe',
+        comments: `Attribution rétrospective - ${date}`
+      }));
+    }
+
+    try {
+      if (updates.length > 0) {
+        await Promise.all(updates);
+        this.showToast(translate('retroactive_badge_success') || 'Badge de groupe attribué avec succès', 'success');
+      } else {
+        this.showToast(translate('no_updates_needed') || 'Aucune mise à jour nécessaire', 'info');
+      }
+
+      modalContainer.remove();
+      await this.loadData(true);
+      this.render();
+    } catch (error) {
+      debugError('[BadgeTracker] Error processing retroactive awards:', error);
+      this.showToast(translate('error_processing_awards') || "Erreur lors de l'attribution", 'error');
+      btn.disabled = false;
+      btn.textContent = translate('confirm');
     }
   }
 
