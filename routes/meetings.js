@@ -43,73 +43,136 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Reunion preparation retrieved successfully
    */
+
+  /**
+   * @swagger
+   * /api/unprocessed-achievements:
+   *   get:
+   *     summary: Get past meetings with unprocessed achievements
+   *     description: Retrieve past meetings that have activities with linked achievements not yet processed
+   *     tags: [Meetings]
+   *     responses:
+   *       200:
+   *         description: List of meetings with unprocessed achievements
+   */
+  router.get('/unprocessed-achievements',
+    checkValidation,
+    async (req, res) => {
+      try {
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+        const result = await pool.query(
+          `SELECT id, date::text as date, activities
+         FROM reunion_preparations
+         WHERE organization_id = $1
+           AND date < CURRENT_DATE
+           AND EXISTS (
+               SELECT 1 FROM jsonb_array_elements(activities) a
+               WHERE (a->>'badge_template_id') IS NOT NULL
+                 AND (a->>'badge_template_id') != ''
+                 AND ((a->>'processed') IS NULL OR (a->>'processed')::boolean = false)
+           )
+         ORDER BY date DESC
+         LIMIT 10`,
+          [organizationId]
+        );
+
+        // Parse activities for each meeting
+        const meetings = result.rows.map(row => {
+          let activities = [];
+          try {
+            activities = typeof row.activities === 'string' ? JSON.parse(row.activities) : row.activities;
+          } catch (e) {
+            activities = [];
+          }
+
+          // Filter only the unprocessed achievements to return cleaner data
+          const unprocessed = Array.isArray(activities) ? activities.filter(a =>
+            a.badge_template_id && !a.processed
+          ) : [];
+
+          return {
+            ...row,
+            activities: unprocessed
+          };
+        });
+
+        res.json({
+          success: true,
+          meetings
+        });
+      } catch (error) {
+        handleOrganizationResolutionError(error, res, logger);
+      }
+    });
+
   router.get('/reunion-preparation',
     validateDateOptional('date'),
     checkValidation,
     async (req, res) => {
-    try {
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const reunionDate = req.query.date || new Date().toISOString().split('T')[0];
+      try {
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const reunionDate = req.query.date || new Date().toISOString().split('T')[0];
 
-      const [result, meetingSections] = await Promise.all([
-        pool.query(
-          `SELECT id, organization_id, date::text as date, youth_of_honor,
+        const [result, meetingSections] = await Promise.all([
+          pool.query(
+            `SELECT id, organization_id, date::text as date, youth_of_honor,
                   endroit, activities, notes, animateur_responsable
            FROM reunion_preparations
            WHERE organization_id = $1 AND date = $2`,
-          [organizationId, reunionDate]
-        ),
-        getMeetingSectionConfig(pool, organizationId, logger)
-      ]);
+            [organizationId, reunionDate]
+          ),
+          getMeetingSectionConfig(pool, organizationId, logger)
+        ]);
 
-      if (result.rows.length > 0) {
-        const preparation = result.rows[0];
-        
-        // Parse JSON fields - check if already parsed (JSONB columns return objects)
-        try {
-          // If youth_of_honor is a string, parse it; if already an object/array, use as-is
-          if (typeof preparation.youth_of_honor === 'string') {
-            preparation.youth_of_honor = JSON.parse(preparation.youth_of_honor || '[]');
-          } else if (!Array.isArray(preparation.youth_of_honor)) {
-            preparation.youth_of_honor = preparation.youth_of_honor ? [preparation.youth_of_honor] : [];
-          }
-          
-          // If activities is a string, parse it; if already an object/array, use as-is
-          if (typeof preparation.activities === 'string') {
-            preparation.activities = JSON.parse(preparation.activities || '[]');
-          } else if (!Array.isArray(preparation.activities)) {
+        if (result.rows.length > 0) {
+          const preparation = result.rows[0];
+
+          // Parse JSON fields - check if already parsed (JSONB columns return objects)
+          try {
+            // If youth_of_honor is a string, parse it; if already an object/array, use as-is
+            if (typeof preparation.youth_of_honor === 'string') {
+              preparation.youth_of_honor = JSON.parse(preparation.youth_of_honor || '[]');
+            } else if (!Array.isArray(preparation.youth_of_honor)) {
+              preparation.youth_of_honor = preparation.youth_of_honor ? [preparation.youth_of_honor] : [];
+            }
+
+            // If activities is a string, parse it; if already an object/array, use as-is
+            if (typeof preparation.activities === 'string') {
+              preparation.activities = JSON.parse(preparation.activities || '[]');
+            } else if (!Array.isArray(preparation.activities)) {
+              preparation.activities = [];
+            }
+          } catch (e) {
+            logger.warn('Error parsing reunion preparation JSON fields:', e);
+            preparation.youth_of_honor = preparation.youth_of_honor
+              ? [preparation.youth_of_honor].flat()
+              : [];
             preparation.activities = [];
           }
-        } catch (e) {
-          logger.warn('Error parsing reunion preparation JSON fields:', e);
-          preparation.youth_of_honor = preparation.youth_of_honor
-            ? [preparation.youth_of_honor].flat()
-            : [];
-          preparation.activities = [];
+          res.json({
+            success: true,
+            preparation: preparation,
+            meetingSections
+          });
+        } else {
+          res.json({
+            success: false,
+            message: 'No reunion preparation found for this date',
+            meetingSections
+          });
         }
-        res.json({
-          success: true,
-          preparation: preparation,
-          meetingSections
-        });
-      } else {
-        res.json({
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error fetching reunion preparation:', error);
+        res.status(500).json({
           success: false,
-          message: 'No reunion preparation found for this date',
-          meetingSections
+          message: 'Error fetching reunion preparation'
         });
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching reunion preparation:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error fetching reunion preparation'
-      });
-    }
-  });
+    });
 
   /**
    * @swagger
@@ -159,58 +222,58 @@ module.exports = (pool, logger) => {
     ).withMessage('youth_of_honor must be an array or string'),
     checkValidation,
     async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const { date, youth_of_honor, endroit, activities, notes, animateur_responsable, duration_override } = req.body;
-      const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
-      let sectionKey = meetingSections.defaultSection;
       try {
-        const orgInfoResult = await pool.query(
-          `SELECT setting_value FROM organization_settings
-           WHERE organization_id = $1 AND setting_key = 'organization_info'`,
-          [organizationId]
-        );
-        if (orgInfoResult.rows[0]?.setting_value) {
-          const orgInfo = JSON.parse(orgInfoResult.rows[0].setting_value);
-          if (orgInfo?.meeting_section && meetingSections.sections?.[orgInfo.meeting_section]) {
-            sectionKey = orgInfo.meeting_section;
-          }
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
+
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
         }
-      } catch (error) {
-        logger.warn('Unable to resolve meeting section from organization_info', { error: error.message });
-      }
-      const honorConfig = meetingSections.sections?.[sectionKey]?.honorField || {};
-      const parsedHonorValues = Array.isArray(youth_of_honor)
-        ? youth_of_honor
-        : typeof youth_of_honor === 'string' && youth_of_honor.trim()
-          ? [youth_of_honor.trim()]
-          : [];
 
-      if (honorConfig.required && parsedHonorValues.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'meeting_section_honor_required'
-        });
-      }
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const { date, youth_of_honor, endroit, activities, notes, animateur_responsable, duration_override } = req.body;
+        const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
+        let sectionKey = meetingSections.defaultSection;
+        try {
+          const orgInfoResult = await pool.query(
+            `SELECT setting_value FROM organization_settings
+           WHERE organization_id = $1 AND setting_key = 'organization_info'`,
+            [organizationId]
+          );
+          if (orgInfoResult.rows[0]?.setting_value) {
+            const orgInfo = JSON.parse(orgInfoResult.rows[0].setting_value);
+            if (orgInfo?.meeting_section && meetingSections.sections?.[orgInfo.meeting_section]) {
+              sectionKey = orgInfo.meeting_section;
+            }
+          }
+        } catch (error) {
+          logger.warn('Unable to resolve meeting section from organization_info', { error: error.message });
+        }
+        const honorConfig = meetingSections.sections?.[sectionKey]?.honorField || {};
+        const parsedHonorValues = Array.isArray(youth_of_honor)
+          ? youth_of_honor
+          : typeof youth_of_honor === 'string' && youth_of_honor.trim()
+            ? [youth_of_honor.trim()]
+            : [];
 
-      // Convert arrays/objects to appropriate formats
-      const honorJson = JSON.stringify(parsedHonorValues);
+        if (honorConfig.required && parsedHonorValues.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'meeting_section_honor_required'
+          });
+        }
 
-      const activitiesJson = typeof activities === 'string'
-        ? activities
-        : JSON.stringify(activities);
+        // Convert arrays/objects to appropriate formats
+        const honorJson = JSON.stringify(parsedHonorValues);
 
-      // Use UPSERT to handle both insert and update atomically
-      // This prevents race conditions and duplicate key errors
-      const result = await pool.query(
-        `INSERT INTO reunion_preparations
+        const activitiesJson = typeof activities === 'string'
+          ? activities
+          : JSON.stringify(activities);
+
+        // Use UPSERT to handle both insert and update atomically
+        // This prevents race conditions and duplicate key errors
+        const result = await pool.query(
+          `INSERT INTO reunion_preparations
          (organization_id, date, youth_of_honor, endroit, activities, notes, animateur_responsable, duration_override)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (organization_id, date)
@@ -223,32 +286,32 @@ module.exports = (pool, logger) => {
            duration_override = EXCLUDED.duration_override,
            updated_at = CURRENT_TIMESTAMP
          RETURNING *`,
-        [organizationId, date, honorJson, endroit, activitiesJson, notes, animateur_responsable, duration_override || null]
-      );
-      const savedPreparation = result.rows[0];
-      try {
-        savedPreparation.youth_of_honor = JSON.parse(savedPreparation.youth_of_honor || '[]');
-        savedPreparation.activities = JSON.parse(savedPreparation.activities || '[]');
-      } catch (error) {
-        logger.warn('Error parsing saved reunion preparation JSON fields:', error);
-      }
+          [organizationId, date, honorJson, endroit, activitiesJson, notes, animateur_responsable, duration_override || null]
+        );
+        const savedPreparation = result.rows[0];
+        try {
+          savedPreparation.youth_of_honor = JSON.parse(savedPreparation.youth_of_honor || '[]');
+          savedPreparation.activities = JSON.parse(savedPreparation.activities || '[]');
+        } catch (error) {
+          logger.warn('Error parsing saved reunion preparation JSON fields:', error);
+        }
 
-      res.json({
-        success: true,
-        message: 'Reunion preparation saved successfully',
-        preparation: savedPreparation
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
+        res.json({
+          success: true,
+          message: 'Reunion preparation saved successfully',
+          preparation: savedPreparation
+        });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error saving reunion preparation:', error);
+        res.status(500).json({
+          success: false,
+          message: error.message
+        });
       }
-      logger.error('Error saving reunion preparation:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  });
+    });
 
   /**
    * @swagger

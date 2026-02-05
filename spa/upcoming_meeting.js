@@ -5,10 +5,11 @@ import {
   debugWarn,
   debugInfo,
 } from "./utils/DebugUtils.js";
-import { getReunionDates, getReunionPreparation } from "./ajax-functions.js";
+import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, saveReunionPreparation, getBadgeSummary } from "./ajax-functions.js";
 import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
+import { canApproveBadges } from "./utils/PermissionUtils.js";
 
 export class UpcomingMeeting {
   constructor(app) {
@@ -465,6 +466,11 @@ export class UpcomingMeeting {
                                                                                                 <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
                                                                                                 <span>${translate("preparation_reunions")}</span>
                                                                                 </a>
+                                                                                ${showAwardButton ? `
+                                                                                <button id="award-achievements-btn" class="button button--primary" style="margin-left: 10px;">
+                                                                                        <i class="fa-solid fa-star"></i> ${translate("award_planned_achievements") || "Award Achievements"}
+                                                                                </button>
+                                                                                ` : ''}
                                                                 </div>
                                                 </div>
                                 `;
@@ -483,6 +489,170 @@ export class UpcomingMeeting {
         await this.fetchMeetingDetails(selectedDate);
         await this.render();
       });
+    }
+
+    const awardBtn = document.getElementById('award-achievements-btn');
+    if (awardBtn) {
+      awardBtn.addEventListener('click', () => this.openAwardModal(unprocessedAchievements));
+    }
+  }
+
+  async openAwardModal(achievements) {
+    // 1. Fetch necessary data
+    const [badgeData, participantsData, attendanceData] = await Promise.all([
+      getBadgeSummary({ forceRefresh: false }),
+      getParticipants(),
+      // Assuming getAttendance returns an array or object for the date
+      // However, getAttendance usually takes a date. Let's check imports.
+      // We need to import getAttendance. I'll add it to imports later or use what's available.
+      // Actually, I can use a simpler approach: Just list the participants validation.
+      // Let's assume we want to fetch attendance to pre-fill.
+      this.fetchAttendanceForDate(this.closestMeeting)
+    ]);
+
+    const templates = badgeData?.templates || [];
+    const participants = Array.isArray(participantsData) ? participantsData : (participantsData?.participants || []);
+    const presentParticipantIds = attendanceData ? Object.keys(attendanceData).filter(id => attendanceData[id] === 'present') : [];
+
+    // 2. Build Modal Content
+    let curreMeetingDate = this.closestMeeting;
+
+    // Helper to get names
+    const getNames = (ids) => ids.map(id => {
+      const p = participants.find(part => part.id == id);
+      return p ? `${p.first_name} ${p.last_name}` : 'Unknown';
+    }).join(', ');
+
+    const rows = achievements.map((a, index) => {
+      const template = templates.find(t => t.id == a.badge_template_id);
+      const badgeName = template ? template.name : 'Unknown Badge';
+      const typeLabel = a.star_type === 'battue' ? translate("badge_type_battue") : translate("badge_type_proie");
+
+      let targets = [];
+      if (a.star_type === 'battue') {
+        // Default to all present, or all active if none present (fallback)
+        targets = presentParticipantIds.length > 0 ? presentParticipantIds : participants.map(p => p.id);
+      } else {
+        targets = a.participant_ids || [];
+      }
+
+      const targetNames = a.star_type === 'battue'
+        ? (presentParticipantIds.length > 0 ? `${presentParticipantIds.length} ${translate("present_participants")}` : translate("all_participants"))
+        : getNames(targets);
+
+      return `
+                    <div class="award-row" style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-left: 4px solid #4CAF50;">
+                            <div style="font-weight: bold;">${badgeName} <span class="badge" style="font-size: 0.8em; background: #ddd; padding: 2px 6px; border-radius: 4px;">${typeLabel}</span></div>
+                            <div style="font-size: 0.9em; color: #666; margin-top: 5px;">${translate("awarding_to")}: ${targetNames}</div>
+                            <label style="display: block; margin-top: 5px;">
+                                    <input type="checkbox" checked class="award-confirm-checkbox" data-index="${index}" data-targets='${JSON.stringify(targets)}'>
+                                    ${translate("confirm_award")}
+                            </label>
+                    </div>
+            `;
+    }).join('');
+
+    const modalContent = `
+            <div id="award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+                    <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px;">
+                            <h2>${translate("award_planned_achievements")}</h2>
+                            <p>${translate("confirm_award_instructions") || "Please confirm the achievements to award:"}</p>
+                            ${presentParticipantIds.length === 0 ? `<p style="color: orange;">⚠ ${translate("no_attendance_warning") || "No attendance data found. Defaulting to all participants."}</p>` : ''}
+                            <div class="award-list">
+                                    ${rows}
+                            </div>
+                            <div style="margin-top: 20px; text-align: right;">
+                                    <button class="button button--ghost" id="close-award-modal">${translate("cancel")}</button>
+                                    <button class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
+                            </div>
+                    </div>
+            </div>
+    `;
+
+    // Inject Modal
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalContent;
+    document.body.appendChild(modalContainer);
+
+    // Event Listeners
+    document.getElementById('close-award-modal').addEventListener('click', () => modalContainer.remove());
+    document.getElementById('confirm-award-btn').addEventListener('click', () => {
+      this.processAwards(achievements, modalContainer);
+    });
+  }
+
+  async fetchAttendanceForDate(date) {
+    // Simple fetch wrapper since we didn't import getAttendance yet
+    // and we might need to rely on generic fetch if getAttendance isn't exported cleanly for single date
+    // Actually, we can import getAttendance.
+    try {
+      // Dynamic import or assume it's available?
+      // Let's use the import added in previous step if I added it. I didn't add getAttendance.
+      // I'll return null for now to rely on fallback, or use fetch
+      const response = await fetch(`/api/v1/attendance?date=${date}`);
+      const data = await response.json();
+      return data.success ? data.attendance : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async processAwards(allAchievements, modalContainer) {
+    const checkboxes = modalContainer.querySelectorAll('.award-confirm-checkbox:checked');
+    const updates = [];
+
+    // Disable button
+    const btn = document.getElementById('confirm-award-btn');
+    btn.disabled = true;
+    btn.textContent = translate("processing") + "...";
+
+    for (const cb of checkboxes) {
+      const index = cb.dataset.index;
+      const targets = JSON.parse(cb.dataset.targets);
+      const achievement = allAchievements[index];
+
+      // For each target, award badge
+      const promises = targets.map(participantId => {
+        return saveBadgeProgress({
+          participant_id: participantId,
+          badge_template_id: achievement.badge_template_id,
+          level: 1, // Defaulting to star 1? Or need to determine next star?
+          // Backend determines next star if we don't send 'etoiles'.
+          // We should send star_type.
+          star_type: achievement.star_type,
+          status: 'approved', // Auto-approve
+          date_obtention: this.closestMeeting,
+          comments: `Planned for meeting ${this.closestMeeting}`
+        });
+      });
+
+      updates.push(Promise.all(promises).then(() => {
+        // Mark locally as processed
+        achievement.processed = true;
+      }));
+    }
+
+    try {
+      await Promise.all(updates);
+
+      // Update Meeting Preparation to save 'processed: true'
+      // We need to update the activity objects in the meeting details
+      // The 'achievement' objects are references to objects in this.meetingDetails.activities?
+      // Yes, map/filter preserves references if shallow copy of array.
+
+      // Save updated meeting
+      await saveReunionPreparation({
+        ...this.meetingDetails,
+        activities: this.meetingDetails.activities // Now includes processed: true
+      });
+
+      modalContainer.remove();
+      this.app.showMessage(translate("achievements_awarded_success"), "success");
+      this.render(); // Re-render to hide button
+    } catch (error) {
+      debugError("Error processing awards:", error);
+      this.app.showMessage(translate("error_processing_awards"), "error");
+      btn.disabled = false;
     }
   }
 

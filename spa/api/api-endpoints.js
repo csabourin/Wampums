@@ -2571,6 +2571,10 @@ export async function switchOrganization(organizationId) {
     return API.post('switch-organization', { organization_id: organizationId });
 }
 
+export async function getUnprocessedAchievements() {
+    return API.get('unprocessed-achievements');
+}
+
 /**
  * Get organization settings
  */

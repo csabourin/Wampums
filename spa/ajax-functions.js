@@ -33,6 +33,13 @@ export {
 } from "./api/api-helpers.js";
 
 /**
+ * Get unprocessed achievements from past meetings
+ */
+export async function getUnprocessedAchievements() {
+    return API.get('unprocessed-achievements');
+}
+
+/**
  * Compatibility wrapper for legacy ajax usage
  *
  * While the codebase transitions to the modular API helpers, some modules still

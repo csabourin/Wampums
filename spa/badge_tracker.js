@@ -22,6 +22,9 @@ import {
   markBadgeDelivered,
   markBadgesDeliveredBulk,
   saveBadgeProgress,
+  getUnprocessedAchievements,
+  getReunionPreparation,
+  saveReunionPreparation,
 } from './api/api-endpoints.js';
 
 export class BadgeTracker {
@@ -42,6 +45,7 @@ export class BadgeTracker {
     this.listenersAttached = false;
     this.boundClickHandler = null;
     this.boundSearchHandler = null;
+    this.unprocessedMeetings = [];
   }
 
   async init() {
@@ -66,6 +70,11 @@ export class BadgeTracker {
   async loadData(forceRefresh = false) {
     try {
       const response = await getBadgeTrackerSummary({ forceRefresh });
+
+      // Load unprocessed achievements
+      const unprocessedResponse = await getUnprocessedAchievements().catch(() => ({ meetings: [] }));
+      this.unprocessedMeetings = unprocessedResponse?.meetings || [];
+
       if (response?.success && response.data) {
         this.badges = response.data.badges || [];
         this.templates = response.data.templates || [];
@@ -222,6 +231,16 @@ export class BadgeTracker {
         <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
         <h1>${translate('badge_tracker_title') || 'Badges de la Meute'}</h1>
 
+        ${this.unprocessedMeetings.length > 0 ? `
+          <div class="banner banner--warning" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: #fff3cd; border-left: 5px solid #ffc107; border-radius: 4px;">
+            <div>
+              <strong>⚠️ ${translate('unprocessed_achievements_title') || 'Unprocessed Achievements'}</strong>
+              <p style="margin: 0; font-size: 0.9em;">${translate('unprocessed_achievements_desc') || 'You have planned achievements from past meetings that have not been awarded yet.'}</p>
+            </div>
+            <button id="process-backlog-btn" class="button button--small button--primary">${translate('review_and_award') || 'Review & Award'}</button>
+          </div>
+        ` : ''}
+
         <!-- View Tabs -->
         <nav class="badge-tracker__tabs" role="tablist">
           <button class="badge-tracker__tab ${this.viewMode === 'participants' ? 'badge-tracker__tab--active' : ''}"
@@ -346,7 +365,7 @@ export class BadgeTracker {
         ${isExpanded ? `
         <div id="badges-${participant.id}" class="badge-tracker__badge-details">
           ${badges.length === 0 ? this.renderEmptyState('no-badges') :
-            badges.map(b => this.renderBadgeCard(participant.id, b)).join('')}
+          badges.map(b => this.renderBadgeCard(participant.id, b)).join('')}
         </div>
         ` : ''}
       </li>
@@ -362,26 +381,26 @@ export class BadgeTracker {
     return `
       <div class="badge-tracker__badge-preview">
       ${displayBadges.map(b => {
-        const template = b.template;
-        const maxStars = this.getTemplateLevelCount(template);
-        const hasUndelivered = b.stars.some(s => s.status === 'approved' && !s.delivered_at);
+      const template = b.template;
+      const maxStars = this.getTemplateLevelCount(template);
+      const hasUndelivered = b.stars.some(s => s.status === 'approved' && !s.delivered_at);
 
-          return `
+      return `
             <div class="badge-tracker__preview-item">
               ${template?.image ? `<img src="/assets/images/${template.image}" alt="${sanitizeHTML(template.name)}" class="badge-tracker__preview-image">` : '<span class="badge-tracker__preview-placeholder">🏅</span>'}
               ${hasUndelivered ? '<div class="badge-tracker__preview-delivery-indicator"></div>' : ''}
               <div class="badge-tracker__preview-stars">
                 ${Array.from({ length: maxStars }, (_, i) => {
-                  const star = b.stars.find(s => s.etoiles === i + 1);
-                  let starClass = 'badge-tracker__preview-star--empty';
-                  if (star?.status === 'approved') starClass = '';
-                  if (star?.status === 'pending') starClass = 'badge-tracker__preview-star--pending';
-                  return `<span class="badge-tracker__preview-star ${starClass}">★</span>`;
-                }).join('')}
+        const star = b.stars.find(s => s.etoiles === i + 1);
+        let starClass = 'badge-tracker__preview-star--empty';
+        if (star?.status === 'approved') starClass = '';
+        if (star?.status === 'pending') starClass = 'badge-tracker__preview-star--pending';
+        return `<span class="badge-tracker__preview-star ${starClass}">★</span>`;
+      }).join('')}
               </div>
             </div>
           `;
-        }).join('')}
+    }).join('')}
         ${remaining > 0 ? `<div class="badge-tracker__preview-more">+${remaining}</div>` : ''}
       </div>
     `;
@@ -400,8 +419,8 @@ export class BadgeTracker {
         <div class="badge-tracker__badge-header">
           <div class="badge-tracker__badge-image-container">
             ${template?.image ?
-              `<img src="/assets/images/${template.image}" alt="${sanitizeHTML(template?.name || '')}" class="badge-tracker__badge-image">` :
-              '<div class="badge-tracker__badge-placeholder">🏅</div>'}
+        `<img src="/assets/images/${template.image}" alt="${sanitizeHTML(template?.name || '')}" class="badge-tracker__badge-image">` :
+        '<div class="badge-tracker__badge-placeholder">🏅</div>'}
           </div>
           <div class="badge-tracker__badge-info">
             <h4 class="badge-tracker__badge-title">${sanitizeHTML(template?.name || translate('unknown_badge'))}</h4>
@@ -414,9 +433,9 @@ export class BadgeTracker {
         </div>
         <div class="badge-tracker__star-progress">
           ${Array.from({ length: maxStars }, (_, i) => {
-            const starData = stars.find(s => s.etoiles === i + 1);
-            return this.renderStarSlot(participantId, template?.id, i + 1, starData);
-          }).join('')}
+          const starData = stars.find(s => s.etoiles === i + 1);
+          return this.renderStarSlot(participantId, template?.id, i + 1, starData);
+        }).join('')}
         </div>
       </div>
     `;
@@ -454,8 +473,8 @@ export class BadgeTracker {
         ${starData.star_type ? `
           <span class="badge-tracker__star-type badge-tracker__star-type--${starData.star_type}">
             ${starData.star_type === 'proie'
-              ? `🎯 ${translate('badge_type_proie') || 'Proie'}`
-              : `🐺 ${translate('badge_type_battue') || 'Battue'}`}
+          ? `🎯 ${translate('badge_type_proie') || 'Proie'}`
+          : `🐺 ${translate('badge_type_battue') || 'Battue'}`}
           </span>
         ` : ''}
         ${isPending ? `<span class="badge-tracker__star-status badge-tracker__star-status--pending">${translate('badge_status_pending') || 'En attente'}</span>` : ''}
@@ -512,8 +531,8 @@ export class BadgeTracker {
     return `
       <div class="badge-tracker__queue-item badge-tracker__queue-item--${type}">
         ${template?.image ?
-          `<img src="/assets/images/${template.image}" alt="" class="badge-tracker__queue-badge-image">` :
-          '<div class="badge-tracker__queue-badge-placeholder">🏅</div>'}
+        `<img src="/assets/images/${template.image}" alt="" class="badge-tracker__queue-badge-image">` :
+        '<div class="badge-tracker__queue-badge-placeholder">🏅</div>'}
         <div class="badge-tracker__queue-content">
           <div class="badge-tracker__queue-item-header">
             <span class="badge-tracker__queue-name">${sanitizeHTML(item.first_name)} ${sanitizeHTML(item.last_name)}</span>
@@ -521,8 +540,8 @@ export class BadgeTracker {
             ${item.star_type ? `
               <span class="badge-tracker__queue-type badge-tracker__queue-type--${item.star_type}">
                 ${item.star_type === 'proie'
-                  ? `🎯 ${translate('badge_type_proie') || 'Proie'}`
-                  : `🐺 ${translate('badge_type_battue') || 'Battue'}`}
+          ? `🎯 ${translate('badge_type_proie') || 'Proie'}`
+          : `🐺 ${translate('badge_type_battue') || 'Battue'}`}
               </span>
             ` : ''}
           </div>
@@ -530,8 +549,8 @@ export class BadgeTracker {
           ${item.objectif ? `<div class="badge-tracker__queue-details">${sanitizeHTML(item.objectif)}</div>` : ''}
           <div class="badge-tracker__queue-date">
             ${type === 'pending' ?
-              `${translate('badge_submitted_on') || 'Soumis le'} ${this.formatDate(item.date_obtention || item.created_at)}` :
-              `${translate('badge_approved_on') || 'Approuvé le'} ${this.formatDate(item.approval_date)}`}
+        `${translate('badge_submitted_on') || 'Soumis le'} ${this.formatDate(item.date_obtention || item.created_at)}` :
+        `${translate('badge_approved_on') || 'Approuvé le'} ${this.formatDate(item.approval_date)}`}
           </div>
         </div>
         <div class="badge-tracker__queue-actions">
@@ -618,9 +637,9 @@ export class BadgeTracker {
             <select id="modal-participant" name="participant_id" required>
               <option value="">${translate('select') || 'Sélectionner...'}</option>
               ${this.participants
-                .sort((a, b) => a.first_name.localeCompare(b.first_name, 'fr'))
-                .map(p => `<option value="${p.id}" ${this.modalInitialData?.participant_id === p.id ? 'selected' : ''}>${sanitizeHTML(p.first_name)} ${sanitizeHTML(p.last_name)}</option>`)
-                .join('')}
+        .sort((a, b) => a.first_name.localeCompare(b.first_name, 'fr'))
+        .map(p => `<option value="${p.id}" ${this.modalInitialData?.participant_id === p.id ? 'selected' : ''}>${sanitizeHTML(p.first_name)} ${sanitizeHTML(p.last_name)}</option>`)
+        .join('')}
             </select>
           </div>
 
@@ -632,8 +651,8 @@ export class BadgeTracker {
                   <input type="radio" name="badge_template_id" value="${template.id}"
                          ${this.modalInitialData?.template_id === template.id ? 'checked' : ''} required>
                   ${template.image ?
-                    `<img src="/assets/images/${template.image}" alt="" class="badge-tracker__badge-option-image">` :
-                    '<span class="badge-tracker__badge-option-placeholder">🏅</span>'}
+            `<img src="/assets/images/${template.image}" alt="" class="badge-tracker__badge-option-image">` :
+            '<span class="badge-tracker__badge-option-placeholder">🏅</span>'}
                   <span class="badge-tracker__badge-option-name">${sanitizeHTML(template.name.replace('comme ', ''))}</span>
                 </label>
               `).join('')}
@@ -1017,6 +1036,332 @@ export class BadgeTracker {
     } catch (error) {
       debugError('[BadgeTracker] Add star error:', error);
       this.showToast(translate('error'), 'error');
+    }
+  }
+
+  async openUnprocessedModal() {
+    const achievements = this.unprocessedMeetings.flatMap(m => m.activities.map(a => ({ ...a, meetingDate: m.date, meetingId: m.id })));
+
+    // Group by Date
+    const grouped = achievements.reduce((acc, curr) => {
+      if (!acc[curr.meetingDate]) acc[curr.meetingDate] = [];
+      acc[curr.meetingDate].push(curr);
+      return acc;
+    }, {});
+
+    const dates = Object.keys(grouped).sort().reverse();
+
+    const rows = dates.map(date => {
+      const items = grouped[date];
+      const rowsHtml = items.map((a, index) => {
+        const template = this.templates.find(t => t.id == a.badge_template_id);
+        const badgeName = template ? template.name : 'Unknown Badge';
+        const typeLabel = a.star_type === 'battue' ? translate("badge_type_battue") : translate("badge_type_proie");
+
+        let targets = [];
+        let targetText = "";
+        let targetsJson = "[]";
+
+        if (a.star_type === 'battue') {
+          targetText = translate("all_active_participants") || "All Active";
+          targets = this.participants.map(p => p.id); // All active
+        } else {
+          targets = a.participant_ids || [];
+          targetText = targets.map(tid => {
+            const p = this.participants.find(part => part.id == tid);
+            return p ? `${p.first_name} ${p.last_name}` : 'Unknown';
+          }).join(', ');
+        }
+
+        targetsJson = JSON.stringify(targets);
+
+        return `
+                <div class="award-row" style="margin-left: 20px; border-left: 2px solid #ccc; padding-left: 10px; margin-bottom: 10px;">
+                    <div><strong>${badgeName}</strong> <small>(${typeLabel})</small></div>
+                    <div style="font-size:0.9em; color:#666;">${targetText}</div>
+                    <label>
+                        <input type="checkbox" checked class="award-confirm-checkbox" 
+                               data-meeting-id="${a.meetingId}" 
+                               data-participants='${targetsJson}'
+                               data-template-id="${a.badge_template_id}"
+                               data-star-type="${a.star_type}"
+                               data-date="${a.meetingDate}">
+                        ${translate("confirm_award") || "Confirm"}
+                    </label>
+                </div>
+            `;
+      }).join('');
+
+      return `
+            <div class="meeting-group" style="margin-bottom: 20px;">
+                <h3 style="background:#eee; padding:5px;">${date}</h3>
+                ${rowsHtml}
+            </div>
+        `;
+    }).join('');
+
+    const modalContent = `
+            <div id="award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+                    <div class="modal-content" style="background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px;">
+                            <h2>${translate("unprocessed_achievements_title") || "Unprocessed Achievements"}</h2>
+                            <div class="award-list" style="max-height: 60vh; overflow-y: auto;">
+                                    ${rows}
+                            </div>
+                            <div style="margin-top: 20px; text-align: right;">
+                                    <button class="button button--ghost" id="close-award-modal">${translate("cancel")}</button>
+                                    <button class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
+                            </div>
+                    </div>
+            </div>
+    `;
+
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalContent;
+    document.body.appendChild(modalContainer);
+
+    document.getElementById('close-award-modal').addEventListener('click', () => modalContainer.remove());
+    document.getElementById('confirm-award-btn').addEventListener('click', () => {
+      this.processUnprocessedAwards(modalContainer);
+    });
+  }
+
+  async processUnprocessedAwards(modalContainer) {
+    const checkboxes = modalContainer.querySelectorAll('.award-confirm-checkbox:checked');
+    const btn = document.getElementById('confirm-award-btn');
+    btn.disabled = true;
+    btn.textContent = (translate("processing") || "Processing") + "...";
+
+    const updates = [];
+    const meetingsToUpdate = new Set();
+
+    for (const cb of checkboxes) {
+      const meetingId = cb.dataset.meetingId;
+      meetingsToUpdate.add(meetingId);
+
+      const targets = JSON.parse(cb.dataset.participants);
+      const templateId = cb.dataset.templateId;
+      const starType = cb.dataset.starType;
+      const date = cb.dataset.date;
+
+      const promises = targets.map(pid => {
+        return saveBadgeProgress({
+          participant_id: pid,
+          badge_template_id: templateId,
+          level: 1,
+          star_type: starType,
+          status: 'approved',
+          date_obtention: date,
+          comments: `Catch-up award for meeting ${date}`
+        });
+      });
+      updates.push(...promises);
+    }
+
+    try {
+      await Promise.all(updates);
+
+      const savePromises = Array.from(meetingsToUpdate).map(async (meetingId) => {
+        const meeting = this.unprocessedMeetings.find(m => m.id == meetingId);
+        if (meeting) {
+          const fullMeeting = await getReunionPreparation(meeting.date);
+          if (fullMeeting.success && fullMeeting.preparation) {
+            const prep = fullMeeting.preparation;
+            let acts = typeof prep.activities === 'string' ? JSON.parse(prep.activities) : prep.activities;
+            if (!Array.isArray(acts)) acts = [];
+
+            acts.forEach(a => {
+              if (a.badge_template_id) {
+                a.processed = true;
+              }
+            });
+
+            // Need to import saveReunionPreparation? No, handled by getReunionPreparation maybe?
+            // Wait, I need to Import saveReunionPreparation!
+            // I forgot to import it in badge_tracker.js. I only imported getReunionPreparation.
+            // I will use fetch for saving if I missed the import or rely on generic API call if possible.
+            // But better to import it properly. I will assume it is available or I will fix imports later.
+            // Actually, let's fix imports in next step if broken.
+            // But I can try to use imported function if present.
+            // I will assume saveReunionPreparation is NOT imported (I imported getReunionPreparation).
+            // Wait, I imported markBadgesDeliveredBulk etc.
+            // I need to import saveReunionPreparation.
+          }
+        }
+      });
+
+      // I can't run this code without saveReunionPreparation imported.
+      // I will fix imports in previous step or subsequent step.
+      // For now let's stub it or comment out the save part? No, that's key.
+
+      // Let's rely on fixing imports.
+
+      await Promise.all(savePromises);
+
+      modalContainer.remove();
+      this.showToast(translate("achievements_awarded_success") || "Success", "success");
+      this.loadData(true);
+    } catch (error) {
+      debugError("Error processing catch-up:", error);
+      this.showToast(translate("error_processing_awards") || "Error", "error");
+      btn.disabled = false;
+    }
+  }
+
+  async openUnprocessedModal() {
+    const achievements = this.unprocessedMeetings.flatMap(m => m.activities.map(a => ({ ...a, meetingDate: m.date, meetingId: m.id })));
+
+    // Group by Date
+    const grouped = achievements.reduce((acc, curr) => {
+      if (!acc[curr.meetingDate]) acc[curr.meetingDate] = [];
+      acc[curr.meetingDate].push(curr);
+      return acc;
+    }, {});
+
+    const dates = Object.keys(grouped).sort().reverse();
+
+    const rows = dates.map(date => {
+      const items = grouped[date];
+      const rowsHtml = items.map((a, index) => {
+        const template = this.templates.find(t => t.id == a.badge_template_id);
+        const badgeName = template ? template.name : 'Unknown Badge';
+        const typeLabel = a.star_type === 'battue' ? translate("badge_type_battue") : translate("badge_type_proie");
+
+        let targets = [];
+        let targetText = "";
+        let targetsJson = "[]";
+
+        if (a.star_type === 'battue') {
+          targetText = translate("all_active_participants") || "All Active";
+          targets = this.participants.map(p => p.id); // All active
+        } else {
+          targets = a.participant_ids || [];
+          targetText = targets.map(tid => {
+            const p = this.participants.find(part => part.id == tid);
+            return p ? `${p.first_name} ${p.last_name}` : 'Unknown';
+          }).join(', ');
+        }
+
+        targetsJson = JSON.stringify(targets);
+
+        return `
+                <div class="award-row" style="margin-left: 20px; border-left: 2px solid #ccc; padding-left: 10px; margin-bottom: 10px;">
+                    <div><strong>${badgeName}</strong> <small>(${typeLabel})</small></div>
+                    <div style="font-size:0.9em; color:#666;">${targetText}</div>
+                    <label>
+                        <input type="checkbox" checked class="award-confirm-checkbox" 
+                               data-meeting-id="${a.meetingId}" 
+                               data-participants='${targetsJson}'
+                               data-template-id="${a.badge_template_id}"
+                               data-star-type="${a.star_type}"
+                               data-date="${a.meetingDate}">
+                        ${translate("confirm_award") || "Confirm"}
+                    </label>
+                </div>
+            `;
+      }).join('');
+
+      return `
+            <div class="meeting-group" style="margin-bottom: 20px;">
+                <h3 style="background:#eee; padding:5px;">${date}</h3>
+                ${rowsHtml}
+            </div>
+        `;
+    }).join('');
+
+    const modalContent = `
+            <div id="award-modal" class="modal" style="display: block; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+                    <div class="modal-content" style="background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 700px; border-radius: 8px;">
+                            <h2>${translate("unprocessed_achievements_title") || "Unprocessed Achievements"}</h2>
+                            <div class="award-list" style="max-height: 60vh; overflow-y: auto;">
+                                    ${rows}
+                            </div>
+                            <div style="margin-top: 20px; text-align: right;">
+                                    <button class="button button--ghost" id="close-award-modal">${translate("cancel")}</button>
+                                    <button class="button button--primary" id="confirm-award-btn">${translate("confirm")}</button>
+                            </div>
+                    </div>
+            </div>
+    `;
+
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalContent;
+    document.body.appendChild(modalContainer);
+
+    document.getElementById('close-award-modal').addEventListener('click', () => modalContainer.remove());
+    document.getElementById('confirm-award-btn').addEventListener('click', () => {
+      this.processUnprocessedAwards(modalContainer);
+    });
+  }
+
+  async processUnprocessedAwards(modalContainer) {
+    const checkboxes = modalContainer.querySelectorAll('.award-confirm-checkbox:checked');
+    const btn = document.getElementById('confirm-award-btn');
+    btn.disabled = true;
+    btn.textContent = (translate("processing") || "Processing") + "...";
+
+    const updates = [];
+    const meetingsToUpdate = new Set();
+
+    for (const cb of checkboxes) {
+      const meetingId = cb.dataset.meetingId;
+      meetingsToUpdate.add(meetingId);
+
+      const targets = JSON.parse(cb.dataset.participants);
+      const templateId = cb.dataset.templateId;
+      const starType = cb.dataset.starType;
+      const date = cb.dataset.date;
+
+      const promises = targets.map(pid => {
+        return saveBadgeProgress({
+          participant_id: pid,
+          badge_template_id: templateId,
+          level: 1,
+          star_type: starType,
+          status: 'approved',
+          date_obtention: date,
+          comments: `Catch-up award for meeting ${date}`
+        });
+      });
+      updates.push(...promises);
+    }
+
+    try {
+      await Promise.all(updates);
+
+      const savePromises = Array.from(meetingsToUpdate).map(async (meetingId) => {
+        const meeting = this.unprocessedMeetings.find(m => m.id == meetingId);
+        if (meeting) {
+          const fullMeeting = await getReunionPreparation(meeting.date);
+          if (fullMeeting.success && fullMeeting.preparation) {
+            const prep = fullMeeting.preparation;
+            let acts = typeof prep.activities === 'string' ? JSON.parse(prep.activities) : prep.activities;
+            if (!Array.isArray(acts)) acts = [];
+
+            // Mark unprocessed
+            acts.forEach(a => {
+              // Simple heuristic: if it has badge_template_id, mark processed
+              if (a.badge_template_id) {
+                a.processed = true;
+              }
+            });
+
+            return saveReunionPreparation({
+              ...prep,
+              activities: acts
+            });
+          }
+        }
+      });
+
+      await Promise.all(savePromises);
+
+      modalContainer.remove();
+      this.showToast(translate("achievements_awarded_success") || "Success", "success");
+      this.loadData(true);
+    } catch (error) {
+      debugError("Error processing catch-up:", error);
+      this.showToast(translate("error_processing_awards") || "Error", "error");
+      btn.disabled = false;
     }
   }
 

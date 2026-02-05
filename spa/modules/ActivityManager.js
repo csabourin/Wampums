@@ -8,12 +8,14 @@ import { debugLog, debugWarn } from "../utils/DebugUtils.js";
  * for the Preparation Reunions page
  */
 export class ActivityManager {
-        constructor(app, animateurs, activities, sectionConfig) {
+        constructor(app, animateurs, activities, sectionConfig, badgeTemplates = [], participants = []) {
                 this.app = app;
                 this.animateurs = animateurs;
                 this.activities = activities;
                 this.selectedActivities = [];
                 this.sectionConfig = sectionConfig;
+                this.badgeTemplates = badgeTemplates;
+                this.participants = participants;
                 this.meetingLengthMinutes = 120; // Default: 2 hours
                 this.durationOverride = null; // Optional override for special meetings
         }
@@ -76,7 +78,7 @@ export class ActivityManager {
         initializePlaceholderActivities(existingActivities = null) {
                 // Determine the planned duration (use override if special meeting, otherwise use default)
                 const plannedDuration = this.durationOverride || this.meetingLengthMinutes;
-                
+
                 // Calculate actual duration if we have existing activities
                 let actualDuration = 0;
                 if (existingActivities && Array.isArray(existingActivities) && existingActivities.length > 0) {
@@ -152,6 +154,7 @@ export class ActivityManager {
                 }
 
                 this.addDurationListeners();
+                this.addAchievementListeners();
         }
 
         /**
@@ -190,29 +193,71 @@ export class ActivityManager {
                         <input type="text" value="${a.responsable}" class="responsable-input" data-default="${a.isDefault}">
                 `;
 
+                const hasAchievement = !!a.badge_template_id;
+                const starType = a.star_type || 'proie';
+                const participantIds = a.participant_ids || [];
+
+                const userLanguage = this.app.lang || 'fr'; // Default to French if language not set
+                const badgeOptions = this.badgeTemplates.map(t =>
+                        `<option value="${t.id}" ${parseInt(t.id) === parseInt(a.badge_template_id) ? 'selected' : ''}>${t.name}</option>`
+                ).join('');
+
+                const participantOptions = this.participants
+                        .sort((p1, p2) => p1.first_name.localeCompare(p2.first_name))
+                        .map(p =>
+                                `<option value="${p.id}" ${participantIds.includes(String(p.id)) || participantIds.includes(p.id) ? 'selected' : ''}>${p.first_name} ${p.last_name}</option>`
+                        ).join('');
+
                 return `
-                        <div class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
-                                <div class="activity-row__time">
-                                        <input type="time" value="${time}" class="activity-time">
-                                        <input type="text" value="${duration}" class="activity-duration" placeholder="00:00">
+                        <div class="activity-row-container" data-position="${a.position || index}">
+                                <div class="activity-row" data-id="${a.id || index}" data-position="${a.position || index}" data-default="${a.isDefault}">
+                                        <div class="activity-row__time">
+                                                <input type="time" value="${time}" class="activity-time">
+                                                <input type="text" value="${duration}" class="activity-duration" placeholder="00:00">
+                                        </div>
+                                        <div class="activity-row__activity">
+                                                <select class="activity-select" data-default="${a.isDefault}">
+                                                        ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ''}
+                                                        <option value="">${translate("select_activity")}</option>
+                                                        ${this.activities.map(act => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
+                                                </select>
+                                                <button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
+                                        </div>
+                                        <div class="activity-row__responsable">
+                                                ${responsableField}
+                                        </div>
+                                        <div class="activity-row__materiel">
+                                                <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
+                                        </div>
+                                        <div class="activity-row__actions">
+                                                <button type="button" class="toggle-achievement-btn ${hasAchievement ? 'active' : ''}" title="${translate("badge_add_star") || 'Achievement'}">★</button>
+                                                <button type="button" class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
+                                                <button type="button" class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
+                                        </div>
                                 </div>
-                                <div class="activity-row__activity">
-                                        <select class="activity-select" data-default="${a.isDefault}">
-                                                ${isCustomActivity ? `<option value="${activityName}" selected>${activityName}</option>` : ''}
-                                                <option value="">${translate("select_activity")}</option>
-                                                ${this.activities.map(act => `<option data-id="${act.id}" value="${act.activity}" ${act.activity === a.activity ? 'selected' : ''}>${act.activity}</option>`).join('')}
-                                        </select>
-                                        <button type="button" class="edit-activity-btn" title="${translate("edit")}">✎</button>
-                                </div>
-                                <div class="activity-row__responsable">
-                                        ${responsableField}
-                                </div>
-                                <div class="activity-row__materiel">
-                                        <input type="text" value="${materiel}" class="activity-materiel" placeholder="${translate("materiel")}" data-default="${a.isDefault}">
-                                </div>
-                                <div class="activity-row__actions">
-                                        <button type="button" class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
-                                        <button type="button" class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
+                                <div class="activity-achievement-panel ${hasAchievement ? '' : 'hidden'}" style="background: #f8f9fa; padding: 10px; margin: 5px 0 15px 40px; border-radius: 4px; border-left: 3px solid #ffd700;">
+                                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                                <div style="flex: 1; min-width: 200px;">
+                                                        <label style="display: block; font-size: 0.8em; color: #666;">${translate("badge") || "Badge"}</label>
+                                                        <select class="achievement-badge-select" style="width: 100%;">
+                                                                <option value="">${translate("select_badge") || "Select Badge..."}</option>
+                                                                ${badgeOptions}
+                                                        </select>
+                                                </div>
+                                                <div style="width: 120px;">
+                                                        <label style="display: block; font-size: 0.8em; color: #666;">${translate("type") || "Type"}</label>
+                                                        <select class="achievement-type-select" style="width: 100%;">
+                                                                <option value="proie" ${starType === 'proie' ? 'selected' : ''}>${translate("badge_type_proie") || "Proie"}</option>
+                                                                <option value="battue" ${starType === 'battue' ? 'selected' : ''}>${translate("badge_type_battue") || "Battue"}</option>
+                                                        </select>
+                                                </div>
+                                                <div class="achievement-participants-container" style="flex: 1; min-width: 200px; ${starType === 'battue' ? 'display: none;' : ''}">
+                                                        <label style="display: block; font-size: 0.8em; color: #666;">${translate("participants") || "Participants"}</label>
+                                                        <select class="achievement-participants-select" multiple style="width: 100%; height: 38px;">
+                                                                ${participantOptions}
+                                                        </select>
+                                                </div>
+                                        </div>
                                 </div>
                         </div>
                 `;
@@ -263,7 +308,7 @@ export class ActivityManager {
         addActivityRow(position) {
                 // Sync from DOM first to preserve any unsaved changes
                 this.selectedActivities = this.getSelectedActivitiesFromDOM();
-                
+
                 const newActivity = {
                         position: parseInt(position) + 1,
                         time: "",
@@ -285,7 +330,7 @@ export class ActivityManager {
         deleteActivityRow(position) {
                 // Sync from DOM first to preserve any unsaved changes
                 this.selectedActivities = this.getSelectedActivitiesFromDOM();
-                
+
                 this.selectedActivities.splice(position, 1);
                 this.recalculatePositions();
                 this.renderActivitiesTable();
@@ -430,12 +475,58 @@ export class ActivityManager {
         }
 
         /**
+         * Add listeners for achievement UI interactions
+         */
+        addAchievementListeners() {
+                const containers = document.querySelectorAll('.activity-row-container');
+
+                containers.forEach(container => {
+                        const toggleBtn = container.querySelector('.toggle-achievement-btn');
+                        const panel = container.querySelector('.activity-achievement-panel');
+                        const typeSelect = container.querySelector('.achievement-type-select');
+                        const participantsContainer = container.querySelector('.achievement-participants-container');
+
+                        // Toggle Panel
+                        if (toggleBtn && panel) {
+                                // Remove existing listener to avoid duplicates if called multiple times
+                                const newBtn = toggleBtn.cloneNode(true);
+                                toggleBtn.parentNode.replaceChild(newBtn, toggleBtn);
+
+                                newBtn.addEventListener('click', () => {
+                                        const isHidden = panel.classList.contains('hidden');
+                                        if (isHidden) {
+                                                panel.classList.remove('hidden');
+                                                newBtn.classList.add('active');
+                                        } else {
+                                                panel.classList.add('hidden');
+                                                newBtn.classList.remove('active');
+                                        }
+                                });
+                        }
+
+                        // Toggle Participants based on Type
+                        if (typeSelect && participantsContainer) {
+                                const newSelect = typeSelect.cloneNode(true);
+                                typeSelect.parentNode.replaceChild(newSelect, typeSelect);
+
+                                newSelect.addEventListener('change', (e) => {
+                                        if (e.target.value === 'battue') {
+                                                participantsContainer.style.display = 'none';
+                                        } else {
+                                                participantsContainer.style.display = 'block';
+                                        }
+                                });
+                        }
+                });
+        }
+
+        /**
          * Get all activities from the DOM for saving
          * Returns all activities, reading their current state from the DOM
          */
         getSelectedActivitiesFromDOM() {
                 debugLog("=== GET ACTIVITIES FROM DOM ===");
-                
+
                 const activitiesContainer = document.getElementById('activities-list');
                 if (!activitiesContainer) {
                         debugWarn("No activities container found");
@@ -465,6 +556,16 @@ export class ActivityManager {
                         const durationValue = row.querySelector('.activity-duration').value;
                         const materielValue = row.querySelector('.activity-materiel').value;
 
+                        // Achievement Data
+                        const container = row.closest('.activity-row-container');
+                        const badgeSelect = container?.querySelector('.achievement-badge-select');
+                        const typeSelect = container?.querySelector('.achievement-type-select');
+                        const participantsSelect = container?.querySelector('.achievement-participants-select');
+
+                        const badgeTemplateId = badgeSelect?.value || null;
+                        const starType = typeSelect?.value || 'proie';
+                        const participantIds = participantsSelect ? Array.from(participantsSelect.selectedOptions).map(opt => opt.value) : [];
+
                         const result = {
                                 ...activity,
                                 position: position,
@@ -474,6 +575,10 @@ export class ActivityManager {
                                 activity: activityValue,
                                 responsable: responsable,
                                 materiel: materielValue,
+                                badge_template_id: badgeTemplateId,
+                                star_type: starType,
+                                participant_ids: participantIds,
+                                processed: activity.processed || false,
                                 // Mark as non-default if it was modified or is AI-generated
                                 isDefault: dataDefault === 'true' && !dataId?.startsWith('ai-generated')
                         };

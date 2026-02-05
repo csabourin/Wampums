@@ -10,7 +10,14 @@ import {
         getHonorsHistory,
         saveReunionPreparation,
         getReunionDates,
-        getReunionPreparation
+        getActivitesRencontre,
+        getAnimateurs,
+        getHonorsHistory,
+        saveReunionPreparation,
+        getReunionDates,
+        getReunionPreparation,
+        getBadgeSummary,
+        getParticipants
 } from "./ajax-functions.js";
 import { saveReminder, getReminder } from "./api/api-endpoints.js";
 import { deleteCachedData } from "./indexedDB.js";
@@ -132,13 +139,13 @@ export class PreparationReunions {
                         await this.fetchData();
 
                         // Initialize managers after data is loaded
-                        this.activityManager = new ActivityManager(this.app, this.animateurs, this.activities, this.sectionConfig);
-                        
+                        this.activityManager = new ActivityManager(this.app, this.animateurs, this.activities, this.sectionConfig, this.badgeTemplates, this.participants);
+
                         // Set meeting length from organization settings (default: 120 minutes = 2 hours)
                         const meetingLengthSetting = this.organizationSettings.meeting_length || {};
                         const meetingLengthMinutes = meetingLengthSetting.duration_minutes || 120;
                         this.activityManager.setMeetingLength(meetingLengthMinutes);
-                        
+
                         this.dateManager = new DateManager(this.organizationSettings);
                         this.formManager = new FormManager(this.app, this.organizationSettings, this.animateurs, this.recentHonors, this.activityManager, this.sectionConfig);
                         this.printManager = new PrintManager(this.activityManager, this.sectionConfig);
@@ -172,7 +179,7 @@ export class PreparationReunions {
                 const appSettings = await this.app.waitForOrganizationSettings();
 
                 // Load data with individual error handling to prevent total failure
-                const [activitiesResponse, animateursResponse] = await Promise.all([
+                const [activitiesResponse, animateursResponse, badgeSummaryResponse, participantsResponse] = await Promise.all([
                         getActivitesRencontre().catch(error => {
                                 debugError("Error loading activities:", error);
                                 return { data: [] };
@@ -180,12 +187,26 @@ export class PreparationReunions {
                         getAnimateurs().catch(error => {
                                 debugError("Error loading animateurs:", error);
                                 return { animateurs: [] };
+                        }),
+                        getBadgeSummary({ forceRefresh: false }).catch(error => {
+                                debugError("Error loading badge summary:", error);
+                                return { data: { templates: [] } };
+                        }),
+                        getParticipants().catch(error => {
+                                debugError("Error loading participants:", error);
+                                return [];
                         })
                 ]);
 
                 // Handle both array response and object response with data property
                 this.activities = Array.isArray(activitiesResponse) ? activitiesResponse : (activitiesResponse?.data || []);
                 this.animateurs = Array.isArray(animateursResponse) ? animateursResponse : (animateursResponse?.animateurs || []);
+
+                const badgeSummary = badgeSummaryResponse?.data || badgeSummaryResponse || {};
+                this.badgeTemplates = badgeSummary.templates || [];
+
+                const participants = Array.isArray(participantsResponse) ? participantsResponse : (participantsResponse?.participants || []);
+                this.participants = participants;
                 this.recentHonors = [];
                 this.recentHonorsRaw = [];
 
@@ -246,10 +267,10 @@ export class PreparationReunions {
                         debugLog("=== FETCH MEETING DATA ===");
                         debugLog("1. Input date:", date);
                         debugLog("2. Normalized date:", normalizedDate);
-                        
+
                         const response = await getReunionPreparation(normalizedDate);
                         debugLog("3. Backend response:", response);
-                        
+
                         if (response.success && response.preparation) {
                                 debugLog("4. Meeting data found!");
                                 debugLog("   - animateur_responsable:", response.preparation.animateur_responsable);
@@ -258,7 +279,7 @@ export class PreparationReunions {
                                 debugLog("   - youth_of_honor (raw):", response.preparation.youth_of_honor);
                                 debugLog("   - activities (raw):", typeof response.preparation.activities, response.preparation.activities?.substring?.(0, 100));
                                 debugLog("   - notes:", response.preparation.notes?.substring?.(0, 50));
-                                
+
                                 if (!response.preparation.youth_of_honor && response.preparation.louveteau_dhonneur) {
                                         response.preparation.youth_of_honor = response.preparation.louveteau_dhonneur;
                                 }
@@ -391,7 +412,7 @@ export class PreparationReunions {
         async loadMeeting(date) {
                 debugLog("=== LOAD MEETING ===");
                 debugLog("1. Date selected:", date);
-                
+
                 this.dateManager.setCurrentDate(date);
                 this.isLoadingTemplate = true;
 
@@ -399,7 +420,7 @@ export class PreparationReunions {
                         await this.updateHonorsForMeeting(date);
                         const meetingData = await this.fetchMeetingData(date);
                         debugLog("2. Meeting data returned:", meetingData ? "Found" : "Not found");
-                        
+
                         if (meetingData) {
                                 this.currentMeetingData = meetingData;
                                 debugLog("3. Using existing meeting data");
@@ -407,7 +428,7 @@ export class PreparationReunions {
                                 this.currentMeetingData = this.createNewMeeting(date);
                                 debugLog("3. Created new default meeting");
                         }
-                        
+
                         debugLog("4. Calling populateForm with:", {
                                 animateur_responsable: this.currentMeetingData.animateur_responsable,
                                 date: this.currentMeetingData.date,
@@ -415,7 +436,7 @@ export class PreparationReunions {
                                 youth_of_honor: this.currentMeetingData.youth_of_honor,
                                 activities_count: this.currentMeetingData.activities?.length
                         });
-                        
+
                         await this.formManager.populateForm(this.currentMeetingData, this.dateManager.getCurrentDate());
                         debugLog("5. Form populated successfully");
                 } catch (error) {
@@ -962,7 +983,7 @@ export class PreparationReunions {
                 try {
                         const response = await saveReunionPreparation(formData);
                         debugLog("5. Save response:", response);
-                        
+
                         // Clear both the reunion_dates cache and the specific meeting cache
                         await deleteCachedData('reunion_dates');
                         await deleteCachedData(`reunion_preparation_${formData.date}`);
