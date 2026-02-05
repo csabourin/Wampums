@@ -7,7 +7,7 @@
 
 Bonjour / Hello,
 
-My name is [Your Name], and I'm the developer behind **Wampums** (https://wampums.app) — a bilingual web and mobile platform built specifically for managing Scout groups in Canada. It supports all sections from Castors/Beavers through Routiers/Rovers.
+My name is Christian Sabourin, and I'm the developer behind **Wampums** (https://wampums.app) — a bilingual web and mobile platform built specifically for managing Scout groups in Canada. It supports all sections from Castors/Beavers through Routiers/Rovers.
 
 I'm reaching out because leaders spend too much of their volunteer time on administration instead of programming. Wampums handles the full operational cycle — from weekly meeting prep to year-end reporting — so leaders can focus on the kids. I'd like to invite your team to explore a live demo.
 
@@ -97,7 +97,7 @@ I'm happy to schedule a video call at your convenience, or you're welcome to exp
 
 Merci / Thank you,
 
-[Your Name]
+Christian Sabourin
 [Your Title]
 Wampums — Scouts at your fingertips / Scouts au bout des doigts
 https://wampums.app

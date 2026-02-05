@@ -8,6 +8,18 @@
  *   import { formatDate, parseDate, getTodayISO } from './utils/DateUtils.js';
  */
 import { debugError } from './DebugUtils.js';
+import { getStorage } from './StorageUtils.js';
+import { CONFIG, getStorageKey } from '../config.js';
+
+function getTimeFormatPreference() {
+    const defaultFormat = CONFIG?.TIME_FORMAT?.DEFAULT || '24h';
+    const stored = getStorage(getStorageKey('TIME_FORMAT'), false, defaultFormat);
+    return stored === '12h' ? '12h' : '24h';
+}
+
+function getLocale() {
+    return getStorage('lang', false, CONFIG.DEFAULT_LANG || 'fr');
+}
 
 
 /**
@@ -152,7 +164,13 @@ export function isoToDateString(dateSource) {
  * @returns {string} Time string in HH:MM format
  */
 export function formatTime(hours, minutes) {
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    const use24h = getTimeFormatPreference() === '24h';
+    const date = new Date(1970, 0, 1, Number(hours) || 0, Number(minutes) || 0);
+    return date.toLocaleTimeString(getLocale(), {
+        hour: use24h ? '2-digit' : 'numeric',
+        minute: '2-digit',
+        hour12: !use24h
+    });
 }
 
 /**
@@ -322,12 +340,14 @@ export function sortDatesDescending(dates) {
 export function formatTimestamp(timestamp, lang = 'en') {
     try {
         const date = new Date(timestamp);
+        const use24h = getTimeFormatPreference() === '24h';
         return date.toLocaleString(lang, {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: !use24h
         });
     } catch (error) {
         debugError('Error formatting timestamp:', error);

@@ -155,6 +155,20 @@ export class Finance extends BaseModule {
     }).format(value);
   }
 
+  formatPercent(numerator, denominator) {
+    if (!denominator || denominator <= 0) {
+      return new Intl.NumberFormat(this.app.lang || "en", {
+        style: "percent",
+        maximumFractionDigits: 0
+      }).format(0);
+    }
+    const ratio = Math.max(0, Number(numerator) || 0) / denominator;
+    return new Intl.NumberFormat(this.app.lang || "en", {
+      style: "percent",
+      maximumFractionDigits: 0
+    }).format(ratio);
+  }
+
   /**
    * Extracts a numeric year from a date-like value.
    * Falls back to matching a 4-digit year when Date parsing fails.
@@ -542,6 +556,8 @@ export class Finance extends BaseModule {
     const totals = summary.totals || {};
     const byDefinition = summary.definitions || [];
     const participants = summary.participants || [];
+    const paymentMethods = summary.payment_methods || [];
+    const paymentMethodsTotal = paymentMethods.reduce((acc, item) => acc + (Number(item.total_paid) || 0), 0);
 
     const definitionsHtml = byDefinition
       .map(
@@ -577,6 +593,24 @@ export class Finance extends BaseModule {
       )
       .join("");
 
+    const paymentMethodRows = paymentMethods
+      .map((methodRow) => {
+        const methodKey = methodRow.method || "unknown";
+        const methodLabel = translate(methodKey) || translate("unknown");
+        return `
+          <div class="finance-list__row">
+            <div>
+              <p class="finance-meta">${methodLabel}</p>
+            </div>
+            <div class="finance-row-values">
+              <span>${this.formatCurrency(methodRow.total_paid)}</span>
+              <span>${this.formatPercent(methodRow.total_paid, paymentMethodsTotal)}</span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
     return `
       <section class="finance-grid">
         <article class="finance-card finance-card--highlight">
@@ -602,6 +636,10 @@ export class Finance extends BaseModule {
               <p class="finance-stat__value finance-stat__value--alert">${this.formatCurrency(totals.total_outstanding)}</p>
             </div>
           </div>
+        </article>
+        <article class="finance-card">
+          <h3>${translate("by_payment_method")}</h3>
+          ${paymentMethodRows || `<p class="finance-helper">${translate("no_payments")}</p>`}
         </article>
         <article class="finance-card">
           <h3>${translate("by_year")}</h3>

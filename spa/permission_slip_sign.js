@@ -6,12 +6,14 @@ import { debugLog, debugError } from './utils/DebugUtils.js';
 import { getPublicPermissionSlip, signPublicPermissionSlip } from './api/api-endpoints.js';
 import { CONFIG } from './config.js';
 import { setContent } from "./utils/DOMUtils.js";
+import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 
 export class PermissionSlipSign {
   constructor(app, token) {
     this.app = app;
     this.token = token;
     this.slip = null;
+    this.loadError = null;
   }
 
   getLocale() {
@@ -38,10 +40,12 @@ export class PermissionSlipSign {
       }
 
       this.slip = data.data;
+      this.loadError = null;
       debugLog('Permission slip loaded:', this.slip);
     } catch (error) {
       debugError('Error loading permission slip:', error);
-      this.showError(error.message);
+      this.loadError = error;
+      this.slip = null;
     }
   }
 
@@ -49,14 +53,10 @@ export class PermissionSlipSign {
     const appDiv = document.getElementById('app');
 
     if (!this.slip) {
-      setContent(appDiv, `
-        <div class="container mt-5">
-          <div class="alert alert-danger">
-            <h4>${translate('error')}</h4>
-            <p>${translate('permission_slip_not_found')}</p>
-          </div>
-        </div>
-      `);
+      setContent(appDiv, buildNotFoundMarkup({
+        messageKey: 'permission_slip_not_found',
+        resourceLabel: translate('permission_slip_title')
+      }));
       return;
     }
 
@@ -236,13 +236,9 @@ export class PermissionSlipSign {
 
   showError(message) {
     const appDiv = document.getElementById('app');
-    setContent(appDiv, `
-      <div class="container mt-5">
-        <div class="alert alert-danger">
-          <h4>${translate('error')}</h4>
-          <p>${message}</p>
-        </div>
-      </div>
-    `);
+    setContent(appDiv, buildNotFoundMarkup({
+      messageKey: 'resource_not_found_message',
+      resourceLabel: message
+    }));
   }
 }

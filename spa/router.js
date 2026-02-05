@@ -6,6 +6,7 @@ import { Login } from "./login.js";
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import {
   canApproveBadges,
   canCreateOrganization,
@@ -862,7 +863,9 @@ export class Router {
   }
 
   loadNotFoundPage() {
-    setContent(document.getElementById("app"), `<h1>${translate("error_404_not_found")}</h1>`);
+    setContent(document.getElementById("app"), buildNotFoundMarkup({
+      titleKey: 'error_404_not_found'
+    }));
   }
 
   loadNotAuthorizedPage() {
