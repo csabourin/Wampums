@@ -25,7 +25,7 @@ module.exports = (pool) => {
        LEFT JOIN carpool_assignments ca ON co.id = ca.carpool_offer_id
        WHERE a.organization_id = $1 AND a.is_active = TRUE
        GROUP BY a.id, u.full_name
-       ORDER BY a.activity_date ASC, a.departure_time_going ASC`,
+       ORDER BY COALESCE(a.activity_start_date, a.activity_date) ASC, a.activity_start_time ASC, a.departure_time_going ASC`,
       [organizationId]
     );
 
@@ -76,6 +76,10 @@ module.exports = (pool) => {
       name,
       description,
       activity_date,
+      activity_start_date,
+      activity_start_time,
+      activity_end_date,
+      activity_end_time,
       meeting_location_going,
       meeting_time_going,
       departure_time_going,
@@ -87,16 +91,25 @@ module.exports = (pool) => {
     // Debug: Log extracted values
     console.log('Extracted values:', { name, activity_date, meeting_location_going, meeting_time_going, departure_time_going });
 
+    const normalizedActivityDate = activity_date || activity_start_date;
+    const normalizedStartDate = activity_start_date || activity_date;
+    const normalizedStartTime = activity_start_time || meeting_time_going;
+    const normalizedEndDate = activity_end_date || normalizedStartDate;
+    const normalizedEndTime = activity_end_time || departure_time_return || departure_time_going;
+
     // Validation
-    if (!name || !activity_date || !meeting_location_going || !meeting_time_going || !departure_time_going) {
+    if (!name || !normalizedStartDate || !normalizedStartTime || !normalizedEndDate || !normalizedEndTime || !meeting_location_going || !meeting_time_going || !departure_time_going) {
       console.log('Validation failed! Missing fields:', {
         name: !name,
-        activity_date: !activity_date,
+        activity_start_date: !normalizedStartDate,
+        activity_start_time: !normalizedStartTime,
+        activity_end_date: !normalizedEndDate,
+        activity_end_time: !normalizedEndTime,
         meeting_location_going: !meeting_location_going,
         meeting_time_going: !meeting_time_going,
         departure_time_going: !departure_time_going
       });
-      return error(res, 'Missing required fields: name, activity_date, meeting_location_going, meeting_time_going, departure_time_going', 400);
+      return error(res, 'Missing required fields: name, activity_start_date, activity_start_time, activity_end_date, activity_end_time, meeting_location_going, meeting_time_going, departure_time_going', 400);
     }
 
     // Validate that departure time is after meeting time
@@ -109,15 +122,23 @@ module.exports = (pool) => {
       return error(res, 'Return departure time must be after return meeting time', 400);
     }
 
+    const startStamp = `${normalizedStartDate}T${normalizedStartTime}`;
+    const endStamp = `${normalizedEndDate}T${normalizedEndTime}`;
+    if (endStamp < startStamp) {
+      return error(res, 'Activity end must be after start', 400);
+    }
+
     const result = await pool.query(
       `INSERT INTO activities (
         organization_id, created_by, name, description, activity_date,
+        activity_start_date, activity_start_time, activity_end_date, activity_end_time,
         meeting_location_going, meeting_time_going, departure_time_going,
         meeting_location_return, meeting_time_return, departure_time_return
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
-        organizationId, userId, name, description, activity_date,
+        organizationId, userId, name, description, normalizedActivityDate,
+        normalizedStartDate, normalizedStartTime, normalizedEndDate, normalizedEndTime,
         meeting_location_going, meeting_time_going, departure_time_going,
         meeting_location_return, meeting_time_return, departure_time_return
       ]
@@ -141,6 +162,10 @@ module.exports = (pool) => {
       name,
       description,
       activity_date,
+      activity_start_date,
+      activity_start_time,
+      activity_end_date,
+      activity_end_time,
       meeting_location_going,
       meeting_time_going,
       departure_time_going,
@@ -151,13 +176,25 @@ module.exports = (pool) => {
 
     // Check if activity exists and belongs to organization
     const existingActivity = await pool.query(
-      'SELECT id FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
+      `SELECT id, activity_start_date, activity_start_time, activity_end_date, activity_end_time
+       FROM activities
+       WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
       [id, organizationId]
     );
 
     if (existingActivity.rows.length === 0) {
       return error(res, 'Activity not found', 404);
     }
+
+    const currentActivity = existingActivity.rows[0];
+
+    const normalizedStartDateInput = activity_start_date || activity_date;
+    const normalizedEndDateInput = activity_end_date || activity_date;
+    const normalizedActivityDate = activity_date || activity_start_date || currentActivity.activity_start_date;
+    const normalizedStartDate = normalizedStartDateInput || currentActivity.activity_start_date;
+    const normalizedStartTime = activity_start_time || currentActivity.activity_start_time;
+    const normalizedEndDate = normalizedEndDateInput || currentActivity.activity_end_date;
+    const normalizedEndTime = activity_end_time || currentActivity.activity_end_time;
 
     // Validate times if provided
     if (meeting_time_going && departure_time_going && meeting_time_going >= departure_time_going) {
@@ -168,22 +205,35 @@ module.exports = (pool) => {
       return error(res, 'Return departure time must be after return meeting time', 400);
     }
 
+    if (normalizedStartDate && normalizedStartTime && normalizedEndDate && normalizedEndTime) {
+      const startStamp = `${normalizedStartDate}T${normalizedStartTime}`;
+      const endStamp = `${normalizedEndDate}T${normalizedEndTime}`;
+      if (endStamp < startStamp) {
+        return error(res, 'Activity end must be after start', 400);
+      }
+    }
+
     const result = await pool.query(
       `UPDATE activities SET
         name = COALESCE($1, name),
         description = COALESCE($2, description),
         activity_date = COALESCE($3, activity_date),
-        meeting_location_going = COALESCE($4, meeting_location_going),
-        meeting_time_going = COALESCE($5, meeting_time_going),
-        departure_time_going = COALESCE($6, departure_time_going),
-        meeting_location_return = COALESCE($7, meeting_location_return),
-        meeting_time_return = COALESCE($8, meeting_time_return),
-        departure_time_return = COALESCE($9, departure_time_return),
+        activity_start_date = COALESCE($4, activity_start_date),
+        activity_start_time = COALESCE($5, activity_start_time),
+        activity_end_date = COALESCE($6, activity_end_date),
+        activity_end_time = COALESCE($7, activity_end_time),
+        meeting_location_going = COALESCE($8, meeting_location_going),
+        meeting_time_going = COALESCE($9, meeting_time_going),
+        departure_time_going = COALESCE($10, departure_time_going),
+        meeting_location_return = COALESCE($11, meeting_location_return),
+        meeting_time_return = COALESCE($12, meeting_time_return),
+        departure_time_return = COALESCE($13, departure_time_return),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $10 AND organization_id = $11
+      WHERE id = $14 AND organization_id = $15
       RETURNING *`,
       [
-        name, description, activity_date,
+        name, description, normalizedActivityDate,
+        normalizedStartDateInput, activity_start_time, normalizedEndDateInput, activity_end_time,
         meeting_location_going, meeting_time_going, departure_time_going,
         meeting_location_return, meeting_time_return, departure_time_return,
         id, organizationId

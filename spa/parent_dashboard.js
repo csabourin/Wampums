@@ -15,7 +15,11 @@ import { CONFIG } from './config.js';
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
-import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
+import { formatDateShort, parseDate } from './utils/DateUtils.js';
+import {
+        formatActivityDateRange,
+        getActivityEndDateObj
+} from './utils/ActivityDateUtils.js';
 
 export class ParentDashboard {
         constructor(app) {
@@ -770,8 +774,8 @@ export class ParentDashboard {
                         const now = new Date();
                         now.setHours(0, 0, 0, 0);
                         const upcomingActivities = activities.filter(a => {
-                                const activityDate = parseDate(isoToDateString(a.activity_date));
-                                return activityDate && activityDate >= now;
+                                const activityEndDate = getActivityEndDateObj(a);
+                                return activityEndDate && activityEndDate >= now;
                         });
 
                         if (upcomingActivities.length === 0) {
@@ -796,7 +800,7 @@ export class ParentDashboard {
                                                                                 <div style="flex: 1;">
                                                                                         <h4 style="margin: 0 0 0.5rem 0; color: #333;">${escapeHTML(activity.name)}</h4>
                                                                                         <p style="margin: 0; font-size: 0.9rem; color: #666;">
-                                                                                                ${formatDateShort(isoToDateString(activity.activity_date), this.app.lang || 'fr')} - ${activity.departure_time_going}
+                                                                                                ${formatActivityDateRange(activity, this.app.lang || 'fr')}
                                                                                         </p>
                                                                                         <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #999;">
                                                                                                 ${escapeHTML(activity.meeting_location_going)}

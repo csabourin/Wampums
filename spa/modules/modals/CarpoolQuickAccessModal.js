@@ -9,7 +9,10 @@ import { clearActivityRelatedCaches } from "../../indexedDB.js";
 import { debugError } from "../../utils/DebugUtils.js";
 import { escapeHTML } from "../../utils/SecurityUtils.js";
 import { setContent } from "../../utils/DOMUtils.js";
-import { formatDateShort, isoToDateString } from "../../utils/DateUtils.js";
+import {
+  formatActivityDateRange,
+  getActivityEndDateObj
+} from "../../utils/ActivityDateUtils.js";
 
 export class CarpoolQuickAccessModal {
   constructor(app) {
@@ -27,9 +30,8 @@ export class CarpoolQuickAccessModal {
       now.setHours(0, 0, 0, 0);
 
       const upcomingActivities = activities.filter((activity) => {
-        const activityDate = new Date(activity.activity_date);
-        activityDate.setHours(0, 0, 0, 0);
-        return activityDate >= now;
+        const activityEndDate = getActivityEndDateObj(activity);
+        return activityEndDate && activityEndDate >= now;
       });
 
       this.render(upcomingActivities);
@@ -78,7 +80,7 @@ export class CarpoolQuickAccessModal {
                         <div style="flex: 1;">
                           <h3 style="margin: 0 0 0.5rem 0;">${escapeHTML(activity.name)}</h3>
                           <p style="margin: 0; color: #666; font-size: 0.9rem;">
-                            ${formatDateShort(isoToDateString(activity.activity_date), this.app.lang || "fr")} - ${activity.departure_time_going}
+                            ${formatActivityDateRange(activity, this.app.lang || "fr")}
                           </p>
                           <p style="margin: 0.25rem 0 0 0; color: #999; font-size: 0.85rem;">
                             ${escapeHTML(activity.meeting_location_going)}
@@ -223,9 +225,9 @@ class QuickCreateActivityModal {
 
           <div style="margin-bottom: 1rem;">
             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
-              ${translate("activity_date")} <span style="color: #dc3545;">*</span>
+              ${translate("activity_start_date")} <span style="color: #dc3545;">*</span>
             </label>
-            <input type="date" name="activity_date" required value="${tomorrowStr}"
+            <input type="date" name="activity_start_date" required value="${tomorrowStr}"
               style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
           </div>
 
@@ -253,6 +255,31 @@ class QuickCreateActivityModal {
               <input type="time" name="departure_time_going" required value="09:15"
                 style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
             </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+              <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                ${translate("activity_start_time")} <span style="color: #dc3545;">*</span>
+              </label>
+              <input type="time" name="activity_start_time" required value="09:00"
+                style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+            </div>
+            <div>
+              <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+                ${translate("activity_end_time")} <span style="color: #dc3545;">*</span>
+              </label>
+              <input type="time" name="activity_end_time" required value="12:00"
+                style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
+            </div>
+          </div>
+
+          <div style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
+              ${translate("activity_end_date")} <span style="color: #dc3545;">*</span>
+            </label>
+            <input type="date" name="activity_end_date" required value="${tomorrowStr}"
+              style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;">
           </div>
 
           <div style="margin: 1.5rem 0; padding-top: 1.5rem; border-top: 2px solid #e9ecef;">
@@ -332,6 +359,9 @@ class QuickCreateActivityModal {
     const form = e.target;
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+    if (!data.activity_date && data.activity_start_date) {
+      data.activity_date = data.activity_start_date;
+    }
 
     try {
       const submitBtn = form.querySelector('button[type="submit"]');

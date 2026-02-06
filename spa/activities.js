@@ -14,8 +14,14 @@ import { skeletonActivityList, setButtonLoading } from './utils/SkeletonUtils.js
 import { debugError, debugLog } from './utils/DebugUtils.js';
 import { setContent } from './utils/DOMUtils.js';
 import { escapeHTML } from './utils/SecurityUtils.js';
-import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
+import { parseDate } from './utils/DateUtils.js';
 import { debounce } from './utils/PerformanceUtils.js';
+import {
+  formatActivityDateRange,
+  getActivityEndDate,
+  getActivityEndDateObj,
+  getActivityStartDate
+} from './utils/ActivityDateUtils.js';
 
 export class Activities {
   constructor(app) {
@@ -76,12 +82,12 @@ export class Activities {
     });
 
     const upcomingActivities = filteredActivities.filter((activity) => {
-      const activityDate = parseDate(isoToDateString(activity.activity_date));
-      return activityDate && activityDate >= today;
+      const activityEndDate = getActivityEndDateObj(activity);
+      return activityEndDate && activityEndDate >= today;
     });
     const pastActivities = filteredActivities.filter((activity) => {
-      const activityDate = parseDate(isoToDateString(activity.activity_date));
-      return activityDate && activityDate < today;
+      const activityEndDate = getActivityEndDateObj(activity);
+      return activityEndDate && activityEndDate < today;
     });
 
     setContent(container, `
@@ -128,12 +134,12 @@ export class Activities {
   }
 
   renderActivityCard(activity) {
-    const activityDateString = isoToDateString(activity.activity_date);
-    const activityDate = parseDate(activityDateString);
+    const activityDateString = getActivityStartDate(activity);
+    const activityDate = getActivityEndDateObj(activity) || parseDate(activityDateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isPast = activityDate ? activityDate < today : false;
-    const displayDate = formatDateShort(activityDateString, this.app.lang || 'fr');
+    const displayDate = formatActivityDateRange(activity, this.app.lang || 'fr');
 
     return `
       <div class="activity-card ${isPast ? 'activity-card--past' : ''}" data-activity-id="${activity.id}">
@@ -302,9 +308,31 @@ export class Activities {
           </div>
 
           <div class="form-group">
-            <label for="activity-date">${translate('activity_date')} <span class="required">*</span></label>
-            <input type="date" id="activity-date" name="activity_date"
-                   value="${escapeHTML(isoToDateString(activity?.activity_date) || '')}" required
+            <label for="activity-start-date">${translate('activity_start_date')} <span class="required">*</span></label>
+            <input type="date" id="activity-start-date" name="activity_start_date"
+                   value="${escapeHTML(getActivityStartDate(activity) || '')}" required
+                   class="form-control">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="activity-start-time">${translate('activity_start_time')} <span class="required">*</span></label>
+              <input type="time" id="activity-start-time" name="activity_start_time"
+                     value="${escapeHTML(activity?.activity_start_time || '')}" required
+                     class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="activity-end-time">${translate('activity_end_time')} <span class="required">*</span></label>
+              <input type="time" id="activity-end-time" name="activity_end_time"
+                     value="${escapeHTML(activity?.activity_end_time || '')}" required
+                     class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="activity-end-date">${translate('activity_end_date')} <span class="required">*</span></label>
+            <input type="date" id="activity-end-date" name="activity_end_date"
+                   value="${escapeHTML(getActivityEndDate(activity) || '')}" required
                    class="form-control">
           </div>
 
@@ -405,6 +433,17 @@ export class Activities {
     modalContainer.innerHTML = modalHTML;
     modalContainer.classList.add('modal-container--visible');
 
+    const startDateInput = document.getElementById('activity-start-date');
+    const endDateInput = document.getElementById('activity-end-date');
+    if (startDateInput && endDateInput && !endDateInput.value) {
+      endDateInput.value = startDateInput.value;
+    }
+    startDateInput?.addEventListener('change', () => {
+      if (endDateInput && !endDateInput.value) {
+        endDateInput.value = startDateInput.value;
+      }
+    });
+
     // Attach modal event listeners
     const closeModal = () => {
       modalContainer.remove();
@@ -436,6 +475,13 @@ export class Activities {
       if (!data.meeting_location_return) data.meeting_location_return = null;
       if (!data.meeting_time_return) data.meeting_time_return = null;
       if (!data.departure_time_return) data.departure_time_return = null;
+      if (!data.activity_start_date) data.activity_start_date = null;
+      if (!data.activity_start_time) data.activity_start_time = null;
+      if (!data.activity_end_date) data.activity_end_date = null;
+      if (!data.activity_end_time) data.activity_end_time = null;
+      if (!data.activity_date && data.activity_start_date) {
+        data.activity_date = data.activity_start_date;
+      }
       if (isEdit) {
         data.notify_participants = formData.get('notify_participants') === 'on';
       }

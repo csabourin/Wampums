@@ -3,6 +3,11 @@ import { debugError } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import {
+  formatActivityDateRange,
+  getActivityEndDate,
+  getActivityStartDate
+} from "./utils/ActivityDateUtils.js";
+import {
   getEquipmentInventory,
   getEquipmentReservations,
   saveBulkReservations,
@@ -134,7 +139,7 @@ export class MaterialManagement {
                 <option value="">${escapeHTML(translate("manual_date_entry"))}</option>
                 ${this.activities.map(activity => `
                   <option value="${activity.id}" ${this.selectedActivityId === activity.id ? 'selected' : ''}>
-                    ${escapeHTML(activity.name)} - ${formatDate(activity.activity_date)}
+                    ${escapeHTML(activity.name)} - ${formatActivityDateRange(activity, this.app.lang || 'fr')}
                   </option>
                 `).join('')}
               </select>
@@ -285,8 +290,8 @@ export class MaterialManagement {
           // Auto-populate fields from selected activity
           const activity = this.activities.find(a => a.id === activityId);
           if (activity) {
-            document.getElementById('reservationDateFrom').value = activity.activity_date;
-            document.getElementById('reservationDateTo').value = activity.activity_date;
+            document.getElementById('reservationDateFrom').value = getActivityStartDate(activity);
+            document.getElementById('reservationDateTo').value = getActivityEndDate(activity);
             document.getElementById('reservedFor').value = activity.name;
           }
         }
