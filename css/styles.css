@@ -1919,7 +1919,6 @@ tr:hover {
    5.16 INDICATORS & STATES
    ---------------------------------------------------------------------------- */
 
-.offline-indicator,
 #offline-indicator {
   display: none;
   background-color: rgb(76 101 174 / 0.95);
@@ -1936,9 +1935,6 @@ tr:hover {
   backdrop-filter: blur(8px);
 }
 
-.offline #offline-indicator {
-  display: block;
-}
 
 #loading-indicator {
   position: fixed;
