@@ -10,7 +10,6 @@ import { translate } from './app.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { sanitizeHTML, escapeHTML } from './utils/SecurityUtils.js';
 import { setContent } from './utils/DOMUtils.js';
-import { showToast } from './utils/ToastUtils.js';
 import {
   getGuardiansForParticipant,
   saveGuardian,
@@ -48,7 +47,7 @@ export class GuardianManagementModule {
       }
     } catch (error) {
       debugError('[GuardianManagement] Error loading guardians:', error);
-      showToast(translate('error_loading_guardians'), 'error');
+      this.app.showMessage(translate('error_loading_guardians'), 'error');
       throw error;
     }
   }
@@ -343,19 +342,19 @@ export class GuardianManagementModule {
 
   validateGuardian(guardianData) {
     if (!guardianData.prenom?.trim()) {
-      showToast(translate('first_name_required'), 'warning');
+      this.app.showMessage(translate('first_name_required'), 'warning');
       return false;
     }
     if (!guardianData.nom?.trim()) {
-      showToast(translate('last_name_required'), 'warning');
+      this.app.showMessage(translate('last_name_required'), 'warning');
       return false;
     }
     if (!guardianData.lien?.trim()) {
-      showToast(translate('relationship_required'), 'warning');
+      this.app.showMessage(translate('relationship_required'), 'warning');
       return false;
     }
     if (guardianData.courriel && !validateEmail(guardianData.courriel)) {
-      showToast(translate('invalid_email'), 'warning');
+      this.app.showMessage(translate('invalid_email'), 'warning');
       return false;
     }
     return true;
@@ -385,7 +384,10 @@ export class GuardianManagementModule {
       const response = await saveGuardian(guardianData);
 
       if (response.success) {
-        showToast(translate('guardian_updated_successfully'), 'success');
+        this.app.showMessage(
+          translate('guardian_updated_successfully'),
+          'success',
+        );
         this.editingGuardianId = null;
         await this.loadGuardians();
         this.render();
@@ -394,7 +396,7 @@ export class GuardianManagementModule {
       }
     } catch (error) {
       debugError('[GuardianManagement] Error saving guardian:', error);
-      showToast(translate('error_saving_guardian'), 'error');
+      this.app.showMessage(translate('error_saving_guardian'), 'error');
     }
   }
 
@@ -427,7 +429,7 @@ export class GuardianManagementModule {
           await linkGuardianToParticipant(this.participantId, guardianId);
         }
 
-        showToast(translate('guardian_added_successfully'), 'success');
+        this.app.showMessage(translate('guardian_added_successfully'), 'success');
         this.isAdding = false;
         await this.loadGuardians();
         this.render();
@@ -436,13 +438,13 @@ export class GuardianManagementModule {
       }
     } catch (error) {
       debugError('[GuardianManagement] Error adding guardian:', error);
-      showToast(translate('error_adding_guardian'), 'error');
+      this.app.showMessage(translate('error_adding_guardian'), 'error');
     }
   }
 
   async handleRemove(guardianId) {
     if (this.guardians.length === 1) {
-      showToast(translate('cannot_remove_last_guardian'), 'warning');
+      this.app.showMessage(translate('cannot_remove_last_guardian'), 'warning');
       return;
     }
 
@@ -459,7 +461,10 @@ export class GuardianManagementModule {
       const response = await removeGuardians(this.participantId, [guardianId]);
 
       if (response.success) {
-        showToast(translate('guardian_removed_successfully'), 'success');
+        this.app.showMessage(
+          translate('guardian_removed_successfully'),
+          'success',
+        );
         await this.loadGuardians();
         this.render();
       } else {
@@ -467,7 +472,7 @@ export class GuardianManagementModule {
       }
     } catch (error) {
       debugError('[GuardianManagement] Error removing guardian:', error);
-      showToast(translate('error_removing_guardian'), 'error');
+      this.app.showMessage(translate('error_removing_guardian'), 'error');
     }
   }
 }
@@ -479,7 +484,7 @@ export async function initGuardianManagement(app) {
   const participantName = urlParams.get('participant_name');
 
   if (!participantId || !participantName) {
-    showToast(translate('invalid_parameters'), 'error');
+    this.app.showMessage(translate('invalid_parameters'), 'error');
     window.location.hash = '#/manage_participants';
     return;
   }
