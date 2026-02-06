@@ -50,6 +50,7 @@ const navigationRoute = new NavigationRoute(navigationHandler, {
     /^\/offline\.html$/,
     /^\/manifest\.json$/,
     /^\/manifest\.webmanifest$/,
+    /^\/__replco\//,
   ],
 });
 registerRoute(navigationRoute);

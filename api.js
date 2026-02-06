@@ -550,6 +550,21 @@ app.use((req, res, next) => {
   return next();
 });
 
+// Serve shared static assets and translations in production builds
+// These are referenced by absolute paths (e.g., /assets/images/... and /lang/*.json)
+app.use(
+  "/assets",
+  express.static(path.join(__dirname, "assets"), {
+    setHeaders: setStaticCacheHeaders,
+  }),
+);
+app.use(
+  "/lang",
+  express.static(path.join(__dirname, "lang"), {
+    setHeaders: setStaticCacheHeaders,
+  }),
+);
+
 app.use(express.static(staticDir, { setHeaders: setStaticCacheHeaders }));
 
 app.use(express.static(staticDir, { setHeaders: setStaticCacheHeaders }));
