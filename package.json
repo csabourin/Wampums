@@ -44,6 +44,7 @@
     "pg": "^8.13.1",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
+    "rollup-plugin-visualizer": "^6.0.5",
     "sharp": "^0.34.1",
     "sib-api-v3-sdk": "^8.5.0",
     "socket.io": "^4.8.1",
@@ -62,7 +63,6 @@
   },
   "devDependencies": {
     "jest": "^30.2.0",
-    "rollup-plugin-visualizer": "^6.0.5",
     "supertest": "^7.2.2"
   },
   "jest": {
