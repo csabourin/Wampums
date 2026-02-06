@@ -8,7 +8,7 @@ import { Login } from "./login.js";
 import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
 import { makeApiRequest } from "./api/api-core.js";
 import { CONFIG } from "./config.js";
-import { debugLog, debugError, isDebugMode } from "./utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
 import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { urlBase64ToUint8Array } from "./functions.js";
 import updateManager from "./pwa-update-manager.js";
@@ -17,13 +17,7 @@ import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
 
 const debugMode = isDebugMode();
 
-if ("serviceWorker" in navigator) {
-        navigator.serviceWorker
-                .register("/service-worker.js", { updateViaCache: "none" })
-                .catch((error) => {
-                        debugError("Service Worker registration failed:", error);
-                });
-}
+// Service worker registration is handled automatically by vite-plugin-pwa
 
 async function registerPushSubscription() {
         if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -129,9 +123,6 @@ export const app = {
                 this.createMessageBanner();
 
                 try {
-                        // Register service worker in background
-                        this.registerServiceWorker();
-
                         // Check for existing session (synchronous from localStorage)
                         const session = Login.checkSession();
                         this.isLoggedIn = session.isLoggedIn;
@@ -178,7 +169,12 @@ export const app = {
                                         debugLog("Organization ID fetched:", orgId);
                                 } catch (error) {
                                         debugError("Error fetching organization ID:", error);
-                                        throw error;
+                                        if (!navigator.onLine) {
+                                                debugWarn("Offline: proceeding without organization ID");
+                                                this.organizationId = null;
+                                        } else {
+                                                throw error;
+                                        }
                                 }
                         } else {
                                 this.organizationId = storedOrgId;
@@ -192,8 +188,12 @@ export const app = {
                         this.language = normalizedLang;
                         document.documentElement.lang = normalizedLang;
                         debugLog(`Loading translations for ${normalizedLang} before routing...`);
-                        await this.loadTranslation(normalizedLang);
-                        debugLog(`Translations loaded for ${normalizedLang}`);
+                        try {
+                                await this.loadTranslation(normalizedLang);
+                                debugLog(`Translations loaded for ${normalizedLang}`);
+                        } catch (error) {
+                                debugWarn("Failed to load translations offline:", error);
+                        }
 
                         // Initialize router IMMEDIATELY (now that we have org ID and translations)
                         debugLog("Initializing router...");
@@ -565,20 +565,8 @@ export const app = {
                 }
         },
 
-        async registerServiceWorker() {
-                if ("serviceWorker" in navigator) {
-                        window.addEventListener("load", async () => {
-                                try {
-                                        const registration = await navigator.serviceWorker.register("/service-worker.js");
-                                        debugLog(
-                                                "Service Worker registered with scope:",
-                                                registration.scope
-                                        );
-                                } catch (error) {
-                                        debugError("Service Worker registration failed:", error);
-                                }
-                        });
-                }
+        registerServiceWorker() {
+                // Service worker registration is handled automatically by vite-plugin-pwa
         },
 
         showLoading() {

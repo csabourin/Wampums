@@ -57,14 +57,18 @@ export async function handleResponse(response) {
             localStorage.removeItem("userFullName");
             localStorage.removeItem("userId");
 
-            // Optionally redirect to login if not already there
-            const publicPages = ['/login', '/reset-password', '/register', '/permission-slip', '/public/'];
-            const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
+            // Only redirect when actually online to avoid redirect on offline cached responses
+            if (navigator.onLine) {
+                const publicPages = ['/login', '/reset-password', '/register', '/permission-slip', '/public/'];
+                const isPublicPage = publicPages.some(page => window.location.pathname.startsWith(page));
 
-            if (!isPublicPage) {
-                window.location.href = '/login';
+                if (!isPublicPage) {
+                    window.location.href = '/login';
+                } else {
+                    debugWarn('[API] 401 error on public page, skipping automatic redirect');
+                }
             } else {
-                debugWarn('[API] 401 error on public page, skipping automatic redirect');
+                debugWarn('[API] 401 while offline, deferring redirect until online');
             }
         }
 

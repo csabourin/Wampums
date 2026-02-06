@@ -38,15 +38,6 @@
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.woff2"
         as="font" type="font/woff2" crossorigin="anonymous" />
 
-    <!-- Import Map for ES Modules - Must come before modulepreloads/modules -->
-    <script type="importmap">
-            {
-                "imports": {
-                    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.3.0/dist/purify.es.mjs"
-                }
-            }
-        </script>
-
     <!-- Prefetch top dashboard modules for instant navigation -->
     <link rel="modulepreload" href="/spa/manage_points.js" />
     <link rel="modulepreload" href="/spa/manage_honors.js" />
@@ -101,8 +92,7 @@
         media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)"
         href="/assets/images/splash/apple-splash-2048-2732.svg" />
 
-    <!-- Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Manifest is injected automatically by vite-plugin-pwa -->
     <link rel="alternate" type="application/rss+xml" href="/rss.xml" title="Wampums" />
 
     <!-- Stylesheets - optimized for performance -->

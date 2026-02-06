@@ -110,8 +110,10 @@ export default defineConfig({
   plugins: [
     // PWA Support
     VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["images/**/*", "favicon.ico"],
+      strategies: "injectManifest",
+      registerType: "prompt",
+      srcDir: ".",
+      filename: "src-sw.js",
 
       manifest: {
         name: "Wampums Scout Management",
@@ -134,63 +136,10 @@ export default defineConfig({
         ],
       },
 
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,json}"],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts-cache",
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "gstatic-fonts-cache",
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-          {
-            urlPattern: /\/api\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "api-cache",
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 5, // 5 minutes
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "image-cache",
-              expiration: {
-                maxEntries: 60,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
-              },
-            },
-          },
-        ],
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,json,woff2}"],
+        globIgnores: ["**/node_modules/**", "service-worker.js"],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
     }),
 

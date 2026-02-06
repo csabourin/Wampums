@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(grep:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(node --version:*)",
+      "Bash(nvm list:*)",
+      "Bash(nvm use:*)",
+      "Bash(npx vite build:*)",
+      "Bash(node -e:*)",
+      "Bash(node:*)"
     ]
   }
 }
