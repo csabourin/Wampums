@@ -6,7 +6,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
   root: ".",
-  publicDir: "images",
+  publicDir: "assets",
 
   build: {
     outDir: "dist",

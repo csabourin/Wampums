@@ -135,11 +135,38 @@ const DB_VERSION = 2;
 const STORE_NAME = 'api-cache';
 const MUTATION_STORE_NAME = 'pending-mutations';
 
-function openIndexedDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+let indexedDBBlocked = false;
 
-    request.onerror = () => reject(request.error);
+function isStorageAccessError(error) {
+  return error && (
+    error.name === 'SecurityError' ||
+    error.name === 'InvalidStateError' ||
+    error.name === 'QuotaExceededError'
+  );
+}
+
+function openIndexedDB() {
+  if (indexedDBBlocked || !self.indexedDB) {
+    return Promise.reject(new Error('IndexedDB unavailable'));
+  }
+  return new Promise((resolve, reject) => {
+    let request;
+    try {
+      request = indexedDB.open(DB_NAME, DB_VERSION);
+    } catch (error) {
+      if (isStorageAccessError(error)) {
+        indexedDBBlocked = true;
+      }
+      reject(error);
+      return;
+    }
+
+    request.onerror = () => {
+      if (isStorageAccessError(request.error)) {
+        indexedDBBlocked = true;
+      }
+      reject(request.error);
+    };
     request.onsuccess = () => resolve(request.result);
 
     request.onupgradeneeded = (event) => {
@@ -161,40 +188,62 @@ function openIndexedDB() {
 }
 
 async function setCachedData(key, data, expirationTime) {
-  const db = await openIndexedDB();
-  const transaction = db.transaction([STORE_NAME], 'readwrite');
-  const store = transaction.objectStore(STORE_NAME);
-  const cacheEntry = {
-    url: key,
-    data: data,
-    expiration: Date.now() + expirationTime,
-  };
-  store.put(cacheEntry);
+  if (indexedDBBlocked) {
+    return;
+  }
+  try {
+    const db = await openIndexedDB();
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const cacheEntry = {
+      url: key,
+      data: data,
+      expiration: Date.now() + expirationTime,
+    };
+    store.put(cacheEntry);
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      indexedDBBlocked = true;
+    }
+  }
 }
 
 async function getCachedData(key) {
-  const db = await openIndexedDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(key);
+  if (indexedDBBlocked) {
+    return null;
+  }
+  try {
+    const db = await openIndexedDB();
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORE_NAME], 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(key);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const result = request.result;
-      if (result && result.expiration > Date.now()) {
-        resolve(result.data);
-      } else {
-        resolve(null);
-      }
-    };
-  });
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const result = request.result;
+        if (result && result.expiration > Date.now()) {
+          resolve(result.data);
+        } else {
+          resolve(null);
+        }
+      };
+    });
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      indexedDBBlocked = true;
+    }
+    return null;
+  }
 }
 
 async function fetchAndCacheInIndexedDB(request) {
   const cacheKey = request.url;
 
   try {
+    if (indexedDBBlocked) {
+      return await fetch(request);
+    }
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
       const data = await networkResponse.json();
@@ -300,7 +349,18 @@ async function handleMutation(request) {
 
 async function invalidateRelatedCaches(request) {
   const url = new URL(request.url);
-  const db = await openIndexedDB();
+  if (indexedDBBlocked) {
+    return;
+  }
+  let db;
+  try {
+    db = await openIndexedDB();
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      indexedDBBlocked = true;
+    }
+    return;
+  }
   const transaction = db.transaction([STORE_NAME], 'readwrite');
   const store = transaction.objectStore(STORE_NAME);
 
@@ -340,7 +400,18 @@ async function invalidateRelatedCaches(request) {
 }
 
 async function saveOfflineMutation(mutationData) {
-  const db = await openIndexedDB();
+  if (indexedDBBlocked) {
+    return null;
+  }
+  let db;
+  try {
+    db = await openIndexedDB();
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      indexedDBBlocked = true;
+    }
+    return null;
+  }
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
     const store = transaction.objectStore(MUTATION_STORE_NAME);
@@ -358,7 +429,18 @@ async function saveOfflineMutation(mutationData) {
 }
 
 async function getPendingMutations() {
-  const db = await openIndexedDB();
+  if (indexedDBBlocked) {
+    return [];
+  }
+  let db;
+  try {
+    db = await openIndexedDB();
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      indexedDBBlocked = true;
+    }
+    return [];
+  }
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([MUTATION_STORE_NAME], 'readonly');
     const store = transaction.objectStore(MUTATION_STORE_NAME);
@@ -370,7 +452,18 @@ async function getPendingMutations() {
 }
 
 async function deletePendingMutation(id) {
-  const db = await openIndexedDB();
+  if (indexedDBBlocked) {
+    return;
+  }
+  let db;
+  try {
+    db = await openIndexedDB();
+  } catch (error) {
+    if (isStorageAccessError(error)) {
+      indexedDBBlocked = true;
+    }
+    return;
+  }
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([MUTATION_STORE_NAME], 'readwrite');
     const store = transaction.objectStore(MUTATION_STORE_NAME);
