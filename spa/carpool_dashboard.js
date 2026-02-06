@@ -20,8 +20,12 @@ import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtil
 import { debugError } from './utils/DebugUtils.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
-import { formatDateShort, isoToDateString, parseDate } from './utils/DateUtils.js';
+import { parseDate } from './utils/DateUtils.js';
 import { withButtonLoading } from './utils/PerformanceUtils.js';
+import {
+  formatActivityDateRange,
+  getActivityStartDate
+} from './utils/ActivityDateUtils.js';
 
 export class CarpoolDashboard {
   constructor(app, activityId) {
@@ -96,10 +100,9 @@ export class CarpoolDashboard {
       return;
     }
 
-    const activityDateString = isoToDateString(this.activity.activity_date);
+    const activityDateString = getActivityStartDate(this.activity);
     const activityDate = parseDate(activityDateString);
-    const formattedActivityDate = formatDateShort(activityDateString, this.app.lang || 'fr');
-    const activityDateLabel = formattedActivityDate || activityDateString || '';
+    const activityDateLabel = formatActivityDateRange(this.activity, this.app.lang || 'fr');
 
     setContent(container, `
       <section class="page carpool-page">

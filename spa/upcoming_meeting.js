@@ -6,7 +6,7 @@ import {
   debugInfo,
 } from "./utils/DebugUtils.js";
 import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, saveReunionPreparation, getBadgeSummary } from "./ajax-functions.js";
-import { formatDate, isToday, parseDate } from "./utils/DateUtils.js";
+import { formatDate, isToday, parseDate, isoToDateString } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { canApproveBadges } from "./utils/PermissionUtils.js";
@@ -17,11 +17,15 @@ export class UpcomingMeeting {
     this.meetingDates = [];
     this.closestMeeting = null;
     this.meetingDetails = null;
+    this.participants = [];
   }
 
   async init() {
     try {
-      await this.fetchMeetingDates();
+      await Promise.all([
+        this.fetchMeetingDates(),
+        this.fetchParticipants(),
+      ]);
       this.closestMeeting =
         await this.getClosestMeeting();
       if (this.closestMeeting) {
@@ -64,6 +68,108 @@ export class UpcomingMeeting {
         error,
       );
     }
+  }
+
+  async fetchParticipants() {
+    try {
+      const response = await getParticipants();
+      this.participants = Array.isArray(response)
+        ? response
+        : response?.data ||
+        response?.participants ||
+        [];
+    } catch (error) {
+      debugError(
+        "Error fetching participants:",
+        error,
+      );
+      this.participants = [];
+    }
+  }
+
+  normalizeDateString(dateStr) {
+    if (!dateStr) return '';
+    return dateStr.includes("T")
+      ? dateStr.split("T")[0]
+      : dateStr;
+  }
+
+  getNextMeetingDateAfter(meetingDate) {
+    const normalizedDate = this.normalizeDateString(meetingDate);
+    if (!normalizedDate) return null;
+
+    const nextMeeting = this.meetingDates
+      .map((dateStr) => this.normalizeDateString(dateStr))
+      .filter(Boolean)
+      .filter((dateStr) => dateStr > normalizedDate)
+      .sort((a, b) => a.localeCompare(b))
+      .shift();
+
+    return nextMeeting || null;
+  }
+
+  getUpcomingBirthdays(meetingDate) {
+    const startDate = this.normalizeDateString(meetingDate);
+    const endDate = this.getNextMeetingDateAfter(startDate);
+
+    if (!startDate || !endDate) {
+      return { startDate, endDate, entries: [] };
+    }
+
+    const start = parseDate(startDate);
+    const end = parseDate(endDate);
+    if (!start || !end) {
+      return { startDate, endDate, entries: [] };
+    }
+
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+    const candidateYears = startYear === endYear ? [startYear] : [startYear, endYear];
+    const participants = Array.isArray(this.participants) ? this.participants : [];
+
+    const entries = participants.reduce((acc, participant) => {
+      const birthDateRaw = participant.date_naissance || participant.date_of_birth;
+      if (!birthDateRaw) return acc;
+
+      const birthDate = parseDate(isoToDateString(birthDateRaw));
+      if (!birthDate) return acc;
+
+      const birthMonth = birthDate.getMonth();
+      const birthDay = birthDate.getDate();
+      let birthdayInRange = null;
+
+      candidateYears.forEach((year) => {
+        const daysInMonth = new Date(year, birthMonth + 1, 0).getDate();
+        const safeDay = Math.min(birthDay, daysInMonth);
+        const candidate = new Date(year, birthMonth, safeDay);
+
+        if (candidate >= start && candidate < end) {
+          if (!birthdayInRange || candidate < birthdayInRange) {
+            birthdayInRange = candidate;
+          }
+        }
+      });
+
+      if (!birthdayInRange) return acc;
+
+      const fullName = [participant.first_name, participant.last_name].filter(Boolean).join(' ').trim();
+      const displayName = fullName || participant.full_name || translate('unknown');
+
+      acc.push({
+        id: participant.id,
+        name: displayName,
+        date: isoToDateString(birthdayInRange),
+      });
+      return acc;
+    }, []);
+
+    entries.sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) return dateCompare;
+      return a.name.localeCompare(b.name);
+    });
+
+    return { startDate, endDate, entries };
   }
 
   async getAllFutureMeetings() {
@@ -437,6 +543,20 @@ export class UpcomingMeeting {
             "",
           )
         : `<li>${translate("no_activities_scheduled")}</li>`;
+    const birthdays = this.getUpcomingBirthdays(this.closestMeeting);
+    const birthdayRangeLabel = birthdays.startDate && birthdays.endDate
+      ? `${translate("birthdays_between")} ${formatDate(birthdays.startDate, this.app.lang, { month: 'long', day: 'numeric' })} - ${formatDate(birthdays.endDate, this.app.lang, { month: 'long', day: 'numeric' })}`
+      : translate("birthdays_range_unavailable");
+    const birthdayItems = birthdays.entries.length > 0
+      ? `<ul class="birthday-list">
+          ${birthdays.entries.map((entry) => `
+            <li>
+              <span>${escapeHTML(entry.name)}</span>
+              <span>${formatDate(entry.date, this.app.lang, { month: 'long', day: 'numeric' })}</span>
+            </li>
+          `).join('')}
+        </ul>`
+      : `<p class="empty-state">${translate("no_upcoming_birthdays")}</p>`;
 
     const content = `
                                                 <div class="upcoming-meeting">
@@ -457,6 +577,11 @@ export class UpcomingMeeting {
                                                                 <div class="meeting-details">
                                                                                 <p>${meetingDate}</p>
                                                                                 <p><strong>${translate("location")}:</strong> ${location}</p>
+                                                                </div>
+                                                                <div class="meeting-details">
+                                                                                <h2>${translate("upcoming_birthdays")}</h2>
+                                                                                <p class="section-description">${birthdayRangeLabel}</p>
+                                                                                ${birthdayItems}
                                                                 </div>
                                                                <div>
                                                                                <ul>${activitiesHtml}</ul>

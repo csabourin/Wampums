@@ -3,6 +3,12 @@ import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
 import {
+  getActivityEndDate,
+  getActivityEndTime,
+  getActivityStartDate,
+  getActivityStartTime
+} from "./utils/ActivityDateUtils.js";
+import {
   getPermissionSlips,
   savePermissionSlip,
   signPermissionSlip,
@@ -52,7 +58,7 @@ export class PermissionSlipDashboard {
     try {
       const { getActivity } = await import('./api/api-activities.js');
       this.activity = await getActivity(this.activityId);
-      this.activityDate = this.activity.activity_date;
+      this.activityDate = getActivityStartDate(this.activity);
       debugLog('Loaded activity:', this.activity);
     } catch (error) {
       debugError('Error loading activity:', error);
@@ -120,7 +126,8 @@ export class PermissionSlipDashboard {
       ? `<div class="card">
           <h1>${escapeHTML(translate("permission_slips_for_activity"))} "${escapeHTML(this.activity.name)}"</h1>
           <p class="subtitle">
-            <strong>${translate("activity_date_label")}:</strong> ${formatDate(this.activity.activity_date, this.app.lang || 'fr')}
+            <strong>${translate("activity_start")}:</strong> ${formatDate(getActivityStartDate(this.activity), this.app.lang || 'fr')}${getActivityStartTime(this.activity) ? ` ${escapeHTML(getActivityStartTime(this.activity))}` : ''}
+            ${`<span style="margin-left: 0.75rem;"><strong>${translate("activity_end")}:</strong> ${formatDate(getActivityEndDate(this.activity), this.app.lang || 'fr')}${getActivityEndTime(this.activity) ? ` ${escapeHTML(getActivityEndTime(this.activity))}` : ''}</span>`}
           </p>
           ${this.activity.description ? `<p>${escapeHTML(this.activity.description)}</p>` : ''}
         </div>`
