@@ -8,8 +8,8 @@ channel = "stable-22_11"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["node", "api.js"]
-build = ["npm", "ci", "--omit=dev"]
+run = ["npm", "run", "start:prod"]
+build = ["bash", "-lc", "npm ci && npm run build"]
 
 [[ports]]
 localPort = 3000
@@ -40,6 +40,7 @@ MINDEE_PRICE_PER_RECEIPT_USD = "0.10"
 [userenv.production]
 PORT = "5000"
 ALLOWED_ORIGINS = "https://wampums.app,https://*.wampums.app,https://meute6a.app,https://mobile.meute6a.app"
+NODE_ENV = "production"
 
 [workflows]
 runButton = "Project"
