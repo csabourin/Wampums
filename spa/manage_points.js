@@ -400,11 +400,14 @@ export class ManagePoints {
     }
 
     const updateKey = `points-${type}-${id}-${Date.now()}`;
+    // Include current date for group points - backend uses this to filter by attendance
+    const today = new Date().toISOString().split('T')[0];
     const updateData = {
       type,
       id,
       points,
       timestamp: new Date().toISOString(),
+      date: type === 'group' ? today : undefined, // Only include date for group points
     };
 
     // Use OptimisticUpdateManager for instant feedback with rollback capability
@@ -499,6 +502,7 @@ export class ManagePoints {
         // Support both new format (data.data.updates) and old format (data.updates)
         const serverUpdates = data.data?.updates || data.updates;
         if (serverUpdates && Array.isArray(serverUpdates)) {
+          let totalSkipped = 0;
           serverUpdates.forEach((update) => {
             if (update.type === "group") {
               this.updateGroupPoints(
@@ -507,10 +511,23 @@ export class ManagePoints {
                 update.memberIds,
                 update.memberTotals,
               );
+              // Track skipped participants for group points
+              if (update.skippedCount > 0) {
+                totalSkipped += update.skippedCount;
+                debugLog(`Group ${update.id}: ${update.skippedCount} participants skipped (absent/excused)`);
+              }
             } else {
               this.updateIndividualPoints(update.id, update.totalPoints);
             }
           });
+
+          // Show info message if participants were skipped
+          if (totalSkipped > 0) {
+            this.app.showMessage(
+              translate("points_skipped_absent_participants").replace("{{count}}", totalSkipped),
+              "info"
+            );
+          }
         } else {
           debugLog("Unexpected response format:", data);
         }

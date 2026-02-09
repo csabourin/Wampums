@@ -92,7 +92,8 @@ const lazyModules = {
   RoleManagement: () => import('./role_management.js').then(m => m.RoleManagement),
   DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement),
   FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
-  CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings)
+  CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
+  OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation)
 };
 
 // Cache for loaded modules
@@ -163,7 +164,8 @@ const routes = {
   "/role-management": "roleManagement",
   "/district-management": "districtManagement",
   "/form-permissions": "formPermissions",
-  "/communications": "communications"
+  "/communications": "communications",
+  "/prepare-offline": "offlinePreparation"
 
 };
 
@@ -411,6 +413,13 @@ export class Router {
           const communicationSettings = new CommunicationSettings(this.app);
           this.currentModuleInstance = communicationSettings;
           await communicationSettings.init();
+          break;
+        case "offlinePreparation":
+          // Available to all logged-in users
+          const OfflinePreparation = await this.loadModule('OfflinePreparation');
+          const offlinePreparation = new OfflinePreparation(this.app);
+          this.currentModuleInstance = offlinePreparation;
+          await offlinePreparation.init();
           break;
         case "login":
           if (this.app.isLoggedIn) {

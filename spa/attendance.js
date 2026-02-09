@@ -5,9 +5,13 @@ import {
   getAttendanceDates,
   saveGuest,
   getGuestsByDate,
+  getApiUrl,
+  getAuthHeader,
+  getCurrentOrganizationId,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { getCachedData, setCachedData, deleteCachedData } from "./indexedDB.js";
+import { offlineManager } from "./modules/OfflineManager.js";
 import {
   getTodayISO,
   formatDate,
@@ -60,6 +64,9 @@ export class Attendance {
         this.preloadAttendanceData(),
       ]);
 
+      // In camp mode, automatically carry forward attendance from previous day
+      await this.autoCarryForwardInCampMode();
+
       // Mark as initialized and not loading
       this.isInitialized = true;
       this.isLoading = false;
@@ -77,12 +84,26 @@ export class Attendance {
 
   async preloadAttendanceData() {
     try {
+      // Check for camp-prepared data first (longer cache, prepared during offline prep)
       const cachedData = await getCachedData(`attendance_${this.currentDate}`);
       if (cachedData) {
-        this.participants = normalizeParticipantList(cachedData.participants);
-        this.attendanceData = cachedData.attendanceData;
-        this.guests = cachedData.guests;
-        this.groups = cachedData.groups;
+        // If in camp mode and this date is prepared, trust the cache
+        const isDatePrepared = offlineManager.isDatePrepared(this.currentDate);
+        if (isDatePrepared || offlineManager.campMode) {
+          debugLog("Using camp-prepared attendance data for", this.currentDate);
+        }
+
+        // Handle both new format (with data wrapper) and direct format
+        const data = cachedData.data || cachedData;
+        this.participants = normalizeParticipantList(data.participants);
+        this.attendanceData = data.attendanceData;
+        this.guests = data.guests || [];
+        this.groups = data.groups || [];
+
+        // If in camp mode, also update available dates from cached data
+        if (offlineManager.campMode && data.availableDates) {
+          this.availableDates = data.availableDates;
+        }
         return;
       }
       await this.fetchData();
@@ -94,6 +115,22 @@ export class Attendance {
 
   async fetchAttendanceDates() {
     try {
+      // In camp mode, check if we have prepared dates
+      if (offlineManager.campMode) {
+        const preparedActivity = offlineManager.getPreparedActivityForDate(getTodayISO());
+        if (preparedActivity && preparedActivity.dates) {
+          debugLog("Using camp-prepared dates:", preparedActivity.dates);
+          this.availableDates = [...preparedActivity.dates];
+          this.availableDates.sort((a, b) => new Date(b) - new Date(a));
+          const today = getTodayISO();
+          if (!this.availableDates.includes(today)) {
+            this.availableDates.unshift(today);
+          }
+          this.currentDate = this.availableDates[0];
+          return;
+        }
+      }
+
       const response = await getAttendanceDates(); // Call the API
       debugLog("Attendance dates response:", response);
       if (response.success && response.data) {
@@ -243,6 +280,117 @@ export class Attendance {
     } catch (error) {
       debugError("Error fetching attendance data:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Auto carry forward attendance from previous day in camp mode
+   * When viewing day 2+ of a camp and no attendance exists for current date,
+   * automatically inherit present/late statuses from the previous day
+   */
+  async autoCarryForwardInCampMode() {
+    // Only apply in camp mode
+    if (!offlineManager.campMode) {
+      return;
+    }
+
+    // Check if we have any attendance data for current date
+    const hasAttendanceData = Object.keys(this.attendanceData).some(
+      id => this.attendanceData[id] && this.attendanceData[id] !== ''
+    );
+
+    if (hasAttendanceData) {
+      debugLog("Attendance data exists for", this.currentDate, "- no carry-forward needed");
+      return;
+    }
+
+    // Get the prepared activity info
+    const preparedActivity = offlineManager.getPreparedActivityForDate(this.currentDate);
+    if (!preparedActivity || !preparedActivity.dates) {
+      return;
+    }
+
+    // Find previous day in the prepared dates
+    const dateIndex = preparedActivity.dates.indexOf(this.currentDate);
+    if (dateIndex <= 0) {
+      debugLog("No previous day to carry forward from (this is day 1 of camp)");
+      return;
+    }
+
+    const previousDate = preparedActivity.dates[dateIndex - 1];
+    debugLog("Camp mode: Attempting to carry forward from", previousDate, "to", this.currentDate);
+
+    // Try to get previous day's attendance from cache
+    const previousDayCache = await getCachedData(`attendance_${previousDate}`);
+    if (!previousDayCache) {
+      debugLog("No cached attendance data for previous day", previousDate);
+      return;
+    }
+
+    const previousData = previousDayCache.data || previousDayCache;
+    const previousAttendance = previousData.attendanceData || {};
+
+    // Only carry forward present/late statuses (not absent/excused)
+    const toCarryForward = {};
+    for (const [participantId, status] of Object.entries(previousAttendance)) {
+      if (status === 'present' || status === 'late') {
+        toCarryForward[participantId] = status;
+      }
+    }
+
+    const carryCount = Object.keys(toCarryForward).length;
+    if (carryCount === 0) {
+      debugLog("No present/late statuses to carry forward");
+      return;
+    }
+
+    // Apply carried forward statuses locally
+    this.attendanceData = { ...toCarryForward };
+
+    // Show info message
+    this.app.showMessage(
+      translate("attendance_carried_forward").replace("{{count}}", carryCount).replace("{{date}}", formatDate(previousDate, this.app.lang)),
+      "info"
+    );
+
+    debugLog(`Camp mode: Carried forward ${carryCount} attendance records from ${previousDate}`);
+
+    // Update cache with carried forward data
+    await setCachedData(
+      `attendance_${this.currentDate}`,
+      {
+        participants: this.participants,
+        attendanceData: this.attendanceData,
+        guests: this.guests,
+        groups: this.groups,
+      },
+      CONFIG.CACHE_DURATION.CAMP_MODE || CONFIG.CACHE_DURATION.SHORT,
+    );
+
+    // If online, also call the carry-forward API to persist
+    if (navigator.onLine) {
+      try {
+        const response = await fetch(getApiUrl("v1/attendance/carry-forward"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeader(),
+            "x-organization-id": getCurrentOrganizationId(),
+          },
+          body: JSON.stringify({
+            fromDate: previousDate,
+            toDate: this.currentDate
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          debugLog("Server carry-forward result:", result);
+        }
+      } catch (error) {
+        // Non-critical error - local carry-forward still works
+        debugError("Failed to sync carry-forward to server:", error);
+      }
     }
   }
 

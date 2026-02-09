@@ -1,8 +1,8 @@
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
-import { debugError } from "./utils/DebugUtils.js";
+import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
-import { deleteCachedData } from "./indexedDB.js";
+import { deleteCachedData, getCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
 import {
   getParticipants,
@@ -14,6 +14,7 @@ import {
   markMedicationDistributionAsGiven,
   getFicheMedications
 } from "./api/api-endpoints.js";
+import { offlineManager } from "./modules/OfflineManager.js";
 
 /**
  * Medication management module
@@ -57,6 +58,35 @@ export class MedicationManagement {
    * Load baseline data required for the page.
    */
   async refreshData(forceRefresh = false) {
+    // Check for camp-prepared data first (unless forcing refresh)
+    if (!forceRefresh && (offlineManager.campMode || offlineManager.isDatePrepared(getTodayISO()))) {
+      const cachedRequirements = await getCachedData('medication_requirements');
+      const cachedDistributions = await getCachedData('medication_distributions');
+      const cachedParticipants = await getCachedData('participants_v2');
+
+      if (cachedRequirements && cachedDistributions) {
+        debugLog('Using camp-prepared medication data');
+
+        // Extract data from cache (handle both wrapped and direct formats)
+        const reqData = cachedRequirements.data || cachedRequirements;
+        const distData = cachedDistributions.data || cachedDistributions;
+        const partData = cachedParticipants?.data || cachedParticipants || [];
+
+        this.requirements = Array.isArray(reqData) ? reqData : (reqData.requirements || []);
+        this.distributions = Array.isArray(distData) ? distData : (distData.distributions || []);
+        this.participants = partData;
+        this.participantMedications = []; // Will be derived from requirements
+        this.ficheMedications = [];
+
+        debugLog('Loaded from camp cache:', {
+          requirements: this.requirements.length,
+          distributions: this.distributions.length,
+          participants: this.participants.length
+        });
+        return;
+      }
+    }
+
     const cacheOptions = forceRefresh ? { forceRefresh: true } : {};
     const [participantsResponse, requirementsResponse, assignmentsResponse, distributionsResponse, ficheMedicationsResponse] = await Promise.all([
       getParticipants(),

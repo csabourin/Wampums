@@ -123,13 +123,15 @@ module.exports = (pool, logger) => {
         await client.query('BEGIN');
 
         for (const update of updates) {
-          // Frontend sends: {type, id, points, timestamp}
+          // Frontend sends: {type, id, points, timestamp, date?}
           // We need to convert to: {participant_id, group_id, value}
-          const { type, id, points } = update;
+          // date is optional - if provided, we filter by attendance (only present/late get points)
+          const { type, id, points, date } = update;
           const value = points;
 
           if (type === 'group') {
             // For group points, add points to the group AND to each individual member
+            // If date is provided, only award points to present/late participants
             const groupId = parseInt(id);
 
             // Get all participants in this group (using participant_groups table)
@@ -140,7 +142,43 @@ module.exports = (pool, logger) => {
               [organizationId, groupId]
             );
 
-            const memberIds = membersResult.rows.map(r => r.id);
+            let memberIds = membersResult.rows.map(r => r.id);
+            let skippedCount = 0;
+            let skippedParticipants = [];
+
+            // If date is provided, filter by attendance (only present/late)
+            // But only if attendance was actually taken for that date
+            if (date && memberIds.length > 0) {
+              // First check if ANY attendance was recorded for this date
+              const anyAttendanceResult = await client.query(
+                `SELECT COUNT(*) as count FROM attendance
+                 WHERE organization_id = $1 AND date = $2::date`,
+                [organizationId, date]
+              );
+
+              const attendanceWasTaken = parseInt(anyAttendanceResult.rows[0].count) > 0;
+
+              if (attendanceWasTaken) {
+                // Attendance was taken - only award to present/late participants
+                const attendanceResult = await client.query(
+                  `SELECT participant_id, status FROM attendance
+                   WHERE organization_id = $1 AND date = $2::date
+                   AND participant_id = ANY($3)
+                   AND status IN ('present', 'late')`,
+                  [organizationId, date, memberIds]
+                );
+
+                const eligibleIds = new Set(attendanceResult.rows.map(r => r.participant_id));
+                skippedParticipants = memberIds.filter(id => !eligibleIds.has(id));
+                skippedCount = skippedParticipants.length;
+                memberIds = memberIds.filter(id => eligibleIds.has(id));
+
+                console.log(`[update-points] Group ${groupId} on ${date}: ${memberIds.length} eligible, ${skippedCount} skipped (absent/excused)`);
+              } else {
+                // No attendance taken for this date - award to everyone
+                console.log(`[update-points] Group ${groupId} on ${date}: No attendance recorded, awarding to all ${memberIds.length} members`);
+              }
+            }
 
             // Insert a point record for the group (group-level tracking)
             await client.query(
@@ -199,7 +237,10 @@ module.exports = (pool, logger) => {
               id: groupId,
               totalPoints: parseInt(totalResult.rows[0].total),
               memberIds: memberIds,
-              memberTotals: memberTotals
+              memberTotals: memberTotals,
+              skippedCount: skippedCount,
+              skippedParticipants: skippedParticipants,
+              date: date || null
             });
           } else {
             // For individual participant points

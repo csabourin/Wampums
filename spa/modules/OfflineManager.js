@@ -14,10 +14,17 @@ import { CONFIG } from '../config.js';
  * Cache duration constants (in milliseconds)
  */
 const CACHE_DURATION = {
-    CRITICAL: 7 * 24 * 60 * 60 * 1000,  // 7 days
+    CRITICAL: 7 * 24 * 60 * 60 * 1000,   // 7 days
+    CAMP_MODE: 15 * 24 * 60 * 60 * 1000, // 15 days (covers max 14-day camp + 1 day buffer)
     STANDARD: 24 * 60 * 60 * 1000,       // 24 hours
     VOLATILE: 2 * 60 * 60 * 1000         // 2 hours
 };
+
+/**
+ * Local storage key for camp mode state
+ */
+const CAMP_MODE_STORAGE_KEY = 'wampums_camp_mode';
+const PREPARED_ACTIVITIES_KEY = 'wampums_prepared_activities';
 
 /**
  * Critical endpoints to pre-cache
@@ -45,6 +52,12 @@ export class OfflineManager {
         this.pendingMutations = [];
         this.syncInProgress = false;
         this.listeners = [];
+
+        // Camp mode properties
+        this.campMode = false;
+        this.activeActivityId = null;
+        this.preparedActivities = new Map(); // activityId -> { startDate, endDate, preparedAt, dates }
+        this.preparationProgress = { current: 0, total: 0, status: 'idle', message: '' };
     }
 
     /**
@@ -64,7 +77,13 @@ export class OfflineManager {
         // Check for pending mutations on init
         this.checkPendingMutations();
 
-        debugLog('OfflineManager: Initialized', { isOffline: this.isOffline });
+        // Restore camp mode state from localStorage
+        this.restoreCampMode();
+
+        // Auto-detect if we should enable/disable camp mode based on dates
+        this.autoDetectCampMode();
+
+        debugLog('OfflineManager: Initialized', { isOffline: this.isOffline, campMode: this.campMode });
     }
 
     /**
@@ -466,7 +485,17 @@ export class OfflineManager {
             'sync.complete': 'All changes synced',
             'sync.failed': 'Some changes failed to sync',
             'offline.dataUnavailable': 'This data is not available offline',
-            'offline.savedLocally': 'Saved locally - will sync when online'
+            'offline.savedLocally': 'Saved locally - will sync when online',
+            'offline.fetchingData': 'Fetching activity data...',
+            'offline.cachingParticipants': 'Caching participants...',
+            'offline.cachingAttendance': 'Caching attendance data...',
+            'offline.cachingHonors': 'Caching honors...',
+            'offline.cachingMedications': 'Caching medications...',
+            'offline.cachingBadges': 'Caching badges...',
+            'offline.cachingCarpools': 'Caching carpool data...',
+            'offline.finalizing': 'Finalizing...',
+            'offline.campModeAutoEnabled': 'Camp mode automatically enabled',
+            'offline.campModeAutoDisabled': 'Camp mode automatically disabled'
         };
 
         return fallbacks[key] || key;
@@ -494,6 +523,434 @@ export class OfflineManager {
      */
     get pendingCount() {
         return this.pendingMutations.length;
+    }
+
+    // ============================================
+    // CAMP MODE METHODS
+    // ============================================
+
+    /**
+     * Get upcoming multi-day activities that may need offline preparation
+     * @returns {Promise<Array>} Array of upcoming activities
+     */
+    async getUpcomingCamps() {
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            debugWarn('OfflineManager: No auth token, cannot fetch upcoming camps');
+            return [];
+        }
+
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/activities/upcoming-camps`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            return result.success ? result.data : [];
+        } catch (error) {
+            debugError('OfflineManager: Failed to fetch upcoming camps', error);
+            return [];
+        }
+    }
+
+    /**
+     * Prepare for offline operation during a multi-day activity
+     * Fetches and caches all data needed for the date range
+     *
+     * @param {number|null} activityId - Optional activity ID
+     * @param {string} startDate - Start date in YYYY-MM-DD format
+     * @param {string} endDate - End date in YYYY-MM-DD format
+     * @returns {Promise<Object>} Preparation result
+     */
+    async prepareForActivity(activityId, startDate, endDate) {
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            throw new Error('Not authenticated');
+        }
+
+        const dates = this.generateDateRange(startDate, endDate);
+        const totalSteps = 8; // Added carpool caching step
+
+        this.preparationProgress = { current: 0, total: totalSteps, status: 'preparing', message: '' };
+        this.dispatchEvent('preparationProgress', this.preparationProgress);
+
+        try {
+            // Step 1: Fetch bulk data from server
+            this.updatePreparationProgress(1, this.getTranslation('offline.fetchingData'));
+
+            const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/offline/prepare-activity`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    activity_id: activityId,
+                    start_date: startDate,
+                    end_date: endDate
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.message || 'Server returned error');
+            }
+
+            const bulkData = result.data;
+            debugLog('OfflineManager: Received bulk data', {
+                participants: bulkData.participants?.length,
+                dates: bulkData.dates?.length,
+                honors: bulkData.honors?.length
+            });
+
+            // Step 2: Cache participants and groups
+            this.updatePreparationProgress(2, this.getTranslation('offline.cachingParticipants'));
+            await this.cacheData('participants_v2', { success: true, data: bulkData.participants }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData('groups', { success: true, data: bulkData.groups }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/participants`, { success: true, data: bulkData.participants }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/groups`, { success: true, data: bulkData.groups }, CACHE_DURATION.CAMP_MODE);
+
+            // Step 3: Cache attendance for each date
+            this.updatePreparationProgress(3, this.getTranslation('offline.cachingAttendance'));
+            for (const date of dates) {
+                const attendanceForDate = bulkData.attendance[date] || [];
+                const attendancePayload = {
+                    success: true,
+                    data: {
+                        participants: bulkData.participants,
+                        attendanceData: this.transformAttendanceData(attendanceForDate, bulkData.participants),
+                        guests: [],
+                        groups: bulkData.groups,
+                        currentDate: date,
+                        availableDates: dates
+                    }
+                };
+                await this.cacheData(`attendance_${date}`, attendancePayload, CACHE_DURATION.CAMP_MODE);
+                // Also cache in the format the attendance module expects
+                await this.cacheData(`${CONFIG.API_BASE_URL}/api/attendance?date=${date}`, attendancePayload, CACHE_DURATION.CAMP_MODE);
+            }
+            // Cache attendance dates list
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/attendance/dates`, { success: true, data: dates }, CACHE_DURATION.CAMP_MODE);
+
+            // Step 4: Cache honors
+            this.updatePreparationProgress(4, this.getTranslation('offline.cachingHonors'));
+            await this.cacheData('honors_all', { success: true, data: bulkData.honors }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/honors`, { success: true, data: bulkData.honors }, CACHE_DURATION.CAMP_MODE);
+            // Cache honors by date
+            for (const date of dates) {
+                const honorsForDate = bulkData.honorsByDate[date] || [];
+                await this.cacheData(`honors_${date}`, { success: true, data: honorsForDate }, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/honors?date=${date}`, { success: true, data: honorsForDate }, CACHE_DURATION.CAMP_MODE);
+            }
+
+            // Step 5: Cache medications
+            this.updatePreparationProgress(5, this.getTranslation('offline.cachingMedications'));
+            await this.cacheData('medication_requirements', { success: true, data: bulkData.medications.requirements }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData('medication_distributions', { success: true, data: bulkData.medications.distributions }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/requirements`, { success: true, data: bulkData.medications.requirements }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/distributions`, { success: true, data: bulkData.medications.distributions }, CACHE_DURATION.CAMP_MODE);
+
+            // Step 6: Cache badges
+            this.updatePreparationProgress(6, this.getTranslation('offline.cachingBadges'));
+            await this.cacheData('badge_dashboard_settings', { success: true, data: { templates: bulkData.badges.settings } }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData('badge_dashboard_badges', { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/badges/settings`, { success: true, data: bulkData.badges.settings }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/badges/summary`, { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
+
+            // Step 7: Cache carpools (if activity has carpool data)
+            this.updatePreparationProgress(7, this.getTranslation('offline.cachingCarpools'));
+            if (bulkData.carpools && activityId) {
+                await this.cacheData(`carpool_offers_activity_${activityId}`, { success: true, data: bulkData.carpools.offers }, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(`carpool_assignments_activity_${activityId}`, { success: true, data: bulkData.carpools.assignments }, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/carpools/activity/${activityId}/offers`, { success: true, data: bulkData.carpools.offers }, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/carpools/activity/${activityId}/assignments`, { success: true, data: bulkData.carpools.assignments }, CACHE_DURATION.CAMP_MODE);
+                // Also cache the activity itself
+                if (bulkData.activity) {
+                    await this.cacheData(`activity_${activityId}`, { success: true, data: bulkData.activity }, CACHE_DURATION.CAMP_MODE);
+                    await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/activities/${activityId}`, { success: true, data: bulkData.activity }, CACHE_DURATION.CAMP_MODE);
+                }
+            }
+
+            // Step 8: Save preparation state and enable camp mode
+            this.updatePreparationProgress(8, this.getTranslation('offline.finalizing'));
+
+            const prepInfo = {
+                activityId,
+                startDate,
+                endDate,
+                preparedAt: Date.now(),
+                dates,
+                expiresAt: bulkData.expiresAt
+            };
+
+            this.preparedActivities.set(activityId || `manual_${startDate}`, prepInfo);
+            this.savePreparedActivities();
+            this.enableCampMode(activityId || `manual_${startDate}`);
+
+            // Notify service worker about camp mode
+            this.notifyServiceWorkerCampMode(true);
+
+            this.preparationProgress = { current: totalSteps, total: totalSteps, status: 'complete', message: '' };
+            this.dispatchEvent('preparationProgress', this.preparationProgress);
+
+            debugLog('OfflineManager: Preparation complete', { datesPrepared: dates.length });
+
+            return {
+                success: true,
+                datesPrepared: dates.length,
+                activity: bulkData.activity
+            };
+
+        } catch (error) {
+            debugError('OfflineManager: Preparation failed', error);
+            this.preparationProgress = {
+                current: 0,
+                total: totalSteps,
+                status: 'error',
+                message: error.message
+            };
+            this.dispatchEvent('preparationProgress', this.preparationProgress);
+            throw error;
+        }
+    }
+
+    /**
+     * Transform attendance data to the format expected by the attendance module
+     */
+    transformAttendanceData(attendanceRows, participants) {
+        const attendanceMap = new Map();
+        for (const row of attendanceRows) {
+            attendanceMap.set(row.participant_id, row.status);
+        }
+
+        return participants.map(p => ({
+            participant_id: p.id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            group_id: p.group_id,
+            group_name: p.group_name,
+            attendance_status: attendanceMap.get(p.id) || null,
+            date: null
+        }));
+    }
+
+    /**
+     * Update preparation progress and dispatch event
+     */
+    updatePreparationProgress(step, message) {
+        this.preparationProgress = {
+            current: step,
+            total: this.preparationProgress.total,
+            status: 'preparing',
+            message
+        };
+        this.dispatchEvent('preparationProgress', this.preparationProgress);
+    }
+
+    /**
+     * Enable camp mode
+     * @param {number|string} activityId - Activity ID or manual identifier
+     */
+    enableCampMode(activityId) {
+        this.campMode = true;
+        this.activeActivityId = activityId;
+
+        const campModeState = {
+            enabled: true,
+            activityId,
+            enabledAt: Date.now()
+        };
+        localStorage.setItem(CAMP_MODE_STORAGE_KEY, JSON.stringify(campModeState));
+
+        this.dispatchEvent('campModeChanged', { enabled: true, activityId });
+        debugLog('OfflineManager: Camp mode enabled', { activityId });
+    }
+
+    /**
+     * Disable camp mode
+     */
+    disableCampMode() {
+        this.campMode = false;
+        this.activeActivityId = null;
+        localStorage.removeItem(CAMP_MODE_STORAGE_KEY);
+
+        // Notify service worker
+        this.notifyServiceWorkerCampMode(false);
+
+        this.dispatchEvent('campModeChanged', { enabled: false });
+        debugLog('OfflineManager: Camp mode disabled');
+    }
+
+    /**
+     * Notify service worker about camp mode status
+     */
+    notifyServiceWorkerCampMode(enabled) {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'SET_CAMP_MODE',
+                enabled
+            });
+        }
+    }
+
+    /**
+     * Restore camp mode state from localStorage
+     */
+    restoreCampMode() {
+        try {
+            // Restore camp mode state
+            const stored = localStorage.getItem(CAMP_MODE_STORAGE_KEY);
+            if (stored) {
+                const { enabled, activityId, enabledAt } = JSON.parse(stored);
+                // Auto-disable after 14 days
+                const maxAge = 14 * 24 * 60 * 60 * 1000;
+                if (enabled && (Date.now() - enabledAt) < maxAge) {
+                    this.campMode = true;
+                    this.activeActivityId = activityId;
+                    this.notifyServiceWorkerCampMode(true);
+                    debugLog('OfflineManager: Camp mode restored', { activityId });
+                } else if (enabled) {
+                    // Camp mode expired
+                    this.disableCampMode();
+                }
+            }
+
+            // Restore prepared activities
+            const preparedStored = localStorage.getItem(PREPARED_ACTIVITIES_KEY);
+            if (preparedStored) {
+                const preparedArray = JSON.parse(preparedStored);
+                for (const [key, value] of preparedArray) {
+                    this.preparedActivities.set(key, value);
+                }
+            }
+        } catch (error) {
+            debugError('OfflineManager: Failed to restore camp mode', error);
+        }
+    }
+
+    /**
+     * Auto-detect if we should enable/disable camp mode based on current date
+     */
+    autoDetectCampMode() {
+        const today = new Date().toISOString().split('T')[0];
+
+        // Check if we're within any prepared activity's date range
+        for (const [activityId, prep] of this.preparedActivities) {
+            if (prep.startDate <= today && today <= prep.endDate) {
+                if (!this.campMode) {
+                    this.enableCampMode(activityId);
+                    this.showToast(this.getTranslation('offline.campModeAutoEnabled'), 'info');
+                    debugLog('OfflineManager: Auto-enabled camp mode', { activityId });
+                }
+                return;
+            }
+        }
+
+        // If we're past all prepared activities, disable camp mode
+        if (this.campMode && this.activeActivityId) {
+            const activePrep = this.preparedActivities.get(this.activeActivityId);
+            if (activePrep && today > activePrep.endDate) {
+                this.disableCampMode();
+                this.showToast(this.getTranslation('offline.campModeAutoDisabled'), 'info');
+                debugLog('OfflineManager: Auto-disabled camp mode (past end date)');
+            }
+        }
+    }
+
+    /**
+     * Save prepared activities to localStorage
+     */
+    savePreparedActivities() {
+        try {
+            const arrayForm = Array.from(this.preparedActivities.entries());
+            localStorage.setItem(PREPARED_ACTIVITIES_KEY, JSON.stringify(arrayForm));
+        } catch (error) {
+            debugError('OfflineManager: Failed to save prepared activities', error);
+        }
+    }
+
+    /**
+     * Check if a specific date is prepared for camp mode
+     * @param {string} date - Date in YYYY-MM-DD format
+     * @returns {boolean} True if the date is prepared
+     */
+    isDatePrepared(date) {
+        for (const prep of this.preparedActivities.values()) {
+            if (prep.dates && prep.dates.includes(date)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get prepared activity info for a date
+     * @param {string} date - Date in YYYY-MM-DD format
+     * @returns {Object|null} Prepared activity info or null
+     */
+    getPreparedActivityForDate(date) {
+        for (const [id, prep] of this.preparedActivities) {
+            if (prep.dates && prep.dates.includes(date)) {
+                return { id, ...prep };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Generate array of date strings between start and end (inclusive)
+     * @param {string} startDate - Start date in YYYY-MM-DD format
+     * @param {string} endDate - End date in YYYY-MM-DD format
+     * @returns {string[]} Array of date strings
+     */
+    generateDateRange(startDate, endDate) {
+        const dates = [];
+        const current = new Date(startDate);
+        const end = new Date(endDate);
+
+        while (current <= end) {
+            dates.push(current.toISOString().split('T')[0]);
+            current.setDate(current.getDate() + 1);
+        }
+        return dates;
+    }
+
+    /**
+     * Get cache duration based on camp mode
+     * @returns {number} Cache duration in milliseconds
+     */
+    getCacheDuration() {
+        return this.campMode ? CACHE_DURATION.CAMP_MODE : CACHE_DURATION.STANDARD;
+    }
+
+    /**
+     * Clear all prepared activities and disable camp mode
+     */
+    clearPreparedActivities() {
+        this.preparedActivities.clear();
+        localStorage.removeItem(PREPARED_ACTIVITIES_KEY);
+        this.disableCampMode();
+        debugLog('OfflineManager: Cleared all prepared activities');
+    }
+
+    /**
+     * Get camp mode status
+     * @returns {boolean} True if camp mode is active
+     */
+    get isCampMode() {
+        return this.campMode;
     }
 }
 

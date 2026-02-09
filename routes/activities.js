@@ -347,5 +347,36 @@ module.exports = (pool) => {
     return success(res, result.rows);
   }));
 
+  /**
+   * Get upcoming multi-day activities that may need offline preparation
+   * Returns activities that span 2+ days and are within the next 30 days
+   * Accessible by: animation, admin, parent
+   */
+  router.get('/upcoming-camps', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const today = new Date().toISOString().split('T')[0];
+    const lookAheadDays = parseInt(req.query.look_ahead) || 30;
+
+    const result = await pool.query(
+      `SELECT id, name, description,
+              activity_start_date::text as activity_start_date,
+              activity_end_date::text as activity_end_date,
+              activity_start_time::text as activity_start_time,
+              activity_end_time::text as activity_end_time,
+              meeting_location_going,
+              (activity_end_date::date - activity_start_date::date + 1) as day_count
+       FROM activities
+       WHERE organization_id = $1
+         AND is_active = TRUE
+         AND activity_end_date >= $2::date
+         AND activity_start_date <= ($2::date + $3)
+         AND (activity_end_date::date - activity_start_date::date) >= 1
+       ORDER BY activity_start_date ASC`,
+      [organizationId, today, lookAheadDays]
+    );
+
+    return success(res, result.rows);
+  }));
+
   return router;
 };

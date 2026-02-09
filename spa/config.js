@@ -53,6 +53,7 @@ export const CONFIG = {
         SHORT: 5 * 60 * 1000, // 5 minutes
         MEDIUM: 30 * 60 * 1000, // 30 minutes
         LONG: 24 * 60 * 60 * 1000, // 24 hours
+        CAMP_MODE: 10 * 24 * 60 * 60 * 1000, // 10 days (for multi-day offline camps)
     },
 
     /**

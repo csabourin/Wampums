@@ -189,6 +189,115 @@ module.exports = (pool, logger) => {
     }
   }));
 
+  /**
+   * @swagger
+   * /api/v1/attendance/carry-forward:
+   *   post:
+   *     summary: Carry forward attendance from one date to another
+   *     description: Copies present/late attendance from source date to target date for participants who don't have attendance recorded on target date
+   *     tags: [Attendance]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - fromDate
+   *               - toDate
+   *             properties:
+   *               fromDate:
+   *                 type: string
+   *                 format: date
+   *               toDate:
+   *                 type: string
+   *                 format: date
+   *     responses:
+   *       200:
+   *         description: Attendance carried forward
+   */
+  router.post('/carry-forward',
+    authenticate,
+    blockDemoRoles,
+    requirePermission('attendance.manage'),
+    asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { fromDate, toDate } = req.body;
+
+    if (!fromDate || !toDate) {
+      return error(res, 'fromDate and toDate are required', 400);
+    }
+
+    if (fromDate === toDate) {
+      return error(res, 'fromDate and toDate must be different', 400);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Get attendance from source date that is present or late
+      // and doesn't already have attendance on target date
+      const sourceAttendanceResult = await client.query(
+        `SELECT a.participant_id, a.status
+         FROM attendance a
+         WHERE a.organization_id = $1
+           AND a.date = $2::date
+           AND a.status IN ('present', 'late')
+           AND NOT EXISTS (
+             SELECT 1 FROM attendance a2
+             WHERE a2.participant_id = a.participant_id
+               AND a2.organization_id = $1
+               AND a2.date = $3::date
+           )`,
+        [organizationId, fromDate, toDate]
+      );
+
+      const toCarryForward = sourceAttendanceResult.rows;
+      logger.info(`[attendance carry-forward] Carrying ${toCarryForward.length} attendance records from ${fromDate} to ${toDate}`);
+
+      if (toCarryForward.length === 0) {
+        await client.query('COMMIT');
+        return success(res, {
+          copiedCount: 0,
+          message: 'No attendance records to carry forward'
+        }, 'No records to carry forward');
+      }
+
+      // Batch insert the attendance records for target date
+      const valuesClauses = toCarryForward.map((_, idx) =>
+        `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+      ).join(', ');
+
+      const insertParams = toCarryForward.flatMap(row =>
+        [row.participant_id, toDate, row.status, organizationId]
+      );
+
+      await client.query(
+        `INSERT INTO attendance (participant_id, date, status, organization_id)
+         VALUES ${valuesClauses}`,
+        insertParams
+      );
+
+      await client.query('COMMIT');
+
+      return success(res, {
+        copiedCount: toCarryForward.length,
+        fromDate,
+        toDate,
+        participants: toCarryForward.map(r => r.participant_id)
+      }, `Carried forward ${toCarryForward.length} attendance records`);
+
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }));
+
   // ============================================
   // NON-VERSIONED ENDPOINTS (Legacy support)
   // ============================================

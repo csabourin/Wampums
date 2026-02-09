@@ -4,8 +4,9 @@ import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.j
 import { translate } from "./app.js";
 import { getTodayISO, formatDate, isValidDate, isPastDate as isDateInPast } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
-import { deleteCachedData } from "./indexedDB.js";
+import { deleteCachedData, getCachedData } from "./indexedDB.js";
 import { sanitizeHTML } from "./utils/SecurityUtils.js";
+import { offlineManager } from "./modules/OfflineManager.js";
 
 export class ManageHonors {
   constructor(app) {
@@ -37,6 +38,56 @@ export class ManageHonors {
 
   async fetchData() {
     try {
+      // Check for camp-prepared data first
+      if (offlineManager.campMode || offlineManager.isDatePrepared(this.currentDate)) {
+        const cachedHonors = await getCachedData(`honors_${this.currentDate}`);
+        const cachedAllHonors = await getCachedData('honors_all');
+        const cachedParticipants = await getCachedData('participants_v2');
+
+        if (cachedHonors || cachedAllHonors) {
+          debugLog('Using camp-prepared honors data for', this.currentDate);
+
+          // Get honors data - prefer date-specific, fall back to all
+          const honorsData = cachedHonors?.data || cachedHonors || [];
+          const allHonorsData = cachedAllHonors?.data || cachedAllHonors || [];
+
+          this.allHonors = allHonorsData.length > 0 ? allHonorsData : honorsData;
+
+          // Get participants from cache
+          if (cachedParticipants) {
+            const participantsData = cachedParticipants.data || cachedParticipants;
+            this.allParticipants = participantsData.map(p => ({
+              participant_id: p.id,
+              first_name: p.first_name,
+              last_name: p.last_name,
+              group_id: p.group_id,
+              group_name: p.group_name
+            }));
+          }
+
+          // Get available dates from prepared activity
+          const preparedActivity = offlineManager.getPreparedActivityForDate(this.currentDate);
+          if (preparedActivity && preparedActivity.dates) {
+            this.availableDates = [...preparedActivity.dates];
+          } else {
+            this.availableDates = [this.currentDate];
+          }
+
+          const today = getTodayISO();
+          if (!this.availableDates.includes(today)) {
+            this.availableDates.unshift(today);
+          }
+          this.availableDates.sort((a, b) => new Date(b) - new Date(a));
+
+          debugLog('Loaded from camp cache:', {
+            honors: this.allHonors.length,
+            participants: this.allParticipants.length,
+            dates: this.availableDates.length
+          });
+          return;
+        }
+      }
+
       const response = await getHonorsAndParticipants(this.currentDate);
       debugLog('API Response:', response); // Add this line for debugging
 

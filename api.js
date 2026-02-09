@@ -843,6 +843,7 @@ const announcementsRoutes = require("./routes/announcements")(
 const googleChatRoutes = require("./routes/google-chat")(pool, logger);
 const medicationRoutes = require("./routes/medication")(pool, logger);
 const activitiesRoutes = require("./routes/activities")(pool);
+const offlineRoutes = require("./routes/offline")(pool, logger);
 const carpoolsRoutes = require("./routes/carpools")(pool);
 const aiRoutes = require("./routes/ai");
 const isAiBudgetMigrated = true; // Flag to indicate migration is planned/done
@@ -1206,6 +1207,13 @@ logger.info("   - POST /api/v1/activities");
 logger.info("   - PUT /api/v1/activities/:id");
 logger.info("   - DELETE /api/v1/activities/:id");
 logger.info("   - GET /api/v1/activities/:id/participants");
+logger.info("   - GET /api/v1/activities/upcoming-camps");
+
+// Offline preparation routes (for multi-day camp mode)
+app.use("/api/v1/offline", offlineRoutes);
+logger.info("✅ Offline preparation routes loaded");
+logger.info("   - POST /api/v1/offline/prepare-activity");
+logger.info("   - GET /api/v1/offline/status");
 
 app.use("/api/v1/carpools", carpoolsRoutes);
 logger.info("✅ Carpool routes loaded");

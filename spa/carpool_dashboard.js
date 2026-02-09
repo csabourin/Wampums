@@ -17,7 +17,9 @@ import {
 import { canManageCarpools, canViewCarpools, isParent } from './utils/PermissionUtils.js';
 import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
-import { debugError } from './utils/DebugUtils.js';
+import { debugError, debugLog } from './utils/DebugUtils.js';
+import { offlineManager } from './modules/OfflineManager.js';
+import { getCachedData } from './indexedDB.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { parseDate } from './utils/DateUtils.js';
@@ -66,6 +68,49 @@ export class CarpoolDashboard {
 
   async loadData() {
     try {
+      // Check for camp mode cached data first
+      if (offlineManager.campMode) {
+        const cachedActivity = await getCachedData(`activity_${this.activityId}`);
+        const cachedOffers = await getCachedData(`carpool_offers_activity_${this.activityId}`);
+        const cachedAssignments = await getCachedData(`carpool_assignments_activity_${this.activityId}`);
+        const cachedParticipants = await getCachedData('participants_v2');
+
+        if (cachedActivity?.data && cachedOffers?.data && cachedParticipants?.data) {
+          debugLog('CarpoolDashboard: Using camp mode cached data');
+          this.activity = cachedActivity.data;
+
+          // Merge assignments into offers
+          const assignmentsByOffer = {};
+          if (cachedAssignments?.data) {
+            cachedAssignments.data.forEach(a => {
+              if (!assignmentsByOffer[a.carpool_offer_id]) {
+                assignmentsByOffer[a.carpool_offer_id] = [];
+              }
+              assignmentsByOffer[a.carpool_offer_id].push({
+                assignment_id: a.id,
+                participant_id: a.participant_id,
+                participant_name: `${a.first_name} ${a.last_name}`,
+                trip_direction: a.trip_direction
+              });
+            });
+          }
+
+          this.carpoolOffers = cachedOffers.data.map(offer => ({
+            ...offer,
+            assignments: assignmentsByOffer[offer.id] || [],
+            seats_used_going: (assignmentsByOffer[offer.id] || [])
+              .filter(a => ['both', 'to_activity'].includes(a.trip_direction)).length,
+            seats_used_return: (assignmentsByOffer[offer.id] || [])
+              .filter(a => ['both', 'from_activity'].includes(a.trip_direction)).length
+          }));
+
+          this.participants = cachedParticipants.data;
+          this.unassignedParticipants = []; // Skip in camp mode (offline)
+          return;
+        }
+      }
+
+      // Fall back to API calls
       [this.activity, this.carpoolOffers, this.participants] = await Promise.all([
         getActivity(this.activityId),
         getCarpoolOffers(this.activityId),

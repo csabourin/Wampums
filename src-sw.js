@@ -19,6 +19,42 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 // Version should match package.json and config.js
 const APP_VERSION = '3.0.7';
 
+// Camp mode flag - when enabled, use extended cache durations
+let campModeEnabled = false;
+
+// Cache duration constants (in milliseconds)
+const CACHE_DURATION = {
+    STANDARD: 24 * 60 * 60 * 1000,       // 24 hours
+    CAMP_MODE: 10 * 24 * 60 * 60 * 1000, // 10 days
+};
+
+/**
+ * Get cache duration based on camp mode and URL
+ * Date-dependent endpoints get extended cache in camp mode
+ */
+function getCacheDuration(url) {
+    if (!campModeEnabled) {
+        return CACHE_DURATION.STANDARD;
+    }
+
+    // In camp mode, extend cache for date-dependent endpoints
+    const pathname = typeof url === 'string' ? new URL(url, self.location.origin).pathname : url.pathname;
+    const campModeEndpoints = [
+        '/attendance',
+        '/honors',
+        '/medication',
+        '/badges',
+        '/participants',
+        '/groups'
+    ];
+
+    if (campModeEndpoints.some(endpoint => pathname.includes(endpoint))) {
+        return CACHE_DURATION.CAMP_MODE;
+    }
+
+    return CACHE_DURATION.STANDARD;
+}
+
 const isProduction = () => {
   try {
     return self.location?.hostname?.endsWith('.app') || false;
@@ -256,7 +292,8 @@ async function fetchAndCacheInIndexedDB(request) {
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
       const data = await networkResponse.json();
-      await setCachedData(cacheKey, data, 24 * 60 * 60 * 1000);
+      const cacheDuration = getCacheDuration(cacheKey);
+      await setCachedData(cacheKey, data, cacheDuration);
       return new Response(JSON.stringify(data), {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -728,6 +765,10 @@ self.addEventListener('message', (event) => {
     }).catch((err) => {
       debugError('Failed to queue mutation via message:', err);
     });
+  }
+  if (event.data && event.data.type === 'SET_CAMP_MODE') {
+    campModeEnabled = event.data.enabled;
+    debugLog('Camp mode:', campModeEnabled ? 'enabled' : 'disabled');
   }
 });
 
