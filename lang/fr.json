@@ -2056,6 +2056,7 @@
   "organization": "Organisation",
   "date_required": "Veuillez sélectionner les dates de réservation",
   "activities_calendar": "Calendrier d'activités",
+  "prepare_for_offline": "Préparer pour hors-ligne",
   "add_activity": "Ajouter une activité",
   "upcoming_activities": "Activités à venir",
   "past_activities": "Activités passées",

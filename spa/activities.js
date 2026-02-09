@@ -22,6 +22,7 @@ import {
   getActivityEndDateObj,
   getActivityStartDate
 } from './utils/ActivityDateUtils.js';
+import { offlineManager } from './modules/OfflineManager.js';
 
 export class Activities {
   constructor(app) {
@@ -141,6 +142,11 @@ export class Activities {
     const isPast = activityDate ? activityDate < today : false;
     const displayDate = formatActivityDateRange(activity, this.app.lang || 'fr');
 
+    // Check if this is a multi-day activity (end date differs from start date)
+    const startDate = activity.activity_start_date || activity.start_date;
+    const endDate = activity.activity_end_date || activity.end_date;
+    const isMultiDay = startDate && endDate && startDate !== endDate;
+
     return `
       <div class="activity-card ${isPast ? 'activity-card--past' : ''}" data-activity-id="${activity.id}">
         <div class="activity-card__header">
@@ -200,6 +206,14 @@ export class Activities {
           <button class="button button--small button--secondary view-permission-slips-btn" data-activity-id="${activity.id}">
             ${translate('manage_permission_slips')}
           </button>
+          ${isMultiDay && !isPast ? `
+            <button class="button button--small button--secondary prepare-offline-btn"
+                    data-activity-id="${activity.id}"
+                    data-start-date="${startDate}"
+                    data-end-date="${endDate}">
+              <i class="fa-solid fa-cloud-arrow-down"></i> ${translate('prepare_for_offline')}
+            </button>
+          ` : ''}
           <button class="button button--small button--outline edit-activity-btn" data-activity-id="${activity.id}">
             ${translate('edit')}
           </button>
@@ -259,6 +273,28 @@ export class Activities {
         window.location.hash = `/permission-slips/${activityId}`;
       });
     });
+
+    // Prepare for offline buttons (for multi-day activities)
+    document.querySelectorAll('.prepare-offline-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const button = e.target.closest('.prepare-offline-btn');
+        const activityId = parseInt(button.dataset.activityId);
+        const startDate = button.dataset.startDate;
+        const endDate = button.dataset.endDate;
+
+        setButtonLoading(button, true);
+        try {
+          await offlineManager.prepareForActivity(activityId, startDate, endDate);
+          this.app.showMessage(translate('preparation_complete'), 'success');
+        } catch (error) {
+          debugError('Failed to prepare for offline:', error);
+          this.app.showMessage(translate('preparation_failed'), 'error');
+        } finally {
+          setButtonLoading(button, false);
+        }
+      });
+    });
+
     // Search listener
     const searchInput = document.getElementById('activities-search');
     if (searchInput) {

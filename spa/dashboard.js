@@ -296,6 +296,7 @@ export class Dashboard extends BaseModule {
     const planningTiles = sortByLabel([
       { href: "/activities", icon: "fa-calendar-days", label: "activities_calendar" },
       { href: "/carpool", icon: "fa-car", label: "carpool_coordination", id: "carpool-quick-access" },
+      { href: "/prepare-offline", icon: "fa-cloud-arrow-down", label: "prepare_for_offline" },
       { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
       { href: "/view-participant-documents", icon: "fa-file-lines", label: "view_participant_documents" },
       { href: "/inventory", icon: "fa-warehouse", label: "inventory_link" },

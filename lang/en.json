@@ -2021,6 +2021,7 @@
   "organization": "Organization",
   "date_required": "Please select reservation dates",
   "activities_calendar": "Activities Calendar",
+  "prepare_for_offline": "Prepare for Offline",
   "add_activity": "Add Activity",
   "upcoming_activities": "Upcoming Activities",
   "past_activities": "Past Activities",
