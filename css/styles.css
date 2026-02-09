@@ -6607,6 +6607,12 @@ details p {
   align-items: flex-start;
 }
 
+.modal__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
 .modal-screen {
   position: fixed;
   inset: 0;

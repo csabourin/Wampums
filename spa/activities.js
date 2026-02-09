@@ -317,13 +317,13 @@ export class Activities {
     const modalId = 'activity-modal';
 
     const modalHTML = `
-      <div class="modal__backdrop" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: -1;"></div>
-      <div class="modal" style="display: block; position: relative; background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
+      <div class="modal__backdrop"></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
         <header class="modal__header">
           <h2 id="activity-modal-title">
             ${isEdit ? translate('edit_activity') : translate('add_activity')}
           </h2>
-          <div style="display:flex; gap:10px;">
+          <div class="modal__header-actions">
              <button class="button button--small button--secondary" id="magic-generate-btn">✨ ${translate('magic_generate')}</button>
              <button class="ghost-button" id="close-activity-modal" aria-label="${translate('close')}">✕</button>
           </div>
@@ -448,29 +448,10 @@ export class Activities {
       </div>
     `;
 
-    // Create modal container
-    let modalContainer = document.getElementById(modalId);
-    if (!modalContainer) {
-      modalContainer = document.createElement('div');
-      modalContainer.id = modalId;
-      modalContainer.className = 'modal-container';
-      modalContainer.style.position = 'fixed';
-      modalContainer.style.top = '0';
-      modalContainer.style.left = '0';
-      modalContainer.style.width = '100%';
-      modalContainer.style.height = '100%';
-      modalContainer.style.display = 'flex';
-      modalContainer.style.alignItems = 'center';
-      modalContainer.style.justifyContent = 'center';
-      modalContainer.style.zIndex = '10000';
-      document.body.appendChild(modalContainer);
-    }
-    // Use innerHTML directly instead of setContent to avoid sanitization issues with forms
-    modalContainer.innerHTML = modalHTML;
-    modalContainer.classList.add('modal-container--visible');
+    const { modalContainer, closeModal } = this.showModal(modalId, modalHTML);
 
-    const startDateInput = document.getElementById('activity-start-date');
-    const endDateInput = document.getElementById('activity-end-date');
+    const startDateInput = modalContainer.querySelector('#activity-start-date');
+    const endDateInput = modalContainer.querySelector('#activity-end-date');
     if (startDateInput && endDateInput && !endDateInput.value) {
       endDateInput.value = startDateInput.value;
     }
@@ -480,23 +461,13 @@ export class Activities {
       }
     });
 
-    // Attach modal event listeners
-    const closeModal = () => {
-      modalContainer.remove();
-    };
-
-    document.getElementById('close-activity-modal')?.addEventListener('click', closeModal);
-    document.getElementById('cancel-activity-btn')?.addEventListener('click', closeModal);
-    modalContainer.querySelector('.modal__backdrop')?.addEventListener('click', closeModal);
-
-    // Form submission
     // Magic Generate (AI)
-    document.getElementById('magic-generate-btn')?.addEventListener('click', () => {
+    modalContainer.querySelector('#magic-generate-btn')?.addEventListener('click', () => {
       this.showMagicGenerateModal();
     });
 
     // Form submission
-    document.getElementById('activity-form')?.addEventListener('submit', async (e) => {
+    modalContainer.querySelector('#activity-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitButton = e.target.querySelector('button[type="submit"]');
       const formData = new FormData(e.target);
@@ -554,13 +525,39 @@ export class Activities {
     // --- End attached event listeners ---
   }
 
+  showModal(modalId, modalHTML) {
+    let modalContainer = document.getElementById(modalId);
+    if (!modalContainer) {
+      modalContainer = document.createElement('div');
+      modalContainer.id = modalId;
+      modalContainer.className = 'modal-container';
+      document.body.appendChild(modalContainer);
+    }
+    // Use innerHTML directly to avoid sanitization issues with forms
+    modalContainer.innerHTML = modalHTML;
+    modalContainer.classList.add('modal-container--visible');
+
+    const closeModal = () => {
+      modalContainer.remove();
+    };
+
+    // Close modal handlers
+    modalContainer.querySelector('.ghost-button')?.addEventListener('click', closeModal);
+    modalContainer.querySelectorAll('[id^="cancel-"]').forEach(btn => {
+      btn.addEventListener('click', closeModal);
+    });
+    modalContainer.querySelector('.modal__backdrop')?.addEventListener('click', closeModal);
+
+    return { modalContainer, closeModal };
+  }
+
   showMagicGenerateModal() {
     const modalId = 'magic-generate-modal';
     const content = `
       <div class="modal__backdrop"></div>
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="magic-generate-modal-title">
         <header class="modal__header">
-          <h2>✨ ${translate('magic_generate_meeting')}</h2>
+          <h2 id="magic-generate-modal-title">✨ ${translate('magic_generate_meeting')}</h2>
           <button class="ghost-button close-magic">✕</button>
         </header>
         <form id="magic-form" class="modal__content">
@@ -661,3 +658,7 @@ export class Activities {
     }
   }
 }
+
+
+
+
