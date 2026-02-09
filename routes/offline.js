@@ -74,166 +74,148 @@ module.exports = (pool, logger) => {
             const dates = generateDateRange(start_date, end_date);
             logger.info(`[offline] Preparing data for ${dates.length} days (${start_date} to ${end_date})`);
 
+            // Use a single client to avoid exhausting connection pool
+            const client = await pool.connect();
             try {
-                // Fetch all required data in parallel
-                const [
-                    participantsResult,
-                    groupsResult,
-                    attendanceResult,
-                    honorsResult,
-                    medicationRequirementsResult,
-                    medicationDistributionsResult,
-                    badgeSettingsResult,
-                    badgeProgressResult,
-                    activityResult,
-                    carpoolOffersResult,
-                    carpoolAssignmentsResult
-                ] = await Promise.all([
-                    // Participants with group info
-                    pool.query(
-                        `SELECT p.id, p.first_name, p.last_name, p.date_of_birth, p.gender,
-                                pg.group_id, g.name as group_name
-                         FROM participants p
-                         JOIN participant_organizations po ON p.id = po.participant_id
-                         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
-                         LEFT JOIN groups g ON pg.group_id = g.id
-                         WHERE po.organization_id = $1
-                         ORDER BY p.last_name, p.first_name`,
-                        [organizationId]
-                    ),
+                // Fetch all data sequentially on a single connection
+                const participantsResult = await client.query(
+                    `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+                            pg.group_id, g.name as group_name
+                     FROM participants p
+                     JOIN participant_organizations po ON p.id = po.participant_id
+                     LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
+                     LEFT JOIN groups g ON pg.group_id = g.id
+                     WHERE po.organization_id = $1
+                     ORDER BY p.last_name, p.first_name`,
+                    [organizationId]
+                );
 
-                    // Groups
-                    pool.query(
-                        `SELECT id, name, description, color
-                         FROM groups
-                         WHERE organization_id = $1
-                         ORDER BY name`,
-                        [organizationId]
-                    ),
+                const groupsResult = await client.query(
+                    `SELECT id, name, section
+                     FROM groups
+                     WHERE organization_id = $1
+                     ORDER BY name`,
+                    [organizationId]
+                );
 
-                    // Attendance for date range
-                    pool.query(
-                        `SELECT a.id, a.participant_id, a.date::text as date, a.status,
-                                p.first_name, p.last_name
-                         FROM attendance a
-                         JOIN participants p ON a.participant_id = p.id
-                         WHERE a.organization_id = $1
-                           AND a.date >= $2::date
-                           AND a.date <= $3::date
-                         ORDER BY a.date, p.first_name`,
-                        [organizationId, start_date, end_date]
-                    ),
+                const attendanceResult = await client.query(
+                    `SELECT a.id, a.participant_id, a.date::text as date, a.status,
+                            p.first_name, p.last_name
+                     FROM attendance a
+                     JOIN participants p ON a.participant_id = p.id
+                     WHERE a.organization_id = $1
+                       AND a.date >= $2::date
+                       AND a.date <= $3::date
+                     ORDER BY a.date, p.first_name`,
+                    [organizationId, start_date, end_date]
+                );
 
-                    // All honors (not date-filtered - need full history for display)
-                    pool.query(
-                        `SELECT h.id, h.participant_id, h.date::text as date, h.reason,
-                                h.created_at, h.created_by,
-                                p.first_name, p.last_name
-                         FROM honors h
-                         JOIN participants p ON h.participant_id = p.id
-                         WHERE h.organization_id = $1
-                         ORDER BY h.date DESC, h.created_at DESC`,
-                        [organizationId]
-                    ),
+                const honorsResult = await client.query(
+                    `SELECT h.id, h.participant_id, h.date::text as date, h.reason,
+                            h.created_at, h.created_by,
+                            p.first_name, p.last_name
+                     FROM honors h
+                     JOIN participants p ON h.participant_id = p.id
+                     WHERE h.organization_id = $1
+                     ORDER BY h.date DESC, h.created_at DESC`,
+                    [organizationId]
+                );
 
-                    // Medication requirements (all active)
-                    pool.query(
-                        `SELECT mr.id, mr.name, mr.dosage, mr.frequency, mr.instructions,
-                                mr.start_date::text as start_date, mr.end_date::text as end_date,
-                                mr.time_of_day, mr.interval, mr.meal, mr.prn,
-                                mr.participant_id, p.first_name, p.last_name
-                         FROM medication_requirements mr
-                         JOIN participants p ON mr.participant_id = p.id
-                         WHERE mr.organization_id = $1
-                           AND (mr.end_date IS NULL OR mr.end_date >= $2::date)
-                           AND (mr.start_date IS NULL OR mr.start_date <= $3::date)
-                         ORDER BY p.last_name, p.first_name, mr.name`,
-                        [organizationId, start_date, end_date]
-                    ),
+                const medicationRequirementsResult = await client.query(
+                    `SELECT mr.id, mr.medication_name, mr.dosage_instructions,
+                            mr.frequency_text, mr.route,
+                            mr.default_dose_amount, mr.default_dose_unit,
+                            mr.general_notes,
+                            mr.start_date::text as start_date, mr.end_date::text as end_date,
+                            mr.frequency_preset_type, mr.frequency_times, mr.frequency_slots,
+                            pm.participant_id, p.first_name, p.last_name
+                     FROM medication_requirements mr
+                     JOIN participant_medications pm ON pm.medication_requirement_id = mr.id
+                     JOIN participants p ON pm.participant_id = p.id
+                     WHERE mr.organization_id = $1
+                       AND (mr.end_date IS NULL OR mr.end_date >= $2::date)
+                       AND (mr.start_date IS NULL OR mr.start_date <= $3::date)
+                     ORDER BY p.last_name, p.first_name, mr.medication_name`,
+                    [organizationId, start_date, end_date]
+                );
 
-                    // Medication distributions for date range
-                    pool.query(
-                        `SELECT md.id, md.medication_requirement_id, md.scheduled_for,
-                                md.given_at, md.given_by, md.notes, md.status,
-                                mr.name as medication_name, mr.dosage,
-                                p.id as participant_id, p.first_name, p.last_name
-                         FROM medication_distributions md
-                         JOIN medication_requirements mr ON md.medication_requirement_id = mr.id
-                         JOIN participants p ON mr.participant_id = p.id
-                         WHERE mr.organization_id = $1
-                           AND md.scheduled_for >= $2::timestamp
-                           AND md.scheduled_for <= ($3::date + interval '1 day')
-                         ORDER BY md.scheduled_for, p.last_name`,
-                        [organizationId, start_date, end_date]
-                    ),
+                const medicationDistributionsResult = await client.query(
+                    `SELECT md.id, md.medication_requirement_id, md.scheduled_for,
+                            md.administered_at, md.administered_by,
+                            md.dose_notes, md.status,
+                            mr.medication_name, mr.dosage_instructions,
+                            md.participant_id, p.first_name, p.last_name
+                     FROM medication_distributions md
+                     JOIN medication_requirements mr ON md.medication_requirement_id = mr.id
+                     JOIN participants p ON md.participant_id = p.id
+                     WHERE md.organization_id = $1
+                       AND md.scheduled_for >= $2::timestamp
+                       AND md.scheduled_for <= ($3::date + interval '1 day')
+                     ORDER BY md.scheduled_for, p.last_name`,
+                    [organizationId, start_date, end_date]
+                );
 
-                    // Badge settings and templates
-                    pool.query(
-                        `SELECT bs.id, bs.badge_type, bs.name, bs.description,
-                                bs.requirements, bs.color, bs.icon, bs.points,
-                                bs.territory_id, t.name as territory_name
-                         FROM badge_settings bs
-                         LEFT JOIN territories t ON bs.territory_id = t.id
-                         WHERE bs.organization_id = $1
-                         ORDER BY bs.territory_id, bs.badge_type, bs.name`,
-                        [organizationId]
-                    ),
+                const badgeTemplatesResult = await client.query(
+                    `SELECT bt.id, bt.template_key, bt.name, bt.translation_key,
+                            bt.section, bt.level_count, bt.levels, bt.image
+                     FROM badge_templates bt
+                     WHERE bt.organization_id = $1
+                     ORDER BY bt.section, bt.name`,
+                    [organizationId]
+                );
 
-                    // Badge progress for all participants
-                    pool.query(
-                        `SELECT bp.id, bp.participant_id, bp.badge_setting_id,
-                                bp.status, bp.date_obtention::text as date_obtention,
-                                bp.notes, bp.awarded_by,
-                                p.first_name, p.last_name,
-                                bs.name as badge_name, bs.badge_type
-                         FROM badge_progress bp
-                         JOIN participants p ON bp.participant_id = p.id
-                         JOIN badge_settings bs ON bp.badge_setting_id = bs.id
-                         WHERE bp.organization_id = $1
-                         ORDER BY bp.date_obtention DESC`,
-                        [organizationId]
-                    ),
+                const badgeProgressResult = await client.query(
+                    `SELECT bp.id, bp.participant_id, bp.badge_template_id,
+                            bp.territoire_chasse, bp.objectif, bp.description,
+                            bp.fierte, bp.raison,
+                            bp.status, bp.date_obtention::text as date_obtention,
+                            bp.etoiles, bp.section, bp.star_type,
+                            bp.delivered_at, bp.delivered_by,
+                            p.first_name, p.last_name,
+                            bt.name as badge_name, bt.template_key
+                     FROM badge_progress bp
+                     JOIN participants p ON bp.participant_id = p.id
+                     JOIN badge_templates bt ON bp.badge_template_id = bt.id
+                     WHERE bp.organization_id = $1
+                     ORDER BY bp.date_obtention DESC`,
+                    [organizationId]
+                );
 
-                    // Activity details if provided
-                    activity_id ? pool.query(
-                        `SELECT id, name, description,
-                                activity_start_date::text as activity_start_date,
-                                activity_end_date::text as activity_end_date,
-                                activity_start_time::text as activity_start_time,
-                                activity_end_time::text as activity_end_time,
-                                meeting_location_going
-                         FROM activities
-                         WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
-                        [activity_id, organizationId]
-                    ) : Promise.resolve({ rows: [] }),
+                const activityResult = activity_id ? await client.query(
+                    `SELECT id, name, description,
+                            activity_start_date::text as activity_start_date,
+                            activity_end_date::text as activity_end_date,
+                            activity_start_time::text as activity_start_time,
+                            activity_end_time::text as activity_end_time,
+                            meeting_location_going
+                     FROM activities
+                     WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
+                    [activity_id, organizationId]
+                ) : { rows: [] };
 
-                    // Carpool offers for the activity
-                    activity_id ? pool.query(
-                        `SELECT co.id, co.activity_id, co.user_id, co.vehicle_make,
-                                co.vehicle_color, co.available_seats, co.trip_direction,
-                                co.departure_location, co.return_location, co.notes,
-                                co.is_active, co.created_at,
-                                u.full_name as driver_name, u.email as driver_email
-                         FROM carpool_offers co
-                         JOIN users u ON co.user_id = u.id
-                         WHERE co.activity_id = $1 AND co.is_active = TRUE
-                         ORDER BY co.created_at`,
-                        [activity_id]
-                    ) : Promise.resolve({ rows: [] }),
+                const carpoolOffersResult = activity_id ? await client.query(
+                    `SELECT co.id, co.activity_id, co.user_id, co.vehicle_make,
+                            co.vehicle_color, co.total_seats_available, co.trip_direction,
+                            co.notes, co.is_active, co.created_at,
+                            u.full_name as driver_name, u.email as driver_email
+                     FROM carpool_offers co
+                     JOIN users u ON co.user_id = u.id
+                     WHERE co.activity_id = $1 AND co.is_active = TRUE
+                     ORDER BY co.created_at`,
+                    [activity_id]
+                ) : { rows: [] };
 
-                    // Carpool assignments for the activity
-                    activity_id ? pool.query(
-                        `SELECT ca.id, ca.carpool_offer_id, ca.participant_id,
-                                ca.trip_direction, ca.created_at,
-                                p.first_name, p.last_name
-                         FROM carpool_assignments ca
-                         JOIN carpool_offers co ON ca.carpool_offer_id = co.id
-                         JOIN participants p ON ca.participant_id = p.id
-                         WHERE co.activity_id = $1 AND co.is_active = TRUE
-                         ORDER BY ca.created_at`,
-                        [activity_id]
-                    ) : Promise.resolve({ rows: [] })
-                ]);
+                const carpoolAssignmentsResult = activity_id ? await client.query(
+                    `SELECT ca.id, ca.carpool_offer_id, ca.participant_id,
+                            ca.trip_direction, ca.created_at,
+                            p.first_name, p.last_name
+                     FROM carpool_assignments ca
+                     JOIN carpool_offers co ON ca.carpool_offer_id = co.id
+                     JOIN participants p ON ca.participant_id = p.id
+                     WHERE co.activity_id = $1 AND co.is_active = TRUE
+                     ORDER BY ca.created_at`,
+                    [activity_id]
+                ) : { rows: [] };
 
                 // Organize attendance by date
                 const attendanceByDate = {};
@@ -261,7 +243,7 @@ module.exports = (pool, logger) => {
                         distributions: medicationDistributionsResult.rows
                     },
                     badges: {
-                        settings: badgeSettingsResult.rows,
+                        templates: badgeTemplatesResult.rows,
                         progress: badgeProgressResult.rows
                     },
                     carpools: {
@@ -281,8 +263,10 @@ module.exports = (pool, logger) => {
 
                 return success(res, responseData, 'Offline data prepared successfully');
             } catch (err) {
-                logger.error('[offline] Error preparing offline data:', err);
-                throw err;
+                logger.error('[offline] Error preparing offline data:', err.message, err.stack);
+                return error(res, `Preparation failed: ${err.message}`, 500);
+            } finally {
+                client.release();
             }
         })
     );

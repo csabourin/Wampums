@@ -96,9 +96,56 @@ export class Attendance {
         // Handle both new format (with data wrapper) and direct format
         const data = cachedData.data || cachedData;
         this.participants = normalizeParticipantList(data.participants);
-        this.attendanceData = data.attendanceData;
         this.guests = data.guests || [];
-        this.groups = data.groups || [];
+
+        // Convert attendanceData: camp prep stores array of {participant_id, attendance_status},
+        // but the page expects a map {participant_id: status}
+        if (Array.isArray(data.attendanceData)) {
+          this.attendanceData = {};
+          data.attendanceData.forEach((record) => {
+            if (record.participant_id && record.attendance_status) {
+              this.attendanceData[record.participant_id] = record.attendance_status;
+            }
+          });
+        } else {
+          this.attendanceData = data.attendanceData || {};
+        }
+
+        // Check if groups already have participants (fetchData cache) or are raw (camp prep cache)
+        if (Array.isArray(data.groups) && data.groups.length > 0 && !data.groups[0]?.participants) {
+          // Raw groups from camp prep - build grouped structure from participants
+          this.groups = this.participants.reduce((acc, participant) => {
+            if (!acc[participant.group_id]) {
+              acc[participant.group_id] = {
+                id: participant.group_id,
+                name: participant.group_name,
+                participants: [],
+              };
+            }
+            acc[participant.group_id].participants.push(participant);
+            return acc;
+          }, {});
+
+          Object.values(this.groups).forEach((group) => {
+            group.participants.sort((a, b) => {
+              if (a.first_leader && !b.first_leader) return -1;
+              if (!a.first_leader && b.first_leader) return 1;
+              if (a.second_leader && !b.second_leader) return 1;
+              if (!a.second_leader && b.second_leader) return -1;
+              return a.first_name.localeCompare(b.first_name);
+            });
+          });
+
+          this.groups = Object.entries(this.groups)
+            .map(([id, group]) => ({ id, ...group }))
+            .sort((a, b) => {
+              if (!a.name) return 1;
+              if (!b.name) return -1;
+              return a.name.localeCompare(b.name);
+            });
+        } else {
+          this.groups = data.groups || [];
+        }
 
         // If in camp mode, also update available dates from cached data
         if (offlineManager.campMode && data.availableDates) {
@@ -284,9 +331,33 @@ export class Attendance {
   }
 
   /**
-   * Auto carry forward attendance from previous day in camp mode
+   * Extract attendance as a map from cache data, handling both formats:
+   * - Camp prep format: array of {participant_id, attendance_status}
+   * - Normal format: map of {participant_id: status}
+   */
+  extractAttendanceMap(cacheEntry) {
+    const data = cacheEntry.data || cacheEntry;
+    let attendance = data.attendanceData || {};
+
+    // Camp prep stores attendance as array - convert to map
+    if (Array.isArray(attendance)) {
+      const converted = {};
+      attendance.forEach(record => {
+        if (record.participant_id && record.attendance_status) {
+          converted[record.participant_id] = record.attendance_status;
+        }
+      });
+      return converted;
+    }
+
+    return attendance;
+  }
+
+  /**
+   * Auto carry forward attendance in camp mode.
    * When viewing day 2+ of a camp and no attendance exists for current date,
-   * automatically inherit present/late statuses from the previous day
+   * walks backwards through prepared dates to find the most recent day with
+   * attendance data and carries forward present/late statuses.
    */
   async autoCarryForwardInCampMode() {
     // Only apply in camp mode
@@ -310,29 +381,46 @@ export class Attendance {
       return;
     }
 
-    // Find previous day in the prepared dates
+    // Find current day's index in the prepared dates
     const dateIndex = preparedActivity.dates.indexOf(this.currentDate);
     if (dateIndex <= 0) {
       debugLog("No previous day to carry forward from (this is day 1 of camp)");
       return;
     }
 
-    const previousDate = preparedActivity.dates[dateIndex - 1];
-    debugLog("Camp mode: Attempting to carry forward from", previousDate, "to", this.currentDate);
+    // Walk backwards through prepared dates to find one with actual attendance
+    let sourceDate = null;
+    let sourceAttendance = null;
 
-    // Try to get previous day's attendance from cache
-    const previousDayCache = await getCachedData(`attendance_${previousDate}`);
-    if (!previousDayCache) {
-      debugLog("No cached attendance data for previous day", previousDate);
+    for (let i = dateIndex - 1; i >= 0; i--) {
+      const candidateDate = preparedActivity.dates[i];
+      const cache = await getCachedData(`attendance_${candidateDate}`);
+      if (!cache) continue;
+
+      const attendance = this.extractAttendanceMap(cache);
+
+      // Check if this date has any real attendance data
+      const hasData = Object.values(attendance).some(
+        status => status === 'present' || status === 'late' || status === 'absent' || status === 'excused'
+      );
+
+      if (hasData) {
+        sourceDate = candidateDate;
+        sourceAttendance = attendance;
+        break;
+      }
+    }
+
+    if (!sourceDate || !sourceAttendance) {
+      debugLog("No previous day with attendance data found in camp dates");
       return;
     }
 
-    const previousData = previousDayCache.data || previousDayCache;
-    const previousAttendance = previousData.attendanceData || {};
+    debugLog("Camp mode: Carrying forward from", sourceDate, "to", this.currentDate);
 
     // Only carry forward present/late statuses (not absent/excused)
     const toCarryForward = {};
-    for (const [participantId, status] of Object.entries(previousAttendance)) {
+    for (const [participantId, status] of Object.entries(sourceAttendance)) {
       if (status === 'present' || status === 'late') {
         toCarryForward[participantId] = status;
       }
@@ -340,7 +428,7 @@ export class Attendance {
 
     const carryCount = Object.keys(toCarryForward).length;
     if (carryCount === 0) {
-      debugLog("No present/late statuses to carry forward");
+      debugLog("No present/late statuses to carry forward from", sourceDate);
       return;
     }
 
@@ -349,13 +437,13 @@ export class Attendance {
 
     // Show info message
     this.app.showMessage(
-      translate("attendance_carried_forward").replace("{{count}}", carryCount).replace("{{date}}", formatDate(previousDate, this.app.lang)),
+      translate("attendance_carried_forward").replace("{{count}}", carryCount).replace("{{date}}", formatDate(sourceDate, this.app.lang)),
       "info"
     );
 
-    debugLog(`Camp mode: Carried forward ${carryCount} attendance records from ${previousDate}`);
+    debugLog(`Camp mode: Carried forward ${carryCount} attendance records from ${sourceDate}`);
 
-    // Update cache with carried forward data
+    // Update cache with carried forward data (in map format so future reads work)
     await setCachedData(
       `attendance_${this.currentDate}`,
       {
@@ -378,7 +466,7 @@ export class Attendance {
             "x-organization-id": getCurrentOrganizationId(),
           },
           body: JSON.stringify({
-            fromDate: previousDate,
+            fromDate: sourceDate,
             toDate: this.currentDate
           }),
         });
@@ -940,16 +1028,25 @@ export class Attendance {
   async changeDate(newDate) {
     this.currentDate = newDate;
     debugLog(`Changing date to ${this.currentDate}`);
-    // Clear both UI-level and API-level caches to force fresh fetch
-    try {
-      await deleteCachedData(`attendance_${this.currentDate}`);
-      await deleteCachedData(`attendance_api_${this.currentDate}`);
-      debugLog(`Cleared caches for attendance_${this.currentDate}`);
-    } catch (e) {
-      debugLog(`No cache to clear for attendance_${this.currentDate}`);
+
+    // In camp mode, preserve camp-prepared cache and use it
+    if (offlineManager.campMode && offlineManager.isDatePrepared(newDate)) {
+      debugLog(`Camp mode: Loading prepared data for ${newDate}`);
+      await this.preloadAttendanceData();
+      // Try carry-forward if no attendance exists for this date
+      await this.autoCarryForwardInCampMode();
+    } else {
+      // Normal mode: clear caches and fetch fresh
+      try {
+        await deleteCachedData(`attendance_${this.currentDate}`);
+        await deleteCachedData(`attendance_api_${this.currentDate}`);
+        debugLog(`Cleared caches for attendance_${this.currentDate}`);
+      } catch (e) {
+        debugLog(`No cache to clear for attendance_${this.currentDate}`);
+      }
+      await this.fetchData();
     }
-    // Fetch fresh data for the new date
-    await this.fetchData();
+
     // Re-render the entire view with new data
     this.render();
     // Re-attach event listeners

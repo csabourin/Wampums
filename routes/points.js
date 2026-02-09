@@ -225,6 +225,34 @@ module.exports = (pool, logger) => {
               });
             }
 
+            // Include current (unchanged) totals for skipped participants
+            // so the frontend can correct optimistic updates
+            if (skippedParticipants.length > 0) {
+              const skippedTotalsResult = await client.query(
+                `SELECT participant_id as id, COALESCE(SUM(value), 0) as total
+                 FROM points
+                 WHERE organization_id = $1 AND participant_id = ANY($2)
+                 GROUP BY participant_id`,
+                [organizationId, skippedParticipants]
+              );
+
+              const skippedWithTotals = new Set();
+              skippedTotalsResult.rows.forEach(row => {
+                memberTotals.push({
+                  id: row.id,
+                  totalPoints: parseInt(row.total)
+                });
+                skippedWithTotals.add(row.id);
+              });
+
+              // Include members with zero points who were skipped
+              skippedParticipants.forEach(id => {
+                if (!skippedWithTotals.has(id)) {
+                  memberTotals.push({ id, totalPoints: 0 });
+                }
+              });
+            }
+
             // Calculate new total for the group (group-level points only)
             const totalResult = await client.query(
               `SELECT COALESCE(SUM(value), 0) as total FROM points

@@ -630,7 +630,7 @@ export class OfflineManager {
                     success: true,
                     data: {
                         participants: bulkData.participants,
-                        attendanceData: this.transformAttendanceData(attendanceForDate, bulkData.participants),
+                        attendanceData: this.transformAttendanceData(attendanceForDate, bulkData.participants, date),
                         guests: [],
                         groups: bulkData.groups,
                         currentDate: date,
@@ -664,9 +664,9 @@ export class OfflineManager {
 
             // Step 6: Cache badges
             this.updatePreparationProgress(6, this.getTranslation('offline.cachingBadges'));
-            await this.cacheData('badge_dashboard_settings', { success: true, data: { templates: bulkData.badges.settings } }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData('badge_dashboard_settings', { success: true, data: { templates: bulkData.badges.templates } }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData('badge_dashboard_badges', { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/badges/settings`, { success: true, data: bulkData.badges.settings }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/badges/settings`, { success: true, data: bulkData.badges.templates }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/badges/summary`, { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
 
             // Step 7: Cache carpools (if activity has carpool data)
@@ -729,7 +729,7 @@ export class OfflineManager {
     /**
      * Transform attendance data to the format expected by the attendance module
      */
-    transformAttendanceData(attendanceRows, participants) {
+    transformAttendanceData(attendanceRows, participants, date) {
         const attendanceMap = new Map();
         for (const row of attendanceRows) {
             attendanceMap.set(row.participant_id, row.status);
@@ -742,7 +742,7 @@ export class OfflineManager {
             group_id: p.group_id,
             group_name: p.group_name,
             attendance_status: attendanceMap.get(p.id) || null,
-            date: null
+            date: date || null
         }));
     }
 

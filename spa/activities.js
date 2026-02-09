@@ -285,10 +285,10 @@ export class Activities {
         setButtonLoading(button, true);
         try {
           await offlineManager.prepareForActivity(activityId, startDate, endDate);
-          this.app.showMessage(translate('preparation_complete'), 'success');
+          this.app.showMessage('preparation_complete', 'success');
         } catch (error) {
           debugError('Failed to prepare for offline:', error);
-          this.app.showMessage(translate('preparation_failed'), 'error');
+          this.app.showMessage('preparation_failed', 'error');
         } finally {
           setButtonLoading(button, false);
         }
