@@ -138,6 +138,22 @@ export function skeletonListItem() {
 }
 
 /**
+ * Generate a skeleton list item
+ * @returns {string} HTML for a skeleton list item
+ */
+export function skeletonList() {
+  return `
+    <div class="skeleton-list-item" style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+      ${skeletonAvatar()}
+      <div style="flex: 1;">
+        ${skeletonText('wide')}
+        ${skeletonText('short')}
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Generate multiple skeleton list items
  * @param {number} count - Number of list items to generate
  * @returns {string} HTML for multiple skeleton list items

@@ -41,11 +41,11 @@ exports.authenticate = (req, res, next) => {
     // Attach user info to request
     req.user = {
       id: decoded.user_id,
-      role: decoded.user_role, // Legacy: kept for backward compatibility
+      role: decoded.user_role || decoded.role, // Legacy: kept for backward compatibility
       roleIds: decoded.roleIds || [], // New: array of role IDs
       roleNames: decoded.roleNames || [], // New: array of role names
       permissions: decoded.permissions || [], // New: array of permission keys
-      organizationId: decoded.organizationId
+      organizationId: decoded.organizationId || decoded.organization_id
     };
 
     next();
@@ -133,34 +133,57 @@ exports.optionalAuth = (req, res, next) => {
  * Get organization ID from request (header or user context)
  */
 exports.getOrganizationId = async (req, pool) => {
-  // Try header first
-  if (req.headers['x-organization-id']) {
-    return parseInt(req.headers['x-organization-id'], 10);
+  const parseOrgId = (value) => {
+    if (value === undefined || value === null || value === '') return null;
+    const parsed = parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const headerOrgId = parseOrgId(req.headers['x-organization-id']);
+  const queryOrgId = parseOrgId(req.query?.organization_id);
+  const bodyOrgId = parseOrgId(req.body?.organization_id);
+  const tokenOrgId = parseOrgId(req.user?.organizationId);
+
+  // If authenticated, prefer the organization in the JWT (server-issued)
+  if (tokenOrgId) {
+    if (headerOrgId && headerOrgId !== tokenOrgId) {
+      logger.warn(
+        `Ignoring x-organization-id header override for authenticated request. Header=${headerOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+      );
+    }
+    if (queryOrgId && queryOrgId !== tokenOrgId) {
+      logger.warn(
+        `Ignoring organization_id query override for authenticated request. Query=${queryOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+      );
+    }
+    if (bodyOrgId && bodyOrgId !== tokenOrgId) {
+      logger.warn(
+        `Ignoring organization_id body override for authenticated request. Body=${bodyOrgId}, Token=${tokenOrgId}, Path=${req.method} ${req.path}, User=${req.user?.id}`,
+      );
+    }
+    return tokenOrgId;
+  }
+
+  // Try header when unauthenticated (public endpoints)
+  if (headerOrgId) {
+    return headerOrgId;
   }
 
   // Fallback to explicit query parameter (used by some API consumers)
-  if (req.query?.organization_id) {
-    const parsed = parseInt(req.query.organization_id, 10);
-    if (!Number.isNaN(parsed)) {
-      return parsed;
-    }
+  if (queryOrgId) {
+    return queryOrgId;
   }
 
   // Fallback to request body when passed directly
-  if (req.body?.organization_id) {
-    const parsed = parseInt(req.body.organization_id, 10);
-    if (!Number.isNaN(parsed)) {
-      return parsed;
-    }
-  }
-
-  // Try from authenticated user
-  if (req.user && req.user.organizationId) {
-    return req.user.organizationId;
+  if (bodyOrgId) {
+    return bodyOrgId;
   }
 
   // Try from hostname mapping
   const hostname = req.hostname;
+  if (!pool) {
+    throw new OrganizationNotFoundError('Organization mapping not found for request');
+  }
   try {
     const result = await pool.query(
       'SELECT organization_id FROM organization_domains WHERE domain = $1',

@@ -2,12 +2,19 @@
 // Helper utilities for API operations
 import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
+import { getOrganizationIdFromJWT } from "../jwt-helper.js";
 
 /**
  * Get current organization ID from localStorage
  * Handles various storage formats
  */
 export function getCurrentOrganizationId() {
+    // Prefer organization ID from JWT when available (server-issued source of truth)
+    const tokenOrgId = getOrganizationIdFromJWT();
+    if (tokenOrgId) {
+        return tokenOrgId;
+    }
+
     // Try both storage keys
     let orgId = localStorage.getItem('organizationId') ||
                 localStorage.getItem('currentOrganizationId');

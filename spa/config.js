@@ -292,7 +292,7 @@ export const CONFIG = {
      */
     SERVICE_WORKER: {
         ENABLED: "serviceWorker" in navigator,
-        PATH: "/sw.js",
+        PATH: "/src-sw.js",
     },
 };
 

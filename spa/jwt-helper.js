@@ -95,7 +95,7 @@ export function getOrganizationIdFromJWT() {
 	if (!jwt) return null;
 
 	const payload = decodeJWT(jwt);
-	return payload?.organizationId || null;
+	return payload?.organizationId || payload?.organization_id || null;
 }
 
 /**

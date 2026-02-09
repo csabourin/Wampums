@@ -15,7 +15,7 @@ const upload = multer({
 
 // Middleware to build user context
 const buildUserContext = async (req) => {
-    const organizationId = await getOrganizationId(req, null); // passing null for pool as it might not be needed by getOrganizationId depending on implementation, checking that later
+    const organizationId = await getOrganizationId(req, req.app?.locals?.pool || null);
     return {
         userId: req.user.id,
         organizationId: organizationId || null
@@ -37,10 +37,7 @@ router.post(
         }
 
         try {
-            const userContext = {
-                userId: req.user.id,
-                organizationId: req.headers['x-organization-id'] || null // Simplified for now, usually getOrganizationId middleware handles this
-            };
+            const userContext = await buildUserContext(req);
 
             const result = await generateText(mode, payload, userContext);
 
@@ -90,10 +87,7 @@ router.post(
         }
 
         try {
-            const userContext = {
-                userId: req.user.id,
-                organizationId: req.headers['x-organization-id'] || null
-            };
+            const userContext = await buildUserContext(req);
 
             const result = await parseReceipt(req.file.buffer, req.file.originalname, userContext);
             const budgetStatus = await getBudgetStatus();

@@ -34,6 +34,12 @@ class PWAUpdateManager {
     async init() {
         if (this.initialized) return;
 
+        if (import.meta.env?.DEV) {
+            debugInfo("PWA Update Manager disabled in development mode");
+            this.initialized = true;
+            return;
+        }
+
         if (!("serviceWorker" in navigator)) {
             debugLog("Service Worker not supported");
             return;
@@ -42,6 +48,11 @@ class PWAUpdateManager {
         try {
             // Get service worker registration
             this.registration = await navigator.serviceWorker.ready;
+
+            if (!this.shouldManageRegistration(this.registration)) {
+                this.initialized = true;
+                return;
+            }
 
             // Set up update listeners
             this.setupUpdateListeners();
@@ -60,6 +71,40 @@ class PWAUpdateManager {
         } catch (error) {
             debugError("Failed to initialize PWA Update Manager:", error);
         }
+    }
+
+    /**
+     * Confirm this registration matches the expected service worker script.
+     * Skips update checks when a stale or mismatched SW is present.
+     * @param {ServiceWorkerRegistration} registration
+     * @returns {boolean}
+     */
+    shouldManageRegistration(registration) {
+        if (!registration) return false;
+
+        const expectedPath = CONFIG.SERVICE_WORKER?.PATH;
+        if (!expectedPath) return true;
+
+        const scriptUrl =
+            registration.active?.scriptURL ||
+            registration.waiting?.scriptURL ||
+            registration.installing?.scriptURL;
+
+        if (!scriptUrl) return true;
+
+        try {
+            const scriptPath = new URL(scriptUrl).pathname;
+            if (scriptPath === expectedPath) return true;
+        } catch (error) {
+            // Fall back to a string check when URL parsing fails.
+            if (scriptUrl.endsWith(expectedPath)) return true;
+        }
+
+        debugWarn(
+            "Skipping PWA Update Manager due to unexpected service worker script",
+            { scriptUrl, expectedPath },
+        );
+        return false;
     }
 
     /**
