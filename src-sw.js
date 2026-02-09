@@ -145,6 +145,15 @@ function isStorageAccessError(error) {
   );
 }
 
+function isAuthEndpoint(url) {
+  const pathname = url?.pathname || '';
+  return (
+    pathname.startsWith('/public/login') ||
+    pathname.startsWith('/public/verify-2fa') ||
+    pathname.startsWith('/api/auth/')
+  );
+}
+
 function openIndexedDB() {
   if (indexedDBBlocked || !self.indexedDB) {
     return Promise.reject(new Error('IndexedDB unavailable'));
@@ -481,6 +490,10 @@ async function deletePendingMutation(id) {
 self.addEventListener('fetch', (event) => {
   const method = event.request.method;
   if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
+    const url = new URL(event.request.url);
+    if (isAuthEndpoint(url)) {
+      return;
+    }
     event.respondWith(handleMutation(event.request));
   }
 });
@@ -556,6 +569,12 @@ async function syncData() {
 
     for (const mutation of pendingMutations) {
       try {
+        const mutationUrl = new URL(mutation.url);
+        if (isAuthEndpoint(mutationUrl)) {
+          debugLog('Dropping auth mutation from sync queue:', mutation.id);
+          await deletePendingMutation(mutation.id);
+          continue;
+        }
         debugLog('Syncing mutation:', mutation);
 
         const response = await fetch(mutation.url, {
