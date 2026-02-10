@@ -179,8 +179,14 @@ export class PermissionSlipDashboard {
     }).sort((a, b) => new Date(getActivityStartDate(b)) - new Date(getActivityStartDate(a)));
 
     // Activities with pending slips at the top
-    const activitiesWithPending = upcomingActivities.filter(a => (a.pending_slip_count || 0) > 0);
-    const otherUpcoming = upcomingActivities.filter(a => (a.pending_slip_count || 0) === 0);
+    const activitiesWithPending = upcomingActivities.filter(a => {
+      const pendingCount = parseInt(a.pending_slip_count, 10) || 0;
+      return pendingCount > 0;
+    });
+    const otherUpcoming = upcomingActivities.filter(a => {
+      const pendingCount = parseInt(a.pending_slip_count, 10) || 0;
+      return pendingCount === 0;
+    });
 
     setContent(container, `
       <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
@@ -239,9 +245,9 @@ export class PermissionSlipDashboard {
   }
 
   renderActivityCard(activity, isPending) {
-    const totalSlips = (activity.pending_slip_count || 0) + (activity.signed_slip_count || 0);
-    const signedCount = activity.signed_slip_count || 0;
-    const pendingCount = activity.pending_slip_count || 0;
+    const signedCount = parseInt(activity.signed_slip_count, 10) || 0;
+    const pendingCount = parseInt(activity.pending_slip_count, 10) || 0;
+    const totalSlips = signedCount + pendingCount;
 
     return `
       <a href="/permission-slips/${activity.id}" class="activity-card ${isPending ? 'has-pending' : ''}" style="
