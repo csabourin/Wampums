@@ -470,9 +470,16 @@ export class ParentDashboard {
                 </a>
         `;
 
-                debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge and progress: ${(formButtons + badgeButton + progressReportButton).length}`);
+                const medicationButton = `
+                <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
+                        <span class="form-btn__icon">💊</span>
+                        <span class="form-btn__label">${translate('manage_medications')}</span>
+                </a>
+        `;
 
-                return formButtons + badgeButton + progressReportButton;
+                debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + medicationButton).length}`);
+
+                return formButtons + badgeButton + progressReportButton + medicationButton;
         }
 
         renderPermissionSlipSection(participant) {

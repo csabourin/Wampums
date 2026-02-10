@@ -151,6 +151,7 @@ const routes = {
   "/material-management": "materialManagement",
   "/medication-management": "medicationPlanning",
   "/medication-planning": "medicationPlanning",
+  "/medication-planning/:id": "medicationPlanningParticipant",
   "/medication-dispensing": "medicationDispensing",
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slips/:id": "permissionSlipDashboardActivity",
@@ -346,6 +347,18 @@ export class Router {
             enableAlerts: routeName === "medicationDispensing"
           });
           await medicationManagement.init();
+          break;
+        case "medicationPlanningParticipant":
+          if (!guard(isParent() || canViewAttendance() || canViewParticipants())) {
+            break;
+          }
+          const MedicationManagementParticipant = await this.loadModule('MedicationManagement');
+          const participantId = parseInt(param);
+          const medicationManagementParticipant = new MedicationManagementParticipant(this.app, {
+            view: "planning",
+            participantId: participantId
+          });
+          await medicationManagementParticipant.init();
           break;
         case "materialManagement":
           if (!guard(canManageInventory() || canViewInventory())) {

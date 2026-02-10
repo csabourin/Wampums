@@ -31,6 +31,7 @@ export class MedicationManagement {
     this.ficheMedications = [];
     this.view = options.view || "planning";
     this.enableAlerts = options.enableAlerts ?? this.view === "dispensing";
+    this.participantId = options.participantId || null;
     this.alertInterval = null;
     this.alertWindowMinutes = 90;
     this.alertLookbackMinutes = 30;
@@ -78,6 +79,9 @@ export class MedicationManagement {
         this.participantMedications = []; // Will be derived from requirements
         this.ficheMedications = [];
 
+        // Filter data if participantId is specified (parent view)
+        this.filterDataByParticipant();
+
         debugLog('Loaded from cache:', {
           requirements: this.requirements.length,
           distributions: this.distributions.length,
@@ -109,6 +113,33 @@ export class MedicationManagement {
       || [];
     this.distributions = distributionsResponse?.data?.distributions || distributionsResponse?.distributions || [];
     this.ficheMedications = ficheMedicationsResponse?.data?.medications || ficheMedicationsResponse?.medications || [];
+
+    // Filter data if participantId is specified (parent view)
+    this.filterDataByParticipant();
+  }
+
+  /**
+   * Filter all data to show only the specified participant's medications
+   */
+  filterDataByParticipant() {
+    if (!this.participantId) {
+      return;
+    }
+
+    // Filter participants to only the selected one
+    this.participants = this.participants.filter(p => p.id === this.participantId);
+
+    // Filter participantMedications to only assignments for this participant
+    this.participantMedications = this.participantMedications.filter(pm => pm.participant_id === this.participantId);
+
+    // Get the requirement IDs for this participant
+    const requirementIds = this.participantMedications.map(pm => pm.medication_requirement_id);
+
+    // Filter requirements to only those assigned to this participant
+    this.requirements = this.requirements.filter(req => requirementIds.includes(req.id));
+
+    // Filter distributions to only this participant
+    this.distributions = this.distributions.filter(dist => dist.participant_id === this.participantId);
   }
 
   registerOfflineListener() {
@@ -823,15 +854,25 @@ export class MedicationManagement {
     const pageDescription = this.view === "dispensing"
       ? translate("medication_dispensing_description")
       : translate("medication_planning_description");
-    const switchLink = this.view === "dispensing"
-      ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
-      : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
+
+    // Hide switch link for parents (they should only see planning view)
+    const switchLink = this.participantId
+      ? ''
+      : this.view === "dispensing"
+        ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
+        : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
+
+    // Back button goes to parent dashboard when viewing a specific participant
+    const backUrl = this.participantId ? '/parent-dashboard' : '/dashboard';
+    const participantName = this.participantId && this.participants.length > 0
+      ? ` - ${escapeHTML(this.participants[0].first_name)} ${escapeHTML(this.participants[0].last_name)}`
+      : '';
 
     setContent(container, `
-      <a href="/dashboard" class="button button--ghost">← ${translate("back")}</a>
+      <a href="${backUrl}" class="button button--ghost">← ${translate("back")}</a>
       <section class="page medication-page">
         <div class="card">
-          <h1>${escapeHTML(pageTitle)}</h1>
+          <h1>${escapeHTML(pageTitle)}${participantName}</h1>
           <p class="subtitle">${escapeHTML(pageDescription)}</p>
           ${this.view === "dispensing" ? `<div class="pill">${escapeHTML(translate("medication_management_alert_window_hint"))}</div>` : ""}
           ${switchLink}
@@ -852,6 +893,28 @@ export class MedicationManagement {
     const suggestionList = medicationSuggestions
       ? `<datalist id="ficheMedicationsList">${medicationSuggestions}</datalist>`
       : "";
+
+    // When participantId is set (parent view), hide the participant selector and auto-populate it
+    const participantSelectorHtml = this.participantId
+      ? `
+        <input type="hidden" name="participant_id" value="${this.participantId}" />
+        <div class="field-group" style="grid-column: 1 / -1;">
+          <span>${escapeHTML(translate("participants"))}</span>
+          <p style="padding: 0.5rem; background: #f3f4f6; border-radius: 8px; margin: 0;">
+            ${escapeHTML(this.participants[0]?.first_name || '')} ${escapeHTML(this.participants[0]?.last_name || '')}
+          </p>
+        </div>
+      `
+      : `
+        <label class="field-group" style="grid-column: 1 / -1;">
+          <span>${escapeHTML(translate("medication_assign_participants"))}</span>
+          <select name="participant_id" id="requirementParticipantSelect" required>
+            <option value="">${escapeHTML(translate("select_option"))}</option>
+            ${participantOptions}
+          </select>
+          <p class="help-text">${escapeHTML(translate("medication_requirement_single_participant_hint"))}</p>
+        </label>
+      `;
 
     return `
       <div class="card">
@@ -904,14 +967,7 @@ export class MedicationManagement {
             <input type="date" name="end_date" />
             <p class="help-text">${escapeHTML(translate("medication_end_date_hint"))}</p>
           </label>
-          <label class="field-group" style="grid-column: 1 / -1;">
-            <span>${escapeHTML(translate("medication_assign_participants"))}</span>
-            <select name="participant_id" id="requirementParticipantSelect" required>
-              <option value="">${escapeHTML(translate("select_option"))}</option>
-              ${participantOptions}
-            </select>
-            <p class="help-text">${escapeHTML(translate("medication_requirement_single_participant_hint"))}</p>
-          </label>
+          ${participantSelectorHtml}
           <button class="btn primary" type="submit">${escapeHTML(translate("medication_save_requirement"))}</button>
         </form>
       </div>
