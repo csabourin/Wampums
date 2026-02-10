@@ -21,6 +21,7 @@ export class OfflineIndicator {
         this.isOffline = !navigator.onLine;
         this.isSyncing = false;
         this.isCampMode = offlineManager?.campMode || false;
+        this.abortController = null;
     }
 
     /**
@@ -28,47 +29,53 @@ export class OfflineIndicator {
      */
     init() {
         debugLog('OfflineIndicator: Initializing');
+
+        // Abort any previous listeners to prevent duplicates on re-init
+        this.abortController?.abort();
+        this.abortController = new AbortController();
+        const { signal } = this.abortController;
+
         this.injectStyles();
         this.createIndicator();
         this.updateDisplay();
-        
+
         // Listen for OfflineManager events
         window.addEventListener('offlineStatusChanged', (e) => {
             debugLog('OfflineIndicator: Received offlineStatusChanged event', e.detail);
             this.isOffline = e.detail.isOffline;
             this.updateDisplay();
-        });
+        }, { signal });
 
         window.addEventListener('pendingCountChanged', (e) => {
             debugLog('OfflineIndicator: Received pendingCountChanged event', e.detail);
             this.pendingCount = e.detail.count;
             this.updateDisplay();
-        });
+        }, { signal });
 
         window.addEventListener('syncStatusChanged', (e) => {
             debugLog('OfflineIndicator: Received syncStatusChanged event', e.detail);
             this.isSyncing = e.detail.isSyncing;
             this.updateDisplay();
-        });
+        }, { signal });
 
         window.addEventListener('campModeChanged', (e) => {
             debugLog('OfflineIndicator: Received campModeChanged event', e.detail);
             this.isCampMode = e.detail.enabled;
             this.updateDisplay();
-        });
+        }, { signal });
 
         // Listen for native online/offline events as fallback
         window.addEventListener('online', () => {
             debugLog('OfflineIndicator: Browser online event');
             this.isOffline = false;
             this.updateDisplay();
-        });
+        }, { signal });
 
         window.addEventListener('offline', () => {
             debugLog('OfflineIndicator: Browser offline event');
             this.isOffline = true;
             this.updateDisplay();
-        });
+        }, { signal });
     }
 
     /**
@@ -339,6 +346,8 @@ export class OfflineIndicator {
      * Destroy the indicator and clean up
      */
     destroy() {
+        this.abortController?.abort();
+        this.abortController = null;
         if (this.element && this.element.parentNode) {
             this.element.parentNode.removeChild(this.element);
         }
