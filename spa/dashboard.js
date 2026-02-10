@@ -267,6 +267,28 @@ export class Dashboard extends BaseModule {
     const showAdminPanel = canAccessAdminPanel();
     const showFormPermissions = canManageForms();
 
+    // Routes whose JS modules are pre-loaded during camp mode preparation.
+    // When offline, only tiles targeting these routes should be shown.
+    const offlineAvailableRoutes = new Set([
+      "/managePoints",
+      "/manageHonors",
+      "/attendance",
+      "/upcoming-meeting",
+      "/badge-tracker",
+      "/badge-dashboard",
+      "/activities",
+      "/medication-dispensing",
+      "/medication-planning",
+      "/medication-reception",
+      "/carpool",
+      "/manage-participants",
+      "/manage-groups",
+      "/offline-preparation",
+    ]);
+    const isOffline = !navigator.onLine;
+    const filterOffline = (tiles) =>
+      isOffline ? tiles.filter(t => offlineAvailableRoutes.has(t.href)) : tiles;
+
     // --- Helper for dynamic sorting by translated label ---
     const sortByLabel = (items) => {
       return items.slice().sort((a, b) => {
@@ -277,23 +299,23 @@ export class Dashboard extends BaseModule {
     };
 
     // --- Top Row (fixed order) ---
-    const topTiles = [
+    const topTiles = filterOffline([
       { href: "/managePoints", icon: "fa-coins", label: "manage_points" },
       { href: "/manageHonors", icon: "fa-award", label: "manage_honors" },
       { href: "/attendance", icon: "fa-clipboard-check", label: "attendance" },
       { href: "/upcoming-meeting", icon: "fa-calendar-day", label: "upcoming_meeting" },
-    ];
+    ]);
 
     // --- Day-to-Day ---
-    const dayToDayTiles = sortByLabel([
+    const dayToDayTiles = filterOffline(sortByLabel([
       { href: "/badge-tracker", icon: "fa-chart-bar", label: "badge_tracker_title" },
       { href: "/parent-contact-list", icon: "fa-address-book", label: "parent_contact_list" },
       { href: "/medication-dispensing", icon: "fa-pills", label: "medication_dispensing_link" },
       { href: "/parent-dashboard", icon: "fa-users", label: "vue_parents" },
-    ]);
+    ]));
 
     // --- Planning & Activities ---
-    const planningTiles = sortByLabel([
+    const planningTiles = filterOffline(sortByLabel([
       { href: "/activities", icon: "fa-calendar-days", label: "activities_calendar" },
       { href: "/carpool", icon: "fa-car", label: "carpool_coordination", id: "carpool-quick-access" },
       { href: "/preparation-reunions", icon: "fa-clipboard-list", label: "preparation_reunions" },
@@ -303,28 +325,28 @@ export class Dashboard extends BaseModule {
       { href: "/medication-planning", icon: "fa-pills", label: "medication_planning_link" },
       { href: "/medication-reception", icon: "fa-hospital", label: "med_reception_link" },
       { href: "/permission-slips", icon: "fa-file-signature", label: "manage_permission_slips" },
-    ]);
+    ]));
 
     // --- Unit Management ---
-    const unitTiles = sortByLabel([
+    const unitTiles = filterOffline(sortByLabel([
       hasPermission("participants.view") && { href: "/manage-participants", icon: "fa-id-card", label: "manage_names" },
       hasPermission("groups.view") && { href: "/manage-groups", icon: "fa-people-group", label: "manage_groups" },
       hasPermission("users.view") && { href: "/manage-users-participants", icon: "fa-user-gear", label: "manage_users_participants" },
       showReports && { href: "/reports", icon: "fa-chart-line", label: "reports" },
       showReports && { href: "/group-participant-report", icon: "fa-table-list", label: "feuille_participants" },
-    ].filter(Boolean));
+    ].filter(Boolean)));
 
     // --- District & System Management ---
-    const districtTiles = sortByLabel([
+    const districtTiles = filterOffline(sortByLabel([
       showRoleManagement && { href: "/role-management", icon: "fa-user-tag", label: "role_management" },
       showRoleManagement && { href: "/district-management", icon: "fa-sitemap", label: "district_management_title" },
       showFormPermissions && { href: "/form-permissions", icon: "fa-clipboard-check", label: "form_permissions" },
       showOrgCreation && { href: "/create-organization", icon: "fa-building", label: "create_unit" },
       showAdminPanel && { href: "/admin", icon: "fa-user-shield", label: "administration", id: "admin-link" },
-    ].filter(Boolean));
+    ].filter(Boolean)));
 
     // --- Finance & Fundraising ---
-    const financeTiles = showFinanceSection
+    const financeTiles = filterOffline(showFinanceSection
       ? sortByLabel([
           hasPermission("finance.view") && { href: "/finance", icon: "fa-coins", label: "finance_memberships_tab" },
           hasPermission("finance.view") && { href: "/finance?tab=definitions", icon: "fa-file-invoice-dollar", label: "finance_definitions_tab" },
@@ -335,13 +357,13 @@ export class Dashboard extends BaseModule {
           hasPermission("fundraisers.view") && { href: "/fundraisers", icon: "fa-hand-holding-heart", label: "fundraisers" },
           hasPermission("budget.view") && { href: "/budgets", icon: "fa-sack-dollar", label: "budget_management" },
         ].filter(Boolean))
-      : [];
+      : []);
 
     // --- News & Communications ---
-    const newsCommsTiles = sortByLabel([
+    const newsCommsTiles = filterOffline(sortByLabel([
       hasPermission("communications.send") && { href: "/communications", icon: "fa-comments", label: "communications_title" },
       hasPermission("communications.send") && { href: "/mailing-list", icon: "fa-envelope-open-text", label: "mailing_list" },
-    ].filter(Boolean));
+    ].filter(Boolean)));
 
     // --- Helper to render a tile group ---
     const renderTileGroup = (titleKey, tiles) => {
@@ -540,6 +562,20 @@ export class Dashboard extends BaseModule {
 
     this.addEventListener(document.getElementById("refresh-news-btn"), "click", () => {
       this.loadNews(true);
+    });
+
+    // Re-render when connectivity changes so offline-unavailable tiles hide/show
+    this.addWindowEventListener("online", () => {
+      if (!this.isLoading) {
+        this.render();
+        this.attachEventListeners();
+      }
+    });
+    this.addWindowEventListener("offline", () => {
+      if (!this.isLoading) {
+        this.render();
+        this.attachEventListeners();
+      }
     });
 
     this.addEventListener(document.getElementById("carpool-quick-access"), "click", async (e) => {
