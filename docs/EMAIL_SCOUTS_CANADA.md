@@ -14,7 +14,7 @@ I'm reaching out because leaders spend too much of their volunteer time on admin
 ## What Wampums Covers
 
 ### Weekly Meeting Preparation
-- **AI-Assisted Meeting Plans** — Generate meeting plans with activities, responsible leaders, and required materials. Load previous meetings as templates. Built-in risk analysis for safety planning.
+- **AI-Assisted Meeting Plans** — Generate meeting plans with activities, responsible leaders, and required materials. Load previous meetings as templates.
 - **Upcoming Meeting View** — At-a-glance display of the next meeting with date, time, location, and assigned activities.
 - **Meeting Reminders** — Automatic parent reminders before each meeting.
 

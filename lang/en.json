@@ -1122,6 +1122,7 @@
   "of": "of",
   "offline_data_synced_successfully": "Offline data synced successfully",
   "offline_indicator": "Offline",
+  "offline_data_not_prepared": "This page requires offline preparation. Please prepare your data while online using the offline preparation feature.",
   "only_admins_can_link_participants": "Only district leads can link participants to other users",
   "operation_failed": "Operation Failed",
   "operation_success": "Operation Successful",

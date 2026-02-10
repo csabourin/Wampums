@@ -554,8 +554,8 @@ self.addEventListener('push', function (event) {
   const title = data.title || 'New Notification';
   const options = {
     body: data.body || 'You have a new message.',
-    icon: data.icon || '/assets/images/icon-192x192.png',
-    badge: '/assets/images/badge-128x128.png',
+    icon: data.icon || '/images/icon-192x192.png',
+    badge: '/images/badge-128x128.png',
     tag: data.tag || 'general',
   };
 

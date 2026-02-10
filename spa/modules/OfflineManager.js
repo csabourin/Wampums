@@ -622,6 +622,13 @@ export class OfflineManager {
             await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/participants`, { success: true, data: bulkData.participants }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/groups`, { success: true, data: bulkData.groups }, CACHE_DURATION.CAMP_MODE);
 
+            // Cache points-data in the format manage_points expects
+            await this.cacheData('manage_points_data', {
+                success: true,
+                groups: bulkData.groups,
+                participants: bulkData.participants
+            }, CACHE_DURATION.CAMP_MODE);
+
             // Step 3: Cache attendance for each date
             this.updatePreparationProgress(3, this.getTranslation('offline.cachingAttendance'));
             for (const date of dates) {

@@ -68,15 +68,15 @@ export class CarpoolDashboard {
 
   async loadData() {
     try {
-      // Check for camp mode cached data first
-      if (offlineManager.campMode) {
+      // Check for cached data first (camp mode or offline)
+      if (offlineManager.campMode || offlineManager.isOffline) {
         const cachedActivity = await getCachedData(`activity_${this.activityId}`);
         const cachedOffers = await getCachedData(`carpool_offers_activity_${this.activityId}`);
         const cachedAssignments = await getCachedData(`carpool_assignments_activity_${this.activityId}`);
         const cachedParticipants = await getCachedData('participants_v2');
 
         if (cachedActivity?.data && cachedOffers?.data && cachedParticipants?.data) {
-          debugLog('CarpoolDashboard: Using camp mode cached data');
+          debugLog('CarpoolDashboard: Using cached data');
           this.activity = cachedActivity.data;
 
           // Merge assignments into offers
@@ -105,7 +105,13 @@ export class CarpoolDashboard {
           }));
 
           this.participants = cachedParticipants.data;
-          this.unassignedParticipants = []; // Skip in camp mode (offline)
+          this.unassignedParticipants = []; // Skip when using cached data
+          return;
+        }
+
+        // Offline with no cached data available
+        if (offlineManager.isOffline) {
+          this.offlineNoData = true;
           return;
         }
       }
@@ -132,6 +138,19 @@ export class CarpoolDashboard {
     // Show loading skeleton while data is being fetched
     if (this.isLoading) {
       setContent(container, skeletonCarpoolDashboard());
+      return;
+    }
+
+    if (this.offlineNoData) {
+      setContent(container, `
+        <section class="page">
+          <a href="/dashboard" class="button button--ghost">← ${translate('back')}</a>
+          <div class="card" style="text-align:center; padding:2rem;">
+            <h2>${translate('offline_indicator')}</h2>
+            <p>${translate('offline_data_not_prepared')}</p>
+          </div>
+        </section>
+      `);
       return;
     }
 

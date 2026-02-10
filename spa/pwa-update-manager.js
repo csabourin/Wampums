@@ -133,9 +133,11 @@ class PWAUpdateManager {
                             this.updateAvailable = true;
                             this.showUpdatePrompt();
                         } else {
+                            // Same version but new bytes (bug fix) - silently activate
                             debugLog(
-                                "Service worker updated without version change; skipping prompt",
+                                "Service worker updated without version change; activating silently",
                             );
+                            newWorker.postMessage({ type: "SKIP_WAITING" });
                         }
                     }
                 });
@@ -527,12 +529,13 @@ class PWAUpdateManager {
     }
 
     /**
-     * Clear all caches (IndexedDB + Service Worker caches)
-     * This ensures a complete refresh when updating to a new version
+     * Clear runtime caches (IndexedDB + non-precache Service Worker caches)
+     * Preserves the Workbox precache so the SW can still serve the app shell offline.
+     * The new SW's activate handler will clean up outdated precache entries.
      */
     async clearAllCaches() {
         try {
-            debugLog("Clearing all caches for version update...");
+            debugLog("Clearing runtime caches for version update...");
 
             // 1. Clear IndexedDB completely
             try {
@@ -542,20 +545,32 @@ class PWAUpdateManager {
                 debugWarn("Failed to clear IndexedDB:", error);
             }
 
-            // 2. Clear all Service Worker caches
+            // 2. Clear runtime Service Worker caches (preserve Workbox precache)
             if ("caches" in window) {
                 try {
                     const cacheNames = await caches.keys();
-                    await Promise.all(
-                        cacheNames.map((cacheName) => caches.delete(cacheName)),
+                    const runtimeCaches = cacheNames.filter(
+                        (name) => !name.includes("precache"),
                     );
-                    debugLog("Service Worker caches cleared:", cacheNames);
+                    await Promise.all(
+                        runtimeCaches.map((cacheName) =>
+                            caches.delete(cacheName),
+                        ),
+                    );
+                    debugLog(
+                        "Runtime caches cleared:",
+                        runtimeCaches,
+                        "Preserved precache entries:",
+                        cacheNames.filter((name) =>
+                            name.includes("precache"),
+                        ),
+                    );
                 } catch (error) {
                     debugWarn("Failed to clear Service Worker caches:", error);
                 }
             }
 
-            debugLog("All caches cleared successfully");
+            debugLog("All runtime caches cleared successfully");
         } catch (error) {
             debugError("Error clearing caches:", error);
             // Don't throw - we still want to proceed with the update

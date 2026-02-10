@@ -10,7 +10,9 @@
       "Bash(nvm use:*)",
       "Bash(npx vite build:*)",
       "Bash(node -e:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

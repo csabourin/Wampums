@@ -80,21 +80,27 @@ module.exports = (pool, logger) => {
                 // Fetch all data sequentially on a single connection
                 const participantsResult = await client.query(
                     `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
-                            pg.group_id, g.name as group_name
+                            pg.group_id, g.name as group_name,
+                            COALESCE(SUM(pts.value), 0) AS total_points
                      FROM participants p
                      JOIN participant_organizations po ON p.id = po.participant_id
                      LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
                      LEFT JOIN groups g ON pg.group_id = g.id
+                     LEFT JOIN points pts ON p.id = pts.participant_id AND pts.organization_id = $1
                      WHERE po.organization_id = $1
+                     GROUP BY p.id, p.first_name, p.last_name, p.date_naissance, pg.group_id, g.name
                      ORDER BY p.last_name, p.first_name`,
                     [organizationId]
                 );
 
                 const groupsResult = await client.query(
-                    `SELECT id, name, section
-                     FROM groups
-                     WHERE organization_id = $1
-                     ORDER BY name`,
+                    `SELECT g.id, g.name, g.section,
+                            COALESCE(SUM(pts.value), 0) AS total_points
+                     FROM groups g
+                     LEFT JOIN points pts ON g.id = pts.group_id AND pts.organization_id = $1
+                     WHERE g.organization_id = $1
+                     GROUP BY g.id, g.name, g.section
+                     ORDER BY g.name`,
                     [organizationId]
                 );
 

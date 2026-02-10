@@ -418,17 +418,17 @@ export class Attendance {
 
     debugLog("Camp mode: Carrying forward from", sourceDate, "to", this.currentDate);
 
-    // Only carry forward present/late statuses (not absent/excused)
+    // Carry forward all attendance statuses (present, late, absent, excused)
     const toCarryForward = {};
     for (const [participantId, status] of Object.entries(sourceAttendance)) {
-      if (status === 'present' || status === 'late') {
+      if (status === 'present' || status === 'late' || status === 'absent' || status === 'excused') {
         toCarryForward[participantId] = status;
       }
     }
 
     const carryCount = Object.keys(toCarryForward).length;
     if (carryCount === 0) {
-      debugLog("No present/late statuses to carry forward from", sourceDate);
+      debugLog("No attendance statuses to carry forward from", sourceDate);
       return;
     }
 

@@ -58,14 +58,14 @@ export class MedicationManagement {
    * Load baseline data required for the page.
    */
   async refreshData(forceRefresh = false) {
-    // Check for camp-prepared data first (unless forcing refresh)
-    if (!forceRefresh && (offlineManager.campMode || offlineManager.isDatePrepared(getTodayISO()))) {
+    // Check for cached data first (camp mode, prepared date, or offline)
+    if (!forceRefresh && (offlineManager.campMode || offlineManager.isDatePrepared(getTodayISO()) || offlineManager.isOffline)) {
       const cachedRequirements = await getCachedData('medication_requirements');
       const cachedDistributions = await getCachedData('medication_distributions');
       const cachedParticipants = await getCachedData('participants_v2');
 
       if (cachedRequirements && cachedDistributions) {
-        debugLog('Using camp-prepared medication data');
+        debugLog('Using cached medication data');
 
         // Extract data from cache (handle both wrapped and direct formats)
         const reqData = cachedRequirements.data || cachedRequirements;
@@ -78,11 +78,17 @@ export class MedicationManagement {
         this.participantMedications = []; // Will be derived from requirements
         this.ficheMedications = [];
 
-        debugLog('Loaded from camp cache:', {
+        debugLog('Loaded from cache:', {
           requirements: this.requirements.length,
           distributions: this.distributions.length,
           participants: this.participants.length
         });
+        return;
+      }
+
+      // Offline with no cached data available
+      if (offlineManager.isOffline) {
+        this.offlineNoData = true;
         return;
       }
     }
@@ -772,6 +778,19 @@ export class MedicationManagement {
   render() {
     const container = document.getElementById("app");
     if (!container) {
+      return;
+    }
+
+    if (this.offlineNoData) {
+      setContent(container, `
+        <a href="/dashboard" class="button button--ghost">← ${escapeHTML(translate("back"))}</a>
+        <section class="page medication-page">
+          <div class="card" style="text-align:center; padding:2rem;">
+            <h2>${escapeHTML(translate("offline_indicator"))}</h2>
+            <p>${escapeHTML(translate("offline_data_not_prepared"))}</p>
+          </div>
+        </section>
+      `);
       return;
     }
 
