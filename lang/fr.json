@@ -1176,6 +1176,7 @@
   "offline_data_synced_successfully": "Données hors ligne synchronisées avec succès",
   "offline_indicator": "Hors ligne",
   "offline_data_not_prepared": "Cette page nécessite une préparation hors ligne. Veuillez préparer vos données en ligne à l'aide de la fonction de préparation hors ligne.",
+  "offline_page_unavailable": "Cette page n'est pas disponible hors ligne. Veuillez revenir au tableau de bord ou vous reconnecter à Internet.",
   "only_admins_can_link_participants": "Seuls les responsables de district peuvent lier des participants à d'autres utilisateurs",
   "operation_failed": "L'opération a échoué",
   "operation_success": "Opération réussie",
@@ -2398,6 +2399,7 @@
   "max_14_days": "La plage de dates ne peut pas dépasser 14 jours",
 
   "offline.cachingCarpools": "Mise en cache des données de covoiturage...",
+  "offline.cachingModules": "Pré-chargement des pages pour l'utilisation hors ligne...",
   "points_skipped_absent_participants": "{{count}} participant(s) ignoré(s) (absent/excusé à cette date)",
   "attendance_carried_forward": "{{count}} enregistrements de présence reportés du {{date}}"
 }

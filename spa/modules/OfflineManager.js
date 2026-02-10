@@ -576,7 +576,7 @@ export class OfflineManager {
         }
 
         const dates = this.generateDateRange(startDate, endDate);
-        const totalSteps = 8; // Added carpool caching step
+        const totalSteps = 9; // 8 data steps + 1 module pre-loading step
 
         this.preparationProgress = { current: 0, total: totalSteps, status: 'preparing', message: '' };
         this.dispatchEvent('preparationProgress', this.preparationProgress);
@@ -699,8 +699,12 @@ export class OfflineManager {
                 }
             }
 
-            // Step 8: Save preparation state and enable camp mode
-            this.updatePreparationProgress(8, this.getTranslation('offline.finalizing'));
+            // Step 8: Pre-load JavaScript modules for offline use
+            this.updatePreparationProgress(8, this.getTranslation('offline.cachingModules'));
+            await this.preloadCampModules();
+
+            // Step 9: Save preparation state and enable camp mode
+            this.updatePreparationProgress(9, this.getTranslation('offline.finalizing'));
 
             const prepInfo = {
                 activityId,
@@ -760,6 +764,37 @@ export class OfflineManager {
             attendance_status: attendanceMap.get(p.id) || null,
             date: date || null
         }));
+    }
+
+    /**
+     * Pre-load JavaScript modules needed for camp mode offline use.
+     * This eagerly imports the modules while still online so they are
+     * available in the browser/service-worker cache when offline.
+     */
+    async preloadCampModules() {
+        const campModules = [
+            () => import('../attendance.js'),
+            () => import('../manage_points.js'),
+            () => import('../manage_honors.js'),
+            () => import('../activities.js'),
+            () => import('../medication_management.js'),
+            () => import('../medication_reception.js'),
+            () => import('../badge_dashboard.js'),
+            () => import('../badge_tracker.js'),
+            () => import('../carpool.js'),
+            () => import('../carpool_dashboard.js'),
+            () => import('../manage_participants.js'),
+            () => import('../manage_groups.js'),
+            () => import('../upcoming_meeting.js'),
+            () => import('../offline_preparation.js'),
+            () => import('../init-activity-widget.js'),
+        ];
+
+        const results = await Promise.allSettled(campModules.map(loader => loader()));
+        const loaded = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
+        debugLog(`OfflineManager: Pre-loaded ${loaded} modules for camp mode` +
+            (failed > 0 ? `, ${failed} failed` : ''));
     }
 
     /**
