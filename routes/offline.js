@@ -161,6 +161,25 @@ module.exports = (pool, logger) => {
                     [organizationId, start_date, end_date]
                 );
 
+                const medicationReceptionsResult = activity_id ? await client.query(
+                    `SELECT mr.id, mr.activity_id, mr.medication_requirement_id,
+                            mr.participant_id, mr.participant_medication_id,
+                            mr.status, mr.quantity_received, mr.reception_notes,
+                            mr.received_by, mr.received_at,
+                            mreq.medication_name, mreq.dosage_instructions,
+                            mreq.route, mreq.general_notes as requirement_notes,
+                            p.first_name, p.last_name,
+                            u.full_name as received_by_name
+                     FROM medication_receptions mr
+                     LEFT JOIN medication_requirements mreq ON mr.medication_requirement_id = mreq.id
+                     LEFT JOIN participants p ON mr.participant_id = p.id
+                     LEFT JOIN users u ON mr.received_by = u.id
+                     WHERE mr.organization_id = $1
+                       AND mr.activity_id = $2
+                     ORDER BY p.last_name, p.first_name, mreq.medication_name`,
+                    [organizationId, activity_id]
+                ) : { rows: [] };
+
                 const badgeTemplatesResult = await client.query(
                     `SELECT bt.id, bt.template_key, bt.name, bt.translation_key,
                             bt.section, bt.level_count, bt.levels, bt.image
@@ -246,7 +265,8 @@ module.exports = (pool, logger) => {
                     honorsByDate,
                     medications: {
                         requirements: medicationRequirementsResult.rows,
-                        distributions: medicationDistributionsResult.rows
+                        distributions: medicationDistributionsResult.rows,
+                        receptions: medicationReceptionsResult.rows
                     },
                     badges: {
                         templates: badgeTemplatesResult.rows,
@@ -264,6 +284,7 @@ module.exports = (pool, logger) => {
                     `${attendanceResult.rows.length} attendance records, ` +
                     `${honorsResult.rows.length} honors, ` +
                     `${medicationDistributionsResult.rows.length} medication distributions, ` +
+                    `${medicationReceptionsResult.rows.length} medication receptions, ` +
                     `${carpoolOffersResult.rows.length} carpool offers, ` +
                     `${carpoolAssignmentsResult.rows.length} carpool assignments`);
 

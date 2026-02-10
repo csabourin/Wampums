@@ -668,6 +668,15 @@ export class OfflineManager {
             await this.cacheData('medication_distributions', { success: true, data: bulkData.medications.distributions }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/requirements`, { success: true, data: bulkData.medications.requirements }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/distributions`, { success: true, data: bulkData.medications.distributions }, CACHE_DURATION.CAMP_MODE);
+            // Cache medication receptions
+            if (bulkData.medications.receptions && activityId) {
+                const receptionsPayload = { success: true, data: { receptions: bulkData.medications.receptions } };
+                await this.cacheData(`medication_receptions?activity_id=${activityId}`, receptionsPayload, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/receptions?activity_id=${activityId}`, receptionsPayload, CACHE_DURATION.CAMP_MODE);
+                // Also cache without activity_id filter for dispensing view
+                await this.cacheData('medication_receptions', receptionsPayload, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/receptions`, receptionsPayload, CACHE_DURATION.CAMP_MODE);
+            }
 
             // Step 6: Cache badges
             this.updatePreparationProgress(6, this.getTranslation('offline.cachingBadges'));
