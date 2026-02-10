@@ -162,8 +162,8 @@ export class Activities {
           <div class="activity-detail">
             <strong>${translate('going')}:</strong>
             <div class="activity-detail__content">
-              <span>${translate('meeting')}: ${escapeHTML(activity.meeting_time_going)} @ ${escapeHTML(activity.meeting_location_going)}</span>
-              <span>${translate('departure')}: ${escapeHTML(activity.departure_time_going)}</span>
+              <span>${translate('meeting')}: ${escapeHTML(activity.meeting_time_going || '-')} @ ${escapeHTML(activity.meeting_location_going || '-')}</span>
+              <span>${translate('departure')}: ${escapeHTML(activity.departure_time_going || '-')}</span>
             </div>
           </div>
 
@@ -171,8 +171,8 @@ export class Activities {
             <div class="activity-detail">
               <strong>${translate('returning')}:</strong>
               <div class="activity-detail__content">
-                <span>${translate('meeting')}: ${escapeHTML(activity.meeting_time_return)} @ ${escapeHTML(activity.meeting_location_return)}</span>
-                <span>${translate('departure')}: ${escapeHTML(activity.departure_time_return)}</span>
+                <span>${translate('meeting')}: ${escapeHTML(activity.meeting_time_return || '-')} @ ${escapeHTML(activity.meeting_location_return)}</span>
+                <span>${translate('departure')}: ${escapeHTML(activity.departure_time_return || '-')}</span>
               </div>
             </div>
           ` : ''}

@@ -425,6 +425,13 @@ export async function archivePermissionSlip(id) {
 }
 
 /**
+ * Delete a permission slip (only if not sent)
+ */
+export async function deletePermissionSlip(id) {
+    return API.delete(`v1/resources/permission-slips/${id}`);
+}
+
+/**
  * Capture signature for a permission slip
  */
 export async function signPermissionSlip(id, payload) {

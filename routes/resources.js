@@ -2476,6 +2476,62 @@ module.exports = (pool) => {
     }),
   );
 
+  // Delete a permission slip (only if not sent)
+  router.delete(
+    "/permission-slips/:id",
+    authenticate,
+    blockDemoRoles,
+    requirePermission("activities.edit"),
+    [param("id").isInt({ min: 1 })],
+    checkValidation,
+    asyncHandler(async (req, res) => {
+      try {
+        const slipId = parseInt(req.params.id, 10);
+        const organizationId = await getOrganizationId(req, pool);
+
+        // Check if slip exists and belongs to organization
+        const slipResult = await pool.query(
+          "SELECT organization_id, email_sent FROM permission_slips WHERE id = $1",
+          [slipId],
+        );
+
+        if (slipResult.rows.length === 0) {
+          return error(res, "Permission slip not found", 404);
+        }
+
+        if (slipResult.rows[0].organization_id !== organizationId) {
+          return error(res, "Permission denied", 403);
+        }
+
+        // Prevent deletion if email has been sent
+        if (slipResult.rows[0].email_sent) {
+          return error(res, "Cannot delete permission slip after email has been sent. Please archive instead.", 400);
+        }
+
+        // Delete the slip
+        await pool.query(
+          "DELETE FROM permission_slips WHERE id = $1",
+          [slipId],
+        );
+
+        return success(
+          res,
+          null,
+          "Permission slip deleted",
+        );
+      } catch (err) {
+        if (handleOrganizationResolutionError(res, err)) {
+          return;
+        }
+        return error(
+          res,
+          err.message || "Error deleting permission slip",
+          err.statusCode || 500,
+        );
+      }
+    }),
+  );
+
   router.get(
     "/status/dashboard",
     authenticate,

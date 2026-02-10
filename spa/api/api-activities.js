@@ -13,6 +13,18 @@ export async function getActivities() {
 }
 
 /**
+ * Get all activities with permission slip counts
+ * @param {Object} options - Options for the request
+ * @param {boolean} options.forceRefresh - Force refresh from server
+ * @returns {Promise<Array>} List of activities with permission slip counts
+ */
+export async function getActivitiesWithPermissionSlips(options = {}) {
+  // Uses the same endpoint as getActivities since it now includes permission slip counts
+  const response = await API.get('v1/activities', {}, options);
+  return response.data || [];
+}
+
+/**
  * Get a specific activity by ID
  * @param {number} activityId - Activity ID
  * @returns {Promise<Object>} Activity details

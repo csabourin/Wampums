@@ -23,6 +23,7 @@ import { getCachedData } from './indexedDB.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { parseDate } from './utils/DateUtils.js';
+import { escapeHTML } from './utils/SecurityUtils.js';
 import { withButtonLoading } from './utils/PerformanceUtils.js';
 import {
   formatActivityDateRange,
@@ -187,15 +188,15 @@ export class CarpoolDashboard {
           <div class="activity-info-card__details">
             <div class="info-block">
               <strong>${translate('going')}:</strong>
-              <p>${translate('meeting')}: ${this.activity.meeting_time_going} @ ${this.activity.meeting_location_going}</p>
-              <p>${translate('departure')}: ${this.activity.departure_time_going}</p>
+              <p>${translate('meeting')}: ${escapeHTML(this.activity.meeting_time_going || '-')} @ ${escapeHTML(this.activity.meeting_location_going || '-')}</p>
+              <p>${translate('departure')}: ${escapeHTML(this.activity.departure_time_going || '-')}</p>
             </div>
 
             ${this.activity.meeting_location_return ? `
               <div class="info-block">
                 <strong>${translate('returning')}:</strong>
-                <p>${translate('meeting')}: ${this.activity.meeting_time_return} @ ${this.activity.meeting_location_return}</p>
-                <p>${translate('departure')}: ${this.activity.departure_time_return}</p>
+                <p>${translate('meeting')}: ${escapeHTML(this.activity.meeting_time_return || '-')} @ ${escapeHTML(this.activity.meeting_location_return)}</p>
+                <p>${translate('departure')}: ${escapeHTML(this.activity.departure_time_return || '-')}</p>
               </div>
             ` : ''}
           </div>
