@@ -493,6 +493,8 @@ export class OfflineManager {
             'offline.cachingMedications': 'Caching medications...',
             'offline.cachingBadges': 'Caching badges...',
             'offline.cachingCarpools': 'Caching carpool data...',
+            'offline.cachingModules': 'Pre-loading pages for offline use...',
+            'offline.modulePreloadWarning': 'Some pages may not work offline',
             'offline.finalizing': 'Finalizing...',
             'offline.campModeAutoEnabled': 'Camp mode automatically enabled',
             'offline.campModeAutoDisabled': 'Camp mode automatically disabled'
@@ -795,6 +797,18 @@ export class OfflineManager {
         const failed = results.filter(r => r.status === 'rejected').length;
         debugLog(`OfflineManager: Pre-loaded ${loaded} modules for camp mode` +
             (failed > 0 ? `, ${failed} failed` : ''));
+
+        if (failed > 0) {
+            results.forEach((r, i) => {
+                if (r.status === 'rejected') {
+                    debugError(`OfflineManager: Module preload failed:`, r.reason);
+                }
+            });
+            this.showToast(
+                `${failed} ${this.getTranslation('offline.modulePreloadWarning')}`,
+                'warning'
+            );
+        }
     }
 
     /**
