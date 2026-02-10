@@ -1965,6 +1965,7 @@
   "connection.restored": "Connection restored - syncing changes",
   "connection.lost": "You are offline - changes will sync when connected",
   "status.offline": "Offline",
+  "status.camp_mode": "Camp Mode",
   "status.syncing": "Syncing...",
   "sync.pending": "{{count}} change(s) pending",
   "sync.complete": "All changes synced",
