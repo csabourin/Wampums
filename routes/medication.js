@@ -610,7 +610,7 @@ module.exports = (pool, logger) => {
         mreq.general_notes as requirement_notes,
         p.first_name,
         p.last_name,
-        u.name as received_by_name
+        u.full_name as received_by_name
       FROM medication_receptions mr
       LEFT JOIN medication_requirements mreq ON mr.medication_requirement_id = mreq.id
       LEFT JOIN participants p ON mr.participant_id = p.id
