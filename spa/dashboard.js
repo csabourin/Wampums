@@ -56,6 +56,7 @@ export class Dashboard extends BaseModule {
       this.render();
 
       this.attachEventListeners();
+      this.listenForConnectivityChanges();
 
       // Prefetch critical pages data after dashboard is ready
       // This is non-blocking and runs in background
@@ -283,7 +284,7 @@ export class Dashboard extends BaseModule {
       "/carpool",
       "/manage-participants",
       "/manage-groups",
-      "/offline-preparation",
+      "/prepare-offline",
     ]);
     const isOffline = !navigator.onLine;
     const filterOffline = (tiles) =>
@@ -564,20 +565,6 @@ export class Dashboard extends BaseModule {
       this.loadNews(true);
     });
 
-    // Re-render when connectivity changes so offline-unavailable tiles hide/show
-    this.addWindowEventListener("online", () => {
-      if (!this.isLoading) {
-        this.render();
-        this.attachEventListeners();
-      }
-    });
-    this.addWindowEventListener("offline", () => {
-      if (!this.isLoading) {
-        this.render();
-        this.attachEventListeners();
-      }
-    });
-
     this.addEventListener(document.getElementById("carpool-quick-access"), "click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -596,6 +583,21 @@ export class Dashboard extends BaseModule {
         }
       }
     });
+  }
+
+  /**
+   * Register online/offline listeners once (called from init, not attachEventListeners)
+   * to avoid accumulating duplicate listeners on each re-render cycle.
+   */
+  listenForConnectivityChanges() {
+    const rerender = () => {
+      if (!this.isLoading) {
+        this.render();
+        this.attachEventListeners();
+      }
+    };
+    this.addWindowEventListener("online", rerender);
+    this.addWindowEventListener("offline", rerender);
   }
 
   async lazyLogout() {

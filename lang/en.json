@@ -2365,6 +2365,7 @@
 
   "offline.cachingCarpools": "Caching carpool data...",
   "offline.cachingModules": "Pre-loading pages for offline use...",
+  "offline.modulePreloadWarning": "page(s) may not work offline",
   "points_skipped_absent_participants": "{{count}} participant(s) skipped (absent/excused on this date)",
   "attendance_carried_forward": "{{count}} attendance records carried forward from {{date}}"
 }

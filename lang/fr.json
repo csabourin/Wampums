@@ -2400,6 +2400,7 @@
 
   "offline.cachingCarpools": "Mise en cache des données de covoiturage...",
   "offline.cachingModules": "Pré-chargement des pages pour l'utilisation hors ligne...",
+  "offline.modulePreloadWarning": "page(s) pourraient ne pas fonctionner hors ligne",
   "points_skipped_absent_participants": "{{count}} participant(s) ignoré(s) (absent/excusé à cette date)",
   "attendance_carried_forward": "{{count}} enregistrements de présence reportés du {{date}}"
 }
