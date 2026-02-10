@@ -4,8 +4,8 @@ const { authenticate, getOrganizationId } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 const { verifyOrganizationMembership } = require('../utils/api-helpers');
 
-const MEDICATION_READ_PERMISSIONS = ['participants.view'];
-const MEDICATION_MANAGE_PERMISSIONS = ['participants.edit'];
+const MEDICATION_READ_PERMISSIONS = ['medication.view'];
+const MEDICATION_MANAGE_PERMISSIONS = ['medication.manage'];
 
 const validateStatus = (status) => ['scheduled', 'given', 'missed', 'cancelled'].includes(status);
 

@@ -467,6 +467,33 @@ export function canViewPoints() {
 }
 
 /**
+ * Determine if the current user can view medication data
+ *
+ * @returns {boolean} True when any medication access permission is granted
+ */
+export function canViewMedication() {
+  return hasAnyPermission('medication.view', 'medication.manage', 'medication.distribute');
+}
+
+/**
+ * Determine if the current user can manage medication requirements and receptions
+ *
+ * @returns {boolean} True when medication manage permission is granted
+ */
+export function canManageMedication() {
+  return hasPermission('medication.manage');
+}
+
+/**
+ * Determine if the current user can distribute (dispense) medication
+ *
+ * @returns {boolean} True when medication distribute or manage permission is granted
+ */
+export function canDistributeMedication() {
+  return hasAnyPermission('medication.distribute', 'medication.manage');
+}
+
+/**
  * Determine if the current user can view carpool information
  *
  * @returns {boolean} True when any carpool access permission is granted

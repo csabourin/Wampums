@@ -32,6 +32,7 @@ import {
   canViewFundraisers,
   canViewGroups,
   canViewInventory,
+  canViewMedication,
   canViewParticipants,
   canViewReports,
   canViewUsers,
@@ -340,7 +341,7 @@ export class Router {
         case "medicationManagement":
         case "medicationPlanning":
         case "medicationDispensing":
-          if (!guard(canViewAttendance() || canViewParticipants())) {
+          if (!guard(canViewMedication() || canViewAttendance() || canViewParticipants())) {
             break;
           }
           const MedicationManagement = await this.loadModule('MedicationManagement');
@@ -351,7 +352,7 @@ export class Router {
           await medicationManagement.init();
           break;
         case "medicationPlanningParticipant":
-          if (!guard(isParent() || canViewAttendance() || canViewParticipants())) {
+          if (!guard(isParent() || canViewMedication() || canViewAttendance() || canViewParticipants())) {
             break;
           }
           const MedicationManagementParticipant = await this.loadModule('MedicationManagement');
@@ -364,7 +365,7 @@ export class Router {
           await medicationManagementParticipant.init();
           break;
         case "medicationReception":
-          if (!guard(canViewAttendance() || canViewParticipants())) {
+          if (!guard(canViewMedication() || canViewAttendance() || canViewParticipants())) {
             break;
           }
           const MedicationReception = await this.loadModule('MedicationReception');
