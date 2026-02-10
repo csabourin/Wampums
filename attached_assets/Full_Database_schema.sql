@@ -28,6 +28,10 @@ CREATE TABLE public.activities (
   is_active boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  activity_start_date date NOT NULL,
+  activity_start_time time without time zone NOT NULL,
+  activity_end_date date NOT NULL,
+  activity_end_time time without time zone NOT NULL,
   CONSTRAINT activities_pkey PRIMARY KEY (id),
   CONSTRAINT activities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT activities_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
@@ -541,6 +545,28 @@ CREATE TABLE public.medication_distributions (
   CONSTRAINT medication_distributions_participant_medication_id_fkey FOREIGN KEY (participant_medication_id) REFERENCES public.participant_medications(id),
   CONSTRAINT medication_distributions_administered_by_fkey FOREIGN KEY (administered_by) REFERENCES public.users(id)
 );
+CREATE TABLE public.medication_receptions (
+  id integer NOT NULL DEFAULT nextval('medication_receptions_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  activity_id integer,
+  medication_requirement_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  participant_medication_id integer,
+  status character varying NOT NULL DEFAULT 'not_received'::character varying CHECK (status::text = ANY (ARRAY['received'::character varying::text, 'not_received'::character varying::text, 'partial'::character varying::text])),
+  quantity_received text,
+  reception_notes text,
+  received_by uuid,
+  received_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT medication_receptions_pkey PRIMARY KEY (id),
+  CONSTRAINT medication_receptions_medication_requirement_id_fkey FOREIGN KEY (medication_requirement_id) REFERENCES public.medication_requirements(id),
+  CONSTRAINT medication_receptions_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT medication_receptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT medication_receptions_activity_id_fkey FOREIGN KEY (activity_id) REFERENCES public.activities(id),
+  CONSTRAINT medication_receptions_participant_medication_id_fkey FOREIGN KEY (participant_medication_id) REFERENCES public.participant_medications(id),
+  CONSTRAINT medication_receptions_received_by_fkey FOREIGN KEY (received_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.medication_requirements (
   id integer NOT NULL DEFAULT nextval('medication_requirements_id_seq'::regclass),
   organization_id integer NOT NULL,
@@ -561,9 +587,11 @@ CREATE TABLE public.medication_requirements (
   frequency_slots jsonb,
   frequency_interval_hours integer,
   frequency_interval_start time without time zone,
+  participant_id integer NOT NULL,
   CONSTRAINT medication_requirements_pkey PRIMARY KEY (id),
   CONSTRAINT medication_requirements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT medication_requirements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+  CONSTRAINT medication_requirements_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT medication_requirements_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
 CREATE TABLE public.names (
   id integer NOT NULL DEFAULT nextval('names_id_seq'::regclass),
