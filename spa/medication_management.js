@@ -124,7 +124,7 @@ export class MedicationManagement {
     if (this.view === "dispensing") {
       try {
         const receptionsResponse = await getMedicationReceptions({}, cacheOptions);
-        this.receptions = receptionsResponse?.data || [];
+        this.receptions = receptionsResponse?.data?.receptions || receptionsResponse?.receptions || [];
       } catch (error) {
         debugError("Failed to load medication receptions", error);
         this.receptions = [];
