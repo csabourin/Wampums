@@ -1149,6 +1149,7 @@
   "offline_data_synced_successfully": "Offline data synced successfully",
   "offline_indicator": "Offline",
   "offline_data_not_prepared": "This page requires offline preparation. Please prepare your data while online using the offline preparation feature.",
+  "offline_page_unavailable": "This page is not available offline. Please return to the dashboard or reconnect to the internet.",
   "only_admins_can_link_participants": "Only district leads can link participants to other users",
   "operation_failed": "Operation Failed",
   "operation_success": "Operation Successful",
@@ -2363,6 +2364,7 @@
   "max_14_days": "Date range cannot exceed 14 days",
 
   "offline.cachingCarpools": "Caching carpool data...",
+  "offline.cachingModules": "Pre-loading pages for offline use...",
   "points_skipped_absent_participants": "{{count}} participant(s) skipped (absent/excused on this date)",
   "attendance_carried_forward": "{{count}} attendance records carried forward from {{date}}"
 }

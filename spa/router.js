@@ -39,6 +39,14 @@ import {
   isParent
 } from "./utils/PermissionUtils.js";
 
+// Custom error for offline module loading failures
+class OfflineModuleError extends Error {
+  constructor(moduleName) {
+    super(`Module "${moduleName}" is not available offline`);
+    this.name = 'OfflineModuleError';
+  }
+}
+
 // Lazy-loaded modules - loaded on demand for better performance
 // These will be dynamically imported when the route is accessed
 const lazyModules = {
@@ -677,8 +685,16 @@ export class Router {
         this.activityWidgetInitialized = true;  // Mark the widget as initialized
       }
     } catch (error) {
-      debugError("Routing error:", error);
-      this.app.renderError(translate('error_loading_page'));
+      if (error instanceof OfflineModuleError) {
+        debugWarn("Offline module error:", error.message);
+        this.app.renderError(translate('offline_page_unavailable'), {
+          titleKey: 'offline_indicator',
+          actions: [{ labelKey: 'back_to_home', href: '/' }]
+        });
+      } else {
+        debugError("Routing error:", error);
+        this.app.renderError(translate('error_loading_page'));
+      }
     }
   }
 
@@ -735,9 +751,19 @@ export class Router {
 
     // Load the module dynamically
     if (lazyModules[moduleName]) {
-      const ModuleClass = await lazyModules[moduleName]();
-      moduleCache[moduleName] = ModuleClass;
-      return ModuleClass;
+      try {
+        const ModuleClass = await lazyModules[moduleName]();
+        moduleCache[moduleName] = ModuleClass;
+        return ModuleClass;
+      } catch (error) {
+        // If the dynamic import failed and we're offline, throw a specific error
+        // so the route method can display an appropriate offline message
+        if (!navigator.onLine) {
+          debugError(`[Router] Failed to load module "${moduleName}" while offline:`, error);
+          throw new OfflineModuleError(moduleName);
+        }
+        throw error;
+      }
     }
 
     throw new Error(`Module ${moduleName} not found`);
