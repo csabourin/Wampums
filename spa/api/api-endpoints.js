@@ -1943,6 +1943,57 @@ export async function markMedicationDistributionAsGiven(distributionId, payload)
 }
 
 /**
+ * Get medication receptions for an activity
+ */
+export async function getMedicationReceptions(params = {}, cacheOptions = {}) {
+    const cacheKey = buildCacheKey('medication_receptions', params);
+    return API.get('v1/medication/receptions', params, {
+        cacheKey,
+        cacheDuration: CONFIG.CACHE_DURATION.SHORT,
+        ...cacheOptions
+    });
+}
+
+/**
+ * Create or update medication reception record
+ */
+export async function saveMedicationReception(payload) {
+    const result = await API.post('v1/medication/receptions', payload);
+
+    if (result?.success) {
+        await invalidateMedicationCaches();
+    }
+
+    return result;
+}
+
+/**
+ * Update medication reception record
+ */
+export async function updateMedicationReception(receptionId, payload) {
+    const result = await API.patch(`v1/medication/receptions/${receptionId}`, payload);
+
+    if (result?.success) {
+        await invalidateMedicationCaches();
+    }
+
+    return result;
+}
+
+/**
+ * Delete medication reception record
+ */
+export async function deleteMedicationReception(receptionId) {
+    const result = await API.delete(`v1/medication/receptions/${receptionId}`);
+
+    if (result?.success) {
+        await invalidateMedicationCaches();
+    }
+
+    return result;
+}
+
+/**
  * Get vaccine report
  */
 export async function getVaccineReport() {

@@ -301,6 +301,7 @@ export class Dashboard extends BaseModule {
       { href: "/inventory", icon: "fa-warehouse", label: "inventory_link" },
       { href: "/material-management", icon: "fa-calendar-check", label: "material_management_link" },
       { href: "/medication-planning", icon: "fa-pills", label: "medication_planning_link" },
+      { href: "/medication-reception", icon: "fa-hospital", label: "med_reception_link" },
       { href: "/permission-slips", icon: "fa-file-signature", label: "manage_permission_slips" },
     ]);
 

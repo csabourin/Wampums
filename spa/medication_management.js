@@ -12,7 +12,8 @@ import {
   saveMedicationRequirement,
   recordMedicationDistribution,
   markMedicationDistributionAsGiven,
-  getFicheMedications
+  getFicheMedications,
+  getMedicationReceptions
 } from "./api/api-endpoints.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
@@ -29,9 +30,11 @@ export class MedicationManagement {
     this.participantMedications = [];
     this.distributions = [];
     this.ficheMedications = [];
+    this.receptions = [];
     this.view = options.view || "planning";
     this.enableAlerts = options.enableAlerts ?? this.view === "dispensing";
     this.participantId = options.participantId || null;
+    this.returnUrl = options.returnUrl || null;
     this.alertInterval = null;
     this.alertWindowMinutes = 90;
     this.alertLookbackMinutes = 30;
@@ -116,6 +119,17 @@ export class MedicationManagement {
 
     // Filter data if participantId is specified (parent view)
     this.filterDataByParticipant();
+
+    // Load reception data for dispensing view
+    if (this.view === "dispensing") {
+      try {
+        const receptionsResponse = await getMedicationReceptions({}, cacheOptions);
+        this.receptions = receptionsResponse?.data || [];
+      } catch (error) {
+        debugError("Failed to load medication receptions", error);
+        this.receptions = [];
+      }
+    }
   }
 
   /**
@@ -862,8 +876,8 @@ export class MedicationManagement {
         ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
         : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
 
-    // Back button goes to parent dashboard when viewing a specific participant
-    const backUrl = this.participantId ? '/parent-dashboard' : '/dashboard';
+    // Back button goes to returnUrl (set by router based on role), or dashboard
+    const backUrl = this.returnUrl || (this.participantId ? '/parent-dashboard' : '/dashboard');
     const participantName = this.participantId && this.participants.length > 0
       ? ` - ${escapeHTML(this.participants[0].first_name)} ${escapeHTML(this.participants[0].last_name)}`
       : '';
@@ -1058,18 +1072,29 @@ export class MedicationManagement {
       return `<p>${escapeHTML(translate("medication_no_participants_assigned"))}</p>`;
     }
 
-    return Array.from(participantMeds.entries()).map(([participantId, medications]) => {
+    const cards = Array.from(participantMeds.entries()).map(([participantId, medications]) => {
       const participantName = this.getParticipantName(participantId);
+
+      // Filter out medications not yet received (hide status = not_received or no reception record)
+      const dispensableMeds = medications.filter((med) => {
+        const reception = this.getReceptionForMedication(participantId, med.requirement.id);
+        return reception && reception.status !== "not_received";
+      });
+
+      if (dispensableMeds.length === 0) {
+        return '';
+      }
 
       return `
         <div class="participant-med-card">
           <div class="participant-med-header">
             <h3>${escapeHTML(participantName)}</h3>
-            <span class="pill">${medications.length} ${escapeHTML(translate("medications"))}</span>
+            <span class="pill">${dispensableMeds.length} ${escapeHTML(translate("medications"))}</span>
           </div>
           <div class="medication-list">
-            ${medications.map((med) => {
+            ${dispensableMeds.map((med) => {
               const req = med.requirement;
+              const reception = this.getReceptionForMedication(participantId, req.id);
               const doseInfo = req.default_dose_amount
                 ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
                 : req.dosage_instructions || '';
@@ -1087,10 +1112,20 @@ export class MedicationManagement {
                    </div>`
                 : '';
 
+              // Show reception notes and partial status if applicable
+              const receptionNotesHtml = reception?.reception_notes
+                ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
+                     📋 ${escapeHTML(reception.reception_notes)}
+                   </div>`
+                : '';
+              const partialBadge = reception?.status === "partial"
+                ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
+                : '';
+
               return `
                 <div class="medication-item">
                   <div class="medication-info">
-                    <strong>${escapeHTML(req.medication_name)}</strong>
+                    <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
                     <div class="medication-details">
                       ${escapeHTML(doseInfo)}${escapeHTML(route)}
                     </div>
@@ -1098,6 +1133,7 @@ export class MedicationManagement {
                       ${escapeHTML(frequency)}
                     </div>
                     ${timeSlotsHtml}
+                    ${receptionNotesHtml}
                     ${req.general_notes ? `<div class="medication-notes">${escapeHTML(req.general_notes)}</div>` : ''}
                   </div>
                   <button
@@ -1117,6 +1153,8 @@ export class MedicationManagement {
         </div>
       `;
     }).join('');
+
+    return cards || `<p>${escapeHTML(translate("med_reception_no_received"))}</p>`;
   }
 
   renderUpcomingRows() {
@@ -1649,6 +1687,18 @@ export class MedicationManagement {
     }
 
     return [];
+  }
+
+  /**
+   * Find the most recent reception record for a given participant/requirement pair.
+   * @param {number} participantId
+   * @param {number} requirementId
+   * @returns {Object|null}
+   */
+  getReceptionForMedication(participantId, requirementId) {
+    return this.receptions.find(
+      (r) => r.participant_id === participantId && r.medication_requirement_id === requirementId
+    ) || null;
   }
 
   showQuickGiveModal(participantId, requirementId, medicationName, dose, route) {

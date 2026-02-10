@@ -583,5 +583,256 @@ module.exports = (pool, logger) => {
     return success(res, result.rows[0], 'Distribution updated');
   }));
 
+  /**
+   * GET /v1/medication/receptions
+   * List medication receptions for an activity
+   * Query params: activity_id (required)
+   * Permission: participants.view
+   */
+  router.get('/v1/medication/receptions', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const activityId = req.query.activity_id ? Number.parseInt(req.query.activity_id, 10) : null;
+
+    let query = `
+      SELECT
+        mr.*,
+        mreq.medication_name,
+        mreq.dosage_instructions,
+        mreq.route,
+        mreq.general_notes as requirement_notes,
+        p.first_name,
+        p.last_name,
+        u.name as received_by_name
+      FROM medication_receptions mr
+      LEFT JOIN medication_requirements mreq ON mr.medication_requirement_id = mreq.id
+      LEFT JOIN participants p ON mr.participant_id = p.id
+      LEFT JOIN users u ON mr.received_by = u.id
+      WHERE mr.organization_id = $1
+    `;
+
+    const params = [organizationId];
+
+    if (activityId && Number.isInteger(activityId)) {
+      query += ` AND mr.activity_id = $2`;
+      params.push(activityId);
+    }
+
+    query += ` ORDER BY p.last_name, p.first_name, mreq.medication_name`;
+
+    const result = await pool.query(query, params);
+
+    return success(res, { receptions: result.rows });
+  }));
+
+  /**
+   * POST /v1/medication/receptions
+   * Create or update medication reception record
+   * Permission: participants.edit
+   */
+  router.post('/v1/medication/receptions', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
+    });
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const {
+      activity_id,
+      medication_requirement_id,
+      participant_id,
+      participant_medication_id,
+      status,
+      quantity_received,
+      reception_notes
+    } = req.body;
+
+    // Validate required fields
+    if (!medication_requirement_id || !participant_id) {
+      return error(res, 'medication_requirement_id and participant_id are required', 400);
+    }
+
+    // Validate status
+    const validStatuses = ['received', 'not_received', 'partial'];
+    if (status && !validStatuses.includes(status)) {
+      return error(res, 'Invalid status. Must be: received, not_received, or partial', 400);
+    }
+
+    const receivedAt = status === 'received' || status === 'partial' ? new Date() : null;
+
+    // Check if reception already exists for this combination
+    const existingCheck = await pool.query(
+      `SELECT id FROM medication_receptions
+       WHERE organization_id = $1
+         AND medication_requirement_id = $2
+         AND participant_id = $3
+         AND activity_id IS NOT DISTINCT FROM $4`,
+      [organizationId, medication_requirement_id, participant_id, activity_id || null]
+    );
+
+    let result;
+
+    if (existingCheck.rows.length > 0) {
+      // Update existing record
+      result = await pool.query(
+        `UPDATE medication_receptions
+         SET status = $1,
+             quantity_received = $2,
+             reception_notes = $3,
+             received_by = $4,
+             received_at = $5,
+             participant_medication_id = COALESCE($6, participant_medication_id),
+             updated_at = NOW()
+         WHERE id = $7 AND organization_id = $8
+         RETURNING *`,
+        [
+          status || 'not_received',
+          normalizeText(quantity_received, 500),
+          normalizeText(reception_notes, 1000),
+          req.user.id,
+          receivedAt,
+          participant_medication_id || null,
+          existingCheck.rows[0].id,
+          organizationId
+        ]
+      );
+    } else {
+      // Create new record
+      result = await pool.query(
+        `INSERT INTO medication_receptions (
+           organization_id,
+           activity_id,
+           medication_requirement_id,
+           participant_id,
+           participant_medication_id,
+           status,
+           quantity_received,
+           reception_notes,
+           received_by,
+           received_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [
+          organizationId,
+          activity_id || null,
+          medication_requirement_id,
+          participant_id,
+          participant_medication_id || null,
+          status || 'not_received',
+          normalizeText(quantity_received, 500),
+          normalizeText(reception_notes, 1000),
+          req.user.id,
+          receivedAt
+        ]
+      );
+    }
+
+    return success(res, result.rows[0], 'Medication reception recorded', 201);
+  }));
+
+  /**
+   * PATCH /v1/medication/receptions/:id
+   * Update medication reception record
+   * Permission: participants.edit
+   */
+  router.patch('/v1/medication/receptions/:id', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
+    });
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const receptionId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(receptionId)) {
+      return error(res, 'Invalid reception ID', 400);
+    }
+
+    const {
+      status,
+      quantity_received,
+      reception_notes
+    } = req.body;
+
+    // Validate status if provided
+    const validStatuses = ['received', 'not_received', 'partial'];
+    if (status && !validStatuses.includes(status)) {
+      return error(res, 'Invalid status. Must be: received, not_received, or partial', 400);
+    }
+
+    const receivedAt = status === 'received' || status === 'partial' ? new Date() : null;
+
+    const result = await pool.query(
+      `UPDATE medication_receptions
+       SET status = COALESCE($1, status),
+           quantity_received = COALESCE($2, quantity_received),
+           reception_notes = COALESCE($3, reception_notes),
+           received_by = $4,
+           received_at = COALESCE($5, received_at),
+           updated_at = NOW()
+       WHERE id = $6 AND organization_id = $7
+       RETURNING *`,
+      [
+        status || null,
+        normalizeText(quantity_received, 500) || null,
+        normalizeText(reception_notes, 1000) || null,
+        req.user.id,
+        receivedAt,
+        receptionId,
+        organizationId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Reception record not found', 404);
+    }
+
+    return success(res, result.rows[0], 'Medication reception updated');
+  }));
+
+  /**
+   * DELETE /v1/medication/receptions/:id
+   * Delete medication reception record
+   * Permission: participants.edit
+   */
+  router.delete('/v1/medication/receptions/:id', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_MANAGE_PERMISSIONS,
+    });
+
+    if (!authCheck.authorized) {
+      return error(res, authCheck.message, 403);
+    }
+
+    const receptionId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(receptionId)) {
+      return error(res, 'Invalid reception ID', 400);
+    }
+
+    const result = await pool.query(
+      'DELETE FROM medication_receptions WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [receptionId, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Reception record not found', 404);
+    }
+
+    return success(res, null, 'Medication reception deleted');
+  }));
+
   return router;
 };

@@ -82,6 +82,7 @@ const lazyModules = {
   Inventory: () => import('./inventory.js').then(m => m.Inventory),
   MaterialManagement: () => import('./material_management.js').then(m => m.MaterialManagement),
   MedicationManagement: () => import('./medication_management.js').then(m => m.MedicationManagement),
+  MedicationReception: () => import('./medication_reception.js').then(m => m.MedicationReception),
   PermissionSlipDashboard: () => import('./permission_slip_dashboard.js').then(m => m.PermissionSlipDashboard),
   PermissionSlipSign: () => import('./permission_slip_sign.js').then(m => m.PermissionSlipSign),
   AccountInfoModule: () => import('./modules/account-info.js').then(m => m.AccountInfoModule),
@@ -153,6 +154,7 @@ const routes = {
   "/medication-planning": "medicationPlanning",
   "/medication-planning/:id": "medicationPlanningParticipant",
   "/medication-dispensing": "medicationDispensing",
+  "/medication-reception": "medicationReception",
   "/permission-slips": "permissionSlipDashboard",
   "/permission-slips/:id": "permissionSlipDashboardActivity",
   "/permission-slip/:token": "permissionSlipSign",
@@ -356,9 +358,18 @@ export class Router {
           const participantId = parseInt(param);
           const medicationManagementParticipant = new MedicationManagementParticipant(this.app, {
             view: "planning",
-            participantId: participantId
+            participantId: participantId,
+            returnUrl: isParent() ? '/parent-dashboard' : '/medication-reception'
           });
           await medicationManagementParticipant.init();
+          break;
+        case "medicationReception":
+          if (!guard(canViewAttendance() || canViewParticipants())) {
+            break;
+          }
+          const MedicationReception = await this.loadModule('MedicationReception');
+          const medicationReception = new MedicationReception(this.app);
+          await medicationReception.init();
           break;
         case "materialManagement":
           if (!guard(canManageInventory() || canViewInventory())) {
