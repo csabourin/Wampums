@@ -36,6 +36,13 @@ export class OfflineIndicator {
         const { signal } = this.abortController;
 
         this.injectStyles();
+
+        // Remove any existing indicator element to avoid duplicates on re-init
+        if (this.element && this.element.parentNode) {
+            this.element.parentNode.removeChild(this.element);
+            this.element = null;
+        }
+
         this.createIndicator();
         this.updateDisplay();
 
