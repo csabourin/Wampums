@@ -2121,6 +2121,7 @@
   "error_removing_assignment": "Error removing participant",
   "error_loading_carpool_data": "Error loading carpool data",
   "select_activity_for_carpool": "Select an activity to coordinate carpools",
+  "select_activity_for_permission_slip": "Select an activity to create permission slips",
   "quick_create_activity": "Quick Create Activity",
   "creating": "Creating",
   "optional": "Optional",

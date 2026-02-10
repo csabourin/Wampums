@@ -2156,6 +2156,7 @@
   "error_removing_assignment": "Erreur lors du retrait du participant",
   "error_loading_carpool_data": "Erreur lors du chargement des données de covoiturage",
   "select_activity_for_carpool": "Sélectionnez une activité pour coordonner les covoiturages",
+  "select_activity_for_permission_slip": "Sélectionnez une activité pour créer des autorisations",
   "quick_create_activity": "Création rapide d'activité",
   "creating": "Création en cours",
   "optional": "Facultatif",

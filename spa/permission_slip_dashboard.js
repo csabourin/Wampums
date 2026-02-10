@@ -132,8 +132,15 @@ export class PermissionSlipDashboard {
           ${this.activity.description ? `<p>${escapeHTML(this.activity.description)}</p>` : ''}
         </div>`
       : `<div class="card">
-          <h1>${escapeHTML(translate("permission_slip_dashboard_title"))}</h1>
-          <p class="subtitle">${escapeHTML(translate("permission_slip_dashboard_description"))}</p>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+            <div>
+              <h1>${escapeHTML(translate("permission_slip_dashboard_title"))}</h1>
+              <p class="subtitle">${escapeHTML(translate("permission_slip_dashboard_description"))}</p>
+            </div>
+            <button id="selectActivityBtn" class="button button--primary" style="white-space: nowrap;">
+              ${translate("select_activity")}
+            </button>
+          </div>
         </div>`;
 
     setContent(container, `
@@ -422,6 +429,14 @@ export class PermissionSlipDashboard {
   }
 
   attachEventHandlers() {
+    // Select Activity button
+    const selectActivityBtn = document.getElementById("selectActivityBtn");
+    if (selectActivityBtn) {
+      selectActivityBtn.addEventListener("click", async () => {
+        await this.showActivitySelector();
+      });
+    }
+
     // Date quick links
     document.querySelectorAll('.date-quick-link').forEach(button => {
       button.addEventListener('click', async (e) => {
@@ -892,6 +907,17 @@ export class PermissionSlipDashboard {
     } catch (error) {
       debugError("Error sending reminders", error);
       this.app.showMessage(translate("email_send_error"), "error");
+    }
+  }
+
+  async showActivitySelector() {
+    try {
+      const { PermissionSlipQuickAccessModal } = await import('./modules/modals/PermissionSlipQuickAccessModal.js');
+      const modal = new PermissionSlipQuickAccessModal(this.app);
+      await modal.show();
+    } catch (error) {
+      debugError("Error opening activity selector:", error);
+      this.app.showMessage(translate("error_loading_activities"), "error");
     }
   }
 }
