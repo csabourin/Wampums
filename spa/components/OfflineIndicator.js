@@ -8,6 +8,7 @@
 
 import { debugLog } from '../utils/DebugUtils.js';
 import { setContent } from "../utils/DOMUtils.js";
+import { offlineManager } from '../modules/OfflineManager.js';
 
 /**
  * OfflineIndicator Component
@@ -19,6 +20,7 @@ export class OfflineIndicator {
         this.pendingCount = 0;
         this.isOffline = !navigator.onLine;
         this.isSyncing = false;
+        this.isCampMode = offlineManager?.campMode || false;
     }
 
     /**
@@ -46,6 +48,12 @@ export class OfflineIndicator {
         window.addEventListener('syncStatusChanged', (e) => {
             debugLog('OfflineIndicator: Received syncStatusChanged event', e.detail);
             this.isSyncing = e.detail.isSyncing;
+            this.updateDisplay();
+        });
+
+        window.addEventListener('campModeChanged', (e) => {
+            debugLog('OfflineIndicator: Received campModeChanged event', e.detail);
+            this.isCampMode = e.detail.enabled;
             this.updateDisplay();
         });
 
@@ -99,6 +107,10 @@ export class OfflineIndicator {
 
             .offline-indicator.syncing {
                 background-color: #ff9800;
+            }
+
+            .offline-indicator.camp-mode {
+                background-color: #2e7d32;
             }
 
             .offline-indicator-icon {
@@ -228,14 +240,24 @@ export class OfflineIndicator {
         }
 
         // Update classes for styling
+        this.element.classList.remove('syncing', 'camp-mode');
         if (this.isSyncing) {
             this.element.classList.add('syncing');
             this.element.style.backgroundColor = '#ff9800';
             iconElement.textContent = '🔄';
             statusElement.textContent = this.getTranslation('status.syncing');
             countElement.textContent = '';
+        } else if (this.isOffline && this.isCampMode) {
+            this.element.classList.add('camp-mode');
+            this.element.style.backgroundColor = '#2e7d32';
+            iconElement.textContent = '🏕️';
+            statusElement.textContent = this.getTranslation('status.camp_mode');
+            if (this.pendingCount > 0) {
+                countElement.textContent = this.getTranslation('sync.pending').replace('{{count}}', this.pendingCount);
+            } else {
+                countElement.textContent = '';
+            }
         } else if (this.isOffline) {
-            this.element.classList.remove('syncing');
             this.element.style.backgroundColor = '#f44336';
             iconElement.textContent = '⚠️';
             statusElement.textContent = this.getTranslation('status.offline');
@@ -278,6 +300,7 @@ export class OfflineIndicator {
         // Fallback translations
         const fallbacks = {
             'status.offline': 'Offline',
+            'status.camp_mode': 'Camp Mode',
             'status.syncing': 'Syncing...',
             'sync.pending': '{{count}} change(s) pending'
         };
