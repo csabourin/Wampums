@@ -10,7 +10,7 @@
  */
 
 import db, { isTempId } from '../data/OfflineDatabase.js';
-import { debugLog, debugError } from '../utils/DebugUtils.js';
+import { debugLog } from '../utils/DebugUtils.js';
 
 /**
  * FK field to entity type mapping.
