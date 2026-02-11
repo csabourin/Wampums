@@ -9,6 +9,7 @@
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 import { getCachedData, setCachedData, getOfflineData, clearOfflineData } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
+import { buildApiCacheKey } from '../utils/OfflineCacheKeys.js';
 
 /**
  * Cache duration constants (in milliseconds)
@@ -295,12 +296,16 @@ export class OfflineManager {
 
         try {
             // Trigger service worker sync
-            if ('serviceWorker' in navigator && 'sync' in navigator.serviceWorker) {
+            if ('serviceWorker' in navigator) {
                 const registration = await navigator.serviceWorker.ready;
-                await registration.sync.register('sync-mutations');
-                debugLog('OfflineManager: Background sync registered');
+                if (registration && 'sync' in registration) {
+                    await registration.sync.register('sync-mutations');
+                    debugLog('OfflineManager: Background sync registered');
+                } else {
+                    debugLog('OfflineManager: Background Sync API not available on registration');
+                }
             } else {
-                debugLog('OfflineManager: Background Sync API not available, sync will happen on visibility change');
+                debugLog('OfflineManager: Service worker not available, sync will happen on visibility change');
             }
 
             // Wait for sync to start and give service worker time to process
@@ -353,7 +358,9 @@ export class OfflineManager {
 
                 if (response.ok) {
                     const data = await response.json();
-                    await this.cacheData(url, data, CACHE_DURATION.CRITICAL);
+                    const endpointForKey = endpoint.replace(/^\/api\//, '');
+                    const cacheKey = buildApiCacheKey(endpointForKey);
+                    await this.cacheData(cacheKey, data, CACHE_DURATION.CRITICAL);
                     debugLog(`OfflineManager: Cached ${endpoint}`);
                 } else {
                     debugWarn(`OfflineManager: Failed to pre-cache ${endpoint}`, response.status);
@@ -426,6 +433,16 @@ export class OfflineManager {
      */
     async updatePendingCount() {
         try {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                const swCount = await this.getServiceWorkerPendingCount();
+                if (swCount !== null) {
+                    this.pendingMutations = Array(swCount).fill({ type: 'pending' });
+                    debugLog('OfflineManager: Pending mutations count (service worker)', swCount);
+                    this.dispatchEvent('pendingCountChanged', { count: swCount });
+                    return;
+                }
+            }
+
             // Get offline data from IndexedDB
             const offlineData = await getOfflineData();
 
@@ -446,6 +463,36 @@ export class OfflineManager {
             this.pendingMutations = [];
             this.dispatchEvent('pendingCountChanged', { count: 0 });
         }
+    }
+
+    /**
+     * Get pending mutation count from service worker queue.
+     * @returns {Promise<number|null>} Count, or null when unavailable
+     */
+    async getServiceWorkerPendingCount() {
+        return new Promise((resolve) => {
+            try {
+                const channel = new MessageChannel();
+                const timeout = setTimeout(() => resolve(null), 1000);
+
+                channel.port1.onmessage = (event) => {
+                    clearTimeout(timeout);
+                    if (event.data?.type === 'PENDING_COUNT') {
+                        resolve(Number(event.data.count) || 0);
+                    } else {
+                        resolve(null);
+                    }
+                };
+
+                navigator.serviceWorker.controller.postMessage(
+                    { type: 'GET_PENDING_COUNT' },
+                    [channel.port2]
+                );
+            } catch (error) {
+                debugWarn('OfflineManager: Unable to get pending count from service worker', error);
+                resolve(null);
+            }
+        });
     }
 
     /**
@@ -542,6 +589,8 @@ export class OfflineManager {
             return [];
         }
 
+        const cacheKey = buildApiCacheKey('v1/activities/upcoming-camps');
+
         try {
             const response = await fetch(`${CONFIG.API_BASE_URL}/api/v1/activities/upcoming-camps`, {
                 headers: {
@@ -555,9 +604,20 @@ export class OfflineManager {
             }
 
             const result = await response.json();
+            if (result.success) {
+                await this.cacheData(cacheKey, result, CACHE_DURATION.CAMP_MODE);
+            }
             return result.success ? result.data : [];
         } catch (error) {
             debugError('OfflineManager: Failed to fetch upcoming camps', error);
+            try {
+                const cached = await getCachedData(cacheKey);
+                if (cached?.success && Array.isArray(cached.data)) {
+                    return cached.data;
+                }
+            } catch (cacheError) {
+                debugWarn('OfflineManager: No cached upcoming camps available', cacheError);
+            }
             return [];
         }
     }
@@ -621,8 +681,8 @@ export class OfflineManager {
             this.updatePreparationProgress(2, this.getTranslation('offline.cachingParticipants'));
             await this.cacheData('participants_v2', { success: true, data: bulkData.participants }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData('groups', { success: true, data: bulkData.groups }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/participants`, { success: true, data: bulkData.participants }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/groups`, { success: true, data: bulkData.groups }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/participants'), { success: true, data: bulkData.participants }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/groups'), { success: true, data: bulkData.groups }, CACHE_DURATION.CAMP_MODE);
 
             // Cache points-data in the format manage_points expects
             await this.cacheData('manage_points_data', {
@@ -648,56 +708,56 @@ export class OfflineManager {
                 };
                 await this.cacheData(`attendance_${date}`, attendancePayload, CACHE_DURATION.CAMP_MODE);
                 // Also cache in the format the attendance module expects
-                await this.cacheData(`${CONFIG.API_BASE_URL}/api/attendance?date=${date}`, attendancePayload, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey('v1/attendance', { date }), attendancePayload, CACHE_DURATION.CAMP_MODE);
             }
             // Cache attendance dates list
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/attendance/dates`, { success: true, data: dates }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/attendance/dates'), { success: true, data: dates }, CACHE_DURATION.CAMP_MODE);
 
             // Step 4: Cache honors
             this.updatePreparationProgress(4, this.getTranslation('offline.cachingHonors'));
             await this.cacheData('honors_all', { success: true, data: bulkData.honors }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/honors`, { success: true, data: bulkData.honors }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/honors'), { success: true, data: bulkData.honors }, CACHE_DURATION.CAMP_MODE);
             // Cache honors by date
             for (const date of dates) {
                 const honorsForDate = bulkData.honorsByDate[date] || [];
                 await this.cacheData(`honors_${date}`, { success: true, data: honorsForDate }, CACHE_DURATION.CAMP_MODE);
-                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/honors?date=${date}`, { success: true, data: honorsForDate }, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey('v1/honors', { date }), { success: true, data: honorsForDate }, CACHE_DURATION.CAMP_MODE);
             }
 
             // Step 5: Cache medications
             this.updatePreparationProgress(5, this.getTranslation('offline.cachingMedications'));
             await this.cacheData('medication_requirements', { success: true, data: bulkData.medications.requirements }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData('medication_distributions', { success: true, data: bulkData.medications.distributions }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/requirements`, { success: true, data: bulkData.medications.requirements }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/distributions`, { success: true, data: bulkData.medications.distributions }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/medication/requirements'), { success: true, data: bulkData.medications.requirements }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/medication/distributions'), { success: true, data: bulkData.medications.distributions }, CACHE_DURATION.CAMP_MODE);
             // Cache medication receptions
             if (bulkData.medications.receptions && activityId) {
                 const receptionsPayload = { success: true, data: { receptions: bulkData.medications.receptions } };
                 await this.cacheData(`medication_receptions?activity_id=${activityId}`, receptionsPayload, CACHE_DURATION.CAMP_MODE);
-                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/receptions?activity_id=${activityId}`, receptionsPayload, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey('v1/medication/receptions', { activity_id: activityId }), receptionsPayload, CACHE_DURATION.CAMP_MODE);
                 // Also cache without activity_id filter for dispensing view
                 await this.cacheData('medication_receptions', receptionsPayload, CACHE_DURATION.CAMP_MODE);
-                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/medication/receptions`, receptionsPayload, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey('v1/medication/receptions'), receptionsPayload, CACHE_DURATION.CAMP_MODE);
             }
 
             // Step 6: Cache badges
             this.updatePreparationProgress(6, this.getTranslation('offline.cachingBadges'));
             await this.cacheData('badge_dashboard_settings', { success: true, data: { templates: bulkData.badges.templates } }, CACHE_DURATION.CAMP_MODE);
             await this.cacheData('badge_dashboard_badges', { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/badges/settings`, { success: true, data: bulkData.badges.templates }, CACHE_DURATION.CAMP_MODE);
-            await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/badges/summary`, { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/badges/settings'), { success: true, data: bulkData.badges.templates }, CACHE_DURATION.CAMP_MODE);
+            await this.cacheData(buildApiCacheKey('v1/badges/summary'), { success: true, data: bulkData.badges.progress }, CACHE_DURATION.CAMP_MODE);
 
             // Step 7: Cache carpools (if activity has carpool data)
             this.updatePreparationProgress(7, this.getTranslation('offline.cachingCarpools'));
             if (bulkData.carpools && activityId) {
                 await this.cacheData(`carpool_offers_activity_${activityId}`, { success: true, data: bulkData.carpools.offers }, CACHE_DURATION.CAMP_MODE);
                 await this.cacheData(`carpool_assignments_activity_${activityId}`, { success: true, data: bulkData.carpools.assignments }, CACHE_DURATION.CAMP_MODE);
-                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/carpools/activity/${activityId}/offers`, { success: true, data: bulkData.carpools.offers }, CACHE_DURATION.CAMP_MODE);
-                await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/carpools/activity/${activityId}/assignments`, { success: true, data: bulkData.carpools.assignments }, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey(`v1/carpools/activity/${activityId}/offers`), { success: true, data: bulkData.carpools.offers }, CACHE_DURATION.CAMP_MODE);
+                await this.cacheData(buildApiCacheKey(`v1/carpools/activity/${activityId}/assignments`), { success: true, data: bulkData.carpools.assignments }, CACHE_DURATION.CAMP_MODE);
                 // Also cache the activity itself
                 if (bulkData.activity) {
                     await this.cacheData(`activity_${activityId}`, { success: true, data: bulkData.activity }, CACHE_DURATION.CAMP_MODE);
-                    await this.cacheData(`${CONFIG.API_BASE_URL}/api/v1/activities/${activityId}`, { success: true, data: bulkData.activity }, CACHE_DURATION.CAMP_MODE);
+                    await this.cacheData(buildApiCacheKey(`v1/activities/${activityId}`), { success: true, data: bulkData.activity }, CACHE_DURATION.CAMP_MODE);
                 }
             }
 

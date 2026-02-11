@@ -770,6 +770,18 @@ self.addEventListener('message', (event) => {
     campModeEnabled = event.data.enabled;
     debugLog('Camp mode:', campModeEnabled ? 'enabled' : 'disabled');
   }
+  if (event.data && event.data.type === 'GET_PENDING_COUNT') {
+    getPendingMutations()
+      .then((items) => {
+        event.ports[0]?.postMessage({
+          type: 'PENDING_COUNT',
+          count: Array.isArray(items) ? items.length : 0,
+        });
+      })
+      .catch(() => {
+        event.ports[0]?.postMessage({ type: 'PENDING_COUNT', count: 0 });
+      });
+  }
 });
 
 // ==================================================================
