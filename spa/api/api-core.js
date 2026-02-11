@@ -11,6 +11,7 @@ import { CONFIG } from "../config.js";
 import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
 import { PerformanceMonitor } from "../utils/PerformanceUtils.js";
+import { buildApiCacheKey } from "../utils/OfflineCacheKeys.js";
 
 /**
  * Add cache buster parameter to URL
@@ -201,7 +202,7 @@ const pendingRequests = new Map();
  */
 export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptions = {}) {
     const {
-        cacheKey = endpoint,
+        cacheKey = buildApiCacheKey(endpoint, options.params || {}),
         cacheDuration = CONFIG.CACHE_DURATION.MEDIUM,
         forceRefresh = false
     } = cacheOptions;
@@ -248,6 +249,20 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
             }
 
             return result;
+        } catch (requestError) {
+            // If the request fails (typically while offline), return any existing cache.
+            // This provides a true offline-first fallback even after network errors.
+            try {
+                const fallbackCachedData = await getCachedData(cacheKey);
+                if (fallbackCachedData) {
+                    debugWarn('Network request failed, serving cached fallback for:', cacheKey);
+                    return fallbackCachedData;
+                }
+            } catch (cacheFallbackError) {
+                debugError('Cache fallback retrieval failed:', cacheFallbackError);
+            }
+
+            throw requestError;
         } finally {
             // Remove from pending requests after completion
             pendingRequests.delete(requestKey);
@@ -268,7 +283,11 @@ export const API = {
      * GET request with optional caching
      */
     async get(endpoint, params = {}, cacheOptions = {}) {
-        return makeApiRequestWithCache(endpoint, { params }, cacheOptions);
+        const mergedCacheOptions = {
+            cacheKey: cacheOptions.cacheKey || buildApiCacheKey(endpoint, params),
+            ...cacheOptions
+        };
+        return makeApiRequestWithCache(endpoint, { params }, mergedCacheOptions);
     },
 
     /**

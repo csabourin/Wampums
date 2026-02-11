@@ -138,15 +138,17 @@ export async function getCachedData(key) {
 }
 
 // Enhanced offline data handling
-export async function saveOfflineData(action, data) {
+export async function saveOfflineData(action, data, keyOverride = null) {
   const db = await openDB();
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
 
+    const recordKey = keyOverride || `${action}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
     const record = {
-      key: `${action}`,
+      key: recordKey,
       type: "offline",
       action,
       data,
