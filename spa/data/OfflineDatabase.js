@@ -126,7 +126,7 @@ export async function deleteOfflineDatabase() {
  */
 export async function getDatabaseStats() {
   try {
-    const outboxCount = await db._outbox.count();
+    const outboxCount = await db._outbox.where('status').equals('pending').count();
     const conflictCount = await db._conflicts.where('resolvedAt').equals(0).count();
     const idMapCount = await db._idMap.count();
     const syncMeta = await db._syncMeta.get('lastSync');

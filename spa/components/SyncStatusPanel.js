@@ -9,6 +9,7 @@
  * - Manual sync / retry button
  *
  * WCAG 2.1 compliant: proper ARIA roles, keyboard accessible, sufficient contrast.
+ * All user-facing strings go through getTranslation() for i18n.
  */
 
 import { debugLog } from '../utils/DebugUtils.js';
@@ -16,6 +17,7 @@ import { setContent } from '../utils/DOMUtils.js';
 import { getDatabaseStats } from '../data/OfflineDatabase.js';
 import { outboxManager } from '../sync/OutboxManager.js';
 import { syncEngine } from '../sync/SyncEngine.js';
+import { formatTimestamp } from '../utils/DateUtils.js';
 
 export class SyncStatusPanel {
   constructor() {
@@ -47,6 +49,38 @@ export class SyncStatusPanel {
     this._refreshStats();
 
     debugLog('SyncStatusPanel: Initialized');
+  }
+
+  /**
+   * Get translation for a key.
+   * Uses the app's global translate function when available, with English fallbacks.
+   * @param {string} key
+   * @returns {string}
+   */
+  _t(key) {
+    if (typeof window !== 'undefined' && window.app && typeof window.app.translate === 'function') {
+      const translated = window.app.translate(key);
+      if (translated && translated !== key) return translated;
+    }
+
+    const fallbacks = {
+      'sync.title': 'Sync Status',
+      'sync.status_label': 'Status',
+      'sync.pending_changes': 'Pending Changes',
+      'sync.conflicts': 'Conflicts',
+      'sync.last_sync': 'Last Sync',
+      'sync.duration': 'Duration',
+      'sync.last_error': 'Last Error',
+      'sync.sync_now': 'Sync Now',
+      'sync.syncing': 'Syncing...',
+      'sync.idle': 'Idle',
+      'sync.syncing_phase': 'Syncing ({{phase}})',
+      'sync.never': 'Never',
+      'sync.none': 'None',
+      'sync.status_aria': 'Sync status',
+      'sync.details_aria': 'Sync status details',
+    };
+    return fallbacks[key] || key;
   }
 
   /**
@@ -291,62 +325,70 @@ export class SyncStatusPanel {
 
   /**
    * Create the panel DOM elements.
+   * Uses DOM APIs exclusively (no innerHTML) to satisfy lint rules.
    */
   _createPanel() {
     // Remove existing
     document.getElementById('sync-status-trigger')?.remove();
     document.getElementById('sync-status-panel')?.remove();
 
-    // Trigger button
+    // Trigger button — built with DOM APIs (no innerHTML)
     const trigger = document.createElement('button');
     trigger.id = 'sync-status-trigger';
     trigger.className = 'sync-status-trigger';
-    trigger.setAttribute('aria-label', 'Sync status');
+    trigger.setAttribute('aria-label', this._t('sync.status_aria'));
     trigger.setAttribute('aria-expanded', 'false');
     trigger.setAttribute('aria-controls', 'sync-status-panel');
-    trigger.innerHTML = '<span aria-hidden="true">&#x21bb;</span><span class="badge" style="display:none"></span>';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.setAttribute('aria-hidden', 'true');
+    iconSpan.textContent = '\u21bb';
+    const badgeSpan = document.createElement('span');
+    badgeSpan.className = 'badge';
+    badgeSpan.style.display = 'none';
+    trigger.appendChild(iconSpan);
+    trigger.appendChild(badgeSpan);
+
     trigger.addEventListener('click', () => this._togglePanel());
     document.body.appendChild(trigger);
 
-    // Panel
+    // Panel — uses setContent (sanitised) for the static layout
     const panel = document.createElement('div');
     panel.id = 'sync-status-panel';
     panel.className = 'sync-status-panel';
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Sync status details');
+    panel.setAttribute('aria-label', this._t('sync.details_aria'));
+
+    // Build rows using translated labels
+    const rows = [
+      { label: this._t('sync.status_label'), field: 'phase', initial: this._t('sync.idle') },
+      { label: this._t('sync.pending_changes'), field: 'pending', initial: '0' },
+      { label: this._t('sync.conflicts'), field: 'conflicts', initial: '0' },
+      { label: this._t('sync.last_sync'), field: 'lastSync', initial: this._t('sync.never') },
+      { label: this._t('sync.duration'), field: 'duration', initial: '-' },
+      { label: this._t('sync.last_error'), field: 'error', initial: this._t('sync.none'), extraClass: 'sync-status-panel__value--error' },
+    ];
+
+    const rowsHtml = rows.map((r) => {
+      const valClass = r.extraClass
+        ? `sync-status-panel__value ${r.extraClass}`
+        : 'sync-status-panel__value';
+      return `<div class="sync-status-panel__row">
+        <span class="sync-status-panel__label">${r.label}</span>
+        <span class="${valClass}" data-field="${r.field}">${r.initial}</span>
+      </div>`;
+    }).join('');
+
     setContent(panel, `
       <div class="sync-status-panel__header">
-        <span>Sync Status</span>
+        <span>${this._t('sync.title')}</span>
       </div>
       <div class="sync-status-panel__body">
-        <div class="sync-status-panel__row">
-          <span class="sync-status-panel__label">Status</span>
-          <span class="sync-status-panel__value" data-field="phase">Idle</span>
-        </div>
-        <div class="sync-status-panel__row">
-          <span class="sync-status-panel__label">Pending Changes</span>
-          <span class="sync-status-panel__value" data-field="pending">0</span>
-        </div>
-        <div class="sync-status-panel__row">
-          <span class="sync-status-panel__label">Conflicts</span>
-          <span class="sync-status-panel__value" data-field="conflicts">0</span>
-        </div>
-        <div class="sync-status-panel__row">
-          <span class="sync-status-panel__label">Last Sync</span>
-          <span class="sync-status-panel__value" data-field="lastSync">Never</span>
-        </div>
-        <div class="sync-status-panel__row">
-          <span class="sync-status-panel__label">Duration</span>
-          <span class="sync-status-panel__value" data-field="duration">-</span>
-        </div>
-        <div class="sync-status-panel__row">
-          <span class="sync-status-panel__label">Last Error</span>
-          <span class="sync-status-panel__value sync-status-panel__value--error" data-field="error">None</span>
-        </div>
+        ${rowsHtml}
       </div>
       <div class="sync-status-panel__actions">
         <button class="sync-status-panel__btn sync-status-panel__btn--primary" data-action="sync">
-          Sync Now
+          ${this._t('sync.sync_now')}
         </button>
       </div>
     `);
@@ -381,6 +423,21 @@ export class SyncStatusPanel {
   }
 
   /**
+   * Format a sync timestamp using the app's locale-aware formatter.
+   * Falls back to toLocaleTimeString when DateUtils is unavailable.
+   * @param {number} ts - Unix timestamp (ms)
+   * @returns {string}
+   */
+  _formatSyncTime(ts) {
+    try {
+      const lang = (typeof window !== 'undefined' && localStorage.getItem('language')) || 'fr';
+      return formatTimestamp(ts, lang);
+    } catch (_err) {
+      return new Date(ts).toLocaleTimeString();
+    }
+  }
+
+  /**
    * Update the display with current stats.
    */
   _updateDisplay() {
@@ -391,7 +448,9 @@ export class SyncStatusPanel {
     // Phase
     const phaseEl = panel.querySelector('[data-field="phase"]');
     if (phaseEl) {
-      const label = this.stats.isSyncing ? `Syncing (${this.stats.syncPhase})` : 'Idle';
+      const label = this.stats.isSyncing
+        ? this._t('sync.syncing_phase').replace('{{phase}}', this.stats.syncPhase)
+        : this._t('sync.idle');
       phaseEl.textContent = label;
       phaseEl.className = 'sync-status-panel__value' +
         (this.stats.isSyncing ? ' sync-status-panel__value--syncing' : ' sync-status-panel__value--success');
@@ -411,12 +470,12 @@ export class SyncStatusPanel {
         (this.stats.unresolvedConflicts > 0 ? ' sync-status-panel__value--error' : '');
     }
 
-    // Last sync
+    // Last sync — locale-aware via formatTimestamp
     const lastSyncEl = panel.querySelector('[data-field="lastSync"]');
     if (lastSyncEl) {
       lastSyncEl.textContent = this.stats.lastSyncAt
-        ? new Date(this.stats.lastSyncAt).toLocaleTimeString()
-        : 'Never';
+        ? this._formatSyncTime(this.stats.lastSyncAt)
+        : this._t('sync.never');
     }
 
     // Duration
@@ -430,7 +489,7 @@ export class SyncStatusPanel {
     // Error
     const errorEl = panel.querySelector('[data-field="error"]');
     if (errorEl) {
-      errorEl.textContent = this.stats.lastError || 'None';
+      errorEl.textContent = this.stats.lastError || this._t('sync.none');
       errorEl.className = 'sync-status-panel__value' +
         (this.stats.lastError ? ' sync-status-panel__value--error' : '');
     }
@@ -453,7 +512,9 @@ export class SyncStatusPanel {
     const syncBtn = panel.querySelector('[data-action="sync"]');
     if (syncBtn) {
       syncBtn.disabled = this.stats.isSyncing || !navigator.onLine;
-      syncBtn.textContent = this.stats.isSyncing ? 'Syncing...' : 'Sync Now';
+      syncBtn.textContent = this.stats.isSyncing
+        ? this._t('sync.syncing')
+        : this._t('sync.sync_now');
     }
   }
 

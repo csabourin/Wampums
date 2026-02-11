@@ -7,7 +7,7 @@
  */
 
 import db, { isTempId } from '../data/OfflineDatabase.js';
-import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
+import { debugLog, debugWarn } from '../utils/DebugUtils.js';
 
 /**
  * Topological sync push order.

@@ -15,7 +15,6 @@ import db from '../data/OfflineDatabase.js';
 import { repositories } from '../data/Repository.js';
 import { outboxManager } from './OutboxManager.js';
 import { idMapper } from './IdMapper.js';
-import { isTempId } from '../data/OfflineDatabase.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 import { CONFIG } from '../config.js';
 
@@ -41,7 +40,7 @@ const ENTITY_API = {
   participants: { list: 'v1/participants', single: 'v1/participants' },
   activities: { list: 'v1/activities', single: 'v1/activities' },
   attendance: { list: 'v1/attendance', single: 'v1/attendance' },
-  honors: { list: 'honors', single: 'honors' },
+  honors: { list: 'v1/honors', single: 'v1/honors' },
   badge_templates: { list: 'v1/badges/settings', single: null },
   badge_progress: { list: 'v1/badges/badge-progress', single: 'v1/badges/badge-progress' },
   medication_requirements: { list: 'v1/medication/requirements', single: 'v1/medication/requirements' },
@@ -213,7 +212,11 @@ export class SyncEngine {
     } finally {
       this.isSyncing = false;
       this.abortController = null;
-      this._setPhase(PHASE.IDLE);
+      // Preserve terminal phase (COMPLETE/ERROR) for observers; only reset
+      // to IDLE if sync was aborted or interrupted before reaching a terminal state.
+      if (this.phase !== PHASE.COMPLETE && this.phase !== PHASE.ERROR) {
+        this._setPhase(PHASE.IDLE);
+      }
     }
   }
 
@@ -339,29 +342,47 @@ export class SyncEngine {
   // ==========================================
 
   async _mergeAndResolveConflicts() {
-    // For now, pull data overwrites non-dirty local data (handled by bulkUpsert/replaceAll).
+    // Pull data overwrites non-dirty local data (handled by bulkUpsert/replaceAll).
     // Dirty local data is preserved and will be pushed.
     // Explicit conflicts (409 from server) are detected during push phase.
-    // This phase handles pre-push conflict detection for field-level merges.
+    // This phase handles pre-push conflict detection using per-entity strategies.
 
     let conflictsDetected = 0;
 
-    // Check for entities that are both dirty locally and updated on server
     for (const [entityType, repo] of Object.entries(repositories)) {
       const dirtyRecords = await repo.table
         .filter((e) => e._dirty === true)
         .toArray();
 
       for (const local of dirtyRecords) {
-        // If server version exists and is newer, we have a potential conflict
-        if (local.updated_at && local._serverUpdatedAt) {
-          if (new Date(local._serverUpdatedAt) > new Date(local._localUpdatedAt)) {
-            conflictsDetected++;
-            debugWarn(
-              `SyncEngine: Potential conflict for ${entityType}:${local.id} ` +
-                `(local: ${local._localUpdatedAt}, server: ${local._serverUpdatedAt})`
-            );
-          }
+        if (!local._serverUpdatedAt || !local._localUpdatedAt) continue;
+        if (new Date(local._serverUpdatedAt) <= new Date(local._localUpdatedAt)) continue;
+
+        // Server version is newer than our local edit — apply conflict strategy
+        const strategy = repo.conflictStrategy;
+
+        if (strategy === 'lww') {
+          // Last-write-wins: local edit will overwrite server on push; no conflict recorded
+          debugLog(`SyncEngine: LWW for ${entityType}:${local.id}, local push will win`);
+        } else if (strategy === 'create_wins') {
+          // Append-only entities: creates never conflict
+          debugLog(`SyncEngine: create_wins for ${entityType}:${local.id}, skipping`);
+        } else if (strategy === 'field_merge' || strategy === 'user_resolution') {
+          // Queue for user resolution — store in _conflicts
+          conflictsDetected++;
+          await db._conflicts.add({
+            entityType,
+            entityId: local.id,
+            localVersion: local,
+            serverVersion: { updated_at: local._serverUpdatedAt },
+            outboxLocalId: null,
+            detectedAt: Date.now(),
+            resolvedAt: 0,
+          });
+          debugWarn(
+            `SyncEngine: Conflict (${strategy}) for ${entityType}:${local.id} ` +
+              `(local: ${local._localUpdatedAt}, server: ${local._serverUpdatedAt})`
+          );
         }
       }
     }

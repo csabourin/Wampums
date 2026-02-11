@@ -12,7 +12,7 @@
  */
 
 import db, { generateTempId, generateCorrelationId, isTempId } from './OfflineDatabase.js';
-import { debugLog, debugError } from '../utils/DebugUtils.js';
+import { debugLog } from '../utils/DebugUtils.js';
 
 /**
  * @typedef {Object} RepositoryOptions

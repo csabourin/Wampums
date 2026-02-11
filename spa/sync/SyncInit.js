@@ -15,10 +15,42 @@
 import { syncEngine } from './SyncEngine.js';
 import { outboxManager } from './OutboxManager.js';
 import { syncStatusPanel } from '../components/SyncStatusPanel.js';
-import { offlineManager } from '../modules/OfflineManager.js';
+// Import OfflineManager for side effects: it registers offlineStatusChanged
+// events on window and must be eagerly evaluated for SyncInit wiring to work.
+import '../modules/OfflineManager.js';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
+import { CONFIG } from '../config.js';
 
 let initialized = false;
+
+/**
+ * Sync delay constants (milliseconds).
+ * Centralized to avoid magic numbers scattered through the module.
+ */
+const SYNC_DELAYS = {
+  /** Delay before initial sync on app startup to avoid blocking rendering */
+  INITIAL: 2000,
+  /** Delay after coming online to let the network stabilise */
+  ONLINE: 1500,
+  /** Delay after login to allow the token to be written to storage */
+  POST_LOGIN: 3000,
+};
+
+/** Active timer IDs so we can cancel them during cleanup. */
+const pendingTimers = new Set();
+
+/**
+ * Schedule a callback with a tracked timer that is auto-cleared on cleanup.
+ * @param {Function} fn
+ * @param {number} delayMs
+ */
+function scheduleSync(fn, delayMs) {
+  const id = setTimeout(() => {
+    pendingTimers.delete(id);
+    fn();
+  }, delayMs);
+  pendingTimers.add(id);
+}
 
 /**
  * Initialize the offline-first sync system.
@@ -51,13 +83,12 @@ export async function initSync() {
     debugLog('SyncInit: Initialized');
 
     // If we're online, do an initial sync
-    if (navigator.onLine && localStorage.getItem('jwtToken')) {
-      // Delay slightly to avoid blocking app startup
-      setTimeout(() => {
+    if (navigator.onLine && localStorage.getItem(CONFIG.STORAGE_KEYS.JWT_TOKEN)) {
+      scheduleSync(() => {
         syncEngine.sync().catch((err) => {
           debugError('SyncInit: Initial sync failed', err);
         });
-      }, 2000);
+      }, SYNC_DELAYS.INITIAL);
     }
   } catch (error) {
     debugError('SyncInit: Initialization failed', error);
@@ -67,11 +98,10 @@ export async function initSync() {
 /**
  * Handle coming online - trigger sync after a short delay.
  */
-async function handleOnline() {
+function handleOnline() {
   debugLog('SyncInit: Device came online, scheduling sync');
 
-  // Wait a moment for network to stabilize
-  setTimeout(async () => {
+  scheduleSync(async () => {
     if (!navigator.onLine) return;
 
     try {
@@ -79,7 +109,7 @@ async function handleOnline() {
     } catch (error) {
       debugError('SyncInit: Online sync failed', error);
     }
-  }, 1500);
+  }, SYNC_DELAYS.ONLINE);
 }
 
 /**
@@ -106,7 +136,7 @@ function handleVisibilityChange() {
 function handleOfflineStatusChanged(event) {
   const { isOffline } = event.detail;
 
-  if (!isOffline && localStorage.getItem('jwtToken')) {
+  if (!isOffline && localStorage.getItem(CONFIG.STORAGE_KEYS.JWT_TOKEN)) {
     // Just came online - the 'online' handler will handle sync
     debugLog('SyncInit: OfflineManager reports online');
   }
@@ -115,11 +145,10 @@ function handleOfflineStatusChanged(event) {
 /**
  * Handle user login - trigger initial data pull.
  */
-async function handleUserLoggedIn() {
+function handleUserLoggedIn() {
   debugLog('SyncInit: User logged in, scheduling initial sync');
 
-  // Wait for token to be available
-  setTimeout(async () => {
+  scheduleSync(async () => {
     if (!navigator.onLine) return;
 
     try {
@@ -127,13 +156,20 @@ async function handleUserLoggedIn() {
     } catch (error) {
       debugError('SyncInit: Post-login sync failed', error);
     }
-  }, 3000);
+  }, SYNC_DELAYS.POST_LOGIN);
 }
 
 /**
  * Cleanup sync system (e.g., on logout).
+ * Cancels pending timers, removes listeners, destroys UI.
  */
 export function cleanupSync() {
+  // Cancel all pending scheduled syncs
+  for (const id of pendingTimers) {
+    clearTimeout(id);
+  }
+  pendingTimers.clear();
+
   window.removeEventListener('online', handleOnline);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('offlineStatusChanged', handleOfflineStatusChanged);
