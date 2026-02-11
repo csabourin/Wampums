@@ -137,6 +137,44 @@ export async function getCachedData(key) {
   });
 }
 
+/**
+ * Retrieve cached data ignoring expiration.
+ * Used exclusively for offline fallback paths where stale data is
+ * preferable to no data at all. Does not delete expired records.
+ * @param {string} key - Cache key
+ * @returns {Promise<*>} Cached data or null if not found
+ */
+export async function getCachedDataIgnoreExpiration(key) {
+  const db = await openDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+
+    const request = store.get(key);
+
+    request.onerror = () => {
+      debugError("Error retrieving data (ignore expiration):", request.error);
+      reject(request.error);
+    };
+
+    request.onsuccess = () => {
+      const record = request.result;
+      if (record) {
+        debugLog("Returning cached data (ignoring expiration) for key:", key);
+        resolve(record.data);
+      } else {
+        debugLog("No data found for key:", key);
+        resolve(null);
+      }
+    };
+
+    tx.oncomplete = () => {
+      db.close();
+    };
+  });
+}
+
 // Enhanced offline data handling
 export async function saveOfflineData(action, data, keyOverride = null) {
   const db = await openDB();
@@ -145,7 +183,10 @@ export async function saveOfflineData(action, data, keyOverride = null) {
     const transaction = db.transaction(STORE_NAME, "readwrite");
     const store = transaction.objectStore(STORE_NAME);
 
-    const recordKey = keyOverride || `${action}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const uniqueSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const recordKey = keyOverride || `${action}_${uniqueSuffix}`;
 
     const record = {
       key: recordKey,

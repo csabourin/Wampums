@@ -51,6 +51,7 @@ export class OfflineManager {
         this.isOffline = !navigator.onLine;
         this.isSyncing = false;
         this.pendingMutations = [];
+        this._pendingCountFromSW = 0;
         this.syncInProgress = false;
         this.listeners = [];
 
@@ -436,6 +437,11 @@ export class OfflineManager {
             if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                 const swCount = await this.getServiceWorkerPendingCount();
                 if (swCount !== null) {
+                    // Store the numeric count separately for consumers that only need
+                    // the count (e.g., badge indicators). The pendingMutations array
+                    // is populated with placeholder objects -- they do NOT contain real
+                    // mutation payloads and must NOT be iterated for replay/sync.
+                    this._pendingCountFromSW = swCount;
                     this.pendingMutations = Array(swCount).fill({ type: 'pending' });
                     debugLog('OfflineManager: Pending mutations count (service worker)', swCount);
                     this.dispatchEvent('pendingCountChanged', { count: swCount });
@@ -473,7 +479,8 @@ export class OfflineManager {
         return new Promise((resolve) => {
             try {
                 const channel = new MessageChannel();
-                const timeout = setTimeout(() => resolve(null), 1000);
+                const timeoutMs = CONFIG.UI?.SW_PENDING_TIMEOUT || 3000;
+                const timeout = setTimeout(() => resolve(null), timeoutMs);
 
                 channel.port1.onmessage = (event) => {
                     clearTimeout(timeout);

@@ -228,6 +228,9 @@ export const CONFIG = {
 
         // Skeleton loading minimum display time (in milliseconds)
         MIN_LOADING_TIME: 300,
+
+        // Service worker pending count message timeout (in milliseconds)
+        SW_PENDING_TIMEOUT: 3000,
     },
 
     /**

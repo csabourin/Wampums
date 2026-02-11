@@ -771,15 +771,21 @@ self.addEventListener('message', (event) => {
     debugLog('Camp mode:', campModeEnabled ? 'enabled' : 'disabled');
   }
   if (event.data && event.data.type === 'GET_PENDING_COUNT') {
+    const messagePort = event.ports && event.ports[0];
+    if (!messagePort) {
+      debugError('GET_PENDING_COUNT: No message port available');
+      return;
+    }
     getPendingMutations()
       .then((items) => {
-        event.ports[0]?.postMessage({
+        messagePort.postMessage({
           type: 'PENDING_COUNT',
           count: Array.isArray(items) ? items.length : 0,
         });
       })
-      .catch(() => {
-        event.ports[0]?.postMessage({ type: 'PENDING_COUNT', count: 0 });
+      .catch((err) => {
+        debugError('Failed to get pending mutations count:', err);
+        messagePort.postMessage({ type: 'PENDING_COUNT', count: 0 });
       });
   }
 });
