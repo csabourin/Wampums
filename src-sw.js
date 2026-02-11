@@ -776,11 +776,16 @@ self.addEventListener('message', (event) => {
       debugError('GET_PENDING_COUNT: No message port available');
       return;
     }
-    getPendingMutations()
-      .then((items) => {
+    // Count from both legacy SW mutation store and new Dexie outbox
+    Promise.all([
+      getPendingMutations().catch(() => []),
+      getOutboxPendingCount().catch(() => 0),
+    ])
+      .then(([swItems, outboxCount]) => {
+        const swCount = Array.isArray(swItems) ? swItems.length : 0;
         messagePort.postMessage({
           type: 'PENDING_COUNT',
-          count: Array.isArray(items) ? items.length : 0,
+          count: swCount + outboxCount,
         });
       })
       .catch((err) => {
@@ -788,7 +793,68 @@ self.addEventListener('message', (event) => {
         messagePort.postMessage({ type: 'PENDING_COUNT', count: 0 });
       });
   }
+
+  // New: Get pending count from the Dexie-based outbox (WampumsOfflineDB)
+  if (event.data && event.data.type === 'GET_OUTBOX_COUNT') {
+    const messagePort = event.ports && event.ports[0];
+    if (!messagePort) return;
+    getOutboxPendingCount()
+      .then((count) => {
+        messagePort.postMessage({ type: 'OUTBOX_COUNT', count });
+      })
+      .catch(() => {
+        messagePort.postMessage({ type: 'OUTBOX_COUNT', count: 0 });
+      });
+  }
 });
+
+// ==================================================================
+// Section 9b: Read from new Dexie-based outbox (WampumsOfflineDB)
+// ==================================================================
+
+/**
+ * Read pending outbox count from the new WampumsOfflineDB._outbox store.
+ * This provides a unified pending count across both old and new systems.
+ * @returns {Promise<number>}
+ */
+async function getOutboxPendingCount() {
+  try {
+    return new Promise((resolve) => {
+      const request = indexedDB.open('WampumsOfflineDB', 1);
+      request.onsuccess = (event) => {
+        const outboxDb = event.target.result;
+        if (!outboxDb.objectStoreNames.contains('_outbox')) {
+          outboxDb.close();
+          resolve(0);
+          return;
+        }
+        const transaction = outboxDb.transaction(['_outbox'], 'readonly');
+        const store = transaction.objectStore('_outbox');
+        const index = store.index('status');
+        const countRequest = index.count('pending');
+
+        countRequest.onsuccess = () => {
+          outboxDb.close();
+          resolve(countRequest.result || 0);
+        };
+        countRequest.onerror = () => {
+          outboxDb.close();
+          resolve(0);
+        };
+      };
+      request.onerror = () => resolve(0);
+      // If the DB doesn't exist yet, onupgradeneeded fires but we don't
+      // want to create stores from the SW. Just return 0.
+      request.onupgradeneeded = (event) => {
+        event.target.transaction.abort();
+        resolve(0);
+      };
+    });
+  } catch (error) {
+    debugError('Error reading outbox count from WampumsOfflineDB:', error);
+    return 0;
+  }
+}
 
 // ==================================================================
 // Section 10: Activate Handler
