@@ -31,8 +31,12 @@ export function buildApiCacheKey(endpointOrUrl, params = {}, organizationId = nu
     let path = endpointOrUrl;
     const mergedParams = { ...normalizedParams };
 
+    const baseOrigin = typeof window !== 'undefined'
+        ? window.location.origin
+        : (typeof self !== 'undefined' ? self.location.origin : undefined);
+
     try {
-        const parsed = new URL(endpointOrUrl, window.location.origin);
+        const parsed = new URL(endpointOrUrl, baseOrigin);
         path = parsed.pathname;
 
         for (const [key, value] of parsed.searchParams.entries()) {
@@ -44,6 +48,11 @@ export function buildApiCacheKey(endpointOrUrl, params = {}, organizationId = nu
         path = endpointOrUrl.startsWith('/') ? endpointOrUrl : `/api/${endpointOrUrl}`;
     }
 
+    // Path normalization: ensures all of the following resolve to the same cache key:
+    //   "v1/participants"                      -> "/api/v1/participants"
+    //   "/v1/participants"                     -> "/api/v1/participants"
+    //   "/api/v1/participants"                 -> "/api/v1/participants" (no change)
+    //   "https://host/api/v1/participants"     -> "/api/v1/participants" (URL parsed above)
     if (!path.startsWith('/api/')) {
         path = `/api/${path.replace(/^\/+/, '')}`;
     }

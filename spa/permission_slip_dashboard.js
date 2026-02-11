@@ -1,4 +1,5 @@
 import { translate } from "./app.js";
+import { buildApiCacheKey } from "./utils/OfflineCacheKeys.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { formatDate } from "./utils/DateUtils.js";
@@ -752,23 +753,12 @@ export class PermissionSlipDashboard {
     }
   }
 
-  buildCacheKey(base, params = {}) {
-    const searchParams = new URLSearchParams();
-    Object.keys(params || {}).sort().forEach((key) => {
-      if (params[key] !== undefined && params[key] !== null) {
-        searchParams.append(key, params[key]);
-      }
-    });
-    const query = searchParams.toString();
-    return query ? `${base}?${query}` : base;
-  }
-
   async clearPermissionSlipCaches() {
     try {
       if (this.activityId) {
         const params = { activity_id: this.activityId };
-        const permissionCacheKey = this.buildCacheKey('v1/resources/permission-slips', params);
-        const dashboardCacheKey = this.buildCacheKey('v1/resources/status/dashboard', params);
+        const permissionCacheKey = buildApiCacheKey('v1/resources/permission-slips', params);
+        const dashboardCacheKey = buildApiCacheKey('v1/resources/status/dashboard', params);
         await deleteCachedData(permissionCacheKey);
         await deleteCachedData(dashboardCacheKey);
       }

@@ -8,7 +8,7 @@ import {
   CONFIG,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
-import { debugLog, debugError } from "./utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
 import {
   saveOfflineData,
   getOfflineData,
@@ -16,6 +16,7 @@ import {
   openDB,
   setCachedData,
   getCachedData,
+  getCachedDataIgnoreExpiration,
   clearPointsRelatedCaches,
 } from "./indexedDB.js";
 import { canViewPoints } from "./utils/PermissionUtils.js";
@@ -67,19 +68,29 @@ export class ManagePoints {
         this.groupedParticipants = cachedData.groupedParticipants || {};
         this.unassignedParticipants = cachedData.unassignedParticipants || [];
 
-        // Get fresh points data
-        const freshData = await getParticipants();
-        if (freshData.success) {
-          // Support both new format (data) and old format (participants)
-          this.participants = normalizeParticipantList(
-            freshData.data || freshData.participants || []
+        // Try to get fresh points data, but if offline, gracefully
+        // use the cached data that was already loaded above.
+        try {
+          const freshData = await getParticipants();
+          if (freshData.success) {
+            // Support both new format (data) and old format (participants)
+            this.participants = normalizeParticipantList(
+              freshData.data || freshData.participants || []
+            );
+            debugLog(
+              "Fresh participants loaded:",
+              this.participants.length,
+              "records",
+            );
+            // Reorganize with fresh data
+            this.organizeParticipants();
+          }
+        } catch (fetchError) {
+          debugWarn(
+            "Could not fetch fresh participants (possibly offline), using cached data:",
+            fetchError.message,
           );
-          debugLog(
-            "Fresh participants loaded:",
-            this.participants.length,
-            "records",
-          );
-          // Reorganize with fresh data
+          // Cached data was already assigned above, so just organize it
           this.organizeParticipants();
         }
       } else {
@@ -860,9 +871,9 @@ export class ManagePoints {
       debugError("Error fetching points data:", error);
       // If offline, try to use any available cached data, even if expired
       if (!navigator.onLine) {
-        const cachedData = await getCachedData(cacheKey);
+        const cachedData = await getCachedDataIgnoreExpiration(cacheKey);
         if (cachedData) {
-          debugLog("Using expired cached data due to offline status");
+          debugLog("Using stale cached data due to offline status");
           this.updatePointsDisplay(cachedData);
           return cachedData;
         }

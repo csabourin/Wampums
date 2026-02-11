@@ -5,6 +5,7 @@ import {
     getOfflineData,
     setCachedData,
     getCachedData,
+    getCachedDataIgnoreExpiration,
     clearOfflineData
 } from "../indexedDB.js";
 import { CONFIG } from "../config.js";
@@ -250,12 +251,12 @@ export async function makeApiRequestWithCache(endpoint, options = {}, cacheOptio
 
             return result;
         } catch (requestError) {
-            // If the request fails (typically while offline), return any existing cache.
-            // This provides a true offline-first fallback even after network errors.
+            // If the request fails (typically while offline), return any existing cache
+            // even if expired. Stale data is preferable to no data when offline.
             try {
-                const fallbackCachedData = await getCachedData(cacheKey);
+                const fallbackCachedData = await getCachedDataIgnoreExpiration(cacheKey);
                 if (fallbackCachedData) {
-                    debugWarn('Network request failed, serving cached fallback for:', cacheKey);
+                    debugWarn('Network request failed, serving stale cached fallback for:', cacheKey);
                     return fallbackCachedData;
                 }
             } catch (cacheFallbackError) {

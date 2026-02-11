@@ -14,17 +14,7 @@ import {
     clearBadgeRelatedCaches,
     clearPointsRelatedCaches
 } from "../indexedDB.js";
-
-function buildCacheKey(base, params = {}) {
-    const searchParams = new URLSearchParams();
-    Object.keys(params || {}).sort().forEach(key => {
-        if (params[key] !== undefined && params[key] !== null) {
-            searchParams.append(key, params[key]);
-        }
-    });
-    const query = searchParams.toString();
-    return query ? `${base}?${query}` : base;
-}
+import { buildApiCacheKey } from "../utils/OfflineCacheKeys.js";
 
 async function invalidateMedicationCaches(extraKeys = []) {
     try {
@@ -402,7 +392,7 @@ export async function saveBulkReservations(payload) {
  * Permission slip statuses
  */
 export async function getPermissionSlips(params = {}, cacheOptions = {}) {
-    const cacheKey = buildCacheKey('v1/resources/permission-slips', params);
+    const cacheKey = buildApiCacheKey('v1/resources/permission-slips', params);
     return API.get('v1/resources/permission-slips', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
@@ -470,7 +460,7 @@ export async function signPublicPermissionSlip(token, payload) {
  * Dashboard snapshot for resources and approvals
  */
 export async function getResourceDashboard(params = {}, cacheOptions = {}) {
-    const cacheKey = buildCacheKey('v1/resources/status/dashboard', params);
+    const cacheKey = buildApiCacheKey('v1/resources/status/dashboard', params);
     return API.get('v1/resources/status/dashboard', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
@@ -484,7 +474,7 @@ export async function getResourceDashboard(params = {}, cacheOptions = {}) {
 export async function getUsers(organizationId, cacheOptions = {}) {
     const orgId = organizationId || getCurrentOrganizationId();
     const params = orgId ? { organization_id: orgId } : {};
-    const cacheKey = buildCacheKey('v1/users', params);
+    const cacheKey = buildApiCacheKey('v1/users', params);
 
     try {
         return await API.get('v1/users', params, {
@@ -494,7 +484,7 @@ export async function getUsers(organizationId, cacheOptions = {}) {
         });
     } catch (error) {
         debugWarn('v1/users unavailable, falling back to legacy /users', error);
-        const fallbackCacheKey = buildCacheKey('users', params);
+        const fallbackCacheKey = buildApiCacheKey('users', params);
         return API.get('users', params, {
             cacheKey: fallbackCacheKey,
             cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
@@ -509,7 +499,7 @@ export async function getUsers(organizationId, cacheOptions = {}) {
 export async function getRoleCatalog(options = {}) {
     const { forceRefresh = false, organizationId } = options || {};
     const params = organizationId ? { organization_id: organizationId } : {};
-    const cacheKey = buildCacheKey('v1/roles', params);
+    const cacheKey = buildApiCacheKey('v1/roles', params);
     try {
         return await API.get('v1/roles', params, {
             cacheKey,
@@ -518,7 +508,7 @@ export async function getRoleCatalog(options = {}) {
         });
     } catch (error) {
         debugWarn('v1/roles unavailable, using legacy /roles', error);
-        const fallbackCacheKey = buildCacheKey('role_catalog', params);
+        const fallbackCacheKey = buildApiCacheKey('role_catalog', params);
         return API.get('roles', params, {
             cacheKey: fallbackCacheKey,
             cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
@@ -533,7 +523,7 @@ export async function getRoleCatalog(options = {}) {
 export async function getRoleBundles(options = {}) {
     const { forceRefresh = false, organizationId } = options || {};
     const params = organizationId ? { organization_id: organizationId } : {};
-    const cacheKey = buildCacheKey('v1/roles/bundles', params);
+    const cacheKey = buildApiCacheKey('v1/roles/bundles', params);
 
     try {
         return await API.get('v1/roles/bundles', params, {
@@ -551,7 +541,7 @@ export async function getRoleBundles(options = {}) {
  * Get a user's assigned roles within the current organization
  */
 export async function getUserRoleAssignments(userId, cacheOptions = {}) {
-    const cacheKey = buildCacheKey(`v1/users/${userId}/roles`, { organization_id: getCurrentOrganizationId() });
+    const cacheKey = buildApiCacheKey(`v1/users/${userId}/roles`, { organization_id: getCurrentOrganizationId() });
     return API.get(`v1/users/${userId}/roles`, {}, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
@@ -620,7 +610,7 @@ export async function getRoleAuditLog(userId, options = {}) {
         limit,
         organization_id: organizationId || getCurrentOrganizationId()
     };
-    const cacheKey = buildCacheKey('v1/audit/roles', params);
+    const cacheKey = buildApiCacheKey('v1/audit/roles', params);
 
     try {
         return await API.get('v1/audit/roles', params, {
@@ -659,11 +649,11 @@ export async function clearUserCaches(organizationId) {
     const cacheKeys = new Set(['users', 'role_catalog', 'v1/users', 'v1/roles', 'v1/roles/bundles']);
 
     if (orgId) {
-        cacheKeys.add(buildCacheKey('users', { organization_id: orgId }));
-        cacheKeys.add(buildCacheKey('role_catalog', { organization_id: orgId }));
-        cacheKeys.add(buildCacheKey('v1/users', { organization_id: orgId }));
-        cacheKeys.add(buildCacheKey('v1/roles', { organization_id: orgId }));
-        cacheKeys.add(buildCacheKey('v1/roles/bundles', { organization_id: orgId }));
+        cacheKeys.add(buildApiCacheKey('users', { organization_id: orgId }));
+        cacheKeys.add(buildApiCacheKey('role_catalog', { organization_id: orgId }));
+        cacheKeys.add(buildApiCacheKey('v1/users', { organization_id: orgId }));
+        cacheKeys.add(buildApiCacheKey('v1/roles', { organization_id: orgId }));
+        cacheKeys.add(buildApiCacheKey('v1/roles/bundles', { organization_id: orgId }));
     }
 
     for (const key of cacheKeys) {
@@ -695,7 +685,7 @@ export async function updateUserRole(userId, role) {
 export async function getRolePermissions(roleId, options = {}) {
     const { organizationId, forceRefresh = false } = options || {};
     const params = organizationId ? { organization_id: organizationId } : {};
-    const cacheKey = buildCacheKey(`roles/${roleId}/permissions`, params);
+    const cacheKey = buildApiCacheKey(`roles/${roleId}/permissions`, params);
     return API.get(`roles/${roleId}/permissions`, params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
@@ -1896,7 +1886,7 @@ export async function saveMedicationRequirement(payload) {
  * Get participant-medication assignments
  */
 export async function getParticipantMedications(params = {}, cacheOptions = {}) {
-    const cacheKey = buildCacheKey('participant_medications', params);
+    const cacheKey = buildApiCacheKey('participant_medications', params);
     return API.get('v1/medication/participant-medications', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
@@ -1908,7 +1898,7 @@ export async function getParticipantMedications(params = {}, cacheOptions = {}) 
  * Get medication distributions (scheduled and historical)
  */
 export async function getMedicationDistributions(params = {}, cacheOptions = {}) {
-    const cacheKey = buildCacheKey('medication_distributions', params);
+    const cacheKey = buildApiCacheKey('medication_distributions', params);
     return API.get('v1/medication/distributions', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
@@ -1946,7 +1936,7 @@ export async function markMedicationDistributionAsGiven(distributionId, payload)
  * Get medication receptions for an activity
  */
 export async function getMedicationReceptions(params = {}, cacheOptions = {}) {
-    const cacheKey = buildCacheKey('medication_receptions', params);
+    const cacheKey = buildApiCacheKey('medication_receptions', params);
     return API.get('v1/medication/receptions', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
