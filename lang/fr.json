@@ -1167,6 +1167,7 @@
   "not_authorized": "Non autorisé",
   "notes": "Notes",
   "notification_sent_successfully": "Notification envoyée avec succès !",
+  "notification_queued_offline": "Notification enregistrée hors ligne et envoyée dès le retour en ligne.",
   "number_of_honors": "Nombre de Loup d'honneur",
   "number_of_payments": "Nombre de paiements",
   "objectif": "Objectif",

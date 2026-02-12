@@ -2774,11 +2774,18 @@ export async function checkAuthStatus() {
     }
 
     try {
-        const result = await API.get('check-auth');
-        return { isValid: true, user: result.user };
+        await API.post('auth/verify-session');
+        return { isValid: true };
     } catch (error) {
         return { isValid: false, reason: 'invalid_token' };
     }
+}
+
+/**
+ * Get current authenticated user profile
+ */
+export async function getCurrentUser() {
+    return API.getNoCache('v1/users/me');
 }
 
 // ============================================================================
