@@ -471,22 +471,6 @@ module.exports = (pool, logger) => {
       await client.query('BEGIN');
 
       for (const participantId of participants) {
-        // Prevent duplicate dose: check if a distribution already exists at this time and is already given
-        const existingGiven = await client.query(
-          `SELECT id FROM medication_distributions
-           WHERE organization_id = $1
-             AND medication_requirement_id = $2
-             AND participant_id = $3
-             AND scheduled_for = $4
-             AND status = 'given'`,
-          [organizationId, requirementId, participantId, scheduledDate.toISOString()]
-        );
-
-        if (existingGiven.rows.length > 0) {
-          await client.query('ROLLBACK');
-          return error(res, 'This dose has already been given and cannot be given again', 409);
-        }
-
         const assignment = await client.query(
           `INSERT INTO participant_medications (organization_id, medication_requirement_id, participant_id)
            VALUES ($1, $2, $3)
@@ -497,6 +481,23 @@ module.exports = (pool, logger) => {
         );
 
         const participantMedicationId = assignment.rows[0]?.id || null;
+
+        // Use a SELECT ... FOR UPDATE to lock the existing row (if any) and
+        // prevent a race between the duplicate-dose check and the upsert.
+        const existingDist = await client.query(
+          `SELECT id, status FROM medication_distributions
+           WHERE organization_id = $1
+             AND medication_requirement_id = $2
+             AND participant_id = $3
+             AND scheduled_for = $4
+           FOR UPDATE`,
+          [organizationId, requirementId, participantId, scheduledDate.toISOString()]
+        );
+
+        if (existingDist.rows.length > 0 && existingDist.rows[0].status === 'given') {
+          await client.query('ROLLBACK');
+          return error(res, 'This dose has already been given and cannot be given again', 409);
+        }
 
         await client.query(
           `INSERT INTO medication_distributions (
@@ -513,7 +514,8 @@ module.exports = (pool, logger) => {
             general_notice = EXCLUDED.general_notice,
             witness_name = EXCLUDED.witness_name,
             status = EXCLUDED.status,
-            updated_at = NOW()`,
+            updated_at = NOW()
+          WHERE medication_distributions.status <> 'given'`,
           [
             organizationId,
             requirementId,
