@@ -14,23 +14,30 @@ export class Login {
   /**
    * Ensure the current organization ID is available before rendering login.
    * Login API calls require the organization header, so this is a hard precondition.
+   * @returns {Promise<string>} Promise that resolves to the current organization ID string, or rejects if loading fails.
    */
   async ensureOrganizationIdLoaded() {
+    const isValidPrimitiveOrgId = (value) =>
+      (typeof value === "string" || typeof value === "number") &&
+      value !== "" &&
+      value !== "[object Object]";
+
     let organizationId = this.app.organizationId || getCurrentOrganizationId();
 
-    if (organizationId) {
-      this.app.organizationId = organizationId;
-      return organizationId;
+    if (isValidPrimitiveOrgId(organizationId)) {
+      const normalizedOrganizationId = String(organizationId);
+      this.app.organizationId = normalizedOrganizationId;
+      return normalizedOrganizationId;
     }
 
     debugLog("No organization ID found in app/storage, fetching before login render...");
 
     try {
       const response = await fetchOrganizationId();
-      const fetchedOrganizationId = response?.organization_id || response?.organizationId || response?.id || response || null;
+      const fetchedOrganizationId = response;
 
-      if (!fetchedOrganizationId) {
-        throw new Error("Organization ID not found in API response");
+      if (!isValidPrimitiveOrgId(fetchedOrganizationId)) {
+        throw new Error("Organization ID not found in API response or is invalid");
       }
 
       const normalizedOrganizationId = String(fetchedOrganizationId);
