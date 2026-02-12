@@ -1302,7 +1302,7 @@ app.use((err, req, res, next) => {
 // ============================================
 // Serve index.html for all non-API routes
 // This must be the last route handler
-app.get("*", (req, res) => {
+app.get("*path", (req, res) => {
   // Don't catch API routes or static files
   if (
     req.path.startsWith("/api") ||
