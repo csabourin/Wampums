@@ -184,8 +184,8 @@ export async function saveOfflineData(action, data, keyOverride = null) {
     const store = transaction.objectStore(STORE_NAME);
 
     const uniqueSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      ? crypto.randomUUID()
+      : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const recordKey = keyOverride || `${action}_${uniqueSuffix}`;
 
     const record = {
@@ -644,7 +644,7 @@ export async function clearCarpoolRelatedCaches(activityId = null) {
 export async function clearFormRelatedCaches(formType = null, organizationId = null) {
   const keysToDelete = [
     "v1/form-types",
-    "v1/organization-form-formats",
+    "v1/forms/formats",
     "v1/form-formats",
   ];
 
@@ -670,7 +670,7 @@ export async function clearFormRelatedCaches(formType = null, organizationId = n
         typeof key === "string" &&
         (key.startsWith("v1/form-") ||
           key.includes("form_type=") ||
-          key.includes("organization-form-formats"))
+          key.includes("forms/formats"))
       ) {
         keysToDelete.push(key);
       }
@@ -732,64 +732,4 @@ export async function clearParticipantFormCaches(participantId, formType = null)
   }
 }
 
-// Function to sync offline data with retry mechanism
-export async function syncOfflineData() {
-  if (!navigator.onLine) {
-    debugLog("Device is offline, cannot sync");
-    return;
-  }
-
-  try {
-    const offlineData = await getOfflineData();
-    debugLog("Found offline data to sync:", offlineData);
-
-    for (const item of offlineData) {
-      try {
-        switch (item.action) {
-          case "updateAttendance":
-            await updateAttendance(
-              item.data.participantIds,
-              item.data.newStatus,
-              item.data.date,
-            );
-            break;
-
-          case "saveParticipant":
-            await saveParticipant(item.data);
-            break;
-
-          case "saveGuest":
-            await saveGuest(item.data);
-            break;
-
-          // Add other cases as needed
-          default:
-            debugWarn(`Unknown offline action type: ${item.action}`);
-        }
-
-        // If successful, remove the item from offline storage
-        const db = await openDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        store.delete(item.key);
-      } catch (error) {
-        debugError(
-          `Error syncing offline data for action ${item.action}:`,
-          error,
-        );
-
-        // Increment retry count and update the record
-        if (item.retryCount < 3) {
-          const db = await openDB();
-          const tx = db.transaction(STORE_NAME, "readwrite");
-          const store = tx.objectStore(STORE_NAME);
-          item.retryCount = (item.retryCount || 0) + 1;
-          store.put(item);
-        }
-      }
-    }
-  } catch (error) {
-    debugError("Error during offline data sync:", error);
-    throw error;
-  }
-}
+// syncOfflineData removed as it relied on undefined globals and is implemented in api-core.js

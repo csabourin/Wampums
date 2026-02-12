@@ -28,113 +28,67 @@ const { checkValidation } = require('../middleware/validation');
 module.exports = (pool, logger) => {
   /**
    * @swagger
-   * /api/v1/push-subscription:
-   *   post:
-   *     summary: Subscribe to push notifications
-   *     description: Save push subscription for a user
-   *     tags: [Notifications]
-   *     security:
-   *       - bearerAuth: []
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - endpoint
-   *               - keys
-   *             properties:
-   *               endpoint:
-   *                 type: string
-   *               expirationTime:
-   *                 type: string
-   *               keys:
-   *                 type: object
-   *                 properties:
-   *                   p256dh:
-   *                     type: string
-   *                   auth:
-   *                     type: string
-   *     responses:
-   *       202:
-   *         description: Subscription accepted for saving
-   *       400:
-   *         description: Missing subscription data
-   *       401:
-   *         description: Unauthorized
+  /**
+   * GET /api/v1/notifications/subscription
    */
-  // Accept both legacy and versioned paths to avoid 404s during rollout
-  router.post(['/push-subscription', '/v1/push-subscription'],
+  router.post('/subscription',
     authenticate,
     check('endpoint').notEmpty().withMessage('endpoint is required').isURL().withMessage('endpoint must be a valid URL'),
     check('keys.p256dh').notEmpty().withMessage('keys.p256dh is required'),
     check('keys.auth').notEmpty().withMessage('keys.auth is required'),
     checkValidation,
     async (req, res) => {
-    try {
-      const organizationId = await getOrganizationId(req, pool);
+      try {
+        const organizationId = await getOrganizationId(req, pool);
 
-      const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
-      if (!membership.authorized) {
-        return error(res, membership.message || 'Insufficient permissions', 403);
-      }
+        const membership = await verifyOrganizationMembership(pool, req.user.id, organizationId);
+        if (!membership.authorized) {
+          return error(res, membership.message || 'Insufficient permissions', 403);
+        }
 
-      const { endpoint, expirationTime, keys = {} } = req.body;
-      const { p256dh, auth } = keys;
+        const { endpoint, expirationTime, keys = {} } = req.body;
+        const { p256dh, auth } = keys;
 
-      // Perform the subscription write asynchronously so the response is non-blocking
-      // and the service worker registration flow remains responsive.
-      const upsertPromise = pool.query(
-        `INSERT INTO subscribers (user_id, organization_id, endpoint, expiration_time, p256dh, auth)
+        // Perform the subscription write asynchronously so the response is non-blocking
+        // and the service worker registration flow remains responsive.
+        const upsertPromise = pool.query(
+          `INSERT INTO subscribers (user_id, organization_id, endpoint, expiration_time, p256dh, auth)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (endpoint) DO UPDATE
          SET organization_id = EXCLUDED.organization_id,
              expiration_time = EXCLUDED.expiration_time,
              p256dh = EXCLUDED.p256dh,
              auth = EXCLUDED.auth`,
-        [req.user.id, organizationId, endpoint, expirationTime, p256dh, auth]
-      );
+          [req.user.id, organizationId, endpoint, expirationTime, p256dh, auth]
+        );
 
-      // Respond immediately to keep the client flow fast while still persisting in the background.
-      success(res, null, 'Subscription accepted', 202);
+        // Respond immediately to keep the client flow fast while still persisting in the background.
+        success(res, null, 'Subscription accepted', 202);
 
-      upsertPromise.catch((error) => {
-        logger.error('Error saving subscription asynchronously:', error);
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
+        upsertPromise.catch((error) => {
+          logger.error('Error saving subscription asynchronously:', error);
+        });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error initiating subscription save:', error);
+        error(res, 'Failed to save subscription', 500);
       }
-      logger.error('Error initiating subscription save:', error);
-      error(res, 'Failed to save subscription', 500);
-    }
-  });
+    });
 
   // Lightweight health check to prevent expensive 404 handling on accidental GET requests
-  router.get(['/push-subscription', '/v1/push-subscription'], (req, res) => {
+  router.get('/subscription', (req, res) => {
     error(res, 'Method not allowed. Use POST to register push subscriptions.', 405);
   });
 
   /**
    * @swagger
-   * /api/push-subscribers:
-   *   get:
-   *     summary: Get all push notification subscribers
-   *     description: Retrieve list of all push notification subscribers (admin only)
-   *     tags: [Notifications]
-   *     x-permission: communications.send
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Subscribers retrieved successfully
-   *       401:
-   *         description: Unauthorized
-   *       403:
-   *         description: Insufficient permissions
+  /**
+   * GET /api/v1/notifications/subscribers
+   * Get all push notification subscribers
    */
-  router.get('/push-subscribers', async (req, res) => {
+  router.get('/subscribers', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -173,146 +127,118 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/send-notification:
-   *   post:
-   *     summary: Send push notification to all subscribers
-   *     description: Send web push notification (admin only)
-   *     tags: [Notifications]
-   *     x-permission: communications.send
-   *     security:
-   *       - bearerAuth: []
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - title
-   *               - body
-   *             properties:
-   *               title:
-   *                 type: string
-   *               body:
-   *                 type: string
-   *     responses:
-   *       200:
-   *         description: Notification sent successfully
-   *       400:
-   *         description: Title and body are required
-   *       403:
-   *         description: Admin access required
-   *       500:
-   *         description: VAPID private key not set or other error
+  /**
+   * POST /api/v1/notifications/send
+   * Send push notification to all subscribers
    */
-  router.post('/send-notification',
+  router.post('/send',
     check('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 200 }).withMessage('Title must not exceed 200 characters'),
     check('body').trim().notEmpty().withMessage('Body is required').isLength({ max: 1000 }).withMessage('Body must not exceed 1000 characters'),
     checkValidation,
     async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const payload = verifyJWT(token);
-
-      if (!payload?.user_id) {
-        return res.status(403).json({ error: 'Forbidden: Admin access required' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
-        requiredPermissions: ['communications.send'],
-      });
-      if (!membership.authorized) {
-        return res.status(403).json({ error: membership.message || 'Forbidden: Admin access required' });
-      }
-
-      const { title, body } = req.body;
-
-      // Note: Web-push functionality requires additional npm package
-      // For now, just save to database or return success
-      // Install with: npm install web-push
-
       try {
-        const webpush = require('web-push');
+        const token = req.headers.authorization?.split(' ')[1];
+        const payload = verifyJWT(token);
 
-        // VAPID keys - load from environment variables
-        const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-        const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE;
-
-        if (!vapidPublicKey) {
-          return res.status(500).json({ error: 'VAPID public key is not configured' });
+        if (!payload?.user_id) {
+          return res.status(403).json({ error: 'Forbidden: Admin access required' });
         }
 
-        if (!vapidPrivateKey) {
-          return res.status(500).json({ error: 'VAPID private key is not configured' });
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const membership = await verifyOrganizationMembership(pool, payload.user_id, organizationId, {
+          requiredPermissions: ['communications.send'],
+        });
+        if (!membership.authorized) {
+          return res.status(403).json({ error: membership.message || 'Forbidden: Admin access required' });
         }
 
-        webpush.setVapidDetails(
-          'mailto:info@christiansabourin.com',
-          vapidPublicKey,
-          vapidPrivateKey
-        );
+        const { title, body } = req.body;
 
-        // Fetch subscribers for the admin's organization only
-        const subscribersResult = await pool.query(
-          `SELECT * FROM subscribers WHERE organization_id = $1`,
-          [organizationId]
-        );
-        const subscribers = subscribersResult.rows;
+        // Note: Web-push functionality requires additional npm package
+        // For now, just save to database or return success
+        // Install with: npm install web-push
 
-        if (subscribers.length === 0) {
-          return res.json({ success: true, message: 'No subscribers found' });
-        }
+        try {
+          const webpush = require('web-push');
 
-        const notificationPayload = JSON.stringify({
-          title,
-          body,
-          options: {
-            body,
-            tag: 'renotify',
-            renotify: true,
-            requireInteraction: true
+          // VAPID keys - load from environment variables
+          const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+          const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE;
+
+          if (!vapidPublicKey) {
+            return res.status(500).json({ error: 'VAPID public key is not configured' });
           }
-        });
 
-        // Send notifications to all subscribers
-        const promises = subscribers.map(subscriber => {
-          const pushSubscription = {
-            endpoint: subscriber.endpoint,
-            keys: {
-              p256dh: subscriber.p256dh,
-              auth: subscriber.auth
+          if (!vapidPrivateKey) {
+            return res.status(500).json({ error: 'VAPID private key is not configured' });
+          }
+
+          webpush.setVapidDetails(
+            'mailto:info@christiansabourin.com',
+            vapidPublicKey,
+            vapidPrivateKey
+          );
+
+          // Fetch subscribers for the admin's organization only
+          const subscribersResult = await pool.query(
+            `SELECT * FROM subscribers WHERE organization_id = $1`,
+            [organizationId]
+          );
+          const subscribers = subscribersResult.rows;
+
+          if (subscribers.length === 0) {
+            return res.json({ success: true, message: 'No subscribers found' });
+          }
+
+          const notificationPayload = JSON.stringify({
+            title,
+            body,
+            options: {
+              body,
+              tag: 'renotify',
+              renotify: true,
+              requireInteraction: true
             }
-          };
+          });
 
-          return webpush.sendNotification(pushSubscription, notificationPayload)
-            .catch(error => {
-              logger.error(`Failed to send notification to ${subscriber.endpoint}:`, error);
-            });
-        });
+          // Send notifications to all subscribers
+          const promises = subscribers.map(subscriber => {
+            const pushSubscription = {
+              endpoint: subscriber.endpoint,
+              keys: {
+                p256dh: subscriber.p256dh,
+                auth: subscriber.auth
+              }
+            };
 
-        await Promise.all(promises);
+            return webpush.sendNotification(pushSubscription, notificationPayload)
+              .catch(error => {
+                logger.error(`Failed to send notification to ${subscriber.endpoint}:`, error);
+              });
+          });
 
-        res.json({ success: true });
-      } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-        if (error.code === 'MODULE_NOT_FOUND') {
-          logger.warn('web-push not installed. Install with: npm install web-push');
-          res.json({ success: false, message: 'Web push not configured. Install web-push package.' });
-        } else {
-          throw error;
+          await Promise.all(promises);
+
+          res.json({ success: true });
+        } catch (error) {
+          if (handleOrganizationResolutionError(res, error, logger)) {
+            return;
+          }
+          if (error.code === 'MODULE_NOT_FOUND') {
+            logger.warn('web-push not installed. Install with: npm install web-push');
+            res.json({ success: false, message: 'Web push not configured. Install web-push package.' });
+          } else {
+            throw error;
+          }
         }
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error sending notification:', error);
+        res.status(500).json({ error: error.message });
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error sending notification:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+    });
 
   return router;
 };

@@ -7,7 +7,7 @@
  * @module form_permissions
  */
 
-import { ajax } from './ajax-functions.js';
+import { API } from './api/api-core.js';
 import { debugLog, debugError } from './utils/DebugUtils.js';
 import { CONFIG } from './config.js';
 import { translate } from './app.js';
@@ -50,10 +50,7 @@ export class FormPermissionsManager {
    */
   async loadPermissions() {
     try {
-      const response = await ajax({
-        url: `${CONFIG.API_BASE_URL}/api/form-permissions`,
-        method: 'GET'
-      });
+      const response = await API.get('v1/forms/form-permissions');
 
       if (response.success) {
         this.permissions = response.data;
@@ -79,14 +76,10 @@ export class FormPermissionsManager {
    */
   async updatePermission(formFormatId, roleId, permissions) {
     try {
-      const response = await ajax({
-        url: `${CONFIG.API_BASE_URL}/api/form-permissions`,
-        method: 'PUT',
-        body: JSON.stringify({
-          form_format_id: formFormatId,
-          role_id: roleId,
-          ...permissions
-        })
+      const response = await API.put('v1/forms/form-permissions', {
+        form_format_id: formFormatId,
+        role_id: roleId,
+        ...permissions
       });
 
       if (response.success) {
@@ -107,13 +100,9 @@ export class FormPermissionsManager {
    */
   async updateDisplayContext(formFormatId, displayContext) {
     try {
-      const response = await ajax({
-        url: `${CONFIG.API_BASE_URL}/api/form-display-context`,
-        method: 'PUT',
-        body: JSON.stringify({
-          form_format_id: formFormatId,
-          display_context: displayContext
-        })
+      const response = await API.put('v1/forms/form-display-context', {
+        form_format_id: formFormatId,
+        display_context: displayContext
       });
 
       if (response.success) {
@@ -216,10 +205,10 @@ export class FormPermissionsManager {
             </thead>
             <tbody>
               ${rolesArray.map(roleName => {
-                const perm = formPerms.find(p => p.role_name === roleName);
-                if (!perm) return '';
+      const perm = formPerms.find(p => p.role_name === roleName);
+      if (!perm) return '';
 
-                return `
+      return `
                   <tr>
                     <td class="role-name">${translate(roleName) || perm.role_display_name}</td>
                     <td>
@@ -264,7 +253,7 @@ export class FormPermissionsManager {
                     </td>
                   </tr>
                 `;
-              }).join('')}
+    }).join('')}
             </tbody>
           </table>
         </div>

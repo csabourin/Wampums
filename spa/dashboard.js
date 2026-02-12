@@ -557,10 +557,6 @@ export class Dashboard extends BaseModule {
       this.lazyLogout();
     });
 
-    this.addEventListener(document.getElementById("toggle-points-btn"), "click", () => {
-      this.togglePointsVisibility();
-    });
-
     this.addEventListener(document.getElementById("refresh-news-btn"), "click", () => {
       this.loadNews(true);
     });

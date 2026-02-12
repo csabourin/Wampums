@@ -197,7 +197,8 @@ exports.getOrganizationId = async (req, pool) => {
     logger.error('Error getting organization ID:', error);
   }
 
-  throw new OrganizationNotFoundError('Organization mapping not found for request');
+  logger.warn(`Organization mapping not found for request. Hostname: ${hostname}. Defaulting to Demo Organization (ID 3).`);
+  return 3; // Default to Demo Organization
 };
 
 /**

@@ -140,9 +140,9 @@ async function getCurrentOrganizationId(req, pool, logger) {
   }
 
   if (logger) {
-    logger.warn(`Organization mapping not found for request. Hostname: ${hostname}, Headers: ${JSON.stringify(req.headers)}`);
+    logger.warn(`Organization mapping not found for request. Hostname: ${hostname}. Defaulting to Demo Organization (ID 3).`);
   }
-  throw new OrganizationNotFoundError('Organization mapping not found for request');
+  return 3; // Default to Demo Organization
 }
 
 /**

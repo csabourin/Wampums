@@ -1,6 +1,6 @@
 {
   "name": "wampums",
-  "version": "3.0.7",
+  "version": "3.1.0",
   "description": "Wampums project",
   "main": "api.js",
   "scripts": {
@@ -13,7 +13,9 @@
     "start:prod": "NODE_ENV=production node api.js",
     "postinstall": "npm rebuild bcrypt --build-from-source",
     "test": "jest",
-    "lint:api-version": "bash -c \"rg --pcre2 \\\"app\\.use\\(\\\\\"/api(?!/v1)\\\\\"\\\" api.js routes && echo \\\"Non-v1 /api routes found\\\" && exit 1 || exit 0\"",
+    "lint:api-version": "node scripts/modernization/check-api-version.js",
+    "lint:duplicate-mounts": "node scripts/modernization/check-duplicate-mounts.js",
+    "lint:spa-files": "node scripts/modernization/check-spa-files.js",
     "lint:spa-console": "bash -c \"rg \\\"console\\\\.\\\" spa --glob \\\"!spa/utils/DebugUtils.js\\\" --glob \\\"!spa/config.js\\\" && echo \\\"Console usage found in SPA\\\" && exit 1 || exit 0\"",
     "lint:spa-innerhtml": "bash -c \"rg \\\"innerHTML\\\\s*=\\\" spa --glob \\\"!spa/utils/DOMUtils.js\\\" --glob \\\"!spa/utils/SecurityUtils.js\\\" && echo \\\"innerHTML assignment found in SPA\\\" && exit 1 || exit 0\"",
     "lint:sql-params": "bash -c \"rg --pcre2 \\\"pool\\\\.query\\\\(\\\\s*`(?![^`]*\\\\$\\\\d)\\\" routes utils services middleware && echo \\\"Non-parameterized SQL candidate found\\\" && exit 1 || exit 0\""
@@ -76,7 +78,18 @@
     "transform": {
       "spa/.+\\.js$": [
         "babel-jest",
-        { "presets": [["@babel/preset-env", { "targets": { "node": "current" } }]] }
+        {
+          "presets": [
+            [
+              "@babel/preset-env",
+              {
+                "targets": {
+                  "node": "current"
+                }
+              }
+            ]
+          ]
+        }
       ]
     }
   }

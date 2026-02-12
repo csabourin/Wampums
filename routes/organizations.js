@@ -164,44 +164,45 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Organization ID required
    */
-  router.get('/organization-jwt', asyncHandler(async (req, res) => {
-      const organizationId = req.query.organization_id
-        ? parseInt(req.query.organization_id, 10)
-        : await getCurrentOrganizationId(req, pool, logger);
+  router.get('/jwt', asyncHandler(async (req, res) => {
+    const organizationId = req.query.organization_id
+      ? parseInt(req.query.organization_id, 10)
+      : await getCurrentOrganizationId(req, pool, logger);
 
-      if (!organizationId) {
-        return res.status(400).json({
-          success: false,
-          message: 'Organization ID is required'
-        });
-      }
-
-      // Generate JWT with organization ID only (no user information)
-      const token = jwt.sign(
-        { organizationId },
-        jwtKey,
-        { expiresIn: '7d' }
-      );
-
-      res.json({
-        success: true,
-        token,
-        organizationId
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID is required'
       });
+    }
+
+    // Generate JWT with organization ID only (no user information)
+    const token = jwt.sign(
+      { organizationId },
+      jwtKey,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      organizationId
+    });
   }));
 
   /**
    * @swagger
-   * /public/get_organization_id:
+   * /api/organizations/info:
    *   get:
-   *     summary: Get current organization ID and default language
-   *     description: Public endpoint to retrieve organization ID and default language from request context
+   *     summary: Get organization info
+   *     description: Retrieve basic organization information (public)
    *     tags: [Organizations]
    *     responses:
    *       200:
-   *         description: Organization ID and default language retrieved
+   *         description: Organization info retrieved
    */
-  router.get('/get_organization_id', asyncHandler(async (req, res) => {
+  router.get('/info', asyncHandler(async (req, res) => {
+    try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       // Fetch organization default language
@@ -217,6 +218,38 @@ module.exports = (pool, logger) => {
         organizationId: organizationId,
         defaultLanguage: defaultLanguage
       });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      throw error;
+    }
+  }));
+
+  /**
+   * @swagger
+   * /api/organizations/get_organization_id:
+   *   get:
+   *     summary: Get organization ID
+   *     description: Resolve organization ID from request context (domain, header, etc.)
+   *     tags: [Organizations]
+   *     responses:
+   *       200:
+   *         description: Organization ID retrieved
+   */
+  router.get('/get_organization_id', asyncHandler(async (req, res) => {
+    try {
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      res.json({
+        success: true,
+        organization_id: organizationId
+      });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      throw error;
+    }
   }));
 
   /**
@@ -241,7 +274,7 @@ module.exports = (pool, logger) => {
    *                   additionalProperties: true
    */
   // Public-safe organization settings (no authentication, limited data)
-  router.get('/organization-settings', asyncHandler(async (req, res, next) => {
+  router.get('/settings', asyncHandler(async (req, res, next) => {
     if (!req.baseUrl?.startsWith('/public')) {
       return next();
     }
@@ -267,7 +300,7 @@ module.exports = (pool, logger) => {
     }
   }));
 
-  router.get('/organization-settings', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
+  router.get('/settings', authenticate, requirePermission('org.view'), asyncHandler(async (req, res) => {
     try {
       const organizationId = await getOrganizationId(req, pool);
       const settings = await loadOrganizationSettings(pool, organizationId);
@@ -320,44 +353,44 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Forbidden - Admin access required
    */
-  router.patch('/organization-settings/default-email-language', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
-      const { language } = req.body;
+  router.patch('/settings/email-language', authenticate, blockDemoRoles, requirePermission('org.edit'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { language } = req.body;
 
-      // Supported languages
-      const supportedLanguages = ['en', 'fr', 'uk', 'it'];
+    // Supported languages
+    const supportedLanguages = ['en', 'fr', 'uk', 'it'];
 
-      // Validate language code
-      if (!language) {
-        return res.status(400).json({
-          success: false,
-          message: 'Language is required'
-        });
-      }
+    // Validate language code
+    if (!language) {
+      return res.status(400).json({
+        success: false,
+        message: 'Language is required'
+      });
+    }
 
-      if (!supportedLanguages.includes(language)) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`
-        });
-      }
+    if (!supportedLanguages.includes(language)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid language code. Supported languages: ${supportedLanguages.join(', ')}`
+      });
+    }
 
-      // Update or insert organization default email language setting
-      await pool.query(
-        `INSERT INTO organization_settings (organization_id, setting_key, setting_value, created_at, updated_at)
+    // Update or insert organization default email language setting
+    await pool.query(
+      `INSERT INTO organization_settings (organization_id, setting_key, setting_value, created_at, updated_at)
          VALUES ($1, 'default_email_language', $2, NOW(), NOW())
          ON CONFLICT (organization_id, setting_key)
          DO UPDATE SET setting_value = $2, updated_at = NOW()`,
-        [organizationId, JSON.stringify(language)]
-      );
+      [organizationId, JSON.stringify(language)]
+    );
 
-      logger.info(`Organization ${organizationId} default email language updated to ${language} by user ${req.user.id}`);
+    logger.info(`Organization ${organizationId} default email language updated to ${language} by user ${req.user.id}`);
 
-      res.json({
-        success: true,
-        message: 'Organization default email language updated successfully',
-        data: { language }
-      });
+    res.json({
+      success: true,
+      message: 'Organization default email language updated successfully',
+      data: { language }
+    });
   }));
 
   /**
@@ -386,19 +419,19 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/organizations', authenticate, blockDemoRoles, requirePermission('org.create'), asyncHandler(async (req, res) => {
-      const client = await pool.connect();
+  router.post('/', authenticate, blockDemoRoles, requirePermission('org.create'), asyncHandler(async (req, res) => {
+    const client = await pool.connect();
 
-      const { name, ...otherData } = req.body;
-      const userId = req.user.id;
+    const { name, ...otherData } = req.body;
+    const userId = req.user.id;
 
-      if (!name) {
-        client.release();
-        return res.status(400).json({ success: false, message: 'Organization name is required' });
-      }
+    if (!name) {
+      client.release();
+      return res.status(400).json({ success: false, message: 'Organization name is required' });
+    }
 
-      try {
-        await client.query('BEGIN');
+    try {
+      await client.query('BEGIN');
 
       // Resolve district role ID so the creator is assigned the correct permission-backed role
       const districtRoleResult = await client.query(
@@ -466,10 +499,10 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/register-for-organization:
+   * /api/v1/organizations/register:
    *   post:
-   *     summary: Register existing user for an organization
-   *     description: Allow existing user to join an organization using registration password
+   *     summary: Register user to organization
+   *     description: Register the current user to an organization using a registration password
    *     tags: [Organizations]
    *     security:
    *       - bearerAuth: []
@@ -479,83 +512,82 @@ module.exports = (pool, logger) => {
    *         application/json:
    *           schema:
    *             type: object
-   *             required:
-   *               - registration_password
+   *             required: [registration_password]
    *             properties:
    *               registration_password:
    *                 type: string
    *               role:
    *                 type: string
-   *                 enum: [parent, animation, admin]
+   *                 default: parent
    *               link_children:
    *                 type: array
    *                 items:
    *                   type: integer
    *     responses:
    *       200:
-   *         description: Successfully registered for organization
+   *         description: Successfully registered
    *       403:
    *         description: Invalid registration password
    */
-  router.post('/register-for-organization', authenticate, blockDemoRoles, requirePermission('org.register'), asyncHandler(async (req, res) => {
-      const { registration_password, role, link_children } = req.body;
-      const organizationId = await getOrganizationId(req, pool);
+  router.post('/register', authenticate, blockDemoRoles, requirePermission('org.register'), asyncHandler(async (req, res) => {
+    const { registration_password, role, link_children } = req.body;
+    const organizationId = await getOrganizationId(req, pool);
 
-      // Check registration password
-      const passwordResult = await pool.query(
-        `SELECT setting_value FROM organization_settings
+    // Check registration password
+    const passwordResult = await pool.query(
+      `SELECT setting_value FROM organization_settings
          WHERE organization_id = $1 AND setting_key = 'registration_password'`,
-        [organizationId]
+      [organizationId]
+    );
+
+    if (passwordResult.rows.length === 0 || passwordResult.rows[0].setting_value !== registration_password) {
+      return res.status(403).json({ success: false, message: 'Invalid registration password' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Get role ID from roles table
+      const roleName = role || 'parent';
+      const roleResult = await client.query(
+        `SELECT id FROM roles WHERE role_name = $1`,
+        [roleName]
       );
-
-      if (passwordResult.rows.length === 0 || passwordResult.rows[0].setting_value !== registration_password) {
-        return res.status(403).json({ success: false, message: 'Invalid registration password' });
+      if (roleResult.rows.length === 0) {
+        throw new Error(`Role '${roleName}' not found in roles table`);
       }
+      const roleId = roleResult.rows[0].id;
 
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-
-        // Get role ID from roles table
-        const roleName = role || 'parent';
-        const roleResult = await client.query(
-          `SELECT id FROM roles WHERE role_name = $1`,
-          [roleName]
-        );
-        if (roleResult.rows.length === 0) {
-          throw new Error(`Role '${roleName}' not found in roles table`);
-        }
-        const roleId = roleResult.rows[0].id;
-
-        // Add user to organization
-        await client.query(
-          `INSERT INTO user_organizations (user_id, organization_id, role_ids)
+      // Add user to organization
+      await client.query(
+        `INSERT INTO user_organizations (user_id, organization_id, role_ids)
            VALUES ($1, $2, $3)
            ON CONFLICT (user_id, organization_id) DO NOTHING`,
-          [req.user.id, organizationId, JSON.stringify([roleId])]
-        );
+        [req.user.id, organizationId, JSON.stringify([roleId])]
+      );
 
-        // Link children if provided
-        if (link_children && Array.isArray(link_children)) {
-          for (const participantId of link_children) {
-            await client.query(
-              `INSERT INTO user_participants (user_id, participant_id)
+      // Link children if provided
+      if (link_children && Array.isArray(link_children)) {
+        for (const participantId of link_children) {
+          await client.query(
+            `INSERT INTO user_participants (user_id, participant_id)
                VALUES ($1, $2)
                ON CONFLICT (user_id, participant_id) DO NOTHING`,
-              [req.user.id, participantId]
-            );
-          }
+            [req.user.id, participantId]
+          );
         }
-
-        await client.query('COMMIT');
-
-        res.json({ success: true, message: 'Successfully registered for organization' });
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      } finally {
-        client.release();
       }
+
+      await client.query('COMMIT');
+
+      res.json({ success: true, message: 'Successfully registered for organization' });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   /**
@@ -596,43 +628,43 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: User not a member of organization
    */
-  router.post('/switch-organization', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
-      const { organization_id } = req.body;
+  router.post('/switch', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+    const { organization_id } = req.body;
 
-      if (!organization_id) {
-        return res.status(400).json({ success: false, message: 'Organization ID is required' });
-      }
+    if (!organization_id) {
+      return res.status(400).json({ success: false, message: 'Organization ID is required' });
+    }
 
-      // Verify user belongs to this organization
-      const membershipCheck = await pool.query(
-        `SELECT role FROM user_organizations
+    // Verify user belongs to this organization
+    const membershipCheck = await pool.query(
+      `SELECT role FROM user_organizations
          WHERE user_id = $1 AND organization_id = $2`,
-        [req.user.id, organization_id]
-      );
+      [req.user.id, organization_id]
+    );
 
-      if (membershipCheck.rows.length === 0) {
-        return res.status(403).json({
-          success: false,
-          message: 'You do not have access to this organization'
-        });
-      }
-
-      // Generate new JWT with updated organization
-      const newToken = jwt.sign(
-        {
-          user_id: req.user.id,
-          organization_id: organization_id,
-          role: membershipCheck.rows[0].role
-        },
-        jwtKey,
-        { expiresIn: '24h' }
-      );
-
-      res.json({
-        success: true,
-        data: { token: newToken },
-        message: 'Organization switched successfully'
+    if (membershipCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to this organization'
       });
+    }
+
+    // Generate new JWT with updated organization
+    const newToken = jwt.sign(
+      {
+        user_id: req.user.id,
+        organization_id: organization_id,
+        role: membershipCheck.rows[0].role
+      },
+      jwtKey,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      success: true,
+      data: { token: newToken },
+      message: 'Organization switched successfully'
+    });
   }));
 
   return router;

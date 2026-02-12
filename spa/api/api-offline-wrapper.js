@@ -25,13 +25,13 @@ const CACHE_STRATEGY = {
 const ENDPOINT_CACHE_CONFIG = {
     '/api/v1/participants': CACHE_STRATEGY.CRITICAL,
     '/api/v1/groups': CACHE_STRATEGY.CRITICAL,
-    '/api/initial-data': CACHE_STRATEGY.CRITICAL,
-    '/api/organization-settings': CACHE_STRATEGY.CRITICAL,
+    '/api/v1/dashboards/initial-data': CACHE_STRATEGY.CRITICAL,
+    '/api/v1/organizations/organization-settings': CACHE_STRATEGY.CRITICAL,
     '/api/v1/attendance': CACHE_STRATEGY.STANDARD,
-    '/api/points-data': CACHE_STRATEGY.STANDARD,
-    '/api/honors': CACHE_STRATEGY.STANDARD,
-    '/api/badge-summary': CACHE_STRATEGY.STANDARD,
-    '/api/translations': CACHE_STRATEGY.STANDARD,
+    '/api/v1/points/points-data': CACHE_STRATEGY.STANDARD,
+    '/api/v1/honors': CACHE_STRATEGY.STANDARD,
+    '/api/v1/badges/summary': CACHE_STRATEGY.STANDARD,
+    '/api/v1/public/translations': CACHE_STRATEGY.STANDARD,
 };
 
 /**
@@ -91,10 +91,10 @@ export function withOfflineSupport(apiFunction, options = {}) {
             if (offlineManager.offline && queueable) {
                 // Check if error indicates queued operation
                 // Handle different error structures
-                const isQueued = error.queued || 
-                                (error.response && error.response.status === 202) ||
-                                (error.status === 202);
-                
+                const isQueued = error.queued ||
+                    (error.response && error.response.status === 202) ||
+                    (error.status === 202);
+
                 if (isQueued) {
                     return {
                         success: true,
@@ -133,7 +133,7 @@ export function createOfflineAwareAPI(apiMethods, endpointMap = {}) {
     for (const [methodName, apiFunction] of Object.entries(apiMethods)) {
         const config = endpointMap[methodName] || {};
         wrappedAPI[methodName] = withOfflineSupport(apiFunction, config);
-        
+
         debugLog(`api-offline-wrapper: Wrapped method ${methodName}`, config);
     }
 
@@ -152,7 +152,7 @@ export async function offlineFetch(url, options = {}) {
     debugLog('api-offline-wrapper: offlineFetch called', { url, method: options.method });
 
     const cacheDuration = getCacheDurationForUrl(url);
-    
+
     return offlineManager.fetchWithOfflineSupport(url, options, cacheDuration);
 }
 

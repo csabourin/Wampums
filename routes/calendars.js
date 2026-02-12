@@ -24,53 +24,60 @@ const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, 
 module.exports = (pool, logger) => {
   /**
    * @swagger
-   * /api/calendars:
+   * /api/v1/fundraiser-entries:
    *   get:
-   *     summary: Get all fundraiser entries
-   *     description: Retrieve fundraiser entries with participant and payment information
-   *     tags: [Fundraiser Entries]
-   *     x-permission: finance.view
+   *     summary: List fundraiser entries
+   *     description: Get all entries for a specific fundraiser
+   *     tags: [Fundraisers]
    *     security:
    *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: fundraiser_id
+   *         required: true
+   *         schema:
+   *           type: integer
    *     responses:
    *       200:
-   *         description: Fundraiser entries retrieved successfully
+   *         description: List of fundraiser entries
+   *       400:
+   *         description: Missing fundraiser_id
    *       401:
    *         description: Unauthorized
    */
-  router.get('/calendars', async (req, res) => {
+  router.get('/', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
-
+  
       if (!decoded || !decoded.user_id) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
-
+  
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const fundraiserId = req.query.fundraiser_id;
-
+  
       if (!fundraiserId) {
         return res.status(400).json({ success: false, message: 'fundraiser_id is required' });
       }
-
+  
       // First verify the fundraiser belongs to this organization
       const fundraiserCheck = await pool.query(
         `SELECT id FROM fundraisers WHERE id = $1 AND organization = $2`,
         [fundraiserId, organizationId]
       );
-
+  
       if (fundraiserCheck.rows.length === 0) {
         return res.status(403).json({ success: false, message: 'Access denied to this fundraiser' });
       }
-
+  
       const permissionCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
         requiredPermissions: ['finance.view'],
       });
       if (!permissionCheck.authorized) {
         return res.status(403).json({ success: false, message: permissionCheck.message });
       }
-
+  
       // Fetch all fundraiser entries for this fundraiser, regardless of participant's current organization status
       // This is important for inactive fundraisers where participants may have left the organization
       const result = await pool.query(
@@ -84,7 +91,7 @@ module.exports = (pool, logger) => {
          ORDER BY p.first_name, p.last_name`,
         [organizationId, fundraiserId]
       );
-
+  
       res.json({
         success: true,
         fundraiser_entries: result.rows
@@ -97,15 +104,14 @@ module.exports = (pool, logger) => {
       res.status(500).json({ success: false, message: error.message });
     }
   });
-
+  
   /**
    * @swagger
-   * /api/calendars/{id}:
+   * /api/v1/fundraiser-entries/{id}:
    *   put:
    *     summary: Update fundraiser entry
-   *     description: Update fundraiser entry details (admin/animation only)
-   *     tags: [Fundraiser Entries]
-   *     x-permission: finance.manage
+   *     description: Update amount, amount_paid, or paid status of a fundraiser entry
+   *     tags: [Fundraisers]
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -120,50 +126,39 @@ module.exports = (pool, logger) => {
    *           schema:
    *             type: object
    *             properties:
-   *               participant_id:
-   *                 type: integer
-   *               date:
-   *                 type: string
-   *                 format: date
-   *               amount_due:
+   *               amount:
    *                 type: number
    *               amount_paid:
    *                 type: number
    *               paid:
    *                 type: boolean
-   *               notes:
-   *                 type: string
    *     responses:
    *       200:
-   *         description: Fundraiser entry updated successfully
-   *       401:
-   *         description: Unauthorized
-   *       403:
-   *         description: Insufficient permissions
+   *         description: Entry updated
    *       404:
-   *         description: Fundraiser entry not found
+   *         description: Entry not found
    */
-  router.put('/calendars/:id', async (req, res) => {
+  router.put('/:id', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
-
+  
       if (!decoded || !decoded.user_id) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
-
+  
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
+  
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
         requiredPermissions: ['finance.manage'],
       });
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
-
+  
       const { id } = req.params;
       const { amount, amount_paid, paid } = req.body;
-
+  
       // Verify the fundraiser entry belongs to this organization through its fundraiser
       const verifyResult = await pool.query(
         `SELECT c.* FROM fundraiser_entries c
@@ -171,11 +166,11 @@ module.exports = (pool, logger) => {
          WHERE c.id = $1 AND f.organization = $2`,
         [id, organizationId]
       );
-
+  
       if (verifyResult.rows.length === 0) {
         return res.status(404).json({ success: false, message: 'Fundraiser entry not found' });
       }
-
+  
       const result = await pool.query(
         `UPDATE fundraiser_entries
          SET amount = COALESCE($1, amount),
@@ -186,11 +181,11 @@ module.exports = (pool, logger) => {
          RETURNING *`,
         [amount, amount_paid, paid, id]
       );
-
+  
       if (result.rows.length === 0) {
         return res.status(404).json({ success: false, message: 'Fundraiser entry not found' });
       }
-
+  
       res.json({ success: true, data: result.rows[0] });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {
@@ -200,15 +195,14 @@ module.exports = (pool, logger) => {
       res.status(500).json({ success: false, message: error.message });
     }
   });
-
+  
   /**
    * @swagger
-   * /api/calendars/{id}/payment:
+   * /api/v1/fundraiser-entries/{id}/payment:
    *   put:
-   *     summary: Update payment amount for a fundraiser entry
-   *     description: Update payment information for fundraiser entry (admin/animation only)
-   *     tags: [Fundraiser Entries]
-   *     x-permission: finance.manage
+   *     summary: Update fundraiser entry payment
+   *     description: Update the payment amount for a fundraiser entry and auto-calculate paid status
+   *     tags: [Fundraisers]
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -223,48 +217,41 @@ module.exports = (pool, logger) => {
    *         application/json:
    *           schema:
    *             type: object
-   *             required:
-   *               - amount_paid
+   *             required: [amount_paid]
    *             properties:
    *               amount_paid:
    *                 type: number
    *     responses:
    *       200:
-   *         description: Payment updated successfully
-   *       400:
-   *         description: Amount paid is required
-   *       401:
-   *         description: Unauthorized
-   *       403:
-   *         description: Insufficient permissions
+   *         description: Payment updated
    *       404:
-   *         description: Fundraiser entry not found
+   *         description: Entry not found
    */
-  router.put('/calendars/:id/payment', async (req, res) => {
+  router.put('/:id/payment', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
-
+  
       if (!decoded || !decoded.user_id) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
-
+  
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
+  
       const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId, {
         requiredPermissions: ['finance.manage'],
       });
       if (!authCheck.authorized) {
         return res.status(403).json({ success: false, message: 'Insufficient permissions' });
       }
-
+  
       const { id } = req.params;
       const { amount_paid } = req.body;
-
+  
       if (amount_paid === undefined) {
         return res.status(400).json({ success: false, message: 'Amount paid is required' });
       }
-
+  
       // Get current amount and verify organization
       const currentResult = await pool.query(
         `SELECT c.amount FROM fundraiser_entries c
@@ -272,14 +259,14 @@ module.exports = (pool, logger) => {
          WHERE c.id = $1 AND f.organization = $2`,
         [id, organizationId]
       );
-
+  
       if (currentResult.rows.length === 0) {
         return res.status(404).json({ success: false, message: 'Fundraiser entry not found' });
       }
-
+  
       const amountDue = parseFloat(currentResult.rows[0].amount) || 0;
       const paid = parseFloat(amount_paid) >= amountDue;
-
+  
       const result = await pool.query(
         `UPDATE fundraiser_entries
          SET amount_paid = $1,
@@ -289,7 +276,7 @@ module.exports = (pool, logger) => {
          RETURNING *`,
         [amount_paid, paid, id]
       );
-
+  
       res.json({ success: true, data: result.rows[0] });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {
@@ -299,31 +286,31 @@ module.exports = (pool, logger) => {
       res.status(500).json({ success: false, message: error.message });
     }
   });
-
-  /**
-   * @swagger
-   * /api/participant-calendar:
-   *   get:
-   *     summary: Get fundraiser entries for a specific participant
-   *     description: Retrieve all fundraiser entries for a participant
-   *     tags: [Fundraiser Entries]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: query
-   *         name: participant_id
-   *         required: true
-   *         schema:
-   *           type: integer
-   *     responses:
-   *       200:
-   *         description: Participant fundraiser entries retrieved successfully
-   *       400:
-   *         description: Participant ID is required
-   *       401:
-   *         description: Unauthorized
-   */
-  router.get('/participant-calendar', async (req, res) => {
+  
+    /**
+     * @swagger
+     * /api/participant-calendar:
+     *   get:
+     *     summary: Get fundraiser entries for a specific participant
+     *     description: Retrieve all fundraiser entries for a participant
+     *     tags: [Fundraiser Entries]
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - in: query
+     *         name: participant_id
+     *         required: true
+     *         schema:
+     *           type: integer
+     *     responses:
+     *       200:
+     *         description: Participant fundraiser entries retrieved successfully
+     *       400:
+     *         description: Participant ID is required
+     *       401:
+     *         description: Unauthorized
+     */
+  router.get('/participant', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -342,11 +329,11 @@ module.exports = (pool, logger) => {
 
       const result = await pool.query(
         `SELECT c.*, p.first_name, p.last_name, f.name as fundraiser_name
-         FROM fundraiser_entries c
-         JOIN participants p ON c.participant_id = p.id
-         JOIN fundraisers f ON c.fundraiser = f.id
-         WHERE c.participant_id = $1 AND f.organization = $2
-         ORDER BY f.start_date DESC`,
+       FROM fundraiser_entries c
+       JOIN participants p ON c.participant_id = p.id
+       JOIN fundraisers f ON c.fundraiser = f.id
+       WHERE c.participant_id = $1 AND f.organization = $2
+       ORDER BY f.start_date DESC`,
         [participant_id, organizationId]
       );
 

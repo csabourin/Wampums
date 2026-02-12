@@ -28,13 +28,20 @@ const WHATSAPP_LOG_LEVEL = process.env.WHATSAPP_LOG_LEVEL || 'info';
 const WHATSAPP_LOG_FILE = process.env.WHATSAPP_LOG_FILE || 'whatsapp-baileys.log';
 const ENABLE_WHATSAPP_CONSOLE_LOGS = process.env.WHATSAPP_CONSOLE_LOGS !== 'false';
 
+// Custom format to handle Baileys passing objects directly as messages
+const baileysFormat = winston.format.printf(({ level, message, ...rest }) => {
+  const msg = typeof message === 'object' ? JSON.stringify(message) : message;
+  const extra = Object.keys(rest).length > 0 ? ' ' + JSON.stringify(rest) : '';
+  return `${level}: ${msg}${extra}`;
+});
+
 // Configure logger (keeping defaults lightweight to avoid event-loop thrashing)
 const loggerTransports = [
   new winston.transports.File({ filename: WHATSAPP_LOG_FILE, level: WHATSAPP_LOG_LEVEL })
 ];
 
 if (ENABLE_WHATSAPP_CONSOLE_LOGS) {
-  loggerTransports.push(new winston.transports.Console({ format: winston.format.simple(), level: WHATSAPP_LOG_LEVEL }));
+  loggerTransports.push(new winston.transports.Console({ format: baileysFormat, level: WHATSAPP_LOG_LEVEL }));
 }
 
 const logger = winston.createLogger({

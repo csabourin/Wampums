@@ -17,15 +17,15 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 // ==================================================================
 
 // Version should match package.json and config.js
-const APP_VERSION = '3.0.7';
+const APP_VERSION = '3.1.0';
 
 // Camp mode flag - when enabled, use extended cache durations
 let campModeEnabled = false;
 
 // Cache duration constants (in milliseconds)
 const CACHE_DURATION = {
-    STANDARD: 24 * 60 * 60 * 1000,       // 24 hours
-    CAMP_MODE: 10 * 24 * 60 * 60 * 1000, // 10 days
+  STANDARD: 24 * 60 * 60 * 1000,       // 24 hours
+  CAMP_MODE: 10 * 24 * 60 * 60 * 1000, // 10 days
 };
 
 /**
@@ -33,26 +33,26 @@ const CACHE_DURATION = {
  * Date-dependent endpoints get extended cache in camp mode
  */
 function getCacheDuration(url) {
-    if (!campModeEnabled) {
-        return CACHE_DURATION.STANDARD;
-    }
-
-    // In camp mode, extend cache for date-dependent endpoints
-    const pathname = typeof url === 'string' ? new URL(url, self.location.origin).pathname : url.pathname;
-    const campModeEndpoints = [
-        '/attendance',
-        '/honors',
-        '/medication',
-        '/badges',
-        '/participants',
-        '/groups'
-    ];
-
-    if (campModeEndpoints.some(endpoint => pathname.includes(endpoint))) {
-        return CACHE_DURATION.CAMP_MODE;
-    }
-
+  if (!campModeEnabled) {
     return CACHE_DURATION.STANDARD;
+  }
+
+  // In camp mode, extend cache for date-dependent endpoints
+  const pathname = typeof url === 'string' ? new URL(url, self.location.origin).pathname : url.pathname;
+  const campModeEndpoints = [
+    '/attendance',
+    '/honors',
+    '/medication',
+    '/badges',
+    '/participants',
+    '/groups'
+  ];
+
+  if (campModeEndpoints.some(endpoint => pathname.includes(endpoint))) {
+    return CACHE_DURATION.CAMP_MODE;
+  }
+
+  return CACHE_DURATION.STANDARD;
 }
 
 const isProduction = () => {

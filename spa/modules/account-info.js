@@ -8,7 +8,7 @@
  */
 
 import { makeApiRequest } from "../api/api-core.js";
-import { debugLog, debugError } from "../utils/DebugUtils.js";
+import { debugLog, debugError, debugWarn } from "../utils/DebugUtils.js";
 import { translate, app as appInstance } from "../app.js";
 import { escapeHTML } from "../utils/SecurityUtils.js";
 import { isParent } from "../utils/PermissionUtils.js";
@@ -42,24 +42,38 @@ export class AccountInfoModule {
     await loadStylesheet("/css/account-info.css");
 
     try {
+      debugLog("Checking permissions and push support");
       this.isParent = isParent();
 
       // Check push notification support
       this.pushSupported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+      debugLog("Push support check:", { supported: this.pushSupported, notification: 'Notification' in window, sw: 'serviceWorker' in navigator, push: 'PushManager' in window });
+
       if (this.pushSupported) {
+        debugLog("Checking push subscription status");
         this.pushEnabled = await this.checkPushSubscription();
+        debugLog("Push subscription check complete:", { enabled: this.pushEnabled });
       }
 
+      debugLog("Loading starting user data");
       await this.loadUserData();
+      debugLog("User data load complete");
+
       if (this.isParent) {
+        debugLog("Loading guardian profile (parent role detected)");
         await this.loadGuardianProfile();
+        debugLog("Guardian profile load complete");
       } else {
+        debugLog("Skipping guardian profile (not a parent)");
         this.guardianProfile = { guardian: null, participantIds: [] };
         this.guardianError = null;
       }
 
+      debugLog("Proceeding to initial render");
       this.render();
+      debugLog("Initial render complete, attaching event listeners");
       this.attachEventListeners();
+      debugLog("Initialization complete");
     } catch (error) {
       debugError("Error initializing settings module:", error);
       this.renderError(translate("error_loading_data"));
@@ -72,12 +86,27 @@ export class AccountInfoModule {
   async checkPushSubscription() {
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        debugLog("ServiceWorker or PushManager not available");
         return false;
       }
 
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      return subscription !== null;
+      debugLog("Waiting for service worker to be ready (with 2s timeout)");
+
+      // Use a timeout to prevent hanging if the service worker doesn't become ready
+      const swReadyPromise = navigator.serviceWorker.ready;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Service worker ready timeout")), 2000)
+      );
+
+      try {
+        const registration = await Promise.race([swReadyPromise, timeoutPromise]);
+        debugLog("Service worker ready");
+        const subscription = await registration.pushManager.getSubscription();
+        return subscription !== null;
+      } catch (timeoutError) {
+        debugWarn("Service worker check timed out or failed, continuing without push status:", timeoutError.message);
+        return false;
+      }
     } catch (error) {
       debugError("Error checking push subscription:", error);
       return false;

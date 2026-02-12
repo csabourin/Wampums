@@ -53,7 +53,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Access denied
    */
-  router.get('/form-submission', async (req, res) => {
+  router.get('/submissions', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -206,7 +206,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/save-form-submission', async (req, res) => {
+  router.post('/submissions', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -285,7 +285,7 @@ module.exports = (pool, logger) => {
              WHERE participant_id = $7 AND organization_id = $8 AND form_type = $9
              RETURNING *`,
             [JSON.stringify(submission_data), decoded.user_id, formVersionId, submissionStatus,
-             ipAddress, userAgent, participant_id, organizationId, form_type]
+              ipAddress, userAgent, participant_id, organizationId, form_type]
           );
         } else {
           // Insert new submission
@@ -297,7 +297,7 @@ module.exports = (pool, logger) => {
                      CASE WHEN $7::varchar = 'submitted' THEN NOW() ELSE NULL END, $8, $9)
              RETURNING *`,
             [participant_id, organizationId, form_type, JSON.stringify(submission_data),
-             decoded.user_id, formVersionId, submissionStatus, ipAddress, userAgent]
+              decoded.user_id, formVersionId, submissionStatus, ipAddress, userAgent]
           );
         }
 
@@ -331,7 +331,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/organization-form-formats:
+   * /api/v1/forms/formats:
    *   get:
    *     summary: Get organization form formats
    *     description: Retrieve form formats configured for the organization that the user has permission to view, optionally filtered by display context
@@ -351,7 +351,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/organization-form-formats', async (req, res) => {
+  router.get('/formats', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -433,7 +433,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/form-types', async (req, res) => {
+  router.get('/types', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -487,7 +487,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Form structure not found
    */
-  router.get('/form-structure', async (req, res) => {
+  router.get('/structure/:form_type', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -496,7 +496,7 @@ module.exports = (pool, logger) => {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      const { form_type } = req.query;
+      const { form_type } = req.params;
 
       if (!form_type) {
         return res.status(400).json({ success: false, message: 'Form type is required' });
@@ -555,7 +555,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: No submission data found
    */
-  router.get('/form-submissions-list', async (req, res) => {
+  router.get('/submissions/list', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -646,7 +646,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/form-submissions', async (req, res) => {
+  router.get('/submissions', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -857,8 +857,8 @@ module.exports = (pool, logger) => {
            date_signature = EXCLUDED.date_signature
          RETURNING *`,
         [participant_id, groupe_district, accepte_risques, accepte_covid19,
-         participation_volontaire, declaration_sante, declaration_voyage,
-         nom_parent_tuteur, date_signature]
+          participation_volontaire, declaration_sante, declaration_voyage,
+          nom_parent_tuteur, date_signature]
       );
 
       res.json({ success: true, data: result.rows[0] });

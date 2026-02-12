@@ -16,6 +16,7 @@ import {
   getFicheMedications,
   getMedicationReceptions
 } from "./api/api-endpoints.js";
+import { buildApiCacheKey } from "./utils/OfflineCacheKeys.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
 /**
@@ -81,6 +82,10 @@ export class MedicationManagement {
         const distData = cachedDistributions.data || cachedDistributions;
         const partData = cachedParticipants?.data || cachedParticipants || [];
         const assignData = cachedAssignments?.data || cachedAssignments || {};
+
+        // Use the same cache key building logic as getMedicationReceptions
+        const receptionsCacheKey = buildApiCacheKey('medication_receptions', {});
+        const cachedReceptions = await getCacheFn(receptionsCacheKey);
         const recData = cachedReceptions?.data || cachedReceptions || {};
 
         this.requirements = Array.isArray(reqData) ? reqData : (reqData.requirements || []);
@@ -93,9 +98,8 @@ export class MedicationManagement {
 
         // Load receptions from cache for dispensing view
         if (this.view === "dispensing") {
-          this.receptions = Array.isArray(recData)
-            ? recData
-            : (recData.receptions || []);
+          const rawRecData = recData?.receptions || recData?.data?.receptions || recData || [];
+          this.receptions = Array.isArray(rawRecData) ? rawRecData : [];
         }
 
         // Filter data if participantId is specified (parent view)
@@ -142,7 +146,8 @@ export class MedicationManagement {
     if (this.view === "dispensing") {
       try {
         const receptionsResponse = await getMedicationReceptions({}, cacheOptions);
-        this.receptions = receptionsResponse?.data?.receptions || receptionsResponse?.receptions || [];
+        const rawRecs = receptionsResponse?.data?.receptions || receptionsResponse?.receptions || receptionsResponse?.data || [];
+        this.receptions = Array.isArray(rawRecs) ? rawRecs : [];
       } catch (error) {
         debugError("Failed to load medication receptions", error);
         this.receptions = [];
@@ -616,16 +621,16 @@ export class MedicationManagement {
         <span>${escapeHTML(translate("medication_frequency_meal_label"))}</span>
         <div class="participant-grid">
           ${mealSlots
-            .map(
-              (slot) => `
+          .map(
+            (slot) => `
                 <label class="participant-pill" style="align-items:center;">
                   <input type="checkbox" name="frequency_meal_${slot.key}" value="${slot.key}" checked />
                   <span>${escapeHTML(translate(slot.labelKey))}</span>
                   <input type="time" name="frequency_meal_${slot.key}_time" value="${slot.defaultTime}" aria-label="${escapeHTML(translate(slot.labelKey))}" />
                 </label>
               `
-            )
-            .join("")}
+          )
+          .join("")}
         </div>
         <p class="help-text">${escapeHTML(translate("medication_frequency_meal_hint"))}</p>
       `;
@@ -846,15 +851,15 @@ export class MedicationManagement {
       <span>${escapeHTML(translate("medication_schedule_frequency_label"))}</span>
       <div class="participant-grid">
         ${slots
-          .map(
-            (slot) => `
+        .map(
+          (slot) => `
               <label class="participant-pill" style="align-items:center;">
                 <input type="checkbox" name="schedule_slots" value="${slot.iso}" checked />
                 <span>${escapeHTML(slot.label)}</span>
               </label>
             `
-          )
-          .join("")}
+        )
+        .join("")}
       </div>
       <p class="help-text">${escapeHTML(translate("medication_schedule_frequency_hint"))}</p>
     `;
@@ -940,8 +945,8 @@ export class MedicationManagement {
         </div>
 
         ${this.view === "planning"
-          ? this.renderPlanningSection({ medicationSuggestions, participantOptions })
-          : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
+        ? this.renderPlanningSection({ medicationSuggestions, participantOptions })
+        : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
       </section>
     `);
     if (this.view === "dispensing") {
@@ -1159,36 +1164,36 @@ export class MedicationManagement {
           </div>
           <div class="medication-list">
             ${dispensableMeds.map((med) => {
-              const req = med.requirement;
-              const reception = this.getReceptionForMedication(participantId, req.id);
-              const doseInfo = req.default_dose_amount
-                ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
-                : req.dosage_instructions || '';
-              const route = req.route ? ` · ${req.route}` : '';
-              const frequency = req.frequency_text || translate("medication_frequency_prn_text");
+        const req = med.requirement;
+        const reception = this.getReceptionForMedication(participantId, req.id);
+        const doseInfo = req.default_dose_amount
+          ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
+          : req.dosage_instructions || '';
+        const route = req.route ? ` · ${req.route}` : '';
+        const frequency = req.frequency_text || translate("medication_frequency_prn_text");
 
-              // Get time slots for display
-              const timeSlots = this.getTimeSlotsForDisplay(req);
-              const timeSlotsHtml = timeSlots.length > 0
-                ? `<div class="medication-time-slots">
+        // Get time slots for display
+        const timeSlots = this.getTimeSlotsForDisplay(req);
+        const timeSlotsHtml = timeSlots.length > 0
+          ? `<div class="medication-time-slots">
                      <strong>⏰ ${escapeHTML(translate("medication_administration_times"))}:</strong>
                      <div class="time-slots-list">
                        ${timeSlots.map(slot => `<span class="time-badge">${escapeHTML(slot)}</span>`).join('')}
                      </div>
                    </div>`
-                : '';
+          : '';
 
-              // Show reception notes and partial status if applicable
-              const receptionNotesHtml = reception?.reception_notes
-                ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
+        // Show reception notes and partial status if applicable
+        const receptionNotesHtml = reception?.reception_notes
+          ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
                      📋 ${escapeHTML(reception.reception_notes)}
                    </div>`
-                : '';
-              const partialBadge = reception?.status === "partial"
-                ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
-                : '';
+          : '';
+        const partialBadge = reception?.status === "partial"
+          ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
+          : '';
 
-              return `
+        return `
                 <div class="medication-item">
                   <div class="medication-info">
                     <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
@@ -1214,7 +1219,7 @@ export class MedicationManagement {
                   </button>
                 </div>
               `;
-            }).join('')}
+      }).join('')}
           </div>
         </div>
       `;
@@ -1404,60 +1409,60 @@ export class MedicationManagement {
         </div>
         <div class="medication-list">
           ${medications.map((med) => {
-            const req = med.requirement;
-            const reception = this.getReceptionForMedication(participantId, req.id);
-            const doseInfo = req.default_dose_amount
-              ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
-              : req.dosage_instructions || '';
-            const route = req.route ? ` · ${req.route}` : '';
-            const frequency = req.frequency_text || translate("medication_frequency_prn_text");
+      const req = med.requirement;
+      const reception = this.getReceptionForMedication(participantId, req.id);
+      const doseInfo = req.default_dose_amount
+        ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
+        : req.dosage_instructions || '';
+      const route = req.route ? ` · ${req.route}` : '';
+      const frequency = req.frequency_text || translate("medication_frequency_prn_text");
 
-            // Time slots display
-            const timeSlots = this.getTimeSlotsForDisplay(req);
-            const timeSlotsHtml = timeSlots.length > 0
-              ? `<div class="medication-time-slots">
+      // Time slots display
+      const timeSlots = this.getTimeSlotsForDisplay(req);
+      const timeSlotsHtml = timeSlots.length > 0
+        ? `<div class="medication-time-slots">
                    <strong>${escapeHTML(translate("medication_administration_times"))}:</strong>
                    <div class="time-slots-list">
                      ${timeSlots.map(slot => `<span class="time-badge">${escapeHTML(slot)}</span>`).join('')}
                    </div>
                  </div>`
-              : '';
+        : '';
 
-            // Reception notes
-            const receptionNotesHtml = reception?.reception_notes
-              ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
+      // Reception notes
+      const receptionNotesHtml = reception?.reception_notes
+        ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
                    ${escapeHTML(reception.reception_notes)}
                  </div>`
-              : '';
-            const partialBadge = reception?.status === "partial"
-              ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
-              : '';
+        : '';
+      const partialBadge = reception?.status === "partial"
+        ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
+        : '';
 
-            if (isGiven) {
-              // Render given medication with administration details
-              const givenDoses = med.givenDoses || [];
-              const anyPending = givenDoses.some((d) => d.isOptimistic);
-              const givenTimesHtml = givenDoses.map((d) => {
-                const givenAt = d.administered_at ? new Date(d.administered_at) : new Date(d.scheduled_for);
-                const timeStr = givenAt.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
-                const witnessStr = d.witness_name ? ` · ${escapeHTML(d.witness_name)}` : '';
-                const pendingLabel = d.isOptimistic
-                  ? ` <em style="font-size:0.7rem; opacity:0.8;">(${escapeHTML(translate("medication_pending_sync"))})</em>`
-                  : '';
-                return `<span class="pill" style="background:${d.isOptimistic ? '#fef3c7; color:#92400e' : '#d1fae5; color:#065f46'}; font-size:0.8rem;">
+      if (isGiven) {
+        // Render given medication with administration details
+        const givenDoses = med.givenDoses || [];
+        const anyPending = givenDoses.some((d) => d.isOptimistic);
+        const givenTimesHtml = givenDoses.map((d) => {
+          const givenAt = d.administered_at ? new Date(d.administered_at) : new Date(d.scheduled_for);
+          const timeStr = givenAt.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
+          const witnessStr = d.witness_name ? ` · ${escapeHTML(d.witness_name)}` : '';
+          const pendingLabel = d.isOptimistic
+            ? ` <em style="font-size:0.7rem; opacity:0.8;">(${escapeHTML(translate("medication_pending_sync"))})</em>`
+            : '';
+          return `<span class="pill" style="background:${d.isOptimistic ? '#fef3c7; color:#92400e' : '#d1fae5; color:#065f46'}; font-size:0.8rem;">
                   ${escapeHTML(translate("medication_given_at"))} ${escapeHTML(timeStr)}${witnessStr}${pendingLabel}
                 </span>`;
-              }).join('');
+        }).join('');
 
-              const statusPill = anyPending
-                ? `<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:700; font-size:1rem; white-space:nowrap;">
+        const statusPill = anyPending
+          ? `<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:700; font-size:1rem; white-space:nowrap;">
                     ${escapeHTML(translate("medication_pending_sync"))}
                   </span>`
-                : `<span class="pill" style="background:#d1fae5; color:#065f46; font-weight:700; font-size:1rem; white-space:nowrap;">
+          : `<span class="pill" style="background:#d1fae5; color:#065f46; font-weight:700; font-size:1rem; white-space:nowrap;">
                     ${escapeHTML(translate("medication_status_given"))}
                   </span>`;
 
-              return `
+        return `
                 <div class="medication-item" style="border-color:${anyPending ? '#f59e0b' : '#10b981'}; background:${anyPending ? '#fffbeb' : '#f0fdf4'};">
                   <div class="medication-info">
                     <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
@@ -1476,10 +1481,10 @@ export class MedicationManagement {
                   ${statusPill}
                 </div>
               `;
-            }
+      }
 
-            // Render pending medication with give button
-            return `
+      // Render pending medication with give button
+      return `
               <div class="medication-item">
                 <div class="medication-info">
                   <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
@@ -1505,7 +1510,7 @@ export class MedicationManagement {
                 </button>
               </div>
             `;
-          }).join('')}
+    }).join('')}
         </div>
       </div>
     `;
@@ -1631,9 +1636,9 @@ export class MedicationManagement {
             <strong>${escapeHTML(translate("medication_alert_group_label"))}</strong>
             <ul style="margin:0; padding-left:1.25rem;">
               ${alert.items.map((item) => {
-                const requirement = this.getRequirementById(item.medication_requirement_id) || {};
-                return `<li>${escapeHTML(this.getParticipantName(item.participant_id))} · ${escapeHTML(requirement.medication_name || translate("medication"))}</li>`;
-              }).join("")}
+        const requirement = this.getRequirementById(item.medication_requirement_id) || {};
+        return `<li>${escapeHTML(this.getParticipantName(item.participant_id))} · ${escapeHTML(requirement.medication_name || translate("medication"))}</li>`;
+      }).join("")}
             </ul>
           </div>
           <div class="alert-actions">
@@ -2130,6 +2135,10 @@ export class MedicationManagement {
    * @returns {Object|null}
    */
   getReceptionForMedication(participantId, requirementId) {
+    if (!Array.isArray(this.receptions)) {
+      debugLog("this.receptions is not an array, defaulting to null");
+      return null;
+    }
     return this.receptions.find(
       (r) => r.participant_id === participantId && r.medication_requirement_id === requirementId
     ) || null;
@@ -2294,7 +2303,7 @@ export class MedicationManagement {
             this.updateSplitCards();
             this.renderAlertArea();
             this.attachEventListeners();
-          }).catch(() => {});
+          }).catch(() => { });
         } else {
           this.updateSplitCards();
           this.renderAlertArea();

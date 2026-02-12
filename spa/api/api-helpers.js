@@ -19,19 +19,33 @@ export function getCurrentOrganizationId() {
     let orgId = localStorage.getItem('organizationId') ||
                 localStorage.getItem('currentOrganizationId');
 
+    if (typeof orgId === 'object' && orgId !== null) {
+        orgId = orgId.organization_id || orgId.organizationId || orgId.id || null;
+    }
+
     // If it's stored as JSON object, parse and extract the ID
     if (orgId && orgId.startsWith('{')) {
         try {
             const parsed = JSON.parse(orgId);
-            orgId = parsed.organizationId || parsed.id || parsed;
+            orgId = parsed.organization_id || parsed.organizationId || parsed.id || null;
         } catch (e) {
             debugWarn('Failed to parse organization ID from localStorage:', e);
+            orgId = null;
         }
     }
 
     // Ensure it's a valid number/string, not "[object Object]"
     if (orgId && orgId !== '[object Object]' && orgId !== 'undefined') {
         return orgId;
+    }
+
+    if (orgId === null || orgId === '[object Object]' || orgId === 'undefined') {
+        try {
+            localStorage.removeItem('organizationId');
+            localStorage.removeItem('currentOrganizationId');
+        } catch (error) {
+            debugWarn('Failed to clear invalid organization ID from storage:', error);
+        }
     }
 
     return null;

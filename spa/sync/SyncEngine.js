@@ -17,6 +17,7 @@ import { outboxManager } from './OutboxManager.js';
 import { idMapper } from './IdMapper.js';
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
 import { CONFIG } from '../config.js';
+import { makeApiRequest, API } from '../api/api-core.js';
 
 /**
  * Sync phase identifiers for observability.
@@ -246,18 +247,16 @@ export class SyncEngine {
 
     // Quick connectivity test with a lightweight endpoint
     try {
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/organization-settings`, {
+      // Use makeApiRequest for HEAD check - it handles auth and org headers
+      await makeApiRequest('v1/organizations/organization-settings', {
         method: 'HEAD',
-        headers: { Authorization: `Bearer ${token}` },
         signal: this.abortController?.signal,
       });
-
-      if (response.status === 401) {
-        throw new Error('Authentication expired');
-      }
     } catch (error) {
       if (error.name === 'AbortError') throw error;
-      if (error.message === 'Authentication expired') throw error;
+      if (error.message.includes('401') || error.message.includes('expired')) {
+        throw new Error('Authentication expired');
+      }
       throw new Error(`Connectivity check failed: ${error.message}`);
     }
 
@@ -286,25 +285,12 @@ export class SyncEngine {
       if (!apiConfig || !apiConfig.list) continue;
 
       try {
-        const url = new URL(`/api/${apiConfig.list}`, CONFIG.API_BASE_URL);
-        if (organizationId) {
-          url.searchParams.set('organization_id', organizationId);
-        }
-
-        const response = await fetch(url.toString(), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+        // Use makeApiRequest - it handles auth, org headers, and base URL
+        const result = await makeApiRequest(apiConfig.list, {
           signal: this.abortController?.signal,
         });
 
-        if (!response.ok) {
-          debugWarn(`SyncEngine: Pull failed for ${entityType}: HTTP ${response.status}`);
-          continue;
-        }
-
-        const result = await response.json();
+        // makeApiRequest already handles response.json() and handleResponse logic
         let data = result.data || result;
 
         // Handle various response shapes
@@ -381,7 +367,7 @@ export class SyncEngine {
           });
           debugWarn(
             `SyncEngine: Conflict (${strategy}) for ${entityType}:${local.id} ` +
-              `(local: ${local._localUpdatedAt}, server: ${local._serverUpdatedAt})`
+            `(local: ${local._localUpdatedAt}, server: ${local._serverUpdatedAt})`
           );
         }
       }

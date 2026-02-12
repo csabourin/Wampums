@@ -6,6 +6,7 @@ import {
   getCurrentOrganizationId,
   getApiUrl,
   CONFIG,
+  API,
 } from "./ajax-functions.js";
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
@@ -205,10 +206,10 @@ export class ManagePoints {
           <select id="group-filter">
             <option value="">${translate("all_groups")}</option>
             ${this.groups
-              .map(
-                (group) => `<option value="${group.id}">${group.name}</option>`,
-              )
-              .join("")}
+        .map(
+          (group) => `<option value="${group.id}">${group.name}</option>`,
+        )
+        .join("")}
           </select>
         </div>
       </div>
@@ -246,9 +247,8 @@ export class ManagePoints {
       })
       .map(
         (group) => `
-            <div class="group-header" data-group-id="${
-              group.id
-            }" data-type="group" data-points="${group.total_points}">
+            <div class="group-header" data-group-id="${group.id
+          }" data-type="group" data-points="${group.total_points}">
               <span>${group.name}</span>
               <span id="group-points-${group.id}">${group.total_points}</span>
             </div>
@@ -271,8 +271,8 @@ export class ManagePoints {
       <h2>${translate("unassigned_participants")}</h2>
       <div class="group-content">
         ${this.unassignedParticipants
-          .map(
-            (participant) => `
+        .map(
+          (participant) => `
               <div class="list-item" data-participant-id="${participant.id}"
                 data-type="individual"
                 data-group-id="null" data-points="${participant.total_points}"
@@ -281,8 +281,8 @@ export class ManagePoints {
                 <span class="participant-points" id="name-points-${participant.id}">${participant.total_points}</span>
               </div>
           `,
-          )
-          .join("")}
+        )
+        .join("")}
       </div>
     `;
   }
@@ -298,12 +298,10 @@ export class ManagePoints {
     return groupParticipants
       .map(
         (participant) => `
-          <div class="list-item" data-participant-id="${
-            participant.id
+          <div class="list-item" data-participant-id="${participant.id
           }" data-type="individual"
-            data-group-id="${participant.group_id}" data-points="${
-              participant.total_points
-            }"
+            data-group-id="${participant.group_id}" data-points="${participant.total_points
+          }"
             data-name="${participant.first_name}">
             <span class="participant-name">${participant.first_name} ${participant.last_name}</span>
             <span class="participant-points" id="name-points-${participant.id}">${participant.total_points}</span>
@@ -820,9 +818,8 @@ export class ManagePoints {
     const groupContent = this.groups
       .map(
         (group) => `
-        <div class="group-header" data-group-id="${
-          group.id
-        }" data-type="group" data-points="${group.total_points}">
+        <div class="group-header" data-group-id="${group.id
+          }" data-type="group" data-points="${group.total_points}">
           ${group.name} - ${group.total_points} 
         </div>
         <div class="group-content">
@@ -871,11 +868,7 @@ export class ManagePoints {
 
       // If no cached data, fetch from server
       debugLog("Fetching fresh points data");
-      const response = await this.fetchWithCacheBusting("/api/points-data");
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
+      const data = await API.getNoCache('v1/points/points-data');
 
       // Cache the new data
       await setCachedData(cacheKey, data);
@@ -1027,11 +1020,6 @@ export class ManagePoints {
     }
   }
 
-  async fetchWithCacheBusting(url) {
-    const cacheBuster = new Date().getTime();
-    const separator = url.includes("?") ? "&" : "?";
-    return fetch(`${url}${separator}_=${cacheBuster}`);
-  }
 
   renderError() {
     const errorMessage = `
