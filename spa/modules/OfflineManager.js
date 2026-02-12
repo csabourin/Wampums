@@ -296,22 +296,20 @@ export class OfflineManager {
         debugLog('OfflineManager: Starting sync');
 
         try {
-            // Try service worker background sync if available
-            let usedServiceWorker = false;
+            // Try service worker background sync for mutations in the SW's own store
             if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                 try {
                     const registration = await navigator.serviceWorker.ready;
                     if (registration && 'sync' in registration) {
                         await registration.sync.register('sync-mutations');
                         debugLog('OfflineManager: Background sync registered');
-                        usedServiceWorker = true;
 
-                        // Give service worker time to process
+                        // Give service worker time to process its own pending-mutations store
                         const syncTimeout = CONFIG.UI?.SYNC_TIMEOUT || 2000;
                         await new Promise(resolve => setTimeout(resolve, syncTimeout));
                     }
                 } catch (swError) {
-                    debugWarn('OfflineManager: Service worker sync failed, using fallback', swError);
+                    debugWarn('OfflineManager: Service worker sync failed', swError);
                 }
             }
 
@@ -381,14 +379,15 @@ export class OfflineManager {
                         body: record.data.body
                     });
 
-                    if (response.ok || (response.status >= 400 && response.status < 500)) {
-                        // Success or client error (don't retry client errors)
+                    if (response.ok) {
                         await deleteCachedData(record.key);
                         debugLog('OfflineManager: Mutation replayed successfully', record.key);
-                        if (!response.ok) {
-                            debugWarn('OfflineManager: Server rejected mutation (4xx), discarding', response.status);
-                        }
+                    } else if (response.status === 400 || response.status === 404 || response.status === 409) {
+                        // Non-retryable client errors — discard
+                        await deleteCachedData(record.key);
+                        debugWarn('OfflineManager: Server rejected mutation, discarding', response.status);
                     } else {
+                        // 401/403/429/5xx — leave for retry on next sync
                         debugWarn('OfflineManager: Mutation replay failed (will retry)', response.status);
                     }
                 }
