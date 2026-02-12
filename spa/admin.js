@@ -9,6 +9,7 @@ import {
         updateUserRole,
         approveUser,
         getSubscribers,
+        sendNotification,
         getCurrentOrganizationId,
         importSISC,
         clearUserCaches,
@@ -616,39 +617,15 @@ ${showNotifications ? `
                                 ),
                         ).map((input) => input.value);
 
-                        // Retrieve the JWT token from localStorage
-                        const token = localStorage.getItem("jwtToken");
-                        if (!token) {
-                                setContent(resultContainer, translate("error_no_token"));
-                                return;
-                        }
-
                         try {
-                                const response = await fetch(
-                                        "/api/send-notification",
-                                        {
-                                                method: "POST",
-                                                headers: {
-                                                        "Content-Type":
-                                                                "application/json",
-                                                        Authorization: `Bearer ${token}`, // Send the token in the Authorization header
-                                                },
-                                                body: JSON.stringify({
-                                                        title,
-                                                        body,
-                                                        subscribers:
-                                                                selectedSubscribers,
-                                                }),
-                                        },
-                                );
-                                const result = await response.json();
-                                if (response.ok) {
+                                const result = await sendNotification(title, body, selectedSubscribers);
+                                if (result.success || result.queued) {
                                         setContent(resultContainer, translate(
-                                                "notification_sent_successfully",
+                                                result.queued ? "notification_queued_offline" : "notification_sent_successfully",
                                         ));
                                         notificationForm.reset();
                                 } else {
-                                        setContent(resultContainer, `${translate("failed_to_send_notification")}: ${escapeHTML(result.error)}`);
+                                        setContent(resultContainer, `${translate("failed_to_send_notification")}: ${escapeHTML(result.message || result.error || '')}`);
                                 }
                         } catch (error) {
                                 setContent(resultContainer, `${translate("error")}: ${escapeHTML(error.message)}`);

@@ -7,7 +7,7 @@
  */
 
 import { debugLog, debugError, debugWarn } from '../utils/DebugUtils.js';
-import { getCachedData, setCachedData, getOfflineData, clearOfflineData } from '../indexedDB.js';
+import { getCachedData, setCachedData, getOfflineData, clearOfflineData, deleteCachedData } from '../indexedDB.js';
 import { CONFIG } from '../config.js';
 import { buildApiCacheKey } from '../utils/OfflineCacheKeys.js';
 
@@ -296,23 +296,30 @@ export class OfflineManager {
         debugLog('OfflineManager: Starting sync');
 
         try {
-            // Trigger service worker sync
-            if ('serviceWorker' in navigator) {
-                const registration = await navigator.serviceWorker.ready;
-                if (registration && 'sync' in registration) {
-                    await registration.sync.register('sync-mutations');
-                    debugLog('OfflineManager: Background sync registered');
-                } else {
-                    debugLog('OfflineManager: Background Sync API not available on registration');
+            // Try service worker background sync if available
+            let usedServiceWorker = false;
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    if (registration && 'sync' in registration) {
+                        await registration.sync.register('sync-mutations');
+                        debugLog('OfflineManager: Background sync registered');
+                        usedServiceWorker = true;
+
+                        // Give service worker time to process
+                        const syncTimeout = CONFIG.UI?.SYNC_TIMEOUT || 2000;
+                        await new Promise(resolve => setTimeout(resolve, syncTimeout));
+                    }
+                } catch (swError) {
+                    debugWarn('OfflineManager: Service worker sync failed, using fallback', swError);
                 }
-            } else {
-                debugLog('OfflineManager: Service worker not available, sync will happen on visibility change');
             }
 
-            // Wait for sync to start and give service worker time to process
-            // Use configurable timeout from CONFIG if available
-            const syncTimeout = CONFIG.UI?.SYNC_TIMEOUT || 2000;
-            await new Promise(resolve => setTimeout(resolve, syncTimeout));
+            // Fallback: replay mutations directly when no service worker is available
+            if (!usedServiceWorker) {
+                debugLog('OfflineManager: No service worker, replaying mutations directly');
+                await this.replayPendingMutations();
+            }
 
             // Check pending count
             await this.updatePendingCount();
@@ -329,6 +336,103 @@ export class OfflineManager {
             this.syncInProgress = false;
             this.isSyncing = false;
             this.dispatchEvent('syncStatusChanged', { isSyncing: false });
+        }
+    }
+
+    /**
+     * Replay pending mutations directly via fetch (fallback when no service worker)
+     * Handles both new format (url/headers/body) and legacy format (action/data)
+     */
+    async replayPendingMutations() {
+        const pendingData = await getOfflineData();
+        if (!pendingData || pendingData.length === 0) {
+            debugLog('OfflineManager: No pending mutations to replay');
+            return;
+        }
+
+        debugLog('OfflineManager: Replaying', pendingData.length, 'pending mutations');
+
+        // Refresh auth token for replay
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            debugWarn('OfflineManager: No auth token, cannot replay mutations');
+            return;
+        }
+
+        const authHeaders = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+
+        // Batch legacy updatePoints entries into a single request
+        const legacyPointUpdates = [];
+        const legacyPointKeys = [];
+
+        for (const record of pendingData) {
+            try {
+                // New format: stored by OfflineManager.queueMutation fallback
+                // record.data has { url, headers, body, timestamp }
+                if (record.data?.url) {
+                    debugLog('OfflineManager: Replaying mutation', record.data.url);
+                    const response = await fetch(record.data.url, {
+                        method: record.action || record.data.method || 'POST',
+                        headers: { ...record.data.headers, ...authHeaders },
+                        body: record.data.body
+                    });
+
+                    if (response.ok || (response.status >= 400 && response.status < 500)) {
+                        // Success or client error (don't retry client errors)
+                        await deleteCachedData(record.key);
+                        debugLog('OfflineManager: Mutation replayed successfully', record.key);
+                        if (!response.ok) {
+                            debugWarn('OfflineManager: Server rejected mutation (4xx), discarding', response.status);
+                        }
+                    } else {
+                        debugWarn('OfflineManager: Mutation replay failed (will retry)', response.status);
+                    }
+                }
+                // Legacy format: action="updatePoints", data={type, id, points, ...}
+                else if (record.action === 'updatePoints' && record.data) {
+                    legacyPointUpdates.push(record.data);
+                    legacyPointKeys.push(record.key);
+                }
+                else {
+                    debugWarn('OfflineManager: Unknown offline record format, skipping', record);
+                }
+            } catch (error) {
+                debugError('OfflineManager: Failed to replay mutation', record.key, error);
+                // Leave record in IndexedDB for next sync attempt
+            }
+        }
+
+        // Batch replay legacy point updates
+        if (legacyPointUpdates.length > 0) {
+            try {
+                const url = `${CONFIG.API_BASE_URL}/api/update-points`;
+                debugLog('OfflineManager: Replaying', legacyPointUpdates.length, 'legacy point updates');
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: JSON.stringify(legacyPointUpdates)
+                });
+
+                if (response.ok) {
+                    for (const key of legacyPointKeys) {
+                        await deleteCachedData(key);
+                    }
+                    debugLog('OfflineManager: Legacy point updates replayed successfully');
+                } else if (response.status >= 400 && response.status < 500) {
+                    // Client error — don't retry
+                    for (const key of legacyPointKeys) {
+                        await deleteCachedData(key);
+                    }
+                    debugWarn('OfflineManager: Server rejected legacy point updates (4xx), discarding', response.status);
+                } else {
+                    debugWarn('OfflineManager: Legacy point updates replay failed (will retry)', response.status);
+                }
+            } catch (error) {
+                debugError('OfflineManager: Failed to replay legacy point updates', error);
+            }
         }
     }
 

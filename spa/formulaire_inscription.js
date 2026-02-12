@@ -12,6 +12,7 @@ import {
   saveGuardian,
   linkGuardianToParticipant,
   linkUserParticipants,
+  linkParticipantToOrganization,
   getCurrentOrganizationId,
   fetchFromApi
 } from "./ajax-functions.js";
@@ -330,7 +331,7 @@ debugLog("linkUserParticipants result:",result);
         await this.saveGuardians(participantId, formSubmissionData.guardians);
 
         // Step 4: Link participant to organization (if not already linked)
-        await this.linkParticipantToOrganization(participantId);
+        await this.linkParticipantToOrg(participantId);
 
         debugLog("Participant and guardians saved successfully");
         this.showMessage(translate("form_saved_successfully"));
@@ -341,26 +342,14 @@ debugLog("linkUserParticipants result:",result);
       }
     }
 
-    async linkParticipantToOrganization(participantId) {
+    async linkParticipantToOrg(participantId) {
       try {
         const organizationId = getCurrentOrganizationId();
         const inscriptionDateInput = document.getElementById('inscription-date');
         const inscriptionDate = inscriptionDateInput ? inscriptionDateInput.value : null;
 
-        const response = await fetch(getApiUrl('link-participant-to-organization'), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeader(),
-          },
-          body: JSON.stringify({
-            participant_id: participantId,
-            organization_id: organizationId,
-            inscription_date: inscriptionDate
-          }),
-        });
-        const result = await response.json();
-        if (!result.success) {
+        const result = await linkParticipantToOrganization(participantId, organizationId, inscriptionDate);
+        if (!result.success && !result.queued) {
           throw new Error(result.message || "Failed to link participant to organization");
         }
       } catch (error) {

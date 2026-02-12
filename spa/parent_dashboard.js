@@ -4,7 +4,8 @@ import {
         getOrganizationFormFormats,
         getOrganizationSettings,
         getParticipantStatement,
-        linkUserParticipants
+        linkUserParticipants,
+        checkAuthStatus
 } from "./ajax-functions.js";
 import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
@@ -262,17 +263,11 @@ export class ParentDashboard {
                 // If userFullName is not set, fetch it from the server
                 if (!this.app.userFullName) {
                         try {
-                                const response = await fetch("/api/auth/verify-session", {
-                                        method: 'POST',
-                                        headers: {
-                                                'Authorization': `Bearer ${localStorage.getItem('token')}`
-                                        }
-                                });
-                                const data = await response.json();
-                                if (data.success) {
-                                        this.app.userFullName = data.user.fullName;
+                                const result = await checkAuthStatus();
+                                if (result.isValid && result.user?.fullName) {
+                                        this.app.userFullName = result.user.fullName;
                                 } else {
-                                        debugError("Failed to fetch user full name:", data.message);
+                                        debugError("Failed to fetch user full name:", result.reason);
                                 }
                         } catch (error) {
                                 debugError("Error fetching user full name:", error);

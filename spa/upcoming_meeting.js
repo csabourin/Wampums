@@ -5,7 +5,7 @@ import {
   debugWarn,
   debugInfo,
 } from "./utils/DebugUtils.js";
-import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, saveReunionPreparation, getBadgeSummary } from "./ajax-functions.js";
+import { getReunionDates, getReunionPreparation, saveBadgeProgress, getParticipants, saveReunionPreparation, getBadgeSummary, getAttendance } from "./ajax-functions.js";
 import { formatDate, isToday, parseDate, isoToDateString } from "./utils/DateUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
@@ -707,17 +707,11 @@ export class UpcomingMeeting {
   }
 
   async fetchAttendanceForDate(date) {
-    // Simple fetch wrapper since we didn't import getAttendance yet
-    // and we might need to rely on generic fetch if getAttendance isn't exported cleanly for single date
-    // Actually, we can import getAttendance.
     try {
-      // Dynamic import or assume it's available?
-      // Let's use the import added in previous step if I added it. I didn't add getAttendance.
-      // I'll return null for now to rely on fallback, or use fetch
-      const response = await fetch(`/api/v1/attendance?date=${date}`);
-      const data = await response.json();
-      return data.success ? data.attendance : {};
+      const data = await getAttendance(date);
+      return data.success ? (data.data || data.attendance || {}) : {};
     } catch (e) {
+      debugError("Error fetching attendance for date:", e);
       return {};
     }
   }

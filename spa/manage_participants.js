@@ -4,7 +4,7 @@ import {
   updateParticipantGroup,
 } from "./ajax-functions.js";
 import {
-  saveOfflineData,
+  setCachedData,
   clearGroupRelatedCaches
 } from "./indexedDB.js";
 import { translate } from "./app.js";
@@ -100,12 +100,14 @@ export class ManageParticipants {
     debugLog("Fetched Participants:", this.participants);
     debugLog("Fetched Groups:", this.groups);
 
-    // Save offline data with error handling
+    // Cache data for offline access
     try {
-      await saveOfflineData('participants', this.participants);
-      await saveOfflineData('groups', this.groups);
+      await setCachedData('manage_participants_data', {
+        participants: this.participants,
+        groups: this.groups
+      }, CONFIG.CACHE_DURATION?.MEDIUM || 600000);
     } catch (error) {
-      debugError("Error saving offline data:", error);
+      debugError("Error caching participant data:", error);
       // Don't throw - this is not critical
     }
   }

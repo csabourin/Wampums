@@ -310,6 +310,7 @@ export {
     testApiConnection,
     getInitialData,
     getSubscribers,
+    sendNotification,
     validateToken,
     checkAuthStatus
 } from "./api/api-endpoints.js";
