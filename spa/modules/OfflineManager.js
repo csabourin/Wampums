@@ -397,7 +397,8 @@ export class OfflineManager {
                     legacyPointKeys.push(record.key);
                 }
                 else {
-                    debugWarn('OfflineManager: Unknown offline record format, skipping', record);
+                    debugWarn('OfflineManager: Unknown offline record format, discarding', record.key, record.action);
+                    await deleteCachedData(record.key);
                 }
             } catch (error) {
                 debugError('OfflineManager: Failed to replay mutation', record.key, error);
