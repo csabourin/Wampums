@@ -247,9 +247,8 @@ export class SyncEngine {
 
     // Quick connectivity test with a lightweight endpoint
     try {
-      // Use makeApiRequest for HEAD check - it handles auth and org headers
-      await makeApiRequest('v1/organizations/organization-settings', {
-        method: 'HEAD',
+      // Use a lightweight authenticated GET endpoint for connectivity/auth validation
+      await makeApiRequest('v1/organizations/settings', {
         signal: this.abortController?.signal,
       });
     } catch (error) {

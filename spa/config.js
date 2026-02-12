@@ -116,9 +116,9 @@ export const CONFIG = {
         RESET_PASSWORD: "/api/v1/auth/reset-password",
 
         // Organization
-        ORGANIZATION_SETTINGS: "/api/v1/organizations/organization-settings",
+        ORGANIZATION_SETTINGS: "/api/v1/organizations/settings",
         ORGANIZATION_ID: "/public/get_organization_id",
-        ORGANIZATION_JWT: "/api/v1/organizations/organization-jwt",
+        ORGANIZATION_JWT: "/api/v1/organizations/jwt",
 
         // Participants (v1 RESTful)
         PARTICIPANTS: "/api/v1/participants",
@@ -132,15 +132,15 @@ export const CONFIG = {
         ATTENDANCE_DATES: "/api/v1/attendance/dates",
 
         // Points & Honors
-        POINTS_DATA: "/api/v1/points-data",
-        UPDATE_POINTS: "/api/v1/update-points",
+        POINTS_DATA: "/api/v1/points",
+        UPDATE_POINTS: "/api/v1/points",
         HONORS: "/api/v1/honors",
-        AWARD_HONOR: "/api/v1/award-honor",
+        AWARD_HONOR: "/api/v1/honors",
 
         // Other
         TRANSLATIONS: "/api/v1/public/translations",
         NEWS: "/api/v1/public/news",
-        INITIAL_DATA: "/api/v1/dashboards/initial-data",
+        INITIAL_DATA: "/api/v1/dashboards/initial",
         REUNION_PREPARATION: "/api/v1/meetings/reunion-preparation",
         MAILING_LIST: "/api/v1/reports/mailing-list",
         PARENT_CONTACT_LIST: "/api/v1/reports/parent-contact-list",

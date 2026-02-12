@@ -33,8 +33,8 @@ function init(server) {
                 return next(new Error("Authentication error: Invalid token"));
             }
 
-            socket.userId = payload.user_id;
-            socket.organizationId = payload.organizationId;
+            socket.userId = payload.user_id || payload.userId;
+            socket.organizationId = payload.organization_id || payload.organizationId;
             next();
         } catch (error) {
             next(new Error("Authentication error: " + error.message));

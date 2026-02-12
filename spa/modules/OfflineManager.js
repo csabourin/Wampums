@@ -33,8 +33,8 @@ const PREPARED_ACTIVITIES_KEY = 'wampums_prepared_activities';
 const CRITICAL_ENDPOINTS = [
     '/api/v1/participants',
     '/api/v1/groups',
-    '/api/v1/dashboards/initial-data',
-    '/api/v1/organizations/organization-settings',
+    '/api/v1/dashboards/initial',
+    '/api/v1/organizations/settings',
     '/api/v1/badges/summary',
     '/api/v1/badges/settings',
     '/api/v1/attendance/dates',
@@ -416,7 +416,7 @@ export class OfflineManager {
 
         if (legacyPointUpdates.length > 0) {
             try {
-                const url = `${CONFIG.API_BASE_URL}/api/v1/points/update-points`;
+                const url = `${CONFIG.API_BASE_URL}/api/v1/points`;
                 debugLog('OfflineManager: Replaying', legacyPointUpdates.length, 'legacy point updates');
                 const response = await fetch(url, {
                     method: 'POST',

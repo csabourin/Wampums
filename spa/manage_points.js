@@ -868,7 +868,7 @@ export class ManagePoints {
 
       // If no cached data, fetch from server
       debugLog("Fetching fresh points data");
-      const data = await API.getNoCache('v1/points/points-data');
+      const data = await API.getNoCache('v1/points');
 
       // Cache the new data
       await setCachedData(cacheKey, data);
