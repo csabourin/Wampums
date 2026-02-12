@@ -28,10 +28,10 @@ const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handl
 module.exports = (pool, logger) => {
   /**
    * @swagger
-   * /api/fundraisers:
+   * /api/v1/fundraisers:
    *   get:
-   *     summary: Get all fundraisers for organization
-   *     description: Retrieve all fundraisers (active and archived) with totals
+   *     summary: List all fundraisers
+   *     description: Get all fundraisers for the current organization
    *     tags: [Fundraisers]
    *     security:
    *       - bearerAuth: []
@@ -43,11 +43,11 @@ module.exports = (pool, logger) => {
    *         description: Include archived fundraisers
    *     responses:
    *       200:
-   *         description: Fundraisers retrieved successfully
+   *         description: List of fundraisers
    *       401:
    *         description: Unauthorized
    */
-  router.get('/fundraisers', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const includeArchived = req.query.include_archived === 'true';
 
@@ -88,10 +88,10 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/fundraisers/{id}:
+   * /api/v1/fundraisers/{id}:
    *   get:
-   *     summary: Get single fundraiser details
-   *     description: Get detailed information about a specific fundraiser
+   *     summary: Get fundraiser by ID
+   *     description: Get a single fundraiser with stats
    *     tags: [Fundraisers]
    *     security:
    *       - bearerAuth: []
@@ -103,13 +103,11 @@ module.exports = (pool, logger) => {
    *           type: integer
    *     responses:
    *       200:
-   *         description: Fundraiser retrieved successfully
-   *       401:
-   *         description: Unauthorized
+   *         description: Fundraiser details
    *       404:
    *         description: Fundraiser not found
    */
-  router.get('/fundraisers/:id', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('fundraisers.view'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
       const { id } = req.params;
 
@@ -134,10 +132,10 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/fundraisers:
+   * /api/v1/fundraisers:
    *   post:
    *     summary: Create a new fundraiser
-   *     description: Create a new fundraiser and automatically add all active participants
+   *     description: Create a fundraiser and auto-generate entries for all org participants
    *     tags: [Fundraisers]
    *     security:
    *       - bearerAuth: []
@@ -147,10 +145,7 @@ module.exports = (pool, logger) => {
    *         application/json:
    *           schema:
    *             type: object
-   *             required:
-   *               - name
-   *               - start_date
-   *               - end_date
+   *             required: [name, start_date, end_date]
    *             properties:
    *               name:
    *                 type: string
@@ -164,13 +159,11 @@ module.exports = (pool, logger) => {
    *                 type: number
    *     responses:
    *       200:
-   *         description: Fundraiser created successfully
-   *       401:
-   *         description: Unauthorized
-   *       403:
-   *         description: Insufficient permissions
+   *         description: Fundraiser created
+   *       400:
+   *         description: Missing required fields
    */
-  router.post('/fundraisers', authenticate, blockDemoRoles, requirePermission('fundraisers.create'), asyncHandler(async (req, res) => {
+  router.post('/', authenticate, blockDemoRoles, requirePermission('fundraisers.create'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
       const { name, start_date, end_date, objective } = req.body;
@@ -243,10 +236,10 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/fundraisers/{id}:
+   * /api/v1/fundraisers/{id}:
    *   put:
    *     summary: Update a fundraiser
-   *     description: Update fundraiser details (admin/animation only)
+   *     description: Update fundraiser details
    *     tags: [Fundraisers]
    *     security:
    *       - bearerAuth: []
@@ -257,6 +250,7 @@ module.exports = (pool, logger) => {
    *         schema:
    *           type: integer
    *     requestBody:
+   *       required: true
    *       content:
    *         application/json:
    *           schema:
@@ -276,15 +270,11 @@ module.exports = (pool, logger) => {
    *                 type: number
    *     responses:
    *       200:
-   *         description: Fundraiser updated successfully
-   *       401:
-   *         description: Unauthorized
-   *       403:
-   *         description: Insufficient permissions
+   *         description: Fundraiser updated
    *       404:
    *         description: Fundraiser not found
    */
-  router.put('/fundraisers/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
+  router.put('/:id', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
       const organizationId = await getOrganizationId(req, pool);
 
       const { id } = req.params;
@@ -346,28 +336,28 @@ module.exports = (pool, logger) => {
    *         description: Fundraiser not found
    */
   router.put('/fundraisers/:id/archive', authenticate, blockDemoRoles, requirePermission('fundraisers.edit'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
 
-      const { id } = req.params;
-      const { archived } = req.body;
+    const { id } = req.params;
+    const { archived } = req.body;
 
-      if (archived === undefined) {
-        return res.status(400).json({ success: false, message: 'Archived status is required' });
-      }
+    if (archived === undefined) {
+      return res.status(400).json({ success: false, message: 'Archived status is required' });
+    }
 
-      const result = await pool.query(
-        `UPDATE fundraisers
+    const result = await pool.query(
+      `UPDATE fundraisers
          SET archived = $1
          WHERE id = $2 AND organization = $3
          RETURNING *`,
-        [archived, id, organizationId]
-      );
+      [archived, id, organizationId]
+    );
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Fundraiser not found' });
-      }
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Fundraiser not found' });
+    }
 
-      res.json({ success: true, fundraiser: result.rows[0] });
+    res.json({ success: true, fundraiser: result.rows[0] });
   }));
 
   return router;

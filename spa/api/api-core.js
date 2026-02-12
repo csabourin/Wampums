@@ -28,9 +28,16 @@ function addCacheBuster(url) {
 export function buildApiUrl(endpoint, params = {}) {
     const url = new URL(`/api/${endpoint}`, CONFIG.API_BASE_URL);
 
+    // Guard: ensure params is a plain object
+    if (typeof params !== 'object' || params === null || Array.isArray(params)) {
+        debugWarn('buildApiUrl received non-object params, ignoring:', params);
+        params = {};
+    }
+
     // Add organization ID if not already present
     const organizationId = getCurrentOrganizationId();
-    if (organizationId && !params.organization_id) {
+    const shouldSkipOrgId = endpoint.includes('organizations/get_organization_id');
+    if (organizationId && !params.organization_id && !shouldSkipOrgId) {
         params.organization_id = organizationId;
     }
 
@@ -121,7 +128,8 @@ export async function makeApiRequest(endpoint, options = {}) {
         body = null,
         headers = {},
         cacheBuster = false,
-        retries = 1
+        retries = 1,
+        signal = null
     } = options;
 
     let url = buildApiUrl(endpoint, params);
@@ -129,18 +137,25 @@ export async function makeApiRequest(endpoint, options = {}) {
         url = addCacheBuster(url);
     }
 
+    const isFormData = body instanceof FormData;
     const requestConfig = {
         method,
         headers: {
-            'Content-Type': 'application/json',
             'Accept': 'application/json',
             ...getAuthHeader(),
             ...headers
-        }
+        },
+        signal
     };
 
     if (body && method !== 'GET') {
-        requestConfig.body = JSON.stringify(body);
+        if (isFormData) {
+            requestConfig.body = body;
+            // browser sets proper boundary
+        } else {
+            requestConfig.headers['Content-Type'] = 'application/json';
+            requestConfig.body = JSON.stringify(body);
+        }
     }
 
     // Offline Handling for Write Operations

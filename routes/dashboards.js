@@ -51,7 +51,7 @@ module.exports = (pool, logger) => {
    *             schema:
    *               type: string
    */
-  router.get('/initial-data', async (req, res) => {
+  router.get('/initial', async (req, res) => {
     try {
       const organizationId = await getCurrentOrganizationId(req, pool, logger);
       const token = req.headers.authorization?.split(' ')[1];
@@ -109,7 +109,7 @@ document.addEventListener("DOMContentLoaded", function() {
   // Lazy load the news widget
   // Note: The /api/news endpoint already escapes HTML content (see escapeHtml function)
   // This provides server-side XSS protection for news content
-  fetch('/api/news?lang=' + (window.initialData.lang || 'en'))
+  fetch('/api/v1/public/news?lang=' + (window.initialData.lang || 'en'))
     .then(response => response.text())
     .then(data => {
       newsWidget.innerHTML = data;
@@ -185,7 +185,7 @@ document.addEventListener("DOMContentLoaded", function() {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/parent-dashboard', async (req, res) => {
+  router.get('/parent', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -226,16 +226,16 @@ document.addEventListener("DOMContentLoaded", function() {
 
       const childrenResult = canViewAllParticipants
         ? await pool.query(
-            `${participantBaseQuery}
+          `${participantBaseQuery}
              WHERE po.organization_id = $1`,
-            [organizationId]
-          )
+          [organizationId]
+        )
         : await pool.query(
-            `${participantBaseQuery}
+          `${participantBaseQuery}
              JOIN user_participants up ON p.id = up.participant_id
              WHERE up.user_id = $2 AND po.organization_id = $1`,
-            [organizationId, decoded.user_id]
-          );
+          [organizationId, decoded.user_id]
+        );
 
       const children = [];
       const childIds = childrenResult.rows.map(c => c.id);

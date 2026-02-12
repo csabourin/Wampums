@@ -55,7 +55,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of meetings with unprocessed achievements
    */
-  router.get('/unprocessed-achievements',
+  router.get('/achievements/unprocessed',
     checkValidation,
     async (req, res) => {
       try {
@@ -106,7 +106,25 @@ module.exports = (pool, logger) => {
       }
     });
 
-  router.get('/reunion-preparation',
+  /**
+   * @swagger
+   * /api/parent:
+   *   get:
+   *     summary: Get reunion preparation for a date
+   *     description: Retrieve meeting preparation details for a specific date
+   *     tags: [Meetings]
+   *     parameters:
+   *       - in: query
+   *         name: date
+   *         schema:
+   *           type: string
+   *           format: date
+   *         description: Date of reunion (defaults to today)
+   *     responses:
+   *       200:
+   *         description: Reunion preparation retrieved successfully
+   */
+  router.get('/preparation',
     validateDateOptional('date'),
     checkValidation,
     async (req, res) => {
@@ -176,7 +194,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/save-reunion-preparation:
+   * /api/sisc:
    *   post:
    *     summary: Save reunion preparation
    *     description: Create or update meeting preparation details
@@ -211,7 +229,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/save-reunion-preparation',
+  router.post('/preparation',
     validateDate('date'),
     check('endroit').optional().trim().isLength({ max: 500 }).withMessage('endroit must not exceed 500 characters'),
     check('notes').optional().trim().isLength({ max: 5000 }).withMessage('notes must not exceed 5000 characters'),
@@ -315,7 +333,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/reunion-dates:
+   * /api/dates:
    *   get:
    *     summary: Get all reunion dates
    *     description: Retrieve list of all dates with reunion preparations
@@ -328,38 +346,39 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/reunion-dates', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/dates',
+    async (req, res) => {
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+        const result = await pool.query(
+          `SELECT DISTINCT date::text as date FROM reunion_preparations WHERE organization_id = $1 ORDER BY date DESC`,
+          [organizationId]
+        );
+
+        res.json({
+          success: true,
+          dates: result.rows.map(row => row.date)
+        });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error fetching reunion dates:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const result = await pool.query(
-        `SELECT DISTINCT date::text as date FROM reunion_preparations WHERE organization_id = $1 ORDER BY date DESC`,
-        [organizationId]
-      );
-
-      res.json({
-        success: true,
-        dates: result.rows.map(row => row.date)
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching reunion dates:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    });
 
   /**
    * @swagger
-   * /api/next-meeting-info:
+   * /api/next:
    *   get:
    *     summary: Get next meeting information
    *     description: Retrieve details of the next upcoming meeting
@@ -372,53 +391,54 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/next-meeting-info', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/next',
+    async (req, res) => {
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const today = new Date().toISOString().split('T')[0];
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const today = new Date().toISOString().split('T')[0];
 
-      const result = await pool.query(
-        `SELECT date::text as date, animateur_responsable, youth_of_honor, endroit, activities, notes
+        const result = await pool.query(
+          `SELECT date::text as date, animateur_responsable, youth_of_honor, endroit, activities, notes
          FROM reunion_preparations
          WHERE organization_id = $1 AND date >= $2
          ORDER BY date ASC
          LIMIT 1`,
-        [organizationId, today]
-      );
+          [organizationId, today]
+        );
 
-      if (result.rows.length > 0) {
-        const meeting = result.rows[0];
-        try {
-          meeting.youth_of_honor = JSON.parse(meeting.youth_of_honor || '[]');
-          meeting.activities = JSON.parse(meeting.activities || '[]');
-        } catch (e) {
-          logger.warn('Error parsing next meeting JSON fields:', e);
-          meeting.youth_of_honor = meeting.youth_of_honor ? [meeting.youth_of_honor].flat() : [];
-          meeting.activities = [];
+        if (result.rows.length > 0) {
+          const meeting = result.rows[0];
+          try {
+            meeting.youth_of_honor = JSON.parse(meeting.youth_of_honor || '[]');
+            meeting.activities = JSON.parse(meeting.activities || '[]');
+          } catch (e) {
+            logger.warn('Error parsing next meeting JSON fields:', e);
+            meeting.youth_of_honor = meeting.youth_of_honor ? [meeting.youth_of_honor].flat() : [];
+            meeting.activities = [];
+          }
+          res.json({ success: true, meeting });
+        } else {
+          res.json({ success: true, meeting: null, message: 'No upcoming meetings found' });
         }
-        res.json({ success: true, meeting });
-      } else {
-        res.json({ success: true, meeting: null, message: 'No upcoming meetings found' });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error fetching next meeting info:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching next meeting info:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    });
 
   /**
    * @swagger
-   * /api/guests-by-date:
+   * /api/guests:
    *   get:
    *     summary: Get guests for a specific date
    *     description: Retrieve list of guests attending on a specific date
@@ -438,47 +458,48 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/guests-by-date', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const date = req.query.date || new Date().toISOString().split('T')[0];
-
-      // Return empty array if guests table doesn't exist yet
+  router.get('/guests',
+    async (req, res) => {
       try {
-        // Note: guests table doesn't have organization_id column per schema
-        const result = await pool.query(
-          `SELECT id, name, email, attendance_date::text as attendance_date FROM guests
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
+
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        const date = req.query.date || new Date().toISOString().split('T')[0];
+
+        // Return empty array if guests table doesn't exist yet
+        try {
+          // Note: guests table doesn't have organization_id column per schema
+          const result = await pool.query(
+            `SELECT id, name, email, attendance_date::text as attendance_date FROM guests
            WHERE attendance_date = $1
            ORDER BY name`,
-          [date]
-        );
-        return res.json({ success: true, guests: result.rows, message: 'Guests retrieved successfully' });
-      } catch (err) {
-        // If table or column doesn't exist, return empty array
-        if (err.code === '42P01' || err.code === '42703') {
-          return res.json({ success: true, guests: [], message: 'Guests retrieved successfully' });
-        } else {
-          throw err;
+            [date]
+          );
+          return res.json({ success: true, guests: result.rows, message: 'Guests retrieved successfully' });
+        } catch (err) {
+          // If table or column doesn't exist, return empty array
+          if (err.code === '42P01' || err.code === '42703') {
+            return res.json({ success: true, guests: [], message: 'Guests retrieved successfully' });
+          } else {
+            throw err;
+          }
         }
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error fetching guests:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching guests:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    });
 
   /**
    * @swagger
-   * /api/save-guest:
+   * /api/guests:
    *   post:
    *     summary: Save a guest
    *     description: Add a guest to a meeting/reunion
@@ -510,25 +531,26 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/save-guest', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const { name, email, attendance_date } = req.body;
-
-      if (!name || !attendance_date) {
-        return res.status(400).json({ success: false, message: 'Name and date are required' });
-      }
-
-      // Try to create guests table if it doesn't exist
+  router.post('/guests',
+    async (req, res) => {
       try {
-        await pool.query(`
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
+
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const { name, email, attendance_date } = req.body;
+
+        if (!name || !attendance_date) {
+          return res.status(400).json({ success: false, message: 'Name and date are required' });
+        }
+
+        // Try to create guests table if it doesn't exist
+        try {
+          await pool.query(`
           CREATE TABLE IF NOT EXISTS guests (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -538,25 +560,25 @@ module.exports = (pool, logger) => {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           )
         `);
-      } catch (err) {
-        // Ignore errors if table already exists
-      }
+        } catch (err) {
+          // Ignore errors if table already exists
+        }
 
-      const result = await pool.query(
-        `INSERT INTO guests (name, email, attendance_date, organization_id)
+        const result = await pool.query(
+          `INSERT INTO guests (name, email, attendance_date, organization_id)
          VALUES ($1, $2, $3, $4) RETURNING id`,
-        [name, email, attendance_date, organizationId]
-      );
+          [name, email, attendance_date, organizationId]
+        );
 
-      res.json({ success: true, guest: { id: result.rows[0].id, name, email, attendance_date } });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
+        res.json({ success: true, guest: { id: result.rows[0].id, name, email, attendance_date } });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error saving guest:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-      logger.error('Error saving guest:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    });
 
   /**
    * @swagger
@@ -606,13 +628,12 @@ module.exports = (pool, logger) => {
     }
   };
 
-  // Register both /get_reminder and /reminder endpoints (for backwards compatibility)
-  router.get('/get_reminder', getReminderHandler);
-  router.get('/reminder', getReminderHandler);
+  // Register reminder endpoint
+  router.get('/reminders', getReminderHandler);
 
   /**
    * @swagger
-   * /api/save_reminder:
+   * /api/reminder:
    *   post:
    *     summary: Save meeting reminder
    *     description: Create or update meeting reminder
@@ -639,41 +660,42 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/save_reminder', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.post('/reminders',
+    async (req, res) => {
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const { reminder_date, is_recurring, reminder_text } = req.body;
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const { reminder_date, is_recurring, reminder_text } = req.body;
 
-      await pool.query(
-        `INSERT INTO rappel_reunion (organization_id, reminder_date, is_recurring, reminder_text)
+        await pool.query(
+          `INSERT INTO rappel_reunion (organization_id, reminder_date, is_recurring, reminder_text)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (organization_id) DO UPDATE SET
          reminder_date = EXCLUDED.reminder_date,
          is_recurring = EXCLUDED.is_recurring,
          reminder_text = EXCLUDED.reminder_text`,
-        [organizationId, reminder_date, is_recurring, reminder_text]
-      );
+          [organizationId, reminder_date, is_recurring, reminder_text]
+        );
 
-      res.json({ success: true, message: 'Reminder saved successfully' });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
+        res.json({ success: true, message: 'Reminder saved successfully' });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error saving reminder:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-      logger.error('Error saving reminder:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    });
 
   /**
    * @swagger
-   * /api/activites-rencontre:
+   * /api/activities:
    *   get:
    *     summary: Get all activity types for meetings
    *     description: Retrieve list of all available meeting activities
@@ -686,34 +708,35 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/activites-rencontre', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/activities',
+    async (req, res) => {
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
+        const result = await pool.query(
+          `SELECT * FROM activites_rencontre ORDER BY activity`
+        );
+
+        res.json({ success: true, data: result.rows, meetingSections });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error fetching activites rencontre:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-      const meetingSections = await getMeetingSectionConfig(pool, organizationId, logger);
-      const result = await pool.query(
-        `SELECT * FROM activites_rencontre ORDER BY activity`
-      );
-
-      res.json({ success: true, data: result.rows, meetingSections });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching activites rencontre:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    });
 
   /**
    * @swagger
-   * /api/activity-templates:
+   * /api/templates:
    *   get:
    *     summary: Get activity templates for meetings
    *     description: Retrieve organization-specific and default activity templates
@@ -726,33 +749,34 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/activity-templates', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/activities/templates',
+    async (req, res) => {
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        const decoded = verifyJWT(token);
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+        if (!decoded || !decoded.user_id) {
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+        const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
-      const result = await pool.query(
-        `SELECT * FROM activites_rencontre
+        const result = await pool.query(
+          `SELECT * FROM activites_rencontre
          WHERE organization_id = $1 OR organization_id = 0
          ORDER BY category, name`,
-        [organizationId]
-      );
+          [organizationId]
+        );
 
-      res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
+        res.json({ success: true, data: result.rows });
+      } catch (error) {
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
+        logger.error('Error fetching activity templates:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-      logger.error('Error fetching activity templates:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
+    });
 
   return router;
 };

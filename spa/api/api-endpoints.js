@@ -65,35 +65,40 @@ async function invalidateUserAssociationCaches() {
  * Test database connection
  */
 export async function testConnection() {
-    return fetchPublic('test-connection');
+    return API.get('v1/public/test-connection');
 }
 
 /**
  * Get organization ID based on hostname
  */
 export async function getOrganizationId() {
-    return fetchPublic('get_organization_id');
+    return API.get('v1/organizations/get_organization_id');
 }
+
+/**
+ * Alias for backward compatibility
+ */
+export const getApiOrganizationId = getOrganizationId;
 
 /**
  * Get public organization settings
  */
 export async function getPublicOrganizationSettings() {
-    return fetchPublic('organization-settings');
+    return fetchPublic('settings');
 }
 
 /**
  * Get news for the organization
  */
-export async function getPublicNews() {
-    return fetchPublic('get_news');
+export async function getPublicNews(lang = 'en') {
+    return API.get('v1/public/news', { lang });
 }
 
 /**
  * Get initial data for frontend
  */
 export async function getPublicInitialData() {
-    return fetchPublic('initial-data');
+    return API.get('v1/public/initial-data');
 }
 
 /**
@@ -282,17 +287,29 @@ export async function refreshToken() {
 }
 
 /**
+ * Refresh JWT token
+ */
+export async function verifySession() {
+    await API.post('v1/auth/verify-session');
+}
+
+/**
  * Logout user
  */
 export async function logout() {
     const result = await API.post('auth/logout');
 
     // Clear user-specific data but keep organization JWT
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userFullName");
     localStorage.removeItem("userId");
-
+    window.location.href = '/login.html';
     return result;
+}
+
+/**
+ * Create new organization
+ */
+export async function createOrganization(data) {
+    return API.post('v1/organizations', data);
 }
 
 // ============================================================================
@@ -639,6 +656,13 @@ export async function checkPermission(permission) {
 }
 
 /**
+ * Subscribe to push notifications
+ */
+export async function subscribeToPush(subscription) {
+    return API.post('v1/notifications/subscription', subscription);
+}
+
+/**
  * Clear cached user lists to ensure admin updates surface immediately
  *
  * @param {string|number|null} organizationId - Organization identifier for scoped caches
@@ -705,6 +729,18 @@ export async function getUserOrganizations(options = {}) {
     });
 }
 
+
+
+/**
+ * Link user to multiple participants
+ */
+export async function linkUserParticipants(userId, participantIds) {
+    return API.post('v1/participants/link-users', {
+        user_id: userId,
+        participant_ids: participantIds
+    });
+}
+
 // ============================================================================
 // PARTICIPANTS
 // ============================================================================
@@ -718,6 +754,13 @@ export async function getParticipants() {
         cacheKey: 'participants_v2', // v2: includes roles field from participant_groups
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
     });
+}
+
+/**
+ * Get participants with their associated user information
+ */
+export async function getParticipantsWithUsers() {
+    return API.get('v1/participants/with-users');
 }
 
 /**
@@ -750,21 +793,21 @@ export async function fetchParticipant(participantId) {
  * Get detailed participant information
  */
 export async function getParticipantDetails(participantId) {
-    return API.get('participant-details', { participant_id: participantId });
+    return API.get('v1/participants/details', { participant_id: participantId });
 }
 
 /**
  * Save or update participant
  */
 export async function saveParticipant(participantData) {
-    return API.post('save-participant', participantData);
+    return API.post('v1/participants/save', participantData);
 }
 
 /**
  * Get participant age report
  */
 export async function getParticipantAge() {
-    return API.get('participant-age', {}, {
+    return API.get('v1/participants/ages', {}, {
         cacheKey: 'participant_age',
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
     });
@@ -772,10 +815,9 @@ export async function getParticipantAge() {
 
 /**
  * Get participants with linked users
- * @param {boolean} [forceRefresh=false] - Whether to bypass cached results
- */
-export async function getParticipantsWithUsers(forceRefresh = false) {
-    return API.get('participants-with-users', {}, { forceRefresh });
+ * @param {boolean} [forceRefresh=false] */
+export async function fetchParticipantsWithUsers(forceRefresh = false) {
+    return API.get('v1/participants/with-users', {}, { forceRefresh });
 }
 
 /**
@@ -789,17 +831,14 @@ export async function linkParticipantToOrganization(participantId, organizationI
     if (inscriptionDate) {
         body.inscription_date = inscriptionDate;
     }
-    return API.post('link-participant-to-organization', body);
+    return API.post('v1/participants/link-organization', body);
 }
 
 /**
  * Remove participant from organization (admin only)
  */
 export async function removeParticipantFromOrganization(participantId, organizationId) {
-    const response = await API.post('remove-participant-from-organization', {
-        participant_id: participantId,
-        organization_id: organizationId
-    });
+    const response = await API.delete(`v1/participants/${participantId}`);
 
     if (response?.success) {
         await invalidateUserAssociationCaches();
@@ -812,7 +851,7 @@ export async function removeParticipantFromOrganization(participantId, organizat
  * Associate user to participant
  */
 export async function associateUser(participantId, userId) {
-    const response = await API.post('associate-user-participant', {
+    const response = await API.post('v1/participants/associate-user', {
         participant_id: participantId,
         user_id: userId
     });
@@ -827,19 +866,20 @@ export async function associateUser(participantId, userId) {
 /**
  * Link user to participants
  */
-export async function linkUserParticipants(userIdOrData, participantIds) {
-    // Support both signatures:
-    // 1. linkUserParticipants({participant_ids: [...]}) - self-linking
-    // 2. linkUserParticipants(userId, participantIds) - admin linking another user
-    if (typeof userIdOrData === 'object' && userIdOrData !== null) {
-        return API.post('link-user-participants', {
-            participant_ids: userIdOrData.participant_ids
-        });
-    } else {
-        return API.post('link-user-participants', {
-            user_id: userIdOrData,
+export async function linkUserToParticipants(participantIds, userId = null) {
+    try {
+        if (userId) {
+            return API.post('v1/participants/link-users', {
+                user_id: userId,
+                participant_ids: participantIds
+            });
+        }
+        return API.post('v1/participants/link-users', {
             participant_ids: participantIds
         });
+    } catch (error) {
+        // Handle error if needed
+        throw error;
     }
 }
 
@@ -865,21 +905,28 @@ export async function fetchParticipants(organizationId) {
  * Get all guardians
  */
 export async function getGuardians() {
-    return API.get('guardians');
+    return API.get('v1/guardians');
+}
+
+/**
+ * Fetch push notification subscribers
+ */
+export async function fetchPushSubscribers() {
+    return API.get('v1/notifications/subscribers');
 }
 
 /**
  * Fetch guardians for a participant
  */
 export async function fetchGuardians(participantId) {
-    return API.get('guardians', { participant_id: participantId });
+    return API.get('v1/guardians', { participant_id: participantId });
 }
 
 /**
  * Get guardian info by ID
  */
 export async function getGuardianInfo(guardianId) {
-    return API.get('guardian-info', { guardian_id: guardianId });
+    return API.get('v1/guardians/info', { guardian_id: guardianId });
 }
 
 /**
@@ -893,35 +940,35 @@ export async function getGuardianCoreInfo(guardianId) {
  * Get guardians for specific participant
  */
 export async function getGuardiansForParticipant(participantId) {
-    return API.get('guardians-for-participant', { participant_id: participantId });
+    return API.get('v1/guardians', { participant_id: participantId });
 }
 
 /**
  * Save parent/guardian
  */
 export async function saveParent(parentData) {
-    return API.post('save-guardian', parentData);
+    return API.post('v1/guardians', parentData);
 }
 
 /**
  * Save guardian (alias for saveParent)
  */
 export async function saveGuardian(guardianData) {
-    return API.post('save-guardian', guardianData);
+    return API.post('v1/guardians', guardianData);
 }
 
 /**
  * Save guardian form submission
  */
 export async function saveGuardianFormSubmission(formData) {
-    return API.post('save-guardian-form-submission', formData);
+    return API.post('v1/guardians/form-submission', formData);
 }
 
 /**
  * Link parent to participant
  */
 export async function linkParentToParticipant(parentId, participantId) {
-    return API.post('link-parent-to-participant', {
+    return API.post('v1/participants/link-parent', {
         parent_id: parentId,
         participant_id: participantId
     });
@@ -931,9 +978,9 @@ export async function linkParentToParticipant(parentId, participantId) {
  * Link guardian to participant (alias)
  */
 export async function linkGuardianToParticipant(participantId, guardianId) {
-    return API.post('link-parent-to-participant', {
+    return API.post('v1/participants/link-parent', {
         participant_id: participantId,
-        guardian_id: guardianId
+        parent_id: guardianId
     });
 }
 
@@ -941,7 +988,9 @@ export async function linkGuardianToParticipant(participantId, guardianId) {
  * Remove guardians from participant
  */
 export async function removeGuardians(participantId, guardianIds) {
-    return API.post('remove-guardians', {
+    // Assuming backend might handle bulk or we iterate if needed
+    // For now, mapping to updated path
+    return API.post('v1/participants/remove-guardians', {
         participant_id: participantId,
         guardian_ids: guardianIds
     });
@@ -958,21 +1007,21 @@ export async function fetchParents(participantId) {
  * Get parent users
  */
 export async function getParentUsers(forceRefresh = false) {
-    return API.get('parent-users', {}, { forceRefresh });
+    return API.get('v1/users/parents', {}, { forceRefresh });
 }
 
 /**
  * Get parent dashboard data
  */
 export async function getParentDashboard() {
-    return API.getNoCache('parent-dashboard');
+    return API.getNoCache('v1/dashboards/parent');
 }
 
 /**
  * Get parent contact list
  */
 export async function getParentContactList() {
-    return API.get('parent-contact-list', {}, {
+    return API.get('v1/reports/parent-contact-list', {}, {
         cacheKey: 'parent_contact_list',
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
@@ -982,7 +1031,7 @@ export async function getParentContactList() {
  * Get user children
  */
 export async function getUserChildren(userId) {
-    return API.get('user-children', { user_id: userId });
+    return API.get('v1/users/children', { user_id: userId });
 }
 
 // ============================================================================
@@ -1056,7 +1105,7 @@ export async function updateParticipantGroup(
  * Update points for participants/groups
  */
 export async function updatePoints(updates) {
-    const result = await API.post('update-points', updates);
+    const result = await API.post('v1/points', updates);
     await clearPointsRelatedCaches();
     return result;
 }
@@ -1065,7 +1114,7 @@ export async function updatePoints(updates) {
  * Get points report
  */
 export async function getPointsReport() {
-    return API.get('points-report', {}, {
+    return API.get('v1/points/report', {}, {
         cacheKey: 'points_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -1087,7 +1136,7 @@ export async function getParticipantProgressReport(participantId = null) {
  * Get points leaderboard
  */
 export async function getPointsLeaderboard(type = 'individuals', limit = 10) {
-    return API.get('points-leaderboard', { type, limit });
+    return API.get('v1/points/leaderboard', { type, limit });
 }
 
 // ============================================================================
@@ -1098,7 +1147,7 @@ export async function getPointsLeaderboard(type = 'individuals', limit = 10) {
  * Get available form types
  */
 export async function getFormTypes() {
-    return API.get('form-types', {}, {
+    return API.get('v1/forms/types', {}, {
         cacheKey: 'form_types',
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
@@ -1108,7 +1157,7 @@ export async function getFormTypes() {
  * Get form structure
  */
 export async function getFormStructure() {
-    return API.get('organization-form-formats', {}, {
+    return API.get('v1/forms/structure', {}, {
         cacheKey: 'form_structure',
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
@@ -1118,7 +1167,7 @@ export async function getFormStructure() {
  * Get form submission
  */
 export async function getFormSubmission(participantId, formType) {
-    return API.get('form-submission', {
+    return API.get('v1/forms/submission', {
         participant_id: participantId,
         form_type: formType
     }, {
@@ -1132,7 +1181,7 @@ export async function getFormSubmission(participantId, formType) {
 export async function getFormSubmissions(participantId = null, formType) {
     const params = { form_type: formType };
     if (participantId) params.participant_id = participantId;
-    return API.get('form-submissions', params);
+    return API.get('v1/forms/submissions', params);
 }
 
 /**
@@ -1161,9 +1210,10 @@ export async function saveFormSubmission(formTypeOrData, participantId, submissi
     } else {
         formType = formTypeOrData;
         pId = participantId;
-        const result = await API.post('save-form-submission', {
+        // Use standardized endpoint
+        const response = await API.post('v1/forms/submission', {
+            participant_id: pId || participantId,
             form_type: formType,
-            participant_id: pId,
             submission_data: submissionData
         });
 
@@ -1172,7 +1222,7 @@ export async function saveFormSubmission(formTypeOrData, participantId, submissi
             await deleteCachedData(`form-submission-${formType}-${pId}`);
         }
 
-        return result;
+        return response;
     }
 }
 
@@ -1196,7 +1246,7 @@ export async function getOrganizationFormFormats(organizationId = null, context 
 
     const cacheKey = `org_form_formats_${organizationId || 'current'}_${context || 'all'}`;
 
-    const response = await API.get('organization-form-formats', params, {
+    const response = await API.get('v1/forms/formats', params, {
         cacheKey: cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
@@ -1228,7 +1278,7 @@ export async function getOrganizationFormFormats(organizationId = null, context 
  * Get health form (fiche santé)
  */
 export async function fetchFicheSante(participantId) {
-    return API.get('fiche-sante', { participant_id: participantId }, {
+    return API.get('v1/forms/submission', { participant_id: participantId, form_type: 'fiche_sante' }, {
         cacheKey: `fiche-sante-${participantId}`
     });
 }
@@ -1238,7 +1288,10 @@ export async function fetchFicheSante(participantId) {
  */
 export async function saveFicheSante(ficheSanteData) {
     const { deleteCachedData } = await import('../indexedDB.js');
-    const result = await API.post('save-fiche-sante', ficheSanteData);
+    const result = await API.post('v1/forms/submission', {
+        ...ficheSanteData,
+        form_type: 'fiche_sante'
+    });
 
     // Clear cache for this participant's fiche sante
     if (ficheSanteData.participant_id) {
@@ -1253,7 +1306,7 @@ export async function saveFicheSante(ficheSanteData) {
  * Get risk acceptance form
  */
 export async function fetchAcceptationRisque(participantId) {
-    return API.get('acceptation-risque', { participant_id: participantId }, {
+    return API.get('v1/forms/risk-acceptance', { participant_id: participantId }, {
         cacheKey: `acceptation-risque-${participantId}`
     });
 }
@@ -1263,7 +1316,7 @@ export async function fetchAcceptationRisque(participantId) {
  */
 export async function saveAcceptationRisque(data) {
     const { deleteCachedData } = await import('../indexedDB.js');
-    const result = await API.post('save-acceptation-risque', data);
+    const result = await API.post('v1/forms/risk-acceptance', data);
 
     // Clear cache for this participant's risk acceptance form
     if (data.participant_id) {
@@ -1278,7 +1331,7 @@ export async function saveAcceptationRisque(data) {
  * Get participants with documents info
  */
 export async function getParticipantsWithDocuments() {
-    const response = await API.get('participant-details');
+    const response = await API.get('v1/participants/details');
     const settingsResponse = await getOrganizationSettings();
 
     const settings = settingsResponse?.data || {};
@@ -1303,6 +1356,23 @@ export async function getParticipantsWithDocuments() {
     };
 }
 
+/**
+ * Get risk acceptance form
+ */
+export async function getRiskAcceptance(participantId) {
+    return API.get('v1/forms/risk-acceptance', { participant_id: participantId });
+}
+
+/**
+ * Save risk acceptance form
+ */
+export async function saveRiskAcceptance(participantId, riskData) {
+    return API.post('v1/forms/risk-acceptance', {
+        participant_id: participantId,
+        ...riskData
+    });
+}
+
 // ============================================================================
 // BADGES
 // ============================================================================
@@ -1311,14 +1381,14 @@ export async function getParticipantsWithDocuments() {
  * Get badge progress for participant
  */
 export async function getBadgeProgress(participantId) {
-    return API.get('badge-progress', { participant_id: participantId });
+    return API.get('v1/badges/progress', { participant_id: participantId });
 }
 
 /**
  * Save badge progress
  */
 export async function saveBadgeProgress(progressData) {
-    const result = await API.post('save-badge-progress', progressData);
+    const result = await API.post('v1/badges/progress', progressData);
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -1327,25 +1397,24 @@ export async function saveBadgeProgress(progressData) {
  * Get pending badges for approval
  */
 export async function getPendingBadges() {
-    return API.getNoCache('pending-badges');
+    return API.getNoCache('v1/badges/pending');
 }
 
 /**
  * Get current stars for participant
  */
-export async function getCurrentStars(participantId, badgeTemplateId) {
+export async function getCurrentStars(participantId, templateId = null, territoire = null) {
     const params = { participant_id: participantId };
-    if (badgeTemplateId) {
-        params.badge_template_id = badgeTemplateId;
-    }
-    return API.get('current-stars', params);
+    if (templateId) params.badge_template_id = templateId;
+    if (territoire) params.territoire = territoire;
+    return API.get('v1/badges/stars', params);
 }
 
 /**
  * Approve badge
  */
 export async function approveBadge(badgeId) {
-    const result = await API.post('approve-badge', { badge_id: badgeId });
+    const result = await API.post('v1/badges/approve', { badge_id: badgeId });
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -1354,7 +1423,7 @@ export async function approveBadge(badgeId) {
  * Reject badge
  */
 export async function rejectBadge(badgeId) {
-    const result = await API.post('reject-badge', { badge_id: badgeId });
+    const result = await API.post('v1/badges/reject', { badge_id: badgeId });
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -1363,20 +1432,14 @@ export async function rejectBadge(badgeId) {
  * Get badge summary
  */
 export async function getBadgeSummary() {
-    return API.get('badge-summary', {}, {
-        cacheKey: 'badge_summary',
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
-    });
+    return API.get('v1/badges/summary');
 }
 
 /**
  * Get badge history for participant
  */
 export async function getBadgeHistory(participantId) {
-    return API.get('badge-history', { participant_id: participantId }, {
-        cacheKey: `badge_history_${participantId}`,
-        cacheDuration: CONFIG.CACHE_DURATION.LONG
-    });
+    return API.get('v1/badges/history', { participant_id: participantId });
 }
 
 /**
@@ -1396,7 +1459,7 @@ export async function updateBadgeStatus(badgeId, status) {
  * Update badge progress fields (stars, description, status, etc.)
  */
 export async function updateBadgeProgress(badgeId, updates) {
-    return API.put(`badge-progress/${badgeId}`, updates, {
+    return API.put(`v1/badges/${badgeId}/progress`, updates, {
         cacheKey: `badge_progress_${badgeId}`,
         invalidate: ['badge_summary']
     });
@@ -1406,24 +1469,31 @@ export async function updateBadgeProgress(badgeId, updates) {
  * Get badge system settings
  */
 export async function getBadgeSystemSettings() {
-    return API.get('badge-system-settings', {}, {
+    return API.get('v1/badges/settings', {}, {
         cacheKey: 'badge_system_settings',
         cacheDuration: CONFIG.CACHE_DURATION.LONG
     });
 }
 
 /**
+ * Get badge system settings
+ */
+export async function fetchPublicOrganizationSettings() {
+    return fetchPublic('settings');
+}
+
+/**
  * Get badges awaiting physical delivery
  */
 export async function getBadgesAwaitingDelivery() {
-    return API.getNoCache('badges-awaiting-delivery');
+    return API.getNoCache('v1/badges/awaiting-delivery');
 }
 
 /**
  * Mark badge as physically delivered
  */
 export async function markBadgeDelivered(badgeId) {
-    const result = await API.post('mark-badge-delivered', { badge_id: badgeId });
+    const result = await API.post('v1/badges/mark-delivered', { badge_id: badgeId });
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -1432,7 +1502,7 @@ export async function markBadgeDelivered(badgeId) {
  * Mark multiple badges as delivered in bulk
  */
 export async function markBadgesDeliveredBulk(badgeIds) {
-    const result = await API.post('mark-badges-delivered-bulk', { badge_ids: badgeIds });
+    const result = await API.post('v1/badges/mark-delivered-bulk', { badge_ids: badgeIds });
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -1441,7 +1511,7 @@ export async function markBadgesDeliveredBulk(badgeIds) {
  * Get comprehensive badge tracker summary
  */
 export async function getBadgeTrackerSummary(cacheOptions = {}) {
-    return API.get('badge-tracker-summary', {}, {
+    return API.get('v1/badges/badge-tracker-summary', {}, {
         cacheKey: 'badge_tracker_summary',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT,
         forceRefresh: cacheOptions.forceRefresh
@@ -1461,6 +1531,14 @@ export async function getHonors(date = null) {
 }
 
 /**
+ * Get meeting for parent dashboard
+ */
+export async function getMeetingParent(date = null) {
+    const params = date ? { date } : {};
+    return API.get('v1/meetings/preparation', params);
+}
+
+/**
  * Get honors and participants (alias)
  */
 export async function getHonorsAndParticipants(date = null) {
@@ -1471,7 +1549,7 @@ export async function getHonorsAndParticipants(date = null) {
  * Get recent honors (legacy endpoint)
  */
 export async function getRecentHonors() {
-    return API.get('recent-honors', {}, {
+    return API.get('v1/honors/recent', {}, {
         cacheKey: 'recent_honors',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -1488,7 +1566,7 @@ export async function awardHonor(honorData) {
  * Get honors report (legacy endpoint)
  */
 export async function getHonorsReport() {
-    return API.get('honors-report', {}, {
+    return API.get('v1/reports/honors', {}, {
         cacheKey: 'honors_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -1509,7 +1587,7 @@ export async function getHonorsHistory(options = {}) {
  * Get available dates for honors
  */
 export async function getAvailableDates() {
-    return API.get('available-dates');
+    return API.get('v1/meetings/dates');
 }
 
 /**
@@ -1581,21 +1659,7 @@ export async function getAttendanceReport(options = {}) {
     if (options.endDate) params.end_date = options.endDate;
     if (options.groupId) params.group_id = options.groupId;
     if (options.format) params.format = options.format;
-    return API.get('attendance-report', params);
-}
-
-/**
- * Save guest for attendance
- */
-export async function saveGuest(guest) {
-    return API.post('save-guest', guest);
-}
-
-/**
- * Get guests by date
- */
-export async function getGuestsByDate(date) {
-    return API.get('guests-by-date', { date });
+    return API.get('v1/reports/attendance', params);
 }
 
 // ============================================================================
@@ -1606,14 +1670,14 @@ export async function getGuestsByDate(date) {
  * Get all calendars
  */
 export async function getCalendars() {
-    return API.get('calendars');
+    return API.get('v1/calendars');
 }
 
 /**
  * Update calendar amount
  */
 export async function updateCalendar(participantId, amount) {
-    return API.post('update-calendar', {
+    return API.post('v1/calendars/update-calendar', {
         participant_id: participantId,
         amount
     });
@@ -1623,7 +1687,7 @@ export async function updateCalendar(participantId, amount) {
  * Update calendar paid status
  */
 export async function updateCalendarPaid(participantId, isPaid) {
-    return API.post('update-calendar-paid', {
+    return API.post('v1/calendars/update-calendar-paid', {
         participant_id: participantId,
         paid: isPaid
     });
@@ -1633,18 +1697,12 @@ export async function updateCalendarPaid(participantId, isPaid) {
  * Update calendar amount paid
  */
 export async function updateCalendarAmountPaid(participantId, amountPaid) {
-    return API.post('update-calendar-amount-paid', {
+    return API.post('v1/calendars/update-calendar-amount-paid', {
         participant_id: participantId,
         amount_paid: amountPaid
     });
 }
 
-/**
- * Get participant calendar
- */
-export async function getParticipantCalendar(participantId) {
-    return API.get('participant-calendar', { participant_id: participantId });
-}
 
 // ============================================================================
 // FUNDRAISERS
@@ -1654,76 +1712,56 @@ export async function getParticipantCalendar(participantId) {
  * Get all fundraisers
  */
 export async function getFundraisers(includeArchived = false) {
-    const cacheKey = `fundraisers_${includeArchived ? 'all' : 'active'}_${getCurrentOrganizationId() || 'org'}`;
-
-    return API.get('fundraisers', { include_archived: includeArchived }, {
-        cacheKey,
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
-    });
+    return API.get('v1/fundraisers', { include_archived: includeArchived });
 }
 
 /**
- * Get single fundraiser details
+ * Get fundraiser details
  */
-export async function getFundraiser(fundraiserId) {
-    return API.get(`fundraisers/${fundraiserId}`);
+export async function getFundraiserDetails(fundraiserId) {
+    return API.get(`v1/fundraisers/${fundraiserId}`);
 }
 
 /**
- * Create a new fundraiser
+ * Save fundraiser
  */
-export async function createFundraiser(data) {
-    const result = await API.post('fundraisers', data);
-    await clearFundraiserRelatedCaches();
-    return result;
+export async function saveFundraiser(fundraiserData) {
+    return API.post('v1/fundraisers', fundraiserData);
 }
 
 /**
- * Update fundraiser
- */
-export async function updateFundraiser(fundraiserId, data) {
-    const result = await API.put(`fundraisers/${fundraiserId}`, data);
-    await clearFundraiserRelatedCaches(fundraiserId);
-    return result;
-}
-
-/**
- * Archive/unarchive a fundraiser
+ * Archive/unarchive fundraiser
  */
 export async function archiveFundraiser(fundraiserId, archived) {
-    const result = await API.put(`fundraisers/${fundraiserId}/archive`, { archived });
-    await clearFundraiserRelatedCaches(fundraiserId);
-    return result;
+    return API.put(`v1/fundraisers/${fundraiserId}/archive`, { archived });
 }
 
 /**
- * Get calendars for a specific fundraiser
+ * Get fundraiser entries (calendars)
  */
 export async function getCalendarsForFundraiser(fundraiserId) {
-    const cacheKey = `calendars_${fundraiserId}_${getCurrentOrganizationId() || 'org'}`;
-
-    return API.get('calendars', { fundraiser_id: fundraiserId }, {
-        cacheKey,
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
-    });
+    return API.get('v1/calendars', { fundraiser_id: fundraiserId });
 }
 
 /**
- * Update calendar entry
+ * Update fundraiser entry
  */
-export async function updateCalendarEntry(calendarId, data) {
-    const result = await API.put(`calendars/${calendarId}`, data);
-    await clearFundraiserRelatedCaches();
-    return result;
+export async function updateCalendarEntry(id, data) {
+    return API.put(`v1/calendars/${id}`, data);
 }
 
 /**
- * Update calendar payment
+ * Update payment for fundraiser entry
  */
-export async function updateCalendarPayment(calendarId, amountPaid) {
-    const result = await API.put(`calendars/${calendarId}/payment`, { amount_paid: amountPaid });
-    await clearFundraiserRelatedCaches();
-    return result;
+export async function updateCalendarPayment(id, amountPaid) {
+    return API.put(`v1/calendars/${id}/payment`, { amount_paid: amountPaid });
+}
+
+/**
+ * Get participant fundraiser entries
+ */
+export async function getParticipantCalendar(participantId) {
+    return API.get('v1/calendars/participant', { participant_id: participantId });
 }
 
 // ============================================================================
@@ -1733,36 +1771,43 @@ export async function updateCalendarPayment(calendarId, amountPaid) {
 /**
  * Get reunion preparation for a date
  */
+
+/**
+ * Get unprocessed achievements from past meetings
+ */
+export async function getUnprocessedAchievements() {
+    return API.get('v1/meetings/achievements/unprocessed');
+}
+
+/**
+ * Get reunion preparation for a date
+ */
 export async function getReunionPreparation(date) {
-    return API.get('reunion-preparation', { date }, {
+    return API.get('v1/meetings/preparation', { date }, {
         cacheKey: `reunion_preparation_${date}`,
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
     });
 }
 
 /**
- * Save reunion preparation
+ * Save meeting (SISC)
  */
-export async function saveReunionPreparation(data) {
-    return API.post('save-reunion-preparation', data);
+export async function saveReunionPreparation(preparationData) {
+    return API.post('v1/meetings', preparationData);
 }
 
 /**
- * Get reunion dates
+ * Get available meeting dates
  */
-export async function getReunionDates(forceRefresh = false) {
-    return API.get('reunion-dates', {}, {
-        cacheKey: 'reunion_dates',
-        cacheDuration: CONFIG.CACHE_DURATION.MEDIUM,
-        forceRefresh
-    });
+export async function getReunionDates() {
+    return API.get('v1/meetings/dates');
 }
 
 /**
  * Get meeting activities
  */
 export async function getActivitesRencontre() {
-    return API.get('activites-rencontre');
+    return API.get('v1/meetings/activities');
 }
 
 /**
@@ -1779,28 +1824,71 @@ export async function getActivities(params = {}, cacheOptions = {}) {
  * Save reminder
  */
 export async function saveReminder(reminderData) {
-    return API.post('save-reminder', reminderData);
+    return API.post('v1/meetings/reminders', reminderData);
 }
 
 /**
  * Get reminder for date
  */
 export async function getReminder() {
-    return API.get('reminder');
+    return API.get('v1/meetings/reminders');
 }
 
 /**
  * Get next meeting info
  */
 export async function getNextMeetingInfo() {
-    return API.get('next-meeting-info');
+    return API.get('v1/meetings/next');
+}
+
+/**
+ * Get guests for a date
+ */
+export async function getGuests(date = null) {
+    const params = date ? { date } : {};
+    return API.get('v1/meetings/guests', params);
+}
+
+/**
+ * Save a guest
+ */
+export async function saveGuest(guestData) {
+    return API.post('v1/meetings/guests', guestData);
+}
+
+/**
+ * Get meeting reminder
+ */
+export async function getMeetingReminder() {
+    return API.get('v1/meetings/reminder');
+}
+
+/**
+ * Save meeting reminder
+ */
+export async function saveMeetingReminder(reminderData) {
+    return API.post('v1/meetings/reminder', reminderData);
+}
+
+/**
+ * Get meeting activity types
+ */
+export async function getMeetingActivities() {
+    return API.get('v1/meetings/activities');
+}
+
+/**
+ * Get meeting templates
+ */
+export async function getMeetingTemplates() {
+    return API.get('v1/meetings/templates');
 }
 
 /**
  * Get animators
  */
 export async function getAnimateurs() {
-    return API.get('animateurs');
+    return API.get('v1/users/animateurs');
 }
 
 // ============================================================================
@@ -1810,40 +1898,40 @@ export async function getAnimateurs() {
 /**
  * Get health contact report
  */
-export async function getHealthContactReport() {
-    return API.get('health-contact-report', {}, {
+export async function fetchHealthContactReport() {
+    return API.get('v1/reports/health-contacts', {}, {
         cacheKey: 'health_contact_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
 }
 
 /**
- * Get health report
+ * Fetch general health report with group filter
  */
-export async function getHealthReport(groupId = null) {
-    const params = groupId ? { group_id: groupId } : {};
-    return API.get('health-report', params);
+export async function fetchHealthReport(params = {}) {
+    return API.get('v1/reports/health', params);
 }
 
 /**
- * Get allergies report
+ * Fetch allergies report
  */
-export async function getAllergiesReport() {
-    return API.get('allergies-report', {}, {
+export async function fetchAllergiesReport() {
+    return API.get('v1/reports/allergies', {}, {
         cacheKey: 'allergies_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
 }
 
 /**
- * Get medication report
+ * Fetch medication report
  */
-export async function getMedicationReport() {
-    return API.get('medication-report', {}, {
+export async function fetchMedicationReport() {
+    return API.get('v1/reports/medication', {}, {
         cacheKey: 'medication_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
 }
+
 
 // ============================================================================
 // MEDICATION MANAGEMENT
@@ -1991,7 +2079,7 @@ export async function deleteMedicationReception(receptionId) {
  * Get vaccine report
  */
 export async function getVaccineReport() {
-    return API.get('vaccine-report', {}, {
+    return API.get('v1/reports/vaccines', {}, {
         cacheKey: 'vaccine_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -2001,7 +2089,7 @@ export async function getVaccineReport() {
  * Get leave alone authorization report
  */
 export async function getLeaveAloneReport() {
-    return API.get('leave-alone-report', {}, {
+    return API.get('v1/reports/leave-alone', {}, {
         cacheKey: 'leave_alone_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -2011,7 +2099,7 @@ export async function getLeaveAloneReport() {
  * Get media authorization report
  */
 export async function getMediaAuthorizationReport() {
-    return API.get('media-authorization-report', {}, {
+    return API.get('v1/reports/media-authorization', {}, {
         cacheKey: 'media_authorization_report',
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -2021,14 +2109,14 @@ export async function getMediaAuthorizationReport() {
  * Get missing documents report
  */
 export async function getMissingDocumentsReport() {
-    return API.get('missing-documents-report');
+    return API.get('v1/reports/missing-documents');
 }
 
 /**
  * Get mailing list
  */
 export async function getMailingList() {
-    return API.get('mailing-list', {}, {
+    return API.get('v1/reports/mailing-list', {}, {
         cacheKey: 'mailing_list',
         cacheDuration: CONFIG.CACHE_DURATION.MEDIUM
     });
@@ -2052,7 +2140,7 @@ export async function createAnnouncement(payload) {
  * Generic reports function
  */
 export async function getReports(reportType) {
-    return API.get(`${reportType}-report`, {}, {
+    return API.get(`v1/reports/${reportType}`, {}, {
         cacheKey: `report_${reportType}`,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });
@@ -2603,77 +2691,75 @@ export async function getRevenueComparison(fiscalYearStart, fiscalYearEnd) {
 // ============================================================================
 
 /**
- * Get organization ID (API endpoint)
+ * Save organization
  */
-export async function getApiOrganizationId() {
-    return API.get('get-organization-id');
+export async function saveOrganization(organizationData) {
+    return API.post('v1/organizations', organizationData);
 }
 
-/**
- * Create organization
- */
-export async function createOrganization(organizationData) {
-    return API.post('organizations', organizationData);
-}
 
 /**
- * Switch organization
+ * Switch active organization
  */
 export async function switchOrganization(organizationId) {
-    return API.post('switch-organization', { organization_id: organizationId });
+    return API.post('v1/organizations/switch', { organization_id: organizationId });
 }
 
-export async function getUnprocessedAchievements() {
-    return API.get('unprocessed-achievements');
+export async function fetchUnprocessedAchievements() {
+    return API.get('v1/meetings/unprocessed-achievements');
 }
 
 /**
  * Get organization settings
  */
-export async function getOrganizationSettings(orgId = null) {
-    // Check if user is logged in - if not, use public endpoint directly
+export async function fetchOrganizationSettings(params = {}) {
     const token = localStorage.getItem('jwtToken');
     if (!token) {
         debugLog('No token found, using public organization settings endpoint');
-        return getPublicOrganizationSettings();
+        return fetchPublicOrganizationSettings();
     }
 
-    const params = orgId ? { organization_id: orgId } : {};
     try {
-        return await API.get('organization-settings', params, {
-            cacheKey: `org_settings_${orgId || 'current'}`,
+        return await API.get('v1/organizations/settings', params, {
+            cacheKey: 'org_settings',
             cacheDuration: CONFIG.CACHE_DURATION.LONG
         });
     } catch (error) {
-        // If we get a 401, it means the token is invalid/expired.
-        // Fall back to the public endpoint which doesn't require auth.
-        if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
             debugWarn('Authenticated organization-settings failed (401), falling back to public endpoint');
-            return getPublicOrganizationSettings();
+            return fetchPublicOrganizationSettings();
         }
         throw error;
     }
 }
 
 /**
+ * Backward compatibility alias
+ */
+export const getOrganizationSettings = fetchOrganizationSettings;
+
+/**
  * Get news (API endpoint)
  */
-export async function getNews() {
-    return API.get('news');
+export async function fetchNews() {
+    return API.get('v1/public/news');
 }
+
+export const getNews = fetchNews;
+
 
 /**
  * Import SISC CSV data (admin only)
  */
 export async function importSISC(csvContent) {
-    return API.post('import-sisc', { csvContent });
+    return API.post('v1/import/sisc', { csvContent });
 }
 
 /**
  * Register for organization
  */
 export async function registerForOrganization(registrationData) {
-    return API.post('register-for-organization', registrationData);
+    return API.post('v1/organizations/register', registrationData);
 }
 
 /**
@@ -2690,20 +2776,7 @@ export async function fetchOrganizationJwt(organizationId) {
             throw new Error('Organization ID is required');
         }
 
-        const url = new URL(`/api/organization-jwt?organization_id=${orgId}`, CONFIG.API_BASE_URL);
-        const response = await fetch(url.toString(), {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data;
+        return await API.get('v1/organizations/jwt', { organization_id: orgId });
     } catch (error) {
         debugError('Error fetching organization JWT:', error);
         throw error;
@@ -2718,22 +2791,24 @@ export async function fetchOrganizationJwt(organizationId) {
  * Test API connection (API endpoint)
  */
 export async function testApiConnection() {
-    return API.get('test-connection');
+    return API.get('v1/public/test-connection');
 }
 
 /**
  * Get initial data (API endpoint)
  */
-export async function getInitialData() {
-    return API.get('initial-data');
+export async function fetchInitialData() {
+    return API.get('v1/dashboards/initial');
 }
+
+export const getInitialData = fetchInitialData;
 
 /**
  * Get push notification subscribers
  */
 export async function getSubscribers(organizationId) {
     try {
-        return await API.get('push-subscribers', {
+        return await API.get('v1/notifications/subscribers', {
             organization_id: organizationId
         });
     } catch (error) {
@@ -2745,8 +2820,8 @@ export async function getSubscribers(organizationId) {
 /**
  * Send push notification to selected subscribers
  */
-export async function sendNotification(title, body, subscribers = []) {
-    return API.post('send-notification', { title, body, subscribers });
+export async function sendPushNotification(title, body) {
+    return API.post('v1/notifications/send', { title, body });
 }
 
 /**
@@ -2754,10 +2829,10 @@ export async function sendNotification(title, body, subscribers = []) {
  */
 export async function validateToken() {
     try {
-        const result = await API.get('test-connection');
+        const result = await API.get('v1/auth/test');
         return result.success || false;
     } catch (error) {
-        if (error.message.includes('401')) {
+        if (error.message?.includes('401')) {
             return false;
         }
         throw error;
@@ -2774,7 +2849,7 @@ export async function checkAuthStatus() {
     }
 
     try {
-        await API.post('auth/verify-session');
+        await API.post('v1/auth/verify-session');
         return { isValid: true };
     } catch (error) {
         return { isValid: false, reason: 'invalid_token' };
@@ -2792,8 +2867,14 @@ export async function getCurrentUser() {
 // BACKWARDS COMPATIBILITY ALIASES
 // ============================================================================
 
-// Alias for backward compatibility
-export const fetchOrganizationId = getOrganizationId;
+// Alias for backward compatibility (returns primitive org ID for app init)
+export async function fetchOrganizationId() {
+    const response = await getOrganizationId();
+    if (response && typeof response === 'object') {
+        return response.organization_id || response.organizationId || response.id || response;
+    }
+    return response;
+}
 export const getParticipantAgeReport = getParticipantAge;
 
 // ============================================================================
@@ -2806,7 +2887,7 @@ export const getParticipantAgeReport = getParticipantAge;
  * @param {object} payload - Data required for the mode
  */
 export async function aiGenerateText(mode, payload) {
-    return API.post('ai/text', { mode, payload });
+    return API.post('v1/ai/text', { mode, payload });
 }
 
 /**
@@ -2817,23 +2898,7 @@ export async function aiParseReceipt(file) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const token = localStorage.getItem('jwtToken');
-    const response = await fetch(`${CONFIG.API_BASE_URL}/api/ai/receipt`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        body: formData
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const error = new Error(errorData.message || 'Failed to parse receipt');
-        if (errorData.error) error.error = errorData.error;
-        throw error;
-    }
-
-    return await response.json();
+    return API.post('v1/ai/receipt', formData);
 }
 
 // Expose to window for global access

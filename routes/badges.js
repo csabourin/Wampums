@@ -117,7 +117,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-progress', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/progress', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const participantId = req.query.participant_id;
 
@@ -161,7 +161,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/pending-badges', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/pending', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -229,7 +229,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.post('/save-badge-progress', authenticate, blockDemoRoles, requirePermission('badges.manage'), asyncHandler(async (req, res) => {
+  router.post('/progress', authenticate, blockDemoRoles, requirePermission('badges.manage'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const {
       participant_id,
@@ -416,7 +416,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Badge not found
    */
-  router.post('/approve-badge', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
+  router.post('/approve', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const organizationId = await getOrganizationId(req, pool);
     const { badge_id } = req.body;
@@ -512,7 +512,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Badge not found
    */
-  router.post('/reject-badge', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
+  router.post('/reject', authenticate, blockDemoRoles, requirePermission('badges.approve'), asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const organizationId = await getOrganizationId(req, pool);
     const { badge_id } = req.body;
@@ -552,7 +552,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-summary', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/summary', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -601,7 +601,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-history', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/history', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const participantId = req.query.participant_id;
 
@@ -651,7 +651,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/current-stars', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/stars', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const participantId = req.query.participant_id;
     const templateId = req.query.badge_template_id ? parseInt(req.query.badge_template_id, 10) : null;
@@ -732,7 +732,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/badge-system-settings', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
+  router.get('/settings', authenticate, requirePermission('badges.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const [settingsResult, templateResult] = await Promise.all([

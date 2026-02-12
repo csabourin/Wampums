@@ -48,7 +48,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Participant not found
    */
-  router.get('/guardians', async (req, res) => {
+  router.get('/', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -161,7 +161,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Participant not found
    */
-  router.post('/save-guardian', async (req, res) => {
+  router.post('/', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -179,8 +179,8 @@ module.exports = (pool, logger) => {
       }
 
       const { participant_id, guardian_id, nom, prenom, lien, courriel,
-              telephone_residence, telephone_travail, telephone_cellulaire,
-              is_primary, is_emergency_contact } = req.body;
+        telephone_residence, telephone_travail, telephone_cellulaire,
+        is_primary, is_emergency_contact } = req.body;
 
       if (!participant_id || !nom || !prenom) {
         return res.status(400).json({ success: false, message: 'Participant ID, nom, and prenom are required' });
@@ -228,7 +228,7 @@ module.exports = (pool, logger) => {
                  is_primary = $7, is_emergency_contact = $8
              WHERE id = $9`,
             [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-             is_primary || false, is_emergency_contact || false, guardian_id]
+              is_primary || false, is_emergency_contact || false, guardian_id]
           );
           guardianIdToLink = guardian_id;
 
@@ -248,7 +248,7 @@ module.exports = (pool, logger) => {
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING id`,
             [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-             is_primary || false, is_emergency_contact || false]
+              is_primary || false, is_emergency_contact || false]
           );
           guardianIdToLink = result.rows[0].id;
 
@@ -265,9 +265,9 @@ module.exports = (pool, logger) => {
         console.log(`[guardian] Guardian ${guardianIdToLink} saved for participant ${participant_id}`);
         res.json({ success: true, data: { guardian_id: guardianIdToLink }, message: 'Guardian saved successfully' });
       } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
+        if (handleOrganizationResolutionError(res, error, logger)) {
+          return;
+        }
         await client.query('ROLLBACK');
         throw error;
       } finally {
@@ -312,7 +312,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Guardian link not found
    */
-  router.delete('/remove-guardian', async (req, res) => {
+  router.delete('/', async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);

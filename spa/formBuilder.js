@@ -8,7 +8,7 @@
  */
 
 import { debugLog, debugError, debugWarn } from "./utils/DebugUtils.js";
-import { ajax } from "./ajax-functions.js";
+import { API } from "./api/api-core.js";
 import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { CONFIG } from "./config.js";
@@ -46,20 +46,14 @@ export class FormBuilder extends BaseModule {
     async loadData() {
         try {
             // Load form formats
-            const formatsResponse = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/form-formats`,
-                method: 'GET'
-            });
+            const formatsResponse = await API.get('v1/form-builder/form-formats');
 
             if (formatsResponse.success) {
                 this.formFormats = formatsResponse.data || [];
             }
 
             // Load user organizations for copy functionality
-            const orgsResponse = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/user-organizations`,
-                method: 'GET'
-            });
+            const orgsResponse = await API.get('v1/form-builder/user-organizations');
 
             if (orgsResponse.success) {
                 this.userOrganizations = orgsResponse.data || [];
@@ -256,15 +250,15 @@ export class FormBuilder extends BaseModule {
     renderFieldEditor(fieldIndex = null) {
         const isEdit = fieldIndex !== null;
         const field = isEdit ? this.currentFields[fieldIndex] : this.getDefaultField();
-        
+
         const modal = document.getElementById("field-editor-modal");
         const content = document.getElementById("field-editor-content");
-        
-        document.getElementById("field-editor-title").textContent = 
+
+        document.getElementById("field-editor-title").textContent =
             isEdit ? translate("edit_field") : translate("add_field");
 
         // Get boolean fields for dependsOn dropdown
-        const booleanFields = this.currentFields.filter(f => 
+        const booleanFields = this.currentFields.filter(f =>
             ['radio', 'checkbox'].includes(f.type) && f.name
         );
 
@@ -517,7 +511,7 @@ export class FormBuilder extends BaseModule {
      */
     attachDragDropListeners() {
         const fieldItems = document.querySelectorAll(".field-item");
-        
+
         fieldItems.forEach(item => {
             item.addEventListener("dragstart", (e) => {
                 this.draggedElement = e.target;
@@ -535,7 +529,7 @@ export class FormBuilder extends BaseModule {
             item.addEventListener("dragover", (e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
-                
+
                 const targetIndex = parseInt(e.currentTarget.dataset.fieldIndex);
                 if (this.draggedIndex !== null && this.draggedIndex !== targetIndex) {
                     e.currentTarget.classList.add("drag-over");
@@ -549,7 +543,7 @@ export class FormBuilder extends BaseModule {
             item.addEventListener("drop", (e) => {
                 e.preventDefault();
                 e.currentTarget.classList.remove("drag-over");
-                
+
                 const targetIndex = parseInt(e.currentTarget.dataset.fieldIndex);
                 if (this.draggedIndex !== null && this.draggedIndex !== targetIndex) {
                     this.reorderField(this.draggedIndex, targetIndex);
@@ -704,7 +698,7 @@ export class FormBuilder extends BaseModule {
     addOptionToEditor() {
         const container = document.getElementById("options-container");
         const index = container.querySelectorAll(".option-item").length;
-        
+
         const optionHtml = `
             <div class="option-item" data-option-index="${index}">
                 <input type="text" class="option-label" placeholder="${translate("label_key")}">
@@ -712,9 +706,9 @@ export class FormBuilder extends BaseModule {
                 <button type="button" class="btn-icon remove-option" data-index="${index}">🗑️</button>
             </div>
         `;
-        
+
         container.insertAdjacentHTML('beforeend', optionHtml);
-        
+
         // Attach remove listener
         const newOption = container.lastElementChild;
         newOption.querySelector(".remove-option").addEventListener("click", (e) => {
@@ -777,11 +771,7 @@ export class FormBuilder extends BaseModule {
      */
     async saveTranslation(key, translations) {
         try {
-            const response = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/translations`,
-                method: 'POST',
-                body: JSON.stringify({ key, translations })
-            });
+            const response = await API.post('v1/form-builder/translations', { key, translations });
 
             if (response.success) {
                 this.app.showMessage(translate("translation_saved"), "success");
@@ -801,7 +791,7 @@ export class FormBuilder extends BaseModule {
         const form = document.getElementById("field-editor-form");
         const formData = new FormData(form);
         const fieldIndex = document.getElementById("field-index").value;
-        
+
         const field = {
             type: formData.get("type"),
             name: formData.get("name"),
@@ -879,7 +869,7 @@ export class FormBuilder extends BaseModule {
         // Direction constants
         const DIRECTION_UP = -1;
         const DIRECTION_DOWN = 1;
-        
+
         const newIndex = index + direction;
         if (newIndex < 0 || newIndex >= this.currentFields.length) return;
 
@@ -906,7 +896,7 @@ export class FormBuilder extends BaseModule {
         // Show a modal for form type input instead of browser prompt
         const modal = document.getElementById("translation-modal");
         const content = document.getElementById("translation-content");
-        
+
         document.querySelector("#translation-modal h2").textContent = translate("create_new_form_format");
 
         setContent(content, `
@@ -947,14 +937,10 @@ export class FormBuilder extends BaseModule {
     async doCreateFormat(formType) {
 
         try {
-            const response = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/form-formats`,
-                method: 'POST',
-                body: JSON.stringify({
-                    form_type: formType,
-                    form_structure: { fields: [] },
-                    display_type: null
-                })
+            const response = await API.post('v1/form-builder/form-formats', {
+                form_type: formType,
+                form_structure: { fields: [] },
+                display_type: null
             });
 
             if (response.success) {
@@ -981,7 +967,7 @@ export class FormBuilder extends BaseModule {
 
         this.currentFormat = format;
         this.currentFields = format.form_structure?.fields || [];
-        
+
         this.renderFormEditor();
         this.attachEditorListeners();
 
@@ -996,10 +982,7 @@ export class FormBuilder extends BaseModule {
         if (!confirm(translate("confirm_delete_format"))) return;
 
         try {
-            const response = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/form-formats/${formatId}`,
-                method: 'DELETE'
-            });
+            const response = await API.delete(`v1/form-builder/form-formats/${formatId}`);
 
             if (response.success) {
                 this.app.showMessage(translate("format_deleted"), "success");
@@ -1025,12 +1008,8 @@ export class FormBuilder extends BaseModule {
         if (!this.currentFormat) return;
 
         try {
-            const response = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/form-formats/${this.currentFormat.id}`,
-                method: 'PUT',
-                body: JSON.stringify({
-                    form_structure: { fields: this.currentFields }
-                })
+            const response = await API.put(`v1/form-builder/form-formats/${this.currentFormat.id}`, {
+                form_structure: { fields: this.currentFields }
             });
 
             if (response.success) {
@@ -1079,7 +1058,7 @@ export class FormBuilder extends BaseModule {
         // Show a modal for organization selection
         const modal = document.getElementById("translation-modal");
         const content = document.getElementById("translation-content");
-        
+
         document.querySelector("#translation-modal h2").textContent = translate("copy_to_org");
 
         setContent(content, `
@@ -1133,11 +1112,7 @@ export class FormBuilder extends BaseModule {
             }
 
             // Then copy - use simple POST body instead of path params
-            const response = await ajax({
-                url: `${CONFIG.API_BASE_URL}/api/form-formats/${currentOrgId}/${this.currentFormat.form_type}/copy`,
-                method: 'POST',
-                body: JSON.stringify({ targetOrgId })
-            });
+            const response = await API.post(`v1/form-builder/form-formats/${currentOrgId}/${this.currentFormat.form_type}/copy`, { targetOrgId });
 
             if (response.success) {
                 this.app.showMessage(translate("format_copied"), "success");

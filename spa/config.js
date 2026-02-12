@@ -59,7 +59,7 @@ export const CONFIG = {
     /**
      * Application Version
      */
-    VERSION: "3.0.7",
+    VERSION: "3.1.0",
 
     /**
      * Application Name
@@ -111,39 +111,39 @@ export const CONFIG = {
     ENDPOINTS: {
         // Auth
         LOGIN: "/public/login",
-        LOGOUT: "/api/auth/logout",
-        REGISTER: "/api/auth/register",
-        RESET_PASSWORD: "/api/auth/reset-password",
+        LOGOUT: "/api/v1/auth/logout",
+        REGISTER: "/api/v1/auth/register",
+        RESET_PASSWORD: "/api/v1/auth/reset-password",
 
         // Organization
-        ORGANIZATION_SETTINGS: "/api/organization-settings",
+        ORGANIZATION_SETTINGS: "/api/v1/organizations/organization-settings",
         ORGANIZATION_ID: "/public/get_organization_id",
-        ORGANIZATION_JWT: "/api/organization-jwt",
+        ORGANIZATION_JWT: "/api/v1/organizations/organization-jwt",
 
         // Participants (v1 RESTful)
         PARTICIPANTS: "/api/v1/participants",
-        PARTICIPANT_DETAILS: "/api/participant-details",
+        PARTICIPANT_DETAILS: "/api/v1/participants/details",
 
         // Groups (v1 RESTful)
         GROUPS: "/api/v1/groups",
 
         // Attendance (v1 RESTful)
         ATTENDANCE: "/api/v1/attendance",
-        ATTENDANCE_DATES: "/api/attendance-dates",
+        ATTENDANCE_DATES: "/api/v1/attendance/dates",
 
         // Points & Honors
-        POINTS_DATA: "/api/points-data",
-        UPDATE_POINTS: "/api/update-points",
-        HONORS: "/api/honors",
-        AWARD_HONOR: "/api/award-honor",
+        POINTS_DATA: "/api/v1/points-data",
+        UPDATE_POINTS: "/api/v1/update-points",
+        HONORS: "/api/v1/honors",
+        AWARD_HONOR: "/api/v1/award-honor",
 
         // Other
-        TRANSLATIONS: "/api/translations",
-        NEWS: "/api/news",
-        INITIAL_DATA: "/api/initial-data",
-        REUNION_PREPARATION: "/api/reunion-preparation",
-        MAILING_LIST: "/api/mailing-list",
-        PARENT_CONTACT_LIST: "/api/parent-contact-list",
+        TRANSLATIONS: "/api/v1/public/translations",
+        NEWS: "/api/v1/public/news",
+        INITIAL_DATA: "/api/v1/dashboards/initial-data",
+        REUNION_PREPARATION: "/api/v1/meetings/reunion-preparation",
+        MAILING_LIST: "/api/v1/reports/mailing-list",
+        PARENT_CONTACT_LIST: "/api/v1/reports/parent-contact-list",
     },
 
     /**

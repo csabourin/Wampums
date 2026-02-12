@@ -4,7 +4,7 @@ import {
         clearOfflineData,
 } from "./indexedDB.js";
 import { initRouter, Router } from "./router.js";
-import { Login } from "./login.js";
+import { checkSession } from "./utils/SessionUtils.js";
 import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
 import { makeApiRequest } from "./api/api-core.js";
 import { CONFIG } from "./config.js";
@@ -125,7 +125,7 @@ export const app = {
 
                 try {
                         // Check for existing session (synchronous from localStorage)
-                        const session = Login.checkSession();
+                        const session = checkSession();
                         this.isLoggedIn = session.isLoggedIn;
                         this.userRole = session.userRole;
                         this.userRoles = session.userRoles || [];
@@ -143,7 +143,7 @@ export const app = {
                         if (storedOrgId && storedOrgId.startsWith('{')) {
                                 try {
                                         const parsed = JSON.parse(storedOrgId);
-                                        storedOrgId = parsed.organizationId || parsed.id;
+                                        storedOrgId = parsed.organization_id || parsed.organizationId || parsed.id;
                                 } catch (e) {
                                         storedOrgId = null;
                                 }
@@ -156,18 +156,23 @@ export const app = {
                                         const orgData = await fetchOrganizationId();
                                         let orgId;
                                         if (typeof orgData === 'object' && orgData.data) {
-                                                orgId = orgData.data.organizationId || orgData.data;
+                                                orgId = orgData.data.organization_id || orgData.data.organizationId || orgData.data.id || orgData.data;
                                         } else if (typeof orgData === 'object') {
-                                                orgId = orgData.organizationId || orgData.id || orgData;
+                                                orgId = orgData.organization_id || orgData.organizationId || orgData.id || orgData;
                                         } else {
                                                 orgId = orgData;
                                         }
-                                        this.organizationId = orgId;
-                                        setStorageMultiple({
-                                                currentOrganizationId: orgId,
-                                                organizationId: orgId
-                                        });
-                                        debugLog("Organization ID fetched:", orgId);
+                                        const isValidOrgId = (typeof orgId === 'string' || typeof orgId === 'number') && orgId !== '' && orgId !== '[object Object]';
+                                        this.organizationId = isValidOrgId ? orgId : null;
+                                        if (isValidOrgId) {
+                                                setStorageMultiple({
+                                                        currentOrganizationId: orgId,
+                                                        organizationId: orgId
+                                                });
+                                                debugLog("Organization ID fetched:", orgId);
+                                        } else {
+                                                debugWarn("Fetched invalid organization ID, ignoring:", orgId);
+                                        }
                                 } catch (error) {
                                         debugError("Error fetching organization ID:", error);
                                         if (!navigator.onLine) {
@@ -298,7 +303,7 @@ export const app = {
                         }
 
                         if (!response) {
-                                response = await getOrganizationSettings(this.organizationId);
+                                response = await getOrganizationSettings();
                         }
                         if (response && response.organization_info || response.data) {
                                 debugLog("Got organization settings: ", JSON.stringify(response));
@@ -412,7 +417,8 @@ export const app = {
         toastTimeout: null,
 
         showMessage(message, type = 'info') {
-                const translatedMessage = translate(message);
+                // Only translate if message looks like a translation key (no spaces)
+                const translatedMessage = /^[\w.]+$/.test(message) ? translate(message) : message;
 
                 // Add to queue
                 this.toastQueue.push({ message: translatedMessage, type });
@@ -742,7 +748,7 @@ if (storedOrgId && storedOrgId !== '[object Object]' && !storedOrgId.startsWith(
         // Use public endpoint for unauthenticated users OR if on a public page
         // to avoid 401 errors that might trigger redirects
         window.earlyOrgSettingsFetch = (isLoggedIn && !isPublicPage)
-                ? getOrganizationSettings(storedOrgId).catch(error => {
+                ? getOrganizationSettings().catch(error => {
                         debugError("Early org settings fetch failed, will retry later:", error);
                         return null;
                 })

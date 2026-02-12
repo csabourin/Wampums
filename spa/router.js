@@ -1,14 +1,16 @@
-//router.js
+// router.js
 
 // Critical imports - loaded immediately (core functionality)
 import { Dashboard } from "./dashboard.js";
-import { Login } from "./login.js";
+// Login imported dynamically to avoid circular dependency
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, isDebugMode } from "./utils/DebugUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
+import { checkSession } from "./utils/SessionUtils.js";
 import {
   canApproveBadges,
+  // ... (imports continue)
   canCreateOrganization,
   canManageActivities,
   canManageAttendance,
@@ -237,7 +239,7 @@ export class Router {
     }
 
     // Check session
-    const session = Login.checkSession();
+    const session = checkSession();
     this.app.isLoggedIn = session.isLoggedIn;
     this.app.userRole = session.userRole;
     this.app.userFullName = session.userFullName;
@@ -805,10 +807,7 @@ export class Router {
     await attendance.init();
   }
 
-  async loadLoginPage() {
-    const login = new Login(this.app);
-    login.init();
-  }
+  // duplicate loadLoginPage removed (see end of file)
 
   async loadReports() {
     const Reports = await this.loadModule('Reports');
@@ -944,6 +943,7 @@ export class Router {
 
   async handleLogout() {
     try {
+      const { Login } = await import('./login.js');
       await Login.logout();
       this.app.isLoggedIn = false;
       this.app.userRole = null;
@@ -961,6 +961,7 @@ export class Router {
   }
 
   async loadLoginPage() {
+    const { Login } = await import('./login.js');
     const login = new Login(this.app);
     login.init();
   }

@@ -27,26 +27,15 @@ const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handl
  */
 module.exports = (pool, logger) => {
   /**
-   * @swagger
-   * /api/mailing-list:
-   *   get:
-   *     summary: Get mailing list
-   *     description: Retrieve email contacts for all guardians
-   *     tags: [Reports]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Mailing list retrieved successfully
-   *       401:
-   *         description: Unauthorized
+   * GET /api/v1/reports/mailing-list
+   * Get mailing list
    */
   router.get('/mailing-list', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
 
-      // Build email list by user role (admin/animation/etc.)
-      const usersEmailsResult = await pool.query(
-        `SELECT LOWER(u.email) AS email, r.role_name as role
+    // Build email list by user role (admin/animation/etc.)
+    const usersEmailsResult = await pool.query(
+      `SELECT LOWER(u.email) AS email, r.role_name as role
          FROM user_organizations uo
          JOIN users u ON u.id = uo.user_id
          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
@@ -54,22 +43,22 @@ module.exports = (pool, logger) => {
          WHERE uo.organization_id = $1
          AND u.email IS NOT NULL
          AND u.email != ''`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      const emailsByRole = usersEmailsResult.rows.reduce((acc, user) => {
-        if (!acc[user.role]) {
-          acc[user.role] = [];
-        }
-        if (!acc[user.role].includes(user.email)) {
-          acc[user.role].push(user.email);
-        }
-        return acc;
-      }, {});
+    const emailsByRole = usersEmailsResult.rows.reduce((acc, user) => {
+      if (!acc[user.role]) {
+        acc[user.role] = [];
+      }
+      if (!acc[user.role].includes(user.email)) {
+        acc[user.role].push(user.email);
+      }
+      return acc;
+    }, {});
 
-      // Guardian emails linked to participants in the current organization
-      const guardianEmailsResult = await pool.query(
-        `WITH guardian_children AS (
+    // Guardian emails linked to participants in the current organization
+    const guardianEmailsResult = await pool.query(
+      `WITH guardian_children AS (
            SELECT DISTINCT LOWER(pg.courriel) AS email,
                   p.first_name || ' ' || p.last_name AS participant_name
            FROM parents_guardians pg
@@ -84,38 +73,38 @@ module.exports = (pool, logger) => {
                 string_agg(participant_name, ', ' ORDER BY participant_name) AS participants
          FROM guardian_children
          GROUP BY email`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      emailsByRole.parent = guardianEmailsResult.rows.map((parent) => ({
-        email: parent.email,
-        participants: parent.participants,
-      }));
+    emailsByRole.parent = guardianEmailsResult.rows.map((parent) => ({
+      email: parent.email,
+      participants: parent.participants,
+    }));
 
-      // Participant emails captured on their own forms
-      const participantEmailsResult = await pool.query(
-        `SELECT LOWER(fs.submission_data->>'courriel') AS courriel
+    // Participant emails captured on their own forms
+    const participantEmailsResult = await pool.query(
+      `SELECT LOWER(fs.submission_data->>'courriel') AS courriel
          FROM form_submissions fs
          WHERE (fs.submission_data->>'courriel') IS NOT NULL
          AND (fs.submission_data->>'courriel') != ''
          AND fs.organization_id = $1`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      const participantEmails = participantEmailsResult.rows.map(row => row.courriel);
-      const uniqueEmails = [
-        ...new Set([
-          ...Object.values(emailsByRole).flat().map(item => (typeof item === 'string' ? item : item.email)),
-          ...participantEmails,
-        ]),
-      ];
+    const participantEmails = participantEmailsResult.rows.map(row => row.courriel);
+    const uniqueEmails = [
+      ...new Set([
+        ...Object.values(emailsByRole).flat().map(item => (typeof item === 'string' ? item : item.email)),
+        ...participantEmails,
+      ]),
+    ];
 
-      res.json({
-        success: true,
-        emails_by_role: emailsByRole,
-        participant_emails: participantEmails,
-        unique_emails: uniqueEmails,
-      });
+    res.json({
+      success: true,
+      emails_by_role: emailsByRole,
+      participant_emails: participantEmails,
+      unique_emails: uniqueEmails,
+    });
   }));
 
   /**
@@ -141,13 +130,17 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/health-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  /**
+   * GET /api/v1/reports/health
+   * Get health report
+   */
+  router.get('/health', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const groupId = req.query.group_id;
+    const groupId = req.query.group_id;
 
-      // Get all participants with their health form submissions
-      let query = `
+    // Get all participants with their health form submissions
+    let query = `
         SELECT p.id, p.first_name, p.last_name, p.date_naissance,
                g.name as group_name,
                fs.submission_data as health_data
@@ -161,44 +154,44 @@ module.exports = (pool, logger) => {
         WHERE po.organization_id = $1
       `;
 
-      const params = [organizationId];
+    const params = [organizationId];
 
-      if (groupId) {
-        query += ` AND pg.group_id = $2`;
-        params.push(groupId);
-      }
+    if (groupId) {
+      query += ` AND pg.group_id = $2`;
+      params.push(groupId);
+    }
 
-      query += ` ORDER BY g.name, p.last_name, p.first_name`;
+    query += ` ORDER BY g.name, p.last_name, p.first_name`;
 
-      const result = await pool.query(query, params);
+    const result = await pool.query(query, params);
 
-      // Process health data to extract key fields (using actual fiche_sante field names)
-      const healthReport = result.rows.map(row => {
-        const healthData = row.health_data || {};
-        return {
-          id: row.id,
-          first_name: row.first_name,
-          last_name: row.last_name,
-          date_naissance: row.date_naissance,
-          group_name: row.group_name,
-          // Using actual field names from fiche_sante form
-          has_allergies: healthData.has_allergies || null,
-          allergies: healthData.allergie || null,
-          epipen: healthData.epipen || false,
-          has_medication: healthData.has_medication || null,
-          medications: healthData.medicament || null,
-          has_probleme_sante: healthData.has_probleme_sante || null,
-          probleme_sante: healthData.probleme_sante || null,
-          medecin_famille: healthData.medecin_famille || null,
-          nom_medecin: healthData.nom_medecin || null,
-          niveau_natation: healthData.niveau_natation || null,
-          doit_porter_vfi: healthData.doit_porter_vfi || false,
-          vaccins_a_jour: healthData.vaccins_a_jour || false,
-          has_health_form: !!row.health_data
-        };
-      });
+    // Process health data to extract key fields (using actual fiche_sante field names)
+    const healthReport = result.rows.map(row => {
+      const healthData = row.health_data || {};
+      return {
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        date_naissance: row.date_naissance,
+        group_name: row.group_name,
+        // Using actual field names from fiche_sante form
+        has_allergies: healthData.has_allergies || null,
+        allergies: healthData.allergie || null,
+        epipen: healthData.epipen || false,
+        has_medication: healthData.has_medication || null,
+        medications: healthData.medicament || null,
+        has_probleme_sante: healthData.has_probleme_sante || null,
+        probleme_sante: healthData.probleme_sante || null,
+        medecin_famille: healthData.medecin_famille || null,
+        nom_medecin: healthData.nom_medecin || null,
+        niveau_natation: healthData.niveau_natation || null,
+        doit_porter_vfi: healthData.doit_porter_vfi || false,
+        vaccins_a_jour: healthData.vaccins_a_jour || false,
+        has_health_form: !!row.health_data
+      };
+    });
 
-      res.json({ success: true, data: healthReport });
+    res.json({ success: true, data: healthReport });
   }));
 
   /**
@@ -238,12 +231,16 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/attendance-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  /**
+   * GET /api/v1/reports/attendance
+   * Get attendance report
+   */
+  router.get('/attendance', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const { start_date, end_date, group_id, format } = req.query;
+    const { start_date, end_date, group_id, format } = req.query;
 
-      let query = `
+    let query = `
         SELECT p.id, p.first_name, p.last_name,
                g.name as group_name,
                a.date, a.status
@@ -255,68 +252,68 @@ module.exports = (pool, logger) => {
         WHERE po.organization_id = $1
       `;
 
-      const params = [organizationId];
-      let paramIndex = 2;
+    const params = [organizationId];
+    let paramIndex = 2;
 
-      if (start_date) {
-        query += ` AND a.date >= $${paramIndex}`;
-        params.push(start_date);
-        paramIndex++;
+    if (start_date) {
+      query += ` AND a.date >= $${paramIndex}`;
+      params.push(start_date);
+      paramIndex++;
+    }
+
+    if (end_date) {
+      query += ` AND a.date <= $${paramIndex}`;
+      params.push(end_date);
+      paramIndex++;
+    }
+
+    if (group_id) {
+      query += ` AND pg.group_id = $${paramIndex}`;
+      params.push(group_id);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY p.last_name, p.first_name, a.date`;
+
+    const result = await pool.query(query, params);
+
+    // Group by participant
+    const participantMap = new Map();
+    for (const row of result.rows) {
+      const key = row.id;
+      if (!participantMap.has(key)) {
+        participantMap.set(key, {
+          id: row.id,
+          first_name: row.first_name,
+          last_name: row.last_name,
+          group_name: row.group_name,
+          attendance: [],
+          summary: { present: 0, absent: 0, late: 0, excused: 0 }
+        });
       }
-
-      if (end_date) {
-        query += ` AND a.date <= $${paramIndex}`;
-        params.push(end_date);
-        paramIndex++;
-      }
-
-      if (group_id) {
-        query += ` AND pg.group_id = $${paramIndex}`;
-        params.push(group_id);
-        paramIndex++;
-      }
-
-      query += ` ORDER BY p.last_name, p.first_name, a.date`;
-
-      const result = await pool.query(query, params);
-
-      // Group by participant
-      const participantMap = new Map();
-      for (const row of result.rows) {
-        const key = row.id;
-        if (!participantMap.has(key)) {
-          participantMap.set(key, {
-            id: row.id,
-            first_name: row.first_name,
-            last_name: row.last_name,
-            group_name: row.group_name,
-            attendance: [],
-            summary: { present: 0, absent: 0, late: 0, excused: 0 }
-          });
+      if (row.date) {
+        const participant = participantMap.get(key);
+        participant.attendance.push({ date: row.date, status: row.status });
+        if (participant.summary[row.status] !== undefined) {
+          participant.summary[row.status]++;
         }
-        if (row.date) {
-          const participant = participantMap.get(key);
-          participant.attendance.push({ date: row.date, status: row.status });
-          if (participant.summary[row.status] !== undefined) {
-            participant.summary[row.status]++;
-          }
-        }
       }
+    }
 
-      const attendanceReport = Array.from(participantMap.values());
+    const attendanceReport = Array.from(participantMap.values());
 
-      // If CSV format requested
-      if (format === 'csv') {
-        let csv = 'First Name,Last Name,Group,Present,Absent,Late,Excused\n';
-        for (const p of attendanceReport) {
-          csv += `"${p.first_name}","${p.last_name}","${p.group_name || ''}",${p.summary.present},${p.summary.absent},${p.summary.late},${p.summary.excused}\n`;
-        }
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', 'attachment; filename="attendance_report.csv"');
-        return res.send(csv);
+    // If CSV format requested
+    if (format === 'csv') {
+      let csv = 'First Name,Last Name,Group,Present,Absent,Late,Excused\n';
+      for (const p of attendanceReport) {
+        csv += `"${p.first_name}","${p.last_name}","${p.group_name || ''}",${p.summary.present},${p.summary.absent},${p.summary.late},${p.summary.excused}\n`;
       }
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="attendance_report.csv"');
+      return res.send(csv);
+    }
 
-      res.json({ success: true, data: attendanceReport });
+    res.json({ success: true, data: attendanceReport });
   }));
 
   /**
@@ -336,29 +333,33 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/missing-documents-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  /**
+   * GET /api/v1/reports/missing-documents
+   * Get missing documents report
+   */
+  router.get('/missing-documents', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      // Get required form types from organization settings
-      const settingsResult = await pool.query(
-        `SELECT setting_value FROM organization_settings
+    // Get required form types from organization settings
+    const settingsResult = await pool.query(
+      `SELECT setting_value FROM organization_settings
          WHERE organization_id = $1 AND setting_key = 'required_forms'`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      // Default required forms if not configured
-      let requiredForms = ['fiche_sante', 'acceptation_risque', 'formulaire_inscription'];
-      if (settingsResult.rows.length > 0) {
-        try {
-          requiredForms = JSON.parse(settingsResult.rows[0].setting_value);
-        } catch (e) {
-          // Keep defaults
-        }
+    // Default required forms if not configured
+    let requiredForms = ['fiche_sante', 'acceptation_risque', 'formulaire_inscription'];
+    if (settingsResult.rows.length > 0) {
+      try {
+        requiredForms = JSON.parse(settingsResult.rows[0].setting_value);
+      } catch (e) {
+        // Keep defaults
       }
+    }
 
-      // Get all participants and their submitted forms
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name,
+    // Get all participants and their submitted forms
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name,
                 g.name as group_name,
                 ARRAY_AGG(DISTINCT fs.form_type) FILTER (WHERE fs.form_type IS NOT NULL) as submitted_forms
          FROM participants p
@@ -369,30 +370,30 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
          GROUP BY p.id, p.first_name, p.last_name, g.name
          ORDER BY g.name, p.last_name, p.first_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      // Calculate missing forms for each participant
-      const missingDocsReport = result.rows.map(row => {
-        const submittedForms = row.submitted_forms || [];
-        const missingForms = requiredForms.filter(form => !submittedForms.includes(form));
+    // Calculate missing forms for each participant
+    const missingDocsReport = result.rows.map(row => {
+      const submittedForms = row.submitted_forms || [];
+      const missingForms = requiredForms.filter(form => !submittedForms.includes(form));
 
-        return {
-          id: row.id,
-          first_name: row.first_name,
-          last_name: row.last_name,
-          group_name: row.group_name,
-          submitted_forms: submittedForms,
-          missing_forms: missingForms,
-          is_complete: missingForms.length === 0
-        };
-      });
+      return {
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        group_name: row.group_name,
+        submitted_forms: submittedForms,
+        missing_forms: missingForms,
+        is_complete: missingForms.length === 0
+      };
+    });
 
-      res.json({
-        success: true,
-        data: missingDocsReport,
-        required_forms: requiredForms
-      });
+    res.json({
+      success: true,
+      data: missingDocsReport,
+      required_forms: requiredForms
+    });
   }));
 
   /**
@@ -412,11 +413,15 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/health-contact-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  /**
+   * GET /api/v1/reports/health-contacts
+   * Get health contact report
+   */
+  router.get('/health-contacts', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
                 fs.submission_data->>'emergency_contact_name' as emergency_contact_name,
                 fs.submission_data->>'emergency_contact_phone' as emergency_contact_phone,
                 fs.submission_data->>'doctor_name' as doctor_name,
@@ -426,10 +431,10 @@ module.exports = (pool, logger) => {
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante'
          WHERE po.organization_id = $1
          ORDER BY p.first_name, p.last_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -449,11 +454,11 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/allergies-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/allergies', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'has_allergies' as has_allergies,
                 fs.submission_data->>'allergie' as allergies,
                 fs.submission_data->>'epipen' as epipen
@@ -465,10 +470,10 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_allergies' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -488,11 +493,11 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/medication-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/medication', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'has_medication' as has_medication,
                 fs.submission_data->>'medicament' as medication
          FROM participants p
@@ -503,10 +508,10 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
            AND fs.submission_data->>'has_medication' = 'yes'
          ORDER BY g.name, p.last_name, p.first_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -526,11 +531,11 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/vaccine-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/vaccines', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'vaccins_a_jour' as vaccines_up_to_date
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
@@ -539,10 +544,10 @@ module.exports = (pool, logger) => {
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'fiche_sante' AND fs.organization_id = $1
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -562,11 +567,11 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/leave-alone-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/leave-alone', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'peut_partir_seul' as can_leave_alone
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
@@ -575,10 +580,10 @@ module.exports = (pool, logger) => {
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -598,11 +603,11 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/media-authorization-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/media-authorization', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 fs.submission_data->>'consentement_photos_videos' as media_authorized
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
@@ -611,10 +616,10 @@ module.exports = (pool, logger) => {
          LEFT JOIN form_submissions fs ON p.id = fs.participant_id AND fs.form_type = 'participant_registration' AND fs.organization_id = $1
          WHERE po.organization_id = $1
          ORDER BY g.name, p.last_name, p.first_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -634,11 +639,11 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/honors-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/honors', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT h.honor_name, h.category, COUNT(*) as count,
+    const result = await pool.query(
+      `SELECT h.honor_name, h.category, COUNT(*) as count,
                 array_agg(p.first_name || ' ' || p.last_name) as recipients
          FROM honors h
          JOIN participants p ON h.participant_id = p.id
@@ -646,10 +651,10 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
          GROUP BY h.honor_name, h.category
          ORDER BY h.category, h.honor_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -669,11 +674,11 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/points-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/points', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 COALESCE(SUM(pts.value), 0) as total_points,
                 COUNT(DISTINCT h.id) as honors_count
          FROM participants p
@@ -685,21 +690,21 @@ module.exports = (pool, logger) => {
          WHERE po.organization_id = $1
          GROUP BY p.id, p.first_name, p.last_name, g.name
          ORDER BY total_points DESC, p.first_name, p.last_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
    * GET /api/time-since-registration-report
    * Get time since registration report for all participants
    */
-  router.get('/time-since-registration-report', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+  router.get('/time-since-registration', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
 
-      const result = await pool.query(
-        `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
+    const result = await pool.query(
+      `SELECT p.id, p.first_name, p.last_name, g.name as group_name,
                 po.inscription_date,
                 CASE
                   WHEN po.inscription_date IS NOT NULL THEN
@@ -721,10 +726,10 @@ module.exports = (pool, logger) => {
            CASE WHEN po.inscription_date IS NOT NULL THEN 0 ELSE 1 END,
            po.inscription_date ASC NULLS LAST,
            p.first_name, p.last_name`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows });
   }));
 
   /**
@@ -751,16 +756,16 @@ module.exports = (pool, logger) => {
    *         description: Insufficient permissions
    */
   router.get('/participant-progress', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
 
-      // Check if user has parent role - parents are restricted even if they have other permissions
-      const isParent = req.user.roleNames && (req.user.roleNames.includes('parent') || req.user.roleNames.includes('demoparent'));
-      const isStaff = !isParent; // Staff = NOT a parent
+    // Check if user has parent role - parents are restricted even if they have other permissions
+    const isParent = req.user.roleNames && (req.user.roleNames.includes('parent') || req.user.roleNames.includes('demoparent'));
+    const isStaff = !isParent; // Staff = NOT a parent
 
-      // Parents can only see their own children, staff can see all participants
-      let participantsQuery, participantsParams;
-      if (isStaff) {
-        participantsQuery = `
+    // Parents can only see their own children, staff can see all participants
+    let participantsQuery, participantsParams;
+    if (isStaff) {
+      participantsQuery = `
           SELECT p.id, p.first_name, p.last_name, g.name as group_name
           FROM participants p
           JOIN participant_organizations po ON p.id = po.participant_id
@@ -768,9 +773,9 @@ module.exports = (pool, logger) => {
           LEFT JOIN groups g ON pg.group_id = g.id
           WHERE po.organization_id = $1
           ORDER BY p.first_name, p.last_name`;
-        participantsParams = [organizationId];
-      } else {
-        participantsQuery = `
+      participantsParams = [organizationId];
+    } else {
+      participantsQuery = `
           SELECT p.id, p.first_name, p.last_name, g.name as group_name
           FROM participants p
           JOIN participant_organizations po ON p.id = po.participant_id
@@ -779,39 +784,39 @@ module.exports = (pool, logger) => {
           LEFT JOIN groups g ON pg.group_id = g.id
           WHERE po.organization_id = $1 AND up.user_id = $2
           ORDER BY p.first_name, p.last_name`;
-        participantsParams = [organizationId, req.user.id];
-      }
+      participantsParams = [organizationId, req.user.id];
+    }
 
-      const participantsResult = await pool.query(participantsQuery, participantsParams);
+    const participantsResult = await pool.query(participantsQuery, participantsParams);
 
-      const participantId = req.query.participant_id ? Number(req.query.participant_id) : null;
-      if (!participantId) {
-        return res.json({ success: true, data: { participants: participantsResult.rows, isStaff } });
-      }
+    const participantId = req.query.participant_id ? Number(req.query.participant_id) : null;
+    if (!participantId) {
+      return res.json({ success: true, data: { participants: participantsResult.rows, isStaff } });
+    }
 
-      const participantSummary = participantsResult.rows.find((p) => p.id === participantId);
-      if (!participantSummary) {
-        return res.status(404).json({ success: false, message: 'Participant not found in organization' });
-      }
+    const participantSummary = participantsResult.rows.find((p) => p.id === participantId);
+    if (!participantSummary) {
+      return res.status(404).json({ success: false, message: 'Participant not found in organization' });
+    }
 
-      const attendanceResult = await pool.query(
-        `SELECT date::text as date, status
+    const attendanceResult = await pool.query(
+      `SELECT date::text as date, status
          FROM attendance
          WHERE participant_id = $1 AND organization_id = $2
          ORDER BY date ASC`,
-        [participantId, organizationId]
-      );
+      [participantId, organizationId]
+    );
 
-      const honorsResult = await pool.query(
-        `SELECT date::text as date, reason
+    const honorsResult = await pool.query(
+      `SELECT date::text as date, reason
          FROM honors
          WHERE participant_id = $1 AND organization_id = $2
          ORDER BY date ASC`,
-        [participantId, organizationId]
-      );
+      [participantId, organizationId]
+    );
 
-      const badgeResult = await pool.query(
-        `SELECT bp.etoiles,
+    const badgeResult = await pool.query(
+      `SELECT bp.etoiles,
                 bp.date_obtention::text as date,
                 bp.badge_template_id,
                 bt.name AS badge_name,
@@ -823,52 +828,52 @@ module.exports = (pool, logger) => {
          JOIN badge_templates bt ON bp.badge_template_id = bt.id
          WHERE bp.participant_id = $1 AND bp.organization_id = $2 AND bp.status = 'approved'
          ORDER BY bp.date_obtention ASC`,
-        [participantId, organizationId]
-      );
+      [participantId, organizationId]
+    );
 
-      const pointsResult = await pool.query(
-        `SELECT created_at::date as date, value
+    const pointsResult = await pool.query(
+      `SELECT created_at::date as date, value
          FROM points
          WHERE participant_id = $1 AND organization_id = $2
          ORDER BY created_at ASC`,
-        [participantId, organizationId]
-      );
+      [participantId, organizationId]
+    );
 
-      let cumulative = 0;
-      const pointEvents = pointsResult.rows.map((row) => {
-        const value = Number(row.value) || 0;
-        cumulative += value;
-        return { date: row.date, value, cumulative };
-      });
+    let cumulative = 0;
+    const pointEvents = pointsResult.rows.map((row) => {
+      const value = Number(row.value) || 0;
+      cumulative += value;
+      return { date: row.date, value, cumulative };
+    });
 
-      const attendanceCounts = attendanceResult.rows.reduce(
-        (acc, row) => {
-          acc[row.status] = (acc[row.status] || 0) + 1;
-          return acc;
-        },
-        {}
-      );
+    const attendanceCounts = attendanceResult.rows.reduce(
+      (acc, row) => {
+        acc[row.status] = (acc[row.status] || 0) + 1;
+        return acc;
+      },
+      {}
+    );
 
-      res.json({
-        success: true,
-        data: {
-          participants: participantsResult.rows,
-          isStaff,
-          progress: {
-            participant: participantSummary,
-            attendance: attendanceResult.rows,
-            honors: honorsResult.rows,
-            badges: badgeResult.rows,
-            pointEvents,
-            totals: {
-              points: cumulative,
-              honors: honorsResult.rowCount,
-              badges: badgeResult.rowCount,
-              attendance: attendanceCounts
-            }
+    res.json({
+      success: true,
+      data: {
+        participants: participantsResult.rows,
+        isStaff,
+        progress: {
+          participant: participantSummary,
+          attendance: attendanceResult.rows,
+          honors: honorsResult.rows,
+          badges: badgeResult.rows,
+          pointEvents,
+          totals: {
+            points: cumulative,
+            honors: honorsResult.rowCount,
+            badges: badgeResult.rowCount,
+            attendance: attendanceCounts
           }
         }
-      });
+      }
+    });
   }));
 
   /**
@@ -889,11 +894,11 @@ module.exports = (pool, logger) => {
    *         description: Insufficient permissions
    */
   router.get('/parent-contact-list', authenticate, requirePermission('reports.view'), asyncHandler(async (req, res) => {
-      const organizationId = await getOrganizationId(req, pool);
+    const organizationId = await getOrganizationId(req, pool);
 
-      // Get all participants with their guardians
-      const result = await pool.query(
-        `SELECT
+    // Get all participants with their guardians
+    const result = await pool.query(
+      `SELECT
           p.id as participant_id,
           p.first_name,
           p.last_name,
@@ -916,13 +921,13 @@ module.exports = (pool, logger) => {
          LEFT JOIN parents_guardians pg_table ON part_guard.guardian_id = pg_table.id
          WHERE po.organization_id = $1
          ORDER BY p.last_name, p.first_name, pg_table.is_primary DESC, pg_table.is_emergency_contact DESC`,
-        [organizationId]
-      );
+      [organizationId]
+    );
 
-      res.json({
-        success: true,
-        contacts: result.rows
-      });
+    res.json({
+      success: true,
+      contacts: result.rows
+    });
   }));
 
   return router;

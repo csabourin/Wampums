@@ -1,6 +1,6 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import {login, verify2FA, getApiUrl, getCurrentOrganizationId} from "./ajax-functions.js";
+import { login, verify2FA, getApiUrl, getCurrentOrganizationId } from "./ajax-functions.js";
 import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
@@ -13,7 +13,7 @@ export class Login {
 
   async init() {
     debugLog("Login init started");
-    
+
     // Try to fetch organization settings if not already loaded
     // Since we're not logged in, this will use the public endpoint
     if (!this.app.organizationSettings && !this.app.isOrganizationSettingsFetched) {
@@ -29,7 +29,7 @@ export class Login {
     // Render the login form immediately
     // Organization settings will be available now or use defaults
     debugLog("Rendering login form, organizationSettings:",
-                this.app.organizationSettings ? "loaded" : "not loaded");
+      this.app.organizationSettings ? "loaded" : "not loaded");
     this.render();
   }
 
@@ -68,184 +68,184 @@ export class Login {
     }
   }
 
-async attachLoginFormListener() {
-  const form = document.getElementById("login-form");
-  if (!form) {
-    debugError("Login form not found in DOM");
-    return;
-  }
-
-  debugLog("Attaching login form listener");
-  const statusElement = document.getElementById("login-message");
-
-  const setStatus = (message, type = "info") => {
-    if (!statusElement) {
+  async attachLoginFormListener() {
+    const form = document.getElementById("login-form");
+    if (!form) {
+      debugError("Login form not found in DOM");
       return;
     }
-    statusElement.textContent = message;
-    statusElement.className = `status-message ${type}`;
-  };
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    debugLog("Login form submitted");
+    debugLog("Attaching login form listener");
+    const statusElement = document.getElementById("login-message");
 
-    const formData = new FormData(form);
-    
-    // Extract the actual values from FormData
-    const email = formData.get("email");
-    const password = formData.get("password");
-
-    setStatus("", "info");
-    const submitButton = form.querySelector("button[type='submit']");
-    if (submitButton) {
-      submitButton.disabled = true;
-    }
-
-    try {
-      debugLog("Sending login request via ajax-functions.js..." + email);
-
-      // Pass individual parameters instead of FormData object
-      const result = await login(email, password);
-
-      debugLog("Login result received:", result);
-
-      if (result.success) {
-        // Check if 2FA is required
-        if (result.requires_2fa) {
-          debugLog("2FA required, showing verification form...");
-          this.show2FAForm(email, setStatus);
-        } else {
-          debugLog("Login successful, handling login success...");
-          this.handleLoginSuccess(result);
-        }
-      } else {
-        debugWarn("Login failed:", result.message);
-        const friendlyMessage = this.translateApiMessage(result.message);
-        setStatus(friendlyMessage, "error");
+    const setStatus = (message, type = "info") => {
+      if (!statusElement) {
+        return;
       }
-    } catch (error) {
-      debugError("Login error:", error);
-      setStatus(`${translate("error_logging_in")}: ${error.message}`, "error");
-    } finally {
+      statusElement.textContent = message;
+      statusElement.className = `status-message ${type}`;
+    };
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      debugLog("Login form submitted");
+
+      const formData = new FormData(form);
+
+      // Extract the actual values from FormData
+      const email = formData.get("email");
+      const password = formData.get("password");
+
+      setStatus("", "info");
+      const submitButton = form.querySelector("button[type='submit']");
       if (submitButton) {
-        submitButton.disabled = false;
+        submitButton.disabled = true;
       }
+
+      try {
+        debugLog("Sending login request via ajax-functions.js..." + email);
+
+        // Pass individual parameters instead of FormData object
+        const result = await login(email, password);
+
+        debugLog("Login result received:", result);
+
+        if (result.success) {
+          // Check if 2FA is required
+          if (result.requires_2fa) {
+            debugLog("2FA required, showing verification form...");
+            this.show2FAForm(email, setStatus);
+          } else {
+            debugLog("Login successful, handling login success...");
+            this.handleLoginSuccess(result);
+          }
+        } else {
+          debugWarn("Login failed:", result.message);
+          const friendlyMessage = this.translateApiMessage(result.message);
+          setStatus(friendlyMessage, "error");
+        }
+      } catch (error) {
+        debugError("Login error:", error);
+        setStatus(`${translate("error_logging_in")}: ${error.message}`, "error");
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
+      }
+    });
+    debugLog("Login form listener attached");
+  }
+
+  handleLoginSuccess(result) {
+    debugLog("=== LOGIN SUCCESS DEBUG ===");
+    debugLog("Full result object:", result);
+    debugLog("result.success:", result.success);
+    debugLog("result.token:", result.token);
+    debugLog("result.user_id:", result.user_id);
+    debugLog("result.user_role:", result.user_role);
+    debugLog("result.user_full_name:", result.user_full_name);
+
+    // Check if data is nested
+    if (result.data) {
+      debugLog("Data is nested under result.data:");
+      debugLog("result.data.token:", result.data.token);
+      debugLog("result.data.user_id:", result.data.user_id);
+      debugLog("result.data.user_role:", result.data.user_role);
     }
-  });
-  debugLog("Login form listener attached");
-}
+    debugLog("=== END LOGIN DEBUG ===");
 
-handleLoginSuccess(result) {
-  debugLog("=== LOGIN SUCCESS DEBUG ===");
-  debugLog("Full result object:", result);
-  debugLog("result.success:", result.success);
-  debugLog("result.token:", result.token);
-  debugLog("result.user_id:", result.user_id);
-  debugLog("result.user_role:", result.user_role);
-  debugLog("result.user_full_name:", result.user_full_name);
+    // Handle both nested and flat response structures
+    const token = result.token || (result.data && result.data.token);
+    const userId = result.user_id || (result.data && result.data.user_id);
+    const userRole = result.user_role || (result.data && result.data.user_role);
+    const userRoles = result.user_roles || (result.data && result.data.user_roles) || [userRole]; // Array of role names
+    const userPermissions = result.user_permissions || (result.data && result.data.user_permissions) || []; // Array of permission keys
+    const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
+    const organizationId = result.organization_id || (result.data && result.data.organization_id);
 
-  // Check if data is nested
-  if (result.data) {
-    debugLog("Data is nested under result.data:");
-    debugLog("result.data.token:", result.data.token);
-    debugLog("result.data.user_id:", result.data.user_id);
-    debugLog("result.data.user_role:", result.data.user_role);
-  }
-  debugLog("=== END LOGIN DEBUG ===");
+    // Try to find the appropriate status element (could be login-message or verify-message)
+    const statusElement = document.getElementById("verify-message") || document.getElementById("login-message");
 
-  // Handle both nested and flat response structures
-  const token = result.token || (result.data && result.data.token);
-  const userId = result.user_id || (result.data && result.data.user_id);
-  const userRole = result.user_role || (result.data && result.data.user_role);
-  const userRoles = result.user_roles || (result.data && result.data.user_roles) || [userRole]; // Array of role names
-  const userPermissions = result.user_permissions || (result.data && result.data.user_permissions) || []; // Array of permission keys
-  const userFullName = result.user_full_name || (result.data && result.data.user_full_name) || "User";
-  const organizationId = result.organization_id || (result.data && result.data.organization_id);
-
-  // Try to find the appropriate status element (could be login-message or verify-message)
-  const statusElement = document.getElementById("verify-message") || document.getElementById("login-message");
-
-  // Validate required fields
-  if (!token) {
-    debugError("ERROR: No JWT token received in login response");
-    if (statusElement) {
-      statusElement.textContent = translate("login_error_no_token") || "Login error: No authentication token received";
-      statusElement.className = "status-message error";
+    // Validate required fields
+    if (!token) {
+      debugError("ERROR: No JWT token received in login response");
+      if (statusElement) {
+        statusElement.textContent = translate("login_error_no_token") || "Login error: No authentication token received";
+        statusElement.className = "status-message error";
+      }
+      return;
     }
-    return;
-  }
 
-  if (!userId) {
-    debugError("ERROR: No user ID received in login response");
-    if (statusElement) {
-      statusElement.textContent = translate("login_error_no_user_id") || "Login error: No user ID received";
-      statusElement.className = "status-message error";
+    if (!userId) {
+      debugError("ERROR: No user ID received in login response");
+      if (statusElement) {
+        statusElement.textContent = translate("login_error_no_user_id") || "Login error: No user ID received";
+        statusElement.className = "status-message error";
+      }
+      return;
     }
-    return;
+
+    debugLog("=== STORING USER DATA ===");
+    debugLog("Token:", token ? "EXISTS" : "MISSING");
+    debugLog("User ID:", userId);
+    debugLog("User Role:", userRole);
+    debugLog("User Full Name:", userFullName);
+    debugLog("Organization ID:", organizationId);
+
+    // Update app state
+    this.app.isLoggedIn = true;
+    this.app.userRole = userRole; // Primary role (for backward compatibility)
+    this.app.userRoles = userRoles; // All roles
+    this.app.userPermissions = userPermissions; // All permissions
+    this.app.userFullName = userFullName;
+
+    // Store user data in localStorage using StorageUtils
+    const userData = {
+      jwtToken: token,
+      userRole: userRole || "", // Primary role (for backward compatibility)
+      userRoles: JSON.stringify(userRoles), // Store as JSON string
+      userPermissions: JSON.stringify(userPermissions), // Store as JSON string
+      userFullName: userFullName,
+      userId: userId
+    };
+
+    // Store organization ID from login response
+    if (organizationId) {
+      userData.currentOrganizationId = organizationId;
+      // Also store as organizationId for backward compatibility
+      userData.organizationId = organizationId;
+    }
+
+    // Store guardian participants if available
+    const guardianParticipants = result.guardian_participants || (result.data && result.data.guardian_participants);
+    if (guardianParticipants && guardianParticipants.length > 0) {
+      userData.guardianParticipants = guardianParticipants;
+    }
+
+    // Save all user data at once
+    setStorageMultiple(userData);
+
+    debugLog("=== FINAL LOCALSTORAGE CHECK ===");
+    debugLog("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
+    debugLog("userId:", getStorage("userId"));
+    debugLog("userRole:", getStorage("userRole"));
+    debugLog("userRoles:", getStorage("userRoles"));
+    debugLog("userPermissions:", getStorage("userPermissions"));
+    debugLog("currentOrganizationId:", getStorage("currentOrganizationId"));
+    debugLog("organizationId:", getStorage("organizationId"));
+
+    // Redirect based on user role
+    const targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
+    debugLog(`Redirecting to ${targetPath}`);
+
+    // Update the URL in browser history
+    history.pushState(null, "", targetPath);
+
+    // Navigate using the router - it will now find the session data in localStorage
+    setTimeout(() => {
+      this.app.router.route(targetPath);
+    }, 100);
   }
-
-  debugLog("=== STORING USER DATA ===");
-  debugLog("Token:", token ? "EXISTS" : "MISSING");
-  debugLog("User ID:", userId);
-  debugLog("User Role:", userRole);
-  debugLog("User Full Name:", userFullName);
-  debugLog("Organization ID:", organizationId);
-
-  // Update app state
-  this.app.isLoggedIn = true;
-  this.app.userRole = userRole; // Primary role (for backward compatibility)
-  this.app.userRoles = userRoles; // All roles
-  this.app.userPermissions = userPermissions; // All permissions
-  this.app.userFullName = userFullName;
-
-  // Store user data in localStorage using StorageUtils
-  const userData = {
-    jwtToken: token,
-    userRole: userRole || "", // Primary role (for backward compatibility)
-    userRoles: JSON.stringify(userRoles), // Store as JSON string
-    userPermissions: JSON.stringify(userPermissions), // Store as JSON string
-    userFullName: userFullName,
-    userId: userId
-  };
-
-  // Store organization ID from login response
-  if (organizationId) {
-    userData.currentOrganizationId = organizationId;
-    // Also store as organizationId for backward compatibility
-    userData.organizationId = organizationId;
-  }
-
-  // Store guardian participants if available
-  const guardianParticipants = result.guardian_participants || (result.data && result.data.guardian_participants);
-  if (guardianParticipants && guardianParticipants.length > 0) {
-    userData.guardianParticipants = guardianParticipants;
-  }
-
-  // Save all user data at once
-  setStorageMultiple(userData);
-
-  debugLog("=== FINAL LOCALSTORAGE CHECK ===");
-  debugLog("jwtToken:", getStorage("jwtToken") ? "STORED" : "MISSING");
-  debugLog("userId:", getStorage("userId"));
-  debugLog("userRole:", getStorage("userRole"));
-  debugLog("userRoles:", getStorage("userRoles"));
-  debugLog("userPermissions:", getStorage("userPermissions"));
-  debugLog("currentOrganizationId:", getStorage("currentOrganizationId"));
-  debugLog("organizationId:", getStorage("organizationId"));
-
-  // Redirect based on user role
-  const targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
-  debugLog(`Redirecting to ${targetPath}`);
-
-  // Update the URL in browser history
-  history.pushState(null, "", targetPath);
-
-  // Navigate using the router - it will now find the session data in localStorage
-  setTimeout(() => {
-    this.app.router.route(targetPath);
-  }, 100);
-}
 
   /**
    * Show 2FA verification form
@@ -430,40 +430,7 @@ handleLoginSuccess(result) {
    * Check if user has a valid session
    * @returns {Object} Session information: isLoggedIn, userRole, userRoles, userPermissions, and userFullName
    */
-  static checkSession() {
-    const token = getStorage('jwtToken');
-    const userRole = getStorage('userRole');
-    const userRolesStr = getStorage('userRoles');
-    const userPermissionsStr = getStorage('userPermissions');
-    const userFullName = getStorage('userFullName');
-    const userId = getStorage('userId');
-
-    // Parse roles and permissions from JSON strings
-    let userRoles = [];
-    let userPermissions = [];
-    try {
-      userRoles = userRolesStr ? JSON.parse(userRolesStr) : (userRole ? [userRole] : []);
-      userPermissions = userPermissionsStr ? JSON.parse(userPermissionsStr) : [];
-    } catch (e) {
-      debugError("Error parsing roles/permissions from localStorage:", e);
-      userRoles = userRole ? [userRole] : [];
-      userPermissions = [];
-    }
-
-    // Simple check - we consider the user logged in if we have a token AND user ID
-    // The actual token validation happens on the server
-    const isLoggedIn = !!token && !!userId && !!userRole;
-
-    debugLog("Session check:", { isLoggedIn, userRole, userRoles, userPermissions, userFullName, userId });
-    return {
-      isLoggedIn,
-      userRole,
-      userRoles,
-      userPermissions,
-      userFullName,
-      userId
-    };
-  }
+  // function moved to SessionUtils.js
 
   static async logout() {
     debugLog("Logging out...");

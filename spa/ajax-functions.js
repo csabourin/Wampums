@@ -27,17 +27,13 @@ export {
     getCurrentOrganizationId,
     getAuthHeader,
     checkLoginStatus,
+    checkLoginStatus as checkAuthStatus,
     validateCurrentToken,
+    validateCurrentToken as validateToken,
     buildPublicUrl,
     fetchPublic
 } from "./api/api-helpers.js";
 
-/**
- * Get unprocessed achievements from past meetings
- */
-export async function getUnprocessedAchievements() {
-    return API.get('unprocessed-achievements');
-}
 
 /**
  * Compatibility wrapper for legacy ajax usage
@@ -246,7 +242,7 @@ export {
     getAttendanceDates,
     getAttendanceReport,
     saveGuest,
-    getGuestsByDate,
+    getGuests as getGuestsByDate,
 
     // Calendar
     getCalendars,
@@ -257,9 +253,9 @@ export {
 
     // Fundraisers
     getFundraisers,
-    getFundraiser,
-    createFundraiser,
-    updateFundraiser,
+    getFundraiserDetails as getFundraiser,
+    saveFundraiser as createFundraiser,
+    saveFundraiser as updateFundraiser,
     archiveFundraiser,
     getCalendarsForFundraiser,
     updateCalendarEntry,
@@ -276,10 +272,10 @@ export {
     getAnimateurs,
 
     // Reports
-    getHealthContactReport,
-    getHealthReport,
-    getAllergiesReport,
-    getMedicationReport,
+    fetchHealthContactReport as getHealthContactReport,
+    fetchHealthReport as getHealthReport,
+    fetchAllergiesReport as getAllergiesReport,
+    fetchMedicationReport as getMedicationReport,
     getMedicationRequirements,
     saveMedicationRequirement,
     getParticipantMedications,
@@ -310,10 +306,9 @@ export {
     // Utility
     testApiConnection,
     getInitialData,
-    getSubscribers,
-    sendNotification,
-    validateToken,
-    checkAuthStatus
+    fetchPushSubscribers as getSubscribers,
+    sendPushNotification as sendNotification,
+    getUnprocessedAchievements
 } from "./api/api-endpoints.js";
 
 // Re-export CONFIG for backward compatibility

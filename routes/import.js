@@ -1,7 +1,7 @@
 const express = require('express');
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 
-module.exports = function(pool, logger) {
+module.exports = function (pool, logger) {
   const router = express.Router();
 
   const RELATIONSHIP_MAP = {
@@ -29,7 +29,7 @@ module.exports = function(pool, logger) {
     const result = [];
     let current = '';
     let inQuotes = false;
-    
+
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
       if (char === '"') {
@@ -45,17 +45,17 @@ module.exports = function(pool, logger) {
     return result;
   }
 
-  router.post('/import-sisc', async (req, res) => {
+  router.post('/sisc', async (req, res) => {
     logger.info('Starting SISC import...');
-    logger.info('Database pool config:', { 
+    logger.info('Database pool config:', {
       host: pool.options?.host || 'default',
       database: pool.options?.database || 'default',
       hasConnectionString: !!pool.options?.connectionString
     });
-    
+
     const client = await pool.connect();
     logger.info('Database client connected successfully');
-    
+
     try {
       const token = req.headers.authorization?.split(' ')[1];
       const decoded = verifyJWT(token);
@@ -105,10 +105,10 @@ module.exports = function(pool, logger) {
         const lastName = get('nom');
         const birthDate = parseDate(get('naissance'));
         const sex = get('sexe')?.toUpperCase() === 'H' ? 'M' : get('sexe')?.toUpperCase() === 'F' ? 'F' : null;
-        
+
         // Helper to check SISC boolean values (O/N or Oui/Non)
         const isYes = (val) => val === 'O' || val === 'Oui' || val === 'oui' || val === '1' || val === 'true';
-        
+
         if (formType === 'fiche_sante') {
           // SISC doesn't contain health data - create empty form for parent to fill
           return {
@@ -278,7 +278,7 @@ module.exports = function(pool, logger) {
           // Create form submissions for each form type the organization has
           for (const formType of orgFormTypes) {
             const formData = buildFormData(get, formType);
-            
+
             // Check if submission already exists for this participant/form type
             const existingSubmission = await client.query(
               `SELECT id FROM form_submissions 
@@ -303,7 +303,7 @@ module.exports = function(pool, logger) {
               stats.formSubmissionsCreated++;
             }
           }
-          
+
           // Also create participant_registration if not in org form types (for backward compatibility)
           if (!orgFormTypes.includes('participant_registration') && !orgFormTypes.includes('inscription')) {
             const regData = buildFormData(get, 'participant_registration');
@@ -312,7 +312,7 @@ module.exports = function(pool, logger) {
                WHERE participant_id = $1 AND organization_id = $2 AND form_type = 'participant_registration'`,
               [participantId, organizationId]
             );
-            
+
             if (existingReg.rows.length === 0) {
               await client.query(
                 `INSERT INTO form_submissions (organization_id, participant_id, form_type, submission_data)
@@ -408,10 +408,10 @@ module.exports = function(pool, logger) {
                  RETURNING id, (xmax = 0) AS inserted`,
                 [gEmail, fullName]
               );
-              
+
               const userId = userResult.rows[0].id;
               const wasInserted = userResult.rows[0].inserted;
-              
+
               if (wasInserted) {
                 stats.usersCreated++;
               }
