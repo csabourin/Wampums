@@ -380,13 +380,15 @@ export class OfflineManager {
                         body: record.data.body
                     });
 
-                    if (response.ok || (response.status >= 400 && response.status < 500)) {
-                        // Success or client error (don't retry client errors)
+                    if (response.ok) {
                         await deleteCachedData(record.key);
                         debugLog('OfflineManager: Mutation replayed successfully', record.key);
-                        if (!response.ok) {
-                            debugWarn('OfflineManager: Server rejected mutation (4xx), discarding', response.status);
-                        }
+                    } else if ([400, 404, 409].includes(response.status)) {
+                        await deleteCachedData(record.key);
+                        debugWarn('OfflineManager: Server rejected mutation (non-retriable), discarding', response.status);
+                    } else if (response.status === 401) {
+                        debugWarn('OfflineManager: Authentication required to replay mutation, stopping replay', response.status);
+                        break;
                     } else {
                         debugWarn('OfflineManager: Mutation replay failed (will retry)', response.status);
                     }
@@ -421,12 +423,13 @@ export class OfflineManager {
                         await deleteCachedData(key);
                     }
                     debugLog('OfflineManager: Legacy point updates replayed successfully');
-                } else if (response.status >= 400 && response.status < 500) {
-                    // Client error — don't retry
+                } else if ([400, 404, 409].includes(response.status)) {
                     for (const key of legacyPointKeys) {
                         await deleteCachedData(key);
                     }
-                    debugWarn('OfflineManager: Server rejected legacy point updates (4xx), discarding', response.status);
+                    debugWarn('OfflineManager: Server rejected legacy point updates (non-retriable), discarding', response.status);
+                } else if (response.status === 401) {
+                    debugWarn('OfflineManager: Authentication required for legacy point replay, keeping queued updates', response.status);
                 } else {
                     debugWarn('OfflineManager: Legacy point updates replay failed (will retry)', response.status);
                 }

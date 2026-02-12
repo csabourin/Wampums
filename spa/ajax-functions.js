@@ -138,6 +138,7 @@ export {
     updateUserRoleBundles,
     getPendingUsers,
     checkPermission,
+    getCurrentUser,
     approveUser,
     updateUserRole,
     clearUserCaches,
