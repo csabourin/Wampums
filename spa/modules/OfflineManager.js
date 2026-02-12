@@ -315,11 +315,12 @@ export class OfflineManager {
                 }
             }
 
-            // Fallback: replay mutations directly when no service worker is available
-            if (!usedServiceWorker) {
-                debugLog('OfflineManager: No service worker, replaying mutations directly');
-                await this.replayPendingMutations();
-            }
+            // Always replay mutations from IndexedDB (WampumsAppDB).
+            // When queueMutation falls back to IndexedDB (no SW controller at queue time),
+            // the SW background sync won't find those records in its own pending-mutations store.
+            // This ensures they are always replayed with a fresh JWT token.
+            debugLog('OfflineManager: Replaying mutations from IndexedDB');
+            await this.replayPendingMutations();
 
             // Check pending count
             await this.updatePendingCount();
@@ -402,7 +403,8 @@ export class OfflineManager {
                     legacyPointKeys.push(record.key);
                 }
                 else {
-                    debugWarn('OfflineManager: Unknown offline record format, skipping', record);
+                    debugWarn('OfflineManager: Unknown offline record format, discarding', record.key, record.action);
+                    await deleteCachedData(record.key);
                 }
             } catch (error) {
                 debugError('OfflineManager: Failed to replay mutation', record.key, error);
