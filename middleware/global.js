@@ -93,9 +93,10 @@ module.exports = (app) => {
     const landingDir = path.join(process.cwd(), "landing");
     const landingHosts = new Set(["wampums.app", "www.wampums.app"]);
 
+    const landingStatic = express.static(landingDir);
     app.use((req, res, next) => {
-        if (landingHosts.has(req.hostname) && (req.path === "/" || req.path === "/index.html")) {
-            return express.static(landingDir)(req, res, next);
+        if (landingHosts.has(req.hostname)) {
+            return landingStatic(req, res, next);
         }
         next();
     });
