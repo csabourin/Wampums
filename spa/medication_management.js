@@ -1224,6 +1224,26 @@ export class MedicationManagement {
   }
 
   /**
+   * Extract local date string (YYYY-MM-DD) from a date value, matching
+   * the format used by getTodayISO() so timezone handling is consistent.
+   * @param {string|Date} dateValue
+   * @returns {string} e.g. "2026-02-12"
+   */
+  toLocalDateString(dateValue) {
+    return new Date(dateValue).toLocaleDateString("en-CA");
+  }
+
+  /**
+   * Extract local time string (HH:MM) from a date value.
+   * @param {string|Date} dateValue
+   * @returns {string} e.g. "14:30"
+   */
+  toLocalTimeString(dateValue) {
+    const d = new Date(dateValue);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /**
    * Get all distributions marked as 'given' for today.
    * @returns {Array} Distributions with status 'given' and scheduled_for today
    */
@@ -1231,9 +1251,7 @@ export class MedicationManagement {
     const today = getTodayISO();
     return this.distributions.filter((dist) => {
       if (dist.status !== 'given') return false;
-      const distDate = new Date(dist.scheduled_for || dist.administered_at);
-      const distISO = `${distDate.getFullYear()}-${String(distDate.getMonth() + 1).padStart(2, '0')}-${String(distDate.getDate()).padStart(2, '0')}`;
-      return distISO === today;
+      return this.toLocalDateString(dist.scheduled_for || dist.administered_at) === today;
     });
   }
 
@@ -1242,7 +1260,7 @@ export class MedicationManagement {
    * given today for a participant.
    * @param {number} participantId
    * @param {number} requirementId
-   * @returns {{ allGiven: boolean, givenDoses: Array, pendingSlots: Array }}
+   * @returns {{ allGiven: boolean, givenDoses: Array, pendingSlots: Array, isPRN: boolean }}
    */
   getDoseStatusForToday(participantId, requirementId) {
     const today = getTodayISO();
@@ -1251,13 +1269,10 @@ export class MedicationManagement {
     // Get all today's distributions for this participant + requirement
     const todayDistributions = this.distributions.filter((dist) => {
       if (dist.participant_id !== participantId || dist.medication_requirement_id !== requirementId) return false;
-      const distDate = new Date(dist.scheduled_for || dist.administered_at);
-      const distISO = `${distDate.getFullYear()}-${String(distDate.getMonth() + 1).padStart(2, '0')}-${String(distDate.getDate()).padStart(2, '0')}`;
-      return distISO === today;
+      return this.toLocalDateString(dist.scheduled_for || dist.administered_at) === today;
     });
 
     const givenDoses = todayDistributions.filter((d) => d.status === 'given');
-    const pendingDoses = todayDistributions.filter((d) => d.status === 'scheduled');
 
     // Get expected time slots for this requirement
     const expectedSlots = requirement ? this.buildSlotsForRequirement(requirement, today, '08:00') : [];
@@ -1268,14 +1283,15 @@ export class MedicationManagement {
       return { allGiven: false, givenDoses, pendingSlots: [], isPRN: true };
     }
 
-    // Determine which slots still need doses
-    const givenTimes = new Set(givenDoses.map((d) => {
-      const dt = new Date(d.scheduled_for);
-      return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-    }));
+    // Determine which slots still need doses.
+    // slot.iso is a local datetime (e.g. "2026-02-12T14:00:00") so extract
+    // the local HH:MM via toLocalTimeString to keep timezone handling uniform.
+    const givenTimes = new Set(givenDoses.map((d) =>
+      this.toLocalTimeString(d.scheduled_for)
+    ));
 
     const pendingSlots = expectedSlots.filter((slot) => {
-      const slotTime = slot.iso.slice(11, 16);
+      const slotTime = this.toLocalTimeString(slot.iso);
       return !givenTimes.has(slotTime);
     });
 
@@ -2028,7 +2044,7 @@ export class MedicationManagement {
         this.updateSplitCards();
         this.attachEventListeners();
 
-        const isDuplicate = err?.status === 409 || err?.message?.includes('already been given');
+        const isDuplicate = err?.message?.includes('already been given');
         if (isDuplicate) {
           this.app.showMessage(translate("medication_dose_already_given"), "warning");
         } else {
@@ -2270,7 +2286,7 @@ export class MedicationManagement {
         this.distributions = rollbackState.distributions;
 
         // Handle duplicate dose (409 Conflict)
-        const isDuplicate = err?.status === 409 || err?.message?.includes('already been given');
+        const isDuplicate = err?.message?.includes('already been given');
         if (isDuplicate) {
           this.app.showMessage(translate("medication_dose_already_given"), "warning");
           // Refresh to get actual state from server (if online)
