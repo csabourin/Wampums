@@ -5,7 +5,7 @@ import {
         getOrganizationSettings,
         getParticipantStatement,
         linkUserParticipants,
-        checkAuthStatus
+        getCurrentUser
 } from "./ajax-functions.js";
 import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
@@ -263,11 +263,12 @@ export class ParentDashboard {
                 // If userFullName is not set, fetch it from the server
                 if (!this.app.userFullName) {
                         try {
-                                const result = await checkAuthStatus();
-                                if (result.isValid && result.user?.fullName) {
-                                        this.app.userFullName = result.user.fullName;
+                                const result = await getCurrentUser();
+                                const fullName = result?.data?.full_name || result?.full_name || result?.data?.fullName || result?.fullName;
+                                if (fullName) {
+                                        this.app.userFullName = fullName;
                                 } else {
-                                        debugError("Failed to fetch user full name:", result.reason);
+                                        debugError("Failed to fetch user full name: missing full name", result);
                                 }
                         } catch (error) {
                                 debugError("Error fetching user full name:", error);

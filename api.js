@@ -24,7 +24,7 @@ const {
   verifyOrganizationMembership,
   jsonResponse,
   handleError,
-  verifyJWT
+  verifyJWT,
 } = require("./utils/api-helpers");
 const WhatsAppBaileysService = require("./services/whatsapp-baileys");
 
@@ -127,7 +127,12 @@ app.use(
         connectSrc,
         frameSrc: ["'none'"],
         objectSrc: ["'none'"],
-        frameAncestors: ["'self'", "https://*.replit.dev", "https://*.repl.co", "https://*.replit.com"],
+        frameAncestors: [
+          "'self'",
+          "https://*.replit.dev",
+          "https://*.repl.co",
+          "https://*.replit.com",
+        ],
         upgradeInsecureRequests: isProduction ? [] : null,
       },
     },
@@ -158,48 +163,48 @@ const corsOptions = {
     // - Port wildcards: localhost:* (matches localhost:5173, localhost:3000, etc.)
     // - Multiple patterns: https://wampums.app,*.wampums.app,*.custom-domain.com
     const allowedPatterns = process.env.ALLOWED_ORIGINS
-      ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+      ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
       : isProduction
         ? [
-          'https://wampums.app',
-          'https://*.wampums.app',
-          // Allow localhost for Expo web development in production
-          'http://localhost:*',
-          'http://127.0.0.1:*'
-        ]
+            "https://wampums.app",
+            "https://*.wampums.app",
+            // Allow localhost for Expo web development in production
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+          ]
         : [
-          // Development: localhost with any port (Vite can use random ports)
-          'http://localhost:*',
-          'http://127.0.0.1:*',
-          'https://localhost:*',
-          'https://127.0.0.1:*',
-          // Replit dynamic domains (includes multi-level subdomains like *.worf.replit.dev)
-          'https://*.replit.dev',
-          'https://*.worf.replit.dev',
-          'https://*.repl.co',
-          // Other common dev environments
-          'https://*.codesandbox.io',
-          'https://*.stackblitz.io',
-          'https://*.gitpod.io',
-          // Local .test domains (wampums-1.test from config.js)
-          'http://*.test',
-          'http://*.test:*',
-        ];
+            // Development: localhost with any port (Vite can use random ports)
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+            "https://localhost:*",
+            "https://127.0.0.1:*",
+            // Replit dynamic domains (includes multi-level subdomains like *.worf.replit.dev)
+            "https://*.replit.dev",
+            "https://*.worf.replit.dev",
+            "https://*.repl.co",
+            // Other common dev environments
+            "https://*.codesandbox.io",
+            "https://*.stackblitz.io",
+            "https://*.gitpod.io",
+            // Local .test domains (wampums-1.test from config.js)
+            "http://*.test",
+            "http://*.test:*",
+          ];
 
     // Check if origin matches any allowed pattern
-    const isAllowed = allowedPatterns.some(pattern => {
+    const isAllowed = allowedPatterns.some((pattern) => {
       // Exact match
       if (pattern === origin) {
         return true;
       }
 
       // Wildcard pattern matching (e.g., *.wampums.app, localhost:*)
-      if (pattern.includes('*')) {
+      if (pattern.includes("*")) {
         // Handle port wildcards specially (e.g., localhost:*)
-        if (pattern.includes(':*')) {
-          const basePattern = pattern.replace(':*', '');
+        if (pattern.includes(":*")) {
+          const basePattern = pattern.replace(":*", "");
           // Match if origin starts with the base and has a port
-          if (origin.startsWith(basePattern + ':')) {
+          if (origin.startsWith(basePattern + ":")) {
             return true;
           }
         }
@@ -207,10 +212,10 @@ const corsOptions = {
         // Regular wildcard pattern matching
         // Escape special regex characters except *
         const regexPattern = pattern
-          .replace(/\./g, '\\.')  // Escape dots
-          .replace(/\*/g, '.*');  // Convert * to .*
+          .replace(/\./g, "\\.") // Escape dots
+          .replace(/\*/g, ".*"); // Convert * to .*
 
-        const regex = new RegExp(`^${regexPattern}$`, 'i');
+        const regex = new RegExp(`^${regexPattern}$`, "i");
         return regex.test(origin);
       }
 
@@ -221,12 +226,17 @@ const corsOptions = {
       debugLog && debugLog(`[CORS] Request from ${origin} - ALLOWED`);
       callback(null, true);
     } else {
-      logger.warn('[CORS] Request blocked from origin:', origin, '| Allowed patterns:', allowedPatterns);
-      callback(new Error('Not allowed by CORS'));
+      logger.warn(
+        "[CORS] Request blocked from origin:",
+        origin,
+        "| Allowed patterns:",
+        allowedPatterns,
+      );
+      callback(new Error("Not allowed by CORS"));
     }
   },
-  credentials: true,  // Allow credentials (cookies, authorization headers)
-  optionsSuccessStatus: 200
+  credentials: true, // Allow credentials (cookies, authorization headers)
+  optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
@@ -290,7 +300,7 @@ class CleanableMemoryStore {
 
     return {
       totalHits: currentHits,
-      resetTime: new Date(this.resetTime.get(key))
+      resetTime: new Date(this.resetTime.get(key)),
     };
   }
 
@@ -339,7 +349,7 @@ class CleanableMemoryStore {
 
     return {
       totalHits,
-      resetTime: new Date(this.resetTime.get(key))
+      resetTime: new Date(this.resetTime.get(key)),
     };
   }
 
@@ -395,8 +405,8 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   store: generalStore,
   validate: {
-    trustProxy: false
-  }
+    trustProxy: false,
+  },
 });
 
 // Strict rate limiter for authentication endpoints
@@ -431,11 +441,17 @@ const rateLimiterCleanupInterval = setInterval(() => {
 
   const totalCleaned = generalCleaned + authCleaned + passwordResetCleaned;
   if (totalCleaned > 0) {
-    logger.debug(`Rate limiter cleanup: removed ${totalCleaned} expired entries`, {
-      general: { cleaned: generalCleaned, remaining: generalStore.size },
-      auth: { cleaned: authCleaned, remaining: authStore.size },
-      passwordReset: { cleaned: passwordResetCleaned, remaining: passwordResetStore.size }
-    });
+    logger.debug(
+      `Rate limiter cleanup: removed ${totalCleaned} expired entries`,
+      {
+        general: { cleaned: generalCleaned, remaining: generalStore.size },
+        auth: { cleaned: authCleaned, remaining: authStore.size },
+        passwordReset: {
+          cleaned: passwordResetCleaned,
+          remaining: passwordResetStore.size,
+        },
+      },
+    );
   }
 }, RATE_LIMITER_CLEANUP_INTERVAL_MS); // Run every 5 minutes
 
@@ -660,8 +676,10 @@ async function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Starting graceful shutdown...`);
 
   const shutdownTimeout = setTimeout(() => {
-    logger.error('Graceful shutdown timed out, forcing exit');
-    console.error(`Graceful shutdown timed out after ${GRACEFUL_SHUTDOWN_TIMEOUT_MS / 1000}s, forcing exit`);
+    logger.error("Graceful shutdown timed out, forcing exit");
+    console.error(
+      `Graceful shutdown timed out after ${GRACEFUL_SHUTDOWN_TIMEOUT_MS / 1000}s, forcing exit`,
+    );
     process.exit(1);
   }, GRACEFUL_SHUTDOWN_TIMEOUT_MS);
 
@@ -671,9 +689,9 @@ async function gracefulShutdown(signal) {
       await new Promise((resolve) => {
         server.close((err) => {
           if (err) {
-            logger.error('Error closing HTTP server:', err);
+            logger.error("Error closing HTTP server:", err);
           } else {
-            logger.info('HTTP server closed');
+            logger.info("HTTP server closed");
           }
           resolve();
         });
@@ -685,9 +703,9 @@ async function gracefulShutdown(signal) {
       await new Promise((resolve) => {
         io.close((err) => {
           if (err) {
-            logger.error('Error closing Socket.io:', err);
+            logger.error("Error closing Socket.io:", err);
           } else {
-            logger.info('Socket.io closed');
+            logger.info("Socket.io closed");
           }
           resolve();
         });
@@ -695,21 +713,24 @@ async function gracefulShutdown(signal) {
     }
 
     // 3. Shutdown WhatsApp service (defined later in the file)
-    if (typeof whatsappService !== 'undefined' && whatsappService?.shutdown) {
+    if (typeof whatsappService !== "undefined" && whatsappService?.shutdown) {
       await whatsappService.shutdown();
-      logger.info('WhatsApp service shutdown complete');
+      logger.info("WhatsApp service shutdown complete");
     }
 
     // 4. Shutdown Google Chat service (defined later in the file)
-    if (typeof googleChatService !== 'undefined' && googleChatService?.shutdown) {
+    if (
+      typeof googleChatService !== "undefined" &&
+      googleChatService?.shutdown
+    ) {
       googleChatService.shutdown();
-      logger.info('Google Chat service shutdown complete');
+      logger.info("Google Chat service shutdown complete");
     }
 
     // 5. Close database pool
     if (pool) {
       await pool.end();
-      logger.info('Database pool closed');
+      logger.info("Database pool closed");
     }
 
     // 6. Clear rate limiter stores and stop cleanup interval
@@ -717,16 +738,16 @@ async function gracefulShutdown(signal) {
     generalStore.clear();
     authStore.clear();
     passwordResetStore.clear();
-    logger.info('Rate limiter stores cleared');
+    logger.info("Rate limiter stores cleared");
 
     clearTimeout(shutdownTimeout);
-    logger.info('Graceful shutdown complete');
-    console.log('Graceful shutdown complete');
+    logger.info("Graceful shutdown complete");
+    console.log("Graceful shutdown complete");
     process.exit(0);
   } catch (error) {
     clearTimeout(shutdownTimeout);
-    logger.error('Error during graceful shutdown:', error);
-    console.error('Error during graceful shutdown:', error);
+    logger.error("Error during graceful shutdown:", error);
+    console.error("Error during graceful shutdown:", error);
     process.exit(1);
   }
 }
@@ -781,7 +802,6 @@ app.get("/api-docs.json", (req, res) => {
 logger.info("📚 API Documentation available at: /api-docs");
 
 // Register legacy action-based API early to avoid conflicts with modular /api routers
-
 
 // ============================================
 // MODULAR ROUTE IMPORTS
@@ -847,7 +867,6 @@ const offlineRoutes = require("./routes/offline")(pool, logger);
 const carpoolsRoutes = require("./routes/carpools")(pool);
 const aiRoutes = require("./routes/ai");
 const isAiBudgetMigrated = true; // Flag to indicate migration is planned/done
-
 
 // ============================================
 // MOUNT MODULAR ROUTES
@@ -1282,7 +1301,6 @@ app.get("/", (req, res) => {
   res.sendFile(indexPath);
 });
 
-
 // ============================================
 // GLOBAL ERROR HANDLER
 // ============================================
@@ -1302,7 +1320,7 @@ app.use((err, req, res, next) => {
 // ============================================
 // Serve index.html for all non-API routes
 // This must be the last route handler
-app.get("*path", (req, res) => {
+app.get("/*path", (req, res) => {
   // Don't catch API routes or static files
   if (
     req.path.startsWith("/api") ||
@@ -1392,8 +1410,8 @@ if (require.main === module) {
     }
 
     // Register shutdown handlers after all services are initialized
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
   });
 }
 

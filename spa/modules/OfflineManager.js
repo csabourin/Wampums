@@ -362,6 +362,8 @@ export class OfflineManager {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
         };
+        const nonRetriableStatuses = new Set([400, 403, 404, 409, 410, 422]);
+        let stopReplayForAuthentication = false;
 
         // Batch legacy updatePoints entries into a single request
         const legacyPointUpdates = [];
@@ -407,6 +409,11 @@ export class OfflineManager {
         }
 
         // Batch replay legacy point updates
+        if (stopReplayForAuthentication) {
+            debugWarn('OfflineManager: Skipping legacy point replay due to authentication failure');
+            return;
+        }
+
         if (legacyPointUpdates.length > 0) {
             try {
                 const url = `${CONFIG.API_BASE_URL}/api/update-points`;
@@ -422,12 +429,13 @@ export class OfflineManager {
                         await deleteCachedData(key);
                     }
                     debugLog('OfflineManager: Legacy point updates replayed successfully');
-                } else if (response.status >= 400 && response.status < 500) {
-                    // Client error — don't retry
+                } else if (nonRetriableStatuses.has(response.status)) {
                     for (const key of legacyPointKeys) {
                         await deleteCachedData(key);
                     }
-                    debugWarn('OfflineManager: Server rejected legacy point updates (4xx), discarding', response.status);
+                    debugWarn('OfflineManager: Server rejected legacy point updates (non-retriable), discarding', response.status);
+                } else if (response.status === 401) {
+                    debugWarn('OfflineManager: Authentication required for legacy point replay, keeping queued updates', response.status);
                 } else {
                     debugWarn('OfflineManager: Legacy point updates replay failed (will retry)', response.status);
                 }
