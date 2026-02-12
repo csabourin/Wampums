@@ -100,6 +100,8 @@ module.exports = (app) => {
         next();
     });
 
+    app.use('/vendor/fontawesome', express.static(path.join(process.cwd(), 'node_modules/@fortawesome/fontawesome-free')));
+
     app.use(express.static(staticDir, {
         setHeaders: (res, filepath) => {
             if (isProduction && filepath.includes("-") && (filepath.endsWith(".js") || filepath.endsWith(".css"))) {

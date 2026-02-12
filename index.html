@@ -37,12 +37,8 @@
     <link rel="preconnect" href="/public" crossorigin />
     <link rel="dns-prefetch" href="/public" />
 
-    <!-- Font Awesome CDN preconnect for faster icon loading -->
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
-    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
-
     <!-- Preload Font Awesome webfont for instant icon display -->
-    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.woff2"
+    <link rel="preload" href="/vendor/fontawesome/webfonts/fa-solid-900.woff2"
         as="font" type="font/woff2" crossorigin="anonymous" />
 
     <!-- Prefetch top dashboard modules for instant navigation -->
@@ -110,19 +106,13 @@
     <!-- Removed preload with onload handlers due to CSP restrictions -->
 
     <!-- FontAwesome - using solid.min.css for smaller bundle (only solid icons used) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/solid.min.css"
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="/vendor/fontawesome/css/solid.min.css" />
     <!-- FontAwesome base styles (required for icon sizing/spacing) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/fontawesome.min.css"
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-
+    <link rel="stylesheet" href="/vendor/fontawesome/css/fontawesome.min.css" />
 </head>
 
 <body>
     <div id="app"></div>
-
-
     <div id="news-widget">
         <div class="news-accordion-header">
             <h2></h2>

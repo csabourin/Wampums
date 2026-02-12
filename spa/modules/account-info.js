@@ -948,7 +948,7 @@ export class AccountInfoModule {
       // Send subscription to server
       const subscriptionData = subscription.toJSON();
 
-      const response = await makeApiRequest('v1/push-subscription', {
+      const response = await makeApiRequest('v1/notifications/subscription', {
         method: 'POST',
         body: {
           endpoint: subscriptionData.endpoint,

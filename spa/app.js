@@ -76,7 +76,7 @@ async function sendSubscriptionToServer(subscription) {
                         throw new Error('No token available');
                 }
 
-                await makeApiRequest('v1/push-subscription', {
+                await makeApiRequest('v1/notifications/subscription', {
                         method: 'POST',
                         body: payload
                 });
