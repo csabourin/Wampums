@@ -303,7 +303,11 @@ export const app = {
                         }
 
                         if (!response) {
-                                response = await getOrganizationSettings();
+                                const hasJwtToken = !!getStorage('jwtToken');
+                                const isAuthenticatedContext = this.isLoggedIn && hasJwtToken;
+                                response = isAuthenticatedContext
+                                        ? await getOrganizationSettings()
+                                        : await getPublicOrganizationSettings();
                         }
                         if (response && response.organization_info || response.data) {
                                 debugLog("Got organization settings: ", JSON.stringify(response));

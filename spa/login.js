@@ -1,6 +1,6 @@
 import { translate } from "./app.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
-import { login, verify2FA, getApiUrl, getCurrentOrganizationId } from "./ajax-functions.js";
+import { login, verify2FA, getApiUrl, getCurrentOrganizationId, fetchOrganizationId } from "./ajax-functions.js";
 import { setStorage, getStorage, removeStorage, setStorageMultiple } from "./utils/StorageUtils.js";
 import { clearAllClientData } from "./utils/ClientCleanupUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
@@ -11,8 +11,67 @@ export class Login {
     this.app = app;
   }
 
+  /**
+   * Ensure the current organization ID is available before rendering login.
+   * Login API calls require the organization header, so this is a hard precondition.
+   * @returns {Promise<string>} Promise that resolves to the current organization ID string, or rejects if loading fails.
+   */
+  async ensureOrganizationIdLoaded() {
+    const isValidPrimitiveOrgId = (value) =>
+      (typeof value === "string" || typeof value === "number") &&
+      value !== "" &&
+      value !== "[object Object]";
+
+    let organizationId = this.app.organizationId || getCurrentOrganizationId();
+
+    if (isValidPrimitiveOrgId(organizationId)) {
+      const normalizedOrganizationId = String(organizationId);
+      this.app.organizationId = normalizedOrganizationId;
+      return normalizedOrganizationId;
+    }
+
+    debugLog("No organization ID found in app/storage, fetching before login render...");
+
+    try {
+      const response = await fetchOrganizationId();
+      const fetchedOrganizationId = response;
+
+      if (!isValidPrimitiveOrgId(fetchedOrganizationId)) {
+        throw new Error("Organization ID not found in API response or is invalid");
+      }
+
+      const normalizedOrganizationId = String(fetchedOrganizationId);
+      this.app.organizationId = normalizedOrganizationId;
+      setStorageMultiple({
+        currentOrganizationId: normalizedOrganizationId,
+        organizationId: normalizedOrganizationId
+      });
+
+      debugLog("Organization ID fetched for login render:", normalizedOrganizationId);
+      return normalizedOrganizationId;
+    } catch (error) {
+      debugError("Failed to fetch organization ID before login render:", error);
+      throw error;
+    }
+  }
+
   async init() {
     debugLog("Login init started");
+
+    try {
+      await this.ensureOrganizationIdLoaded();
+    } catch (error) {
+      const appContainer = document.getElementById("app");
+      if (appContainer) {
+        setContent(appContainer, `
+          <div class="login-container">
+            <h1>${translate("login")}</h1>
+            <div class="status-message error" role="alert">${translate("error_loading_application")}</div>
+          </div>
+        `);
+      }
+      return;
+    }
 
     // Try to fetch organization settings if not already loaded
     // Since we're not logged in, this will use the public endpoint
