@@ -993,6 +993,8 @@ export class MedicationManagement {
   }
 
   renderDispensingSection({ today, timeValue, requirementOptions, participantOptions }) {
+    const { pendingCards, givenCards } = this.renderParticipantMedicationSplitCards();
+
     return `
       <div class="card">
         <h2>${escapeHTML(translate("medication_alerts_heading"))}</h2>
@@ -1000,10 +1002,18 @@ export class MedicationManagement {
       </div>
 
       <div class="card">
-        <h2>${escapeHTML(translate("medication_participants_ready"))}</h2>
+        <h2>${escapeHTML(translate("medication_to_distribute"))}</h2>
         <p class="subtitle">${escapeHTML(translate("medication_tap_to_dispense"))}</p>
-        <div id="participant-medication-cards">
-          ${this.renderParticipantMedicationCards()}
+        <div id="participant-medication-cards-pending">
+          ${pendingCards}
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>${escapeHTML(translate("medication_given_today"))}</h2>
+        <p class="subtitle">${escapeHTML(translate("medication_given_today_description"))}</p>
+        <div id="participant-medication-cards-given">
+          ${givenCards}
         </div>
       </div>
 
@@ -1157,6 +1167,268 @@ export class MedicationManagement {
     return cards || `<p>${escapeHTML(translate("med_reception_no_received"))}</p>`;
   }
 
+  /**
+   * Get all distributions marked as 'given' for today.
+   * @returns {Array} Distributions with status 'given' and scheduled_for today
+   */
+  getTodayGivenDistributions() {
+    const today = getTodayISO();
+    return this.distributions.filter((dist) => {
+      if (dist.status !== 'given') return false;
+      const distDate = new Date(dist.scheduled_for || dist.administered_at);
+      const distISO = `${distDate.getFullYear()}-${String(distDate.getMonth() + 1).padStart(2, '0')}-${String(distDate.getDate()).padStart(2, '0')}`;
+      return distISO === today;
+    });
+  }
+
+  /**
+   * Check if a specific medication requirement has already had all its scheduled doses
+   * given today for a participant.
+   * @param {number} participantId
+   * @param {number} requirementId
+   * @returns {{ allGiven: boolean, givenDoses: Array, pendingSlots: Array }}
+   */
+  getDoseStatusForToday(participantId, requirementId) {
+    const today = getTodayISO();
+    const requirement = this.getRequirementById(requirementId);
+
+    // Get all today's distributions for this participant + requirement
+    const todayDistributions = this.distributions.filter((dist) => {
+      if (dist.participant_id !== participantId || dist.medication_requirement_id !== requirementId) return false;
+      const distDate = new Date(dist.scheduled_for || dist.administered_at);
+      const distISO = `${distDate.getFullYear()}-${String(distDate.getMonth() + 1).padStart(2, '0')}-${String(distDate.getDate()).padStart(2, '0')}`;
+      return distISO === today;
+    });
+
+    const givenDoses = todayDistributions.filter((d) => d.status === 'given');
+    const pendingDoses = todayDistributions.filter((d) => d.status === 'scheduled');
+
+    // Get expected time slots for this requirement
+    const expectedSlots = requirement ? this.buildSlotsForRequirement(requirement, today, '08:00') : [];
+    const isPRN = requirement?.frequency_preset_type === 'prn';
+
+    // For PRN medications, they can always be given again
+    if (isPRN) {
+      return { allGiven: false, givenDoses, pendingSlots: [], isPRN: true };
+    }
+
+    // Determine which slots still need doses
+    const givenTimes = new Set(givenDoses.map((d) => {
+      const dt = new Date(d.scheduled_for);
+      return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+    }));
+
+    const pendingSlots = expectedSlots.filter((slot) => {
+      const slotTime = slot.iso.slice(11, 16);
+      return !givenTimes.has(slotTime);
+    });
+
+    return {
+      allGiven: expectedSlots.length > 0 && pendingSlots.length === 0,
+      givenDoses,
+      pendingSlots,
+      isPRN: false
+    };
+  }
+
+  /**
+   * Render split cards: pending medications (to distribute) and given medications (already given today).
+   * @returns {{ pendingCards: string, givenCards: string }}
+   */
+  renderParticipantMedicationSplitCards() {
+    // Group medications by participant
+    const participantMeds = new Map();
+
+    this.participantMedications.forEach((assignment) => {
+      const requirement = this.getRequirementById(assignment.medication_requirement_id);
+      if (!requirement) return;
+
+      const participantId = assignment.participant_id;
+      if (!participantMeds.has(participantId)) {
+        participantMeds.set(participantId, []);
+      }
+
+      participantMeds.get(participantId).push({
+        requirement,
+        assignment
+      });
+    });
+
+    if (participantMeds.size === 0) {
+      return {
+        pendingCards: `<p>${escapeHTML(translate("medication_no_participants_assigned"))}</p>`,
+        givenCards: `<p>${escapeHTML(translate("medication_no_given_today"))}</p>`
+      };
+    }
+
+    let pendingHtml = '';
+    let givenHtml = '';
+
+    Array.from(participantMeds.entries()).forEach(([participantId, medications]) => {
+      const participantName = this.getParticipantName(participantId);
+
+      // Filter out medications not yet received
+      const dispensableMeds = medications.filter((med) => {
+        const reception = this.getReceptionForMedication(participantId, med.requirement.id);
+        return reception && reception.status !== "not_received";
+      });
+
+      if (dispensableMeds.length === 0) return;
+
+      const pendingMeds = [];
+      const givenMeds = [];
+
+      dispensableMeds.forEach((med) => {
+        const req = med.requirement;
+        const doseStatus = this.getDoseStatusForToday(participantId, req.id);
+
+        if (doseStatus.givenDoses.length > 0) {
+          givenMeds.push({ ...med, givenDoses: doseStatus.givenDoses });
+        }
+
+        // Show in pending list if not all doses given or if PRN
+        if (!doseStatus.allGiven) {
+          pendingMeds.push({ ...med, doseStatus });
+        }
+      });
+
+      // Render pending card for this participant
+      if (pendingMeds.length > 0) {
+        pendingHtml += this.renderMedicationCard(participantId, participantName, pendingMeds, 'pending');
+      }
+
+      // Render given card for this participant
+      if (givenMeds.length > 0) {
+        givenHtml += this.renderMedicationCard(participantId, participantName, givenMeds, 'given');
+      }
+    });
+
+    return {
+      pendingCards: pendingHtml || `<p>${escapeHTML(translate("medication_all_distributed_today"))}</p>`,
+      givenCards: givenHtml || `<p>${escapeHTML(translate("medication_no_given_today"))}</p>`
+    };
+  }
+
+  /**
+   * Render a medication card for a participant (used in both pending and given lists).
+   * @param {number} participantId
+   * @param {string} participantName
+   * @param {Array} medications
+   * @param {'pending'|'given'} cardType
+   * @returns {string}
+   */
+  renderMedicationCard(participantId, participantName, medications, cardType) {
+    const isGiven = cardType === 'given';
+    const borderColor = isGiven ? '#10b981' : '#e5e7eb';
+    const headerBg = isGiven ? '#ecfdf5' : '#f9fafb';
+    const statusBadgeColor = isGiven ? 'background:#d1fae5; color:#065f46;' : 'background:#e0f2fe; color:#0b3c5d;';
+    const statusLabel = isGiven ? translate("medication_status_given") : translate("medication_status_pending");
+
+    return `
+      <div class="participant-med-card" style="border-color:${borderColor}; ${isGiven ? 'opacity:0.85;' : ''}">
+        <div class="participant-med-header" style="background:${headerBg}; margin:-1rem -1rem 0.75rem -1rem; padding:1rem; border-radius:12px 12px 0 0;">
+          <h3>${escapeHTML(participantName)}</h3>
+          <span class="pill" style="${statusBadgeColor}">${medications.length} ${escapeHTML(statusLabel)}</span>
+        </div>
+        <div class="medication-list">
+          ${medications.map((med) => {
+            const req = med.requirement;
+            const reception = this.getReceptionForMedication(participantId, req.id);
+            const doseInfo = req.default_dose_amount
+              ? `${req.default_dose_amount}${req.default_dose_unit || ''}`
+              : req.dosage_instructions || '';
+            const route = req.route ? ` · ${req.route}` : '';
+            const frequency = req.frequency_text || translate("medication_frequency_prn_text");
+
+            // Time slots display
+            const timeSlots = this.getTimeSlotsForDisplay(req);
+            const timeSlotsHtml = timeSlots.length > 0
+              ? `<div class="medication-time-slots">
+                   <strong>${escapeHTML(translate("medication_administration_times"))}:</strong>
+                   <div class="time-slots-list">
+                     ${timeSlots.map(slot => `<span class="time-badge">${escapeHTML(slot)}</span>`).join('')}
+                   </div>
+                 </div>`
+              : '';
+
+            // Reception notes
+            const receptionNotesHtml = reception?.reception_notes
+              ? `<div class="medication-notes" style="color:#0b3c5d; background:#e0f2fe; padding:0.35rem 0.5rem; border-radius:6px; margin-top:0.4rem;">
+                   ${escapeHTML(reception.reception_notes)}
+                 </div>`
+              : '';
+            const partialBadge = reception?.status === "partial"
+              ? `<span style="font-size:0.8rem; color:#92400e; background:#fef3c7; padding:0.2rem 0.5rem; border-radius:999px; margin-left:0.5rem;">${escapeHTML(translate("med_reception_status_partial"))}</span>`
+              : '';
+
+            if (isGiven) {
+              // Render given medication with administration details
+              const givenDoses = med.givenDoses || [];
+              const givenTimesHtml = givenDoses.map((d) => {
+                const givenAt = d.administered_at ? new Date(d.administered_at) : new Date(d.scheduled_for);
+                const timeStr = givenAt.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
+                const witnessStr = d.witness_name ? ` · ${escapeHTML(d.witness_name)}` : '';
+                return `<span class="pill" style="background:#d1fae5; color:#065f46; font-size:0.8rem;">
+                  ${escapeHTML(translate("medication_given_at"))} ${escapeHTML(timeStr)}${witnessStr}
+                </span>`;
+              }).join('');
+
+              return `
+                <div class="medication-item" style="border-color:#10b981; background:#f0fdf4;">
+                  <div class="medication-info">
+                    <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
+                    <div class="medication-details">
+                      ${escapeHTML(doseInfo)}${escapeHTML(route)}
+                    </div>
+                    <div class="medication-schedule">
+                      ${escapeHTML(frequency)}
+                    </div>
+                    ${timeSlotsHtml}
+                    ${receptionNotesHtml}
+                    <div style="margin-top:0.5rem; display:flex; flex-wrap:wrap; gap:0.35rem;">
+                      ${givenTimesHtml}
+                    </div>
+                  </div>
+                  <span class="pill" style="background:#d1fae5; color:#065f46; font-weight:700; font-size:1rem; white-space:nowrap;">
+                    ${escapeHTML(translate("medication_status_given"))}
+                  </span>
+                </div>
+              `;
+            }
+
+            // Render pending medication with give button
+            return `
+              <div class="medication-item">
+                <div class="medication-info">
+                  <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
+                  <div class="medication-details">
+                    ${escapeHTML(doseInfo)}${escapeHTML(route)}
+                  </div>
+                  <div class="medication-schedule">
+                    ${escapeHTML(frequency)}
+                  </div>
+                  ${timeSlotsHtml}
+                  ${receptionNotesHtml}
+                  ${req.general_notes ? `<div class="medication-notes">${escapeHTML(req.general_notes)}</div>` : ''}
+                </div>
+                <button
+                  class="btn primary btn-give-med"
+                  data-participant-id="${participantId}"
+                  data-requirement-id="${req.id}"
+                  data-medication-name="${escapeHTML(req.medication_name)}"
+                  data-dose="${escapeHTML(doseInfo)}"
+                  data-route="${escapeHTML(req.route || '')}"
+                >
+                  ${escapeHTML(translate("medication_give_now"))}
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   renderUpcomingRows() {
     if (!this.distributions.length) {
       return `<tr><td colspan="7">${escapeHTML(translate("medication_alerts_empty"))}</td></tr>`;
@@ -1185,6 +1457,21 @@ export class MedicationManagement {
     const tableBody = document.getElementById("medication-upcoming-table-body");
     if (tableBody) {
       setContent(tableBody, this.renderUpcomingRows());
+    }
+  }
+
+  /**
+   * Re-render both the pending and given split card containers.
+   */
+  updateSplitCards() {
+    const { pendingCards, givenCards } = this.renderParticipantMedicationSplitCards();
+    const pendingContainer = document.getElementById("participant-medication-cards-pending");
+    const givenContainer = document.getElementById("participant-medication-cards-given");
+    if (pendingContainer) {
+      setContent(pendingContainer, pendingCards);
+    }
+    if (givenContainer) {
+      setContent(givenContainer, givenCards);
     }
   }
 
@@ -1614,6 +1901,8 @@ export class MedicationManagement {
       await this.refreshData(true);
       this.renderAlertArea();
       this.updateUpcomingTable();
+      this.updateSplitCards();
+      this.attachEventListeners();
       this.prefillFromSlot(slotKey, this.getAggregatedAlerts().find((a) => a.slotKey === slotKey)?.primaryRequirementId || null);
     } catch (error) {
       debugError("Error marking medication as given", error);
@@ -1793,11 +2082,8 @@ export class MedicationManagement {
       await this.invalidateCaches();
       await this.refreshData(true);
 
-      // Re-render cards
-      const cardsContainer = document.getElementById("participant-medication-cards");
-      if (cardsContainer) {
-        setContent(cardsContainer, this.renderParticipantMedicationCards());
-      }
+      // Re-render split cards
+      this.updateSplitCards();
 
       this.renderAlertArea();
       this.updateUpcomingTable();
@@ -1810,13 +2096,25 @@ export class MedicationManagement {
 
       // Clear notes field
       if (notesField) notesField.value = "";
-    } catch (error) {
-      debugError("Error giving medication", error);
+    } catch (err) {
+      debugError("Error giving medication", err);
       this.distributions = previousDistributions;
-      this.app.showMessage(error.message || translate("error_saving"), "error");
 
-      // Reopen modal on error
-      if (modal) modal.style.display = "flex";
+      // Handle duplicate dose (409 Conflict)
+      const isDuplicate = err?.status === 409 || err?.message?.includes('already been given');
+      if (isDuplicate) {
+        this.app.showMessage(translate("medication_dose_already_given"), "warning");
+        // Refresh to reflect current state
+        await this.invalidateCaches();
+        await this.refreshData(true);
+        this.updateSplitCards();
+        this.renderAlertArea();
+        this.attachEventListeners();
+      } else {
+        this.app.showMessage(err.message || translate("error_saving"), "error");
+        // Reopen modal on non-duplicate error
+        if (modal) modal.style.display = "flex";
+      }
     }
   }
 }
