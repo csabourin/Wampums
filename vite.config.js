@@ -37,6 +37,32 @@ function copyStaticLanguageBundlesPlugin() {
   };
 }
 
+function copyStaticCssPlugin() {
+  return {
+    name: "copy-static-css",
+    closeBundle() {
+      const projectRoot = process.cwd();
+      const sourceDir = path.join(projectRoot, "css");
+      const targetDir = path.join(projectRoot, "dist", "css");
+
+      if (!fs.existsSync(sourceDir)) return;
+
+      const cssFiles = fs
+        .readdirSync(sourceDir)
+        .filter((fileName) => fileName.endsWith(".css"));
+
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      for (const fileName of cssFiles) {
+        fs.copyFileSync(
+          path.join(sourceDir, fileName),
+          path.join(targetDir, fileName),
+        );
+      }
+    },
+  };
+}
+
 export default defineConfig({
   root: ".",
   publicDir: "assets",
@@ -146,6 +172,7 @@ export default defineConfig({
 
   plugins: [
     copyStaticLanguageBundlesPlugin(),
+    copyStaticCssPlugin(),
 
     // PWA Support
     VitePWA({
