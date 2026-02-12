@@ -471,6 +471,22 @@ module.exports = (pool, logger) => {
       await client.query('BEGIN');
 
       for (const participantId of participants) {
+        // Prevent duplicate dose: check if a distribution already exists at this time and is already given
+        const existingGiven = await client.query(
+          `SELECT id FROM medication_distributions
+           WHERE organization_id = $1
+             AND medication_requirement_id = $2
+             AND participant_id = $3
+             AND scheduled_for = $4
+             AND status = 'given'`,
+          [organizationId, requirementId, participantId, scheduledDate.toISOString()]
+        );
+
+        if (existingGiven.rows.length > 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'This dose has already been given and cannot be given again', 409);
+        }
+
         const assignment = await client.query(
           `INSERT INTO participant_medications (organization_id, medication_requirement_id, participant_id)
            VALUES ($1, $2, $3)
@@ -555,6 +571,22 @@ module.exports = (pool, logger) => {
     const administeredAtDate = administered_at ? new Date(administered_at) : null;
     if (administeredAtDate && Number.isNaN(administeredAtDate.getTime())) {
       return error(res, 'administered_at must be a valid date', 400);
+    }
+
+    // Prevent duplicate dose: if this distribution is already marked as given, reject the update
+    if (normalizedStatus === 'given') {
+      const existing = await pool.query(
+        'SELECT id, status FROM medication_distributions WHERE id = $1 AND organization_id = $2',
+        [distributionId, organizationId]
+      );
+
+      if (existing.rows.length === 0) {
+        return error(res, 'Distribution not found', 404);
+      }
+
+      if (existing.rows[0].status === 'given') {
+        return error(res, 'This dose has already been given and cannot be given again', 409);
+      }
     }
 
     const result = await pool.query(
