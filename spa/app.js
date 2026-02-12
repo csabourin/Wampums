@@ -575,6 +575,13 @@ export const app = {
                         return;
                 }
 
+                // Skip in development — src-sw.js is an uncompiled source file that
+                // only works after vite-plugin-pwa compiles it during `vite build`.
+                if (import.meta.env?.DEV) {
+                        debugLog('Service worker registration skipped in development');
+                        return;
+                }
+
                 try {
                         // Check if a service worker is already registered (e.g. by vite-plugin-pwa)
                         const existingReg = await navigator.serviceWorker.getRegistration();
