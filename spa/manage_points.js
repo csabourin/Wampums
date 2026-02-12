@@ -485,91 +485,95 @@ export class ManagePoints {
     const updates = [...this.pendingUpdates];
     this.pendingUpdates = [];
 
-    if (navigator.onLine) {
-      try {
-        const response = await fetch(getApiUrl("update-points"), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeader(),
-            "x-organization-id": getCurrentOrganizationId(),
-          },
-          body: JSON.stringify(updates),
+    try {
+      // Use the API layer which routes through makeApiRequest → OfflineManager
+      // When offline, this queues the mutation and returns {success:true, queued:true}
+      const data = await updatePoints(updates);
+
+      // Mutation was queued for offline sync — persist the optimistic state in cache
+      // so navigating away and back shows the correct points
+      if (data.queued) {
+        debugLog("Batch update queued for offline sync:", updates.length, "updates");
+        await this.updateCache();
+        return;
+      }
+
+      debugLog("Batch update successful:", data);
+
+      // Apply server updates
+      // Support both new format (data.data.updates) and old format (data.updates)
+      const serverUpdates = data.data?.updates || data.updates;
+      if (serverUpdates && Array.isArray(serverUpdates)) {
+        let totalSkipped = 0;
+        serverUpdates.forEach((update) => {
+          if (update.type === "group") {
+            this.updateGroupPoints(
+              update.id,
+              update.totalPoints,
+              update.memberIds,
+              update.memberTotals,
+            );
+            // Track skipped participants for group points
+            if (update.skippedCount > 0) {
+              totalSkipped += update.skippedCount;
+              debugLog(`Group ${update.id}: ${update.skippedCount} participants skipped (absent/excused)`);
+            }
+          } else {
+            this.updateIndividualPoints(update.id, update.totalPoints);
+          }
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Show info message if participants were skipped
+        if (totalSkipped > 0) {
+          this.app.showMessage(
+            translate("points_skipped_absent_participants").replace("{{count}}", totalSkipped),
+            "info"
+          );
         }
+      } else {
+        debugLog("Unexpected response format:", data);
+      }
 
-        const data = await response.json();
+      // Update the local cache with the latest data
+      await this.updateCache();
+    } catch (error) {
+      debugError("Error in batch update:", error);
 
-        if (data.status === "error") {
-          throw new Error(data.message || "Unknown error occurred");
-        }
-
-        debugLog("Batch update successful:", data);
-
-        // Apply server updates
-        // Support both new format (data.data.updates) and old format (data.updates)
-        const serverUpdates = data.data?.updates || data.updates;
-        if (serverUpdates && Array.isArray(serverUpdates)) {
-          let totalSkipped = 0;
-          serverUpdates.forEach((update) => {
-            if (update.type === "group") {
-              this.updateGroupPoints(
-                update.id,
-                update.totalPoints,
-                update.memberIds,
-                update.memberTotals,
-              );
-              // Track skipped participants for group points
-              if (update.skippedCount > 0) {
-                totalSkipped += update.skippedCount;
-                debugLog(`Group ${update.id}: ${update.skippedCount} participants skipped (absent/excused)`);
-              }
-            } else {
-              this.updateIndividualPoints(update.id, update.totalPoints);
+      // Network error (went offline mid-request): queue for offline sync
+      // Return without throwing so the optimistic UI state is kept
+      if (error instanceof TypeError || !navigator.onLine) {
+        try {
+          const { offlineManager } = await import("./modules/OfflineManager.js");
+          await offlineManager.queueMutation(
+            getApiUrl("update-points"),
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...getAuthHeader(),
+                "x-organization-id": getCurrentOrganizationId(),
+              },
+              body: JSON.stringify(updates),
             }
-          });
-
-          // Show info message if participants were skipped
-          if (totalSkipped > 0) {
-            this.app.showMessage(
-              translate("points_skipped_absent_participants").replace("{{count}}", totalSkipped),
-              "info"
-            );
-          }
-        } else {
-          debugLog("Unexpected response format:", data);
-        }
-
-        // Clear all points-related caches so dashboard and other pages get fresh data
-        await clearPointsRelatedCaches();
-
-        // Update the local cache with the latest data
-        await this.updateCache();
-      } catch (error) {
-        debugError("Error in batch update:", error);
-
-        // Network error (offline or flaky connection): persist for offline sync
-        if (error instanceof TypeError || !navigator.onLine) {
+          );
+          debugLog("Batch update queued for offline sync (network error fallback):", updates.length, "updates");
+        } catch (queueError) {
+          debugError("Failed to queue offline mutation:", queueError);
+          // Last resort: use legacy offline storage
           for (const update of updates) {
             await saveOfflineData("updatePoints", update);
           }
-          debugLog("Batch update saved for offline sync:", updates.length, "updates");
-          return;
         }
-
-        // Server error: add back to pending and show error
-        this.pendingUpdates.push(...updates);
-        this.app.showMessage(
-          `${translate("error_updating_points")}: ${error.message}`,
-          "error"
-        );
+        await this.updateCache();
+        return;
       }
-    } else {
-      // Save updates for later sync
-      updates.forEach((update) => saveOfflineData("updatePoints", update));
+
+      // Server error: add back to pending and show error
+      this.pendingUpdates.push(...updates);
+      this.app.showMessage(
+        `${translate("error_updating_points")}: ${error.message}`,
+        "error"
+      );
     }
   }
 
