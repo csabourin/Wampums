@@ -2,8 +2,9 @@ import { translate } from "./app.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { debugError, debugLog } from "./utils/DebugUtils.js";
 import { formatDate, getTodayISO } from "./utils/DateUtils.js";
-import { deleteCachedData, getCachedData } from "./indexedDB.js";
+import { deleteCachedData, getCachedData, getCachedDataIgnoreExpiration, setCachedData } from "./indexedDB.js";
 import { setContent } from "./utils/DOMUtils.js";
+import { OptimisticUpdateManager } from "./utils/OptimisticUpdateManager.js";
 import {
   getParticipants,
   getMedicationRequirements,
@@ -40,6 +41,7 @@ export class MedicationManagement {
     this.alertLookbackMinutes = 30;
     this.alertRefreshMs = 60000;
     this.offlineStatusHandler = null;
+    this.optimisticManager = new OptimisticUpdateManager();
   }
 
   async init() {
@@ -64,9 +66,12 @@ export class MedicationManagement {
   async refreshData(forceRefresh = false) {
     // Check for cached data first (camp mode, prepared date, or offline)
     if (!forceRefresh && (offlineManager.campMode || offlineManager.isDatePrepared(getTodayISO()) || offlineManager.isOffline)) {
-      const cachedRequirements = await getCachedData('medication_requirements');
-      const cachedDistributions = await getCachedData('medication_distributions');
-      const cachedParticipants = await getCachedData('participants_v2');
+      const getCacheFn = offlineManager.isOffline ? getCachedDataIgnoreExpiration : getCachedData;
+      const cachedRequirements = await getCacheFn('medication_requirements');
+      const cachedDistributions = await getCacheFn('medication_distributions');
+      const cachedParticipants = await getCacheFn('participants_v2');
+      const cachedAssignments = await getCacheFn('participant_medications');
+      const cachedReceptions = await getCacheFn('medication_receptions');
 
       if (cachedRequirements && cachedDistributions) {
         debugLog('Using cached medication data');
@@ -75,12 +80,23 @@ export class MedicationManagement {
         const reqData = cachedRequirements.data || cachedRequirements;
         const distData = cachedDistributions.data || cachedDistributions;
         const partData = cachedParticipants?.data || cachedParticipants || [];
+        const assignData = cachedAssignments?.data || cachedAssignments || {};
+        const recData = cachedReceptions?.data || cachedReceptions || {};
 
         this.requirements = Array.isArray(reqData) ? reqData : (reqData.requirements || []);
         this.distributions = Array.isArray(distData) ? distData : (distData.distributions || []);
-        this.participants = partData;
-        this.participantMedications = []; // Will be derived from requirements
+        this.participants = Array.isArray(partData) ? partData : [];
+        this.participantMedications = Array.isArray(assignData)
+          ? assignData
+          : (assignData.participant_medications || []);
         this.ficheMedications = [];
+
+        // Load receptions from cache for dispensing view
+        if (this.view === "dispensing") {
+          this.receptions = Array.isArray(recData)
+            ? recData
+            : (recData.receptions || []);
+        }
 
         // Filter data if participantId is specified (parent view)
         this.filterDataByParticipant();
@@ -88,7 +104,9 @@ export class MedicationManagement {
         debugLog('Loaded from cache:', {
           requirements: this.requirements.length,
           distributions: this.distributions.length,
-          participants: this.participants.length
+          participants: this.participants.length,
+          participantMedications: this.participantMedications.length,
+          receptions: this.receptions?.length || 0
         });
         return;
       }
@@ -166,10 +184,25 @@ export class MedicationManagement {
   }
 
   async handleOfflineStatusChange(event) {
-    if (!event?.detail || event.detail.isOffline) {
+    const isOffline = event?.detail?.isOffline;
+
+    // Update offline banner visibility
+    const banner = document.getElementById("medication-offline-banner");
+    if (banner) {
+      if (isOffline) {
+        banner.style.display = "flex";
+        setContent(banner, `<span style="font-size:1.2rem;">&#9888;</span><span>${escapeHTML(translate("medication_offline_banner"))}</span>`);
+      } else {
+        banner.style.display = "none";
+      }
+    }
+
+    // If going offline, no refresh needed
+    if (isOffline) {
       return;
     }
 
+    // Coming back online: sync and refresh
     try {
       await this.invalidateCaches();
       await this.refreshData(true);
@@ -182,6 +215,20 @@ export class MedicationManagement {
     } catch (error) {
       debugError("Error refreshing medication data after reconnect", error);
       this.app.showMessage(error.message || translate("error_loading_data"), "error");
+    }
+  }
+
+  /**
+   * Persist current distribution state to IndexedDB so optimistic updates
+   * survive page navigation while offline.
+   */
+  async persistDistributionsCache() {
+    try {
+      const cachePayload = { success: true, data: { distributions: this.distributions } };
+      await setCachedData('medication_distributions', cachePayload);
+      debugLog('Persisted distributions cache with', this.distributions.length, 'entries');
+    } catch (err) {
+      debugError('Failed to persist distributions cache:', err);
     }
   }
 
@@ -994,8 +1041,17 @@ export class MedicationManagement {
 
   renderDispensingSection({ today, timeValue, requirementOptions, participantOptions }) {
     const { pendingCards, givenCards } = this.renderParticipantMedicationSplitCards();
+    const offlineBanner = offlineManager.isOffline
+      ? `<div class="offline-banner" id="medication-offline-banner"
+              style="background:#fef3c7; color:#92400e; padding:0.75rem 1rem; border-radius:8px; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+           <span style="font-size:1.2rem;">&#9888;</span>
+           <span>${escapeHTML(translate("medication_offline_banner"))}</span>
+         </div>`
+      : '<div id="medication-offline-banner" style="display:none;"></div>';
 
     return `
+      ${offlineBanner}
+
       <div class="card">
         <h2>${escapeHTML(translate("medication_alerts_heading"))}</h2>
         <div id="medication-alerts"></div>
@@ -1364,17 +1420,29 @@ export class MedicationManagement {
             if (isGiven) {
               // Render given medication with administration details
               const givenDoses = med.givenDoses || [];
+              const anyPending = givenDoses.some((d) => d.isOptimistic);
               const givenTimesHtml = givenDoses.map((d) => {
                 const givenAt = d.administered_at ? new Date(d.administered_at) : new Date(d.scheduled_for);
                 const timeStr = givenAt.toLocaleTimeString(this.app.lang || "en", { hour: "2-digit", minute: "2-digit" });
                 const witnessStr = d.witness_name ? ` · ${escapeHTML(d.witness_name)}` : '';
-                return `<span class="pill" style="background:#d1fae5; color:#065f46; font-size:0.8rem;">
-                  ${escapeHTML(translate("medication_given_at"))} ${escapeHTML(timeStr)}${witnessStr}
+                const pendingLabel = d.isOptimistic
+                  ? ` <em style="font-size:0.7rem; opacity:0.8;">(${escapeHTML(translate("medication_pending_sync"))})</em>`
+                  : '';
+                return `<span class="pill" style="background:${d.isOptimistic ? '#fef3c7; color:#92400e' : '#d1fae5; color:#065f46'}; font-size:0.8rem;">
+                  ${escapeHTML(translate("medication_given_at"))} ${escapeHTML(timeStr)}${witnessStr}${pendingLabel}
                 </span>`;
               }).join('');
 
+              const statusPill = anyPending
+                ? `<span class="pill" style="background:#fef3c7; color:#92400e; font-weight:700; font-size:1rem; white-space:nowrap;">
+                    ${escapeHTML(translate("medication_pending_sync"))}
+                  </span>`
+                : `<span class="pill" style="background:#d1fae5; color:#065f46; font-weight:700; font-size:1rem; white-space:nowrap;">
+                    ${escapeHTML(translate("medication_status_given"))}
+                  </span>`;
+
               return `
-                <div class="medication-item" style="border-color:#10b981; background:#f0fdf4;">
+                <div class="medication-item" style="border-color:${anyPending ? '#f59e0b' : '#10b981'}; background:${anyPending ? '#fffbeb' : '#f0fdf4'};">
                   <div class="medication-info">
                     <strong>${escapeHTML(req.medication_name)}${partialBadge}</strong>
                     <div class="medication-details">
@@ -1389,9 +1457,7 @@ export class MedicationManagement {
                       ${givenTimesHtml}
                     </div>
                   </div>
-                  <span class="pill" style="background:#d1fae5; color:#065f46; font-weight:700; font-size:1rem; white-space:nowrap;">
-                    ${escapeHTML(translate("medication_status_given"))}
-                  </span>
+                  ${statusPill}
                 </div>
               `;
             }
@@ -1779,6 +1845,14 @@ export class MedicationManagement {
 
     try {
       const response = await saveMedicationRequirement(payload);
+
+      // Handle queued (offline) response
+      if (response?.queued) {
+        debugLog("Medication requirement queued for offline sync");
+        this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+        return;
+      }
+
       if (!response?.success) {
         throw new Error(response?.message || translate("error_saving"));
       }
@@ -1841,16 +1915,27 @@ export class MedicationManagement {
       dose_notes: payload.dose_notes,
       general_notice: payload.general_notice,
       frequency_text: payload.frequency_text,
-      frequency_times: payload.frequency_times
+      frequency_times: payload.frequency_times,
+      isOptimistic: true
     }));
 
     this.distributions = [...optimisticDistributions, ...this.distributions];
     this.renderAlertArea();
     this.updateUpcomingTable();
+    this.updateSplitCards();
     this.app.showMessage(translate("medication_distribution_syncing"), "info");
 
     try {
       const responses = await Promise.all(payloads.map((payload) => recordMedicationDistribution(payload)));
+      const anyQueued = responses.some((r) => r?.queued);
+
+      if (anyQueued) {
+        // Offline: persist optimistic state in cache
+        await this.persistDistributionsCache();
+        this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+        return;
+      }
+
       const allSuccessful = responses.every((response) => response?.success !== false);
       if (!allSuccessful) {
         throw new Error(translate("error_saving"));
@@ -1865,6 +1950,7 @@ export class MedicationManagement {
       this.distributions = previousDistributions;
       this.renderAlertArea();
       this.updateUpcomingTable();
+      this.updateSplitCards();
       this.app.showMessage(error.message || translate("error_saving"), "error");
     }
   }
@@ -1876,41 +1962,84 @@ export class MedicationManagement {
 
     const witnessInput = document.querySelector("input[name='witness_name']");
     const witness = witnessInput?.value?.trim() || this.getDefaultWitness();
-
-    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
     const administeredAt = new Date().toISOString();
-    this.distributions = this.distributions.map((dist) => (
-      distributionIds.includes(dist.id)
-        ? { ...dist, status: "given", administered_at: administeredAt, witness_name: witness }
-        : dist
-    ));
-    this.renderAlertArea();
-    this.updateUpcomingTable();
-    this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+    const updateKey = `mark-given-${slotKey}-${Date.now()}`;
 
-    try {
-      await Promise.all(
-        distributionIds.map((id) => markMedicationDistributionAsGiven(id, {
-          status: "given",
-          administered_at: new Date().toISOString(),
-          witness_name: witness
-        }))
-      );
-      this.app.showMessage(translate("medication_mark_given_success"), "success");
-      await this.invalidateCaches();
-      await this.refreshData(true);
-      this.renderAlertArea();
-      this.updateUpcomingTable();
-      this.updateSplitCards();
-      this.attachEventListeners();
-      this.prefillFromSlot(slotKey, this.getAggregatedAlerts().find((a) => a.slotKey === slotKey)?.primaryRequirementId || null);
-    } catch (error) {
-      debugError("Error marking medication as given", error);
-      this.distributions = previousDistributions;
-      this.renderAlertArea();
-      this.updateUpcomingTable();
-      this.app.showMessage(error.message || translate("error_saving"), "error");
-    }
+    await this.optimisticManager.execute(updateKey, {
+      optimisticFn: () => {
+        const rollbackState = {
+          distributions: JSON.parse(JSON.stringify(this.distributions))
+        };
+
+        // Optimistically mark all as given
+        this.distributions = this.distributions.map((dist) => (
+          distributionIds.includes(dist.id)
+            ? { ...dist, status: "given", administered_at: administeredAt, witness_name: witness, isOptimistic: true }
+            : dist
+        ));
+        this.renderAlertArea();
+        this.updateUpcomingTable();
+        this.updateSplitCards();
+        this.attachEventListeners();
+        this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+
+        return rollbackState;
+      },
+
+      apiFn: async () => {
+        const results = await Promise.all(
+          distributionIds.map((id) => markMedicationDistributionAsGiven(id, {
+            status: "given",
+            administered_at: administeredAt,
+            witness_name: witness
+          }))
+        );
+
+        // Check if any were queued for offline sync
+        const anyQueued = results.some((r) => r?.queued);
+        if (anyQueued) {
+          await this.persistDistributionsCache();
+          return { queued: true };
+        }
+
+        return results;
+      },
+
+      successFn: async (response) => {
+        if (response?.queued) {
+          this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+          return;
+        }
+
+        this.app.showMessage(translate("medication_mark_given_success"), "success");
+        await this.invalidateCaches();
+        await this.refreshData(true);
+        this.renderAlertArea();
+        this.updateUpcomingTable();
+        this.updateSplitCards();
+        this.attachEventListeners();
+        this.prefillFromSlot(slotKey, this.getAggregatedAlerts().find((a) => a.slotKey === slotKey)?.primaryRequirementId || null);
+      },
+
+      rollbackFn: (rollbackState, err) => {
+        this.distributions = rollbackState.distributions;
+        this.renderAlertArea();
+        this.updateUpcomingTable();
+        this.updateSplitCards();
+        this.attachEventListeners();
+
+        const isDuplicate = err?.status === 409 || err?.message?.includes('already been given');
+        if (isDuplicate) {
+          this.app.showMessage(translate("medication_dose_already_given"), "warning");
+        } else {
+          this.app.showMessage(err.message || translate("error_saving"), "error");
+        }
+      },
+
+      onError: (err) => {
+        debugError("Error marking medication as given", err);
+      }
+    });
   }
 
   startAlertTicker() {
@@ -2038,6 +2167,7 @@ export class MedicationManagement {
     const notes = notesField?.value?.trim() || null;
 
     const { participantId, requirementId } = this.pendingGive;
+    const requirement = this.getRequirementById(requirementId);
 
     // Create distribution record
     const now = new Date();
@@ -2053,68 +2183,122 @@ export class MedicationManagement {
       administered_at: scheduled_for
     };
 
-    const previousDistributions = JSON.parse(JSON.stringify(this.distributions));
+    const updateKey = `quick-give-${requirementId}-${participantId}-${Date.now()}`;
 
-    try {
-      // Close modal
-      if (modal) modal.style.display = "none";
+    // Close modal immediately for responsiveness
+    if (modal) modal.style.display = "none";
 
-      // Show loading message
-      this.app.showMessage(translate("medication_mark_given_syncing"), "info");
+    await this.optimisticManager.execute(updateKey, {
+      optimisticFn: () => {
+        // Save state for rollback
+        const rollbackState = {
+          distributions: JSON.parse(JSON.stringify(this.distributions)),
+          pendingGive: this.pendingGive
+        };
 
-      // Record the distribution
-      const response = await recordMedicationDistribution(payload);
-
-      if (!response?.success) {
-        throw new Error(response?.message || translate("error_saving"));
-      }
-
-      // Then immediately mark it as given
-      if (response.data?.id) {
-        await markMedicationDistributionAsGiven(response.data.id, {
+        // Create optimistic distribution entry
+        const optimisticDist = {
+          id: `temp-give-${Date.now()}`,
+          organization_id: null,
+          medication_requirement_id: requirementId,
+          participant_id: participantId,
+          scheduled_for,
+          dose_amount: requirement?.default_dose_amount || null,
+          dose_unit: requirement?.default_dose_unit || null,
+          dose_notes: notes,
           status: "given",
           administered_at: scheduled_for,
-          witness_name: witness
-        });
-      }
+          administered_by: null,
+          witness_name: witness,
+          isOptimistic: true
+        };
 
-      // Refresh data
-      await this.invalidateCaches();
-      await this.refreshData(true);
+        this.distributions = [optimisticDist, ...this.distributions];
+        this.updateSplitCards();
+        this.renderAlertArea();
+        this.updateUpcomingTable();
+        this.attachEventListeners();
+        this.app.showMessage(translate("medication_mark_given_syncing"), "info");
 
-      // Re-render split cards
-      this.updateSplitCards();
+        return rollbackState;
+      },
 
-      this.renderAlertArea();
-      this.updateUpcomingTable();
-      this.attachEventListeners();
+      apiFn: async () => {
+        const response = await recordMedicationDistribution(payload);
 
-      this.app.showMessage(translate("medication_mark_given_success"), "success");
+        // Handle queued (offline) response
+        if (response?.queued) {
+          debugLog("Quick give queued for offline sync");
+          await this.persistDistributionsCache();
+          return response;
+        }
 
-      // Clear pending give
-      this.pendingGive = null;
+        if (!response?.success) {
+          throw new Error(response?.message || translate("error_saving"));
+        }
 
-      // Clear notes field
-      if (notesField) notesField.value = "";
-    } catch (err) {
-      debugError("Error giving medication", err);
-      this.distributions = previousDistributions;
+        // If we got a distribution ID back, mark it as given
+        if (response.data?.id) {
+          await markMedicationDistributionAsGiven(response.data.id, {
+            status: "given",
+            administered_at: scheduled_for,
+            witness_name: witness
+          });
+        }
 
-      // Handle duplicate dose (409 Conflict)
-      const isDuplicate = err?.status === 409 || err?.message?.includes('already been given');
-      if (isDuplicate) {
-        this.app.showMessage(translate("medication_dose_already_given"), "warning");
-        // Refresh to reflect current state
+        return response;
+      },
+
+      successFn: async (response) => {
+        // If queued for offline, keep optimistic state
+        if (response?.queued) {
+          this.app.showMessage(translate("medication_offline_dose_queued"), "info");
+          return;
+        }
+
+        // Online success: refresh from server
         await this.invalidateCaches();
         await this.refreshData(true);
         this.updateSplitCards();
         this.renderAlertArea();
+        this.updateUpcomingTable();
         this.attachEventListeners();
-      } else {
-        this.app.showMessage(err.message || translate("error_saving"), "error");
-        // Reopen modal on non-duplicate error
-        if (modal) modal.style.display = "flex";
+        this.app.showMessage(translate("medication_mark_given_success"), "success");
+      },
+
+      rollbackFn: (rollbackState, err) => {
+        this.distributions = rollbackState.distributions;
+
+        // Handle duplicate dose (409 Conflict)
+        const isDuplicate = err?.status === 409 || err?.message?.includes('already been given');
+        if (isDuplicate) {
+          this.app.showMessage(translate("medication_dose_already_given"), "warning");
+          // Refresh to get actual state from server (if online)
+          this.invalidateCaches().then(() => this.refreshData(true)).then(() => {
+            this.updateSplitCards();
+            this.renderAlertArea();
+            this.attachEventListeners();
+          }).catch(() => {});
+        } else {
+          this.updateSplitCards();
+          this.renderAlertArea();
+          this.updateUpcomingTable();
+          this.attachEventListeners();
+          this.app.showMessage(err.message || translate("error_saving"), "error");
+          // Reopen modal on non-duplicate error
+          if (modal) modal.style.display = "flex";
+        }
+      },
+
+      onError: (err) => {
+        debugError("Error giving medication", err);
       }
-    }
+    });
+
+    // Clear pending give
+    this.pendingGive = null;
+
+    // Clear notes field
+    if (notesField) notesField.value = "";
   }
 }
