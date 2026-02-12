@@ -954,7 +954,7 @@ module.exports = (pool) => {
    *       404:
    *         description: Participant not found
    */
-  router.get('/:id(\\d+)', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
+  router.get('/:id', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const id = parseInt(req.params.id, 10);
 
     if (Number.isNaN(id)) {
