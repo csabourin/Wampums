@@ -30,7 +30,10 @@ function createApp() {
 
     // 4. Initialize Services (WhatsApp, etc.)
     const serviceManager = require("../services/manager");
-    serviceManager.init(pool);
+    serviceManager.init(pool).catch((error) => {
+        logger.error("Service initialization failed:", error);
+        process.exit(1);
+    });
 
     // 5. Initialize Routes
     initRoutes(app, pool);

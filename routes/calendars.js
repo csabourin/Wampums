@@ -24,7 +24,7 @@ const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, 
 module.exports = (pool, logger) => {
   /**
    * @swagger
-   * /api/v1/fundraiser-entries:
+   * /api/v1/calendars:
    *   get:
    *     summary: List fundraiser entries
    *     description: Get all entries for a specific fundraiser
@@ -107,7 +107,7 @@ module.exports = (pool, logger) => {
   
   /**
    * @swagger
-   * /api/v1/fundraiser-entries/{id}:
+   * /api/v1/calendars/{id}:
    *   put:
    *     summary: Update fundraiser entry
    *     description: Update amount, amount_paid, or paid status of a fundraiser entry
@@ -198,7 +198,7 @@ module.exports = (pool, logger) => {
   
   /**
    * @swagger
-   * /api/v1/fundraiser-entries/{id}/payment:
+   * /api/v1/calendars/{id}/payment:
    *   put:
    *     summary: Update fundraiser entry payment
    *     description: Update the payment amount for a fundraiser entry and auto-calculate paid status

@@ -25,10 +25,10 @@ const CACHE_STRATEGY = {
 const ENDPOINT_CACHE_CONFIG = {
     '/api/v1/participants': CACHE_STRATEGY.CRITICAL,
     '/api/v1/groups': CACHE_STRATEGY.CRITICAL,
-    '/api/v1/dashboards/initial-data': CACHE_STRATEGY.CRITICAL,
-    '/api/v1/organizations/organization-settings': CACHE_STRATEGY.CRITICAL,
+    '/api/v1/dashboards/initial': CACHE_STRATEGY.CRITICAL,
+    '/api/v1/organizations/settings': CACHE_STRATEGY.CRITICAL,
     '/api/v1/attendance': CACHE_STRATEGY.STANDARD,
-    '/api/v1/points/points-data': CACHE_STRATEGY.STANDARD,
+    '/api/v1/points': CACHE_STRATEGY.STANDARD,
     '/api/v1/honors': CACHE_STRATEGY.STANDARD,
     '/api/v1/badges/summary': CACHE_STRATEGY.STANDARD,
     '/api/v1/public/translations': CACHE_STRATEGY.STANDARD,
