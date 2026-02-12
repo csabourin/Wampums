@@ -499,7 +499,7 @@ module.exports = (pool, logger) => {
           return error(res, 'This dose has already been given and cannot be given again', 409);
         }
 
-        await client.query(
+        const distributionUpsert = await client.query(
           `INSERT INTO medication_distributions (
             organization_id, medication_requirement_id, participant_id, participant_medication_id,
             scheduled_for, activity_name, dose_amount, dose_unit, dose_notes, general_notice,
@@ -515,7 +515,8 @@ module.exports = (pool, logger) => {
             witness_name = EXCLUDED.witness_name,
             status = EXCLUDED.status,
             updated_at = NOW()
-          WHERE medication_distributions.status <> 'given'`,
+          WHERE medication_distributions.status <> 'given'
+          RETURNING id`,
           [
             organizationId,
             requirementId,
@@ -530,6 +531,11 @@ module.exports = (pool, logger) => {
             normalizeText(witness_name, 150)
           ]
         );
+
+        if (distributionUpsert.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return error(res, 'This dose has already been given and cannot be given again', 409);
+        }
       }
 
       await client.query('COMMIT');
