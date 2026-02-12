@@ -17,7 +17,8 @@ import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
 
 const debugMode = isDebugMode();
 
-// Service worker registration is handled automatically by vite-plugin-pwa
+// Service worker registration: vite-plugin-pwa injects registration at build time,
+// with a fallback in registerServiceWorker() if the injection is missing.
 
 async function registerPushSubscription() {
         if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -256,6 +257,9 @@ export const app = {
                         if (this.isLoggedIn) {
                                 this.handlePostLoginActions();
                         }
+
+                        // Ensure service worker is registered (fallback if vite-plugin-pwa injection missed)
+                        this.registerServiceWorker();
 
                         // Initialize offline support
                         initOfflineSupport();
@@ -565,8 +569,27 @@ export const app = {
                 }
         },
 
-        registerServiceWorker() {
-                // Service worker registration is handled automatically by vite-plugin-pwa
+        async registerServiceWorker() {
+                if (!('serviceWorker' in navigator)) {
+                        debugLog('Service workers not supported');
+                        return;
+                }
+
+                try {
+                        // Check if a service worker is already registered (e.g. by vite-plugin-pwa)
+                        const existingReg = await navigator.serviceWorker.getRegistration();
+                        if (existingReg) {
+                                debugLog('Service worker already registered:', existingReg.scope);
+                                return;
+                        }
+
+                        // Fallback: register the service worker explicitly
+                        const swPath = CONFIG.SERVICE_WORKER?.PATH || '/src-sw.js';
+                        const registration = await navigator.serviceWorker.register(swPath, { scope: '/' });
+                        debugLog('Service worker registered:', registration.scope);
+                } catch (error) {
+                        debugError('Service worker registration failed:', error);
+                }
         },
 
         showLoading() {
