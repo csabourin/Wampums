@@ -781,11 +781,15 @@ export async function getParticipantsWithUsers(forceRefresh = false) {
 /**
  * Link participant to organization
  */
-export async function linkParticipantToOrganization(participantId, organizationId) {
-    return API.post('link-participant-to-organization', {
+export async function linkParticipantToOrganization(participantId, organizationId, inscriptionDate = null) {
+    const body = {
         participant_id: participantId,
         organization_id: organizationId
-    });
+    };
+    if (inscriptionDate) {
+        body.inscription_date = inscriptionDate;
+    }
+    return API.post('link-participant-to-organization', body);
 }
 
 /**
@@ -2736,6 +2740,13 @@ export async function getSubscribers(organizationId) {
         debugWarn('Push subscriber endpoint unavailable, returning empty list', error);
         return { success: false, data: [] };
     }
+}
+
+/**
+ * Send push notification to selected subscribers
+ */
+export async function sendNotification(title, body, subscribers = []) {
+    return API.post('send-notification', { title, body, subscribers });
 }
 
 /**

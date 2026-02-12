@@ -18,8 +18,9 @@ import { canManageCarpools, canViewCarpools, isParent } from './utils/Permission
 import { OptimisticUpdateManager, generateOptimisticId } from './utils/OptimisticUpdateManager.js';
 import { skeletonCarpoolDashboard, setButtonLoading } from './utils/SkeletonUtils.js';
 import { debugError, debugLog } from './utils/DebugUtils.js';
+import { CONFIG } from './config.js';
 import { offlineManager } from './modules/OfflineManager.js';
-import { getCachedData } from './indexedDB.js';
+import { getCachedData, setCachedData } from './indexedDB.js';
 import { setContent, loadStylesheet } from "./utils/DOMUtils.js";
 import { buildNotFoundMarkup } from "./utils/NotFoundUtils.js";
 import { parseDate } from './utils/DateUtils.js';
@@ -65,6 +66,19 @@ export class CarpoolDashboard {
     this.isLoading = false;
     this.render();
     this.attachEventListeners();
+  }
+
+  async updateCarpoolCache() {
+    try {
+      await setCachedData(
+        `carpool_offers_activity_${this.activityId}`,
+        { success: true, data: this.carpoolOffers },
+        CONFIG.CACHE_DURATION?.SHORT || 300000
+      );
+      debugLog('CarpoolDashboard: Cache updated with optimistic state');
+    } catch (error) {
+      debugError('CarpoolDashboard: Failed to update cache', error);
+    }
   }
 
   async loadData() {
@@ -898,6 +912,12 @@ export class CarpoolDashboard {
         },
 
         successFn: (result) => {
+          if (result?.queued) {
+            // Offline: persist optimistic state to cache
+            this.updateCarpoolCache();
+            this.app.showMessage(translate('participant_assigned_success'), 'success');
+            return;
+          }
           // Reload fresh data from server to replace optimistic data
           this.loadData().then(() => {
             this.render();
@@ -986,6 +1006,12 @@ export class CarpoolDashboard {
       },
 
       successFn: (result) => {
+        if (result?.queued) {
+          // Offline: persist optimistic state to cache
+          this.updateCarpoolCache();
+          this.app.showMessage(translate('ride_cancelled_success'), 'success');
+          return;
+        }
         // Reload fresh data from server
         this.loadData().then(() => {
           this.render();
@@ -1050,6 +1076,12 @@ export class CarpoolDashboard {
       },
 
       successFn: (result) => {
+        if (result?.queued) {
+          // Offline: persist optimistic state to cache
+          this.updateCarpoolCache();
+          this.app.showMessage(translate('assignment_removed_success'), 'success');
+          return;
+        }
         // Reload fresh data from server to ensure consistency
         this.loadData().then(() => {
           this.render();

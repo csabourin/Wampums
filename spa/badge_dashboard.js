@@ -62,6 +62,19 @@ export class BadgeDashboard extends BaseModule {
     return canViewBadges() || canApproveBadges() || canManageBadges();
   }
 
+  async updateBadgeCache() {
+    try {
+      await setCachedData(
+        "badge_dashboard_badges",
+        this.badgeEntries,
+        CONFIG.CACHE_DURATION.SHORT,
+      );
+      debugLog("BadgeDashboard: Cache updated with current badge state");
+    } catch (error) {
+      debugError("BadgeDashboard: Failed to update badge cache", error);
+    }
+  }
+
   async hydrateFromCache() {
     try {
       const [cachedGroups, cachedParticipants, cachedBadges, cachedSettings] =
@@ -968,12 +981,17 @@ export class BadgeDashboard extends BaseModule {
           },
 
           successFn: (result) => {
-            if (result.queued) return; // Keep optimistic state
+            if (result.queued) {
+              // Offline: persist optimistic state to cache so it survives navigation
+              this.updateBadgeCache();
+              return;
+            }
 
             // Replace optimistic data with real server data
             this.replaceBadgeEntry(result.data);
             this.buildRecords();
             this.updateRows();
+            this.updateBadgeCache();
 
             debugLog("Badge entry updated successfully:", result.data);
           },
@@ -1065,6 +1083,8 @@ export class BadgeDashboard extends BaseModule {
 
             successFn: (result) => {
               if (result.queued) {
+                // Offline: persist optimistic state to cache so it survives navigation
+                this.updateBadgeCache();
                 // Close the modal since we can't edit the offline ID yet
                 // The optimistic entry remains in the list
                 this.setTimeout(() => {
@@ -1084,6 +1104,7 @@ export class BadgeDashboard extends BaseModule {
                 this.buildRecords();
                 this.resetVisibleCount();
                 this.updateRows();
+                this.updateBadgeCache();
               }
 
               debugLog("Badge entry created successfully:", result.data);
