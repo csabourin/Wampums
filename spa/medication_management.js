@@ -14,9 +14,9 @@ import {
   recordMedicationDistribution,
   markMedicationDistributionAsGiven,
   getFicheMedications,
-  getMedicationReceptions,
-  buildApiCacheKey
+  getMedicationReceptions
 } from "./api/api-endpoints.js";
+import { buildApiCacheKey } from "./utils/OfflineCacheKeys.js";
 import { offlineManager } from "./modules/OfflineManager.js";
 
 /**
@@ -84,7 +84,7 @@ export class MedicationManagement {
         const assignData = cachedAssignments?.data || cachedAssignments || {};
 
         // Use the same cache key building logic as getMedicationReceptions
-        const receptionsCacheKey = buildApiCacheKey('v1/medication/receptions', {});
+        const receptionsCacheKey = buildApiCacheKey('medication_receptions', {});
         const cachedReceptions = await getCacheFn(receptionsCacheKey);
         const recData = cachedReceptions?.data || cachedReceptions || {};
 

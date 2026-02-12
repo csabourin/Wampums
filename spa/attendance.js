@@ -1019,8 +1019,12 @@ export class Attendance {
     );
     if (row) {
       const statusSpan = row.querySelector(".participant-status");
-      statusSpan.classList.remove(`${previousStatus}`);
-      statusSpan.classList.add(`${newStatus}`);
+      if (previousStatus) {
+        statusSpan.classList.remove(previousStatus);
+      }
+      if (newStatus) {
+        statusSpan.classList.add(newStatus);
+      }
       statusSpan.textContent = translate(newStatus);
     }
   }
