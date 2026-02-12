@@ -660,18 +660,19 @@ async function syncData() {
                 body: item.data.body,
               });
 
-              if (response.ok || (response.status >= 400 && response.status < 500)) {
+              if (response.ok) {
                 await clearOfflineData(item.key);
-                if (!response.ok) {
-                  debugWarn('Server rejected mutation (4xx), discarding:', response.status);
-                } else {
-                  const request = new Request(item.data.url, {
-                    method: item.action || item.data.method || 'POST',
-                    headers: item.data.headers || {},
-                  });
-                  await invalidateRelatedCaches(request);
-                }
+                const request = new Request(item.data.url, {
+                  method: item.action || item.data.method || 'POST',
+                  headers: item.data.headers || {},
+                });
+                await invalidateRelatedCaches(request);
+              } else if (response.status === 400 || response.status === 404 || response.status === 409) {
+                // Non-retryable client errors — discard
+                debugWarn('Server rejected mutation, discarding:', response.status);
+                await clearOfflineData(item.key);
               } else {
+                // 401/403/429/5xx — leave for retry (OfflineManager can retry with fresh JWT)
                 debugError('Failed to sync new format item (will retry):', response.status);
               }
               continue;
@@ -689,10 +690,7 @@ async function syncData() {
             });
 
             if (response.ok) {
-              await clearOfflineData(item.id);
-            } else if (response.status >= 400 && response.status < 500) {
-              debugWarn('Server rejected legacy item (4xx), discarding:', response.status);
-              await clearOfflineData(item.id || item.key);
+              await clearOfflineData(item.key);
             } else {
               debugError('Failed to sync old format item:', item, response.statusText);
             }
