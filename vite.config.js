@@ -1,8 +1,41 @@
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import fs from "node:fs";
+import path from "node:path";
 // Removed legacy plugin to reduce bundle size - targeting modern browsers only
 // import legacy from '@vitejs/plugin-legacy';
 import { visualizer } from "rollup-plugin-visualizer";
+
+/**
+ * Copy translation bundles from the backend `lang/` directory into `dist/lang/`
+ * so static client-side translation loading keeps working in production.
+ *
+ * Backend code still requires the source files under `lang/`, therefore this
+ * plugin copies files instead of relocating them to `assets/`.
+ */
+function copyStaticLanguageBundlesPlugin() {
+  return {
+    name: "copy-static-language-bundles",
+    closeBundle() {
+      const projectRoot = process.cwd();
+      const sourceDir = path.join(projectRoot, "lang");
+      const targetDir = path.join(projectRoot, "dist", "lang");
+
+      const languageFiles = fs
+        .readdirSync(sourceDir)
+        .filter((fileName) => fileName.endsWith(".json"));
+
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      for (const fileName of languageFiles) {
+        fs.copyFileSync(
+          path.join(sourceDir, fileName),
+          path.join(targetDir, fileName),
+        );
+      }
+    },
+  };
+}
 
 export default defineConfig({
   root: ".",
@@ -112,6 +145,8 @@ export default defineConfig({
   },
 
   plugins: [
+    copyStaticLanguageBundlesPlugin(),
+
     // PWA Support
     VitePWA({
       strategies: "injectManifest",
