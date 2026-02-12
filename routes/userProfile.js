@@ -198,7 +198,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/v1/users/me', authenticate, asyncHandler(async (req, res) => {
+  router.get('/', authenticate, asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.user.organizationId;
 
@@ -218,8 +218,8 @@ module.exports = (pool, logger) => {
       return errorResponse(res, 'User not found', 404);
     }
 
-      return success(res, result.rows[0], 'User information retrieved successfully');
-    }));
+    return success(res, result.rows[0], 'User information retrieved successfully');
+  }));
 
   /**
    * @swagger
@@ -238,7 +238,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/v1/users/me/guardian-profile', authenticate, asyncHandler(async (req, res) => {
+  router.get('/guardian-profile', authenticate, asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.user.organizationId;
 
@@ -285,7 +285,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.patch('/v1/users/me/name',
+  router.patch('/name',
     authenticate,
     blockDemoRoles,
     [validateFullName],
@@ -351,7 +351,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.patch('/v1/users/me/language-preference',
+  router.patch('/language-preference',
     authenticate,
     asyncHandler(async (req, res) => {
       const userId = req.user.id;
@@ -425,7 +425,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.patch('/v1/users/me/whatsapp-phone',
+  router.patch('/whatsapp-phone',
     authenticate,
     blockDemoRoles,
     asyncHandler(async (req, res) => {
@@ -538,7 +538,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.patch('/v1/users/me/guardian-profile', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
+  router.patch('/guardian-profile', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const organizationId = req.user.organizationId;
 
@@ -707,7 +707,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.patch('/v1/users/me/email',
+  router.patch('/email',
     authenticate,
     blockDemoRoles,
     emailChangeLimiter,
@@ -791,7 +791,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.patch('/v1/users/me/password',
+  router.patch('/password',
     authenticate,
     blockDemoRoles,
     passwordChangeLimiter,
