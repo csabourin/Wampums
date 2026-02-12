@@ -550,11 +550,22 @@ export class ManagePoints {
         await this.updateCache();
       } catch (error) {
         debugError("Error in batch update:", error);
-        // If there's an error, add the updates back to the pending list
-        this.pendingUpdates.push(...updates);
 
-        // Show an error message to the user
-        alert(`${translate("error_updating_points")}: ${error.message}`);
+        // Network error (offline or flaky connection): persist for offline sync
+        if (error instanceof TypeError || !navigator.onLine) {
+          for (const update of updates) {
+            await saveOfflineData("updatePoints", update);
+          }
+          debugLog("Batch update saved for offline sync:", updates.length, "updates");
+          return;
+        }
+
+        // Server error: add back to pending and show error
+        this.pendingUpdates.push(...updates);
+        this.app.showMessage(
+          `${translate("error_updating_points")}: ${error.message}`,
+          "error"
+        );
       }
     } else {
       // Save updates for later sync
