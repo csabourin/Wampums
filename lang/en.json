@@ -1140,6 +1140,7 @@
   "not_authorized": "Not authorized",
   "notes": "Notes",
   "notification_sent_successfully": "Notification sent successfully!",
+  "notification_queued_offline": "Notification saved offline and will be sent once you are back online.",
   "number_of_honors": "Number of Honor Wolves",
   "number_of_payments": "Number of payments",
   "objectif": "Objective",
