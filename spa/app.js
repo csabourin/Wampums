@@ -583,12 +583,14 @@ export const app = {
                                 return;
                         }
 
-                        // Fallback: register the service worker explicitly
-                        const swPath = CONFIG.SERVICE_WORKER?.PATH || '/src-sw.js';
-                        const registration = await navigator.serviceWorker.register(swPath, { scope: '/' });
-                        debugLog('Service worker registered:', registration.scope);
+                        // No fallback registration — src-sw.js is an uncompiled source file
+                        // that uses bare Workbox imports. It must be compiled by vite-plugin-pwa
+                        // during `vite build`, which also injects the registration script into
+                        // the built index.html. Attempting to register the raw source file will
+                        // always fail with a SyntaxError.
+                        debugLog('No service worker registered. Run `vite build` to enable PWA support.');
                 } catch (error) {
-                        debugError('Service worker registration failed:', error);
+                        debugError('Service worker check failed:', error);
                 }
         },
 
