@@ -650,6 +650,34 @@ async function syncData() {
         for (let item of offlineData) {
           try {
             debugLog('Syncing old format item:', item);
+
+            // New format: stored by OfflineManager.storePendingMutation fallback
+            // item.data has { url, headers, body, timestamp }
+            if (item.data?.url) {
+              const response = await fetch(item.data.url, {
+                method: item.action || item.data.method || 'POST',
+                headers: item.data.headers || { 'Content-Type': 'application/json' },
+                body: item.data.body,
+              });
+
+              if (response.ok || (response.status >= 400 && response.status < 500)) {
+                await clearOfflineData(item.key);
+                if (!response.ok) {
+                  debugWarn('Server rejected mutation (4xx), discarding:', response.status);
+                } else {
+                  const request = new Request(item.data.url, {
+                    method: item.action || item.data.method || 'POST',
+                    headers: item.data.headers || {},
+                  });
+                  await invalidateRelatedCaches(request);
+                }
+              } else {
+                debugError('Failed to sync new format item (will retry):', response.status);
+              }
+              continue;
+            }
+
+            // Legacy format: action="updatePoints", data={type, id, points, ...}
             const endpoint = item.action
               ? `/api/${item.action.replace('_', '-')}`
               : item.url;
@@ -662,6 +690,9 @@ async function syncData() {
 
             if (response.ok) {
               await clearOfflineData(item.id);
+            } else if (response.status >= 400 && response.status < 500) {
+              debugWarn('Server rejected legacy item (4xx), discarding:', response.status);
+              await clearOfflineData(item.id || item.key);
             } else {
               debugError('Failed to sync old format item:', item, response.statusText);
             }
@@ -760,11 +791,13 @@ self.addEventListener('message', (event) => {
   }
   if (event.data && event.data.type === 'QUEUE_MUTATION') {
     const mutation = event.data.mutation;
-    saveOfflineMutation(mutation).then(() => {
-      debugLog('Mutation queued via message:', mutation.url);
-    }).catch((err) => {
-      debugError('Failed to queue mutation via message:', err);
-    });
+    event.waitUntil(
+      saveOfflineMutation(mutation).then(() => {
+        debugLog('Mutation queued via message:', mutation.url);
+      }).catch((err) => {
+        debugError('Failed to queue mutation via message:', err);
+      })
+    );
   }
   if (event.data && event.data.type === 'SET_CAMP_MODE') {
     campModeEnabled = event.data.enabled;
