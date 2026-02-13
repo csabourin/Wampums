@@ -1001,22 +1001,12 @@ export class AccountInfoModule {
     }
 
     try {
-      // Call logout API
-      await makeApiRequest('auth/logout', { method: 'POST' }).catch(() => {
-        // Ignore errors, we'll clear local data anyway
-      });
+      // Use the centralized logout method from Login class
+      const { Login } = await import('../login.js');
+      await Login.logout();
     } catch (error) {
       debugError('Logout error:', error);
-    } finally {
-      // Clear local storage regardless of API result
-      localStorage.removeItem("jwtToken");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userFullName");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("userRoles");
-      localStorage.removeItem("userPermissions");
-
-      // Redirect to login
+      // If logout fails, at least redirect to login
       window.location.href = "/login";
     }
   }

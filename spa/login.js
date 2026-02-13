@@ -297,13 +297,9 @@ export class Login {
     const targetPath = isParent() ? "/parent-dashboard" : "/dashboard";
     debugLog(`Redirecting to ${targetPath}`);
 
-    // Update the URL in browser history
+    // Update the URL in browser history and navigate immediately
     history.pushState(null, "", targetPath);
-
-    // Navigate using the router - it will now find the session data in localStorage
-    setTimeout(() => {
-      this.app.router.route(targetPath);
-    }, 100);
+    this.app.router.route(targetPath);
   }
 
   /**
