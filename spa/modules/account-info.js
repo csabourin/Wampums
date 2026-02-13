@@ -1000,9 +1000,15 @@ export class AccountInfoModule {
       return;
     }
 
-    // Use the centralized logout method from Login class
-    // This handles server logout, cleanup, and redirect
-    const { Login } = await import('../login.js');
-    await Login.logout();
+    try {
+      // Use the centralized logout method from Login class
+      const { Login } = await import('../login.js');
+      await Login.logout();
+      // Note: Login.logout() ends with window.location.href which starts page navigation
+    } catch (error) {
+      debugError('Logout error:', error);
+      // Even if logout fails, redirect to login since user wants to log out
+      window.location.href = "/login";
+    }
   }
 }

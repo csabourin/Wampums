@@ -600,9 +600,15 @@ export class Dashboard extends BaseModule {
   }
 
   async lazyLogout() {
-    const { Login } = await import("./login.js");
-    // Login.logout() handles everything: server call, cleanup, and redirect
-    await Login.logout();
+    try {
+      const { Login } = await import("./login.js");
+      await Login.logout();
+      // Note: Login.logout() ends with window.location.href which starts page navigation
+    } catch (error) {
+      debugError("Error during logout:", error);
+      // Even if logout fails, redirect to login since user wants to log out
+      window.location.href = "/login";
+    }
   }
 
   togglePointsVisibility() {
