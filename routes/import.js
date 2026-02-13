@@ -1,5 +1,6 @@
 const express = require('express');
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
+const { asyncHandler } = require('../middleware/response');
 
 module.exports = function (pool, logger) {
   const router = express.Router();
@@ -45,7 +46,7 @@ module.exports = function (pool, logger) {
     return result;
   }
 
-  router.post('/sisc', async (req, res) => {
+  router.post('/sisc', asyncHandler(async (req, res) => {
     logger.info('Starting SISC import...');
     logger.info('Database pool config:', {
       host: pool.options?.host || 'default',

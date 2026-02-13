@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
+const { success, error, asyncHandler } = require('../middleware/response');
 
 /**
  * Export route factory function
@@ -28,7 +29,7 @@ module.exports = (pool, logger) => {
   router.get('/api/roles',
     authenticate,
     requirePermission('roles.view'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         // Unitadmin cannot see district role
         const excludeDistrict = req.userRoles && !req.userRoles.includes('district');
@@ -67,18 +68,12 @@ module.exports = (pool, logger) => {
 
         const result = await pool.query(query);
 
-        res.json({
-          success: true,
-          data: result.rows
-        });
+        return success(res, result.rows);
       } catch (error) {
         logger.error('Error fetching roles:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to fetch roles'
-        });
+        return error(res, 'Failed to fetch roles', 500);
       }
-    }
+    })
   );
 
   /**
@@ -89,7 +84,7 @@ module.exports = (pool, logger) => {
   router.get('/api/roles/:roleId/permissions',
     authenticate,
     requirePermission('roles.view'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { roleId } = req.params;
 
@@ -103,18 +98,12 @@ module.exports = (pool, logger) => {
 
         const result = await pool.query(query, [roleId]);
 
-        res.json({
-          success: true,
-          data: result.rows
-        });
+        return success(res, result.rows);
       } catch (error) {
         logger.error('Error fetching role permissions:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to fetch role permissions'
-        });
+        return error(res, 'Failed to fetch role permissions', 500);
       }
-    }
+    })
   );
 
   /**
@@ -125,7 +114,7 @@ module.exports = (pool, logger) => {
   router.get('/api/permissions',
     authenticate,
     requirePermission('roles.view'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const query = `
           SELECT id, permission_key, permission_name, category, description
@@ -144,18 +133,12 @@ module.exports = (pool, logger) => {
           return acc;
         }, {});
 
-        res.json({
-          success: true,
-          data: grouped
-        });
+        return success(res, grouped);
       } catch (error) {
         logger.error('Error fetching permissions:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to fetch permissions'
-        });
+        return error(res, 'Failed to fetch permissions', 500);
       }
-    }
+    })
   );
 
   /**
@@ -166,7 +149,7 @@ module.exports = (pool, logger) => {
   router.get('/api/users/:userId/roles',
     authenticate,
     requirePermission('users.view'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { userId } = req.params;
         const organizationId = req.organizationId;
@@ -189,18 +172,12 @@ module.exports = (pool, logger) => {
 
         const result = await pool.query(query, [userId, organizationId]);
 
-        res.json({
-          success: true,
-          data: result.rows
-        });
+        return success(res, result.rows);
       } catch (error) {
         logger.error('Error fetching user roles:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to fetch user roles'
-        });
+        return error(res, 'Failed to fetch user roles', 500);
       }
-    }
+    })
   );
 
   /**
@@ -212,17 +189,14 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('users.assign_roles'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { userId } = req.params;
         const { roleIds } = req.body; // Array of role IDs
         const organizationId = req.organizationId;
 
         if (!Array.isArray(roleIds) || roleIds.length === 0) {
-          return res.status(400).json({
-            success: false,
-            message: 'roleIds must be a non-empty array'
-          });
+          return error(res, 'roleIds must be a non-empty array', 400);
         }
 
         // Check if user is trying to assign district role without permission
@@ -235,10 +209,7 @@ module.exports = (pool, logger) => {
         const hasDistrictRole = roleNames.includes('district');
 
         if (hasDistrictRole && !req.userRoles.includes('district')) {
-          return res.status(403).json({
-            success: false,
-            message: 'Only district administrators can assign the district role'
-          });
+          return error(res, 'Only district administrators can assign the district role', 403);
         }
 
         // Check if user exists and is member of organization
@@ -248,10 +219,7 @@ module.exports = (pool, logger) => {
         );
 
         if (userCheck.rows.length === 0) {
-          return res.status(404).json({
-            success: false,
-            message: 'User not found in this organization'
-          });
+          return error(res, 'User not found in this organization', 404);
         }
 
         // Update user roles
@@ -264,18 +232,12 @@ module.exports = (pool, logger) => {
 
         logger.info(`User ${req.user.id} updated roles for user ${userId} to: ${roleNames.join(', ')}`);
 
-        res.json({
-          success: true,
-          message: 'User roles updated successfully'
-        });
+        return success(res, null, 'User roles updated successfully');
       } catch (error) {
         logger.error('Error updating user roles:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to update user roles'
-        });
+        return error(res, 'Failed to update user roles', 500);
       }
-    }
+    })
   );
 
   /**
@@ -287,7 +249,7 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { roleId } = req.params;
         const { permissionId } = req.body;
@@ -320,18 +282,12 @@ module.exports = (pool, logger) => {
           [roleId, permissionId]
         );
 
-        res.json({
-          success: true,
-          message: 'Permission added to role'
-        });
+        return success(res, null, 'Permission added to role');
       } catch (error) {
         logger.error('Error adding permission to role:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to add permission to role'
-        });
+        return error(res, 'Failed to add permission to role', 500);
       }
-    }
+    })
   );
 
   /**
@@ -343,7 +299,7 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { roleId, permissionId } = req.params;
 
@@ -354,17 +310,11 @@ module.exports = (pool, logger) => {
         );
 
         if (roleCheck.rows.length === 0) {
-          return res.status(404).json({
-            success: false,
-            message: 'Role not found'
-          });
+          return error(res, 'Role not found', 404);
         }
 
         if (roleCheck.rows[0].is_system_role) {
-          return res.status(403).json({
-            success: false,
-            message: 'Cannot modify system roles'
-          });
+          return error(res, 'Cannot modify system roles', 403);
         }
 
         // Remove permission from role
@@ -373,18 +323,12 @@ module.exports = (pool, logger) => {
           [roleId, permissionId]
         );
 
-        res.json({
-          success: true,
-          message: 'Permission removed from role'
-        });
+        return success(res, null, 'Permission removed from role');
       } catch (error) {
         logger.error('Error removing permission from role:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to remove permission from role'
-        });
+        return error(res, 'Failed to remove permission from role', 500);
       }
-    }
+    })
   );
 
   /**
@@ -396,15 +340,12 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { role_name, display_name, description } = req.body;
 
         if (!role_name || !display_name) {
-          return res.status(400).json({
-            success: false,
-            message: 'role_name and display_name are required'
-          });
+          return error(res, 'role_name and display_name are required', 400);
         }
 
         const result = await pool.query(
@@ -416,25 +357,16 @@ module.exports = (pool, logger) => {
 
         logger.info(`User ${req.user.id} created new role: ${role_name}`);
 
-        res.json({
-          success: true,
-          data: result.rows[0]
-        });
+        return success(res, result.rows[0], 'Role created successfully', 201);
       } catch (error) {
         if (error.code === '23505') { // Unique constraint violation
-          return res.status(409).json({
-            success: false,
-            message: 'Role name already exists'
-          });
+          return error(res, 'Role name already exists', 409);
         }
 
         logger.error('Error creating role:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to create role'
-        });
+        return error(res, 'Failed to create role', 500);
       }
-    }
+    })
   );
 
   /**
@@ -446,7 +378,7 @@ module.exports = (pool, logger) => {
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
-    async (req, res) => {
+    asyncHandler(async (req, res) => {
       try {
         const { roleId } = req.params;
 
@@ -457,17 +389,11 @@ module.exports = (pool, logger) => {
         );
 
         if (roleCheck.rows.length === 0) {
-          return res.status(404).json({
-            success: false,
-            message: 'Role not found'
-          });
+          return error(res, 'Role not found', 404);
         }
 
         if (roleCheck.rows[0].is_system_role) {
-          return res.status(403).json({
-            success: false,
-            message: 'Cannot delete system roles'
-          });
+          return error(res, 'Cannot delete system roles', 403);
         }
 
         // Delete role (cascade will handle role_permissions)
@@ -475,18 +401,12 @@ module.exports = (pool, logger) => {
 
         logger.info(`User ${req.user.id} deleted role: ${roleCheck.rows[0].role_name}`);
 
-        res.json({
-          success: true,
-          message: 'Role deleted successfully'
-        });
+        return success(res, null, 'Role deleted successfully');
       } catch (error) {
         logger.error('Error deleting role:', error);
-        res.status(500).json({
-          success: false,
-          message: 'Failed to delete role'
-        });
+        return error(res, 'Failed to delete role', 500);
       }
-    }
+    })
   );
 
   return router;
