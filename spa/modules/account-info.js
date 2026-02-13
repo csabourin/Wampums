@@ -203,7 +203,7 @@ export class AccountInfoModule {
 
         <!-- Profile Information Section -->
         <section class="account-section">
-          <h2>${translate("profile_information") || translate("profile")}</h2>
+          <h2>${translate("profile_information")}</h2>
 
           <form id="fullname-form" class="account-form">
             <div class="form-group">
@@ -240,7 +240,7 @@ export class AccountInfoModule {
                 id="email-input"
                 name="email"
                 value="${email}"
-                placeholder="${translate("enter_email") || translate("account_info_email_placeholder")}"
+                placeholder="${translate("enter_email") || translate("account_info_email_placeholder")}" 
                 required
                 autocomplete="email"
               />
@@ -366,7 +366,7 @@ export class AccountInfoModule {
                 type="password"
                 id="current-password-input"
                 name="currentPassword"
-                placeholder="${translate("enter_current_password") || ""}"
+                placeholder="${translate("enter_current_password")}"
                 required
                 autocomplete="current-password"
               />
@@ -377,12 +377,12 @@ export class AccountInfoModule {
                 type="password"
                 id="new-password-input"
                 name="newPassword"
-                placeholder="${translate("enter_new_password") || ""}"
+                placeholder="${translate("enter_new_password")}"
                 required
                 minlength="8"
                 autocomplete="new-password"
               />
-              <small class="form-text">${translate("error_password_too_short") || "Minimum 8 characters"}</small>
+              <small class="form-text">${translate("error_password_too_short")}</small>
             </div>
             <div class="form-group">
               <label for="confirm-password-input">${translate("confirm_password") || translate("account_info_password_confirm_label")}</label>
@@ -390,7 +390,7 @@ export class AccountInfoModule {
                 type="password"
                 id="confirm-password-input"
                 name="confirmPassword"
-                placeholder="${translate("confirm_new_password") || ""}"
+                placeholder="${translate("confirm_new_password")}"
                 required
                 minlength="8"
                 autocomplete="new-password"
@@ -405,7 +405,7 @@ export class AccountInfoModule {
         <!-- Language Section -->
         <section class="account-section">
           <h2>${translate("language")}</h2>
-          <p class="section-description">${translate("account_info_language_description") || "Select your preferred language"}</p>
+          <p class="section-description">${translate("account_info_language_description")}</p>
           <div class="language-selector">
             <button class="language-option ${currentLang === 'en' ? 'active' : ''}" data-lang="en">
               <span class="language-label">English</span>
@@ -445,7 +445,7 @@ export class AccountInfoModule {
         ${this.pushSupported ? `
         <section class="account-section">
           <h2>${translate("notifications")}</h2>
-          <p class="section-description">${translate("receive_notifications_about_activities") || "Receive push notifications about activities and updates"}</p>
+          <p class="section-description">${translate("receive_notifications_about_activities")}</p>
           <div class="setting-row">
             <label for="push-toggle" class="setting-label">
               <span>${translate("push_notifications")}</span>
@@ -456,7 +456,7 @@ export class AccountInfoModule {
             </label>
           </div>
           <small class="form-text" id="push-status-text">
-            ${this.pushEnabled ? (translate("push_enabled") || "Push notifications enabled") : (translate("push_disabled") || "Push notifications disabled")}
+            ${this.pushEnabled ? translate("push_enabled") : translate("push_disabled")}
           </small>
         </section>
         ` : ''}
@@ -469,7 +469,7 @@ export class AccountInfoModule {
         </section>
 
         <div class="settings-footer">
-          <p>${translate("Made with")} ❤️ ${translate("for Scouts")}</p>
+          <p>${translate("made_with")} ❤️ ${translate("for_scouts")}</p>
         </div>
       </div>
     `;
@@ -850,14 +850,14 @@ export class AccountInfoModule {
       await this.app.setLanguage(newLang);
 
       // Show success message
-      this.app.showMessage(translate("Language changed") || "Language changed successfully", "success");
+      this.app.showMessage(translate("account_info_language_success"), "success");
 
       // Re-render to update UI
       this.render();
       this.attachEventListeners();
     } catch (error) {
       debugError("Error changing language:", error);
-      this.app.showMessage(translate("Error") || "Failed to change language", "error");
+      this.app.showMessage(translate("account_info_language_error"), "error");
     }
   }
 
@@ -892,7 +892,7 @@ export class AccountInfoModule {
 
         if (permission !== 'granted') {
           event.target.checked = false;
-          this.app.showMessage(translate("notification_permission_denied") || "Notification permission denied", "error");
+          this.app.showMessage(translate("notification_permission_denied"), "error");
           return;
         }
 
@@ -901,23 +901,23 @@ export class AccountInfoModule {
         this.pushEnabled = true;
 
         if (statusText) {
-          statusText.textContent = translate("push_enabled") || "Push notifications enabled";
+          statusText.textContent = translate("push_enabled");
         }
-        this.app.showMessage(translate("push_notifications_enabled") || "Push notifications enabled", "success");
+        this.app.showMessage(translate("push_notifications_enabled"), "success");
       } else {
         // Unsubscribe from push notifications
         await this.unsubscribeFromPush();
         this.pushEnabled = false;
 
         if (statusText) {
-          statusText.textContent = translate("push_disabled") || "Push notifications disabled";
+          statusText.textContent = translate("push_disabled");
         }
-        this.app.showMessage(translate("push_notifications_disabled") || "Push notifications disabled", "success");
+        this.app.showMessage(translate("push_notifications_disabled"), "success");
       }
     } catch (error) {
       debugError("Error toggling push notifications:", error);
       event.target.checked = !enabled; // Revert toggle state
-      this.app.showMessage(translate("push_notification_error") || "Failed to toggle push notifications", "error");
+      this.app.showMessage(translate("push_notification_error"), "error");
     }
   }
 

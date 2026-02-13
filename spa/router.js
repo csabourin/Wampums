@@ -246,6 +246,12 @@ export class Router {
     this.app.userRoles = session.userRoles;
     this.app.userPermissions = session.userPermissions;
 
+    if (this.app.isLoggedIn) {
+      this.app.addSettingsIcon();
+    } else {
+      this.app.removeSettingsIcon();
+    }
+
     try {
       const guard = (condition) => {
         if (!condition) {
