@@ -5,6 +5,22 @@ const { RATE_LIMITS, CACHE } = require("./constants");
 const RATE_LIMITER_CLEANUP_INTERVAL_MS = CACHE.CLEANUP_INTERVAL_MS;
 
 /**
+ * Generate a human-readable duration message from milliseconds
+ * @param {number} ms - Duration in milliseconds
+ * @returns {string} - Human-readable duration (e.g., "15 minutes", "1 hour")
+ */
+function formatDuration(ms) {
+    const hours = Math.floor(ms / (60 * 60 * 1000));
+    
+    if (hours >= 1) {
+        return hours === 1 ? "1 hour" : `${hours} hours`;
+    }
+    
+    const minutes = Math.floor(ms / (60 * 1000));
+    return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+}
+
+/**
  * CleanableMemoryStore - Rate limiter memory store with automatic expiration cleanup
  */
 class CleanableMemoryStore {
@@ -98,7 +114,7 @@ const passwordResetStore = new CleanableMemoryStore(RATE_LIMITS.PASSWORD_RESET_W
 const generalLimiter = rateLimit({
     windowMs: RATE_LIMITS.GENERAL_WINDOW_MS,
     max: RATE_LIMITS.GENERAL_MAX_REQUESTS,
-    message: "Too many requests from this IP, please try again after 15 minutes",
+    message: `Too many requests from this IP, please try again after ${formatDuration(RATE_LIMITS.GENERAL_WINDOW_MS)}`,
     standardHeaders: true,
     legacyHeaders: false,
     store: generalStore,
@@ -107,7 +123,7 @@ const generalLimiter = rateLimit({
 const authLimiter = rateLimit({
     windowMs: RATE_LIMITS.AUTH_WINDOW_MS,
     max: RATE_LIMITS.AUTH_MAX_ATTEMPTS,
-    message: "Too many login attempts from this IP, please try again after 15 minutes",
+    message: `Too many login attempts from this IP, please try again after ${formatDuration(RATE_LIMITS.AUTH_WINDOW_MS)}`,
     standardHeaders: true,
     legacyHeaders: false,
     store: authStore,
@@ -116,7 +132,7 @@ const authLimiter = rateLimit({
 const passwordResetLimiter = rateLimit({
     windowMs: RATE_LIMITS.PASSWORD_RESET_WINDOW_MS,
     max: RATE_LIMITS.PASSWORD_RESET_MAX_REQUESTS,
-    message: "Too many password reset requests from this IP, please try again after an hour.",
+    message: `Too many password reset requests from this IP, please try again after ${formatDuration(RATE_LIMITS.PASSWORD_RESET_WINDOW_MS)}`,
     standardHeaders: true,
     legacyHeaders: false,
     store: passwordResetStore,

@@ -1022,7 +1022,7 @@ module.exports = (pool, logger) => {
       );
       hasDeliveredAt = columnCheck.rows.length > 0;
     } catch (err) {
-      logger.warn('[badges-awaiting-delivery] Could not check for delivered_at column:', err.message);
+      logger.warn('[badges-awaiting-delivery] Could not check for delivered_at column', { error: err.message });
     }
 
     if (!hasDeliveredAt) {
@@ -1218,7 +1218,7 @@ module.exports = (pool, logger) => {
       );
       hasNewColumns = columnCheck.rows.length > 0;
     } catch (err) {
-      logger.warn('[badge-tracker-summary] Could not check for new columns:', err.message);
+      logger.warn('[badge-tracker-summary] Could not check for new columns', { error: err.message });
     }
 
     // Get all badge progress with participant and template info
