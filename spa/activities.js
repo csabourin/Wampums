@@ -31,6 +31,7 @@ export class Activities {
     this.selectedActivity = null;
     this.isLoading = true;
     this.searchTerm = '';
+    this.isSubmittingActivity = false;
   }
 
   async init() {
@@ -52,9 +53,9 @@ export class Activities {
     this.attachEventListeners();
   }
 
-  async loadActivities() {
+  async loadActivities(forceRefresh = false) {
     try {
-      this.activities = await getActivities();
+      this.activities = await getActivities({ forceRefresh });
     } catch (error) {
       debugError('Error loading activities:', error);
       this.app.showMessage(translate('error_loading_activities'), 'error');
@@ -470,6 +471,7 @@ export class Activities {
     modalContainer.querySelector('#activity-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitButton = e.target.querySelector('button[type="submit"]');
+      const submitButtonLabel = submitButton?.textContent || '';
       const formData = new FormData(e.target);
       const data = Object.fromEntries(formData.entries());
 
@@ -504,29 +506,40 @@ export class Activities {
       // Debug: Log data being sent to API
       debugLog('Data being sent to API:', data);
 
+      this.isSubmittingActivity = true;
       setButtonLoading(submitButton, true);
+      if (submitButton) {
+        submitButton.textContent = isEdit ? `${translate('save_changes')}...` : `${translate('create_activity')}...`;
+      }
 
       try {
         if (isEdit) {
           await updateActivity(activity.id, data);
           this.app.showMessage(translate('activity_updated_success'), 'success');
         } else {
-          await createActivity(data);
+          const createdActivity = await createActivity(data);
+          this.activities = [createdActivity, ...this.activities.filter(existingActivity => existingActivity.id !== createdActivity.id)];
           this.app.showMessage(translate('activity_created_success'), 'success');
+          this.render();
+          this.attachEventListeners();
         }
 
         // Clear activity-related caches so changes appear immediately
         await clearActivityRelatedCaches();
 
         closeModal();
-        await this.loadActivities();
+        await this.loadActivities(true);
         this.render();
         this.attachEventListeners();
       } catch (error) {
         debugError('Error saving activity:', error);
         this.app.showMessage(error.message || translate('error_saving_activity'), 'error');
       } finally {
+        this.isSubmittingActivity = false;
         setButtonLoading(submitButton, false);
+        if (submitButton) {
+          submitButton.textContent = submitButtonLabel;
+        }
       }
     });
 
@@ -657,7 +670,7 @@ export class Activities {
       await clearActivityRelatedCaches();
 
       this.app.showMessage(translate('activity_deleted_success'), 'success');
-      await this.loadActivities();
+      await this.loadActivities(true);
       this.render();
       this.attachEventListeners();
     } catch (error) {
