@@ -102,8 +102,10 @@ module.exports = (pool) => {
     if (!normalizedStartDate) missingFields.push('activity_start_date or activity_date');
     if (!normalizedStartTime) missingFields.push('activity_start_time or meeting_time_going');
     if (!normalizedEndDate) missingFields.push('activity_end_date');
-    if (!normalizedEndTime) missingFields.push('activity_end_time or departure_time_going/departure_time_return');
+    if (!normalizedEndTime) missingFields.push('activity_end_time, departure_time_going, or departure_time_return');
     if (!meeting_location_going) missingFields.push('meeting_location_going');
+    // meeting_time_going and departure_time_going are both required
+    // they're not just fallbacks for activity_start_time/activity_end_time
     if (!meeting_time_going) missingFields.push('meeting_time_going');
     if (!departure_time_going) missingFields.push('departure_time_going');
 

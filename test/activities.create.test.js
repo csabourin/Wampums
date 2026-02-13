@@ -139,7 +139,7 @@ describe('POST /api/v1/activities', () => {
     expect(response.body.message).toContain('Missing required fields');
   });
 
-  it('should handle empty strings in optional fields', async () => {
+  it('should handle empty strings in optional fields and pass them to database', async () => {
     const { __mPool } = require('pg');
     
     // Mock getOrganizationId query
@@ -187,6 +187,28 @@ describe('POST /api/v1/activities', () => {
 
     expect(response.status).toBe(201);
     expect(response.body.success).toBe(true);
+    
+    // Verify the INSERT query was called with empty strings converted appropriately
+    // The second query call is the INSERT
+    expect(__mPool.query).toHaveBeenCalledTimes(2);
+    const insertCall = __mPool.query.mock.calls[1];
+    expect(insertCall[1]).toEqual(expect.arrayContaining([
+      expect.any(Number), // organizationId
+      expect.any(String), // userId
+      'Test Activity',    // name
+      undefined,          // description (not provided)
+      '2026-02-14',       // activity_date
+      '2026-02-14',       // activity_start_date
+      '09:00',            // activity_start_time
+      '2026-02-14',       // activity_end_date
+      '12:00',            // activity_end_time
+      'School',           // meeting_location_going
+      '08:45',            // meeting_time_going
+      '09:00',            // departure_time_going
+      '',                 // meeting_location_return (empty string as sent)
+      '',                 // meeting_time_return (empty string as sent)
+      ''                  // departure_time_return (empty string as sent)
+    ]));
   });
 
   it('should provide specific error message for missing fields', async () => {
