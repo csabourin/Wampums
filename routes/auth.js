@@ -10,7 +10,6 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { validationResult } = require('express-validator');
@@ -18,6 +17,7 @@ const { validationResult } = require('express-validator');
 // Import middleware
 const { authenticate } = require('../middleware/auth');
 const { ROLE_PRIORITY } = require('../config/role-constants');
+const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 const {
   validateEmail,
   validatePassword,
@@ -66,8 +66,8 @@ function mapRequestedRole(userType) {
   return animationAliases.includes(sanitizedUserType) ? 'animation' : 'parent';
 }
 
-// Get JWT key from environment
-const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+// Validate JWT secret at startup
+requireJWTSecret();
 
 // Rate limiters
 const authLimiter = rateLimit({
@@ -276,7 +276,7 @@ module.exports = (pool, logger) => {
         const rolePriority = ROLE_PRIORITY;
         const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
 
-        const token = jwt.sign(
+        const token = signJWTToken(
           {
             user_id: user.id,
             user_role: primaryRole, // Legacy: primary role for backward compatibility
@@ -285,7 +285,6 @@ module.exports = (pool, logger) => {
             permissions: permissions,
             organizationId: organizationId
           },
-          jwtKey,
           { expiresIn: '7d' }
         );
 
@@ -436,7 +435,7 @@ module.exports = (pool, logger) => {
         const rolePriority = ROLE_PRIORITY;
         const primaryRole = rolePriority.find(role => roleNames.includes(role)) || roleNames[0] || 'parent';
 
-        const token = jwt.sign(
+        const token = signJWTToken(
           {
             user_id: user.id,
             user_role: primaryRole,
@@ -445,7 +444,6 @@ module.exports = (pool, logger) => {
             permissions: permissions,
             organizationId: organizationId
           },
-          jwtKey,
           { expiresIn: '7d' }
         );
 

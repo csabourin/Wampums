@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken");
 const Brevo = require("sib-api-v3-sdk");
 const nodemailer = require("nodemailer");
 const winston = require("winston");
+const { verifyJWTToken } = require("./jwt-config");
 
 // Configure logger for utilities
 const logger = winston.createLogger({
@@ -480,7 +481,7 @@ function getJWTPayload(req) {
  */
 function verifyJWT(token) {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET_KEY);
+    return verifyJWTToken(token);
   } catch (error) {
     return null;
   }

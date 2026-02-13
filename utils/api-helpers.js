@@ -5,8 +5,8 @@
  * Extracted from api.js for better modularity and reusability
  */
 
-const jwt = require('jsonwebtoken');
 const winston = require('winston');
+const { verifyJWTToken } = require('./jwt-config');
 
 // Configure logger for API helpers
 const logger = winston.createLogger({
@@ -17,9 +17,6 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: 'combined.log' }),
   ],
 });
-
-// Get JWT key from environment
-const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
 
 const path = require('path');
 
@@ -156,7 +153,7 @@ async function getCurrentOrganizationId(req, pool, logger) {
  */
 function getUserIdFromToken(token) {
   try {
-    const decoded = jwt.verify(token, jwtKey);
+    const decoded = verifyJWTToken(token);
     return decoded.user_id;
   } catch (e) {
     return null;
@@ -177,7 +174,7 @@ function getUserIdFromToken(token) {
  */
 function verifyJWT(token) {
   try {
-    return jwt.verify(token, jwtKey);
+    return verifyJWTToken(token);
   } catch (e) {
     return null;
   }

@@ -1,7 +1,7 @@
 // Authentication and Authorization Middleware
-const jwt = require('jsonwebtoken');
 const winston = require('winston');
 const { OrganizationNotFoundError, respondWithOrganizationFallback } = require('../utils/api-helpers');
+const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
 
 // Configure logger for auth middleware
 const logger = winston.createLogger({
@@ -14,11 +14,7 @@ const logger = winston.createLogger({
 });
 
 // Validate JWT secret is configured
-const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
-
-if (!jwtKey) {
-  throw new Error('JWT_SECRET_KEY or JWT_SECRET environment variable is required');
-}
+requireJWTSecret();
 
 /**
  * Verify JWT token and attach user to request
@@ -36,7 +32,7 @@ exports.authenticate = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, jwtKey);
+    const decoded = verifyJWTToken(token);
 
     // Attach user info to request
     req.user = {
@@ -114,7 +110,7 @@ exports.optionalAuth = (req, res, next) => {
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, jwtKey);
+      const decoded = verifyJWTToken(token);
 
       req.user = {
         id: decoded.user_id,
