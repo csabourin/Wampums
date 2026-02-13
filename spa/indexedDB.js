@@ -698,7 +698,13 @@ export async function clearParticipantFormCaches(participantId, formType = null)
   const keysToDelete = [];
 
   if (formType) {
-    keysToDelete.push(`v1/forms/submissions?participant_id=${participantId}&form_type=${formType}`);
+    // Add custom cache key format used by getFormSubmission
+    keysToDelete.push(`form-submission-${formType}-${participantId}`);
+    
+    // Add fiche-sante specific cache key if applicable
+    if (formType === 'fiche_sante') {
+      keysToDelete.push(`fiche-sante-${participantId}`);
+    }
   }
 
   // Clear all form submissions for this participant
