@@ -600,12 +600,14 @@ export class Dashboard extends BaseModule {
   }
 
   async lazyLogout() {
-    const { Login } = await import("./login.js");
-
     try {
-      Login.logout();
+      const { Login } = await import("./login.js");
+      await Login.logout();
+      // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {
-      debugError("Error during logout:", error);
+      // Handle import failure
+      debugError("Failed to load logout module:", error);
+      window.location.href = "/login";
     }
   }
 

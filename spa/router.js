@@ -951,18 +951,11 @@ export class Router {
     try {
       const { Login } = await import('./login.js');
       await Login.logout();
-      this.app.isLoggedIn = false;
-      this.app.userRole = null;
-      this.app.userFullName = null;
-
-      // Remove settings icon
-      this.app.removeSettingsIcon();
-
-      history.pushState(null, "", "/login");
-      await this.loadLoginPage();
+      // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {
-      debugError("Logout error:", error);
-      this.app.renderError("An error occurred during logout.");
+      // Handle import failure
+      debugError("Failed to load logout module:", error);
+      window.location.href = "/login";
     }
   }
 

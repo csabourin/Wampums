@@ -1001,22 +1001,12 @@ export class AccountInfoModule {
     }
 
     try {
-      // Call logout API
-      await makeApiRequest('auth/logout', { method: 'POST' }).catch(() => {
-        // Ignore errors, we'll clear local data anyway
-      });
+      const { Login } = await import('../login.js');
+      await Login.logout();
+      // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {
-      debugError('Logout error:', error);
-    } finally {
-      // Clear local storage regardless of API result
-      localStorage.removeItem("jwtToken");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userFullName");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("userRoles");
-      localStorage.removeItem("userPermissions");
-
-      // Redirect to login
+      // Handle import failure
+      debugError('Failed to load logout module:', error);
       window.location.href = "/login";
     }
   }
