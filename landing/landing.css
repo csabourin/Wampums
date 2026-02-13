@@ -844,6 +844,10 @@ footer a {
 	margin-bottom: var(--space-sm);
 }
 
+.screenshot-placeholder--spaced {
+	margin-top: var(--space-xl);
+}
+
 /* Comparison Table */
 .compare-grid {
 	display: grid;
