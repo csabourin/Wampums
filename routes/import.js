@@ -518,7 +518,7 @@ module.exports = function (pool, logger) {
     } finally {
       client.release();
     }
-  });
+  }));
 
   return router;
 };
