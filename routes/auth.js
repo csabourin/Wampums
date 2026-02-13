@@ -971,6 +971,20 @@ module.exports = (pool, logger) => {
   });
 
   /**
+   * Stateless logout response handler used by legacy and v1 routes.
+   * @param {import('express').Request} req - Express request object
+   * @param {import('express').Response} res - Express response object
+   */
+  const respondLogoutSuccess = (req, res) => {
+    // JWT is stateless, so logout is handled client-side
+    // This endpoint exists for consistency and potential future server-side session handling
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  };
+
+  /**
    * @swagger
    * /api/auth/logout:
    *   post:
@@ -981,14 +995,23 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Logout successful
    */
-  router.post('/api/auth/logout', (req, res) => {
-    // JWT is stateless, so logout is handled client-side
-    // This endpoint exists for consistency and potential future server-side session handling
-    res.json({
-      success: true,
-      message: 'Logged out successfully'
-    });
-  });
+  router.post('/api/auth/logout', respondLogoutSuccess);
+
+  /**
+   * @swagger
+   * /api/v1/auth/logout:
+   *   post:
+   *     summary: Logout user (v1)
+   *     description: Clear user session (client-side token should be removed)
+   *     tags: [Authentication]
+   *     responses:
+   *       200:
+   *         description: Logout successful
+   */
+  router.post('/api/v1/auth/logout', respondLogoutSuccess);
+
+  // Backward-compatible alias used by some clients.
+  router.post('/api/v1/logout', respondLogoutSuccess);
 
   return router;
 };
