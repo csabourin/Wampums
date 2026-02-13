@@ -950,19 +950,16 @@ export class Router {
   async handleLogout() {
     try {
       const { Login } = await import('./login.js');
+      // Login.logout() handles everything: server call, cleanup, and redirect
+      // No need to do anything else after it
       await Login.logout();
-      this.app.isLoggedIn = false;
-      this.app.userRole = null;
-      this.app.userFullName = null;
-
-      // Remove settings icon
-      this.app.removeSettingsIcon();
-
-      history.pushState(null, "", "/login");
-      await this.loadLoginPage();
+      // Note: window.location.href in Login.logout() will cause a page reload,
+      // so code after this point won't execute in practice
     } catch (error) {
       debugError("Logout error:", error);
+      // If logout fails, show error and try to at least navigate to login
       this.app.renderError("An error occurred during logout.");
+      window.location.href = "/login";
     }
   }
 
