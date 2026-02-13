@@ -452,7 +452,7 @@ module.exports = (pool) => {
          LEFT JOIN groups g ON pg.group_id = g.id
          LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.form_type IN ('fiche_sante', 'acceptation_risque')
          WHERE po.organization_id = $1
-         GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles
+         GROUP BY p.id, p.date_naissance, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles
          ORDER BY p.first_name, p.last_name`,
         [organizationId]
       );
