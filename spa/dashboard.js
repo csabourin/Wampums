@@ -603,10 +603,10 @@ export class Dashboard extends BaseModule {
     try {
       const { Login } = await import("./login.js");
       await Login.logout();
-      // Note: Login.logout() ends with window.location.href which starts page navigation
+      // Note: Login.logout() always redirects via window.location.href (never throws)
     } catch (error) {
-      debugError("Error during logout:", error);
-      // Even if logout fails, redirect to login since user wants to log out
+      // Handle import failure
+      debugError("Failed to load logout module:", error);
       window.location.href = "/login";
     }
   }
