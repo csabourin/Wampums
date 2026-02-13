@@ -745,7 +745,7 @@ export class CarpoolDashboard {
       document.body.appendChild(modalContainer);
     }
     // Use innerHTML directly to avoid sanitization issues with forms
-    modalContainer.innerHTML = modalHTML;
+    setContent(modalContainer, modalHTML);
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {
@@ -1109,7 +1109,7 @@ export class CarpoolDashboard {
       document.body.appendChild(modalContainer);
     }
     // Use innerHTML directly to avoid sanitization issues with forms
-    modalContainer.innerHTML = modalHTML;
+    setContent(modalContainer, modalHTML);
     modalContainer.classList.add('modal-container--visible');
 
     const closeModal = () => {

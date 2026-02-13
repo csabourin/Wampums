@@ -1131,7 +1131,7 @@ export class BadgeTracker {
     `;
 
     const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalContent;
+    setContent(modalContainer, modalContent);
     document.body.appendChild(modalContainer);
 
     document.getElementById('close-award-modal').addEventListener('click', () => modalContainer.remove());
@@ -1299,7 +1299,7 @@ export class BadgeTracker {
     `;
 
     const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalContent;
+    setContent(modalContainer, modalContent);
     document.body.appendChild(modalContainer);
 
     document.getElementById('close-award-modal').addEventListener('click', () => modalContainer.remove());
@@ -1456,7 +1456,7 @@ export class BadgeTracker {
 
     const modalContainer = document.createElement('div');
     modalContainer.id = 'retro-modal-container';
-    modalContainer.innerHTML = modalContent;
+    setContent(modalContainer, modalContent);
     document.body.appendChild(modalContainer);
 
     const dateSelect = document.getElementById('retro-date-select');

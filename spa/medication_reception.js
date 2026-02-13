@@ -757,7 +757,7 @@ export class MedicationReception {
       if (participant && medication) {
         const newHtml = this.renderMedicationItem(participant, medication);
         const temp = document.createElement('div');
-        temp.innerHTML = newHtml;
+        setContent(temp, newHtml);
         item.replaceWith(temp.firstElementChild);
       }
     }

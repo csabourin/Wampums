@@ -521,7 +521,7 @@ export class ManageHonors {
 
     // Add modal to page
     const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalHtml;
+    setContent(modalContainer, modalHtml);
     document.body.appendChild(modalContainer.firstElementChild);
 
     // Attach event listeners
