@@ -152,8 +152,45 @@ module.exports = (pool, logger) => {
         const pointRules = await getPointSystemRules(client, organizationId);
         const honorPoints = pointRules.honors?.award || 5;
 
+        // Pre-fetch all participant groups and existing honors in batch
+        const participantIds = honorsToProcess
+          .map(h => h.participantId || h.participant_id)
+          .filter(Boolean);
+        
+        const honorDates = honorsToProcess
+          .map(h => h.date)
+          .filter(Boolean);
+
+        // Fetch existing honors in one query
+        const existingHonorsResult = await client.query(
+          `SELECT participant_id, date 
+           FROM honors 
+           WHERE organization_id = $1 
+             AND participant_id = ANY($2::int[])
+             AND date = ANY($3::date[])`,
+          [organizationId, participantIds, honorDates]
+        );
+        
+        const existingHonorsSet = new Set(
+          existingHonorsResult.rows.map(row => `${row.participant_id}-${row.date}`)
+        );
+
+        // Fetch all participant groups in one query
+        const groupsResult = await client.query(
+          `SELECT participant_id, group_id 
+           FROM participant_groups 
+           WHERE organization_id = $1 
+             AND participant_id = ANY($2::int[])`,
+          [organizationId, participantIds]
+        );
+        
+        const groupsMap = new Map(
+          groupsResult.rows.map(row => [row.participant_id, row.group_id])
+        );
+
+        // Process honors and prepare batch inserts
+        const newHonors = [];
         for (const honor of honorsToProcess) {
-          // Accept both participantId (camelCase) and participant_id (snake_case)
           const participantId = honor.participantId || honor.participant_id;
           const honorDate = honor.date;
           const reason = honor.reason || '';
@@ -163,43 +200,77 @@ module.exports = (pool, logger) => {
             continue;
           }
 
-          // Check if honor already exists for this participant on this date
-          const existingResult = await client.query(
-            `SELECT id FROM honors WHERE participant_id = $1 AND date = $2 AND organization_id = $3`,
-            [participantId, honorDate, organizationId]
-          );
-
-          if (existingResult.rows.length > 0) {
-            // Honor already exists - skip
+          const honorKey = `${participantId}-${honorDate}`;
+          if (existingHonorsSet.has(honorKey)) {
             results.push({ participantId, success: true, action: 'already_awarded' });
           } else {
-            // Add new honor with organization_id, reason, and audit trail
-            const honorResult = await client.query(
-              `INSERT INTO honors (participant_id, date, organization_id, reason, created_by, created_at)
-               VALUES ($1, $2, $3, $4, $5, NOW())
-               RETURNING id`,
-              [participantId, honorDate, organizationId, reason, req.user.id]
-            );
-            const honorId = honorResult.rows[0].id;
+            newHonors.push({ participantId, honorDate, reason });
+          }
+        }
 
-            // Get participant's group for proper point tracking
-            const groupResult = await client.query(
-              `SELECT group_id FROM participant_groups
-               WHERE participant_id = $1 AND organization_id = $2`,
-              [participantId, organizationId]
-            );
-            const groupId = groupResult.rows.length > 0 ? groupResult.rows[0].group_id : null;
+        // Batch insert new honors
+        if (newHonors.length > 0) {
+          const honorValues = newHonors.map((_, idx) => {
+            const base = idx * 4;
+            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $5, NOW())`;
+          }).join(', ');
+          
+          const honorParams = [
+            ...newHonors.flatMap(h => [h.participantId, h.honorDate, organizationId, h.reason]),
+            req.user.id
+          ];
 
-            // Add points for the honor based on organization rules, linked to honor
+          const honorResult = await client.query(
+            `INSERT INTO honors (participant_id, date, organization_id, reason, created_by, created_at)
+             VALUES ${honorValues}
+             RETURNING id, participant_id, date`,
+            honorParams
+          );
+
+          // Batch insert points for all honors
+          const pointValues = honorResult.rows.map((_, idx) => {
+            const base = idx * 5;
+            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $6)`;
+          }).join(', ');
+          
+          const pointParams = [
+            ...honorResult.rows.flatMap(row => [
+              row.participant_id,
+              groupsMap.get(row.participant_id) || null,
+              honorPoints,
+              row.date,
+              organizationId
+            ]),
+            honorResult.rows[0].id // honor_id - using first honor's ID for batch
+          ];
+
+          // Note: We need to insert points with correct honor_id for each row
+          // Let's do this in a better way using a CTE
+          const pointInserts = honorResult.rows.map(row => ({
+            participantId: row.participant_id,
+            groupId: groupsMap.get(row.participant_id) || null,
+            honorId: row.id,
+            date: row.date
+          }));
+
+          for (const point of pointInserts) {
             await client.query(
               `INSERT INTO points (participant_id, group_id, value, created_at, organization_id, honor_id)
                VALUES ($1, $2, $3, $4, $5, $6)`,
-              [participantId, groupId, honorPoints, honorDate, organizationId, honorId]
+              [point.participantId, point.groupId, honorPoints, point.date, organizationId, point.honorId]
             );
-
-            logger.info(`[honor] Participant ${participantId} awarded honor on ${honorDate} by user ${req.user.id}, points: +${honorPoints}`);
-            results.push({ participantId, success: true, action: 'awarded', points: honorPoints, honorId });
           }
+
+          honorResult.rows.forEach(row => {
+            logger.info(`[honor] Participant ${row.participant_id} awarded honor on ${row.date} by user ${req.user.id}, points: +${honorPoints}`);
+            results.push({ 
+              participantId: row.participant_id, 
+              success: true, 
+              action: 'awarded', 
+              points: honorPoints,
+              honorId: row.id
+            });
+          });
         }
 
         await client.query('COMMIT');
