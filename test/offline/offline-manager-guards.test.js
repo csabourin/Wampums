@@ -92,4 +92,21 @@ describe('OfflineManager guardrails', () => {
 
     expect(replaySpy).not.toHaveBeenCalled();
   });
+
+  test('syncPendingData replays IndexedDB mutations when service worker sync registration fails', async () => {
+    const manager = new OfflineManager();
+    const swRegistrationError = new Error('sync register failed');
+
+    global.navigator.serviceWorker.ready = Promise.resolve({
+      sync: { register: jest.fn().mockRejectedValue(swRegistrationError) },
+    });
+
+    const replaySpy = jest.spyOn(manager, 'replayPendingMutations').mockResolvedValue(undefined);
+    jest.spyOn(manager, 'updatePendingCount').mockResolvedValue(undefined);
+
+    await manager.syncPendingData();
+
+    expect(replaySpy).toHaveBeenCalledTimes(1);
+  });
+
 });
