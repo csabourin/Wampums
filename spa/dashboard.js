@@ -603,7 +603,7 @@ export class Dashboard extends BaseModule {
     const { Login } = await import("./login.js");
 
     try {
-      Login.logout();
+      await Login.logout();
     } catch (error) {
       debugError("Error during logout:", error);
     }
