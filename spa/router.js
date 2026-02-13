@@ -948,19 +948,10 @@ export class Router {
   }
 
   async handleLogout() {
-    try {
-      const { Login } = await import('./login.js');
-      // Login.logout() handles everything: server call, cleanup, and redirect
-      // No need to do anything else after it
-      await Login.logout();
-      // Note: window.location.href in Login.logout() will cause a page reload,
-      // so code after this point won't execute in practice
-    } catch (error) {
-      debugError("Logout error:", error);
-      // If logout fails, show error and try to at least navigate to login
-      this.app.renderError("An error occurred during logout.");
-      window.location.href = "/login";
-    }
+    const { Login } = await import('./login.js');
+    // Login.logout() handles everything: server call, cleanup, and redirect
+    // It will redirect via window.location.href which causes a page reload
+    await Login.logout();
   }
 
   async loadLoginPage() {
