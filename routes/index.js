@@ -13,6 +13,36 @@ const legacyApiDeprecationLogger = (req, res, next) => {
     next();
 };
 
+/**
+ * Build a standardized deprecation response payload for legacy endpoints.
+ *
+ * @param {string} replacementPrefix - Canonical replacement prefix.
+ * @returns {Function} Express middleware.
+ */
+const createLegacyApiDeprecationResponder = (replacementPrefix = "/api/v1") => (req, res) => {
+    const normalizedPath = req.originalUrl.split("?")[0];
+    const replacementPath = normalizedPath.startsWith("/api/")
+        ? normalizedPath.replace(/^\/api\//, `${replacementPrefix}/`)
+        : `${replacementPrefix}${normalizedPath}`;
+
+    return res.status(410).json({
+        success: false,
+        message: "legacy_api_deprecated",
+        deprecated_endpoint: normalizedPath,
+        replacement_endpoint: replacementPath,
+        documentation: "/api-docs",
+        warning: "Use versioned endpoints under /api/v1."
+    });
+};
+
+const legacyApiDeprecationResponder = (req, res, next) => {
+    if (req.path.startsWith("/v1")) {
+        return next();
+    }
+
+    return createLegacyApiDeprecationResponder("/api/v1")(req, res);
+};
+
 module.exports = (app, pool) => {
     const serviceManager = require("../services/manager");
     const whatsappService = serviceManager.getWhatsAppService();
@@ -60,108 +90,90 @@ module.exports = (app, pool) => {
     // MOUNT MODULAR ROUTES
     // ============================================
 
-    // Authentication
+    // Authentication (canonical)
     app.use("/api/v1/auth", authRoutes);
-    app.use("/", legacyApiDeprecationLogger, authRoutes);
 
     // Organizations
     app.use("/api/v1/organizations", organizationsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, organizationsRoutes);
     app.use("/public", organizationsRoutes);
 
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);
-    app.use("/api/users/me", legacyApiDeprecationLogger, userProfileRoutes);
     app.use("/api/v1/users", usersRoutes);
-    app.use("/api", legacyApiDeprecationLogger, usersRoutes);
     app.use("/api/v1", rolesRoutes);
-    app.use("/", legacyApiDeprecationLogger, rolesRoutes);
 
     // Features
     app.use("/api/v1/meetings", meetingsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, meetingsRoutes);
 
     app.use("/api/v1/groups", groupsRoutes);
     app.use("/api/v1/local-groups", localGroupsRoutes);
 
     app.use("/api/v1/ai", aiRoutes);
-    app.use("/api/ai", legacyApiDeprecationLogger, aiRoutes);
 
     app.use("/api/v1/calendars", calendarsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, calendarsRoutes);
 
     app.use("/api/v1/fundraisers", fundraisersRoutes);
-    app.use("/api", legacyApiDeprecationLogger, fundraisersRoutes);
 
     app.use("/api/v1/forms", formsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, formsRoutes);
 
     app.use("/api/v1/form-builder", formBuilderRoutes);
-    app.use("/api", legacyApiDeprecationLogger, formBuilderRoutes);
 
     app.use("/api/v1/reports", reportsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, reportsRoutes);
 
     app.use("/api/v1/dashboards", dashboardsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, dashboardsRoutes);
 
     app.use("/api/v1/badges", badgesRoutes);
-    app.use("/api", legacyApiDeprecationLogger, badgesRoutes);
 
     app.use("/api/v1/guardians", guardiansRoutes);
-    app.use("/api", legacyApiDeprecationLogger, guardiansRoutes);
 
     app.use("/api/v1/notifications", notificationsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, notificationsRoutes);
 
     app.use("/api/v1/announcements", announcementsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, announcementsRoutes);
 
     app.use("/api/v1/google-chat", googleChatRoutes);
-    app.use("/api", legacyApiDeprecationLogger, googleChatRoutes);
 
     app.use("/api/v1/honors", honorsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, honorsRoutes);
 
     app.use("/api/v1/points", pointsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, pointsRoutes);
 
     app.use("/api/v1/attendance", attendanceRoutes);
-    app.use("/api", legacyApiDeprecationLogger, attendanceRoutes);
 
     app.use("/api/v1/public", publicRoutes);
-    app.use("/api", legacyApiDeprecationLogger, publicRoutes);
 
     app.use("/api/v1/import", importRoutes);
-    app.use("/api", legacyApiDeprecationLogger, importRoutes);
 
     app.use("/api/v1/finance", financeRoutes);
-    app.use("/api", legacyApiDeprecationLogger, financeRoutes);
 
     app.use("/api/v1/stripe", stripeRoutes);
-    app.use("/api", legacyApiDeprecationLogger, stripeRoutes);
 
     app.use("/api/v1/budgets", budgetsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, budgetsRoutes);
 
     app.use("/api/v1/revenue/external", externalRevenueRoutes);
-    app.use("/api", legacyApiDeprecationLogger, externalRevenueRoutes);
 
     app.use("/api/v1/resources", resourcesRoutes);
 
     app.use("/api/v1/medication", medicationRoutes);
-    app.use("/api", legacyApiDeprecationLogger, medicationRoutes);
 
     app.use("/api/v1/activities", activitiesRoutes);
     app.use("/api/v1/offline", offlineRoutes);
     app.use("/api/v1/carpools", carpoolsRoutes);
 
     // WhatsApp
-    app.use("/api", whatsappBaileysRoutes);
+    app.use("/api/v1", whatsappBaileysRoutes);
 
     // Participants (Mount LAST due to catch-all /:id)
     app.use("/api/v1/participants", participantsRoutes);
-    app.use("/api", legacyApiDeprecationLogger, participantsRoutes);
+
+    // Removed duplicate non-versioned mounts in favor of canonical /api/v1 paths:
+    // / (authRoutes, rolesRoutes), /api (organizationsRoutes, usersRoutes, meetingsRoutes,
+    // aiRoutes, calendarsRoutes, fundraisersRoutes, formsRoutes, formBuilderRoutes,
+    // reportsRoutes, dashboardsRoutes, badgesRoutes, guardiansRoutes, notificationsRoutes,
+    // announcementsRoutes, googleChatRoutes, honorsRoutes, pointsRoutes, attendanceRoutes,
+    // publicRoutes, importRoutes, financeRoutes, stripeRoutes, budgetsRoutes,
+    // externalRevenueRoutes, medicationRoutes, whatsappBaileysRoutes, participantsRoutes),
+    // and /api/users/me (userProfileRoutes).
+    // Explicit deprecation for all remaining legacy non-versioned API paths
+    app.use("/api", legacyApiDeprecationLogger, legacyApiDeprecationResponder);
 
     logger.info("✅ All modular routes mounted");
 };
