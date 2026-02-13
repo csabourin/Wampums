@@ -26,18 +26,18 @@ jest.mock('pg', () => {
   };
 });
 
+// Set required env variables BEFORE requiring any modules
+process.env.JWT_SECRET_KEY = 'testsecret';
+process.env.DB_USER = 'test';
+process.env.DB_HOST = 'localhost';
+process.env.DB_NAME = 'testdb';
+process.env.DB_PASSWORD = 'test';
+process.env.DB_PORT = '5432';
+
 const { Pool } = require('pg');
 let app;
 
 beforeAll(() => {
-  // Set required env variables
-  process.env.JWT_SECRET_KEY = 'testsecret';
-  process.env.DB_USER = 'test';
-  process.env.DB_HOST = 'localhost';
-  process.env.DB_NAME = 'testdb';
-  process.env.DB_PASSWORD = 'test';
-  process.env.DB_PORT = '5432';
-
   app = require('../api');
 });
 
@@ -98,7 +98,56 @@ describe('POST /api/v1/activities', () => {
       .post('/api/v1/activities')
       .set('Authorization', `Bearer ${validToken}`)
       .send({
+        activity_name: 'Test Activity', // Using new field name
+        activity_start_date: '2026-02-14',
+        activity_start_time: '09:00',
+        activity_end_date: '2026-02-14',
+        activity_end_time: '12:00',
+        meeting_location_going: 'School',
+        meeting_time_going: '08:45',
+        departure_time_going: '09:00',
+        meeting_location_return: null,
+        meeting_time_return: null,
+        departure_time_return: null
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data).toBeDefined();
+    expect(response.body.data.name).toBe('Test Activity');
+  });
+
+  it('should create activity with legacy "name" field (backward compatibility)', async () => {
+    const { __mPool } = require('pg');
+    
+    // Mock getOrganizationId query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ organization_id: 1 }]
+    });
+
+    // Mock INSERT query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{
+        id: 1,
         name: 'Test Activity',
+        activity_date: '2026-02-14',
+        activity_start_date: '2026-02-14',
+        activity_start_time: '09:00',
+        activity_end_date: '2026-02-14',
+        activity_end_time: '12:00',
+        meeting_location_going: 'School',
+        meeting_time_going: '08:45',
+        departure_time_going: '09:00',
+        created_at: new Date(),
+        updated_at: new Date()
+      }]
+    });
+
+    const response = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({
+        name: 'Test Activity', // Using legacy field name
         activity_start_date: '2026-02-14',
         activity_start_time: '09:00',
         activity_end_date: '2026-02-14',
@@ -172,7 +221,7 @@ describe('POST /api/v1/activities', () => {
       .post('/api/v1/activities')
       .set('Authorization', `Bearer ${validToken}`)
       .send({
-        name: 'Test Activity',
+        activity_name: 'Test Activity',
         activity_start_date: '2026-02-14',
         activity_start_time: '09:00',
         activity_end_date: '2026-02-14',
@@ -223,7 +272,7 @@ describe('POST /api/v1/activities', () => {
       .post('/api/v1/activities')
       .set('Authorization', `Bearer ${validToken}`)
       .send({
-        name: 'Test Activity',
+        activity_name: 'Test Activity',
         activity_start_date: '2026-02-14',
         // Missing: activity_start_time, activity_end_date, activity_end_time, 
         // meeting_location_going, meeting_time_going, departure_time_going
