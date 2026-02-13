@@ -15,8 +15,8 @@
 import { syncEngine } from './SyncEngine.js';
 import { outboxManager } from './OutboxManager.js';
 import { syncStatusPanel } from '../components/SyncStatusPanel.js';
-// Import OfflineManager for side effects: it registers offlineStatusChanged
-// events on window and must be eagerly evaluated for SyncInit wiring to work.
+// Keep the OfflineManager module loaded so shared singleton state is initialized
+// before sync wiring runs. Event listeners are attached by OfflineManager.init().
 import '../modules/OfflineManager.js';
 import { debugLog, debugError } from '../utils/DebugUtils.js';
 import { CONFIG } from '../config.js';

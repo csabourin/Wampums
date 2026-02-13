@@ -88,7 +88,7 @@ export function withOfflineSupport(apiFunction, options = {}) {
             debugWarn('api-offline-wrapper: API call failed, checking offline fallback', error);
 
             // If offline and this is a mutation, it may have been queued
-            if (offlineManager.offline && queueable) {
+            if (offlineManager.isOffline && queueable) {
                 // Check if error indicates queued operation
                 // Handle different error structures
                 const isQueued = error.queued ||
