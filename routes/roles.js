@@ -68,7 +68,7 @@ module.exports = (pool, logger) => {
 
         const result = await pool.query(query);
 
-        return success(res, result.rows);
+        return success(res, result.rows, 'Roles retrieved successfully');
       } catch (error) {
         logger.error('Error fetching roles:', error);
         return error(res, 'Failed to fetch roles', 500);
@@ -98,7 +98,7 @@ module.exports = (pool, logger) => {
 
         const result = await pool.query(query, [roleId]);
 
-        return success(res, result.rows);
+        return success(res, result.rows, 'Role permissions retrieved successfully');
       } catch (error) {
         logger.error('Error fetching role permissions:', error);
         return error(res, 'Failed to fetch role permissions', 500);
@@ -133,7 +133,7 @@ module.exports = (pool, logger) => {
           return acc;
         }, {});
 
-        return success(res, grouped);
+        return success(res, grouped, 'Permissions retrieved successfully');
       } catch (error) {
         logger.error('Error fetching permissions:', error);
         return error(res, 'Failed to fetch permissions', 500);
@@ -172,7 +172,7 @@ module.exports = (pool, logger) => {
 
         const result = await pool.query(query, [userId, organizationId]);
 
-        return success(res, result.rows);
+        return success(res, result.rows, 'User roles retrieved successfully');
       } catch (error) {
         logger.error('Error fetching user roles:', error);
         return error(res, 'Failed to fetch user roles', 500);
