@@ -461,12 +461,16 @@ const translations = {
 	},
 };
 
+// Global variable to track current language
+let currentLang = "fr";
+
 const html = document.documentElement;
 const buttons = document.querySelectorAll(".lang-toggle button");
 
 function applyTranslations(lang) {
 	const copy = translations[lang];
 	if (!copy) return;
+	currentLang = lang; // Update global language tracker
 	html.lang = lang;
 	document.title =
 		lang === "fr"
@@ -502,6 +506,7 @@ function initLanguage() {
 	if (path.startsWith('/en/') || path === '/en') {
 		// English static page - update localStorage but don't apply JS translations
 		// The HTML is already in English
+		currentLang = "en";
 		localStorage.setItem("wampums-lang", "en");
 		html.lang = "en";
 		return;
@@ -510,6 +515,7 @@ function initLanguage() {
 	if (path.startsWith('/fr/') || path === '/fr') {
 		// French static page - update localStorage but don't apply JS translations
 		// The HTML is already in French
+		currentLang = "fr";
 		localStorage.setItem("wampums-lang", "fr");
 		html.lang = "fr";
 		return;
@@ -517,6 +523,7 @@ function initLanguage() {
 	
 	// For the dynamic page (/index.html or root), use localStorage preference
 	const savedLang = localStorage.getItem("wampums-lang") || "fr";
+	currentLang = savedLang;
 	applyTranslations(savedLang);
 }
 
@@ -683,7 +690,7 @@ demoForm.addEventListener("submit", async (e) => {
 	const submitButton = demoForm.querySelector(".btn-submit");
 	submitButton.disabled = true;
 	submitButton.textContent =
-		savedLang === "fr" ? "Envoi en cours..." : "Sending...";
+		currentLang === "fr" ? "Envoi en cours..." : "Sending...";
 
 	try {
 		const formData = {
@@ -718,23 +725,23 @@ demoForm.addEventListener("submit", async (e) => {
 			// Show error
 			alert(
 				data.message ||
-				(savedLang === "fr"
-					? "Une erreur est survenue. Veuillez reessayer."
+				(currentLang === "fr"
+					? "Une erreur est survenue. Veuillez réessayer."
 					: "An error occurred. Please try again."),
 			);
 			submitButton.disabled = false;
 			submitButton.textContent =
-				savedLang === "fr" ? "Envoyer la demande" : "Submit request";
+				currentLang === "fr" ? "Envoyer la demande" : "Submit request";
 		}
 	} catch (error) {
 		console.error("Error submitting form:", error);
 		alert(
-			savedLang === "fr"
-				? "Une erreur est survenue. Veuillez reessayer."
+			currentLang === "fr"
+				? "Une erreur est survenue. Veuillez réessayer."
 				: "An error occurred. Please try again.",
 		);
 		submitButton.disabled = false;
 		submitButton.textContent =
-			savedLang === "fr" ? "Envoyer la demande" : "Submit request";
+			currentLang === "fr" ? "Envoyer la demande" : "Submit request";
 	}
 });

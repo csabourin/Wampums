@@ -87,6 +87,9 @@ const navigationRoute = new NavigationRoute(navigationHandler, {
     /^\/manifest\.json$/,
     /^\/manifest\.webmanifest$/,
     /^\/__replco\//,
+    /^\/en($|\/)/,          // Allow /en, /en/, /en/index.html etc.
+    /^\/fr($|\/)/,          // Allow /fr, /fr/, /fr/index.html etc.
+    /^\/landing\//,         // Allow /landing/* to serve landing pages
   ],
 });
 registerRoute(navigationRoute);
