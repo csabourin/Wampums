@@ -43,7 +43,7 @@
     "jsonwebtoken": "^9.0.2",
     "mindee": "^4.36.3",
     "multer": "^2.0.2",
-    "nodemailer": "^7.0.13",
+    "nodemailer": "^8.0.1",
     "openai": "^6.16.0",
     "pg": "^8.13.1",
     "qrcode": "^1.5.4",
