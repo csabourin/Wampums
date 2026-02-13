@@ -193,12 +193,21 @@ export class QuickCreateActivityModal {
     const form = e.target;
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+
+    // Convert empty strings to null for optional fields to prevent validation issues
+    // Empty strings are falsy but can interfere with backend normalization logic
+    if (!data.description || data.description === '') data.description = null;
+    if (!data.meeting_location_return || data.meeting_location_return === '') data.meeting_location_return = null;
+    if (!data.meeting_time_return || data.meeting_time_return === '') data.meeting_time_return = null;
+    if (!data.departure_time_return || data.departure_time_return === '') data.departure_time_return = null;
+    
+    // Ensure activity_date is set (backend expects this for backwards compatibility)
     if (!data.activity_date && data.activity_start_date) {
       data.activity_date = data.activity_start_date;
     }
 
     // Debug logging to diagnose missing fields issue
-    debugLog("Form data being sent:", JSON.stringify(data, null, 2));
+    debugLog("Form data collected:", JSON.stringify(data, null, 2));
     debugLog("FormData entries:", Array.from(formData.entries()));
 
     try {

@@ -69,6 +69,11 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
+    // Debug logging to diagnose form submission issues
+    console.log('[Activity Creation] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('[Activity Creation] Content-Type:', req.headers['content-type']);
+    console.log('[Activity Creation] Organization ID:', organizationId);
+
     const {
       name,
       description,
@@ -91,9 +96,19 @@ module.exports = (pool) => {
     const normalizedEndDate = activity_end_date || normalizedStartDate;
     const normalizedEndTime = activity_end_time || departure_time_return || departure_time_going;
 
-    // Validation
-    if (!name || !normalizedStartDate || !normalizedStartTime || !normalizedEndDate || !normalizedEndTime || !meeting_location_going || !meeting_time_going || !departure_time_going) {
-      return error(res, 'Missing required fields: name, activity_start_date, activity_start_time, activity_end_date, activity_end_time, meeting_location_going, meeting_time_going, departure_time_going', 400);
+    // Validation with specific error messages
+    const missingFields = [];
+    if (!name) missingFields.push('name');
+    if (!normalizedStartDate) missingFields.push('activity_start_date or activity_date');
+    if (!normalizedStartTime) missingFields.push('activity_start_time or meeting_time_going');
+    if (!normalizedEndDate) missingFields.push('activity_end_date');
+    if (!normalizedEndTime) missingFields.push('activity_end_time or departure_time_going/departure_time_return');
+    if (!meeting_location_going) missingFields.push('meeting_location_going');
+    if (!meeting_time_going) missingFields.push('meeting_time_going');
+    if (!departure_time_going) missingFields.push('departure_time_going');
+
+    if (missingFields.length > 0) {
+      return error(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
     }
 
     // Validate that departure time is after meeting time
