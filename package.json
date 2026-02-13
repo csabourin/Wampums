@@ -32,7 +32,7 @@
     "cors": "^2.8.5",
     "dexie": "^4.3.0",
     "dompurify": "^3.3.0",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "express-validator": "^7.2.1",
