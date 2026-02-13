@@ -1,9 +1,9 @@
-// RESTful routes for activities and event calendar
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
+const logger = require('../config/logger');
 
 module.exports = (pool) => {
   /**
@@ -69,6 +69,19 @@ module.exports = (pool) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.user.id;
 
+    // Debug logging to diagnose form submission issues
+    logger.info('[Activity Creation] Request received', {
+      organizationId,
+      contentType: req.headers['content-type'],
+      bodyKeys: Object.keys(req.body),
+      bodyPreview: {
+        name: req.body.name,
+        activity_start_date: req.body.activity_start_date,
+        meeting_time_going: req.body.meeting_time_going,
+        departure_time_going: req.body.departure_time_going
+      }
+    });
+
     const {
       name,
       description,
@@ -87,13 +100,33 @@ module.exports = (pool) => {
 
     const normalizedActivityDate = activity_date || activity_start_date;
     const normalizedStartDate = activity_start_date || activity_date;
+    // activity_start_time can fall back to meeting_time_going if not provided
     const normalizedStartTime = activity_start_time || meeting_time_going;
     const normalizedEndDate = activity_end_date || normalizedStartDate;
+    // activity_end_time can fall back to departure times if not provided
     const normalizedEndTime = activity_end_time || departure_time_return || departure_time_going;
 
-    // Validation
-    if (!name || !normalizedStartDate || !normalizedStartTime || !normalizedEndDate || !normalizedEndTime || !meeting_location_going || !meeting_time_going || !departure_time_going) {
-      return error(res, 'Missing required fields: name, activity_start_date, activity_start_time, activity_end_date, activity_end_time, meeting_location_going, meeting_time_going, departure_time_going', 400);
+    // Validation with specific error messages
+    const missingFields = [];
+    if (!name) missingFields.push('name');
+    if (!normalizedStartDate) missingFields.push('activity_start_date (or activity_date as fallback)');
+    if (!normalizedEndDate) missingFields.push('activity_end_date');
+    if (!meeting_location_going) missingFields.push('meeting_location_going');
+    // Core carpool fields are always required
+    if (!meeting_time_going) missingFields.push('meeting_time_going');
+    if (!departure_time_going) missingFields.push('departure_time_going');
+    // Normalized times depend on the above required fields as fallbacks
+    if (!normalizedStartTime) {
+      // This should never happen if meeting_time_going validation passes above
+      missingFields.push('activity_start_time (meeting_time_going can be used as fallback)');
+    }
+    if (!normalizedEndTime) {
+      // This should never happen if departure_time_going validation passes above  
+      missingFields.push('activity_end_time (departure times can be used as fallback)');
+    }
+
+    if (missingFields.length > 0) {
+      return error(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
     }
 
     // Validate that departure time is after meeting time

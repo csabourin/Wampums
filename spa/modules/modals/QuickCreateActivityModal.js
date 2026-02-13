@@ -9,6 +9,29 @@ import { clearActivityRelatedCaches } from "../../indexedDB.js";
 import { debugError, debugLog } from "../../utils/DebugUtils.js";
 import { setContent } from "../../utils/DOMUtils.js";
 
+/**
+ * Clean form data by removing empty string values for optional fields
+ * This prevents backend validation issues where empty strings are sent instead of null/undefined
+ * @param {Object} data - Form data object
+ * @param {Array<string>} optionalFields - List of optional field names
+ * @returns {Object} Cleaned data object
+ */
+function cleanFormData(data, optionalFields = []) {
+  const cleaned = { ...data };
+  
+  // Convert empty strings to null for optional fields
+  // We check explicitly for these values because we want to distinguish
+  // between user-provided empty strings and missing values
+  optionalFields.forEach(field => {
+    if (!cleaned[field]) {
+      // Handles undefined, null, empty string, false, 0, NaN
+      cleaned[field] = null;
+    }
+  });
+  
+  return cleaned;
+}
+
 export class QuickCreateActivityModal {
   constructor(app, options = {}) {
     this.app = app;
@@ -192,13 +215,31 @@ export class QuickCreateActivityModal {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
+    let data = Object.fromEntries(formData.entries());
+
+    // Safeguard: Check if form data is empty (shouldn't happen but handle gracefully)
+    if (Object.keys(data).length === 0) {
+      debugError("Form data is empty - form might not be properly initialized");
+      this.app.showMessage(translate("error_form_not_ready"), "error");
+      return;
+    }
+
+    // Clean form data by converting empty optional fields to null
+    const optionalFields = [
+      'description',
+      'meeting_location_return',
+      'meeting_time_return',
+      'departure_time_return'
+    ];
+    data = cleanFormData(data, optionalFields);
+    
+    // Ensure activity_date is set (backend expects this for backwards compatibility)
     if (!data.activity_date && data.activity_start_date) {
       data.activity_date = data.activity_start_date;
     }
 
     // Debug logging to diagnose missing fields issue
-    debugLog("Form data being sent:", JSON.stringify(data, null, 2));
+    debugLog("Form data collected:", JSON.stringify(data, null, 2));
     debugLog("FormData entries:", Array.from(formData.entries()));
 
     try {
