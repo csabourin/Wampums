@@ -90,8 +90,9 @@ module.exports = (app, pool) => {
     // MOUNT MODULAR ROUTES
     // ============================================
 
-    // Authentication (canonical)
-    app.use("/api/v1/auth", authRoutes);
+    // NOTE: authRoutes currently defines absolute internal paths (/public/* and /api/auth/*).
+    // Mounting at root preserves those canonical paths while avoiding double prefixes.
+    app.use("/", authRoutes);
 
     // Organizations
     app.use("/api/v1/organizations", organizationsRoutes);
@@ -100,7 +101,8 @@ module.exports = (app, pool) => {
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);
     app.use("/api/v1/users", usersRoutes);
-    app.use("/api/v1", rolesRoutes);
+    // NOTE: rolesRoutes defines absolute internal /api/* paths.
+    app.use("/", rolesRoutes);
 
     // Features
     app.use("/api/v1/meetings", meetingsRoutes);
@@ -128,11 +130,11 @@ module.exports = (app, pool) => {
 
     app.use("/api/v1/notifications", notificationsRoutes);
 
-    app.use("/api/v1/announcements", announcementsRoutes);
+    app.use("/api", announcementsRoutes);
 
     app.use("/api/v1/google-chat", googleChatRoutes);
 
-    app.use("/api/v1/honors", honorsRoutes);
+    app.use("/api", honorsRoutes);
 
     app.use("/api/v1/points", pointsRoutes);
 
@@ -142,24 +144,24 @@ module.exports = (app, pool) => {
 
     app.use("/api/v1/import", importRoutes);
 
-    app.use("/api/v1/finance", financeRoutes);
+    app.use("/api", financeRoutes);
 
-    app.use("/api/v1/stripe", stripeRoutes);
+    app.use("/api", stripeRoutes);
 
-    app.use("/api/v1/budgets", budgetsRoutes);
+    app.use("/api", budgetsRoutes);
 
-    app.use("/api/v1/revenue/external", externalRevenueRoutes);
+    app.use("/api", externalRevenueRoutes);
 
     app.use("/api/v1/resources", resourcesRoutes);
 
-    app.use("/api/v1/medication", medicationRoutes);
+    app.use("/api", medicationRoutes);
 
     app.use("/api/v1/activities", activitiesRoutes);
     app.use("/api/v1/offline", offlineRoutes);
     app.use("/api/v1/carpools", carpoolsRoutes);
 
-    // WhatsApp
-    app.use("/api/v1", whatsappBaileysRoutes);
+    // WhatsApp routes already include /v1/* internally.
+    app.use("/api", whatsappBaileysRoutes);
 
     // Participants (Mount LAST due to catch-all /:id)
     app.use("/api/v1/participants", participantsRoutes);

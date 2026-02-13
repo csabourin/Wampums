@@ -27,15 +27,19 @@ function addCacheBuster(url) {
  */
 export function buildApiUrl(endpoint, params = {}) {
     const normalizedEndpoint = String(endpoint || '').replace(/^\/+/, '');
-    const canonicalEndpoint = normalizedEndpoint.startsWith('v1/')
-        ? normalizedEndpoint
-        : normalizedEndpoint.startsWith('api/v1/')
-            ? normalizedEndpoint.replace(/^api\//, '')
-            : normalizedEndpoint.startsWith('api/')
-                ? normalizedEndpoint.replace(/^api\//, 'v1/')
-                : `v1/${normalizedEndpoint}`;
 
-    const url = new URL(`/api/${canonicalEndpoint}`, CONFIG.API_BASE_URL);
+    let requestPath;
+    if (normalizedEndpoint.startsWith('public/')) {
+        requestPath = `/${normalizedEndpoint}`;
+    } else if (normalizedEndpoint.startsWith('api/')) {
+        requestPath = `/${normalizedEndpoint}`;
+    } else if (normalizedEndpoint.startsWith('v1/')) {
+        requestPath = `/api/${normalizedEndpoint}`;
+    } else {
+        requestPath = `/api/v1/${normalizedEndpoint}`;
+    }
+
+    const url = new URL(requestPath, CONFIG.API_BASE_URL);
 
     // Guard: ensure params is a plain object
     if (typeof params !== 'object' || params === null || Array.isArray(params)) {

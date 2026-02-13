@@ -66,11 +66,11 @@ const CONFIG = {
     // Auth endpoints (non-versioned)
     LOGIN: '/public/login',
     VERIFY_2FA: '/public/verify-2fa',
-    LOGOUT: '/v1/auth/logout',
+    LOGOUT: '/api/auth/logout',
     REGISTER: '/public/register',
-    RESET_PASSWORD: '/v1/auth/reset-password',
-    REQUEST_RESET: '/v1/auth/request-reset',
-    VERIFY_SESSION: '/v1/auth/verify-session',
+    RESET_PASSWORD: '/api/auth/reset-password',
+    REQUEST_RESET: '/api/auth/request-reset',
+    VERIFY_SESSION: '/api/auth/verify-session',
     REFRESH_TOKEN: '/refresh-token',
 
     // Organization
@@ -216,27 +216,34 @@ export const getApiUrl = (endpoint, dynamicBaseUrl = null) => {
   const baseUrl = (dynamicBaseUrl || CONFIG.API.BASE_URL).replace(/\/+$/, '');
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const baseHasApi = baseUrl.endsWith('/api');
-  const isPublicEndpoint = cleanEndpoint.startsWith('/public/');
-  const hasApiPrefix = cleanEndpoint.startsWith('/api/');
+
+  const endpointType = cleanEndpoint.startsWith('/public/')
+    ? 'public'
+    : cleanEndpoint.startsWith('/api/')
+      ? 'api'
+      : cleanEndpoint.startsWith('/v1/')
+        ? 'versioned'
+        : 'unversioned';
 
   let normalizedBase = baseUrl;
   let normalizedEndpoint = cleanEndpoint;
 
-  if (isPublicEndpoint && baseHasApi) {
-    normalizedBase = baseUrl.replace(/\/api$/, '');
-  } else if (hasApiPrefix && !cleanEndpoint.startsWith('/api/v1/')) {
-    normalizedEndpoint = cleanEndpoint.replace(/^\/api\//, '/api/v1/');
+  switch (endpointType) {
+    case 'public':
+      normalizedBase = baseHasApi ? baseUrl.replace(/\/api$/, '') : baseUrl;
+      break;
+    case 'api':
+      normalizedEndpoint = cleanEndpoint;
+      break;
+    case 'versioned':
+      normalizedEndpoint = `/api${cleanEndpoint}`;
+      break;
+    default:
+      normalizedEndpoint = `/api/v1${cleanEndpoint}`;
+      break;
   }
 
-  if (normalizedEndpoint.startsWith('/v1/')) {
-    normalizedEndpoint = `/api${normalizedEndpoint}`;
-  }
-
-  if (!isPublicEndpoint && !normalizedEndpoint.startsWith('/api/')) {
-    normalizedEndpoint = `/api/v1${normalizedEndpoint.startsWith('/') ? normalizedEndpoint : `/${normalizedEndpoint}`}`;
-  }
-
-  if (normalizedEndpoint.startsWith('/api/') && baseHasApi) {
+  if (baseHasApi && normalizedEndpoint.startsWith('/api/')) {
     normalizedEndpoint = normalizedEndpoint.replace(/^\/api/, '');
   }
 

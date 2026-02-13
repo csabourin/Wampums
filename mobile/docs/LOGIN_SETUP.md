@@ -152,7 +152,7 @@ This will:
 
 **Check Console Logs:**
 ```
-[API] POST http://10.0.2.2:3000/api/v1/public/login
+[API] POST http://10.0.2.2:3000/public/login
 [Storage] Storing JWT token
 [i18n] Loaded XXX static translations for fr
 ```
@@ -220,7 +220,7 @@ This will:
 **Test Connection:**
 ```bash
 # From your computer
-curl -X POST http://localhost:3000/api/v1/public/login \
+curl -X POST http://localhost:3000/public/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"test123"}'
 ```
@@ -277,7 +277,7 @@ console.log('User role:', role);
 
 ### Login Request
 ```http
-POST /api/v1/public/login
+POST /public/login
 Content-Type: application/json
 
 {
@@ -315,7 +315,7 @@ Content-Type: application/json
 
 ### 2FA Verification Request
 ```http
-POST /api/v1/public/verify-2fa
+POST /public/verify-2fa
 Content-Type: application/json
 
 {
