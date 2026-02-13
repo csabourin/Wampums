@@ -696,7 +696,7 @@ export class UpcomingMeeting {
 
     // Inject Modal
     const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalContent;
+    setContent(modalContainer, modalContent);
     document.body.appendChild(modalContainer);
 
     // Event Listeners

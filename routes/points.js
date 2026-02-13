@@ -109,8 +109,8 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
     const updates = req.body;
 
-    console.log('[update-points] Request body:', JSON.stringify(updates));
-    console.log('[update-points] Organization ID:', organizationId);
+    logger.info('[update-points] Request body:', JSON.stringify(updates));
+    logger.info('[update-points] Organization ID:', organizationId);
 
     if (!Array.isArray(updates)) {
       return res.status(400).json({ success: false, message: 'Updates must be an array' });
@@ -173,10 +173,10 @@ module.exports = (pool, logger) => {
               skippedCount = skippedParticipants.length;
               memberIds = memberIds.filter(id => eligibleIds.has(id));
 
-              console.log(`[update-points] Group ${groupId} on ${date}: ${memberIds.length} eligible, ${skippedCount} skipped (absent/excused)`);
+              logger.info(`[update-points] Group ${groupId} on ${date}: ${memberIds.length} eligible, ${skippedCount} skipped (absent/excused)`);
             } else {
               // No attendance taken for this date - award to everyone
-              console.log(`[update-points] Group ${groupId} on ${date}: No attendance recorded, awarding to all ${memberIds.length} members`);
+              logger.info(`[update-points] Group ${groupId} on ${date}: No attendance recorded, awarding to all ${memberIds.length} members`);
             }
           }
 
@@ -312,7 +312,7 @@ module.exports = (pool, logger) => {
       }
 
       await client.query('COMMIT');
-      console.log('[update-points] SUCCESS - Response:', JSON.stringify({ success: true, data: { updates: responseUpdates } }));
+      logger.info('[update-points] SUCCESS - Response:', JSON.stringify({ success: true, data: { updates: responseUpdates } }));
       return success(res, { updates: responseUpdates }, 'Points updated successfully');
     } catch (error) {
       await client.query('ROLLBACK');

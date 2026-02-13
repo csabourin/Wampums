@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { DATE_LIMITS } = require('../config/constants');
 
 /**
  * Generate an array of date strings between start and end (inclusive)
@@ -65,10 +66,10 @@ module.exports = (pool, logger) => {
                 return error(res, 'end_date must be after start_date', 400);
             }
 
-            // Limit to 14 days max for performance
+            // Limit date range for performance
             const daysDiff = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
-            if (daysDiff > 14) {
-                return error(res, 'Date range cannot exceed 14 days', 400);
+            if (daysDiff > DATE_LIMITS.OFFLINE_MAX_DAYS) {
+                return error(res, `Date range cannot exceed ${DATE_LIMITS.OFFLINE_MAX_DAYS} days`, 400);
             }
 
             const dates = generateDateRange(start_date, end_date);

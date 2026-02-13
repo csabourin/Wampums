@@ -6,11 +6,12 @@ const { success, error, asyncHandler } = require("../middleware/response");
 const { generateText, isOpenAIConfigured } = require("../services/openai");
 const { parseReceipt } = require("../services/veryfi");
 const { getBudgetStatus } = require("../services/ai-budget");
+const { FILE_LIMITS } = require("../config/constants");
 
 // Multer for receipt uploads (memory storage)
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+    limits: { fileSize: FILE_LIMITS.AI_MAX_FILE_SIZE }
 });
 
 // Middleware to build user context

@@ -732,10 +732,13 @@ export class ActivityManager {
                         ).join(",");
 
                         // Update visual content
-                        summaryPanel.innerHTML = this.renderAchievementSummary(
-                                data.badge_template_id,
-                                data.star_type,
-                                data.participant_ids,
+                        setContent(
+                                summaryPanel,
+                                this.renderAchievementSummary(
+                                        data.badge_template_id,
+                                        data.star_type,
+                                        data.participant_ids,
+                                )
                         );
 
                         // Show/hide based on whether a badge is selected

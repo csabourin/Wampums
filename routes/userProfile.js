@@ -24,12 +24,13 @@ const {
   validateCurrentPassword,
   validateNewPasswordForChange
 } = require('../middleware/validation');
+const { RATE_LIMITS } = require('../config/constants');
 
 // Rate limiter for password change - prevent brute force
 const isProduction = process.env.NODE_ENV === 'production';
 const passwordChangeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isProduction ? 5 : 100, // 5 attempts per 15 minutes in production
+  windowMs: RATE_LIMITS.PROFILE_UPDATE_WINDOW_MS,
+  max: isProduction ? RATE_LIMITS.PROFILE_UPDATE_MAX_PROD : RATE_LIMITS.PROFILE_UPDATE_MAX_DEV,
   message: { success: false, message: 'Too many password change attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -37,8 +38,8 @@ const passwordChangeLimiter = rateLimit({
 
 // Rate limiter for email change - moderate protection
 const emailChangeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isProduction ? 10 : 100, // 10 attempts per 15 minutes in production
+  windowMs: RATE_LIMITS.EMAIL_CHANGE_WINDOW_MS,
+  max: isProduction ? RATE_LIMITS.EMAIL_CHANGE_MAX_PROD : RATE_LIMITS.EMAIL_CHANGE_MAX_DEV,
   message: { success: false, message: 'Too many email change attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,

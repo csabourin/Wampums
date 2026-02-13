@@ -879,7 +879,7 @@ export class PreparationReunions {
                 const modalDiv = document.createElement('div');
                 modalDiv.id = modalId;
                 modalDiv.className = 'modal';
-                modalDiv.innerHTML = modalHTML;
+                setContent(modalDiv, modalHTML);
                 document.body.appendChild(modalDiv);
 
                 // Show modal by adding show class after a brief delay for CSS transition
