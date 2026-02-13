@@ -865,7 +865,7 @@ export class Expenses {
 
           this.app.showMessage("receipt_parsed_success", "success");
         } catch (err) {
-          console.error("Receipt upload error:", err);
+          debugError("Receipt upload error", err);
           let msgKey = "error_parsing_receipt";
           if (err.error?.code === 'AI_BUDGET_EXCEEDED') msgKey = 'ai_budget_exceeded';
           this.app.showMessage(msgKey, 'error');

@@ -3,7 +3,7 @@ const multer = require("multer");
 const router = express.Router();
 const { authenticate, getOrganizationId } = require("../middleware/auth");
 const { success, error, asyncHandler } = require("../middleware/response");
-const { generateText } = require("../services/openai");
+const { generateText, isOpenAIConfigured } = require("../services/openai");
 const { parseReceipt } = require("../services/veryfi");
 const { getBudgetStatus } = require("../services/ai-budget");
 
@@ -31,6 +31,10 @@ router.post(
     asyncHandler(async (req, res) => {
         const { mode, payload } = req.body;
 
+        if (!isOpenAIConfigured()) {
+            return error(res, "AI service is unavailable", 503, { code: "AI_NOT_CONFIGURED" });
+        }
+
         // Basic validation
         if (!["meeting_plan", "rewrite", "translate", "risk_suggest"].includes(mode)) {
             return error(res, "Invalid AI mode", 400);
@@ -53,6 +57,10 @@ router.post(
             // Handle AI budget exceeded (our internal cap)
             if (err.code === "AI_BUDGET_EXCEEDED") {
                 return error(res, err.message, 429, { code: "AI_BUDGET_EXCEEDED" });
+            }
+
+            if (err.code === "AI_NOT_CONFIGURED") {
+                return error(res, err.message, 503, { code: "AI_NOT_CONFIGURED" });
             }
 
             // Handle OpenAI quota/billing errors
@@ -84,6 +92,10 @@ router.post(
     asyncHandler(async (req, res) => {
         if (!req.file) {
             return error(res, "No file uploaded", 400);
+        }
+
+        if (!isOpenAIConfigured()) {
+            return error(res, "AI service is unavailable", 503, { code: "AI_NOT_CONFIGURED" });
         }
 
         try {
