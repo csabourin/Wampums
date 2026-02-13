@@ -206,7 +206,7 @@ export class QuickCreateActivityModal {
       await clearActivityRelatedCaches();
 
       this.close();
-      this.app.showToast(translate("activity_created_success"), "success");
+      this.app.showMessage(translate("activity_created_success"), "success");
 
       // Call success callback if provided
       if (this.onSuccess) {
@@ -222,7 +222,7 @@ export class QuickCreateActivityModal {
       }
     } catch (error) {
       debugError("Error creating activity:", error);
-      this.app.showToast(
+      this.app.showMessage(
         error.message || translate("error_saving_activity"),
         "error"
       );

@@ -38,7 +38,7 @@ export class CarpoolQuickAccessModal {
       this.attachListeners(upcomingActivities);
     } catch (error) {
       debugError("Error loading carpool activities:", error);
-      this.app.showToast(translate("error_loading_activities"), "error");
+      this.app.showMessage(translate("error_loading_activities"), "error");
     }
   }
 
