@@ -10,12 +10,13 @@ const RATE_LIMITER_CLEANUP_INTERVAL_MS = CACHE.CLEANUP_INTERVAL_MS;
  * @returns {string} - Human-readable duration (e.g., "15 minutes", "1 hour")
  */
 function formatDuration(ms) {
-    const minutes = Math.floor(ms / (60 * 1000));
     const hours = Math.floor(ms / (60 * 60 * 1000));
     
     if (hours >= 1) {
         return hours === 1 ? "1 hour" : `${hours} hours`;
     }
+    
+    const minutes = Math.floor(ms / (60 * 1000));
     return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 }
 

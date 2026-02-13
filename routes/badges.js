@@ -1218,7 +1218,7 @@ module.exports = (pool, logger) => {
       );
       hasNewColumns = columnCheck.rows.length > 0;
     } catch (err) {
-      logger.warn(`[badge-tracker-summary] Could not check for new columns: ${err.message}`);
+      logger.warn('[badge-tracker-summary] Could not check for new columns', { error: err.message });
     }
 
     // Get all badge progress with participant and template info
