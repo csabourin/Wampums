@@ -5,10 +5,12 @@ import { clearActivityRelatedCaches } from '../indexedDB.js';
 
 /**
  * Get all activities for the organization
+ * @param {Object} options - Cache options forwarded to API.get
+ * @param {boolean} options.forceRefresh - Force refresh from server
  * @returns {Promise<Array>} List of activities
  */
-export async function getActivities() {
-  const response = await API.get('v1/activities');
+export async function getActivities(options = {}) {
+  const response = await API.get('v1/activities', {}, options);
   return response.data || [];
 }
 
