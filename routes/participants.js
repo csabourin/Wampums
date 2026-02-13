@@ -75,8 +75,7 @@ module.exports = (pool) => {
 
     // Organization-scoped users (staff): show ALL participants
     if (dataScope === 'organization') {
-      // PERFORMANCE FIX: Use LEFT JOINs with aggregation for form_submissions
-      // Use subquery for points to avoid Cartesian product bug
+      // PERFORMANCE FIX: Use LEFT JOINs with aggregation to avoid correlated subqueries
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
@@ -85,16 +84,14 @@ module.exports = (pool) => {
                  ) FILTER (WHERE fs.id IS NOT NULL),
                  '[]'::json
                ) as form_submissions,
-               COALESCE(
-                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
-                 0
-               ) as total_points,
+               COALESCE(SUM(pts.value), 0) as total_points,
                po.inscription_date
         FROM participants p
         JOIN participant_organizations po ON p.id = po.participant_id
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
+        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
         WHERE po.organization_id = $1
       `;
 
@@ -121,8 +118,7 @@ module.exports = (pool) => {
       countParams = groupId ? [organizationId, groupId] : [organizationId];
     } else {
       // Linked-scoped users (parents): only show participants linked to them
-      // PERFORMANCE FIX: Use LEFT JOINs with aggregation for form_submissions
-      // Use subquery for points to avoid Cartesian product bug
+      // PERFORMANCE FIX: Use LEFT JOINs with aggregation to avoid correlated subqueries
       query = `
         SELECT p.*, pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
                COALESCE(
@@ -131,10 +127,7 @@ module.exports = (pool) => {
                  ) FILTER (WHERE fs.id IS NOT NULL),
                  '[]'::json
                ) as form_submissions,
-               COALESCE(
-                 (SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1),
-                 0
-               ) as total_points,
+               COALESCE(SUM(pts.value), 0) as total_points,
                po.inscription_date
         FROM participants p
         JOIN user_participants up ON p.id = up.participant_id
@@ -142,6 +135,7 @@ module.exports = (pool) => {
         LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
         LEFT JOIN groups g ON pg.group_id = g.id
         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.organization_id = $1
+        LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
         WHERE up.user_id = $2 AND po.organization_id = $1
       `;
 
@@ -404,12 +398,14 @@ module.exports = (pool) => {
     const result = await pool.query(
       `SELECT p.id, p.first_name, p.last_name,
               pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
-              COALESCE((SELECT SUM(value) FROM points WHERE participant_id = p.id AND organization_id = $1), 0) as total_points
+              COALESCE(SUM(pts.value), 0) as total_points
        FROM participants p
        JOIN participant_organizations po ON p.id = po.participant_id
        LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
        LEFT JOIN groups g ON pg.group_id = g.id
+       LEFT JOIN points pts ON pts.participant_id = p.id AND pts.organization_id = $1
        WHERE po.organization_id = $1
+       GROUP BY p.id, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles
        ORDER BY p.first_name, p.last_name`,
       [organizationId]
     );
@@ -448,13 +444,15 @@ module.exports = (pool) => {
       const result = await pool.query(
         `SELECT p.id, p.first_name, p.last_name, p.date_naissance,
                 pg.group_id, g.name as group_name, pg.first_leader, pg.second_leader, pg.roles,
-                (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'fiche_sante') > 0 as has_fiche_sante,
-                (SELECT COUNT(*) FROM form_submissions fs WHERE fs.participant_id = p.id AND fs.form_type = 'acceptation_risque') > 0 as has_acceptation_risque
+                MAX(CASE WHEN fs.form_type = 'fiche_sante' THEN 1 ELSE 0 END) > 0 as has_fiche_sante,
+                MAX(CASE WHEN fs.form_type = 'acceptation_risque' THEN 1 ELSE 0 END) > 0 as has_acceptation_risque
          FROM participants p
          JOIN participant_organizations po ON p.id = po.participant_id
          LEFT JOIN participant_groups pg ON p.id = pg.participant_id AND pg.organization_id = $1
          LEFT JOIN groups g ON pg.group_id = g.id
+         LEFT JOIN form_submissions fs ON fs.participant_id = p.id AND fs.form_type IN ('fiche_sante', 'acceptation_risque')
          WHERE po.organization_id = $1
+         GROUP BY p.id, p.date_naissance, pg.group_id, g.name, pg.first_leader, pg.second_leader, pg.roles
          ORDER BY p.first_name, p.last_name`,
         [organizationId]
       );
@@ -850,24 +848,28 @@ module.exports = (pool) => {
         );
       }
 
-      // Add new links for each participant (verify they belong to org)
-      for (const participantId of participant_ids) {
-        // Verify participant belongs to this organization
-        const participantCheck = await client.query(
-          `SELECT id FROM participants p
-           JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE p.id = $1 AND po.organization_id = $2`,
-          [participantId, organizationId]
-        );
+      // Verify all participants belong to this organization in a single query
+      const participantCheck = await client.query(
+        `SELECT p.id FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         WHERE p.id = ANY($1::int[]) AND po.organization_id = $2`,
+        [participant_ids, organizationId]
+      );
 
-        if (participantCheck.rows.length > 0) {
-          await client.query(
-            `INSERT INTO user_participants (user_id, participant_id)
-             VALUES ($1, $2)
-             ON CONFLICT (user_id, participant_id) DO NOTHING`,
-            [user_id, participantId]
-          );
-        }
+      const validParticipantIds = participantCheck.rows.map(row => row.id);
+
+      // Batch insert all links at once
+      if (validParticipantIds.length > 0) {
+        const values = validParticipantIds.map((_, idx) => 
+          `($1, $${idx + 2})`
+        ).join(', ');
+        
+        await client.query(
+          `INSERT INTO user_participants (user_id, participant_id)
+           VALUES ${values}
+           ON CONFLICT (user_id, participant_id) DO NOTHING`,
+          [user_id, ...validParticipantIds]
+        );
       }
 
       await client.query('COMMIT');

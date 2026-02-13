@@ -232,15 +232,21 @@ async function dispatchAnnouncement(pool, logger, announcement, whatsappService 
         { successes: 0, failures: 0 },
       );
 
-      // Log failures individually
-      for (const result of pushResults) {
-        if (result.status === 'rejected') {
-          await pool.query(
-            `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
-             VALUES ($1, 'push', 'failed', $2)`,
-            [announcement.id, result.reason?.message || 'Push send failed'],
-          );
-        }
+      // Batch log failures for push notifications
+      const failedPushResults = pushResults.filter(result => result.status === 'rejected');
+      if (failedPushResults.length > 0) {
+        const values = failedPushResults.map((_, idx) => 
+          `($1, 'push', 'failed', $${idx + 2})`
+        ).join(', ');
+        const errorMessages = failedPushResults.map(result => 
+          result.reason?.message || 'Push send failed'
+        );
+        
+        await pool.query(
+          `INSERT INTO announcement_logs (announcement_id, channel, status, error_message)
+           VALUES ${values}`,
+          [announcement.id, ...errorMessages]
+        );
       }
     } catch (error) {
       logger.error('Push notification send failed:', error);
