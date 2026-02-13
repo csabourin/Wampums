@@ -9,6 +9,29 @@ const logger = require("../config/logger");
 
 const isProduction = process.env.NODE_ENV === "production";
 
+/**
+ * Resolve the preferred localized landing route from the incoming request.
+ *
+ * @param {import("express").Request} req - Incoming HTTP request.
+ * @returns {"/fr/"|"/en/"} Preferred landing page path.
+ */
+function getPreferredLandingPath(req) {
+    const requestedLang = typeof req.query.lang === "string"
+        ? req.query.lang.trim().toLowerCase()
+        : "";
+
+    if (requestedLang.startsWith("fr")) {
+        return "/fr/";
+    }
+
+    if (requestedLang.startsWith("en")) {
+        return "/en/";
+    }
+
+    const acceptedLanguage = (req.headers["accept-language"] || "").toLowerCase();
+    return acceptedLanguage.includes("fr") ? "/fr/" : "/en/";
+}
+
 module.exports = (app) => {
     // Trust proxy - use 1 (trust first proxy hop) instead of true
     // to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY warning
@@ -95,10 +118,23 @@ module.exports = (app) => {
 
     const landingStatic = express.static(landingDir);
     app.use((req, res, next) => {
-        if (landingHosts.has(req.hostname)) {
-            return landingStatic(req, res, next);
+        if (!landingHosts.has(req.hostname)) {
+            return next();
         }
-        next();
+
+        if (req.path === "/" || req.path === "/index.html") {
+            return res.redirect(302, getPreferredLandingPath(req));
+        }
+
+        if (req.path === "/en" || req.path === "/fr") {
+            return res.redirect(301, `${req.path}/`);
+        }
+
+        if (req.path === "/landing" || req.path === "/landing/" || req.path === "/landing/index.html") {
+            return res.redirect(301, getPreferredLandingPath(req));
+        }
+
+        return landingStatic(req, res, next);
     });
 
     app.use('/vendor/fontawesome', express.static(path.join(process.cwd(), 'node_modules/@fortawesome/fontawesome-free')));
