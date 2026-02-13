@@ -301,6 +301,8 @@ export class OfflineManager {
         debugLog('OfflineManager: Starting sync');
 
         try {
+            let shouldReplayIndexedDbMutations = true;
+
             // Try service worker background sync for mutations in the SW's own store
             if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                 try {
@@ -308,6 +310,7 @@ export class OfflineManager {
                     if (registration && 'sync' in registration) {
                         await registration.sync.register('sync-mutations');
                         debugLog('OfflineManager: Background sync registered');
+                        shouldReplayIndexedDbMutations = false;
 
                         // Give service worker time to process its own pending-mutations store
                         const syncTimeout = CONFIG.UI?.SYNC_TIMEOUT || 2000;
@@ -318,14 +321,9 @@ export class OfflineManager {
                 }
             }
 
-            // Replay IndexedDB fallback mutations when service worker sync is unavailable.
-            // This avoids duplicate replay races when both SW background sync and direct replay
-            // process overlapping queues.
-            const hasSwSync = 'serviceWorker' in navigator
-                && !!navigator.serviceWorker.controller
-                && 'sync' in (await navigator.serviceWorker.ready);
-
-            if (hasSwSync) {
+            // Replay IndexedDB fallback mutations when service worker sync is unavailable
+            // or when sync registration fails.
+            if (!shouldReplayIndexedDbMutations) {
                 debugLog('OfflineManager: Deferring replay to service worker background sync');
             } else {
                 debugLog('OfflineManager: Replaying mutations from IndexedDB');
