@@ -198,6 +198,14 @@ export async function makeApiRequest(endpoint, options = {}) {
     for (let attempt = 0; attempt <= retries; attempt++) {
         try {
             debugLog(`API Request (attempt ${attempt + 1}):`, method, url);
+            debugLog('Request config:', {
+                method: requestConfig.method,
+                headers: requestConfig.headers,
+                bodyType: typeof requestConfig.body,
+                bodyPreview: requestConfig.body ? 
+                    (typeof requestConfig.body === 'string' ? requestConfig.body.substring(0, 500) : requestConfig.body) 
+                    : null
+            });
 
             const response = await fetch(url, requestConfig);
             const result = await handleResponse(response);

@@ -270,13 +270,13 @@ export class OfflinePreparation {
 
         try {
             await offlineManager.prepareForActivity(id, start, end);
-            this.app.showToast(translate('preparation_complete'), 'success');
+            this.app.showMessage(translate('preparation_complete'), 'success');
             this.preparingActivityId = null;
             this.render();
             this.attachEventListeners();
         } catch (error) {
             debugError('OfflinePreparation: Prepare failed', error);
-            this.app.showToast(translate('preparation_failed') + ': ' + error.message, 'error');
+            this.app.showMessage(translate('preparation_failed') + ': ' + error.message, 'error');
             this.preparingActivityId = null;
             btn.disabled = false;
             btn.textContent = translate('prepare_for_offline');
@@ -291,18 +291,18 @@ export class OfflinePreparation {
         const endDate = form.end_date.value;
 
         if (!startDate || !endDate) {
-            this.app.showToast(translate('dates_required'), 'error');
+            this.app.showMessage(translate('dates_required'), 'error');
             return;
         }
 
         if (new Date(endDate) < new Date(startDate)) {
-            this.app.showToast(translate('end_date_after_start'), 'error');
+            this.app.showMessage(translate('end_date_after_start'), 'error');
             return;
         }
 
         const dayCount = this.getDayCount(startDate, endDate);
         if (dayCount > 14) {
-            this.app.showToast(translate('max_14_days'), 'error');
+            this.app.showMessage(translate('max_14_days'), 'error');
             return;
         }
 
@@ -319,13 +319,13 @@ export class OfflinePreparation {
 
         try {
             await offlineManager.prepareForActivity(null, startDate, endDate);
-            this.app.showToast(translate('preparation_complete'), 'success');
+            this.app.showMessage(translate('preparation_complete'), 'success');
             form.reset();
             this.render();
             this.attachEventListeners();
         } catch (error) {
             debugError('OfflinePreparation: Manual prepare failed', error);
-            this.app.showToast(translate('preparation_failed') + ': ' + error.message, 'error');
+            this.app.showMessage(translate('preparation_failed') + ': ' + error.message, 'error');
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = translate('prepare_date_range');
@@ -335,7 +335,7 @@ export class OfflinePreparation {
 
     handleDisableCampMode() {
         offlineManager.disableCampMode();
-        this.app.showToast(translate('camp_mode_disabled'), 'success');
+        this.app.showMessage(translate('camp_mode_disabled'), 'success');
         this.render();
         this.attachEventListeners();
     }
@@ -361,7 +361,7 @@ export class OfflinePreparation {
     handleClearAllPrep() {
         if (confirm(translate('confirm_clear_all_preparations'))) {
             offlineManager.clearPreparedActivities();
-            this.app.showToast(translate('preparations_cleared'), 'success');
+            this.app.showMessage(translate('preparations_cleared'), 'success');
             this.render();
             this.attachEventListeners();
         }

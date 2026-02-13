@@ -57,7 +57,7 @@ export class Activities {
       this.activities = await getActivities();
     } catch (error) {
       debugError('Error loading activities:', error);
-      this.app.showToast(translate('error_loading_activities'), 'error');
+      this.app.showMessage(translate('error_loading_activities'), 'error');
       this.activities = [];
     }
   }
