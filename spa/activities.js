@@ -332,7 +332,7 @@ export class Activities {
         <form class="modal__content" id="activity-form">
           <div class="form-group">
             <label for="activity-name">${translate('activity_name')} <span class="required">*</span></label>
-            <input type="text" id="activity-name" name="name"
+            <input type="text" id="activity-name" name="activity_name"
                    value="${escapeHTML(activity?.name || '')}" required
                    class="form-control" maxlength="255">
           </div>

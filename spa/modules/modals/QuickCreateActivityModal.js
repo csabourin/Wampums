@@ -75,7 +75,7 @@ export class QuickCreateActivityModal {
             <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">
               ${translate("activity_name")} <span style="color: #dc3545;">*</span>
             </label>
-            <input type="text" name="name" required
+            <input type="text" name="activity_name" required
               style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
               placeholder="${translate("activity_name")}">
           </div>

@@ -76,14 +76,17 @@ module.exports = (pool) => {
       bodyKeys: Object.keys(req.body),
       bodyPreview: {
         name: req.body.name,
+        activity_name: req.body.activity_name,
         activity_start_date: req.body.activity_start_date,
         meeting_time_going: req.body.meeting_time_going,
         departure_time_going: req.body.departure_time_going
       }
     });
 
+    // Accept both 'activity_name' (new) and 'name' (legacy) field names
+    const activityName = req.body.activity_name || req.body.name;
+
     const {
-      name,
       description,
       activity_date,
       activity_start_date,
@@ -108,7 +111,7 @@ module.exports = (pool) => {
 
     // Validation with specific error messages
     const missingFields = [];
-    if (!name) missingFields.push('name');
+    if (!activityName) missingFields.push('activity_name (or name)');
     if (!normalizedStartDate) missingFields.push('activity_start_date (or activity_date as fallback)');
     if (!normalizedEndDate) missingFields.push('activity_end_date');
     if (!meeting_location_going) missingFields.push('meeting_location_going');
@@ -154,7 +157,7 @@ module.exports = (pool) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
-        organizationId, userId, name, description, normalizedActivityDate,
+        organizationId, userId, activityName, description, normalizedActivityDate,
         normalizedStartDate, normalizedStartTime, normalizedEndDate, normalizedEndTime,
         meeting_location_going, meeting_time_going, departure_time_going,
         meeting_location_return, meeting_time_return, departure_time_return
@@ -175,8 +178,10 @@ module.exports = (pool) => {
       ? true
       : toBool(req.body.notify_participants) === 't';
 
+    // Accept both 'activity_name' (new) and 'name' (legacy) field names
+    const activityName = req.body.activity_name || req.body.name;
+
     const {
-      name,
       description,
       activity_date,
       activity_start_date,
@@ -249,7 +254,7 @@ module.exports = (pool) => {
       WHERE id = $14 AND organization_id = $15
       RETURNING *`,
       [
-        name, description, normalizedActivityDate,
+        activityName, description, normalizedActivityDate,
         normalizedStartDateInput, activity_start_time, normalizedEndDateInput, activity_end_time,
         meeting_location_going, meeting_time_going, departure_time_going,
         meeting_location_return, meeting_time_return, departure_time_return,
