@@ -477,15 +477,23 @@ export class Activities {
       debugLog('Form data collected:', data);
       debugLog('FormData entries:', Array.from(formData.entries()));
 
-      // Convert empty strings to null for optional fields
-      if (!data.description) data.description = null;
-      if (!data.meeting_location_return) data.meeting_location_return = null;
-      if (!data.meeting_time_return) data.meeting_time_return = null;
-      if (!data.departure_time_return) data.departure_time_return = null;
-      if (!data.activity_start_date) data.activity_start_date = null;
-      if (!data.activity_start_time) data.activity_start_time = null;
-      if (!data.activity_end_date) data.activity_end_date = null;
-      if (!data.activity_end_time) data.activity_end_time = null;
+      // Convert empty strings to null for optional fields only
+      // Do NOT convert required fields to null - they should either have values or fail validation
+      if (!data.description || data.description === '') data.description = null;
+      if (!data.meeting_location_return || data.meeting_location_return === '') data.meeting_location_return = null;
+      if (!data.meeting_time_return || data.meeting_time_return === '') data.meeting_time_return = null;
+      if (!data.departure_time_return || data.departure_time_return === '') data.departure_time_return = null;
+      
+      // For edit mode, these fields are optional (can update just some fields)
+      // For create mode, they're required and should not be set to null
+      if (isEdit) {
+        if (!data.activity_start_date || data.activity_start_date === '') data.activity_start_date = null;
+        if (!data.activity_start_time || data.activity_start_time === '') data.activity_start_time = null;
+        if (!data.activity_end_date || data.activity_end_date === '') data.activity_end_date = null;
+        if (!data.activity_end_time || data.activity_end_time === '') data.activity_end_time = null;
+      }
+      
+      // Ensure activity_date is set for backwards compatibility
       if (!data.activity_date && data.activity_start_date) {
         data.activity_date = data.activity_start_date;
       }
