@@ -66,11 +66,11 @@ const CONFIG = {
     // Auth endpoints (non-versioned)
     LOGIN: '/public/login',
     VERIFY_2FA: '/public/verify-2fa',
-    LOGOUT: '/api/auth/logout',
+    LOGOUT: '/v1/auth/logout',
     REGISTER: '/public/register',
-    RESET_PASSWORD: '/api/auth/reset-password',
-    REQUEST_RESET: '/api/auth/request-reset',
-    VERIFY_SESSION: '/api/auth/verify-session',
+    RESET_PASSWORD: '/v1/auth/reset-password',
+    REQUEST_RESET: '/v1/auth/request-reset',
+    VERIFY_SESSION: '/v1/auth/verify-session',
     REFRESH_TOKEN: '/refresh-token',
 
     // Organization
@@ -96,7 +96,7 @@ const CONFIG = {
     USERS: '/v1/users',
     BUDGET: '/v1/budget',
     PUSH_SUBSCRIPTION: '/v1/push-subscription',
-    FORMS: '/api',
+    FORMS: '/v1/forms',
 
     // Honors endpoints (v1 - permission-based)
     HONORS: '/v1/honors',
@@ -224,10 +224,20 @@ export const getApiUrl = (endpoint, dynamicBaseUrl = null) => {
 
   if (isPublicEndpoint && baseHasApi) {
     normalizedBase = baseUrl.replace(/\/api$/, '');
-  } else if (hasApiPrefix && baseHasApi) {
-    normalizedEndpoint = cleanEndpoint.replace(/^\/api/, '');
-  } else if (!hasApiPrefix && !isPublicEndpoint && !baseHasApi) {
-    normalizedEndpoint = `/api${cleanEndpoint}`;
+  } else if (hasApiPrefix && !cleanEndpoint.startsWith('/api/v1/')) {
+    normalizedEndpoint = cleanEndpoint.replace(/^\/api\//, '/api/v1/');
+  }
+
+  if (normalizedEndpoint.startsWith('/v1/')) {
+    normalizedEndpoint = `/api${normalizedEndpoint}`;
+  }
+
+  if (!isPublicEndpoint && !normalizedEndpoint.startsWith('/api/')) {
+    normalizedEndpoint = `/api/v1${normalizedEndpoint.startsWith('/') ? normalizedEndpoint : `/${normalizedEndpoint}`}`;
+  }
+
+  if (normalizedEndpoint.startsWith('/api/') && baseHasApi) {
+    normalizedEndpoint = normalizedEndpoint.replace(/^\/api/, '');
   }
 
   return `${normalizedBase}${normalizedEndpoint}`;

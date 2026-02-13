@@ -51,18 +51,18 @@ afterEach(() => {
 
 describe('Authenticated API communication', () => {
   test('returns error when no token is provided', async () => {
-    const res = await request(app).get('/api/form-types');
+    const res = await request(app).get('/api/v1/forms/types');
     expect(res.status).toBe(401);
   });
 
   test('returns data when valid token is provided', async () => {
-    const client = await (new Pool()).connect();
-    client.query.mockResolvedValueOnce({ rows: [{ form_type: 'general' }] });
+    const { __mPool } = require('pg');
+    __mPool.query.mockResolvedValueOnce({ rows: [{ form_type: 'general' }] });
 
     const token = jwt.sign({ user_id: 1, organizationId: 1 }, 'testsecret');
 
     const res = await request(app)
-      .get('/api/form-types')
+      .get('/api/v1/forms/types')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
