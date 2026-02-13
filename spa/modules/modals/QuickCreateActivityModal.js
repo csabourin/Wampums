@@ -20,8 +20,11 @@ function cleanFormData(data, optionalFields = []) {
   const cleaned = { ...data };
   
   // Convert empty strings to null for optional fields
+  // We check explicitly for these values because we want to distinguish
+  // between user-provided empty strings and missing values
   optionalFields.forEach(field => {
-    if (cleaned[field] === '' || cleaned[field] === null || cleaned[field] === undefined) {
+    if (!cleaned[field]) {
+      // Handles undefined, null, empty string, false, 0, NaN
       cleaned[field] = null;
     }
   });

@@ -1,9 +1,9 @@
-// RESTful routes for activities and event calendar
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { toBool } = require('../utils');
 const { success, error, asyncHandler } = require('../middleware/response');
+const logger = require('../config/logger');
 
 module.exports = (pool) => {
   /**
@@ -70,9 +70,17 @@ module.exports = (pool) => {
     const userId = req.user.id;
 
     // Debug logging to diagnose form submission issues
-    console.log('[Activity Creation] Request body:', JSON.stringify(req.body, null, 2));
-    console.log('[Activity Creation] Content-Type:', req.headers['content-type']);
-    console.log('[Activity Creation] Organization ID:', organizationId);
+    logger.info('[Activity Creation] Request received', {
+      organizationId,
+      contentType: req.headers['content-type'],
+      bodyKeys: Object.keys(req.body),
+      bodyPreview: {
+        name: req.body.name,
+        activity_start_date: req.body.activity_start_date,
+        meeting_time_going: req.body.meeting_time_going,
+        departure_time_going: req.body.departure_time_going
+      }
+    });
 
     const {
       name,

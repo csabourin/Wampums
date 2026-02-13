@@ -120,13 +120,6 @@ Example of improved error message:
 "Missing required fields: meeting_time_going"
 ```
 
-## Testing
-Created comprehensive test suite in `test/activities.create.test.js` covering:
-- Creating activity with all required fields
-- Rejecting activity with missing required fields  
-- Handling empty strings in optional fields
-- Verifying specific error messages for missing fields
-
 ## Files Changed
 - `spa/activities.js` - **CRITICAL FIX:** Fixed required field handling in create vs edit mode
 - `spa/modules/modals/QuickCreateActivityModal.js` - Frontend form handling for quick create modal
