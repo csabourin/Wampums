@@ -1,11 +1,36 @@
 const OpenAI = require("openai");
 const { checkAndReserveBudget, recordUsage, releaseBudget } = require("./ai-budget");
 
-// Initialize OpenAI client
-// NOTE: OPENAI_API_KEY must be in .env
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+let openaiClient = null;
+
+/**
+ * Returns whether the OpenAI integration is configured.
+ * @returns {boolean}
+ */
+function isOpenAIConfigured() {
+    return Boolean(process.env.OPENAI_API_KEY);
+}
+
+/**
+ * Lazily initializes OpenAI client to avoid crashing app startup when key is missing.
+ * @returns {OpenAI}
+ */
+function getOpenAIClient() {
+    if (!isOpenAIConfigured()) {
+        const configurationError = new Error("AI service is not configured");
+        configurationError.code = "AI_NOT_CONFIGURED";
+        configurationError.status = 503;
+        throw configurationError;
+    }
+
+    if (!openaiClient) {
+        openaiClient = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY,
+        });
+    }
+
+    return openaiClient;
+}
 
 // Configure Pricing (gpt-4o-mini)
 // $0.150 / 1M input tokens
@@ -33,6 +58,8 @@ function calculateCost(inputTokens, outputTokens) {
  * Generic handler for OpenAI text generation with budget enforcement
  */
 async function generateText(mode, payload, userContext) {
+    const openai = getOpenAIClient();
+
     // 1. Estimate Reservation Cost (Upper bound / worst case)
     // For simplicity, we reserve a small fixed amount + margin
     // 3000 tokens total is roughly $0.002, so $0.005 is safe for gpt-4o-mini
@@ -197,4 +224,7 @@ Provide 3-5 key risks and corresponding mitigation strategies.`
     }
 }
 
-module.exports = { generateText };
+module.exports = {
+    generateText,
+    isOpenAIConfigured
+};

@@ -18,7 +18,7 @@
     "lint:spa-files": "node scripts/modernization/check-spa-files.js",
     "lint:spa-console": "bash -c \"rg \\\"console\\\\.\\\" spa --glob \\\"!spa/utils/DebugUtils.js\\\" --glob \\\"!spa/config.js\\\" && echo \\\"Console usage found in SPA\\\" && exit 1 || exit 0\"",
     "lint:spa-innerhtml": "bash -c \"rg \\\"innerHTML\\\\s*=\\\" spa --glob \\\"!spa/utils/DOMUtils.js\\\" --glob \\\"!spa/utils/SecurityUtils.js\\\" && echo \\\"innerHTML assignment found in SPA\\\" && exit 1 || exit 0\"",
-    "lint:sql-params": "bash -c \"rg --pcre2 \\\"pool\\\\.query\\\\(\\\\s*`(?![^`]*\\\\$\\\\d)\\\" routes utils services middleware && echo \\\"Non-parameterized SQL candidate found\\\" && exit 1 || exit 0\""
+    "lint:sql-params": "node scripts/modernization/check-sql-params.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",
@@ -77,7 +77,7 @@
       "<rootDir>/test/setupJest.js"
     ],
     "transform": {
-      "spa/.+\\.js$": [
+      "^.+/(spa|tests|test|mobile)/.+\\.js$": [
         "babel-jest",
         {
           "presets": [

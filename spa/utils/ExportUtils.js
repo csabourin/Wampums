@@ -3,6 +3,8 @@
  * Utilities for exporting data to various formats (CSV, etc.)
  */
 
+import { debugLog } from "./DebugUtils.js";
+
 /**
  * Export data to a CSV file and trigger download.
  *
@@ -12,7 +14,7 @@
  */
 export function exportToCSV(data, columns, filename) {
     if (!data || !data.length) {
-        console.warn('ExportUtils: No data to export');
+        debugLog('ExportUtils: No data to export');
         return;
     }
 
