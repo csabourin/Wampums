@@ -1,8 +1,3 @@
-import {
-        saveOfflineData,
-        getOfflineData,
-        clearOfflineData,
-} from "./indexedDB.js";
 import { initRouter, Router } from "./router.js";
 import { checkSession } from "./utils/SessionUtils.js";
 import { getOrganizationSettings, getPublicOrganizationSettings, fetchOrganizationId, fetchOrganizationJwt } from "./ajax-functions.js";
@@ -13,6 +8,7 @@ import { getStorage, setStorage, setStorageMultiple } from "./utils/StorageUtils
 import { urlBase64ToUint8Array } from "./functions.js";
 import updateManager from "./pwa-update-manager.js";
 import { initOfflineSupport } from "./offline-init.js";
+import { offlineManager } from "./modules/OfflineManager.js";
 import { setContent, clearElement, createElement } from "./utils/DOMUtils.js";
 
 const debugMode = isDebugMode();
@@ -680,12 +676,9 @@ export const app = {
         async syncOfflineData() {
                 if (navigator.onLine) {
                         try {
-                                // Ensure database is initialized
-                                const offlineData = await getOfflineData();
-                                if (offlineData.length > 0) {
-                                        debugLog("Syncing offline data:", offlineData);
-                                        await clearOfflineData(); // Clear the offline data after sync
-                                }
+                                // Delegate replay/clear lifecycle to OfflineManager to avoid
+                                // deleting pending mutations before they are successfully synced.
+                                await offlineManager.syncPendingData();
                         } catch (error) {
                                 debugError("Error syncing offline data:", error);
                         }

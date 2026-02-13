@@ -164,12 +164,17 @@ export class OfflineManager {
             const response = await fetch(url, options);
 
             if (response.ok) {
-                // Clone response to cache it
-                const cloneForCache = response.clone();
-                const data = await cloneForCache.json();
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    // Clone response to cache it
+                    const cloneForCache = response.clone();
+                    const data = await cloneForCache.json();
 
-                // Cache the data
-                await this.cacheData(url, data, cacheDuration);
+                    // Cache the data
+                    await this.cacheData(url, data, cacheDuration);
+                } else {
+                    debugWarn('OfflineManager: Skipping cache for non-JSON response', { url, contentType });
+                }
 
                 return response;
             }
@@ -313,12 +318,19 @@ export class OfflineManager {
                 }
             }
 
-            // Always replay mutations from IndexedDB (WampumsAppDB).
-            // When queueMutation falls back to IndexedDB (no SW controller at queue time),
-            // the SW background sync won't find those records in its own pending-mutations store.
-            // This ensures they are always replayed with a fresh JWT token.
-            debugLog('OfflineManager: Replaying mutations from IndexedDB');
-            await this.replayPendingMutations();
+            // Replay IndexedDB fallback mutations when service worker sync is unavailable.
+            // This avoids duplicate replay races when both SW background sync and direct replay
+            // process overlapping queues.
+            const hasSwSync = 'serviceWorker' in navigator
+                && !!navigator.serviceWorker.controller
+                && 'sync' in (await navigator.serviceWorker.ready);
+
+            if (hasSwSync) {
+                debugLog('OfflineManager: Deferring replay to service worker background sync');
+            } else {
+                debugLog('OfflineManager: Replaying mutations from IndexedDB');
+                await this.replayPendingMutations();
+            }
 
             // Check pending count
             await this.updatePendingCount();
@@ -363,7 +375,6 @@ export class OfflineManager {
             'Content-Type': 'application/json'
         };
         const nonRetriableStatuses = new Set([400, 403, 404, 409, 410, 422]);
-        let stopReplayForAuthentication = false;
 
         // Batch legacy updatePoints entries into a single request
         const legacyPointUpdates = [];
@@ -406,12 +417,6 @@ export class OfflineManager {
                 debugError('OfflineManager: Failed to replay mutation', record.key, error);
                 // Leave record in IndexedDB for next sync attempt
             }
-        }
-
-        // Batch replay legacy point updates
-        if (stopReplayForAuthentication) {
-            debugWarn('OfflineManager: Skipping legacy point replay due to authentication failure');
-            return;
         }
 
         if (legacyPointUpdates.length > 0) {
