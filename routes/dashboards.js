@@ -9,17 +9,14 @@
 
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 
 // Import utilities
 const { verifyJWT, getCurrentOrganizationId, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { hasStaffRole, isParentOnly } = require('../config/role-constants');
+const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 
-// Load JWT secret key - fail fast if not configured
-const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
-if (!jwtKey) {
-  throw new Error('JWT_SECRET_KEY or JWT_SECRET environment variable is required');
-}
+// Validate JWT secret at startup
+requireJWTSecret();
 
 /**
  * Export route factory function
@@ -74,9 +71,8 @@ module.exports = (pool, logger) => {
 
       // If not logged in, generate organization-only JWT
       if (!jwtToken) {
-        jwtToken = jwt.sign(
+        jwtToken = signJWTToken(
           { organizationId },
-          jwtKey,
           { expiresIn: '7d' }
         );
       }

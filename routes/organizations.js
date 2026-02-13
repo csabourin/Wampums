@@ -9,19 +9,19 @@
 
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const meetingSectionDefaults = require('../config/meeting_sections.json');
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/response');
+const { requireJWTSecret, signJWTToken } = require('../utils/jwt-config');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, verifyOrganizationMembership, handleOrganizationResolutionError } = require('../utils/api-helpers');
 const { ensureProgramSectionsSeeded, getProgramSections } = require('../utils/programSections');
 
-// Get JWT key from environment
-const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+// Validate JWT secret at startup
+requireJWTSecret();
 
 const PUBLIC_ORGANIZATION_SETTING_KEYS = [
   'organization_info',
@@ -177,9 +177,8 @@ module.exports = (pool, logger) => {
     }
 
     // Generate JWT with organization ID only (no user information)
-    const token = jwt.sign(
+    const token = signJWTToken(
       { organizationId },
-      jwtKey,
       { expiresIn: '7d' }
     );
 
@@ -650,13 +649,12 @@ module.exports = (pool, logger) => {
     }
 
     // Generate new JWT with updated organization
-    const newToken = jwt.sign(
+    const newToken = signJWTToken(
       {
         user_id: req.user.id,
         organization_id: organization_id,
         role: membershipCheck.rows[0].role
       },
-      jwtKey,
       { expiresIn: '24h' }
     );
 

@@ -1,10 +1,10 @@
 // RESTful routes for groups
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const winston = require('winston');
 const { authenticate, authorize, getOrganizationId, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
+const { requireJWTSecret, verifyJWTToken } = require('../utils/jwt-config');
 // Configure logger for non-v1 endpoints
 const logger = winston.createLogger({
   level: 'info',
@@ -23,10 +23,10 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // JWT verification helper for non-v1 endpoints
-const jwtKey = process.env.JWT_SECRET_KEY || process.env.JWT_SECRET;
+requireJWTSecret();
 function verifyJWT(token) {
   try {
-    return jwt.verify(token, jwtKey);
+    return verifyJWTToken(token);
   } catch (e) {
     return null;
   }
