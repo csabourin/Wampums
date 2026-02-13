@@ -1,317 +1,102 @@
-# Wampums Legacy Modernization TODO (Complete Inventory + Migration Workflow)
+# Wampums Architecture Backlog (Re-baselined)
 
-This document supersedes the previous high-level TODO by:
-
-1. Listing **legacy components explicitly** (backend + SPA + auth/policy compatibility surfaces).
-2. Defining a **complete modernization workflow** to migrate the system to a modern, modular architecture.
-3. Providing **wave-based execution** with acceptance criteria so migration can be tracked to completion.
+**Last verified:** 2026-02-13  
+**Verified against:** `api.js`, `config/app.js`, `routes/index.js`, `scripts/modernization/*`, `spa/`, `mobile/src/`, `devdocs/*`
 
 ---
 
-## 1) Legacy Component Inventory (Complete)
+## 1) What is already done (validated)
 
-## 1.1 Backend legacy API mount surfaces (`api.js`)
+### 1.1 Backend composition and routing modernization
 
-These route mounts still use legacy `/api` or mixed-prefix compatibility patterns:
+- [x] `api.js` is now a thin startup/composition entrypoint (no monolithic 1400-line bootstrap anymore).
+- [x] Middleware + server setup extracted to modular bootstrap (`config/app.js`, `middleware/global.js`, `config/rate-limit.js`).
+- [x] Route mounting is centralized in a canonical route registry (`routes/index.js`).
+- [x] Duplicate `/api/ai` route mount was removed.
+- [x] Canonical `/api/v1/*` mounts exist for core domains (organizations, users, meetings, groups, AI, calendars, forms, reports, dashboards, badges, guardians, notifications, points, attendance, import, participants, resources, activities, offline, carpools).
+- [x] Legacy `/api` compatibility now has explicit deprecation handling (`legacyApiDeprecationLogger` + 410 responder).
 
-- [ ] `app.use("/api", organizationsRoutes)`
-- [ ] `app.use("/api", usersRoutes)`
-- [ ] `app.use("/api", userProfileRoutes)`
-- [ ] `app.use("/api/ai", aiRoutes)` (legacy prefix)
-- [ ] `app.use("/api/ai", aiRoutes)` (**duplicate mount**)
-- [ ] `app.use("/api", meetingsRoutes)`
-- [ ] `app.use("/api", calendarsRoutes)`
-- [ ] `app.use("/api", fundraisersRoutes)`
-- [ ] `app.use("/api", formsRoutes)`
-- [ ] `app.use("/api", formBuilderRoutes)`
-- [ ] `app.use("/api", reportsRoutes)`
-- [ ] `app.use("/api", dashboardsRoutes)`
-- [ ] `app.use("/api", badgesRoutes)`
-- [ ] `app.use("/api", guardiansRoutes)`
-- [ ] `app.use("/api", notificationsRoutes)`
-- [ ] `app.use("/api", announcementsRoutes)`
-- [ ] `app.use("/api", whatsappBaileysRoutes)`
-- [ ] `app.use("/api", googleChatRoutes)`
-- [ ] `app.use("/api", honorsRoutes)`
-- [ ] `app.use("/api", pointsRoutes)`
-- [ ] `app.use("/api/attendance", attendanceRoutes)`
-- [ ] `app.use("/api", publicRoutes)`
-- [ ] `app.use("/api", importRoutes)`
-- [ ] `app.use("/api", financeRoutes)`
-- [ ] `app.use("/api", stripeRoutes)`
-- [ ] `app.use("/api", budgetsRoutes)`
-- [ ] `app.use("/api", externalRevenueRoutes)`
-- [ ] `app.use("/api", medicationRoutes)`
-- [ ] `app.use("/api", participantsRoutes)`
+### 1.2 Guardrails and modernization scripts
 
-Also legacy-compatible root/public mounts that should be standardized:
+- [x] Duplicate-mount checker exists (`scripts/modernization/check-duplicate-mounts.js`).
+- [x] SPA top-level file gate exists (`scripts/modernization/check-spa-files.js`).
+- [x] Non-versioned mount policy checker exists and is pointed at `routes/index.js` (`scripts/modernization/check-non-versioned-mounts.js`).
 
-- [ ] `app.use("/", authRoutes)`
-- [ ] `app.use("/", rolesRoutes)`
-- [ ] `app.use("/public", organizationsRoutes)`
+### 1.3 Legacy inventory items that are no longer current
 
-## 1.2 Backend architecture legacy patterns
-
-- [ ] `api.js` monolithic composition root (~1400 lines).
-- [ ] Manual route registration spread in one file (no canonical route registry object).
-- [ ] Mixed authorization paradigms (`authorize` role-based compatibility + permission-based model).
-- [ ] Legacy API versioning coexistence (`/api` and `/api/v1`) without strict enforcement gate.
-
-## 1.3 SPA legacy feature modules (top-level scripts)
-
-These top-level `spa/*.js` modules represent legacy page-style architecture that should be migrated into a modern module/page structure:
-
-- [ ] `spa/JSONFormRenderer.js`
-- [ ] `spa/acceptation_risque.js`
-- [ ] `spa/activities.js`
-- [ ] `spa/activity-widget.js`
-- [ ] `spa/admin.js`
-- [ ] `spa/ajax-functions.js`
-- [ ] `spa/approve_badges.js`
-- [ ] `spa/attendance.js`
-- [ ] `spa/badge_dashboard.js`
-- [ ] `spa/badge_form.js`
-- [ ] `spa/badge_tracker.js`
-- [ ] `spa/budgets.js`
-- [ ] `spa/calendars.js`
-- [ ] `spa/carpool.js`
-- [ ] `spa/carpool_dashboard.js`
-- [ ] `spa/communication-settings.js`
-- [ ] `spa/create_organization.js`
-- [ ] `spa/dashboard.js`
-- [ ] `spa/district_management.js`
-- [ ] `spa/dynamicFormHandler.js`
-- [ ] `spa/expenses.js`
-- [ ] `spa/external-revenue.js`
-- [ ] `spa/fiche_sante.js`
-- [ ] `spa/finance.js`
-- [ ] `spa/formBuilder.js`
-- [ ] `spa/form_permissions.js`
-- [ ] `spa/formulaire_inscription.js`
-- [ ] `spa/fundraisers.js`
-- [ ] `spa/group-participant-report.js`
-- [ ] `spa/guardian-management.js`
-- [ ] `spa/indexedDB.js`
-- [ ] `spa/init-activity-widget.js`
-- [ ] `spa/inventory.js`
-- [ ] `spa/jwt-helper.js`
-- [ ] `spa/login.js`
-- [ ] `spa/mailing_list.js`
-- [ ] `spa/manage_groups.js`
-- [ ] `spa/manage_honors.js`
-- [ ] `spa/manage_participants.js`
-- [ ] `spa/manage_points.js`
-- [ ] `spa/manage_users_participants.js`
-- [ ] `spa/material_management.js`
-- [ ] `spa/medication_management.js`
-- [ ] `spa/medication_reception.js`
-- [ ] `spa/offline-init.js`
-- [ ] `spa/offline_preparation.js`
-- [ ] `spa/parent_contact_list.js`
-- [ ] `spa/parent_dashboard.js`
-- [ ] `spa/parent_finance.js`
-- [ ] `spa/permission_slip_dashboard.js`
-- [ ] `spa/permission_slip_sign.js`
-- [ ] `spa/preparation_reunions.js`
-- [ ] `spa/pwa-update-manager.js`
-- [ ] `spa/register.js`
-- [ ] `spa/register_organization.js`
-- [ ] `spa/reports.js`
-- [ ] `spa/reset_password.js`
-- [ ] `spa/resource_dashboard.js`
-- [ ] `spa/revenue-dashboard.js`
-- [ ] `spa/role_management.js`
-- [ ] `spa/time_since_registration.js`
-- [ ] `spa/upcoming_meeting.js`
-- [ ] `spa/view_participant_documents.js`
-
-## 1.4 SPA transitional core files (keep but modernize boundaries)
-
-These are foundational and may remain, but should be reduced to orchestration-only responsibilities:
-
-- [ ] `spa/app.js`
-- [ ] `spa/router.js`
-- [ ] `spa/config.js`
-- [ ] `spa/functions.js`
-
-## 1.5 Mobile architecture parity debt (not legacy, but migration dependency)
-
-Not legacy in structure, but part of full modernization because duplicated API behavior exists across clients:
-
-- [ ] `mobile/src/api/api-core.js` behavior parity alignment with `spa/api/api-core.js`.
-- [ ] Shared API behavior specification and test vectors for both clients.
+The original backlog listed many legacy `app.use("/api", ...)` entries inside `api.js`. Those are now outdated because route composition moved to `routes/index.js` and most mounts are versioned.
 
 ---
 
+## 2) What is still left (validated)
 
-## 1.6 Backend endpoint usage audit baseline (frontend/backend comparison)
+### 2.1 Remaining intentional non-versioned mounts (still technical debt)
 
-Based on `devdocs/API_ENDPOINT_USAGE_AUDIT.md` static comparison:
+- [ ] Keep/replace root mounts that rely on internal absolute paths:
+  - `app.use("/", authRoutes)`
+  - `app.use("/", rolesRoutes)`
+- [ ] Migrate or isolate routers still mounted at `/api`:
+  - `announcementsRoutes`, `honorsRoutes`, `financeRoutes`, `stripeRoutes`, `budgetsRoutes`, `externalRevenueRoutes`, `medicationRoutes`, `whatsappBaileysRoutes`.
+- [ ] Keep `/public` compatibility mount scoped and sunset-tracked.
 
-- [ ] Candidate backend endpoints analyzed: `336`
-- [ ] Frontend/mobile unique referenced API paths: `50`
-- [ ] Statically unreferenced backend endpoint candidates: `283`
-- [ ] Frontend/mobile paths with no backend match (possible stale calls): `6`
+### 2.2 Backlog items still missing from original waves
 
-Follow-up actions:
+- [ ] Publish active `devdocs/API_VERSIONING_POLICY.md` (currently only available in `devdocs/archive/`).
+- [ ] Replace/repair `lint:api-version` to inspect `routes/index.js` (it still targets `api.js`, so it can pass without validating real route mounts).
+- [ ] Add CI wiring to enforce modernization scripts on PRs (scripts exist, enforcement path not documented in active backlog).
+- [ ] Add endpoint hit telemetry + deprecation metrics before removing remaining legacy mounts.
+- [ ] Publish `devdocs/API_CLIENT_BEHAVIOR_SPEC.md` and add SPA/mobile client parity tests.
+- [ ] Add response envelope contract tests for `success/error/paginated` coverage.
 
-- [ ] Validate each unreferenced candidate with runtime logs before deletion (external consumers may exist).
-- [ ] Add endpoint hit telemetry (per route) to distinguish truly dead endpoints from low-frequency endpoints.
-- [ ] Prioritize deprecation/removal for endpoints unreferenced by both SPA/mobile and with zero production hits.
-- [ ] Reconcile stale frontend/mobile paths listed in the audit report.
+### 2.3 SPA migration debt still open
 
-## 2) Target Modern Architecture
-
-## 2.1 Backend target
-
-- Single route registry with metadata (name, prefix, version, auth mode, tenant scoped, owner).
-- `/api/v1` as canonical endpoint prefix.
-- Legacy compatibility adapter layer isolated and sunset-tracked.
-- `api.js` replaced by thin composition root with extracted modules:
-  - `server/bootstrap/*`
-  - `server/routes/*`
-  - `server/runtime/*`
-
-## 2.2 SPA target
-
-- Feature pages implemented as modular units under `spa/modules` (+ route mapping).
-- API access only through `spa/api/*` wrappers.
-- Sanitized DOM utilities and shared debug utilities used universally.
-- Offline capabilities retained via dedicated sync/data modules (not embedded per-page).
-
-## 2.3 Mobile target
-
-- Keep current screen/component/navigation modular architecture.
-- Standardize API semantics with SPA using shared contract tests + behavior spec.
+- [ ] Large set of legacy top-level SPA feature files (`spa/*.js`) still exists; modernization batches are not complete.
+- [ ] Compatibility shims and module-by-module cutovers are still needed for full migration to `spa/modules/*`.
 
 ---
 
-## 3) End-to-End Modernization Workflow (Migrate Everything)
+## 3) New prioritized TODO (recommended execution order)
 
-## Wave 0 — Governance and safety rails (must complete first)
+## P0 — Correctness + governance (do first)
 
-- [ ] Create `devdocs/API_VERSIONING_POLICY.md` with explicit legacy allowlist and deprecation dates.
-- [ ] Replace brittle `lint:api-version` script with deterministic checker.
-- [ ] Add CI check for duplicate `app.use(path, router)` mounts.
-- [ ] Add CI check to block new top-level SPA feature scripts (`spa/*.js`) except approved entry files.
+- [ ] **Fix `lint:api-version` immediately** to scan `routes/index.js` and fail on unauthorized legacy mounts.
+- [ ] **Promote API versioning policy out of archive** into active docs (`devdocs/API_VERSIONING_POLICY.md`) with explicit deprecation dates.
+- [ ] **Add CI job** that runs:
+  - `npm run lint:api-version`
+  - `npm run lint:duplicate-mounts`
+  - `npm run lint:non-versioned-mounts`
+  - `npm run lint:spa-files`
 
-**Exit criteria**
-- CI blocks new legacy-pattern additions.
-- Migration can proceed without architecture regression.
+## P1 — Complete backend versioning migration
 
-## Wave 1 — Backend migration to `/api/v1` (compatibility-preserving)
+- [ ] Refactor remaining `/api`-mounted routers to `/api/v1/*` canonical paths.
+- [ ] For each migrated route, keep short-lived compatibility aliases with deprecation logs + removal date.
+- [ ] Remove `/public` and root compatibility mounts where no longer required.
 
-For each legacy backend mount listed in Section 1.1:
+## P2 — Contract quality and cross-client parity
 
-- [ ] Introduce corresponding `/api/v1/...` canonical routes if not present.
-- [ ] Keep temporary compatibility aliases under `/api/...`.
-- [ ] Add deprecation logging for legacy route hits.
-- [ ] Update SPA/mobile API endpoint maps to canonical `/api/v1`.
+- [ ] Create `devdocs/API_CLIENT_BEHAVIOR_SPEC.md` (timeouts, retries, auth refresh, envelope parsing, org context behavior).
+- [ ] Add automated parity tests between `spa/api/api-core.js` and `mobile/src/api/api-core.js`.
+- [ ] Add response contract tests covering key route modules.
 
-**Special mandatory tasks**
-- [ ] Remove duplicate `/api/ai` registration.
-- [ ] Standardize auth/roles root mounts to versioned API where appropriate.
+## P3 — SPA legacy module retirement
 
-**Exit criteria**
-- All active client traffic uses `/api/v1`.
-- Legacy aliases remain only for controlled sunset period.
-
-## Wave 2 — Decompose monolithic server bootstrap
-
-- [ ] Extract middleware config from `api.js` to `server/bootstrap/middleware.js`.
-- [ ] Extract route mounting to `server/routes/registerRoutes.js` driven by registry.
-- [ ] Extract static/catch-all handling to `server/bootstrap/static.js`.
-- [ ] Extract Socket.IO setup to `server/runtime/socket.js`.
-- [ ] Keep `api.js` as orchestration-only file.
-
-**Exit criteria**
-- `api.js` reduced to thin startup composition.
-- Route registration source-of-truth is centralized and testable.
-
-## Wave 3 — SPA legacy feature migration (complete list execution)
-
-For each legacy SPA feature file in Section 1.3:
-
-- [ ] Create modern module counterpart under `spa/modules/<feature>/` (or agreed structure).
-- [ ] Move API calls to `spa/api/*` wrappers.
-- [ ] Move DOM write paths to shared safe helpers (`DOMUtils`, `SecurityUtils`).
-- [ ] Ensure loading/error/empty states are explicit.
-- [ ] Ensure all user-facing text is translation-key based.
-- [ ] Replace top-level file export with temporary compatibility shim.
-- [ ] Remove shim after route switch-over stabilization.
-
-**Batching strategy**
-- Batch A (auth/profile): `login`, `register`, `reset_password`, profile/user linkage.
-- Batch B (core operations): participants/groups/attendance/activities.
-- Batch C (forms/permissions): registration, health, risk, permission slip flows.
-- Batch D (finance/reporting): finance/budgets/reports/revenue/fundraisers.
-- Batch E (admin/inventory/resources): role mgmt, admin, inventory, resources, medication.
-- Batch F (parent/district dashboards + auxiliary pages).
-
-**Exit criteria**
-- No remaining business-feature logic in top-level legacy `spa/*.js` files.
-- Top-level files reduced to bootstrap-only entries or removed.
-
-## Wave 4 — Cross-client API contract unification
-
-- [ ] Publish `devdocs/API_CLIENT_BEHAVIOR_SPEC.md`.
-- [ ] Define shared behavior vectors: retries, timeout, 401 handling, envelope parsing, org header handling.
-- [ ] Add automated tests validating SPA and mobile API client parity.
-
-**Exit criteria**
-- Equivalent client behavior for shared API error/success scenarios.
-
-## Wave 5 — Security and tenancy regression hardening
-
-- [ ] Add tenant isolation tests for representative read/write endpoints in every major domain.
-- [ ] Add tests for organization resolution precedence and override rejection.
-- [ ] Add response envelope contract tests for `success/error/paginated`.
-
-**Exit criteria**
-- CI can detect authz, tenancy, and envelope regressions early.
-
-## Wave 6 — Legacy sunset and cleanup
-
-- [ ] Remove `/api` compatibility aliases per policy timeline.
-- [ ] Remove compatibility shims for migrated SPA files.
-- [ ] Remove deprecated role-based middleware usage where permission middleware exists.
-- [ ] Archive migration status and final architecture decision records (ADRs).
-
-**Exit criteria**
-- Canonical architecture only (versioned APIs + modular clients).
-- Legacy pathways removed or explicitly isolated.
+- [ ] Execute SPA migration in batches (auth/profile → operations → forms → finance/reporting → admin/resource → parent dashboards).
+- [ ] Retire top-level legacy feature files once each batch is stabilized.
 
 ---
 
-## 4) Migration Tracking Matrix
+## 4) Verification commands used for this re-baseline
 
-Use the following status tags for each legacy item in Section 1:
-
-- `NOT_STARTED`
-- `IN_PROGRESS`
-- `MIGRATED_CANONICAL`
-- `COMPAT_ALIAS_ACTIVE`
-- `SUNSETTED`
-
-For each item, track:
-
-- Owner
-- Start date
-- Target sunset date
-- Blocking dependencies
-- Test coverage status
-- Rollback plan
-
----
-
-## 5) Definition of Done (program-level)
-
-Modernization is complete only when all are true:
-
-- [ ] No duplicate route mounts.
-- [ ] No new non-allowlisted legacy `/api` mounts.
-- [ ] All core endpoints consumed via `/api/v1`.
-- [ ] SPA business features migrated out of legacy top-level scripts.
-- [ ] API behavior parity documented and tested across SPA/mobile.
-- [ ] Tenant isolation and response envelope tests enforced in CI.
-- [ ] Legacy compatibility layers either sunsetted or explicitly isolated with owner + date.
+- `rg -n "app\.use\(" routes/index.js`
+- `sed -n '1,260p' api.js`
+- `sed -n '1,320p' config/app.js`
+- `sed -n '1,360p' routes/index.js`
+- `sed -n '1,220p' scripts/modernization/check-api-version.js`
+- `sed -n '1,220p' scripts/modernization/check-duplicate-mounts.js`
+- `sed -n '1,260p' scripts/modernization/check-non-versioned-mounts.js`
+- `sed -n '1,220p' scripts/modernization/check-spa-files.js`
+- `npm run -s lint:api-version`
+- `npm run -s lint:duplicate-mounts`
+- `npm run -s lint:non-versioned-mounts`
+- `npm run -s lint:spa-files`
