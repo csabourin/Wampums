@@ -826,3 +826,92 @@ footer a {
 #demoRedirectForm {
 	display: none;
 }
+
+/* Screenshot Placeholders */
+.screenshot-placeholder {
+	background: var(--color-highlight);
+	border: 2px dashed var(--color-border);
+	border-radius: var(--radius-lg);
+	padding: var(--space-2xl) var(--space-lg);
+	text-align: center;
+	color: var(--color-text-muted);
+	margin-bottom: var(--space-xl);
+}
+
+.screenshot-placeholder span {
+	font-size: 2.5rem;
+	display: block;
+	margin-bottom: var(--space-sm);
+}
+
+.screenshot-placeholder--spaced {
+	margin-top: var(--space-xl);
+}
+
+/* Comparison Table */
+.compare-grid {
+	display: grid;
+	gap: 1px;
+	background: var(--color-border);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-lg);
+	overflow: hidden;
+	margin-top: var(--space-xl);
+	text-align: left;
+	font-size: 0.9rem;
+}
+
+.compare-row {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 1px;
+}
+
+.compare-cell {
+	background: var(--color-surface);
+	padding: var(--space-sm) var(--space-md);
+}
+
+.compare-cell--label {
+	font-weight: 700;
+	color: var(--color-primary-dark);
+}
+
+.compare-cell--highlight {
+	background: var(--color-secondary);
+	font-weight: 600;
+	color: var(--color-primary-dark);
+}
+
+.compare-header .compare-cell {
+	font-weight: 700;
+	background: var(--color-highlight);
+	color: var(--color-primary-dark);
+	font-size: 0.85rem;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.compare-header .compare-cell--highlight {
+	background: var(--color-primary);
+	color: #fff;
+}
+
+@media (min-width: 768px) {
+	.compare-row {
+		grid-template-columns: 1.2fr repeat(3, 1fr) 1.4fr;
+	}
+}
+
+/* Testimonials */
+.testimonial-avatar {
+	font-size: 2rem;
+	margin-bottom: var(--space-xs);
+}
+
+.testimonial-author {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--color-primary-dark);
+	margin: var(--space-xs) 0 0;
+}
