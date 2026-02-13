@@ -112,3 +112,37 @@ From a user perspective, this creates a pattern:
 - Pending mutations survive reload/tab close and replay in-order on reconnect.
 - UI pending count matches real queue count at all times.
 - No mutation loss in fallback scenarios.
+
+---
+
+## Update 2026-02-13: HTML Caching Fix
+
+### Issue Fixed: 404 Errors for Dynamically Imported Modules
+
+**Problem:** Users reported 404 errors when navigating to manage_points and other pages:
+```
+GET https://demo.wampums.app/assets/init-activity-widget-X1hLd8Cw.js net::ERR_ABORTED 404
+GET https://demo.wampums.app/assets/staff-IN8JJ3li.js net::ERR_ABORTED 404
+```
+
+**Root Cause:** The service worker was precaching `index.html` via Workbox's `precacheAndRoute()`. When a new deployment generated new hashed filenames for JS chunks, users with cached HTML had references to non-existent assets.
+
+**Solution Implemented:**
+1. **Excluded index.html from precaching** by adding it to `globIgnores` in `vite.config.js`
+2. **Changed navigation strategy** from `createHandlerBoundToURL('/index.html')` to `NetworkFirst` with 1-hour TTL
+3. **Added comprehensive tests** to verify configuration prevents future recurrence
+
+**Files Changed:**
+- `vite.config.js`: Added `**/index.html` to `injectManifest.globIgnores`
+- `src-sw.js`: Replaced precached HTML handler with `NetworkFirst` strategy
+- `test/service-worker-config.test.js`: Added 17 tests verifying configuration
+
+**Impact:**
+- Users now always fetch fresh HTML with correct asset references
+- Reduces cache-related 404 errors to near zero
+- Maintains offline capability via 1-hour HTML cache
+- Precache count reduced from 104 to 103 entries
+
+**References:**
+- PR: copilot/fix-manage-points-404-error
+- Commits: 500eecf, 1adbb8a

@@ -6,7 +6,7 @@
 // background sync, IndexedDB API caching, and version messaging.
 // ==================================================================
 
-import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
@@ -78,7 +78,21 @@ cleanupOutdatedCaches();
 // Section 3: SPA Navigation Fallback
 // ==================================================================
 
-const navigationHandler = createHandlerBoundToURL('/index.html');
+// Use NetworkFirst for navigation to ensure fresh HTML with correct asset hashes
+// This prevents 404 errors when dynamic imports reference new hashed filenames
+const navigationHandler = new NetworkFirst({
+  cacheName: 'html-cache',
+  plugins: [
+    new CacheableResponsePlugin({
+      statuses: [0, 200],
+    }),
+    new ExpirationPlugin({
+      maxEntries: 5,
+      maxAgeSeconds: 60 * 60, // 1 hour - short TTL to get updates quickly
+    }),
+  ],
+});
+
 const navigationRoute = new NavigationRoute(navigationHandler, {
   denylist: [
     /^\/api\//,

@@ -204,7 +204,11 @@ export default defineConfig({
 
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,json,woff2}"],
-        globIgnores: ["**/node_modules/**", "service-worker.js"],
+        globIgnores: [
+          "**/node_modules/**",
+          "service-worker.js",
+          "**/index.html", // Exclude index.html to prevent stale asset references
+        ],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
     }),
