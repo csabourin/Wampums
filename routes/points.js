@@ -109,8 +109,10 @@ module.exports = (pool, logger) => {
     const organizationId = await getOrganizationId(req, pool);
     const updates = req.body;
 
-    logger.info('[update-points] Request body:', JSON.stringify(updates));
-    logger.info('[update-points] Organization ID:', organizationId);
+    logger.info('[update-points] Processing request', { 
+      updateCount: Array.isArray(updates) ? updates.length : 'invalid',
+      organizationId 
+    });
 
     if (!Array.isArray(updates)) {
       return res.status(400).json({ success: false, message: 'Updates must be an array' });
@@ -312,7 +314,10 @@ module.exports = (pool, logger) => {
       }
 
       await client.query('COMMIT');
-      logger.info('[update-points] SUCCESS - Response:', JSON.stringify({ success: true, data: { updates: responseUpdates } }));
+      logger.info('[update-points] Points update successful', { 
+        updateCount: responseUpdates.length,
+        organizationId 
+      });
       return success(res, { updates: responseUpdates }, 'Points updated successfully');
     } catch (error) {
       await client.query('ROLLBACK');
