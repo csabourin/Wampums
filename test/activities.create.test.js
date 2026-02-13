@@ -26,18 +26,18 @@ jest.mock('pg', () => {
   };
 });
 
-// Set required env variables BEFORE requiring any modules
-process.env.JWT_SECRET_KEY = 'testsecret';
-process.env.DB_USER = 'test';
-process.env.DB_HOST = 'localhost';
-process.env.DB_NAME = 'testdb';
-process.env.DB_PASSWORD = 'test';
-process.env.DB_PORT = '5432';
-
 const { Pool } = require('pg');
 let app;
 
 beforeAll(() => {
+  // Set required env variables
+  process.env.JWT_SECRET_KEY = 'testsecret';
+  process.env.DB_USER = 'test';
+  process.env.DB_HOST = 'localhost';
+  process.env.DB_NAME = 'testdb';
+  process.env.DB_PASSWORD = 'test';
+  process.env.DB_PORT = '5432';
+
   app = require('../api');
 });
 
@@ -55,7 +55,8 @@ afterEach(() => {
 });
 
 describe('POST /api/v1/activities', () => {
-  const validToken = jwt.sign(
+  // Generate token inside a function to ensure JWT_SECRET_KEY is set
+  const getValidToken = () => jwt.sign(
     {
       user_id: '123e4567-e89b-12d3-a456-426614174000',
       roleIds: [1],
@@ -96,7 +97,7 @@ describe('POST /api/v1/activities', () => {
 
     const response = await request(app)
       .post('/api/v1/activities')
-      .set('Authorization', `Bearer ${validToken}`)
+      .set('Authorization', `Bearer ${getValidToken()}`)
       .send({
         activity_name: 'Test Activity', // Using new field name
         activity_start_date: '2026-02-14',
@@ -145,7 +146,7 @@ describe('POST /api/v1/activities', () => {
 
     const response = await request(app)
       .post('/api/v1/activities')
-      .set('Authorization', `Bearer ${validToken}`)
+      .set('Authorization', `Bearer ${getValidToken()}`)
       .send({
         name: 'Test Activity', // Using legacy field name
         activity_start_date: '2026-02-14',
@@ -176,7 +177,7 @@ describe('POST /api/v1/activities', () => {
 
     const response = await request(app)
       .post('/api/v1/activities')
-      .set('Authorization', `Bearer ${validToken}`)
+      .set('Authorization', `Bearer ${getValidToken()}`)
       .send({
         name: 'Test Activity',
         // Missing required fields
@@ -219,7 +220,7 @@ describe('POST /api/v1/activities', () => {
 
     const response = await request(app)
       .post('/api/v1/activities')
-      .set('Authorization', `Bearer ${validToken}`)
+      .set('Authorization', `Bearer ${getValidToken()}`)
       .send({
         activity_name: 'Test Activity',
         activity_start_date: '2026-02-14',
@@ -270,7 +271,7 @@ describe('POST /api/v1/activities', () => {
 
     const response = await request(app)
       .post('/api/v1/activities')
-      .set('Authorization', `Bearer ${validToken}`)
+      .set('Authorization', `Bearer ${getValidToken()}`)
       .send({
         activity_name: 'Test Activity',
         activity_start_date: '2026-02-14',

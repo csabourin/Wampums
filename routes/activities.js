@@ -111,7 +111,7 @@ module.exports = (pool) => {
 
     // Validation with specific error messages
     const missingFields = [];
-    if (!activityName) missingFields.push('activity_name (or name)');
+    if (!activityName) missingFields.push('name');
     if (!normalizedStartDate) missingFields.push('activity_start_date (or activity_date as fallback)');
     if (!normalizedEndDate) missingFields.push('activity_end_date');
     if (!meeting_location_going) missingFields.push('meeting_location_going');
