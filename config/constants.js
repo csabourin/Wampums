@@ -15,8 +15,10 @@
  */
 function parseEnvInt(envValue, defaultValue) {
   if (!envValue) return defaultValue;
-  const parsed = parseInt(envValue, 10);
-  return isNaN(parsed) ? defaultValue : parsed;
+  const trimmed = String(envValue).trim();
+  const parsed = parseInt(trimmed, 10);
+  // Ensure the entire string is a valid integer (no trailing non-numeric characters)
+  return isNaN(parsed) || !/^-?\d+$/.test(trimmed) ? defaultValue : parsed;
 }
 
 /**

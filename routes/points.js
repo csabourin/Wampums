@@ -110,7 +110,7 @@ module.exports = (pool, logger) => {
     const updates = req.body;
 
     logger.info('[update-points] Processing request', { 
-      updateCount: Array.isArray(updates) ? updates.length : 'invalid',
+      updateCount: Array.isArray(updates) ? updates.length : 0,
       organizationId 
     });
 
