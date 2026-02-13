@@ -85,10 +85,13 @@ export class CarpoolDashboard {
     try {
       // Check for cached data first (camp mode or offline)
       if (offlineManager.campMode || offlineManager.isOffline) {
-        const cachedActivity = await getCachedData(`activity_${this.activityId}`);
-        const cachedOffers = await getCachedData(`carpool_offers_activity_${this.activityId}`);
-        const cachedAssignments = await getCachedData(`carpool_assignments_activity_${this.activityId}`);
-        const cachedParticipants = await getCachedData('participants_v2');
+        // Parallelize cache reads for faster loading
+        const [cachedActivity, cachedOffers, cachedAssignments, cachedParticipants] = await Promise.all([
+          getCachedData(`activity_${this.activityId}`),
+          getCachedData(`carpool_offers_activity_${this.activityId}`),
+          getCachedData(`carpool_assignments_activity_${this.activityId}`),
+          getCachedData('participants_v2')
+        ]);
 
         if (cachedActivity?.data && cachedOffers?.data && cachedParticipants?.data) {
           debugLog('CarpoolDashboard: Using cached data');

@@ -72,10 +72,12 @@ export class BadgeTracker {
 
   async loadData(forceRefresh = false) {
     try {
-      const response = await getBadgeTrackerSummary({ forceRefresh });
+      // Parallelize independent API calls for faster loading
+      const [response, unprocessedResponse] = await Promise.all([
+        getBadgeTrackerSummary({ forceRefresh }),
+        getUnprocessedAchievements().catch(() => ({ meetings: [] }))
+      ]);
 
-      // Load unprocessed achievements
-      const unprocessedResponse = await getUnprocessedAchievements().catch(() => ({ meetings: [] }));
       this.unprocessedMeetings = unprocessedResponse?.meetings || [];
 
       if (response?.success && response.data) {
