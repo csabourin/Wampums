@@ -1,7 +1,16 @@
 # Wampums Scout Management Application
 
+**Version:** 3.1.0  
+**Last Updated:** February 2026
+
 ## Overview
-Wampums is a comprehensive scout management system designed for scouting groups. It provides a centralized platform for managing scout activities, tracking progress, and facilitating communication between scout leaders, parents, and scouts.
+Wampums is a comprehensive, bilingual (English/French) scout management system designed for scouting groups. It provides a centralized platform for managing scout activities, tracking progress, and facilitating communication between scout leaders, parents, and scouts.
+
+**Tech Stack:**
+- **Backend:** Node.js + Express, PostgreSQL
+- **Frontend:** Vite, Vanilla JavaScript (ES6 modules), Progressive Web App
+- **Mobile:** Expo / React Native
+- **Architecture:** Multi-tenant SaaS, RESTful API with JWT authentication
 
 ## Features and Advantages
 
@@ -150,5 +159,71 @@ Wampums is a comprehensive scout management system designed for scouting groups.
 14. **Secure Access**
     - Secure login to protect personal and child's information
     - Control over personal data sharing
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+ 
+- PostgreSQL 14+
+- npm or yarn
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/csabourin/Wampums.git
+cd Wampums
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your database credentials and JWT secret
+
+# Run database migrations
+npm run migrate:up
+
+# Start the development server
+npm run dev:all  # Starts both API (port 3000) and Vite dev server (port 5173)
+```
+
+### Environment Variables
+
+Required:
+- `DATABASE_URL` - PostgreSQL connection string
+- `JWT_SECRET_KEY` - Secret for JWT token signing
+
+Optional:
+- `PORT` - API server port (default: 3000)
+- `NODE_ENV` - Environment (development/production)
+- `SENDGRID_API_KEY` - Email service
+- `STRIPE_SECRET_KEY` - Payment processing
+- `VAPID_PUBLIC` / `VAPID_PRIVATE` - Push notifications
+
+## Documentation
+
+- **[CLAUDE.md](./CLAUDE.md)** - Development guidelines and coding standards
+- **[AGENTS.md](./AGENTS.md)** - Quick reference for AI development agents
+- **[devdocs/](./devdocs/)** - Technical documentation and architecture
+- **[attached_assets/](./attached_assets/)** - Additional documentation and schemas
+
+## Contributing
+
+Please follow the guidelines in [CLAUDE.md](./CLAUDE.md) for:
+- Code quality standards
+- API design patterns
+- Security best practices
+- Testing requirements
+
+## License
+
+Proprietary - All rights reserved
+
+## Support
+
+For issues or questions, please contact the development team.
+
+---
 
 This comprehensive system provides a robust platform for managing all aspects of a scout program, enhancing communication, streamlining processes, and improving the overall experience for scouts, parents, and leaders alike.
