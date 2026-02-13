@@ -601,12 +601,8 @@ export class Dashboard extends BaseModule {
 
   async lazyLogout() {
     const { Login } = await import("./login.js");
-
-    try {
-      await Login.logout();
-    } catch (error) {
-      debugError("Error during logout:", error);
-    }
+    // Login.logout() handles everything: server call, cleanup, and redirect
+    await Login.logout();
   }
 
   togglePointsVisibility() {
