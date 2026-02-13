@@ -1598,7 +1598,7 @@ export const getOrganizationFormFormats = async (context = null) => {
  */
 export const getFormSubmission = async (participantId, formType) => {
   return API.get(
-    `${CONFIG.ENDPOINTS.FORMS}/form-submission?participant_id=${participantId}&form_type=${formType}`
+    `${CONFIG.ENDPOINTS.FORMS}/form-submissions?participant_id=${participantId}&form_type=${formType}`
   );
 };
 

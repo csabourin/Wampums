@@ -698,7 +698,7 @@ export async function clearParticipantFormCaches(participantId, formType = null)
   const keysToDelete = [];
 
   if (formType) {
-    keysToDelete.push(`v1/form-submission?participant_id=${participantId}&form_type=${formType}`);
+    keysToDelete.push(`v1/form-submissions?participant_id=${participantId}&form_type=${formType}`);
   }
 
   // Clear all form submissions for this participant
