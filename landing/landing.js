@@ -493,9 +493,34 @@ buttons.forEach((button) => {
 	);
 });
 
-// Load saved language preference or default to French
-const savedLang = localStorage.getItem("wampums-lang") || "fr";
-applyTranslations(savedLang);
+// Detect language based on URL path for static pages (/en/ or /fr/)
+// Only apply JavaScript translations on the dynamic /index.html page
+function initLanguage() {
+	const path = window.location.pathname;
+	
+	// Check if we're on a static language-specific page
+	if (path.startsWith('/en/') || path === '/en') {
+		// English static page - update localStorage but don't apply JS translations
+		// The HTML is already in English
+		localStorage.setItem("wampums-lang", "en");
+		html.lang = "en";
+		return;
+	}
+	
+	if (path.startsWith('/fr/') || path === '/fr') {
+		// French static page - update localStorage but don't apply JS translations
+		// The HTML is already in French
+		localStorage.setItem("wampums-lang", "fr");
+		html.lang = "fr";
+		return;
+	}
+	
+	// For the dynamic page (/index.html or root), use localStorage preference
+	const savedLang = localStorage.getItem("wampums-lang") || "fr";
+	applyTranslations(savedLang);
+}
+
+initLanguage();
 
 // Audience Tab Switching
 function initTabs() {
