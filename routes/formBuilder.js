@@ -450,35 +450,24 @@ module.exports = (pool, logger) => {
 
       const results = [];
 
-      // Insert translations for each language
-      for (const [langCode, value] of Object.entries(translations)) {
-        if (value && languageMap[langCode]) {
-          // Check if translation already exists
-          const existing = await client.query(
-            'SELECT id FROM translations WHERE key = $1 AND language_id = $2',
-            [key, languageMap[langCode]]
-          );
+      // Use UPSERT to handle insert/update in a single query per translation
+      // PostgreSQL 9.5+ supports ON CONFLICT for efficient upserts
+      const translationEntries = Object.entries(translations).filter(
+        ([langCode, value]) => value && languageMap[langCode]
+      );
 
-          if (existing.rows.length > 0) {
-            // Update existing
-            const result = await client.query(
-              `UPDATE translations
-               SET value = $1
-               WHERE key = $2 AND language_id = $3
-               RETURNING *`,
-              [value, key, languageMap[langCode]]
-            );
-            results.push(result.rows[0]);
-          } else {
-            // Insert new
-            const result = await client.query(
-              `INSERT INTO translations (key, value, language_id, created_at)
-               VALUES ($1, $2, $3, NOW())
-               RETURNING *`,
-              [key, value, languageMap[langCode]]
-            );
-            results.push(result.rows[0]);
-          }
+      if (translationEntries.length > 0) {
+        // Batch upsert all translations
+        for (const [langCode, value] of translationEntries) {
+          const result = await client.query(
+            `INSERT INTO translations (key, value, language_id, created_at)
+             VALUES ($1, $2, $3, NOW())
+             ON CONFLICT (key, language_id)
+             DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+             RETURNING *`,
+            [key, value, languageMap[langCode]]
+          );
+          results.push(result.rows[0]);
         }
       }
 

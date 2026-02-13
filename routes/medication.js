@@ -180,14 +180,19 @@ module.exports = (pool, logger) => {
 
       const requirement = insertRequirement.rows[0];
 
-      for (const participantId of participants) {
+      // Batch insert all participant medications in a single query
+      if (participants.length > 0) {
+        const values = participants.map((participantId, idx) => 
+          `($1, $2, $${idx + 3}, NULL)`
+        ).join(', ');
+        
         await client.query(
           `INSERT INTO participant_medications (
             organization_id, medication_requirement_id, participant_id, participant_notes
-          ) VALUES ($1, $2, $3, NULL)
+          ) VALUES ${values}
           ON CONFLICT (organization_id, medication_requirement_id, participant_id)
           DO UPDATE SET updated_at = NOW()`,
-          [organizationId, requirement.id, participantId]
+          [organizationId, requirement.id, ...participants]
         );
       }
 
@@ -312,14 +317,19 @@ module.exports = (pool, logger) => {
         ]
       );
 
-      for (const participantId of participants) {
+      // Batch insert all participant medications in a single query
+      if (participants.length > 0) {
+        const values = participants.map((participantId, idx) => 
+          `($1, $2, $${idx + 3}, NULL)`
+        ).join(', ');
+        
         await client.query(
           `INSERT INTO participant_medications (
             organization_id, medication_requirement_id, participant_id, participant_notes
-          ) VALUES ($1, $2, $3, NULL)
+          ) VALUES ${values}
           ON CONFLICT (organization_id, medication_requirement_id, participant_id)
           DO UPDATE SET updated_at = NOW()`,
-          [organizationId, requirementId, participantId]
+          [organizationId, requirementId, ...participants]
         );
       }
 

@@ -48,8 +48,11 @@ export class Dashboard extends BaseModule {
       this.isLoading = true;
       this.render();
 
-      await this.fetchOrganizationInfo();
-      await this.preloadDashboardData();
+      // Parallelize independent data fetches for faster loading
+      await Promise.all([
+        this.fetchOrganizationInfo(),
+        this.preloadDashboardData()
+      ]);
 
       // Data loaded, render actual content
       this.isLoading = false;

@@ -653,14 +653,27 @@ module.exports = (pool, logger) => {
         );
       }
 
-      for (const guardianId of guardianIds) {
-        for (const participantId of participantIds) {
+      // Batch insert all guardian-participant relationships
+      if (guardianIds.length > 0 && participantIds.length > 0) {
+        const values = [];
+        const params = [trimmedRelationship];
+        let paramIndex = 2;
+        
+        for (const guardianId of guardianIds) {
+          for (const participantId of participantIds) {
+            values.push(`($${paramIndex}, $${paramIndex + 1}, $1)`);
+            params.push(guardianId, participantId);
+            paramIndex += 2;
+          }
+        }
+        
+        if (values.length > 0) {
           await client.query(
             `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
-             VALUES ($1, $2, $3)
+             VALUES ${values.join(', ')}
              ON CONFLICT (guardian_id, participant_id)
              DO UPDATE SET lien = EXCLUDED.lien`,
-            [guardianId, participantId, trimmedRelationship]
+            params
           );
         }
       }
