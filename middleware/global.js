@@ -28,8 +28,19 @@ function getPreferredLandingPath(req) {
         return "/en/";
     }
 
-    const acceptedLanguage = (req.headers["accept-language"] || "").toLowerCase();
-    return acceptedLanguage.includes("fr") ? "/fr/" : "/en/";
+    // Use Express's req.acceptsLanguages which respects q-values and priority order
+    // Only if Accept-Language header exists (otherwise acceptsLanguages returns first item in array)
+    if (req.headers["accept-language"]) {
+        const preferred = typeof req.acceptsLanguages === "function"
+            ? req.acceptsLanguages(["fr", "en"])
+            : null;
+
+        if (typeof preferred === "string" && preferred.toLowerCase().startsWith("fr")) {
+            return "/fr/";
+        }
+    }
+
+    return "/en/";
 }
 
 module.exports = (app) => {
@@ -131,7 +142,7 @@ module.exports = (app) => {
         }
 
         if (req.path === "/landing" || req.path === "/landing/" || req.path === "/landing/index.html") {
-            return res.redirect(301, getPreferredLandingPath(req));
+            return res.redirect(302, getPreferredLandingPath(req));
         }
 
         return landingStatic(req, res, next);
