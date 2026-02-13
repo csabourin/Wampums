@@ -461,6 +461,9 @@ const translations = {
 	},
 };
 
+// Global variable to track current language
+let currentLang = "fr";
+
 const html = document.documentElement;
 const buttons = document.querySelectorAll(".lang-toggle button");
 
@@ -493,9 +496,6 @@ buttons.forEach((button) => {
 		applyTranslations(button.dataset.lang),
 	);
 });
-
-// Global variable to track current language
-let currentLang = "fr";
 
 // Detect language based on URL path for static pages (/en/ or /fr/)
 // Only apply JavaScript translations on the dynamic /index.html page
@@ -726,7 +726,7 @@ demoForm.addEventListener("submit", async (e) => {
 			alert(
 				data.message ||
 				(currentLang === "fr"
-					? "Une erreur est survenue. Veuillez reessayer."
+					? "Une erreur est survenue. Veuillez réessayer."
 					: "An error occurred. Please try again."),
 			);
 			submitButton.disabled = false;
@@ -737,7 +737,7 @@ demoForm.addEventListener("submit", async (e) => {
 		console.error("Error submitting form:", error);
 		alert(
 			currentLang === "fr"
-				? "Une erreur est survenue. Veuillez reessayer."
+				? "Une erreur est survenue. Veuillez réessayer."
 				: "An error occurred. Please try again.",
 		);
 		submitButton.disabled = false;
