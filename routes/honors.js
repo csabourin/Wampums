@@ -715,7 +715,7 @@ module.exports = (pool, logger) => {
               [participantId, groupId, honorPoints, honorDate, organizationId]
             );
 
-            console.log(`[honor] Participant ${participantId} awarded honor on ${honorDate}, points: +${honorPoints}`);
+            logger.info(`[honor] Participant ${participantId} awarded honor on ${honorDate}, points: +${honorPoints}`);
             results.push({ participantId, success: true, action: 'awarded', points: honorPoints });
           }
         }

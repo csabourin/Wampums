@@ -262,7 +262,7 @@ module.exports = (pool, logger) => {
         }
 
         await client.query('COMMIT');
-        console.log(`[guardian] Guardian ${guardianIdToLink} saved for participant ${participant_id}`);
+        logger.info(`[guardian] Guardian ${guardianIdToLink} saved for participant ${participant_id}`);
         res.json({ success: true, data: { guardian_id: guardianIdToLink }, message: 'Guardian saved successfully' });
       } catch (error) {
         if (handleOrganizationResolutionError(res, error, logger)) {
@@ -353,7 +353,7 @@ module.exports = (pool, logger) => {
         [guardian_id, participant_id]
       );
 
-      console.log(`[guardian] Guardian ${guardian_id} removed from participant ${participant_id}`);
+      logger.info(`[guardian] Guardian ${guardian_id} removed from participant ${participant_id}`);
       res.json({ success: true, message: 'Guardian removed successfully' });
     } catch (error) {
       if (handleOrganizationResolutionError(res, error, logger)) {

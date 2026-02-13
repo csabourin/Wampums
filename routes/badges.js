@@ -470,7 +470,7 @@ module.exports = (pool, logger) => {
       );
 
       await client.query('COMMIT');
-      console.log(`[badge] Badge ${badge_id} approved for participant ${badge.participant_id}, points: +${badgeEarnPoints}`);
+      logger.info(`[badge] Badge ${badge_id} approved for participant ${badge.participant_id}, points: +${badgeEarnPoints}`);
       res.json({ success: true, message: 'Badge approved', points: badgeEarnPoints });
     } catch (error) {
       await client.query('ROLLBACK');
@@ -533,7 +533,7 @@ module.exports = (pool, logger) => {
       return res.status(404).json({ success: false, message: 'Badge not found' });
     }
 
-    console.log(`[badge] Badge ${badge_id} rejected`);
+    logger.info(`[badge] Badge ${badge_id} rejected`);
     res.json({ success: true, message: 'Badge rejected' });
   }));
 
@@ -1022,7 +1022,7 @@ module.exports = (pool, logger) => {
       );
       hasDeliveredAt = columnCheck.rows.length > 0;
     } catch (err) {
-      console.log('[badges-awaiting-delivery] Could not check for delivered_at column:', err.message);
+      logger.warn('[badges-awaiting-delivery] Could not check for delivered_at column:', err.message);
     }
 
     if (!hasDeliveredAt) {
@@ -1127,7 +1127,7 @@ module.exports = (pool, logger) => {
       return res.status(404).json({ success: false, message: 'Badge not found or not approved' });
     }
 
-    console.log(`[badge] Badge ${badge_id} marked as delivered`);
+    logger.info(`[badge] Badge ${badge_id} marked as delivered`);
     res.json({ success: true, data: result.rows[0], message: 'Badge marked as delivered' });
   }));
 
@@ -1185,7 +1185,7 @@ module.exports = (pool, logger) => {
       [badge_ids, organizationId]
     );
 
-    console.log(`[badge] Bulk delivered ${result.rowCount} badges`);
+    logger.info(`[badge] Bulk delivered ${result.rowCount} badges`);
     res.json({
       success: true,
       message: `${result.rowCount} badge(s) marked as delivered`,
@@ -1218,7 +1218,7 @@ module.exports = (pool, logger) => {
       );
       hasNewColumns = columnCheck.rows.length > 0;
     } catch (err) {
-      console.log('[badge-tracker-summary] Could not check for new columns:', err.message);
+      logger.warn('[badge-tracker-summary] Could not check for new columns:', err.message);
     }
 
     // Get all badge progress with participant and template info
