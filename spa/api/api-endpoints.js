@@ -1167,7 +1167,7 @@ export async function getFormStructure() {
  * Get form submission
  */
 export async function getFormSubmission(participantId, formType) {
-    return API.get('v1/forms/submission', {
+    return API.get('v1/forms/submissions', {
         participant_id: participantId,
         form_type: formType
     }, {
@@ -1211,7 +1211,7 @@ export async function saveFormSubmission(formTypeOrData, participantId, submissi
         formType = formTypeOrData;
         pId = participantId;
         // Use standardized endpoint
-        const response = await API.post('v1/forms/submission', {
+        const response = await API.post('v1/forms/submissions', {
             participant_id: pId || participantId,
             form_type: formType,
             submission_data: submissionData
@@ -1278,7 +1278,7 @@ export async function getOrganizationFormFormats(organizationId = null, context 
  * Get health form (fiche santé)
  */
 export async function fetchFicheSante(participantId) {
-    return API.get('v1/forms/submission', { participant_id: participantId, form_type: 'fiche_sante' }, {
+    return API.get('v1/forms/submissions', { participant_id: participantId, form_type: 'fiche_sante' }, {
         cacheKey: `fiche-sante-${participantId}`
     });
 }
@@ -1288,7 +1288,7 @@ export async function fetchFicheSante(participantId) {
  */
 export async function saveFicheSante(ficheSanteData) {
     const { deleteCachedData } = await import('../indexedDB.js');
-    const result = await API.post('v1/forms/submission', {
+    const result = await API.post('v1/forms/submissions', {
         ...ficheSanteData,
         form_type: 'fiche_sante'
     });
