@@ -1,7 +1,8 @@
 const rateLimit = require("express-rate-limit");
 const logger = require("./logger");
+const { RATE_LIMITS, CACHE } = require("./constants");
 
-const RATE_LIMITER_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const RATE_LIMITER_CLEANUP_INTERVAL_MS = CACHE.CLEANUP_INTERVAL_MS;
 
 /**
  * CleanableMemoryStore - Rate limiter memory store with automatic expiration cleanup
@@ -90,13 +91,13 @@ class CleanableMemoryStore {
 }
 
 // Create stores for each rate limiter
-const generalStore = new CleanableMemoryStore(15 * 60 * 1000);
-const authStore = new CleanableMemoryStore(15 * 60 * 1000);
-const passwordResetStore = new CleanableMemoryStore(60 * 60 * 1000);
+const generalStore = new CleanableMemoryStore(RATE_LIMITS.GENERAL_WINDOW_MS);
+const authStore = new CleanableMemoryStore(RATE_LIMITS.AUTH_WINDOW_MS);
+const passwordResetStore = new CleanableMemoryStore(RATE_LIMITS.PASSWORD_RESET_WINDOW_MS);
 
 const generalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 1000, // 1000 requests per window
+    windowMs: RATE_LIMITS.GENERAL_WINDOW_MS,
+    max: RATE_LIMITS.GENERAL_MAX_REQUESTS,
     message: "Too many requests from this IP, please try again after 15 minutes",
     standardHeaders: true,
     legacyHeaders: false,
@@ -104,8 +105,8 @@ const generalLimiter = rateLimit({
 });
 
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20, // 20 attempts per window
+    windowMs: RATE_LIMITS.AUTH_WINDOW_MS,
+    max: RATE_LIMITS.AUTH_MAX_ATTEMPTS,
     message: "Too many login attempts from this IP, please try again after 15 minutes",
     standardHeaders: true,
     legacyHeaders: false,
@@ -113,8 +114,8 @@ const authLimiter = rateLimit({
 });
 
 const passwordResetLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 5, // 5 requests per hour
+    windowMs: RATE_LIMITS.PASSWORD_RESET_WINDOW_MS,
+    max: RATE_LIMITS.PASSWORD_RESET_MAX_REQUESTS,
     message: "Too many password reset requests from this IP, please try again after an hour.",
     standardHeaders: true,
     legacyHeaders: false,
