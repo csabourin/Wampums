@@ -92,22 +92,30 @@ module.exports = (pool) => {
 
     const normalizedActivityDate = activity_date || activity_start_date;
     const normalizedStartDate = activity_start_date || activity_date;
+    // activity_start_time can fall back to meeting_time_going if not provided
     const normalizedStartTime = activity_start_time || meeting_time_going;
     const normalizedEndDate = activity_end_date || normalizedStartDate;
+    // activity_end_time can fall back to departure times if not provided
     const normalizedEndTime = activity_end_time || departure_time_return || departure_time_going;
 
     // Validation with specific error messages
     const missingFields = [];
     if (!name) missingFields.push('name');
-    if (!normalizedStartDate) missingFields.push('activity_start_date or activity_date');
-    if (!normalizedStartTime) missingFields.push('activity_start_time or meeting_time_going');
+    if (!normalizedStartDate) missingFields.push('activity_start_date (or activity_date as fallback)');
     if (!normalizedEndDate) missingFields.push('activity_end_date');
-    if (!normalizedEndTime) missingFields.push('activity_end_time, departure_time_going, or departure_time_return');
     if (!meeting_location_going) missingFields.push('meeting_location_going');
-    // meeting_time_going and departure_time_going are both required
-    // they're not just fallbacks for activity_start_time/activity_end_time
+    // Core carpool fields are always required
     if (!meeting_time_going) missingFields.push('meeting_time_going');
     if (!departure_time_going) missingFields.push('departure_time_going');
+    // Normalized times depend on the above required fields as fallbacks
+    if (!normalizedStartTime) {
+      // This should never happen if meeting_time_going validation passes above
+      missingFields.push('activity_start_time (meeting_time_going can be used as fallback)');
+    }
+    if (!normalizedEndTime) {
+      // This should never happen if departure_time_going validation passes above  
+      missingFields.push('activity_end_time (departure times can be used as fallback)');
+    }
 
     if (missingFields.length > 0) {
       return error(res, `Missing required fields: ${missingFields.join(', ')}`, 400);
