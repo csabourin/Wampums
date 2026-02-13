@@ -9,6 +9,26 @@ import { clearActivityRelatedCaches } from "../../indexedDB.js";
 import { debugError, debugLog } from "../../utils/DebugUtils.js";
 import { setContent } from "../../utils/DOMUtils.js";
 
+/**
+ * Clean form data by removing empty string values for optional fields
+ * This prevents backend validation issues where empty strings are sent instead of null/undefined
+ * @param {Object} data - Form data object
+ * @param {Array<string>} optionalFields - List of optional field names
+ * @returns {Object} Cleaned data object
+ */
+function cleanFormData(data, optionalFields = []) {
+  const cleaned = { ...data };
+  
+  // Convert empty strings to null for optional fields
+  optionalFields.forEach(field => {
+    if (cleaned[field] === '' || cleaned[field] === null || cleaned[field] === undefined) {
+      cleaned[field] = null;
+    }
+  });
+  
+  return cleaned;
+}
+
 export class QuickCreateActivityModal {
   constructor(app, options = {}) {
     this.app = app;
@@ -192,14 +212,23 @@ export class QuickCreateActivityModal {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
+    let data = Object.fromEntries(formData.entries());
 
-    // Convert empty strings to null for optional fields to prevent validation issues
-    // Empty strings are falsy but can interfere with backend normalization logic
-    if (!data.description || data.description === '') data.description = null;
-    if (!data.meeting_location_return || data.meeting_location_return === '') data.meeting_location_return = null;
-    if (!data.meeting_time_return || data.meeting_time_return === '') data.meeting_time_return = null;
-    if (!data.departure_time_return || data.departure_time_return === '') data.departure_time_return = null;
+    // Safeguard: Check if form data is empty (shouldn't happen but handle gracefully)
+    if (Object.keys(data).length === 0) {
+      debugError("Form data is empty - form might not be properly initialized");
+      this.app.showMessage(translate("error_form_not_ready"), "error");
+      return;
+    }
+
+    // Clean form data by converting empty optional fields to null
+    const optionalFields = [
+      'description',
+      'meeting_location_return',
+      'meeting_time_return',
+      'departure_time_return'
+    ];
+    data = cleanFormData(data, optionalFields);
     
     // Ensure activity_date is set (backend expects this for backwards compatibility)
     if (!data.activity_date && data.activity_start_date) {
