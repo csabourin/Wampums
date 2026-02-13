@@ -6,7 +6,7 @@
 import { createActivity } from "../../api/api-activities.js";
 import { translate } from "../../app.js";
 import { clearActivityRelatedCaches } from "../../indexedDB.js";
-import { debugError } from "../../utils/DebugUtils.js";
+import { debugError, debugLog } from "../../utils/DebugUtils.js";
 import { setContent } from "../../utils/DOMUtils.js";
 
 export class QuickCreateActivityModal {
@@ -196,6 +196,10 @@ export class QuickCreateActivityModal {
     if (!data.activity_date && data.activity_start_date) {
       data.activity_date = data.activity_start_date;
     }
+
+    // Debug logging to diagnose missing fields issue
+    debugLog("Form data being sent:", JSON.stringify(data, null, 2));
+    debugLog("FormData entries:", Array.from(formData.entries()));
 
     try {
       const submitBtn = form.querySelector('button[type="submit"]');
