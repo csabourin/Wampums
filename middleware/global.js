@@ -2,12 +2,12 @@ const express = require("express");
 const path = require("path");
 const helmet = require("helmet");
 const cors = require("cors");
-const bodyParser = require("body-parser");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpecs = require("../config/swagger");
 const logger = require("../config/logger");
 
 const isProduction = process.env.NODE_ENV === "production";
+const REQUEST_BODY_LIMIT = "20mb";
 
 /**
  * Resolve the preferred localized landing route from the incoming request.
@@ -57,8 +57,8 @@ module.exports = (app) => {
     }
 
     // Body Parsing
-    app.use(bodyParser.json({ limit: "10mb" }));
-    app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
+    app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+    app.use(express.urlencoded({ limit: REQUEST_BODY_LIMIT, extended: true }));
 
     // ETag
     app.set("etag", "strong");
