@@ -26,6 +26,7 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { closeServerResources } = require('./test-helpers');
+const { setupDefaultMocks, mockQueryImplementation, MockFactory } = require('./mock-helpers');
 
 jest.mock('pg', () => {
   const mClient = {
@@ -86,6 +87,9 @@ beforeEach(() => {
   __mClient.release.mockReset();
   __mPool.connect.mockClear();
   __mPool.query.mockReset();
+  
+  // Setup default schema-based mocks as fallback
+  setupDefaultMocks(__mClient, __mPool);
 });
 
 afterAll((done) => {
@@ -98,37 +102,35 @@ afterAll((done) => {
 
 describe('GET /api/v1/users', () => {
   test('returns list of users in organization', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    // Use mockQueryImplementation with schema-based fallback
+    const factory = new MockFactory();
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users') && query.includes('WHERE')) {
         return Promise.resolve({
           rows: [
-            {
-              id: 1,
+            factory.mockTable('users', {
+              id: '550e8400-e29b-41d4-a716-446655440000',
               email: 'admin@example.com',
               first_name: 'Admin',
               last_name: 'User',
-              organization_id: ORG_ID,
-              status: 'active',
-              created_at: new Date()
-            },
-            {
-              id: 2,
+              status: 'active'
+            }),
+            factory.mockTable('users', {
+              id: '550e8400-e29b-41d4-a716-446655440001',
               email: 'staff@example.com',
               first_name: 'Staff',
               last_name: 'Member',
-              organization_id: ORG_ID,
-              status: 'pending',
-              created_at: new Date()
-            }
+              status: 'pending'
+            })
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to use default schema-based mocks
     });
 
     const res = await request(app)
