@@ -412,6 +412,12 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
    * @returns {Promise<void>}
    */
   async function setupAnnouncementListener() {
+    // Skip listener in test environment
+    if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined) {
+      logger.info('Skipping announcement listener in test environment');
+      return;
+    }
+
     try {
       // Create dedicated client for LISTEN (cannot use pooled connection)
       listenClient = new Client({

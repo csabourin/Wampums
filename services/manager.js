@@ -12,6 +12,12 @@ let googleChatService;
  * @param {import('pg').Pool} pool - The database connection pool
  */
 async function init(pool) {
+    // Skip service initialization in test environment
+    if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined) {
+        logger.info("Skipping service initialization in test environment");
+        return;
+    }
+
     logger.info("Initializing services...");
 
     // 1. WhatsApp Baileys Service
