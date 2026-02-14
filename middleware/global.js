@@ -7,7 +7,13 @@ const swaggerSpecs = require("../config/swagger");
 const logger = require("../config/logger");
 
 const isProduction = process.env.NODE_ENV === "production";
-const REQUEST_BODY_LIMIT = "20mb";
+
+/**
+ * Default request body size limit (conservative for security).
+ * Routes requiring larger payloads (e.g., file uploads) use multer with their own limits.
+ * @type {string}
+ */
+const DEFAULT_BODY_LIMIT = "1mb";
 
 /**
  * Resolve the preferred localized landing route from the incoming request.
@@ -44,7 +50,9 @@ function getPreferredLandingPath(req) {
 }
 
 module.exports = (app) => {
-    const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || "20mb";
+    // Allow environment override for body limit (default: 1mb)
+    // File uploads use multer with separate limits (see routes/resources.js, routes/ai.js)
+    const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || DEFAULT_BODY_LIMIT;
 
     // Trust proxy - use 1 (trust first proxy hop) instead of true
     // to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY warning
@@ -58,9 +66,9 @@ module.exports = (app) => {
         logger.info("Compression not available");
     }
 
-    // Body Parsing
-    app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
-    app.use(express.urlencoded({ limit: REQUEST_BODY_LIMIT, extended: true }));
+    // Body Parsing (rate-limited before reaching here, see config/app.js)
+    app.use(express.json({ limit: requestBodyLimit }));
+    app.use(express.urlencoded({ limit: requestBodyLimit, extended: true }));
 
     // ETag
     app.set("etag", "strong");

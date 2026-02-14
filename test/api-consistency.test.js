@@ -630,7 +630,8 @@ describe('Validation Middleware Integration', () => {
 
 
   test('request body limit rejects oversized payload with 413', async () => {
-    const oversizedPayload = { payload: 'x'.repeat(21 * 1024 * 1024) };
+    // Create payload exceeding the 1MB default limit
+    const oversizedPayload = { payload: 'x'.repeat(2 * 1024 * 1024) };
 
     const res = await request(app)
       .post('/public/login')

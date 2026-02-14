@@ -19,11 +19,11 @@ function createApp() {
     // Make pool available to middleware via app.locals
     app.locals.pool = pool;
 
-    // 1. Initialize Global Middleware
-    initGlobalMiddleware(app);
-
-    // 2. Apply Rate Limiting
+    // 1. Apply Rate Limiting BEFORE body parsing to prevent DoS via large payloads
     app.use(generalLimiter);
+
+    // 2. Initialize Global Middleware (including body parsing)
+    initGlobalMiddleware(app);
 
     // 3. Initialize Socket.IO
     const io = socketService.init(server);

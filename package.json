@@ -29,7 +29,6 @@
     "@veryfi/veryfi-sdk": "^1.4.6",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^3.0.3",
-    "body-parser": "^2.2.2",
     "compression": "^1.8.0",
     "cors": "^2.8.6",
     "dexie": "^4.3.0",
