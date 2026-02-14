@@ -29,8 +29,9 @@ class OrganizationNotFoundError extends Error {
 
 /**
  * Respond with a dedicated fallback experience when no organization is found.
- * Sends HTML when the client accepts it, otherwise returns a JSON payload with
- * a pointer to the fallback page so the SPA can redirect gracefully.
+ * API requests receive HTTP 400 with a JSON error payload.
+ * Non-API requests that accept HTML receive HTTP 404 with the fallback page.
+ * Other non-API requests receive HTTP 404 with a JSON fallback payload.
  *
  * @param {Object} res - Express response object
  * @returns {Object} Express response
@@ -44,7 +45,8 @@ function respondWithOrganizationFallback(res) {
     return res.status(400).json({
       success: false,
       message: 'organization_not_found',
-      fallback: '/organization-not-found.html'
+      fallback: '/organization-not-found.html',
+      timestamp: new Date().toISOString()
     });
   }
 
@@ -55,7 +57,8 @@ function respondWithOrganizationFallback(res) {
   return res.status(404).json({
     success: false,
     message: 'organization_not_found',
-    fallback: '/organization-not-found.html'
+    fallback: '/organization-not-found.html',
+    timestamp: new Date().toISOString()
   });
 }
 
