@@ -47,6 +47,14 @@ function createApp() {
             return respondWithOrganizationFallback(res);
         }
 
+        if (err?.type === "entity.too.large") {
+            return res.status(413).json({
+                success: false,
+                message: "request_entity_too_large",
+                timestamp: new Date().toISOString()
+            });
+        }
+
         logger.error("Unhandled error:", err);
         return res.status(500).json({ success: false, message: "internal_server_error" });
     });
