@@ -21,7 +21,7 @@
  *   test('uses database', () => {});
  * });
  */
-if (!describe.skipIf) {
+if (typeof describe !== 'undefined' && !describe.skipIf) {
   describe.skipIf = function(condition, name, fn) {
     if (condition) {
       // Skip this describe block
@@ -39,7 +39,7 @@ if (!describe.skipIf) {
  * @example
  * test.skipIf(!HAS_DATABASE)('uses database', () => {});
  */
-if (!test.skipIf) {
+if (typeof test !== 'undefined' && !test.skipIf) {
   test.skipIf = function(condition, name, fn) {
     if (condition) {
       test.skip(name, fn);
@@ -56,7 +56,7 @@ if (!test.skipIf) {
  * @example
  * test.onlyIf(HAS_DATABASE)('uses database', () => {});
  */
-if (!test.onlyIf) {
+if (typeof test !== 'undefined' && !test.onlyIf) {
   test.onlyIf = function(condition, name, fn) {
     if (condition) {
       test(name, fn);
@@ -79,13 +79,13 @@ if (!test.onlyIf) {
  *   // Only runs if HAS_DATABASE is true
  * });
  */
-if (!beforeEach.skipIf) {
+if (typeof beforeEach !== 'undefined' && !beforeEach.skipIf) {
   beforeEach.skipIf = function(condition) {
     return condition ? () => {} : beforeEach;
   };
 }
 
-if (!beforeEach.onlyIf) {
+if (typeof beforeEach !== 'undefined' && !beforeEach.onlyIf) {
   beforeEach.onlyIf = function(condition) {
     return condition ? beforeEach : () => {};
   };
@@ -94,13 +94,13 @@ if (!beforeEach.onlyIf) {
 /**
  * Similar helpers for afterEach
  */
-if (!afterEach.skipIf) {
+if (typeof afterEach !== 'undefined' && !afterEach.skipIf) {
   afterEach.skipIf = function(condition) {
     return condition ? () => {} : afterEach;
   };
 }
 
-if (!afterEach.onlyIf) {
+if (typeof afterEach !== 'undefined' && !afterEach.onlyIf) {
   afterEach.onlyIf = function(condition) {
     return condition ? afterEach : () => {};
   };
