@@ -61,6 +61,7 @@ beforeAll(() => {
   process.env.DB_NAME = 'testdb';
   process.env.DB_PASSWORD = 'test';
   process.env.DB_PORT = '5432';
+  process.env.ORGANIZATION_ID = String(ORG_ID);
 
   app = require('../api');
 });
@@ -71,7 +72,19 @@ beforeEach(() => {
   __mClient.release.mockReset();
   __mPool.connect.mockClear();
   __mPool.query.mockReset();
-  __mPool.query.mockResolvedValue({ rows: [] });
+  
+  // Mock organization domain lookup (for getCurrentOrganizationId)
+  // This returns a default organization when hostname lookup occurs
+  __mPool.query.mockImplementation((query, params) => {
+    // Check if this is an organization_domains query
+    if (typeof query === 'string' && query.includes('organization_domains')) {
+      return Promise.resolve({
+        rows: [{ organization_id: ORG_ID }]
+      });
+    }
+    // Default: return empty rows for other queries
+    return Promise.resolve({ rows: [] });
+  });
 });
 
 afterAll((done) => {
