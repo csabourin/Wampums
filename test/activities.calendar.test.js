@@ -62,8 +62,6 @@ function getValidToken() {
 
 const ORG_ID = 1;
 
-const ORG_ID = 1;
-
 beforeAll(() => {
   consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   process.env.DOTENV_CONFIG_QUIET = 'true';
