@@ -1,0 +1,995 @@
+/**
+ * Activities Routes Comprehensive Test Suite
+ *
+ * Comprehensive endpoint coverage for all activity CRUD operations.
+ * Current tests only cover: GET / and GET /calendar.ics
+ * This suite expands to include: GET /:id, POST /, PUT /:id, DELETE /:id
+ *
+ * Endpoint Coverage:
+ * - GET /api/v1/activities - List all activities
+ * - GET /api/v1/activities/:id - Get specific activity
+ * - POST /api/v1/activities - Create activity
+ * - PUT /api/v1/activities/:id - Update activity
+ * - DELETE /api/v1/activities/:id - Soft-delete activity
+ * - GET /api/v1/activities/calendar.ics - Download calendar
+ *
+ * Security Focus:
+ * - requirePermission('activities.view') for reads
+ * - requirePermission('activities.create') for POST
+ * - requirePermission('activities.edit') for PUT
+ * - requirePermission('activities.delete') for DELETE
+ * - blockDemoRoles prevents demo users from creating/editing/deleting
+ * - Organization isolation ensures cross-org data isn't accessible
+ *
+ * Business Logic Validation:
+ * - Time validation: departure > meeting time
+ * - Required fields enforcement
+ * - Carpool cascade deletion on activity delete
+ * - Permission slip cascade on activity delete
+ *
+ * @module test/routes-activities-comprehensive
+ */
+
+const request = require('supertest');
+const jwt = require('jsonwebtoken');
+const { closeServerResources } = require('./test-helpers');
+
+// Mock pg module before requiring app
+jest.mock('pg', () => {
+  const mClient = {
+    query: jest.fn(),
+    release: jest.fn()
+  };
+  const mPool = {
+    connect: jest.fn(() => Promise.resolve(mClient)),
+    query: jest.fn(),
+    on: jest.fn()
+  };
+  return {
+    Pool: jest.fn(() => mPool),
+    __esModule: true,
+    __mClient: mClient,
+    __mPool: mPool
+  };
+});
+
+const { Pool } = require('pg');
+let app;
+
+const TEST_SECRET = 'testsecret';
+const ORG_ID = 1;
+const ACTIVITY_ID = 100;
+const USER_ID = 1;
+
+function generateToken(overrides = {}, secret = TEST_SECRET) {
+  return jwt.sign({
+    user_id: USER_ID,
+    user_role: 'admin',
+    organizationId: ORG_ID,
+    roleIds: [1],
+    roleNames: ['admin'],
+    permissions: ['activities.view', 'activities.create', 'activities.edit', 'activities.delete'],
+    ...overrides
+  }, secret);
+}
+
+beforeAll(() => {
+  process.env.JWT_SECRET_KEY = TEST_SECRET;
+  process.env.ORGANIZATION_ID = ORG_ID.toString();
+  process.env.DB_USER = 'test';
+  process.env.DB_HOST = 'localhost';
+  process.env.DB_NAME = 'testdb';
+  process.env.DB_PASSWORD = 'test';
+  process.env.DB_PORT = '5432';
+
+  app = require('../api');
+});
+
+beforeEach(() => {
+  const { __mClient, __mPool } = require('pg');
+  __mClient.query.mockReset();
+  __mClient.release.mockReset();
+  __mPool.connect.mockClear();
+  __mPool.query.mockReset();
+});
+
+afterAll((done) => {
+  closeServerResources(app, done);
+});
+
+// ============================================
+// GET /api/v1/activities/:id - GET SPECIFIC ACTIVITY
+// ============================================
+
+describe('GET /api/v1/activities/:id', () => {
+  test('returns specific activity by ID', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.view']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('WHERE a.id') && query.includes('AND a.organization_id')) {
+        return Promise.resolve({
+          rows: [{
+            id: ACTIVITY_ID,
+            name: 'Scout Camp',
+            description: 'Summer camp activity',
+            organization_id: ORG_ID,
+            created_by: USER_ID,
+            created_by_name: 'Admin User',
+            created_by_email: 'admin@example.com',
+            activity_date: '2026-06-15',
+            activity_start_date: '2026-06-15',
+            activity_start_time: '09:00',
+            activity_end_date: '2026-06-15',
+            activity_end_time: '17:00',
+            meeting_location_going: 'Scout Hall',
+            meeting_time_going: '08:30',
+            departure_time_going: '09:00',
+            meeting_location_return: 'Scout Hall',
+            meeting_time_return: '16:30',
+            departure_time_return: '17:00',
+            is_active: true
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe(ACTIVITY_ID);
+    expect(res.body.data.name).toBe('Scout Camp');
+    expect(res.body.data.created_by_name).toBe('Admin User');
+  });
+
+  test('returns 404 when activity not found', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.view']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('WHERE a.id')) {
+        return Promise.resolve({ rows: [] }); // Not found
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get('/api/v1/activities/999')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  test('requires activities.view permission', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: [] // No permission
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM role_permissions')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  test('returns 404 for activity in different organization', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      organizationId: ORG_ID,
+      permissions: ['activities.view']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('WHERE a.id')) {
+        // Not found because belongs to different org
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  test('returns 401 without authentication', async () => {
+    const res = await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  test('returns activity with all carpool and permission slip counts', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.view']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('WHERE a.id')) {
+        return Promise.resolve({
+          rows: [{
+            id: ACTIVITY_ID,
+            name: 'Activity with carpools',
+            organization_id: ORG_ID,
+            created_by: USER_ID,
+            carpool_offer_count: 3,
+            assigned_participant_count: 8,
+            pending_slip_count: 2,
+            signed_slip_count: 5
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.carpool_offer_count).toBe(3);
+    expect(res.body.data.assigned_participant_count).toBe(8);
+    expect(res.body.data.pending_slip_count).toBe(2);
+    expect(res.body.data.signed_slip_count).toBe(5);
+  });
+
+  test('includes created_by user info', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.view']
+    });
+
+    __mPool.query.mockImplementation((query) => {
+      if (query.includes('WHERE a.id')) {
+        return Promise.resolve({
+          rows: [{
+            id: ACTIVITY_ID,
+            name: 'Activity',
+            organization_id: ORG_ID,
+            created_by: 5,
+            created_by_name: 'John Smith',
+            created_by_email: 'john@example.com'
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.created_by_name).toBe('John Smith');
+    expect(res.body.data.created_by_email).toBe('john@example.com');
+  });
+});
+
+// ============================================
+// POST /api/v1/activities - CREATE ACTIVITY
+// ============================================
+
+describe('POST /api/v1/activities', () => {
+  test('creates activity with all required fields', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.create']
+    });
+
+    let insertQuery = '';
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('INSERT INTO activities')) {
+        insertQuery = query;
+        return Promise.resolve({
+          rows: [{
+            id: 200,
+            name: 'New Activity',
+            organization_id: ORG_ID,
+            created_by: USER_ID,
+            is_active: true
+          }]
+        });
+      }
+      if (query.includes('FROM role_permissions')) {
+        return Promise.resolve({
+          rows: [{ permission_key: 'activities.create' }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        activity_name: 'New Activity',
+        description: 'Test activity',
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Scout Hall',
+        meeting_time_going: '08:30',
+        departure_time_going: '09:00'
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.name).toBe('New Activity');
+    expect(insertQuery).toContain('INSERT INTO activities');
+  });
+
+  test('validates departure_time > meeting_time', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.create']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        activity_name: 'Activity',
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Scout Hall',
+        meeting_time_going: '09:00',
+        departure_time_going: '09:00' // Invalid: not > meeting time
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/departure.*after|must be after/i);
+  });
+
+  test('validates return departure_time > return meeting_time if provided', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.create']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        activity_name: 'Activity',
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Scout Hall',
+        meeting_time_going: '08:30',
+        departure_time_going: '09:00',
+        meeting_time_return: '16:30',
+        departure_time_return: '16:30' // Invalid
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('requires activities.create permission', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: [] // No permission
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM role_permissions')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        activity_name: 'Activity',
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Scout Hall',
+        meeting_time_going: '08:30',
+        departure_time_going: '09:00'
+      });
+
+    expect(res.status).toBe(403);
+  });
+
+  test('blocks demo users from creating activities', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      roleNames: ['demoadmin'], // Demo role
+      permissions: ['activities.create']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM roles')) {
+        return Promise.resolve({
+          rows: [{ name: 'demoadmin' }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        activity_name: 'Activity',
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Scout Hall',
+        meeting_time_going: '08:30',
+        departure_time_going: '09:00'
+      });
+
+    expect(res.status).toBe(403);
+  });
+
+  test('requires all required fields', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.create']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        // Missing: activity_name, activity_start_date, meeting_location_going, meeting_time_going, departure_time_going
+        description: 'Missing required fields'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/required|missing/i);
+  });
+
+  test('accepts both activity_name (new) and name (legacy) field names', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.create']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('INSERT INTO activities')) {
+        return Promise.resolve({
+          rows: [{
+            id: 200,
+            name: 'Legacy Name Activity'
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Legacy Name Activity', // Old field name
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Scout Hall',
+        meeting_time_going: '08:30',
+        departure_time_going: '09:00'
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.name).toBe('Legacy Name Activity');
+  });
+});
+
+// ============================================
+// PUT /api/v1/activities/:id - UPDATE ACTIVITY
+// ============================================
+
+describe('PUT /api/v1/activities/:id', () => {
+  test('updates activity with provided fields', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.edit']
+    });
+
+    let updateQuery = '';
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('UPDATE activities')) {
+        updateQuery = query;
+        return Promise.resolve({
+          rows: [{
+            id: ACTIVITY_ID,
+            name: 'Updated Activity',
+            organization_id: ORG_ID
+          }]
+        });
+      }
+      if (query.includes('FROM role_permissions')) {
+        return Promise.resolve({
+          rows: [{ permission_key: 'activities.edit' }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Updated Activity',
+        description: 'New description'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.name).toBe('Updated Activity');
+    expect(updateQuery).toContain('UPDATE activities');
+  });
+
+  test('allows partial updates (only provided fields)', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.edit']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('UPDATE activities')) {
+        // Should only update name, not other fields
+        return Promise.resolve({
+          rows: [{
+            id: ACTIVITY_ID,
+            name: 'Just Name Changed',
+            organization_id: ORG_ID
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Just Name Changed'
+        // Don't send other fields
+      });
+
+    expect(res.status).toBe(200);
+  });
+
+  test('returns 404 when activity not found', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.edit']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('UPDATE activities')) {
+        return Promise.resolve({ rows: [] }); // Not found
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .put('/api/v1/activities/999')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Updated Activity'
+      });
+
+    expect(res.status).toBe(404);
+  });
+
+  test('requires activities.edit permission', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: [] // No permission
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM role_permissions')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Updated Activity'
+      });
+
+    expect(res.status).toBe(403);
+  });
+
+  test('blocks demo users from editing activities', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      roleNames: ['demoadmin'],
+      permissions: ['activities.edit']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM roles')) {
+        return Promise.resolve({
+          rows: [{ name: 'demoadmin' }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Updated Activity'
+      });
+
+    expect(res.status).toBe(403);
+  });
+
+  test('allows toggling is_active flag for soft delete', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.edit']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('UPDATE activities')) {
+        return Promise.resolve({
+          rows: [{
+            id: ACTIVITY_ID,
+            is_active: false,
+            organization_id: ORG_ID
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        is_active: false
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.is_active).toBe(false);
+  });
+});
+
+// ============================================
+// DELETE /api/v1/activities/:id - DELETE ACTIVITY
+// ============================================
+
+describe('DELETE /api/v1/activities/:id', () => {
+  test('soft-deletes activity (sets is_active=false)', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.delete']
+    });
+
+    let deletedActivity = null;
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('SELECT id FROM activities')) {
+        return Promise.resolve({
+          rows: [{ id: ACTIVITY_ID }]
+        });
+      }
+      if (query.includes('UPDATE carpool_offers')) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('UPDATE activities') && query.includes('is_active = FALSE')) {
+        deletedActivity = true;
+        return Promise.resolve({
+          rows: [{
+            id: ACTIVITY_ID,
+            is_active: false,
+            organization_id: ORG_ID
+          }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(deletedActivity).toBe(true);
+    expect(res.body.data.is_active).toBe(false);
+  });
+
+  test('cancels all active carpool offers when deleting activity', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.delete']
+    });
+
+    let carpoolUpdateCalled = false;
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('SELECT id FROM activities')) {
+        return Promise.resolve({
+          rows: [{ id: ACTIVITY_ID }]
+        });
+      }
+      if (query.includes('UPDATE carpool_offers SET is_active = FALSE')) {
+        carpoolUpdateCalled = true;
+        return Promise.resolve({ rows: [] });
+      }
+      if (query.includes('UPDATE activities') && query.includes('is_active = FALSE')) {
+        return Promise.resolve({
+          rows: [{ id: ACTIVITY_ID, is_active: false }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(carpoolUpdateCalled).toBe(true);
+  });
+
+  test('returns 404 when activity not found', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.delete']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('SELECT id FROM activities')) {
+        return Promise.resolve({ rows: [] }); // Not found
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .delete('/api/v1/activities/999')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  test('requires activities.delete permission', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: [] // No permission
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM role_permissions')) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  test('blocks demo users from deleting activities', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      roleNames: ['demoadmin'],
+      permissions: ['activities.delete']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM roles')) {
+        return Promise.resolve({
+          rows: [{ name: 'demoadmin' }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  test('returns 404 for activity in different organization', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      organizationId: ORG_ID,
+      permissions: ['activities.delete']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('SELECT id FROM activities')) {
+        // Not found in user's org
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const res = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  test('returns 401 without authentication', async () => {
+    const res = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`);
+
+    expect(res.status).toBe(401);
+  });
+});
+
+// ============================================
+// PERMISSION & SECURITY TESTS
+// ============================================
+
+describe('Activity Permission Enforcement', () => {
+  test('activities.view allows read only', async () => {
+    const { __mPool } = require('pg');
+    const token = generateToken({
+      permissions: ['activities.view'] // View only
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('WHERE a.id')) {
+        return Promise.resolve({
+          rows: [{ id: ACTIVITY_ID, name: 'Activity' }]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    // Read should work
+    const getRes = await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(getRes.status).toBe(200);
+
+    // Create should fail
+    const postRes = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        activity_name: 'Activity',
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Hall',
+        meeting_time_going: '08:30',
+        departure_time_going: '09:00'
+      });
+
+    expect(postRes.status).toBe(403);
+  });
+
+  test('different permission levels required for write operations', async () => {
+    const { __mPool } = require('pg');
+
+    const createToken = generateToken({
+      permissions: ['activities.create']
+    });
+
+    const editToken = generateToken({
+      permissions: ['activities.edit']
+    });
+
+    const deleteToken = generateToken({
+      permissions: ['activities.delete']
+    });
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('FROM role_permissions')) {
+        // Simulate permission check results based on token
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    // POST with create permission only
+    const postRes = await request(app)
+      .post('/api/v1/activities')
+      .set('Authorization', `Bearer ${createToken}`)
+      .send({
+        activity_name: 'Activity',
+        activity_start_date: '2026-06-15',
+        activity_end_date: '2026-06-15',
+        meeting_location_going: 'Hall',
+        meeting_time_going: '08:30',
+        departure_time_going: '09:00'
+      });
+
+    expect(postRes.status).toBe(403);
+
+    // PUT with edit permission only
+    const putRes = await request(app)
+      .put(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${editToken}`)
+      .send({ name: 'Updated' });
+
+    expect(putRes.status).toBe(403);
+
+    // DELETE with delete permission only
+    const delRes = await request(app)
+      .delete(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${deleteToken}`);
+
+    expect(delRes.status).toBe(403);
+  });
+});
+
+// ============================================
+// ORGANIZATION ISOLATION TESTS
+// ============================================
+
+describe('Activity Organization Isolation', () => {
+  test('activities from different orgs are not visible', async () => {
+    const { __mPool } = require('pg');
+
+    const org1Token = generateToken({
+      organizationId: 1,
+      permissions: ['activities.view']
+    });
+
+    const org2Token = generateToken({
+      organizationId: 2,
+      permissions: ['activities.view']
+    });
+
+    let lastQueriedOrgId = null;
+
+    __mPool.query.mockImplementation((query, params) => {
+      if (query.includes('WHERE a.id') && query.includes('AND a.organization_id')) {
+        lastQueriedOrgId = params[params.length - 1];
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${org1Token}`);
+
+    expect(lastQueriedOrgId).toBe(1);
+
+    await request(app)
+      .get(`/api/v1/activities/${ACTIVITY_ID}`)
+      .set('Authorization', `Bearer ${org2Token}`);
+
+    expect(lastQueriedOrgId).toBe(2);
+  });
+});
