@@ -26,6 +26,7 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const { closeServerResources } = require('./test-helpers');
+const { setupDefaultMocks, mockQueryImplementation, MockFactory } = require('./mock-helpers');
 
 jest.mock('pg', () => {
   const mClient = {
@@ -87,7 +88,10 @@ beforeEach(() => {
   __mClient.query.mockClear();
   __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockClear();
+  __mPool.query.mockReset();
+  
+  // Setup default schema-based mocks as fallback
+  setupDefaultMocks(__mClient, __mPool);
 });
 
 afterAll((done) => {
@@ -105,43 +109,32 @@ describe('GET /api/v1/users', () => {
       permissions: ['users.view']
     });
 
+    // Use mockQueryImplementation with schema-based fallback
+    const factory = new MockFactory();
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      const queryStr = typeof query === 'string' ? query : (query.text || '');
-      
-      // Main route query - get list of users
-      if (queryStr.includes('FROM users u') && queryStr.includes('JOIN user_organizations')) {
+      if (query.includes('FROM users') && query.includes('WHERE')) {
         return Promise.resolve({
           rows: [
-            {
-              id: 1,
+            factory.mockTable('users', {
+              id: '550e8400-e29b-41d4-a716-446655440000',
               email: 'admin@example.com',
               full_name: 'Admin User',
               first_name: 'Admin',
               last_name: 'User',
-              organization_id: ORG_ID,
-              status: 'active',
-              is_verified: true,
-              role_ids: [1],
-              roles: [{ id: 1, role_name: 'admin', display_name: 'Administrator' }],
-              created_at: new Date()
-            },
-            {
-              id: 2,
+              status: 'active'
+            }),
+            factory.mockTable('users', {
+              id: '550e8400-e29b-41d4-a716-446655440001',
               email: 'staff@example.com',
               full_name: 'Staff Member',
               first_name: 'Staff',
               last_name: 'Member',
-              organization_id: ORG_ID,
-              status: 'pending',
-              is_verified: false,
-              role_ids: [2],
-              roles: [{ id: 2, role_name: 'leader', display_name: 'Leader' }],
-              created_at: new Date()
-            }
+              status: 'pending'
+            })
           ]
         });
       }
-      // Don't return anything for other queries - let defaults handle them
+      // Return undefined to use default schema-based mocks
     });
 
     const res = await request(app)
