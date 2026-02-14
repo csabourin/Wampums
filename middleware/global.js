@@ -44,6 +44,8 @@ function getPreferredLandingPath(req) {
 }
 
 module.exports = (app) => {
+    const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || "20mb";
+
     // Trust proxy - use 1 (trust first proxy hop) instead of true
     // to avoid express-rate-limit ERR_ERL_PERMISSIVE_TRUST_PROXY warning
     app.set("trust proxy", 1);
@@ -57,8 +59,8 @@ module.exports = (app) => {
     }
 
     // Body Parsing
-    app.use(bodyParser.json({ limit: "10mb" }));
-    app.use(bodyParser.urlencoded({ limit: "10mb", extended: true }));
+    app.use(bodyParser.json({ limit: requestBodyLimit }));
+    app.use(bodyParser.urlencoded({ limit: requestBodyLimit, extended: true }));
 
     // ETag
     app.set("etag", "strong");

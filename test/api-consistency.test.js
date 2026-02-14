@@ -77,6 +77,16 @@ function mockPermission(mPool, permissionKey, roleName = 'admin') {
   });
 }
 
+
+/**
+ * Attach required tenant header for organization-scoped requests.
+ * @param {import('supertest').Test} req - Supertest request chain.
+ * @returns {import('supertest').Test} Request chain with organization header.
+ */
+function withOrganizationHeader(req) {
+  return req.set('x-organization-id', String(ORG_ID));
+}
+
 beforeAll(() => {
   process.env.JWT_SECRET_KEY = TEST_SECRET;
   process.env.DB_USER = 'test';
@@ -139,9 +149,9 @@ describe('Response Envelope Structure', () => {
     __mPool.query.mockResolvedValueOnce({ rows: [] });
     __mPool.query.mockResolvedValueOnce({ rows: [] });
 
-    const res = await request(app)
+    const res = await withOrganizationHeader(request(app)
       .get('/api/v1/participants')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`));
 
     expect(res.status).toBe(403);
     expect(res.body).toHaveProperty('success', false);
@@ -176,9 +186,9 @@ describe('HTTP Status Code Conventions', () => {
     __mPool.query.mockResolvedValueOnce({ rows: [] }); // no permissions
     __mPool.query.mockResolvedValueOnce({ rows: [] }); // no roles
 
-    const res = await request(app)
+    const res = await withOrganizationHeader(request(app)
       .get('/api/v1/participants')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`));
 
     expect(res.status).toBe(403);
   });
@@ -291,9 +301,9 @@ describe('Consistent Error Shapes', () => {
     __mPool.query.mockResolvedValueOnce({ rows: [] });
     __mPool.query.mockResolvedValueOnce({ rows: [] });
 
-    const res = await request(app)
+    const res = await withOrganizationHeader(request(app)
       .get('/api/v1/participants')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`));
 
     expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
@@ -618,6 +628,18 @@ describe('Validation Middleware Integration', () => {
   });
 });
 
+
+  test('request body limit rejects oversized payload with 413', async () => {
+    const oversizedPayload = { payload: 'x'.repeat(21 * 1024 * 1024) };
+
+    const res = await request(app)
+      .post('/public/login')
+      .set('x-organization-id', '1')
+      .send(oversizedPayload);
+
+    expect(res.status).toBe(413);
+  });
+
 // ============================================
 // 12. WRITE OPERATIONS REQUIRE AUTH
 // ============================================
@@ -722,9 +744,9 @@ describe('Middleware Ordering', () => {
   });
 
   test('with invalid token, get 401 not 403', async () => {
-    const res = await request(app)
+    const res = await withOrganizationHeader(request(app)
       .get('/api/v1/participants')
-      .set('Authorization', 'Bearer invalid-token');
+      .set('Authorization', 'Bearer invalid-token'));
     expect(res.status).toBe(401);
   });
 });
