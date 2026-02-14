@@ -17,8 +17,6 @@
  * @module test/spa/SecurityUtils
  */
 
-import { TEST_ORG_ID } from './helpers.js';
-
 // Mock DOMPurify since SecurityUtils depends on it
 jest.mock('dompurify', () => {
   return {
