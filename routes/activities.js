@@ -22,46 +22,6 @@ module.exports = (pool) => {
     .replace(/;/g, '\\;');
 
   /**
-   * Fold an iCalendar content line to the RFC 5545 75-octet limit.
-   * Continuation lines begin with a single whitespace character.
-   *
-   * @param {string} value
-   * @returns {string[]}
-   */
-  const foldICalLine = (value = '') => {
-    const line = String(value ?? '');
-    const maxOctets = 75;
-
-    if (Buffer.byteLength(line, 'utf8') <= maxOctets) {
-      return [line];
-    }
-
-    const characters = Array.from(line);
-    const folded = [];
-    let current = '';
-    let currentBytes = 0;
-
-    characters.forEach((char) => {
-      const charBytes = Buffer.byteLength(char, 'utf8');
-      const currentLimit = folded.length === 0 ? maxOctets : maxOctets - 1;
-
-      if (currentBytes + charBytes > currentLimit) {
-        folded.push(folded.length === 0 ? current : ` ${current}`);
-        current = char;
-        currentBytes = charBytes;
-        return;
-      }
-
-      current += char;
-      currentBytes += charBytes;
-    });
-
-    folded.push(folded.length === 0 ? current : ` ${current}`);
-
-    return folded;
-  };
-
-  /**
    * Format local date and time values to a floating iCalendar date-time value.
    *
    * We intentionally do not append a timezone suffix (e.g., "Z") because
@@ -88,6 +48,44 @@ module.exports = (pool) => {
     const [, hours, minutes, seconds = '00'] = timeMatch;
 
     return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+  };
+
+  /**
+   * Fold iCalendar content lines at RFC 5545 recommended 75-octet boundaries.
+   * @param {string} line
+   * @returns {string[]}
+   */
+  const foldICalLine = (line) => {
+    if (!line) {
+      return [''];
+    }
+
+    const foldedLines = [];
+    let remaining = String(line);
+    let isFirstLine = true;
+
+    while (Buffer.byteLength(remaining, 'utf8') > (isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1)) {
+      const maxOctets = isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1;
+      let splitIndex = 0;
+      let currentOctets = 0;
+
+      for (const char of remaining) {
+        const charOctets = Buffer.byteLength(char, 'utf8');
+        if ((currentOctets + charOctets) > maxOctets) {
+          break;
+        }
+        currentOctets += charOctets;
+        splitIndex += char.length;
+      }
+
+      const segment = remaining.slice(0, splitIndex);
+      foldedLines.push(isFirstLine ? segment : ` ${segment}`);
+      remaining = remaining.slice(splitIndex);
+      isFirstLine = false;
+    }
+
+    foldedLines.push(isFirstLine ? remaining : ` ${remaining}`);
+    return foldedLines;
   };
 
   /**
@@ -373,7 +371,7 @@ module.exports = (pool) => {
 
     const values = [
       activityName,
-      description || '',
+      description,
       normalizedActivityDate,
       normalizedStartDate,
       normalizedStartTime,
@@ -383,8 +381,8 @@ module.exports = (pool) => {
       meeting_time_going,
       departure_time_going,
       meeting_location_return || '',
-      meeting_time_return || null,
-      departure_time_return || null,
+      meeting_time_return || '',
+      departure_time_return || '',
       userId,
       organizationId
     ];
