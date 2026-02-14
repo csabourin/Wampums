@@ -272,30 +272,59 @@ describe('ValidationUtils - Form Validation', () => {
   });
 
   describe('validateDateOfBirth', () => {
+    /**
+     * Formats a Date object as YYYY-MM-DD for use with validateDateOfBirth.
+     * This keeps tests stable by avoiding hard-coded calendar dates.
+     */
+    const formatDate = (date) => date.toISOString().split('T')[0];
+
+    /**
+     * Returns a Date representing an exact number of years ago from "today".
+     * Using setFullYear preserves month/day semantics across leap years.
+     */
+    const getDateYearsAgo = (years) => {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - years);
+      return d;
+    };
+
+    /**
+     * Returns a Date representing an exact number of years from now.
+     */
+    const getDateYearsFromNow = (years) => {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() + years);
+      return d;
+    };
+
     test('accepts valid past dates', () => {
-      const birthDate = '2010-01-15'; // Past date
+      // Use a date 20 years in the past to ensure it is always before "today"
+      const birthDate = formatDate(getDateYearsAgo(20));
       const result = validateDateOfBirth(birthDate);
       
       expect(result.valid).toBe(true);
     });
 
     test('rejects future dates', () => {
-      const futureDate = '2030-01-15'; // Future date
+      // Use a date 1 year in the future to ensure it is always after "today"
+      const futureDate = formatDate(getDateYearsFromNow(1));
       const result = validateDateOfBirth(futureDate);
       
       expect(result.valid).toBe(false);
     });
 
     test('validates minimum age requirement', () => {
-      // If someone is less than 18 years old
-      const result = validateDateOfBirth('2015-02-14', 18); // minAge = 18
+      // If someone is less than 18 years old (e.g., 10 years old)
+      const underageBirthDate = formatDate(getDateYearsAgo(10));
+      const result = validateDateOfBirth(underageBirthDate, 18); // minAge = 18
       
       expect(result.valid).toBe(false);
     });
 
     test('validates maximum age requirement', () => {
-      // If someone is older than 120 years
-      const result = validateDateOfBirth('1850-02-14', null, 120); // maxAge = 120
+      // If someone is older than 120 years (e.g., 130 years old)
+      const overMaxAgeBirthDate = formatDate(getDateYearsAgo(130));
+      const result = validateDateOfBirth(overMaxAgeBirthDate, null, 120); // maxAge = 120
       
       expect(result.valid).toBe(false);
     });
