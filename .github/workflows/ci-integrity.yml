@@ -29,6 +29,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: Lint and policy checks
         run: |
           npm run lint:api-version
