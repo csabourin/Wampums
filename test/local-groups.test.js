@@ -42,6 +42,20 @@ afterEach(() => {
   Pool.mockClear();
 });
 
+afterAll((done) => {
+  // Close server and socket.io to prevent hanging
+  if (app.server) {
+    app.server.close(() => {
+      if (app.io) {
+        app.io.close();
+      }
+      done();
+    });
+  } else {
+    done();
+  }
+});
+
 describe('Local groups API', () => {
   test('returns memberships for current organization', async () => {
     const token = jwt.sign({ user_id: 10, organizationId: 5 }, 'testsecret');

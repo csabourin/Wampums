@@ -49,6 +49,20 @@ afterEach(() => {
   Pool.mockClear();
 });
 
+afterAll((done) => {
+  // Close server and socket.io to prevent hanging
+  if (app.server) {
+    app.server.close(() => {
+      if (app.io) {
+        app.io.close();
+      }
+      done();
+    });
+  } else {
+    done();
+  }
+});
+
 describe('Authenticated API communication', () => {
   test('returns error when no token is provided', async () => {
     const res = await request(app).get('/api/v1/forms/types');

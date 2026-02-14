@@ -46,6 +46,20 @@ afterEach(() => {
   Pool.mockClear();
 });
 
+afterAll((done) => {
+  // Close server and socket.io to prevent hanging
+  if (app.server) {
+    app.server.close(() => {
+      if (app.io) {
+        app.io.close();
+      }
+      done();
+    });
+  } else {
+    done();
+  }
+});
+
 describe('POST /api/v1/push-subscription', () => {
   test('saves subscription with authenticated user context', async () => {
     const { __mPool } = require('pg');

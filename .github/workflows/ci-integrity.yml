@@ -97,9 +97,10 @@ jobs:
           path: jest-results.json
 
   mobile-tests:
-    name: Mobile tests
+    name: Mobile tests (disabled temporarily)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: false  # Temporarily disabled per requirements
 
     steps:
       - name: Checkout

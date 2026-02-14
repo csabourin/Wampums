@@ -56,4 +56,7 @@ if (require.main === module) {
   });
 }
 
+// Export app for testing, server and io for cleanup
 module.exports = app;
+module.exports.server = server;
+module.exports.io = io;

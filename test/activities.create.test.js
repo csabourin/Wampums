@@ -54,6 +54,20 @@ afterEach(() => {
   Pool.mockClear();
 });
 
+afterAll((done) => {
+  // Close server and socket.io to prevent hanging
+  if (app.server) {
+    app.server.close(() => {
+      if (app.io) {
+        app.io.close();
+      }
+      done();
+    });
+  } else {
+    done();
+  }
+});
+
 describe('POST /api/v1/activities', () => {
   // Generate token inside a function to ensure JWT_SECRET_KEY is set
   const getValidToken = () => jwt.sign(

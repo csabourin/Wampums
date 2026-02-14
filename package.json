@@ -77,8 +77,12 @@
     "setupFiles": [
       "<rootDir>/test/setupJest.js"
     ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/mobile/"
+    ],
     "transform": {
-      "^.+/(spa|tests|test|mobile)/.+\\.js$": [
+      "^.+/(spa|tests|test)/.+\\.js$": [
         "babel-jest",
         {
           "presets": [

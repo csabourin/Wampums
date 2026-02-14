@@ -32,6 +32,20 @@ beforeAll(() => {
     app = require('../api');
 });
 
+afterAll((done) => {
+    // Close server and socket.io to prevent hanging
+    if (app.server) {
+        app.server.close(() => {
+            if (app.io) {
+                app.io.close();
+            }
+            done();
+        });
+    } else {
+        done();
+    }
+});
+
 describe('Permission Slip Security', () => {
     const { __mPool } = require('pg');
 

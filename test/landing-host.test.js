@@ -42,6 +42,20 @@ beforeEach(() => {
   __mPool.query.mockResolvedValue({ rows: [] });
 });
 
+afterAll((done) => {
+  // Close server and socket.io to prevent hanging
+  if (app.server) {
+    app.server.close(() => {
+      if (app.io) {
+        app.io.close();
+      }
+      done();
+    });
+  } else {
+    done();
+  }
+});
+
 describe('Landing Host Routing - wampums.app', () => {
   describe('Root path redirects', () => {
     test('redirects / to /en/ when Accept-Language is en-US', async () => {
