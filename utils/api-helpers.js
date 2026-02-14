@@ -19,6 +19,7 @@ const logger = winston.createLogger({
 });
 
 const path = require('path');
+const fs = require('fs');
 
 class OrganizationNotFoundError extends Error {
   constructor(message = 'Organization not found') {
@@ -51,6 +52,13 @@ function respondWithOrganizationFallback(res) {
   }
 
   if (acceptsHtml) {
+    if (!fs.existsSync(fallbackPath)) {
+      return res
+        .status(404)
+        .type('html')
+        .send('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Organization not found</title></head><body><h1>organization_not_found</h1></body></html>');
+    }
+
     return res.status(404).sendFile(fallbackPath);
   }
 
