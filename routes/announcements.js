@@ -16,6 +16,7 @@ const {
 } = require('../utils/api-helpers');
 const { sanitizeInput, sendEmail, sendWhatsApp } = require('../utils');
 const { checkValidation } = require('../middleware/validation');
+const { isTestEnvironment } = require('../test/test-helpers');
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
 const pg = require('pg');
@@ -413,7 +414,7 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
    */
   async function setupAnnouncementListener() {
     // Skip listener in test environment
-    if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined) {
+    if (isTestEnvironment()) {
       logger.info('Skipping announcement listener in test environment');
       return;
     }

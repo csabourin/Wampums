@@ -2,6 +2,7 @@ const WhatsAppBaileysService = require("./whatsapp-baileys");
 const GoogleChatService = require("./google-chat");
 const socketService = require("./socket");
 const logger = require("../config/logger");
+const { isTestEnvironment } = require("../test/test-helpers");
 
 let whatsappService;
 let googleChatService;
@@ -13,7 +14,7 @@ let googleChatService;
  */
 async function init(pool) {
     // Skip service initialization in test environment
-    if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined) {
+    if (isTestEnvironment()) {
         logger.info("Skipping service initialization in test environment");
         return;
     }
