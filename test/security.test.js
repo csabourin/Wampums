@@ -31,6 +31,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
+const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -69,10 +70,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
-  __mClient.query.mockReset();
-  __mClient.release.mockReset();
+  setupDefaultMocks(__mClient, __mPool);
+  __mClient.query.mockClear();
+  __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockReset();
+  __mPool.query.mockClear();
   
   // Mock organization domain lookup (for getCurrentOrganizationId)
   // This returns a default organization when hostname lookup occurs
