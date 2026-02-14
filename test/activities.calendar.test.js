@@ -110,6 +110,8 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     expect(response.headers['content-disposition']).toContain('attachment; filename="club-eclaireurs-activities-');
     expect(response.headers['content-disposition']).toContain('.ics"; filename*=UTF-8\'\'club-eclaireurs-activities-');
     expect(response.text).toContain('BEGIN:VCALENDAR');
+    expect(response.text).toContain('VERSION:2.0');
+    expect(response.text).toContain('CALSCALE:GREGORIAN');
     expect(response.text).toContain('BEGIN:VEVENT');
     expect(response.text).toContain('SUMMARY:Winter Camp');
     expect(response.text).toContain('DTSTART:20260214T093000');
