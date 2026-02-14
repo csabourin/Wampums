@@ -51,7 +51,7 @@ afterAll((done) => {
   closeServerResources(app, done);
 });
 
-describe('POST /api/v1/push-subscription', () => {
+describe('POST /api/v1/notifications/subscription', () => {
   test('saves subscription with authenticated user context', async () => {
     const { __mPool } = require('pg');
 
@@ -63,7 +63,7 @@ describe('POST /api/v1/push-subscription', () => {
     const token = jwt.sign({ user_id: 'user-123', organizationId: 5 }, 'testsecret');
 
     const res = await request(app)
-      .post('/api/v1/push-subscription')
+      .post('/api/v1/notifications/subscription')
       .set('Authorization', `Bearer ${token}`)
       .set('x-organization-id', '5')
       .send({
@@ -87,7 +87,7 @@ describe('POST /api/v1/push-subscription', () => {
     const token = jwt.sign({ user_id: 'user-123', organizationId: 5 }, 'testsecret');
 
     const res = await request(app)
-      .post('/api/v1/push-subscription')
+      .post('/api/v1/notifications/subscription')
       .set('Authorization', `Bearer ${token}`)
       .set('x-organization-id', '5')
       .send({
