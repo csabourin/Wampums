@@ -9,8 +9,9 @@
  * @see jest.config.js setupFilesAfterEnv
  */
 
-// Load conditional test helpers (describe.skipIf, test.skipIf, etc.)
-require('./jest-conditional-helpers');
+// Conditional test helpers are available but not required for SPA tests
+// Import only if needed: const { setupConditionalHelpers } = require('./jest-conditional-helpers');
+// setupConditionalHelpers();
 
 jest.mock('@whiskeysockets/baileys', () => ({
   __esModule: true,
