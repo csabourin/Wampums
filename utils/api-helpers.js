@@ -29,15 +29,26 @@ class OrganizationNotFoundError extends Error {
 
 /**
  * Respond with a dedicated fallback experience when no organization is found.
- * Sends HTML when the client accepts it, otherwise returns a JSON payload with
- * a pointer to the fallback page so the SPA can redirect gracefully.
+ * API requests receive HTTP 400 with a JSON error payload.
+ * Non-API requests that accept HTML receive HTTP 404 with the fallback page.
+ * Other non-API requests receive HTTP 404 with a JSON fallback payload.
  *
  * @param {Object} res - Express response object
  * @returns {Object} Express response
  */
 function respondWithOrganizationFallback(res) {
   const fallbackPath = path.join(__dirname, '..', 'organization-not-found.html');
+  const isApiRequest = res.req?.path?.startsWith('/api');
   const acceptsHtml = (res.req?.headers?.accept || '').includes('text/html');
+
+  if (isApiRequest) {
+    return res.status(400).json({
+      success: false,
+      message: 'organization_not_found',
+      fallback: '/organization-not-found.html',
+      timestamp: new Date().toISOString()
+    });
+  }
 
   if (acceptsHtml) {
     return res.status(404).sendFile(fallbackPath);
@@ -46,7 +57,8 @@ function respondWithOrganizationFallback(res) {
   return res.status(404).json({
     success: false,
     message: 'organization_not_found',
-    fallback: '/organization-not-found.html'
+    fallback: '/organization-not-found.html',
+    timestamp: new Date().toISOString()
   });
 }
 
@@ -87,6 +99,21 @@ async function getCurrentOrganizationId(req, pool, logger) {
   // Try to get from header first
   if (req.headers['x-organization-id']) {
     return parseInt(req.headers['x-organization-id'], 10);
+  }
+
+  // Prefer organization from authenticated JWT context when available.
+  // This keeps multi-tenant access aligned with authenticated claims.
+  const bearerToken = req.headers.authorization?.split(' ')[1];
+  if (bearerToken) {
+    try {
+      const decoded = verifyJWTToken(bearerToken);
+      const tokenOrganizationId = parseInt(decoded?.organizationId ?? decoded?.organization_id, 10);
+      if (!Number.isNaN(tokenOrganizationId)) {
+        return tokenOrganizationId;
+      }
+    } catch {
+      // Ignore token parsing errors here; endpoint-specific auth will handle invalid JWTs.
+    }
   }
 
   // Try to get from hostname/domain mapping
