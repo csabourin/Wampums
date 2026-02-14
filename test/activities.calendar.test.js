@@ -31,6 +31,7 @@ beforeAll(() => {
   process.env.DB_NAME = 'testdb';
   process.env.DB_PASSWORD = 'test';
   process.env.DB_PORT = '5432';
+  process.env.ORGANIZATION_ID = 'test-organization';
 
   app = require('../api');
 });
