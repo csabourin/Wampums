@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { cleanupTestResources } = require('./test-cleanup');
 
 // Mock pg module before requiring app
 jest.mock('pg', () => {
@@ -40,6 +41,10 @@ beforeEach(() => {
   __mPool.connect.mockClear();
   __mPool.query.mockReset();
   __mPool.query.mockResolvedValue({ rows: [] });
+});
+
+afterAll(async () => {
+  await cleanupTestResources(app);
 });
 
 describe('Landing Host Routing - wampums.app', () => {

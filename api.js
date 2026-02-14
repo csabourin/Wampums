@@ -56,4 +56,7 @@ if (require.main === module) {
   });
 }
 
+// Export app for backward compatibility, but also export server and io for tests
 module.exports = app;
+module.exports.server = server;
+module.exports.io = io;

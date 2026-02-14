@@ -550,6 +550,9 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
     }
   }
 
+  // Make shutdown function available for tests
+  global.__announcementListenerShutdown = shutdownListener;
+
   // Initialize the listener
   setupAnnouncementListener();
 
@@ -713,4 +716,15 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
   });
 
   return router;
+};
+
+/**
+ * Export shutdown function for tests to clean up resources
+ * @private Used only in test environments
+ */
+module.exports.shutdownListenerForTests = async function() {
+  // This will be set by the route initialization
+  if (typeof global.__announcementListenerShutdown === 'function') {
+    await global.__announcementListenerShutdown();
+  }
 };

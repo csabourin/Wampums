@@ -1,5 +1,6 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const { cleanupTestResources } = require('./test-cleanup');
 
 // Mock pg module before requiring app
 jest.mock('pg', () => {
@@ -30,6 +31,10 @@ const TEST_ID = 28;
 beforeAll(() => {
     process.env.JWT_SECRET_KEY = TEST_SECRET;
     app = require('../api');
+});
+
+afterAll(async () => {
+    await cleanupTestResources(app);
 });
 
 describe('Permission Slip Security', () => {
