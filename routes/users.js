@@ -28,7 +28,7 @@ const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, 
 module.exports = (pool, logger) => {
   /**
    * @swagger
-   * /api/users:
+   * /api/v1/users:
    *   get:
    *     summary: Get all users in organization
    *     description: Retrieve list of all users belonging to current organization (admin only)
@@ -47,7 +47,7 @@ module.exports = (pool, logger) => {
    *       401:
    *         description: Unauthorized
    */
-  router.get('/users', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+  router.get('/', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = req.query.organization_id || await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -72,13 +72,13 @@ module.exports = (pool, logger) => {
 
     res.json({
       success: true,
-      users: result.rows
+      data: result.rows
     });
   }));
 
   /**
    * @swagger
-   * /api/pending-users:
+   * /api/v1/users/pending:
    *   get:
    *     summary: Get pending users awaiting approval
    *     description: Retrieve list of unverified users (admin only)
@@ -91,7 +91,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.get('/pending-users', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+  router.get('/pending', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -120,7 +120,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/animateurs:
+   * /api/v1/users/animateurs:
    *   get:
    *     summary: Get list of animators
    *     description: Retrieve users with admin or animation roles
@@ -146,13 +146,13 @@ module.exports = (pool, logger) => {
 
     res.json({
       success: true,
-      animateurs: result.rows
+      data: result.rows
     });
   }));
 
   /**
    * @swagger
-   * /api/parent-users:
+   * /api/v1/users/parents:
    *   get:
    *     summary: Get list of parent users
    *     description: Retrieve users with parent role
@@ -163,7 +163,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: List of parent users
    */
-  router.get('/parent-users', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+  router.get('/parents', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -178,13 +178,13 @@ module.exports = (pool, logger) => {
 
     res.json({
       success: true,
-      users: result.rows
+      data: result.rows
     });
   }));
 
   /**
    * @swagger
-   * /api/user-children:
+   * /api/v1/users/children:
    *   get:
    *     summary: Get current user's children
    *     description: Retrieve participants linked to the authenticated user
@@ -195,7 +195,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: User's children
    */
-  router.get('/user-children', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
+  router.get('/children', authenticate, requirePermission('participants.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
@@ -216,7 +216,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/approve-user:
+   * /api/v1/users/approve:
    *   post:
    *     summary: Approve a pending user
    *     description: Verify and approve a user account (admin only)
@@ -240,7 +240,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.post('/approve-user', authenticate, blockDemoRoles, requirePermission('users.edit'), asyncHandler(async (req, res) => {
+  router.post('/approve', authenticate, blockDemoRoles, requirePermission('users.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { user_id } = req.body;
 
@@ -272,7 +272,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/update-user-role:
+   * /api/v1/users/update-role:
    *   post:
    *     summary: Update user role in organization
    *     description: Change a user's role (admin only)
@@ -300,7 +300,7 @@ module.exports = (pool, logger) => {
    *       400:
    *         description: Invalid role or cannot change own role
    */
-  router.post('/update-user-role', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
+  router.post('/update-role', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const { user_id, role } = req.body;
 
@@ -399,7 +399,7 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: User not found in organization
    */
-  router.get('/v1/users/:userId/roles', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
+  router.get('/:userId/roles', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.params.userId; // UUID, not integer
 
@@ -469,7 +469,7 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: Insufficient permissions
    */
-  router.put('/v1/users/:userId/roles', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
+  router.put('/:userId/roles', authenticate, blockDemoRoles, requirePermission('users.assign_roles'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const userId = req.params.userId; // UUID, not integer
     const { roleIds } = req.body;
@@ -526,7 +526,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/link-user-participants:
+   * /api/v1/users/link-participants:
    *   post:
    *     summary: Link user to participants
    *     description: Associate user with multiple participants (children). Admins can link any user, regular users can only link themselves.
@@ -556,7 +556,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: User linked successfully
    */
-  router.post('/link-user-participants', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+  router.post('/link-participants', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     let { user_id, participant_ids } = req.body;
 
@@ -636,7 +636,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/associate-user-participant:
+   * /api/v1/users/associate-participant:
    *   post:
    *     summary: Associate user with single participant
    *     description: Link a user to one participant (admin/animation only)
@@ -661,7 +661,7 @@ module.exports = (pool, logger) => {
    *       200:
    *         description: Association created
    */
-  router.post('/associate-user-participant', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+  router.post('/associate-participant', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
     const { user_id, participant_id } = req.body;
 
     if (!user_id || !participant_id) {
@@ -683,7 +683,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/permissions/check:
+   * /api/v1/users/permissions/check:
    *   post:
    *     summary: Check if user has permission for a specific operation
    *     description: Verify user permissions based on role and operation

@@ -14,12 +14,8 @@
  */
 
 /**
- * Helper to conditionally skip describe blocks
- *
- * @example
- * describe.skipIf(!HAS_DATABASE)('DB tests', () => {
- *   test('uses database', () => {});
- * });
+ * Setup Jest helpers when globals become available
+ * This is called from setupJest.js AFTER Jest globals are loaded
  */
 if (typeof describe !== 'undefined' && !describe.skipIf) {
   describe.skipIf = function(condition, name, fn) {
@@ -115,6 +111,7 @@ const HAS_STRIPE = !!process.env.STRIPE_SECRET_KEY;
 const IS_CI = !!process.env.CI;
 
 module.exports = {
+  setupConditionalHelpers,
   HAS_DATABASE,
   HAS_AUTH_SECRET,
   HAS_STRIPE,

@@ -47,6 +47,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
+const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -83,8 +84,9 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
-  __mClient.query.mockReset();
-  __mClient.release.mockReset();
+  setupDefaultMocks(__mClient, __mPool);
+  __mClient.query.mockClear();
+  __mClient.release.mockClear();
   __mPool.connect.mockClear();
   __mPool.query.mockReset();
   
@@ -116,6 +118,7 @@ describe('GET /api/v1/users', () => {
             factory.mockTable('users', {
               id: '550e8400-e29b-41d4-a716-446655440000',
               email: 'admin@example.com',
+              full_name: 'Admin User',
               first_name: 'Admin',
               last_name: 'User',
               status: 'active'
@@ -123,6 +126,7 @@ describe('GET /api/v1/users', () => {
             factory.mockTable('users', {
               id: '550e8400-e29b-41d4-a716-446655440001',
               email: 'staff@example.com',
+              full_name: 'Staff Member',
               first_name: 'Staff',
               last_name: 'Member',
               status: 'pending'
@@ -144,12 +148,12 @@ describe('GET /api/v1/users', () => {
   });
 
   test('lists pending users separately if status filter', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users')) {
         if (query.includes('status')) {
           return Promise.resolve({
@@ -176,12 +180,12 @@ describe('GET /api/v1/users', () => {
   });
 
   test('requires users.view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -196,7 +200,7 @@ describe('GET /api/v1/users', () => {
   });
 
   test('enforces organization isolation', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       organizationId: ORG_ID,
       permissions: ['users.view']
@@ -204,7 +208,7 @@ describe('GET /api/v1/users', () => {
 
     let queriedOrgId = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users')) {
         queriedOrgId = params[params.length - 1];
         return Promise.resolve({ rows: [] });
@@ -226,12 +230,12 @@ describe('GET /api/v1/users', () => {
 
 describe('GET /api/v1/users/:id', () => {
   test('returns user details with role information', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -265,12 +269,12 @@ describe('GET /api/v1/users/:id', () => {
   });
 
   test('returns 404 when user not found', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users')) {
         return Promise.resolve({ rows: [] });
       }
@@ -285,12 +289,12 @@ describe('GET /api/v1/users/:id', () => {
   });
 
   test('requires users.view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: []
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -311,12 +315,12 @@ describe('GET /api/v1/users/:id', () => {
 
 describe('POST /api/v1/users', () => {
   test('creates new user with pending status', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO users')) {
         return Promise.resolve({
           rows: [{
@@ -347,12 +351,12 @@ describe('POST /api/v1/users', () => {
   });
 
   test('requires valid email format', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -370,12 +374,12 @@ describe('POST /api/v1/users', () => {
   });
 
   test('requires email and name fields', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -391,12 +395,12 @@ describe('POST /api/v1/users', () => {
   });
 
   test('prevents duplicate email in same organization', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO users')) {
         // Simulate duplicate key error
         const err = new Error('duplicate key value');
@@ -420,12 +424,12 @@ describe('POST /api/v1/users', () => {
   });
 
   test('requires users.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view'] // Only view
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -451,12 +455,12 @@ describe('POST /api/v1/users', () => {
 
 describe('PUT /api/v1/users/:id', () => {
   test('updates user basic information', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE users SET')) {
         return Promise.resolve({
           rows: [{
@@ -484,12 +488,12 @@ describe('PUT /api/v1/users/:id', () => {
   });
 
   test('prevents email change to duplicate', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE users SET')) {
         const err = new Error('duplicate key value');
         err.code = '23505';
@@ -509,12 +513,12 @@ describe('PUT /api/v1/users/:id', () => {
   });
 
   test('requires users.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -538,14 +542,14 @@ describe('PUT /api/v1/users/:id', () => {
 
 describe('POST /api/v1/users/:id/approve', () => {
   test('approves pending user and activates account', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.approve']
     });
 
     let updateCalled = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE users SET status')) {
         updateCalled = true;
         return Promise.resolve({
@@ -572,12 +576,12 @@ describe('POST /api/v1/users/:id/approve', () => {
   });
 
   test('cannot approve non-pending user', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.approve']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -598,12 +602,12 @@ describe('POST /api/v1/users/:id/approve', () => {
   });
 
   test('requires users.approve permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage'] // Manage but not approve
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -619,12 +623,12 @@ describe('POST /api/v1/users/:id/approve', () => {
   });
 
   test('returns 404 when user not found', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.approve']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE users')) {
         return Promise.resolve({ rows: [] });
       }
@@ -646,12 +650,12 @@ describe('POST /api/v1/users/:id/approve', () => {
 
 describe('POST /api/v1/users/:id/roles', () => {
   test('assigns role to user', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO user_roles')) {
         return Promise.resolve({
           rows: [{
@@ -683,14 +687,14 @@ describe('POST /api/v1/users/:id/roles', () => {
   });
 
   test('prevents granting admin role to non-admin', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const staffToken = generateToken({
       user_id: STAFF_USER_ID,
       roleNames: ['animation'],
       permissions: ['users.manage'] // Has manage but not admin
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{ id: STAFF_USER_ID }]
@@ -710,12 +714,12 @@ describe('POST /api/v1/users/:id/roles', () => {
   });
 
   test('prevents duplicate role assignment', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO user_roles')) {
         const err = new Error('duplicate');
         err.code = '23505';
@@ -735,12 +739,12 @@ describe('POST /api/v1/users/:id/roles', () => {
   });
 
   test('requires users.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -764,14 +768,14 @@ describe('POST /api/v1/users/:id/roles', () => {
 
 describe('DELETE /api/v1/users/:id/roles/:roleId', () => {
   test('removes role from user', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
     let deleteCalled = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('DELETE FROM user_roles')) {
         deleteCalled = true;
         return Promise.resolve({ rows: [{ rowCount: 1 }] });
@@ -788,13 +792,13 @@ describe('DELETE /api/v1/users/:id/roles/:roleId', () => {
   });
 
   test('prevents removing last admin role from all admins', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       user_id: ADMIN_USER_ID,
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('COUNT(*)') && query.includes('role_id')) {
         return Promise.resolve({
           rows: [{ count: '1' }] // Only 1 admin
@@ -811,12 +815,12 @@ describe('DELETE /api/v1/users/:id/roles/:roleId', () => {
   });
 
   test('requires users.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -837,12 +841,12 @@ describe('DELETE /api/v1/users/:id/roles/:roleId', () => {
 
 describe('POST /api/v1/users/:id/parent', () => {
   test('links parent user to participant children', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO user_participants')) {
         return Promise.resolve({
           rows: [{
@@ -865,12 +869,12 @@ describe('POST /api/v1/users/:id/parent', () => {
   });
 
   test('prevents linking to non-existent participants', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO user_participants')) {
         const err = new Error('foreign key');
         err.code = '23503';
@@ -890,12 +894,12 @@ describe('POST /api/v1/users/:id/parent', () => {
   });
 
   test('requires users.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -919,12 +923,12 @@ describe('POST /api/v1/users/:id/parent', () => {
 
 describe('DELETE /api/v1/users/:id', () => {
   test('soft-deletes user (deactivates)', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE users SET') && query.includes('is_active')) {
         return Promise.resolve({
           rows: [{
@@ -945,13 +949,13 @@ describe('DELETE /api/v1/users/:id', () => {
   });
 
   test('prevents removing last admin', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       user_id: ADMIN_USER_ID,
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT * FROM users WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -976,12 +980,12 @@ describe('DELETE /api/v1/users/:id', () => {
   });
 
   test('requires users.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -996,12 +1000,12 @@ describe('DELETE /api/v1/users/:id', () => {
   });
 
   test('returns 404 when user not found', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE users SET')) {
         return Promise.resolve({ rows: [] });
       }
@@ -1022,12 +1026,12 @@ describe('DELETE /api/v1/users/:id', () => {
 
 describe('User Permission Enforcement', () => {
   test('users.view allows read-only access', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['users.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users') && !query.includes('INSERT|UPDATE|DELETE')) {
         return Promise.resolve({ rows: [] });
       }
@@ -1058,7 +1062,7 @@ describe('User Permission Enforcement', () => {
 
 describe('User Organization Isolation', () => {
   test('users from different org not visible to other org admins', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
 
     const org1Token = generateToken({
       organizationId: 1,
@@ -1073,7 +1077,7 @@ describe('User Organization Isolation', () => {
     let org1QueryCount = 0;
     let org2QueryCount = 0;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users')) {
         const orgId = params[params.length - 1];
         if (orgId === 1) org1QueryCount++;
@@ -1102,14 +1106,14 @@ describe('User Organization Isolation', () => {
 
 describe('Privilege Escalation Prevention', () => {
   test('cannot grant admin role without being admin', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const staffToken = generateToken({
       user_id: STAFF_USER_ID,
       roleNames: ['animation'],
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -1124,13 +1128,13 @@ describe('Privilege Escalation Prevention', () => {
   });
 
   test('admin cannot escalate self without existing admin approver', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       user_id: ADMIN_USER_ID,
       permissions: ['users.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('Escalation policy')) {
         return Promise.resolve({ rows: [] });
       }

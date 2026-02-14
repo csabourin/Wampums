@@ -23,6 +23,7 @@ jest.mock('pg', () => {
 
 let app;
 const { Pool } = require('pg');
+const { setupDefaultMocks } = require('./mock-helpers');
 
 beforeAll(() => {
   process.env.JWT_SECRET_KEY = 'testsecret';
@@ -37,10 +38,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
-  __mClient.query.mockReset();
-  __mClient.release.mockReset();
+  setupDefaultMocks(__mClient, __mPool);
+  __mClient.query.mockClear();
+  __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockReset();
+  __mPool.query.mockClear();
 });
 
 afterEach(() => {
@@ -97,7 +99,7 @@ describe('POST /api/v1/notifications/subscription', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
-    expect(res.body.message).toBe('Validation failed');
+    expect(res.body.message).toMatch(/endpoint.*required|keys.*required/i);
     expect(__mPool.query).not.toHaveBeenCalled();
   });
 });

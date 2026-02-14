@@ -35,6 +35,7 @@ jest.mock('pg', () => {
   };
 });
 
+const { setupDefaultMocks } = require('./mock-helpers');
 let app;
 const TEST_SECRET = 'testsecret';
 const TOKEN_ORG_ID = 7;
@@ -78,16 +79,19 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
-  __mClient.query.mockReset();
-  __mClient.release.mockReset();
+  setupDefaultMocks(__mClient, __mPool);
+  __mClient.query.mockClear();
+  __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockReset();
+  __mPool.query.mockClear();
 
+  // Override setupDefaultMocks for organization_domains lookup
+  const originalImpl = __mPool.query.getMockImplementation();
   __mPool.query.mockImplementation((text) => {
     if (typeof text === 'string' && text.includes('organization_domains')) {
       return Promise.resolve({ rows: [{ organization_id: ORG_ID }] });
     }
-    return Promise.resolve({ rows: [] });
+    return originalImpl ? originalImpl(text) : Promise.resolve({ rows: [] });
   });
 });
 

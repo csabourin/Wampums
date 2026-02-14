@@ -22,6 +22,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
+const { setupDefaultMocks } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
