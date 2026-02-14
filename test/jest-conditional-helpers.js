@@ -1,0 +1,122 @@
+/**
+ * Jest Conditional Test Helpers
+ *
+ * Enables environment-based test execution:
+ * - Skip tests when required env variables aren't set
+ * - Run integration tests only in CI or local env with database
+ *
+ * Usage:
+ *   describe.skipIf(!process.env.DATABASE_URL)('Integration tests', () => {
+ *     test('needs database', () => { });
+ *   });
+ *
+ * @module test/jest-conditional-helpers
+ */
+
+/**
+ * Helper to conditionally skip describe blocks
+ *
+ * @example
+ * describe.skipIf(!HAS_DATABASE)('DB tests', () => {
+ *   test('uses database', () => {});
+ * });
+ */
+if (!describe.skipIf) {
+  describe.skipIf = function(condition, name, fn) {
+    if (condition) {
+      // Skip this describe block
+      describe.skip(name, fn);
+    } else {
+      // Run normally
+      describe(name, fn);
+    }
+  };
+}
+
+/**
+ * Helper to conditionally skip test cases
+ *
+ * @example
+ * test.skipIf(!HAS_DATABASE)('uses database', () => {});
+ */
+if (!test.skipIf) {
+  test.skipIf = function(condition, name, fn) {
+    if (condition) {
+      test.skip(name, fn);
+    } else {
+      test(name, fn);
+    }
+  };
+}
+
+/**
+ * Helper to conditionally run test cases
+ * Opposite of skipIf - only runs if condition is TRUE
+ *
+ * @example
+ * test.onlyIf(HAS_DATABASE)('uses database', () => {});
+ */
+if (!test.onlyIf) {
+  test.onlyIf = function(condition, name, fn) {
+    if (condition) {
+      test(name, fn);
+    } else {
+      test.skip(name, fn);
+    }
+  };
+}
+
+/**
+ * Helper for beforeEach conditional setup
+ *
+ * @example
+ * beforeEach.skipIf(!HAS_DATABASE)(async () => {
+ *   // Only runs if HAS_DATABASE is false
+ * });
+ *
+ * @example
+ * beforeEach.onlyIf(HAS_DATABASE)(async () => {
+ *   // Only runs if HAS_DATABASE is true
+ * });
+ */
+if (!beforeEach.skipIf) {
+  beforeEach.skipIf = function(condition) {
+    return condition ? () => {} : beforeEach;
+  };
+}
+
+if (!beforeEach.onlyIf) {
+  beforeEach.onlyIf = function(condition) {
+    return condition ? beforeEach : () => {};
+  };
+}
+
+/**
+ * Similar helpers for afterEach
+ */
+if (!afterEach.skipIf) {
+  afterEach.skipIf = function(condition) {
+    return condition ? () => {} : afterEach;
+  };
+}
+
+if (!afterEach.onlyIf) {
+  afterEach.onlyIf = function(condition) {
+    return condition ? afterEach : () => {};
+  };
+}
+
+/**
+ * Environment variable check helpers
+ */
+const HAS_DATABASE = !!process.env.DATABASE_URL;
+const HAS_AUTH_SECRET = !!process.env.JWT_SECRET_KEY;
+const HAS_STRIPE = !!process.env.STRIPE_SECRET_KEY;
+const IS_CI = !!process.env.CI;
+
+module.exports = {
+  HAS_DATABASE,
+  HAS_AUTH_SECRET,
+  HAS_STRIPE,
+  IS_CI
+};

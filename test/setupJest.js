@@ -1,3 +1,17 @@
+/**
+ * Jest Setup File
+ *
+ * Loads before any tests run. Use for:
+ * - Global mocks (e.g., @whiskeysockets/baileys, async-storage)
+ * - Environment setup
+ * - Conditional test helpers
+ *
+ * @see jest.config.js setupFilesAfterEnv
+ */
+
+// Load conditional test helpers (describe.skipIf, test.skipIf, etc.)
+require('./jest-conditional-helpers');
+
 jest.mock('@whiskeysockets/baileys', () => ({
   __esModule: true,
   default: jest.fn(),
