@@ -734,12 +734,33 @@ describe('Middleware Ordering', () => {
 // ============================================
 
 describe('Organization Helpers', () => {
-  const { OrganizationNotFoundError } = require('../utils/api-helpers');
+  const { OrganizationNotFoundError, respondWithOrganizationFallback } = require('../utils/api-helpers');
 
   test('OrganizationNotFoundError is an Error subclass', () => {
     const err = new OrganizationNotFoundError('test');
     expect(err).toBeInstanceOf(Error);
     expect(err.message).toBe('test');
     expect(err.name).toBe('OrganizationNotFoundError');
+  });
+
+  test('respondWithOrganizationFallback returns 400 JSON with timestamp for API requests', () => {
+    const mockRes = {
+      req: {
+        path: '/api/v1/organizations/info',
+        headers: { accept: 'application/json' }
+      },
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+
+    respondWithOrganizationFallback(mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(400);
+    const body = mockRes.json.mock.calls[0][0];
+    expect(body.success).toBe(false);
+    expect(body.message).toBe('organization_not_found');
+    expect(body.fallback).toBe('/organization-not-found.html');
+    expect(typeof body.timestamp).toBe('string');
+    expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
   });
 });
