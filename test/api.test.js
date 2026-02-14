@@ -62,13 +62,18 @@ describe('Authenticated API communication', () => {
 
   test('returns data when valid token is provided', async () => {
     const { __mPool } = require('pg');
-    __mPool.query.mockResolvedValueOnce({ rows: [{ form_type: 'general' }] });
+    
+    // Mock form types query
+    __mPool.query.mockResolvedValueOnce({ 
+      rows: [{ form_type: 'general' }] 
+    });
 
     const token = jwt.sign({ user_id: 1, organizationId: 1 }, 'testsecret');
 
     const res = await request(app)
       .get('/api/v1/forms/types')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-organization-id', '1');  // Explicitly set organization ID
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);

@@ -2,23 +2,36 @@ const Client = require('@veryfi/veryfi-sdk');
 const { CQ } = require('@veryfi/veryfi-sdk'); // Check if required, usually Client is default export or named. documentation says const Client = require('@veryfi/veryfi-sdk');
 const { checkAndReserveBudget, recordUsage, releaseBudget } = require("./ai-budget");
 
-// Initialize Veryfi client
+// Initialize Veryfi client (lazy-init to avoid noise in test environment)
 let veryfiClient = null;
+let veryfiInitialized = false;
 
-try {
-    const clientId = process.env.VERYFI_CLIENT_ID;
-    const clientSecret = process.env.VERYFI_CLIENT_SECRET;
-    const username = process.env.VERYFI_USERNAME;
-    const apiKey = process.env.VERYFI_API_KEY;
-
-    if (clientId && clientSecret && username && apiKey) {
-        veryfiClient = new Client(clientId, clientSecret, username, apiKey);
-        console.log("Veryfi client initialized successfully");
-    } else {
-        console.warn("Veryfi credentials missing in environment variables");
+function initVeryfiClient() {
+    if (veryfiInitialized) {
+        return;
     }
-} catch (e) {
-    console.warn("Veryfi client init failed:", e.message);
+    veryfiInitialized = true;
+
+    // Skip initialization in test environment
+    if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined) {
+        return;
+    }
+
+    try {
+        const clientId = process.env.VERYFI_CLIENT_ID;
+        const clientSecret = process.env.VERYFI_CLIENT_SECRET;
+        const username = process.env.VERYFI_USERNAME;
+        const apiKey = process.env.VERYFI_API_KEY;
+
+        if (clientId && clientSecret && username && apiKey) {
+            veryfiClient = new Client(clientId, clientSecret, username, apiKey);
+            console.log("Veryfi client initialized successfully");
+        } else {
+            console.warn("Veryfi credentials missing in environment variables");
+        }
+    } catch (e) {
+        console.warn("Veryfi client init failed:", e.message);
+    }
 }
 
 // Configurable cost per receipt (USD) - Approximate cost per receipt for Veryfi or budget allocation
@@ -29,6 +42,9 @@ const COST_PER_RECEIPT_USD = 0.10;
  */
 async function parseReceipt(fileBuffer, originalFilename, userContext) {
     let budgetReserved = false;
+
+    // Initialize Veryfi client on first use (lazy-init)
+    initVeryfiClient();
 
     if (!veryfiClient) {
         console.error("Veryfi Error: Credentials not configured");
