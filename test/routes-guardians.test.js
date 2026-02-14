@@ -42,7 +42,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
-const { setupDefaultMocks } = require('./mock-helpers');
+const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -94,12 +94,12 @@ afterAll((done) => {
 
 describe('GET /api/guardians', () => {
   test('returns list of guardians for a participant', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         // Verify participant exists in org
         return Promise.resolve({
@@ -143,12 +143,12 @@ describe('GET /api/guardians', () => {
   });
 
   test('returns empty list when participant has no guardians', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [{ id: PARTICIPANT_ID }] });
       }
@@ -168,12 +168,12 @@ describe('GET /api/guardians', () => {
   });
 
   test('requires guardians.view permission', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] }); // No permission found
       }
@@ -189,10 +189,10 @@ describe('GET /api/guardians', () => {
   });
 
   test('returns 400 when participant_id is missing', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken();
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -206,12 +206,12 @@ describe('GET /api/guardians', () => {
   });
 
   test('returns 404 when participant not found in organization', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
@@ -236,7 +236,7 @@ describe('GET /api/guardians', () => {
   });
 
   test('enforces organization isolation - participant from different org', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const otherOrgId = 99;
     const token = generateToken({
       organizationId: ORG_ID,
@@ -245,7 +245,7 @@ describe('GET /api/guardians', () => {
 
     let queriedOrgId = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         // Capture the org_id being queried
         queriedOrgId = params[params.length - 1];
@@ -266,12 +266,12 @@ describe('GET /api/guardians', () => {
   });
 
   test('returns all contact methods for guardian', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [{ id: PARTICIPANT_ID }] });
       }
@@ -419,12 +419,12 @@ describe('POST /api/guardians', () => {
   });
 
   test('requires guardians.manage permission', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -444,12 +444,12 @@ describe('POST /api/guardians', () => {
   });
 
   test('requires participant_id', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -467,12 +467,12 @@ describe('POST /api/guardians', () => {
   });
 
   test('requires nom and prenom', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -651,14 +651,14 @@ describe('POST /api/guardians', () => {
 
 describe('DELETE /api/guardians', () => {
   test('removes guardian link', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.manage']
     });
 
     let deleteCalled = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_guardians pg')) {
         return Promise.resolve({
           rows: [{ guardian_id: GUARDIAN_ID }]
@@ -681,12 +681,12 @@ describe('DELETE /api/guardians', () => {
   });
 
   test('requires guardians.manage permission', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -702,12 +702,12 @@ describe('DELETE /api/guardians', () => {
   });
 
   test('requires both participant_id and guardian_id', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -721,12 +721,12 @@ describe('DELETE /api/guardians', () => {
   });
 
   test('returns 404 when guardian link not found', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['guardians.manage']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_guardians pg')) {
         return Promise.resolve({ rows: [] }); // Link not found
       }
@@ -742,7 +742,7 @@ describe('DELETE /api/guardians', () => {
   });
 
   test('enforces organization isolation on delete', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       organizationId: ORG_ID,
       permissions: ['guardians.manage']
@@ -750,7 +750,7 @@ describe('DELETE /api/guardians', () => {
 
     let queriedOrgId = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_guardians pg')) {
         // Capture the organization_id being checked
         const queryStr = JSON.stringify(query);
@@ -785,7 +785,7 @@ describe('DELETE /api/guardians', () => {
 
 describe('Guardian Permission Enforcement', () => {
   test('different users in same org can read guardians', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token1 = generateToken({
       user_id: 1,
       permissions: ['guardians.view']
@@ -795,7 +795,7 @@ describe('Guardian Permission Enforcement', () => {
       permissions: ['guardians.view']
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         return Promise.resolve({ rows: [{ id: PARTICIPANT_ID }] });
       }
@@ -820,12 +820,12 @@ describe('Guardian Permission Enforcement', () => {
   });
 
   test('user without permission cannot read guardians even if authenticated', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.view'] // Different permission
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM role_permissions')) {
         return Promise.resolve({ rows: [] });
       }
@@ -841,7 +841,7 @@ describe('Guardian Permission Enforcement', () => {
   });
 
   test('cannot use manipulated token to access other org', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const maliciousToken = generateToken({
       organizationId: 999, // Try different org
       permissions: ['guardians.view']
@@ -849,7 +849,7 @@ describe('Guardian Permission Enforcement', () => {
 
     let queriedOrgId = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         queriedOrgId = params[params.length - 1]; // Last param is org_id
         return Promise.resolve({ rows: [] });
@@ -873,7 +873,7 @@ describe('Guardian Permission Enforcement', () => {
 
 describe('Guardian Multi-Tenant Isolation', () => {
   test('guardians from org1 not visible to org2 users', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const org1Token = generateToken({
       organizationId: 1,
       permissions: ['guardians.view']
@@ -885,7 +885,7 @@ describe('Guardian Multi-Tenant Isolation', () => {
 
     let lastQueryOrgId = null;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
         lastQueryOrgId = params[params.length - 1];
         return Promise.resolve({ rows: [] }); // Org2 doesn't have this participant

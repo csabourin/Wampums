@@ -40,7 +40,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
-const { setupDefaultMocks } = require('./mock-helpers');
+const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -90,14 +90,14 @@ afterAll((done) => {
 
 describe('POST /api/v1/stripe/create-payment-intent', () => {
   test('creates payment intent with valid fee and amount', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
       user_id: 1
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -139,14 +139,14 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
   });
 
   test('prevents overpayment - rejects amount exceeding outstanding balance', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
       user_id: 1
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -186,14 +186,14 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
   });
 
   test('allows partial payment less than outstanding balance', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
       user_id: 1
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -233,14 +233,14 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
   });
 
   test('rejects zero or negative amount', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
       user_id: 1
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -257,14 +257,14 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
   });
 
   test('requires participant_fee_id', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
       user_id: 1
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -281,14 +281,14 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
   });
 
   test('returns 404 when fee not found', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
       user_id: 1
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({ rows: [] }); // Fee not found
       }
@@ -324,7 +324,7 @@ describe('POST /api/v1/stripe/create-payment-intent', () => {
 
 describe('Parent vs Staff payment authorization', () => {
   test('parent can only pay for their own children', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const parentUserId = 50;
     const token = generateToken({
       user_id: parentUserId,
@@ -335,7 +335,7 @@ describe('Parent vs Staff payment authorization', () => {
 
     let capturedQuery = '';
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       capturedQuery = query;
       if (query.includes('FROM participant_fees pf')) {
         // Parent query should include user_participants join
@@ -381,7 +381,7 @@ describe('Parent vs Staff payment authorization', () => {
   });
 
   test('staff can pay for any participant in their organization', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       user_id: 1,
       roleNames: ['leader'], // Staff role
@@ -391,7 +391,7 @@ describe('Parent vs Staff payment authorization', () => {
 
     let capturedQuery = '';
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       capturedQuery = query;
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
@@ -438,9 +438,9 @@ describe('Parent vs Staff payment authorization', () => {
 
 describe('POST /api/v1/stripe/webhook', () => {
   test('validates webhook signature before processing', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       return Promise.resolve({ rows: [] });
     });
 
@@ -464,11 +464,11 @@ describe('POST /api/v1/stripe/webhook', () => {
   });
 
   test('records payment when webhook signature is valid', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
 
     let paymentInserted = false;
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('INSERT INTO payments')) {
         paymentInserted = true;
         return Promise.resolve({
@@ -493,7 +493,7 @@ describe('POST /api/v1/stripe/webhook', () => {
 
 describe('Payment amount precision and rounding', () => {
   test('converts payment amount to cents correctly', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
@@ -519,7 +519,7 @@ describe('Payment amount precision and rounding', () => {
       }));
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
@@ -560,14 +560,14 @@ describe('Payment amount precision and rounding', () => {
   });
 
   test('handles edge case amounts like $0.01', async () => {
-    const { __mClient, __mPool } = require('pg');
+    const { __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['admin'],
       permissions: ['payment.manage'],
       user_id: 1
     });
 
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+    __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
