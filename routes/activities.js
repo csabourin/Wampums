@@ -7,6 +7,7 @@ const logger = require('../config/logger');
 
 module.exports = (pool) => {
   const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
+  const ICAL_MAX_LINE_OCTETS = 75;
 
   /**
    * Escape iCalendar text values according to RFC 5545.
@@ -21,12 +22,12 @@ module.exports = (pool) => {
     .replace(/;/g, '\\;');
 
   /**
-   * Format local date and time values to iCalendar date-time format.
+   * Format date and time values to UTC iCalendar date-time format.
    * @param {string} dateValue
    * @param {string} timeValue
    * @returns {string|null}
    */
-  const formatICalLocalDateTime = (dateValue, timeValue) => {
+  const formatICalUtcDateTimeFromParts = (dateValue, timeValue) => {
     if (!dateValue || !timeValue) {
       return null;
     }
@@ -38,14 +39,67 @@ module.exports = (pool) => {
       return null;
     }
 
-    const year = String(parsedDate.getFullYear());
-    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(parsedDate.getDate()).padStart(2, '0');
-    const hours = String(parsedDate.getHours()).padStart(2, '0');
-    const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
-    const seconds = String(parsedDate.getSeconds()).padStart(2, '0');
+    const year = String(parsedDate.getUTCFullYear());
+    const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(parsedDate.getUTCDate()).padStart(2, '0');
+    const hours = String(parsedDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(parsedDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(parsedDate.getUTCSeconds()).padStart(2, '0');
 
-    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  };
+
+  /**
+   * Fold iCalendar content lines at RFC 5545 recommended 75-octet boundaries.
+   * @param {string} line
+   * @returns {string[]}
+   */
+  const foldICalLine = (line) => {
+    if (!line) {
+      return [''];
+    }
+
+    const foldedLines = [];
+    let remaining = String(line);
+    let isFirstLine = true;
+
+    while (Buffer.byteLength(remaining, 'utf8') > (isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1)) {
+      const maxOctets = isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1;
+      let splitIndex = 0;
+      let currentOctets = 0;
+
+      for (const char of remaining) {
+        const charOctets = Buffer.byteLength(char, 'utf8');
+        if ((currentOctets + charOctets) > maxOctets) {
+          break;
+        }
+        currentOctets += charOctets;
+        splitIndex += char.length;
+      }
+
+      const segment = remaining.slice(0, splitIndex);
+      foldedLines.push(isFirstLine ? segment : ` ${segment}`);
+      remaining = remaining.slice(splitIndex);
+      isFirstLine = false;
+    }
+
+    foldedLines.push(isFirstLine ? remaining : ` ${remaining}`);
+    return foldedLines;
+  };
+
+  /**
+   * Create a safe .ics filename segment from organization name.
+   * @param {string} organizationName
+   * @returns {string}
+   */
+  const buildICalFilename = (organizationName = '') => {
+    const normalizedName = String(organizationName)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'organization';
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    return `activities-${normalizedName}-${stamp}.ics`;
   };
 
   /**
@@ -99,6 +153,10 @@ module.exports = (pool) => {
    */
   router.get('/calendar.ics', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+    const organizationResult = await pool.query(
+      'SELECT name FROM organizations WHERE id = $1',
+      [organizationId]
+    );
 
     const result = await pool.query(
       `SELECT
@@ -133,8 +191,8 @@ module.exports = (pool) => {
           || activity.departure_time_going
           || normalizedStartTime;
 
-        const dtStart = formatICalLocalDateTime(normalizedStartDate, normalizedStartTime);
-        const dtEnd = formatICalLocalDateTime(normalizedEndDate, normalizedEndTime);
+        const dtStart = formatICalUtcDateTimeFromParts(normalizedStartDate, normalizedStartTime);
+        const dtEnd = formatICalUtcDateTimeFromParts(normalizedEndDate, normalizedEndTime);
 
         if (!dtStart || !dtEnd) {
           return null;
@@ -155,9 +213,10 @@ module.exports = (pool) => {
           `DTSTART:${dtStart}`,
           `DTEND:${dtEnd}`,
           'END:VEVENT'
-        ].join('\r\n');
+        ];
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .flatMap((eventLines) => eventLines.flatMap(foldICalLine));
 
     const icalPayload = [
       'BEGIN:VCALENDAR',
@@ -167,10 +226,15 @@ module.exports = (pool) => {
       ...events,
       'END:VCALENDAR',
       ''
-    ].join('\r\n');
+    ]
+      .flatMap(foldICalLine)
+      .join('\r\n');
+
+    const organizationName = organizationResult.rows[0]?.name || '';
+    const calendarFilename = buildICalFilename(organizationName);
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="activities-calendar.ics"');
+    res.setHeader('Content-Disposition', `attachment; filename="${calendarFilename}"`);
     return res.status(200).send(icalPayload);
   }));
 
