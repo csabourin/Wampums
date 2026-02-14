@@ -39,17 +39,19 @@ npx jest --runInBand --json --outputFile=jest-results.json
 
 Why: Maintainers retain visibility into failing integration suites during beta without blocking merges.
 
-## 4) Current full-suite failures and remediation plan
+## 4) Recently remediated regression suites
 
-Latest local full-suite run reports two failing suites:
+The following suites were repaired and are now suitable for the blocking quality-focused run:
 
 - `test/push-subscription.test.js`
-  - Fails with `404` because tests still target legacy endpoint `/api/v1/push-subscription`.
-  - Suggested fix: update tests to use canonical route `/api/v1/notifications/subscription`, and align response envelope expectations with `middleware/response` helpers.
+  - Updated test route target from legacy `/api/v1/push-subscription` to canonical `/api/v1/notifications/subscription`.
+  - Kept assertions aligned with standardized `middleware/response` envelope (`202`, `success`, message).
 
 - `test/activities.create.test.js`
-  - Fails with `403` from authorization middleware before route assertions run.
-  - Suggested fix: update test setup to mock membership/permission checks used by `requirePermission('activities.create')` and ensure JWT fixture mirrors current auth contract (`req.user.id`, org membership, permissions resolution).
+  - Updated mock query chain to satisfy `blockDemoRoles` and `requirePermission('activities.create')` middleware before route assertions.
+  - Removed duplicate payload field in test input to keep fixture behavior explicit and deterministic.
+
+These suites are no longer excluded from `npm run test:quality`.
 
 ## 5) Mobile regression suite
 

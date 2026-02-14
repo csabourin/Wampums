@@ -124,3 +124,7 @@ Without proper cleanup:
 ## Related Documentation
 - See `test/TEST_CLEANUP_NOTES.md` for implementation details
 - See `.github/workflows/ci-integrity.yml` for CI test configuration
+
+## Route Drift Guardrail
+- When updating API tests, confirm endpoint paths against the owning `routes/*.js` module and the mounted prefix in `routes/index.js` before merging.
+- This prevents regressions where tests keep targeting deprecated paths after REST route consolidation.
