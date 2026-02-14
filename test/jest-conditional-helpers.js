@@ -19,38 +19,47 @@
  */
 function setupConditionalHelpers() {
   // Helper to conditionally skip describe blocks
+  // Usage: describe.skipIf(condition)('test name', () => {...})
   if (typeof global.describe !== 'undefined' && !global.describe.skipIf) {
-    global.describe.skipIf = function(condition, name, fn) {
-      if (condition) {
-        // Skip this describe block
-        global.describe.skip(name, fn);
-      } else {
-        // Run normally
-        global.describe(name, fn);
-      }
+    global.describe.skipIf = function(condition) {
+      return function(name, fn) {
+        if (condition) {
+          // Skip this describe block
+          global.describe.skip(name, fn);
+        } else {
+          // Run normally
+          global.describe(name, fn);
+        }
+      };
     };
   }
 
   // Helper to conditionally skip test cases
+  // Usage: test.skipIf(condition)('test name', () => {...})
   if (typeof global.test !== 'undefined' && !global.test.skipIf) {
-    global.test.skipIf = function(condition, name, fn) {
-      if (condition) {
-        global.test.skip(name, fn);
-      } else {
-        global.test(name, fn);
-      }
+    global.test.skipIf = function(condition) {
+      return function(name, fn) {
+        if (condition) {
+          global.test.skip(name, fn);
+        } else {
+          global.test(name, fn);
+        }
+      };
     };
   }
 
   // Helper to conditionally run test cases
   // Opposite of skipIf - only runs if condition is TRUE
+  // Usage: test.onlyIf(condition)('test name', () => {...})
   if (typeof global.test !== 'undefined' && !global.test.onlyIf) {
-    global.test.onlyIf = function(condition, name, fn) {
-      if (condition) {
-        global.test(name, fn);
-      } else {
-        global.test.skip(name, fn);
-      }
+    global.test.onlyIf = function(condition) {
+      return function(name, fn) {
+        if (condition) {
+          global.test(name, fn);
+        } else {
+          global.test.skip(name, fn);
+        }
+      };
     };
   }
 
@@ -72,11 +81,6 @@ function setupConditionalHelpers() {
     global.afterEach.skipIf = function(condition) {
       return condition ? () => {} : global.afterEach;
     };
-}
-
-if (!afterEach.onlyIf) {
-  afterEach.onlyIf = function(condition) {
-    return condition ? afterEach : () => {};
   }
 
   if (typeof global.afterEach !== 'undefined' && !global.afterEach.onlyIf) {
@@ -84,6 +88,12 @@ if (!afterEach.onlyIf) {
       return condition ? global.afterEach : () => {};
     };
   }
+}
+
+// Auto-initialize if Jest globals are already available
+// This handles the case where this module is loaded after Jest setup
+if (typeof global.describe !== 'undefined') {
+  setupConditionalHelpers();
 }
 
 /**

@@ -4,14 +4,10 @@
  * Loads before any tests run. Use for:
  * - Global mocks (e.g., @whiskeysockets/baileys, async-storage)
  * - Environment setup
- * - Conditional test helpers
+ * - Conditional test helpers (loaded separately via setupFilesAfterEnv)
  *
- * @see jest.config.js setupFilesAfterEnv
+ * @see jest.config.js setupFiles and setupFilesAfterEnv
  */
-
-// Conditional test helpers are available but not required for SPA tests
-// Import only if needed: const { setupConditionalHelpers } = require('./jest-conditional-helpers');
-// setupConditionalHelpers();
 
 jest.mock('@whiskeysockets/baileys', () => ({
   __esModule: true,

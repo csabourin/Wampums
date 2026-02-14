@@ -80,6 +80,9 @@
     "setupFiles": [
       "<rootDir>/test/setupJest.js"
     ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/test/jest-conditional-helpers.js"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/mobile/"
