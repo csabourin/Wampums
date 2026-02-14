@@ -551,7 +551,12 @@ module.exports = (pool, logger) => {
           [normalizedEmail, hashedPassword, full_name, role === 'parent']
         );
 
-        const userId = result.rows[0].id;
+        const createdUser = result && Array.isArray(result.rows) ? result.rows[0] : null;
+        const userId = createdUser?.id;
+
+        if (!userId) {
+          throw new Error('Failed to create user account');
+        }
 
         // Get role ID from roles table
         const roleResult = await client.query(
@@ -586,7 +591,7 @@ module.exports = (pool, logger) => {
 
         res.status(201).json({
           success: true,
-          data: result.rows[0],
+          data: createdUser,
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
