@@ -82,7 +82,7 @@
       "/mobile/"
     ],
     "transform": {
-      "^.+/(spa|tests|test|mobile)/.+\\.js$": [
+      "^.+/(spa|tests|test)/.+\\.js$": [
         "babel-jest",
         {
           "presets": [

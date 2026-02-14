@@ -1,6 +1,6 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
-const { cleanupTestResources } = require('./test-cleanup');
+const { closeServerResources } = require('./test-helpers');
 
 // Mock pg module before requiring app
 jest.mock('pg', () => {
@@ -43,8 +43,8 @@ afterEach(() => {
   Pool.mockClear();
 });
 
-afterAll(async () => {
-  await cleanupTestResources(app);
+afterAll((done) => {
+  closeServerResources(app, done);
 });
 
 describe('Local groups API', () => {

@@ -2,6 +2,7 @@ const WhatsAppBaileysService = require("./whatsapp-baileys");
 const GoogleChatService = require("./google-chat");
 const socketService = require("./socket");
 const logger = require("../config/logger");
+const { isTestEnvironment } = require("../test/test-helpers");
 
 let whatsappService;
 let googleChatService;
@@ -12,6 +13,12 @@ let googleChatService;
  * @param {import('pg').Pool} pool - The database connection pool
  */
 async function init(pool) {
+    // Skip service initialization in test environment
+    if (isTestEnvironment()) {
+        logger.info("Skipping service initialization in test environment");
+        return;
+    }
+
     logger.info("Initializing services...");
 
     // 1. WhatsApp Baileys Service

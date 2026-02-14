@@ -16,6 +16,7 @@ const {
 } = require('../utils/api-helpers');
 const { sanitizeInput, sendEmail, sendWhatsApp } = require('../utils');
 const { checkValidation } = require('../middleware/validation');
+const { isTestEnvironment } = require('../test/test-helpers');
 
 const ALLOWED_ROLES = ['admin', 'animation', 'parent'];
 const pg = require('pg');
@@ -412,6 +413,12 @@ module.exports = (pool, logger, whatsappService = null, googleChatService = null
    * @returns {Promise<void>}
    */
   async function setupAnnouncementListener() {
+    // Skip listener in test environment
+    if (isTestEnvironment()) {
+      logger.info('Skipping announcement listener in test environment');
+      return;
+    }
+
     try {
       // Create dedicated client for LISTEN (cannot use pooled connection)
       listenClient = new Client({
