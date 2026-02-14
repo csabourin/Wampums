@@ -971,15 +971,56 @@ export function initRouter(app) {
 
   // Handle navigation
   document.addEventListener("click", (e) => {
-    if (e.target.matches("a")) {
-      const url = e.target.getAttribute("href");
-      // Only handle valid internal URLs
-      if (url && url !== '#' && url !== '' && !url.startsWith('javascript:')) {
-        e.preventDefault();
-        history.pushState(null, "", url);
-        router.route(url);
-      }
+    if (!(e.target instanceof Element)) {
+      return;
     }
+
+    const anchor = e.target.closest("a");
+    if (!anchor) {
+      return;
+    }
+
+    const href = anchor.getAttribute("href");
+    const target = anchor.getAttribute("target");
+    const isDownload = anchor.hasAttribute("download");
+
+    // Allow browser default behavior for non-router links
+    if (
+      !href ||
+      href.startsWith("#") ||
+      href.startsWith("javascript:") ||
+      href.startsWith("blob:") ||
+      href.startsWith("mailto:") ||
+      href.startsWith("tel:") ||
+      isDownload ||
+      target === "_blank" ||
+      e.defaultPrevented ||
+      e.metaKey ||
+      e.ctrlKey ||
+      e.shiftKey ||
+      e.altKey ||
+      e.button !== 0
+    ) {
+      return;
+    }
+
+    let resolvedUrl;
+    try {
+      resolvedUrl = new URL(href, window.location.origin);
+    } catch (error) {
+      debugWarn("Ignoring invalid navigation URL:", href, error);
+      return;
+    }
+
+    if (resolvedUrl.origin !== window.location.origin) {
+      return;
+    }
+
+    const routePath = `${resolvedUrl.pathname}${resolvedUrl.search}`;
+    const historyPath = `${routePath}${resolvedUrl.hash}`;
+    e.preventDefault();
+    history.pushState(null, "", historyPath);
+    router.route(routePath);
   });
 
   // Handle back/forward browser buttons
