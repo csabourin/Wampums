@@ -15,7 +15,7 @@
  * @module test/spa/ValidationUtils
  */
 
-import { TEST_ORG_ID, TestDataGenerators, AssertHelpers } from './helpers.js';
+import { TestDataGenerators, AssertHelpers } from './helpers.js';
 
 // Mock DateUtils which ValidationUtils depends on
 jest.mock('../../spa/utils/DateUtils.js', () => ({
