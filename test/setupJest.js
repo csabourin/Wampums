@@ -9,10 +9,6 @@
  * @see jest.config.js setupFiles and setupFilesAfterEnv
  */
 
-// Conditional test helpers (e.g., describe.skipIf / test.skipIf)
-const { setupConditionalHelpers } = require('jest-conditional-helpers');
-setupConditionalHelpers();
-
 jest.mock('@whiskeysockets/baileys', () => ({
   __esModule: true,
   default: jest.fn(),
