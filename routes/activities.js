@@ -87,60 +87,7 @@ module.exports = (pool) => {
     const [, year, month, day] = dateMatch;
     const [, hours, minutes, seconds = '00'] = timeMatch;
 
-    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
-  };
-
-  /**
-   * Fold iCalendar content lines at RFC 5545 recommended 75-octet boundaries.
-   * @param {string} line
-   * @returns {string[]}
-   */
-  const foldICalLine = (line) => {
-    if (!line) {
-      return [''];
-    }
-
-    const foldedLines = [];
-    let remaining = String(line);
-    let isFirstLine = true;
-
-    while (Buffer.byteLength(remaining, 'utf8') > (isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1)) {
-      const maxOctets = isFirstLine ? ICAL_MAX_LINE_OCTETS : ICAL_MAX_LINE_OCTETS - 1;
-      let splitIndex = 0;
-      let currentOctets = 0;
-
-      for (const char of remaining) {
-        const charOctets = Buffer.byteLength(char, 'utf8');
-        if ((currentOctets + charOctets) > maxOctets) {
-          break;
-        }
-        currentOctets += charOctets;
-        splitIndex += char.length;
-      }
-
-      const segment = remaining.slice(0, splitIndex);
-      foldedLines.push(isFirstLine ? segment : ` ${segment}`);
-      remaining = remaining.slice(splitIndex);
-      isFirstLine = false;
-    }
-
-    foldedLines.push(isFirstLine ? remaining : ` ${remaining}`);
-    return foldedLines;
-  };
-
-  /**
-   * Create a safe .ics filename segment from organization name.
-   * @param {string} organizationName
-   * @returns {string}
-   */
-  const buildICalFilename = (organizationName = '') => {
-    const normalizedName = String(organizationName)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'organization';
-
-    const stamp = new Date().toISOString().slice(0, 10);
-    return `activities-${normalizedName}-${stamp}.ics`;
+    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
   };
 
   /**
@@ -217,11 +164,6 @@ module.exports = (pool) => {
    */
   router.get('/calendar.ics', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const organizationResult = await pool.query(
-      'SELECT name FROM organizations WHERE id = $1',
-      [organizationId]
-    );
-
     const organizationResult = await pool.query(
       'SELECT name FROM organizations WHERE id = $1',
       [organizationId]

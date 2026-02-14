@@ -24,6 +24,8 @@ jest.mock('pg', () => {
 
 let app;
 
+const ORG_ID = 1;
+
 beforeAll(() => {
   process.env.JWT_SECRET_KEY = 'testsecret';
   process.env.DB_USER = 'test';
@@ -43,7 +45,7 @@ beforeEach(() => {
   __mPool.query.mockReset();
   __mPool.query.mockImplementation((text, params) => {
     if (typeof text === 'string' && text.includes('organization_domains')) {
-      return Promise.resolve({ rows: [{ organization_id: 7 }] });
+      return Promise.resolve({ rows: [{ organization_id: ORG_ID }] });
     }
     return Promise.resolve({ rows: [] });
   });
@@ -60,7 +62,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
       roleIds: [1],
       roleNames: ['parent'],
       permissions: ['activities.view'],
-      organizationId: 7,
+      organizationId: ORG_ID,
       isDemoRole: false
     },
     process.env.JWT_SECRET_KEY,
@@ -120,7 +122,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     expect(__mPool.query).toHaveBeenNthCalledWith(
       4,
       expect.stringContaining('FROM activities'),
-      [7]
+      [ORG_ID]
     );
   });
 
