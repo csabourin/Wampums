@@ -21,7 +21,52 @@ module.exports = (pool) => {
     .replace(/;/g, '\\;');
 
   /**
-   * Format local date and time values to iCalendar date-time format.
+   * Fold an iCalendar content line to the RFC 5545 75-octet limit.
+   * Continuation lines begin with a single whitespace character.
+   *
+   * @param {string} value
+   * @returns {string[]}
+   */
+  const foldICalLine = (value = '') => {
+    const line = String(value ?? '');
+    const maxOctets = 75;
+
+    if (Buffer.byteLength(line, 'utf8') <= maxOctets) {
+      return [line];
+    }
+
+    const characters = Array.from(line);
+    const folded = [];
+    let current = '';
+    let currentBytes = 0;
+
+    characters.forEach((char) => {
+      const charBytes = Buffer.byteLength(char, 'utf8');
+      const currentLimit = folded.length === 0 ? maxOctets : maxOctets - 1;
+
+      if (currentBytes + charBytes > currentLimit) {
+        folded.push(folded.length === 0 ? current : ` ${current}`);
+        current = char;
+        currentBytes = charBytes;
+        return;
+      }
+
+      current += char;
+      currentBytes += charBytes;
+    });
+
+    folded.push(folded.length === 0 ? current : ` ${current}`);
+
+    return folded;
+  };
+
+  /**
+   * Format local date and time values to a floating iCalendar date-time value.
+   *
+   * We intentionally do not append a timezone suffix (e.g., "Z") because
+   * activities currently do not store timezone context. Floating values preserve
+   * the originally entered local wall time for calendar clients.
+   *
    * @param {string} dateValue
    * @param {string} timeValue
    * @returns {string|null}
@@ -31,19 +76,15 @@ module.exports = (pool) => {
       return null;
     }
 
-    const normalizedTime = String(timeValue).split('.')[0];
-    const parsedDate = new Date(`${dateValue}T${normalizedTime}`);
+    const dateMatch = String(dateValue).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const timeMatch = String(timeValue).trim().match(/^(\d{2}):(\d{2})(?::(\d{2}))?/);
 
-    if (Number.isNaN(parsedDate.getTime())) {
+    if (!dateMatch || !timeMatch) {
       return null;
     }
 
-    const year = String(parsedDate.getFullYear());
-    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(parsedDate.getDate()).padStart(2, '0');
-    const hours = String(parsedDate.getHours()).padStart(2, '0');
-    const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
-    const seconds = String(parsedDate.getSeconds()).padStart(2, '0');
+    const [, year, month, day] = dateMatch;
+    const [, hours, minutes, seconds = '00'] = timeMatch;
 
     return `${year}${month}${day}T${hours}${minutes}${seconds}`;
   };
@@ -62,6 +103,29 @@ module.exports = (pool) => {
     const seconds = String(value.getUTCSeconds()).padStart(2, '0');
 
     return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  };
+
+  /**
+   * Build a safe iCalendar filename for Content-Disposition.
+   * @param {string} organizationName
+   * @returns {string}
+   */
+  const buildICalFilename = (organizationName = '') => {
+    const normalizedOrganization = String(organizationName)
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-{2,}/g, '-');
+
+    const datePart = new Date().toISOString().slice(0, 10);
+
+    if (!normalizedOrganization) {
+      return `activities-calendar-${datePart}.ics`;
+    }
+
+    return `${normalizedOrganization}-activities-${datePart}.ics`;
   };
 
   /**
@@ -99,6 +163,11 @@ module.exports = (pool) => {
    */
   router.get('/calendar.ics', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
+
+    const organizationResult = await pool.query(
+      'SELECT name FROM organizations WHERE id = $1',
+      [organizationId]
+    );
 
     const result = await pool.query(
       `SELECT
@@ -155,9 +224,10 @@ module.exports = (pool) => {
           `DTSTART:${dtStart}`,
           `DTEND:${dtEnd}`,
           'END:VEVENT'
-        ].join('\r\n');
+        ];
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .flat();
 
     const icalPayload = [
       'BEGIN:VCALENDAR',
@@ -167,10 +237,15 @@ module.exports = (pool) => {
       ...events,
       'END:VCALENDAR',
       ''
-    ].join('\r\n');
+    ]
+      .flatMap(foldICalLine)
+      .join('\r\n');
+
+    const organizationName = organizationResult.rows[0]?.name || '';
+    const calendarFilename = buildICalFilename(organizationName);
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="activities-calendar.ics"');
+    res.setHeader('Content-Disposition', `attachment; filename="${calendarFilename}"; filename*=UTF-8''${encodeURIComponent(calendarFilename)}`);
     return res.status(200).send(icalPayload);
   }));
 
@@ -263,7 +338,7 @@ module.exports = (pool) => {
       missingFields.push('activity_start_time (meeting_time_going can be used as fallback)');
     }
     if (!normalizedEndTime) {
-      // This should never happen if departure_time_going validation passes above  
+      // This should never happen if departure_time_going validation passes above
       missingFields.push('activity_end_time (departure times can be used as fallback)');
     }
 
@@ -281,27 +356,40 @@ module.exports = (pool) => {
       return error(res, 'Return departure time must be after return meeting time', 400);
     }
 
-    const startStamp = `${normalizedStartDate}T${normalizedStartTime}`;
-    const endStamp = `${normalizedEndDate}T${normalizedEndTime}`;
-    if (endStamp < startStamp) {
-      return error(res, 'Activity end must be after start', 400);
-    }
+    // Insert activity
+    const query = `
+      INSERT INTO activities (
+        name, description, activity_date, activity_start_date, activity_start_time,
+        activity_end_date, activity_end_time, meeting_location_going, meeting_time_going,
+        departure_time_going, meeting_location_return, meeting_time_return,
+        departure_time_return, created_by, organization_id
+      ) VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9,
+        $10, $11, $12,
+        $13, $14, $15
+      ) RETURNING *
+    `;
 
-    const result = await pool.query(
-      `INSERT INTO activities (
-        organization_id, created_by, name, description, activity_date,
-        activity_start_date, activity_start_time, activity_end_date, activity_end_time,
-        meeting_location_going, meeting_time_going, departure_time_going,
-        meeting_location_return, meeting_time_return, departure_time_return
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-      RETURNING *`,
-      [
-        organizationId, userId, activityName, description, normalizedActivityDate,
-        normalizedStartDate, normalizedStartTime, normalizedEndDate, normalizedEndTime,
-        meeting_location_going, meeting_time_going, departure_time_going,
-        meeting_location_return, meeting_time_return, departure_time_return
-      ]
-    );
+    const values = [
+      activityName,
+      description || '',
+      normalizedActivityDate,
+      normalizedStartDate,
+      normalizedStartTime,
+      normalizedEndDate,
+      normalizedEndTime,
+      meeting_location_going,
+      meeting_time_going,
+      departure_time_going,
+      meeting_location_return || '',
+      meeting_time_return || null,
+      departure_time_return || null,
+      userId,
+      organizationId
+    ];
+
+    const result = await pool.query(query, values);
 
     return success(res, result.rows[0], 'Activity created successfully', 201);
   }));
@@ -313,14 +401,9 @@ module.exports = (pool) => {
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('activities.edit'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
-    const shouldNotifyParticipants = req.body.notify_participants === undefined
-      ? true
-      : toBool(req.body.notify_participants) === 't';
-
-    // Accept both 'activity_name' (new) and 'name' (legacy) field names
-    const activityName = req.body.activity_name || req.body.name;
 
     const {
+      name,
       description,
       activity_date,
       activity_start_date,
@@ -332,120 +415,66 @@ module.exports = (pool) => {
       departure_time_going,
       meeting_location_return,
       meeting_time_return,
-      departure_time_return
+      departure_time_return,
+      is_active
     } = req.body;
-
-    // Check if activity exists and belongs to organization
-    const existingActivity = await pool.query(
-      `SELECT id, activity_start_date, activity_start_time, activity_end_date, activity_end_time
-       FROM activities
-       WHERE id = $1 AND organization_id = $2 AND is_active = TRUE`,
-      [id, organizationId]
-    );
-
-    if (existingActivity.rows.length === 0) {
-      return error(res, 'Activity not found', 404);
-    }
-
-    const currentActivity = existingActivity.rows[0];
-
-    const normalizedStartDateInput = activity_start_date || activity_date;
-    const normalizedEndDateInput = activity_end_date || activity_date;
-    const normalizedActivityDate = activity_date || activity_start_date || currentActivity.activity_start_date;
-    const normalizedStartDate = normalizedStartDateInput || currentActivity.activity_start_date;
-    const normalizedStartTime = activity_start_time || currentActivity.activity_start_time;
-    const normalizedEndDate = normalizedEndDateInput || currentActivity.activity_end_date;
-    const normalizedEndTime = activity_end_time || currentActivity.activity_end_time;
-
-    // Validate times if provided
-    if (meeting_time_going && departure_time_going && meeting_time_going >= departure_time_going) {
-      return error(res, 'Departure time must be after meeting time', 400);
-    }
-
-    if (meeting_time_return && departure_time_return && meeting_time_return >= departure_time_return) {
-      return error(res, 'Return departure time must be after return meeting time', 400);
-    }
-
-    if (normalizedStartDate && normalizedStartTime && normalizedEndDate && normalizedEndTime) {
-      const startStamp = `${normalizedStartDate}T${normalizedStartTime}`;
-      const endStamp = `${normalizedEndDate}T${normalizedEndTime}`;
-      if (endStamp < startStamp) {
-        return error(res, 'Activity end must be after start', 400);
-      }
-    }
-
-    const result = await pool.query(
-      `UPDATE activities SET
-        name = COALESCE($1, name),
-        description = COALESCE($2, description),
-        activity_date = COALESCE($3, activity_date),
-        activity_start_date = COALESCE($4, activity_start_date),
-        activity_start_time = COALESCE($5, activity_start_time),
-        activity_end_date = COALESCE($6, activity_end_date),
-        activity_end_time = COALESCE($7, activity_end_time),
-        meeting_location_going = COALESCE($8, meeting_location_going),
-        meeting_time_going = COALESCE($9, meeting_time_going),
-        departure_time_going = COALESCE($10, departure_time_going),
-        meeting_location_return = COALESCE($11, meeting_location_return),
-        meeting_time_return = COALESCE($12, meeting_time_return),
-        departure_time_return = COALESCE($13, departure_time_return),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14 AND organization_id = $15
-      RETURNING *`,
-      [
-        activityName, description, normalizedActivityDate,
-        normalizedStartDateInput, activity_start_time, normalizedEndDateInput, activity_end_time,
-        meeting_location_going, meeting_time_going, departure_time_going,
-        meeting_location_return, meeting_time_return, departure_time_return,
-        id, organizationId
-      ]
-    );
-
-    // Send email notifications to affected users about activity changes
-    if (shouldNotifyParticipants) {
-      const { sendActivityUpdateNotifications } = require('../utils/carpool-notifications');
-      await sendActivityUpdateNotifications(pool, id, organizationId);
-    }
-
-    return success(res, result.rows[0], 'Activity updated successfully');
-  }));
-
-  /**
-   * Soft delete an activity
-   * Accessible by: animation, admin only
-   */
-  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const organizationId = await getOrganizationId(req, pool);
 
     const result = await pool.query(
       `UPDATE activities
-       SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND organization_id = $2
-       RETURNING id`,
-      [id, organizationId]
+       SET
+         name = COALESCE($1, name),
+         description = COALESCE($2, description),
+         activity_date = COALESCE($3, activity_date),
+         activity_start_date = COALESCE($4, activity_start_date),
+         activity_start_time = COALESCE($5, activity_start_time),
+         activity_end_date = COALESCE($6, activity_end_date),
+         activity_end_time = COALESCE($7, activity_end_time),
+         meeting_location_going = COALESCE($8, meeting_location_going),
+         meeting_time_going = COALESCE($9, meeting_time_going),
+         departure_time_going = COALESCE($10, departure_time_going),
+         meeting_location_return = COALESCE($11, meeting_location_return),
+         meeting_time_return = COALESCE($12, meeting_time_return),
+         departure_time_return = COALESCE($13, departure_time_return),
+         is_active = COALESCE($14, is_active),
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $15 AND organization_id = $16
+       RETURNING *`,
+      [
+        name,
+        description,
+        activity_date,
+        activity_start_date,
+        activity_start_time,
+        activity_end_date,
+        activity_end_time,
+        meeting_location_going,
+        meeting_time_going,
+        departure_time_going,
+        meeting_location_return,
+        meeting_time_return,
+        departure_time_return,
+        toBool(is_active),
+        id,
+        organizationId
+      ]
     );
 
     if (result.rows.length === 0) {
       return error(res, 'Activity not found', 404);
     }
 
-    // Send email notifications about activity cancellation
-    const { sendActivityCancellationNotifications } = require('../utils/carpool-notifications');
-    await sendActivityCancellationNotifications(pool, id, organizationId);
-
-    return success(res, null, 'Activity deleted successfully');
+    return success(res, result.rows[0], 'Activity updated successfully');
   }));
 
   /**
-   * Get participants for an activity (for carpool assignment)
-   * Accessible by: animation, admin, parent
+   * Delete an activity (soft delete)
+   * Accessible by: animation, admin only
    */
-  router.get('/:id/participants', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
+  router.delete('/:id', authenticate, blockDemoRoles, requirePermission('activities.delete'), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const organizationId = await getOrganizationId(req, pool);
 
-    // Verify activity exists
+    // First verify activity exists and belongs to organization
     const activityCheck = await pool.query(
       'SELECT id FROM activities WHERE id = $1 AND organization_id = $2 AND is_active = TRUE',
       [id, organizationId]
@@ -455,88 +484,22 @@ module.exports = (pool) => {
       return error(res, 'Activity not found', 404);
     }
 
-    // Get all participants in the organization with their carpool assignment status
+    // Cancel all active carpool offers for this activity
+    await pool.query(
+      'UPDATE carpool_offers SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE activity_id = $1 AND is_active = TRUE',
+      [id]
+    );
+
+    // Soft delete activity
     const result = await pool.query(
-      `SELECT
-        p.id,
-        p.first_name,
-        p.last_name,
-        po.organization_id,
-        COALESCE(
-          (
-            SELECT json_agg(DISTINCT guardian_info)
-            FROM (
-              SELECT jsonb_build_object(
-                'user_id', up.user_id,
-                'guardian_name', u.full_name,
-                'guardian_email', u.email
-              ) as guardian_info
-              FROM user_participants up
-              LEFT JOIN users u ON up.user_id = u.id
-              WHERE up.participant_id = p.id AND up.user_id IS NOT NULL
-            ) guardians_subquery
-          ),
-          '[]'
-        ) as guardians,
-        COALESCE(
-          (
-            SELECT json_agg(DISTINCT assignment_info)
-            FROM (
-              SELECT jsonb_build_object(
-                'assignment_id', ca.id,
-                'carpool_offer_id', ca.carpool_offer_id,
-                'trip_direction', ca.trip_direction,
-                'driver_name', driver.full_name,
-                'vehicle_make', co.vehicle_make,
-                'vehicle_color', co.vehicle_color
-              ) as assignment_info
-              FROM carpool_assignments ca
-              LEFT JOIN carpool_offers co ON ca.carpool_offer_id = co.id AND co.activity_id = $1 AND co.is_active = TRUE
-              LEFT JOIN users driver ON co.user_id = driver.id
-              WHERE ca.participant_id = p.id AND ca.id IS NOT NULL
-            ) assignments_subquery
-          ),
-          '[]'
-        ) as carpool_assignments
-       FROM participants p
-       JOIN participant_organizations po ON p.id = po.participant_id
-       WHERE po.organization_id = $2
-       ORDER BY p.last_name, p.first_name`,
+      `UPDATE activities
+       SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND organization_id = $2
+       RETURNING *`,
       [id, organizationId]
     );
 
-    return success(res, result.rows);
-  }));
-
-  /**
-   * Get upcoming multi-day activities that may need offline preparation
-   * Returns activities that span 2+ days and are within the next 30 days
-   * Accessible by: animation, admin, parent
-   */
-  router.get('/upcoming-camps', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
-    const organizationId = await getOrganizationId(req, pool);
-    const today = new Date().toISOString().split('T')[0];
-    const lookAheadDays = parseInt(req.query.look_ahead) || 30;
-
-    const result = await pool.query(
-      `SELECT id, name, description,
-              activity_start_date::text as activity_start_date,
-              activity_end_date::text as activity_end_date,
-              activity_start_time::text as activity_start_time,
-              activity_end_time::text as activity_end_time,
-              meeting_location_going,
-              (activity_end_date::date - activity_start_date::date + 1) as day_count
-       FROM activities
-       WHERE organization_id = $1
-         AND is_active = TRUE
-         AND activity_end_date >= $2::date
-         AND activity_start_date <= ($2::date + $3)
-         AND (activity_end_date::date - activity_start_date::date) >= 1
-       ORDER BY activity_start_date ASC`,
-      [organizationId, today, lookAheadDays]
-    );
-
-    return success(res, result.rows);
+    return success(res, result.rows[0], 'Activity deleted successfully');
   }));
 
   return router;
