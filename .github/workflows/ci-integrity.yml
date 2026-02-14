@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   web-quality:
-    name: Web quality gates
+    name: Web quality and integrity gates
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -42,32 +42,11 @@ jobs:
       - name: Build SPA
         run: npm run build
 
-  web-tests-stable:
-    name: Web tests (stable blocking suite)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: web-quality
+      - name: Run quality-focused Jest suite (non-integration)
+        run: npm run test:quality
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run stable Jest suites
-        run: >-
-          npm test -- --runInBand
-          --testPathIgnorePatterns="test/push-subscription.test.js|test/activities.create.test.js"
-
-  web-tests-full:
-    name: Web tests (full regression, non-blocking)
+  web-tests-full-report:
+    name: Web tests (full regression report, non-blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     continue-on-error: true
@@ -86,7 +65,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run full Jest suite
+      - name: Run full Jest suite and export report
         run: npx jest --runInBand --json --outputFile=jest-results.json
 
       - name: Upload full regression report
@@ -95,34 +74,3 @@ jobs:
         with:
           name: jest-results
           path: jest-results.json
-
-  mobile-tests:
-    name: Mobile tests (disabled temporarily)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # Temporarily disabled: Mobile tests require separate dependencies and environment.
-    # Re-enable once mobile test suite is stabilized and hanging issues are resolved.
-    # See PR fixing hanging CI tests for context.
-    if: false
-    
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: npm ci
-
-      - name: Run mobile Jest suite
-        working-directory: mobile
-        run: npm test -- --runInBand
