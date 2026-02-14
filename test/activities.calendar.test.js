@@ -33,6 +33,7 @@ beforeAll(() => {
   process.env.DB_NAME = 'testdb';
   process.env.DB_PASSWORD = 'test';
   process.env.DB_PORT = '5432';
+  process.env.ORGANIZATION_ID = 'test-organization';
 
   app = require('../api');
 });
@@ -112,6 +113,9 @@ describe('GET /api/v1/activities/calendar.ics', () => {
     expect(response.headers['content-disposition']).toContain('attachment; filename="club-eclaireurs-activities-');
     expect(response.headers['content-disposition']).toContain('.ics"; filename*=UTF-8\'\'club-eclaireurs-activities-');
     expect(response.text).toContain('BEGIN:VCALENDAR');
+    expect(response.text).toContain('PRODID:-//Wampums//Activities Calendar//EN');
+    expect(response.text).toContain('VERSION:2.0');
+    expect(response.text).toContain('CALSCALE:GREGORIAN');
     expect(response.text).toContain('BEGIN:VEVENT');
     expect(response.text).toContain('SUMMARY:Winter Camp');
     expect(response.text).toContain('DTSTART:20260214T093000');
@@ -124,6 +128,126 @@ describe('GET /api/v1/activities/calendar.ics', () => {
       expect.stringContaining('FROM activities'),
       [ORG_ID]
     );
+  });
+
+  it('returns a valid iCalendar file when there are no activities for the organization', async () => {
+    const { __mPool } = require('pg');
+
+    __mPool.query
+      .mockResolvedValueOnce({
+        rows: [{ permission_key: 'activities.view' }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ role_name: 'parent', display_name: 'Parent' }]
+      })
+      .mockResolvedValueOnce({
+        rows: []
+      })
+      .mockResolvedValueOnce({
+        rows: []
+      });
+
+    const response = await request(app)
+      .get('/api/v1/activities/calendar.ics')
+      .set('Authorization', `Bearer ${getValidToken()}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/calendar');
+    expect(response.headers['content-disposition']).toContain('activities-calendar-');
+    expect(response.text).toContain('BEGIN:VCALENDAR');
+    expect(response.text).toContain('END:VCALENDAR');
+    // No activities means no VEVENT blocks
+    expect(response.text).not.toContain('BEGIN:VEVENT');
+  });
+
+  it('handles activities with missing optional fields like description or meeting_location_going', async () => {
+    const { __mPool } = require('pg');
+
+    __mPool.query
+      .mockResolvedValueOnce({
+        rows: [{ permission_key: 'activities.view' }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ role_name: 'parent', display_name: 'Parent' }]
+      })
+      .mockResolvedValueOnce({
+        rows: []
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 1,
+            name: 'Activity Without Optional Fields',
+            description: null,
+            meeting_location_going: null,
+            activity_date: '2025-02-01',
+            activity_start_date: '2025-02-01',
+            activity_start_time: '10:00:00',
+            activity_end_date: '2025-02-01',
+            activity_end_time: '12:00:00',
+            meeting_time_going: '09:45:00',
+            departure_time_going: '10:00:00',
+            departure_time_return: null
+          }
+        ]
+      });
+
+    const response = await request(app)
+      .get('/api/v1/activities/calendar.ics')
+      .set('Authorization', `Bearer ${getValidToken()}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/calendar');
+    expect(response.headers['content-disposition']).toContain('activities-calendar-');
+    expect(response.text).toContain('BEGIN:VCALENDAR');
+    expect(response.text).toContain('END:VCALENDAR');
+    expect(response.text).toContain('BEGIN:VEVENT');
+    expect(response.text).toContain('SUMMARY:Activity Without Optional Fields');
+  });
+
+  it('skips activities when their date/time cannot be converted to iCal format', async () => {
+    const { __mPool } = require('pg');
+
+    __mPool.query
+      .mockResolvedValueOnce({
+        rows: [{ permission_key: 'activities.view' }]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ role_name: 'parent', display_name: 'Parent' }]
+      })
+      .mockResolvedValueOnce({
+        rows: []
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 2,
+            name: 'Invalid Date Activity',
+            description: 'This activity has invalid date information',
+            activity_date: null,
+            activity_start_date: null,
+            activity_start_time: '09:00:00',
+            activity_end_date: '2025-03-01',
+            activity_end_time: '11:00:00',
+            meeting_location_going: 'Hall',
+            meeting_time_going: '08:30:00',
+            departure_time_going: '09:00:00',
+            departure_time_return: null
+          }
+        ]
+      });
+
+    const response = await request(app)
+      .get('/api/v1/activities/calendar.ics')
+      .set('Authorization', `Bearer ${getValidToken()}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/calendar');
+    expect(response.headers['content-disposition']).toContain('activities-calendar-');
+    expect(response.text).toContain('BEGIN:VCALENDAR');
+    expect(response.text).toContain('END:VCALENDAR');
+    // The only activity has invalid date/time and should be filtered out, so no VEVENTs.
+    expect(response.text).not.toContain('BEGIN:VEVENT');
   });
 
   it('folds long UTF-8 lines according to RFC 5545', async () => {
