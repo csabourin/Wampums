@@ -288,6 +288,15 @@ export class ParentDashboard {
                                                 ${translate("install_app")}
                                         </button>`; // Initially hidden
 
+                const calendarDownloadAction = `
+                        <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
+                                <button type="button" id="downloadUniversalCalendar" class="dashboard-button dashboard-button--secondary">
+                                        ${translate("download_universal_calendar")}
+                                </button>
+                                <p class="muted-text" style="margin-top: 0.5rem;">${translate("calendar_download_description")}</p>
+                        </div>
+                `;
+
                 // Only show staff back link when accessed outside the parent context
                 const backLink = isParent()
                         ? ``
@@ -316,6 +325,7 @@ export class ParentDashboard {
                                                         ${translate("account_settings")}
                                                 </a>
                                         </div>
+                                        ${calendarDownloadAction}
                                         ${this.renderCarpoolButton()}
                                 </section>
 
@@ -583,6 +593,13 @@ export class ParentDashboard {
                         });
                 }
 
+                const calendarDownloadButton = document.getElementById('downloadUniversalCalendar');
+                if (calendarDownloadButton) {
+                        calendarDownloadButton.addEventListener('click', () => {
+                                this.handleUniversalCalendarDownload();
+                        });
+                }
+
                 // Install PWA button logic
                 const installButton = document.getElementById('installPwaButton');
                 let deferredPrompt;
@@ -622,6 +639,24 @@ export class ParentDashboard {
                 window.addEventListener('appinstalled', () => {
                         debugLog('App has been installed');
                 });
+        }
+
+        handleUniversalCalendarDownload() {
+                const downloadUrl = '/api/v1/reports/universal-calendar';
+
+                try {
+                        const openedWindow = window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+
+                        if (!openedWindow) {
+                                this.app.showMessage(translate('calendar_download_failed'), 'error');
+                                return;
+                        }
+
+                        this.app.showMessage(translate('calendar_download_started'), 'success');
+                } catch (error) {
+                        debugError('Unable to start universal calendar download', error);
+                        this.app.showMessage(translate('calendar_download_failed'), 'error');
+                }
         }
 
         bindStatementHandlers() {
