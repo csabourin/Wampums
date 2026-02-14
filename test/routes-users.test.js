@@ -49,7 +49,7 @@ const { Pool } = require('pg');
 let app;
 
 const TEST_SECRET = 'testsecret';
-const ORG_ID = 1;
+const ORG_ID = 3; // Demo organization - safe for live testing
 const USER_ID = 1;
 const ADMIN_USER_ID = 1;
 const STAFF_USER_ID = 50;
