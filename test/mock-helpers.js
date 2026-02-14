@@ -331,19 +331,173 @@ function mockQuery(__mClient, __mPool, pattern, response) {
  * Use this when you need full control over mock behavior in a specific test.
  * The implementation function will be called for both client.query and pool.query.
  * 
+ * KEY: If your implementation RETURNS a Promise, that value is used.
+ * If it DOESN'T return anything (implicitly returns undefined), the fallback provides
+ * a default response for that query.
+ * 
  * @param {Object} __mClient - Mocked database client
  * @param {Object} __mPool - Mocked connection pool
  * @param {Function} implementation - Custom mock implementation function(query, params)
  * 
  * @example
  * mockQueryImplementation(__mClient, __mPool, (query, params) => {
- *   if (query.includes('users')) return { rows: [{ id: 100 }] };
- *   return { rows: [] };
+ *   if (query.includes('FROM users')) {
+ *     return Promise.resolve({ rows: [{ id: 100, email: 'test@test.com' }] });
+ *   }
+ *   // Don't return anything for other queries - defaults will handle them
  * });
  */
 function mockQueryImplementation(__mClient, __mPool, implementation) {
-  __mClient.query.mockImplementation(implementation);
-  __mPool.query.mockImplementation(implementation);
+  const wrappedImplementation = async (query, params = []) => {
+    const queryStr = typeof query === 'string' ? query : query.text || '';
+    
+    // Try custom implementation
+    try {
+      const customResult = await Promise.resolve(implementation(query, params));
+      // If implementation returned a value, use it
+      if (customResult !== undefined) {
+        return customResult;
+      }
+    } catch (error) {
+      console.error('Error in custom mock implementation:', error);
+      // Fall through to defaults on error
+    }
+    
+    // No return from implementation - use defaults
+    return getDefaultMockResponse(queryStr, params);
+  };
+  
+  __mClient.query.mockImplementation(wrappedImplementation);
+  __mPool.query.mockImplementation(wrappedImplementation);
+}
+
+/**
+ * Get default mock response for common queries
+ * This is used as a fallback when custom implementations return undefined.
+ * Supports all standard authorization, permission, and resource queries.
+ * 
+ * @param {string} queryStr - SQL query string
+ * @param {Array} params - Query parameters  
+ * @returns {Promise<Object>} Mock query result matching expected structure
+ */
+function getDefaultMockResponse(queryStr, params = []) {
+  // Transaction commands
+  if (/\b(BEGIN|COMMIT|ROLLBACK)\b/i.test(queryStr)) {
+    return Promise.resolve({ rows: [] });
+  }
+  
+  // Organization domain lookup (from getOrganizationId middleware)
+  if (/organization_domains/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [{ organization_id: 3 }]
+    });
+  }
+  
+  // User organizations - needed for permission/role checks and isolation
+  if (/SELECT.*FROM user_organizations/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [{
+        id: 1,
+        user_id: params[0] || 1,
+        organization_id: params[1] || 3,
+        role_ids: [1],
+        role: 'admin'
+      }]
+    });
+  }
+  
+  // Permission checks - return admin permissions by default
+  // Tests that want to deny permissions should explicitly mock and return empty
+  if (/role_permissions|permission_key|FROM permissions/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [
+        { permission_key: 'users.view' },
+        { permission_key: 'users.edit' },
+        { permission_key: 'users.manage' },
+        { permission_key: 'users.approve' },
+        { permission_key: 'users.assign_roles' },
+        { permission_key: 'users.assign_district' },
+        { permission_key: 'participants.view' },
+        { permission_key: 'participants.edit' },
+        { permission_key: 'participants.create' },
+        { permission_key: 'participants.delete' },
+        { permission_key: 'forms.view' },
+        { permission_key: 'forms.manage' },
+        { permission_key: 'forms.create' },
+        { permission_key: 'finances.view' },
+        { permission_key: 'finances.manage' },
+        { permission_key: 'activities.view' },
+        { permission_key: 'activities.manage' }
+      ]
+    });
+  }
+  
+  // Role lookups
+  if (/SELECT.*FROM roles/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [
+        { id: 1, role_name: 'admin', display_name: 'Administrator' },
+        { id: 2, role_name: 'leader', display_name: 'Leader' },
+        { id: 3, role_name: 'parent', display_name: 'Parent' },
+        { id: 4, role_name: 'demoparent', display_name: 'Demo Parent' },
+        { id: 5, role_name: 'district', display_name: 'District Admin' },
+        { id: 6, role_name: 'unitadmin', display_name: 'Unit Admin' }
+      ]
+    });
+  }
+  
+  // User lookups  
+  if (/SELECT.*FROM users WHERE/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [{
+        id: params[0] || 1,
+        email: 'test@example.com',
+        full_name: 'Test User',
+        first_name: 'Test',
+        last_name: 'User',
+        is_verified: true,
+        created_at: new Date()
+      }]
+    });
+  }
+  
+  // Participants
+  if (/SELECT.*FROM participants/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [{
+        id: 1,
+        first_name: 'Test',
+        last_name: 'Participant',
+        organization_id: 3,
+        date_naissance: '2010-01-01'
+      }]
+    });
+  }
+  
+  // Forms
+  if (/SELECT.*FROM forms/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [{
+        id: 1,
+        title: 'Test Form',
+        organization_id: 3
+      }]
+    });
+  }
+  
+  // Groups
+  if (/SELECT.*FROM groups/i.test(queryStr)) {
+    return Promise.resolve({
+      rows: [{
+        id: 1,
+        name: 'Test Group',
+        organization_id: 3
+      }]
+    });
+  }
+  
+  // Default: empty result set (safe fallback for unknown queries)
+  return Promise.resolve({ rows: [] });
 }
 
 module.exports = {
@@ -351,5 +505,6 @@ module.exports = {
   createMockPool,
   resetMocks,
   mockQuery,
-  mockQueryImplementation
+  mockQueryImplementation,
+  getDefaultMockResponse
 };
