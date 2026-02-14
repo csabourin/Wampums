@@ -1,0 +1,121 @@
+name: CI Integrity
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-integrity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-quality:
+    name: Web quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint and policy checks
+        run: |
+          npm run lint:api-version
+          npm run lint:duplicate-mounts
+          npm run lint:spa-files
+          npm run lint:spa-console
+          npm run lint:spa-innerhtml
+          npm run lint:sql-params
+          npm run lint:non-versioned-mounts
+
+      - name: Build SPA
+        run: npm run build
+
+  web-tests-stable:
+    name: Web tests (stable blocking suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: web-quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run stable Jest suites
+        run: >-
+          npm test -- --runInBand
+          --testPathIgnorePatterns="test/push-subscription.test.js|test/activities.create.test.js"
+
+  web-tests-full:
+    name: Web tests (full regression, non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+    needs: web-quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full Jest suite
+        run: npx jest --runInBand --json --outputFile=jest-results.json
+
+      - name: Upload full regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-results
+          path: jest-results.json
+
+  mobile-tests:
+    name: Mobile tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Run mobile Jest suite
+        working-directory: mobile
+        run: npm test -- --runInBand
