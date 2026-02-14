@@ -104,6 +104,9 @@ jobs:
     # Re-enable once mobile test suite is stabilized and hanging issues are resolved.
     # See PR fixing hanging CI tests for context.
     if: false
+    
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
