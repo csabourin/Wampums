@@ -22,46 +22,6 @@ module.exports = (pool) => {
     .replace(/;/g, '\\;');
 
   /**
-   * Fold an iCalendar content line to the RFC 5545 75-octet limit.
-   * Continuation lines begin with a single whitespace character.
-   *
-   * @param {string} value
-   * @returns {string[]}
-   */
-  const foldICalLine = (value = '') => {
-    const line = String(value ?? '');
-    const maxOctets = 75;
-
-    if (Buffer.byteLength(line, 'utf8') <= maxOctets) {
-      return [line];
-    }
-
-    const characters = Array.from(line);
-    const folded = [];
-    let current = '';
-    let currentBytes = 0;
-
-    characters.forEach((char) => {
-      const charBytes = Buffer.byteLength(char, 'utf8');
-      const currentLimit = folded.length === 0 ? maxOctets : maxOctets - 1;
-
-      if (currentBytes + charBytes > currentLimit) {
-        folded.push(folded.length === 0 ? current : ` ${current}`);
-        current = char;
-        currentBytes = charBytes;
-        return;
-      }
-
-      current += char;
-      currentBytes += charBytes;
-    });
-
-    folded.push(folded.length === 0 ? current : ` ${current}`);
-
-    return folded;
-  };
-
-  /**
    * Format local date and time values to a floating iCalendar date-time value.
    *
    * We intentionally do not append a timezone suffix (e.g., "Z") because
@@ -129,21 +89,6 @@ module.exports = (pool) => {
   };
 
   /**
-   * Create a safe .ics filename segment from organization name.
-   * @param {string} organizationName
-   * @returns {string}
-   */
-  const buildICalFilename = (organizationName = '') => {
-    const normalizedName = String(organizationName)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'organization';
-
-    const stamp = new Date().toISOString().slice(0, 10);
-    return `activities-${normalizedName}-${stamp}.ics`;
-  };
-
-  /**
    * Format a Date object into UTC iCalendar date-time format.
    * @param {Date} value
    * @returns {string}
@@ -174,12 +119,9 @@ module.exports = (pool) => {
       .replace(/-{2,}/g, '-');
 
     const datePart = new Date().toISOString().slice(0, 10);
+    const organizationSegment = normalizedOrganization ? `${normalizedOrganization}-` : '';
 
-    if (!normalizedOrganization) {
-      return `activities-calendar-${datePart}.ics`;
-    }
-
-    return `${normalizedOrganization}-activities-${datePart}.ics`;
+    return `activities-${organizationSegment}${datePart}.ics`;
   };
 
   /**
@@ -217,11 +159,6 @@ module.exports = (pool) => {
    */
   router.get('/calendar.ics', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
-    const organizationResult = await pool.query(
-      'SELECT name FROM organizations WHERE id = $1',
-      [organizationId]
-    );
-
     const organizationResult = await pool.query(
       'SELECT name FROM organizations WHERE id = $1',
       [organizationId]
@@ -431,7 +368,7 @@ module.exports = (pool) => {
 
     const values = [
       activityName,
-      description || '',
+      description,
       normalizedActivityDate,
       normalizedStartDate,
       normalizedStartTime,
@@ -441,8 +378,8 @@ module.exports = (pool) => {
       meeting_time_going,
       departure_time_going,
       meeting_location_return || '',
-      meeting_time_return || null,
-      departure_time_return || null,
+      meeting_time_return || '',
+      departure_time_return || '',
       userId,
       organizationId
     ];
