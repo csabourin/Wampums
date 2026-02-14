@@ -347,18 +347,12 @@ describe('FormManager - Form Population & Data Management', () => {
         duration_override: '120' // 2 hour override
       });
 
-      // Note: This test verifies the call would be made
-      // Actual DOM setup depends on duration-override field existing
-      try {
-        await formManager.populateForm(meetingData, '2026-02-14');
-        
-        // If override was set, verify it was attempted
-        if (meetingData.duration_override) {
-          // The activity manager's setMeetingLength would be called
-        }
-      } catch (e) {
-        // Mocked form may not have all elements
-      }
+      await formManager.populateForm(meetingData, '2026-02-14');
+
+      // When a duration_override is provided, the activity manager should receive it
+      expect(mockActivityManager.setMeetingLength).toHaveBeenCalledWith(
+        Number(meetingData.duration_override)
+      );
     });
   });
 
