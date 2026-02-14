@@ -100,7 +100,10 @@ jobs:
     name: Mobile tests (disabled temporarily)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: false  # Temporarily disabled per requirements
+    # Temporarily disabled: Mobile tests require separate dependencies and environment.
+    # Re-enable once mobile test suite is stabilized and hanging issues are resolved.
+    # See PR fixing hanging CI tests for context.
+    if: false
 
     steps:
       - name: Checkout

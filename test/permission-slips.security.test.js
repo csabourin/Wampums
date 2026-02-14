@@ -1,5 +1,6 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const { closeServerResources } = require('./test-helpers');
 
 // Mock pg module before requiring app
 jest.mock('pg', () => {
@@ -33,17 +34,7 @@ beforeAll(() => {
 });
 
 afterAll((done) => {
-    // Close server and socket.io to prevent hanging
-    if (app.server) {
-        app.server.close(() => {
-            if (app.io) {
-                app.io.close();
-            }
-            done();
-        });
-    } else {
-        done();
-    }
+    closeServerResources(app, done);
 });
 
 describe('Permission Slip Security', () => {
