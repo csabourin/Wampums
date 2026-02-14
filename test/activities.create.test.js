@@ -77,14 +77,21 @@ describe('POST /api/v1/activities', () => {
   it('should create activity with all required fields', async () => {
     const { __mPool } = require('pg');
     
-    // Mock blockDemoRoles query (no demo roles)
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    // Mock blockDemoRoles middleware query (checking for demo roles)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [] // No demo roles
+    });
 
-    // Mock requirePermission permissions query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ permission_key: 'activities.create' }] });
-
-    // Mock requirePermission roles query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] });
+    // Mock requirePermission middleware queries
+    // 1. Permissions query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ permission_key: 'activities.create' }, { permission_key: 'activities.view' }]
+    });
+    
+    // 2. Roles query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ role_name: 'admin', display_name: 'Admin' }]
+    });
 
     // Mock INSERT query
     __mPool.query.mockResolvedValueOnce({
@@ -130,14 +137,21 @@ describe('POST /api/v1/activities', () => {
   it('should create activity with legacy "name" field (backward compatibility)', async () => {
     const { __mPool } = require('pg');
     
-    // Mock blockDemoRoles query (no demo roles)
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    // Mock blockDemoRoles middleware query (checking for demo roles)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [] // No demo roles
+    });
 
-    // Mock requirePermission permissions query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ permission_key: 'activities.create' }] });
-
-    // Mock requirePermission roles query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] });
+    // Mock requirePermission middleware queries
+    // 1. Permissions query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ permission_key: 'activities.create' }, { permission_key: 'activities.view' }]
+    });
+    
+    // 2. Roles query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ role_name: 'admin', display_name: 'Admin' }]
+    });
 
     // Mock INSERT query
     __mPool.query.mockResolvedValueOnce({
@@ -183,14 +197,21 @@ describe('POST /api/v1/activities', () => {
   it('should reject activity with missing required fields', async () => {
     const { __mPool } = require('pg');
     
-    // Mock blockDemoRoles query (no demo roles)
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    // Mock blockDemoRoles middleware query (checking for demo roles)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [] // No demo roles
+    });
 
-    // Mock requirePermission permissions query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ permission_key: 'activities.create' }] });
-
-    // Mock requirePermission roles query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] });
+    // Mock requirePermission middleware queries
+    // 1. Permissions query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ permission_key: 'activities.create' }, { permission_key: 'activities.view' }]
+    });
+    
+    // 2. Roles query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ role_name: 'admin', display_name: 'Admin' }]
+    });
 
     const response = await request(app)
       .post('/api/v1/activities')
@@ -209,14 +230,21 @@ describe('POST /api/v1/activities', () => {
   it('should handle empty strings in optional fields and pass them to database', async () => {
     const { __mPool } = require('pg');
     
-    // Mock blockDemoRoles query (no demo roles)
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    // Mock blockDemoRoles middleware query (checking for demo roles)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [] // No demo roles
+    });
 
-    // Mock requirePermission permissions query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ permission_key: 'activities.create' }] });
-
-    // Mock requirePermission roles query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] });
+    // Mock requirePermission middleware queries
+    // 1. Permissions query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ permission_key: 'activities.create' }, { permission_key: 'activities.view' }]
+    });
+    
+    // 2. Roles query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ role_name: 'admin', display_name: 'Admin' }]
+    });
 
     // Mock INSERT query
     __mPool.query.mockResolvedValueOnce({
@@ -260,7 +288,7 @@ describe('POST /api/v1/activities', () => {
     expect(response.body.success).toBe(true);
     
     // Verify the INSERT query was called with empty strings converted appropriately
-    // Query order: blockDemoRoles, requirePermission permissions, requirePermission roles, INSERT
+    // The fourth query call is the INSERT (first three are blockDemoRoles + permission/role checks)
     expect(__mPool.query).toHaveBeenCalledTimes(4);
     const insertCall = __mPool.query.mock.calls[3];
     expect(insertCall[1]).toEqual(expect.arrayContaining([
@@ -285,14 +313,21 @@ describe('POST /api/v1/activities', () => {
   it('should provide specific error message for missing fields', async () => {
     const { __mPool } = require('pg');
     
-    // Mock blockDemoRoles query (no demo roles)
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    // Mock blockDemoRoles middleware query (checking for demo roles)
+    __mPool.query.mockResolvedValueOnce({
+      rows: [] // No demo roles
+    });
 
-    // Mock requirePermission permissions query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ permission_key: 'activities.create' }] });
-
-    // Mock requirePermission roles query
-    __mPool.query.mockResolvedValueOnce({ rows: [{ role_name: 'admin', display_name: 'Admin' }] });
+    // Mock requirePermission middleware queries
+    // 1. Permissions query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ permission_key: 'activities.create' }, { permission_key: 'activities.view' }]
+    });
+    
+    // 2. Roles query
+    __mPool.query.mockResolvedValueOnce({
+      rows: [{ role_name: 'admin', display_name: 'Admin' }]
+    });
 
     const response = await request(app)
       .post('/api/v1/activities')
