@@ -290,6 +290,15 @@ export class ParentDashboard {
                                                 ${translate("install_app")}
                                         </button>`; // Initially hidden
 
+                const calendarDownloadAction = `
+                        <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
+                                <button type="button" id="downloadUniversalCalendar" class="dashboard-button dashboard-button--secondary">
+                                        ${translate("download_universal_calendar")}
+                                </button>
+                                <p class="muted-text" style="margin-top: 0.5rem;">${translate("calendar_download_description")}</p>
+                        </div>
+                `;
+
                 // Only show staff back link when accessed outside the parent context
                 const backLink = isParent()
                         ? ``
@@ -321,6 +330,7 @@ export class ParentDashboard {
                                                         ${translate("download_activities_calendar")}
                                                 </button>
                                         </div>
+                                        ${calendarDownloadAction}
                                         ${this.renderCarpoolButton()}
                                 </section>
 
