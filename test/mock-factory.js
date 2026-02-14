@@ -141,21 +141,36 @@ class MockFactory {
     if (queryLower.includes('count(')) {
       return { rows: [{ total: '10', count: '10' }] };
     }
+
+    // Demo-role checks for blockDemoRoles middleware should default to non-demo
+    if (queryLower.includes("r.role_name in ('demoadmin', 'demoparent')")) {
+      return { rows: [] };
+    }
     
-    // Permission checks
-    if (queryLower.includes('from role_permissions') || queryLower.includes('from permissions')) {
+    // Permission checks (supports both FROM and JOIN patterns)
+    if (
+      queryLower.includes(' role_permissions ') ||
+      queryLower.includes(' permissions ') ||
+      queryLower.includes('permission_key')
+    ) {
       return { 
-        rows: [{ 
-          permission_id: 1,
-          permission_key: 'users.view',
-          permission_name: 'View Users',
-          category: 'users'
-        }] 
+        rows: [
+          { permission_id: 1, permission_key: 'users.view', permission_name: 'View Users', category: 'users' },
+          { permission_id: 2, permission_key: 'users.manage', permission_name: 'Manage Users', category: 'users' },
+          { permission_id: 3, permission_key: 'users.edit', permission_name: 'Edit Users', category: 'users' },
+          { permission_id: 4, permission_key: 'users.assign_roles', permission_name: 'Assign User Roles', category: 'users' },
+          { permission_id: 5, permission_key: 'participants.view', permission_name: 'View Participants', category: 'participants' },
+          { permission_id: 6, permission_key: 'participants.edit', permission_name: 'Edit Participants', category: 'participants' },
+          { permission_id: 7, permission_key: 'medication.view', permission_name: 'View Medication', category: 'medication' },
+          { permission_id: 8, permission_key: 'medication.manage', permission_name: 'Manage Medication', category: 'medication' },
+          { permission_id: 9, permission_key: 'finance.view', permission_name: 'View Finance', category: 'finance' },
+          { permission_id: 10, permission_key: 'finance.manage', permission_name: 'Manage Finance', category: 'finance' }
+        ]
       };
     }
     
     // Role checks
-    if (queryLower.includes('from roles')) {
+    if (queryLower.includes(' roles ') && !queryLower.includes('role_permissions')) {
       return { 
         rows: [{ 
           id: 1,
