@@ -6,6 +6,64 @@ const { success, error, asyncHandler } = require('../middleware/response');
 const logger = require('../config/logger');
 
 module.exports = (pool) => {
+  const ICAL_PROD_ID = '-//Wampums//Activities Calendar//EN';
+
+  /**
+   * Escape iCalendar text values according to RFC 5545.
+   * @param {string} value
+   * @returns {string}
+   */
+  const escapeICalText = (value = '') => String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
+
+  /**
+   * Format local date and time values to iCalendar date-time format.
+   * @param {string} dateValue
+   * @param {string} timeValue
+   * @returns {string|null}
+   */
+  const formatICalLocalDateTime = (dateValue, timeValue) => {
+    if (!dateValue || !timeValue) {
+      return null;
+    }
+
+    const normalizedTime = String(timeValue).split('.')[0];
+    const parsedDate = new Date(`${dateValue}T${normalizedTime}`);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    const year = String(parsedDate.getFullYear());
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(parsedDate.getDate()).padStart(2, '0');
+    const hours = String(parsedDate.getHours()).padStart(2, '0');
+    const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
+    const seconds = String(parsedDate.getSeconds()).padStart(2, '0');
+
+    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+  };
+
+  /**
+   * Format a Date object into UTC iCalendar date-time format.
+   * @param {Date} value
+   * @returns {string}
+   */
+  const formatICalUtcDateTime = (value) => {
+    const year = String(value.getUTCFullYear());
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
+    const hours = String(value.getUTCHours()).padStart(2, '0');
+    const minutes = String(value.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(value.getUTCSeconds()).padStart(2, '0');
+
+    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  };
+
   /**
    * Get all activities for the organization
    * Accessible by: animation, admin, parent
@@ -33,6 +91,87 @@ module.exports = (pool) => {
     );
 
     return success(res, result.rows);
+  }));
+
+  /**
+   * Download active activities as iCalendar file.
+   * Accessible by: animation, admin, parent
+   */
+  router.get('/calendar.ics', authenticate, requirePermission('activities.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT
+        id,
+        name,
+        description,
+        activity_date::text as activity_date,
+        activity_start_date::text as activity_start_date,
+        activity_start_time::text as activity_start_time,
+        activity_end_date::text as activity_end_date,
+        activity_end_time::text as activity_end_time,
+        meeting_location_going,
+        meeting_time_going::text as meeting_time_going,
+        departure_time_going::text as departure_time_going,
+        departure_time_return::text as departure_time_return,
+        created_at,
+        updated_at
+       FROM activities
+       WHERE organization_id = $1 AND is_active = TRUE
+       ORDER BY COALESCE(activity_start_date, activity_date) ASC, activity_start_time ASC, departure_time_going ASC`,
+      [organizationId]
+    );
+
+    const nowStamp = formatICalUtcDateTime(new Date());
+    const events = result.rows
+      .map((activity) => {
+        const normalizedStartDate = activity.activity_start_date || activity.activity_date;
+        const normalizedStartTime = activity.activity_start_time || activity.meeting_time_going;
+        const normalizedEndDate = activity.activity_end_date || normalizedStartDate;
+        const normalizedEndTime = activity.activity_end_time
+          || activity.departure_time_return
+          || activity.departure_time_going
+          || normalizedStartTime;
+
+        const dtStart = formatICalLocalDateTime(normalizedStartDate, normalizedStartTime);
+        const dtEnd = formatICalLocalDateTime(normalizedEndDate, normalizedEndTime);
+
+        if (!dtStart || !dtEnd) {
+          return null;
+        }
+
+        const sourceStamp = activity.updated_at || activity.created_at;
+        const dtStamp = sourceStamp
+          ? formatICalUtcDateTime(new Date(sourceStamp))
+          : nowStamp;
+
+        return [
+          'BEGIN:VEVENT',
+          `UID:activity-${activity.id}-${organizationId}@wampums.local`,
+          `DTSTAMP:${dtStamp}`,
+          `SUMMARY:${escapeICalText(activity.name || 'Activity')}`,
+          `DESCRIPTION:${escapeICalText(activity.description || '')}`,
+          `LOCATION:${escapeICalText(activity.meeting_location_going || '')}`,
+          `DTSTART:${dtStart}`,
+          `DTEND:${dtEnd}`,
+          'END:VEVENT'
+        ].join('\r\n');
+      })
+      .filter(Boolean);
+
+    const icalPayload = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      `PRODID:${ICAL_PROD_ID}`,
+      'CALSCALE:GREGORIAN',
+      ...events,
+      'END:VCALENDAR',
+      ''
+    ].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="activities-calendar.ics"');
+    return res.status(200).send(icalPayload);
   }));
 
   /**

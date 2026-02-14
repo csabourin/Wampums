@@ -1,5 +1,6 @@
 import {
         getCurrentOrganizationId,
+        getAuthHeader,
         fetchParticipants,
         getOrganizationFormFormats,
         getOrganizationSettings,
@@ -9,6 +10,7 @@ import {
 } from "./ajax-functions.js";
 import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
+import { buildApiUrl } from "./api/api-core.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
 import { hexStringToUint8Array, base64UrlEncode } from './functions.js';
@@ -324,6 +326,9 @@ export class ParentDashboard {
                                                 <a href="/account-info" class="dashboard-button dashboard-button--secondary">
                                                         ${translate("account_settings")}
                                                 </a>
+                                                <button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
+                                                        ${translate("download_activities_calendar")}
+                                                </button>
                                         </div>
                                         ${calendarDownloadAction}
                                         ${this.renderCarpoolButton()}
@@ -593,10 +598,10 @@ export class ParentDashboard {
                         });
                 }
 
-                const calendarDownloadButton = document.getElementById('downloadUniversalCalendar');
-                if (calendarDownloadButton) {
-                        calendarDownloadButton.addEventListener('click', () => {
-                                this.handleUniversalCalendarDownload();
+                const downloadCalendarButton = document.getElementById('downloadCalendarButton');
+                if (downloadCalendarButton) {
+                        downloadCalendarButton.addEventListener('click', async () => {
+                                await this.handleCalendarDownload();
                         });
                 }
 
@@ -641,21 +646,41 @@ export class ParentDashboard {
                 });
         }
 
-        handleUniversalCalendarDownload() {
-                const downloadUrl = '/api/v1/reports/universal-calendar';
+        async handleCalendarDownload() {
+                this.app.showMessage(translate("calendar_download_loading"), "info");
 
                 try {
-                        const openedWindow = window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+                        const response = await fetch(buildApiUrl('v1/activities/calendar.ics'), {
+                                method: 'GET',
+                                headers: {
+                                        ...getAuthHeader(),
+                                        Accept: 'text/calendar'
+                                }
+                        });
 
-                        if (!openedWindow) {
-                                this.app.showMessage(translate('calendar_download_failed'), 'error');
-                                return;
+                        if (!response.ok) {
+                                throw new Error(`Calendar download failed with status ${response.status}`);
                         }
 
-                        this.app.showMessage(translate('calendar_download_started'), 'success');
+                        const calendarText = await response.text();
+                        const calendarBlob = new Blob([calendarText], { type: 'text/calendar;charset=utf-8' });
+                        const downloadUrl = URL.createObjectURL(calendarBlob);
+                        const downloadLink = document.createElement('a');
+
+                        downloadLink.href = downloadUrl;
+                        downloadLink.download = 'activities-calendar.ics';
+                        downloadLink.style.display = 'none';
+
+                        document.body.appendChild(downloadLink);
+                        downloadLink.click();
+                        document.body.removeChild(downloadLink);
+                        URL.revokeObjectURL(downloadUrl);
+
+                        debugLog('Parent dashboard calendar downloaded successfully');
+                        this.app.showMessage(translate("calendar_download_success"), "success");
                 } catch (error) {
-                        debugError('Unable to start universal calendar download', error);
-                        this.app.showMessage(translate('calendar_download_failed'), 'error');
+                        debugError('Error downloading parent dashboard calendar:', error);
+                        this.app.showMessage(translate("calendar_download_error"), "error");
                 }
         }
 
