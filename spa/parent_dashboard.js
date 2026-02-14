@@ -6,23 +6,28 @@ import {
         getOrganizationSettings,
         getParticipantStatement,
         linkUserParticipants,
-        getCurrentUser
+        getCurrentUser,
 } from "./ajax-functions.js";
 import { getPermissionSlips, signPermissionSlip } from "./api/api-endpoints.js";
 import { getActivities } from "./api/api-activities.js";
 import { buildApiUrl } from "./api/api-core.js";
-import { debugLog, debugError, debugWarn, debugInfo } from "./utils/DebugUtils.js";
+import {
+        debugLog,
+        debugError,
+        debugWarn,
+        debugInfo,
+} from "./utils/DebugUtils.js";
 import { translate } from "./app.js";
-import { hexStringToUint8Array, base64UrlEncode } from './functions.js';
-import { CONFIG } from './config.js';
+import { hexStringToUint8Array, base64UrlEncode } from "./functions.js";
+import { CONFIG } from "./config.js";
 import { escapeHTML } from "./utils/SecurityUtils.js";
 import { setContent } from "./utils/DOMUtils.js";
 import { isParent } from "./utils/PermissionUtils.js";
-import { formatDateShort, parseDate } from './utils/DateUtils.js';
+import { formatDateShort, parseDate } from "./utils/DateUtils.js";
 import {
         formatActivityDateRange,
-        getActivityEndDateObj
-} from './utils/ActivityDateUtils.js';
+        getActivityEndDateObj,
+} from "./utils/ActivityDateUtils.js";
 
 export class ParentDashboard {
         constructor(app) {
@@ -56,7 +61,10 @@ export class ParentDashboard {
                 try {
                         await this.fetchParticipantStatements();
                 } catch (error) {
-                        debugError("Error fetching participant statements:", error);
+                        debugError(
+                                "Error fetching participant statements:",
+                                error,
+                        );
                         hasErrors = true;
                         // Continue with empty statements
                 }
@@ -75,16 +83,23 @@ export class ParentDashboard {
                         this.checkAndShowLinkParticipantsDialog();
 
                         if (hasErrors) {
-                                this.app.showMessage(translate("error_loading_data"), "warning");
+                                this.app.showMessage(
+                                        translate("error_loading_data"),
+                                        "warning",
+                                );
                         }
                 } catch (error) {
                         debugError("Error rendering parent dashboard:", error);
-                        this.app.renderError(translate("error_loading_parent_dashboard"));
+                        this.app.renderError(
+                                translate("error_loading_parent_dashboard"),
+                        );
                 }
         }
 
         checkAndShowLinkParticipantsDialog() {
-                const guardianParticipants = JSON.parse(localStorage.getItem("guardianParticipants"));
+                const guardianParticipants = JSON.parse(
+                        localStorage.getItem("guardianParticipants"),
+                );
                 if (guardianParticipants && guardianParticipants.length > 0) {
                         this.showLinkParticipantsDialog(guardianParticipants);
                         localStorage.removeItem("guardianParticipants"); // Clear after showing
@@ -96,42 +111,72 @@ export class ParentDashboard {
                                         <h2>${translate("link_existing_participants")}</h2>
                                         <p>${translate("existing_participants_found")}</p>
                                         <form id="link-participants-form">
-                                                        ${guardianParticipants.map(participant => `
+                                                        ${guardianParticipants
+                                                                .map(
+                                                                        (
+                                                                                participant,
+                                                                        ) => `
                                                                         <label>
                                                                                         <input type="checkbox" name="link_participants" value="${participant.participant_id}">
                                                                                         ${participant.first_name} ${participant.last_name}
                                                                         </label>
-                                                        `).join('')}
+                                                        `,
+                                                                )
+                                                                .join("")}
                                                         <button type="submit">${translate("link_selected_participants")}</button>                                                       <button id="cancel" type="button">${translate("cancel")}</button>
                                         </form>
                         `;
 
-                const dialog = document.createElement('div');
+                const dialog = document.createElement("div");
                 setContent(dialog, dialogContent);
-                dialog.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;';
+                dialog.style.cssText =
+                        "position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border: 1px solid black; z-index: 1000;";
                 document.body.appendChild(dialog);
 
-                document.querySelector('#cancel').addEventListener('click', () => {
-                        dialog.remove();
-                });
+                document.querySelector("#cancel").addEventListener(
+                        "click",
+                        () => {
+                                dialog.remove();
+                        },
+                );
 
-                document.getElementById('link-participants-form').addEventListener('submit', async (e) => {
+                document.getElementById(
+                        "link-participants-form",
+                ).addEventListener("submit", async (e) => {
                         e.preventDefault();
                         const formData = new FormData(e.target);
-                        const selectedParticipants = formData.getAll('link_participants');
+                        const selectedParticipants =
+                                formData.getAll("link_participants");
 
                         try {
-                                const result = await linkUserParticipants({ participant_ids: selectedParticipants });
+                                const result = await linkUserParticipants({
+                                        participant_ids: selectedParticipants,
+                                });
                                 if (result.success) {
-                                        this.app.showMessage(translate("participants_linked_successfully"));
+                                        this.app.showMessage(
+                                                translate(
+                                                        "participants_linked_successfully",
+                                                ),
+                                        );
                                         await this.fetchParticipants(); // Refresh the participants list
                                         this.render(); // Re-render the dashboard
                                 } else {
-                                        this.app.showMessage(translate("error_linking_participants"), "error");
+                                        this.app.showMessage(
+                                                translate(
+                                                        "error_linking_participants",
+                                                ),
+                                                "error",
+                                        );
                                 }
                         } catch (error) {
-                                debugError("Error linking participants:", error);
-                                this.app.showMessage(translate("error_linking_participants"), "error");
+                                debugError(
+                                        "Error linking participants:",
+                                        error,
+                                );
+                                this.app.showMessage(
+                                        translate("error_linking_participants"),
+                                        "error",
+                                );
                         }
 
                         document.body.removeChild(dialog);
@@ -140,23 +185,34 @@ export class ParentDashboard {
 
         async fetchParticipants() {
                 try {
-                        const response = await fetchParticipants(getCurrentOrganizationId());
+                        const response = await fetchParticipants(
+                                getCurrentOrganizationId(),
+                        );
 
                         // Use a Map to store unique participants
                         const uniqueParticipants = new Map();
 
                         // Validate response is an array before processing
                         if (Array.isArray(response)) {
-                                response.forEach(participant => {
+                                response.forEach((participant) => {
                                         // If this participant isn't in our Map yet, add them
-                                        if (!uniqueParticipants.has(participant.id)) {
-                                                uniqueParticipants.set(participant.id, participant);
+                                        if (
+                                                !uniqueParticipants.has(
+                                                        participant.id,
+                                                )
+                                        ) {
+                                                uniqueParticipants.set(
+                                                        participant.id,
+                                                        participant,
+                                                );
                                         }
                                 });
                         }
 
                         // Convert the Map values back to an array
-                        this.participants = Array.from(uniqueParticipants.values());
+                        this.participants = Array.from(
+                                uniqueParticipants.values(),
+                        );
 
                         debugLog("Fetched participants:", this.participants);
                 } catch (error) {
@@ -167,46 +223,68 @@ export class ParentDashboard {
         }
 
         async fetchParticipantStatements() {
-                if (!Array.isArray(this.participants) || this.participants.length === 0) {
+                if (
+                        !Array.isArray(this.participants) ||
+                        this.participants.length === 0
+                ) {
                         return;
                 }
 
                 await Promise.all(
-                        this.participants.map(async (participant) => this.loadSingleStatement(participant.id))
+                        this.participants.map(async (participant) =>
+                                this.loadSingleStatement(participant.id),
+                        ),
                 );
         }
 
         async loadSingleStatement(participantId) {
                 try {
-                        const response = await getParticipantStatement(participantId);
+                        const response =
+                                await getParticipantStatement(participantId);
                         const payload = response?.data || response;
                         const statementData = payload?.data || payload;
 
                         if (statementData?.participant?.id) {
-                                this.participantStatements.set(statementData.participant.id, statementData);
+                                this.participantStatements.set(
+                                        statementData.participant.id,
+                                        statementData,
+                                );
                                 return statementData;
                         }
                 } catch (error) {
-                        debugWarn("Unable to load participant statement", error);
+                        debugWarn(
+                                "Unable to load participant statement",
+                                error,
+                        );
                 }
 
                 return null;
         }
 
         async fetchPermissionSlips() {
-                if (!Array.isArray(this.participants) || this.participants.length === 0) {
+                if (
+                        !Array.isArray(this.participants) ||
+                        this.participants.length === 0
+                ) {
                         return;
                 }
 
                 await Promise.all(
-                        this.participants.map(async (participant) => this.loadPermissionSlips(participant.id))
+                        this.participants.map(async (participant) =>
+                                this.loadPermissionSlips(participant.id),
+                        ),
                 );
         }
 
         async loadPermissionSlips(participantId) {
                 try {
-                        const response = await getPermissionSlips({ participant_id: participantId });
-                        const slips = response?.data?.permission_slips || response?.permission_slips || [];
+                        const response = await getPermissionSlips({
+                                participant_id: participantId,
+                        });
+                        const slips =
+                                response?.data?.permission_slips ||
+                                response?.permission_slips ||
+                                [];
                         this.permissionSlips.set(participantId, slips);
                         return slips;
                 } catch (error) {
@@ -219,16 +297,31 @@ export class ParentDashboard {
         async fetchFormFormats() {
                 try {
                         // Request only participant-context forms (excludes organization_info, etc.)
-                        const response = await getOrganizationFormFormats(null, 'participant');
+                        const response = await getOrganizationFormFormats(
+                                null,
+                                "participant",
+                        );
                         debugLog("Form formats response:", response);
-                        debugLog("Form formats response type:", typeof response);
-                        debugLog("Form formats response keys:", response ? Object.keys(response) : 'null');
+                        debugLog(
+                                "Form formats response type:",
+                                typeof response,
+                        );
+                        debugLog(
+                                "Form formats response keys:",
+                                response ? Object.keys(response) : "null",
+                        );
 
-                        if (response && typeof response === 'object') {
+                        if (response && typeof response === "object") {
                                 this.formFormats = response;
-                                debugLog("Stored form formats:", this.formFormats);
+                                debugLog(
+                                        "Stored form formats:",
+                                        this.formFormats,
+                                );
                         } else {
-                                debugError("Invalid form formats response:", response);
+                                debugError(
+                                        "Invalid form formats response:",
+                                        response,
+                                );
                         }
                 } catch (error) {
                         debugError("Error fetching form formats:", error);
@@ -245,16 +338,23 @@ export class ParentDashboard {
                         // Check if the response is successful and contains settings
                         if (response && response.success && response.settings) {
                                 // Get the organization_info setting
-                                const organizationInfo = response.settings.organization_info;
+                                const organizationInfo =
+                                        response.settings.organization_info;
 
                                 // If the setting exists, extract the name, otherwise set a default
                                 if (organizationInfo && organizationInfo.name) {
-                                        this.organizationName = organizationInfo.name;
+                                        this.organizationName =
+                                                organizationInfo.name;
                                 } else {
-                                        this.organizationName = translate("organization_name_default");
+                                        this.organizationName = translate(
+                                                "organization_name_default",
+                                        );
                                 }
                         } else {
-                                debugError("Invalid organization info response:", response);
+                                debugError(
+                                        "Invalid organization info response:",
+                                        response,
+                                );
                         }
                 } catch (error) {
                         debugError("Error fetching organization info:", error);
@@ -266,25 +366,37 @@ export class ParentDashboard {
                 if (!this.app.userFullName) {
                         try {
                                 const result = await getCurrentUser();
-                                const fullName = result?.data?.full_name || result?.full_name || result?.data?.fullName || result?.fullName;
+                                const fullName =
+                                        result?.data?.full_name ||
+                                        result?.full_name ||
+                                        result?.data?.fullName ||
+                                        result?.fullName;
                                 if (fullName) {
                                         this.app.userFullName = fullName;
                                 } else {
-                                        debugError("Failed to fetch user full name: missing full name", result);
+                                        debugError(
+                                                "Failed to fetch user full name: missing full name",
+                                                result,
+                                        );
                                 }
                         } catch (error) {
-                                debugError("Error fetching user full name:", error);
+                                debugError(
+                                        "Error fetching user full name:",
+                                        error,
+                                );
                         }
                 }
         }
 
         render() {
-                const organizationName = this.app.organizationSettings?.organization_info?.name || "Scouts";
+                const organizationName =
+                        this.app.organizationSettings?.organization_info
+                                ?.name || "Scouts";
                 const notificationButton = this.shouldShowNotificationButton()
                         ? `<button id="enableNotifications" class="dashboard-button dashboard-button--secondary">
                                                 ${translate("enable_notifications")}
                                         </button>`
-                        : ''; // Only render the button if needed
+                        : ""; // Only render the button if needed
 
                 const installButton = `<button id="installPwaButton" class="hidden dashboard-button dashboard-button--secondary">
                                                 ${translate("install_app")}
@@ -292,9 +404,6 @@ export class ParentDashboard {
 
                 const calendarDownloadAction = `
                         <div class="parent-dashboard__calendar-download" style="margin-top: 1rem;">
-                                <button type="button" id="downloadUniversalCalendar" class="dashboard-button dashboard-button--secondary">
-                                        ${translate("download_universal_calendar")}
-                                </button>
                                 <p class="muted-text" style="margin-top: 0.5rem;">${translate("calendar_download_description")}</p>
                         </div>
                 `;
@@ -305,11 +414,14 @@ export class ParentDashboard {
                         : `<a href="/dashboard" class="back-link">${translate("back_to_dashboard")}</a>`;
 
                 // Dynamically replace the title with the organization name
-                const userName = this.app.userFullName || localStorage.getItem('userFullName') || '';
+                const userName =
+                        this.app.userFullName ||
+                        localStorage.getItem("userFullName") ||
+                        "";
                 const content = `
                         <div class="parent-dashboard">
                                 <header class="parent-dashboard__header">
-                                        <h1 class="parent-dashboard__title">${translate("bienvenue")}${userName ? ' ' + userName : ''}</h1>
+                                        <h1 class="parent-dashboard__title">${translate("bienvenue")}${userName ? " " + userName : ""}</h1>
                                         <p class="parent-dashboard__subtitle">${organizationName}</p>
                                         ${backLink}
                                 </header>
@@ -378,11 +490,12 @@ export class ParentDashboard {
                         return this.formatCurrency(0);
                 }
 
-                const locale = this.app?.language || CONFIG.DEFAULT_LANG || 'en';
-                const currency = CONFIG.DEFAULT_CURRENCY || 'USD';
+                const locale =
+                        this.app?.language || CONFIG.DEFAULT_LANG || "en";
+                const currency = CONFIG.DEFAULT_CURRENCY || "USD";
 
                 return new Intl.NumberFormat(locale, {
-                        style: 'currency',
+                        style: "currency",
                         currency,
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -390,11 +503,13 @@ export class ParentDashboard {
         }
 
         renderStatementLink(participant) {
-                const statement = this.participantStatements.get(participant.id);
+                const statement = this.participantStatements.get(
+                        participant.id,
+                );
                 const outstanding = statement?.totals?.total_outstanding ?? 0;
 
                 if (!statement || outstanding <= 0) {
-                        return '';
+                        return "";
                 }
 
                 return `
@@ -407,24 +522,34 @@ export class ParentDashboard {
                 `;
         }
 
-
         // Check notification permission and decide whether to show the button
         shouldShowNotificationButton() {
-                if ('Notification' in window) {
-                        return Notification.permission === "default" || Notification.permission === "denied";
-                } return false;
+                if ("Notification" in window) {
+                        return (
+                                Notification.permission === "default" ||
+                                Notification.permission === "denied"
+                        );
+                }
+                return false;
         }
 
         renderParticipantsList() {
-                if (!Array.isArray(this.participants) || this.participants.length === 0) {
+                if (
+                        !Array.isArray(this.participants) ||
+                        this.participants.length === 0
+                ) {
                         return `<p class="parent-dashboard__empty">${translate("no_participants")}</p>`;
                 }
 
-                return this.participants.map(participant => {
-                        const participantName = escapeHTML(`${participant.first_name} ${participant.last_name}`);
-                        const statementLink = this.renderStatementLink(participant);
+                return this.participants
+                        .map((participant) => {
+                                const participantName = escapeHTML(
+                                        `${participant.first_name} ${participant.last_name}`,
+                                );
+                                const statementLink =
+                                        this.renderStatementLink(participant);
 
-                        return `
+                                return `
                         <article class="participant-card">
                                 <header class="participant-card__header">
                                         <h3 class="participant-card__name">${participantName}</h3>
@@ -435,28 +560,38 @@ export class ParentDashboard {
                                 <div class="participant-card__forms">
                                         ${this.renderFormButtons(participant)}
                                 </div>
-                                ${statementLink ? `<div class="participant-card__section">${statementLink}</div>` : ''}
+                                ${statementLink ? `<div class="participant-card__section">${statementLink}</div>` : ""}
                                 ${this.renderPermissionSlipSection(participant)}
                         </article>
                 `;
-                }).join("");
+                        })
+                        .join("");
         }
 
         renderFormButtons(participant) {
-                debugLog("renderFormButtons called for participant:", participant.id);
+                debugLog(
+                        "renderFormButtons called for participant:",
+                        participant.id,
+                );
                 debugLog("this.formFormats:", this.formFormats);
                 debugLog("Form format keys:", Object.keys(this.formFormats));
 
                 // The backend now filters forms based on user permissions
                 // We no longer need to hardcode exclusions here
                 const formButtons = Object.keys(this.formFormats)
-                        .map(formType => {
+                        .map((formType) => {
                                 const formLabel = translate(formType);
-                                const isCompleted = participant[`has_${formType}`] === 1 || participant[`has_${formType}`] === true;
-                                const statusClass = isCompleted ? "form-btn--completed" : "form-btn--incomplete";
+                                const isCompleted =
+                                        participant[`has_${formType}`] === 1 ||
+                                        participant[`has_${formType}`] === true;
+                                const statusClass = isCompleted
+                                        ? "form-btn--completed"
+                                        : "form-btn--incomplete";
                                 const statusIcon = isCompleted ? "✅" : "❌";
 
-                                debugLog(`Rendering form button for: ${formType}, label: ${formLabel}`);
+                                debugLog(
+                                        `Rendering form button for: ${formType}, label: ${formLabel}`,
+                                );
 
                                 return `
                 <a href="/dynamic-form/${formType}/${participant.id}" class="form-btn ${statusClass}">
@@ -470,27 +605,34 @@ export class ParentDashboard {
                 const badgeButton = `
                 <a href="/badge-form/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">🏅</span>
-                        <span class="form-btn__label">${translate('manage_badge_progress')}</span>
+                        <span class="form-btn__label">${translate("manage_badge_progress")}</span>
                 </a>
         `;
 
                 const progressReportButton = `
                 <a href="/reports?participantId=${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">📊</span>
-                        <span class="form-btn__label">${translate('view_progress_report')}</span>
+                        <span class="form-btn__label">${translate("view_progress_report")}</span>
                 </a>
         `;
 
                 const medicationButton = `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
-                        <span class="form-btn__label">${translate('manage_medications')}</span>
+                        <span class="form-btn__label">${translate("manage_medications")}</span>
                 </a>
         `;
 
-                debugLog(`Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + medicationButton).length}`);
+                debugLog(
+                        `Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + medicationButton).length}`,
+                );
 
-                return formButtons + badgeButton + progressReportButton + medicationButton;
+                return (
+                        formButtons +
+                        badgeButton +
+                        progressReportButton +
+                        medicationButton
+                );
         }
 
         renderPermissionSlipSection(participant) {
@@ -516,22 +658,45 @@ export class ParentDashboard {
 
                 return `
                         <ul class="permission-slip-list">
-                                ${slips.map((slip) => {
-                        const statusLabel = escapeHTML(this.getPermissionSlipStatusLabel(slip.status));
-                        const meetingLabel = escapeHTML(this.formatDateSafe(slip.meeting_date));
-                        const signedDate = slip.signed_at ? escapeHTML(this.formatDateSafe(slip.signed_at)) : '';
-                        const signer = slip.signed_by ? escapeHTML(slip.signed_by) : '';
-                        const canSign = slip.status === 'pending';
+                                ${slips
+                                        .map((slip) => {
+                                                const statusLabel = escapeHTML(
+                                                        this.getPermissionSlipStatusLabel(
+                                                                slip.status,
+                                                        ),
+                                                );
+                                                const meetingLabel = escapeHTML(
+                                                        this.formatDateSafe(
+                                                                slip.meeting_date,
+                                                        ),
+                                                );
+                                                const signedDate =
+                                                        slip.signed_at
+                                                                ? escapeHTML(
+                                                                          this.formatDateSafe(
+                                                                                  slip.signed_at,
+                                                                          ),
+                                                                  )
+                                                                : "";
+                                                const signer = slip.signed_by
+                                                        ? escapeHTML(
+                                                                  slip.signed_by,
+                                                          )
+                                                        : "";
+                                                const canSign =
+                                                        slip.status ===
+                                                        "pending";
 
-                        const signedMeta = signedDate || signer
-                                ? `<p class="muted-text">${[signedDate ? `${translate("permission_slip_signed_at")}: ${signedDate}` : '', signer ? `${translate("permission_slip_signer")}: ${signer}` : ''].filter(Boolean).join(' · ')}</p>`
-                                : '';
+                                                const signedMeta =
+                                                        signedDate || signer
+                                                                ? `<p class="muted-text">${[signedDate ? `${translate("permission_slip_signed_at")}: ${signedDate}` : "", signer ? `${translate("permission_slip_signer")}: ${signer}` : ""].filter(Boolean).join(" · ")}</p>`
+                                                                : "";
 
-                        const actionArea = canSign
-                                ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>`
-                                : `<span class="badge badge-success">${statusLabel}</span>`;
+                                                const actionArea = canSign
+                                                        ? `<button type="button" class="dashboard-button dashboard-button--secondary permission-slip-sign-btn" data-slip-id="${slip.id}" data-participant-id="${participantId}">${translate("permission_slip_sign")}</button>`
+                                                        : `<span class="badge badge-success">${statusLabel}</span>`;
 
-                        return `
+                                                return `
                                                 <li class="permission-slip-item">
                                                         <div>
                                                                 <p class="permission-slip-meeting">${translate("meeting_date_label")}: ${meetingLabel}</p>
@@ -541,18 +706,24 @@ export class ParentDashboard {
                                                         <div class="permission-slip-actions">${actionArea}</div>
                                                 </li>
                                         `;
-                }).join("")}
+                                        })
+                                        .join("")}
                         </ul>
                 `;
         }
 
         refreshPermissionSlipSection(participantId) {
-                const container = document.querySelector(`[data-permission-slips-for="${participantId}"]`);
+                const container = document.querySelector(
+                        `[data-permission-slips-for="${participantId}"]`,
+                );
                 if (!container) {
                         return;
                 }
 
-                setContent(container, this.renderPermissionSlipItems(participantId));
+                setContent(
+                        container,
+                        this.renderPermissionSlipItems(participantId),
+                );
         }
 
         getPermissionSlipStatusLabel(status) {
@@ -561,7 +732,9 @@ export class ParentDashboard {
                 }
 
                 const localized = translate(`permission_slip_status_${status}`);
-                return localized === `permission_slip_status_${status}` ? status : localized;
+                return localized === `permission_slip_status_${status}`
+                        ? status
+                        : localized;
         }
 
         formatDateSafe(dateString) {
@@ -574,122 +747,173 @@ export class ParentDashboard {
                         return translate("meeting_date_label");
                 }
 
-                const locale = this.app?.currentLanguage || this.app?.language || CONFIG.DEFAULT_LANG || 'en';
-                return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(parsed);
+                const locale =
+                        this.app?.currentLanguage ||
+                        this.app?.language ||
+                        CONFIG.DEFAULT_LANG ||
+                        "en";
+                return new Intl.DateTimeFormat(locale, {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                }).format(parsed);
         }
 
-
-
-
         attachEventListeners() {
-                const notificationButton = document.getElementById('enableNotifications');
+                const notificationButton = document.getElementById(
+                        "enableNotifications",
+                );
                 if (notificationButton) {
-                        notificationButton.addEventListener('click', async () => {
-                                await this.requestNotificationPermission();
-                        });
+                        notificationButton.addEventListener(
+                                "click",
+                                async () => {
+                                        await this.requestNotificationPermission();
+                                },
+                        );
                 }
 
                 // Carpool activities button
-                const carpoolButton = document.getElementById('view-carpool-activities');
+                const carpoolButton = document.getElementById(
+                        "view-carpool-activities",
+                );
                 if (carpoolButton) {
-                        carpoolButton.addEventListener('click', async (e) => {
+                        carpoolButton.addEventListener("click", async (e) => {
                                 e.preventDefault();
                                 await this.showCarpoolActivitiesModal();
                         });
                 }
 
-                const downloadCalendarButton = document.getElementById('downloadCalendarButton');
+                const downloadCalendarButton = document.getElementById(
+                        "downloadCalendarButton",
+                );
                 if (downloadCalendarButton) {
-                        downloadCalendarButton.addEventListener('click', async () => {
-                                await this.handleCalendarDownload();
-                        });
+                        downloadCalendarButton.addEventListener(
+                                "click",
+                                async () => {
+                                        await this.handleCalendarDownload();
+                                },
+                        );
                 }
 
                 // Install PWA button logic
-                const installButton = document.getElementById('installPwaButton');
+                const installButton =
+                        document.getElementById("installPwaButton");
                 let deferredPrompt;
 
-                window.addEventListener('beforeinstallprompt', (e) => {
-                        debugLog('beforeinstallprompt event fired');
+                window.addEventListener("beforeinstallprompt", (e) => {
+                        debugLog("beforeinstallprompt event fired");
                         // Prevent the default prompt
                         e.preventDefault();
                         deferredPrompt = e;
 
                         // Show the install button
-                        installButton.style.display = 'block';
+                        installButton.style.display = "block";
 
                         // Add click event to the install button
-                        installButton.addEventListener('click', async () => {
+                        installButton.addEventListener("click", async () => {
                                 if (deferredPrompt) {
                                         // Show the install prompt
                                         deferredPrompt.prompt();
 
                                         // Check the user's response
-                                        const choiceResult = await deferredPrompt.userChoice;
-                                        if (choiceResult.outcome === 'accepted') {
-                                                debugLog('User accepted the install prompt');
+                                        const choiceResult =
+                                                await deferredPrompt.userChoice;
+                                        if (
+                                                choiceResult.outcome ===
+                                                "accepted"
+                                        ) {
+                                                debugLog(
+                                                        "User accepted the install prompt",
+                                                );
                                         } else {
-                                                debugLog('User dismissed the install prompt');
+                                                debugLog(
+                                                        "User dismissed the install prompt",
+                                                );
                                         }
 
                                         // Clear the deferredPrompt so it can’t be reused
                                         deferredPrompt = null;
 
                                         // Hide the install button after interaction
-                                        installButton.style.display = 'none';
+                                        installButton.style.display = "none";
                                 }
                         });
                 });
 
-                window.addEventListener('appinstalled', () => {
-                        debugLog('App has been installed');
+                window.addEventListener("appinstalled", () => {
+                        debugLog("App has been installed");
                 });
         }
 
         async handleCalendarDownload() {
-                this.app.showMessage(translate("calendar_download_loading"), "info");
+                this.app.showMessage(
+                        translate("calendar_download_loading"),
+                        "info",
+                );
 
                 try {
-                        const response = await fetch(buildApiUrl('v1/activities/calendar.ics'), {
-                                method: 'GET',
-                                headers: {
-                                        ...getAuthHeader(),
-                                        Accept: 'text/calendar'
-                                }
-                        });
+                        const response = await fetch(
+                                buildApiUrl("v1/activities/calendar.ics"),
+                                {
+                                        method: "GET",
+                                        headers: {
+                                                ...getAuthHeader(),
+                                                Accept: "text/calendar",
+                                        },
+                                },
+                        );
 
                         if (!response.ok) {
-                                throw new Error(`Calendar download failed with status ${response.status}`);
+                                throw new Error(
+                                        `Calendar download failed with status ${response.status}`,
+                                );
                         }
 
                         const calendarText = await response.text();
-                        const calendarBlob = new Blob([calendarText], { type: 'text/calendar;charset=utf-8' });
+                        const calendarBlob = new Blob([calendarText], {
+                                type: "text/calendar;charset=utf-8",
+                        });
                         const downloadUrl = URL.createObjectURL(calendarBlob);
-                        const downloadLink = document.createElement('a');
+                        const downloadLink = document.createElement("a");
 
                         downloadLink.href = downloadUrl;
-                        downloadLink.download = 'activities-calendar.ics';
-                        downloadLink.style.display = 'none';
+                        downloadLink.download = "activities-calendar.ics";
+                        downloadLink.style.display = "none";
 
                         document.body.appendChild(downloadLink);
                         downloadLink.click();
                         document.body.removeChild(downloadLink);
                         URL.revokeObjectURL(downloadUrl);
 
-                        debugLog('Parent dashboard calendar downloaded successfully');
-                        this.app.showMessage(translate("calendar_download_success"), "success");
+                        debugLog(
+                                "Parent dashboard calendar downloaded successfully",
+                        );
+                        this.app.showMessage(
+                                translate("calendar_download_success"),
+                                "success",
+                        );
                 } catch (error) {
-                        debugError('Error downloading parent dashboard calendar:', error);
-                        this.app.showMessage(translate("calendar_download_error"), "error");
+                        debugError(
+                                "Error downloading parent dashboard calendar:",
+                                error,
+                        );
+                        this.app.showMessage(
+                                translate("calendar_download_error"),
+                                "error",
+                        );
                 }
         }
 
         bindStatementHandlers() {
-                const statementButtons = document.querySelectorAll('.participant-card__statement');
+                const statementButtons = document.querySelectorAll(
+                        ".participant-card__statement",
+                );
 
                 statementButtons.forEach((button) => {
-                        button.addEventListener('click', async (event) => {
-                                const participantId = event.currentTarget?.dataset?.participantId;
+                        button.addEventListener("click", async (event) => {
+                                const participantId =
+                                        event.currentTarget?.dataset
+                                                ?.participantId;
                                 await this.showStatementModal(participantId);
                         });
                 });
@@ -700,50 +924,96 @@ export class ParentDashboard {
                         return;
                 }
 
-                const appContainer = document.getElementById('app');
+                const appContainer = document.getElementById("app");
                 if (!appContainer) {
                         return;
                 }
 
-                appContainer.addEventListener('click', async (event) => {
-                        const button = event.target.closest('.permission-slip-sign-btn');
+                appContainer.addEventListener("click", async (event) => {
+                        const button = event.target.closest(
+                                ".permission-slip-sign-btn",
+                        );
                         if (!button) {
                                 return;
                         }
 
-                        const slipId = Number.parseInt(button.dataset?.slipId, 10);
-                        const participantId = Number.parseInt(button.dataset?.participantId, 10);
+                        const slipId = Number.parseInt(
+                                button.dataset?.slipId,
+                                10,
+                        );
+                        const participantId = Number.parseInt(
+                                button.dataset?.participantId,
+                                10,
+                        );
 
                         if (!slipId || !participantId) {
                                 return;
                         }
 
-                        const signerName = window.prompt(translate("permission_slip_signer"))?.trim();
+                        const signerName = window
+                                .prompt(translate("permission_slip_signer"))
+                                ?.trim();
                         if (!signerName) {
                                 return;
                         }
 
                         try {
-                                await signPermissionSlip(slipId, { signed_by: signerName, signature_hash: `signed-${Date.now()}` });
-                                this.app.showMessage(translate("permission_slip_signed"), "success");
+                                await signPermissionSlip(slipId, {
+                                        signed_by: signerName,
+                                        signature_hash: `signed-${Date.now()}`,
+                                });
+                                this.app.showMessage(
+                                        translate("permission_slip_signed"),
+                                        "success",
+                                );
                                 await this.loadPermissionSlips(participantId);
-                                this.refreshPermissionSlipSection(participantId);
+                                this.refreshPermissionSlipSection(
+                                        participantId,
+                                );
                         } catch (error) {
-                                debugError("Error signing permission slip", error);
+                                debugError(
+                                        "Error signing permission slip",
+                                        error,
+                                );
 
                                 // Show specific error message if available
-                                const errorMessage = error?.message || translate("resource_dashboard_error_loading");
+                                const errorMessage =
+                                        error?.message ||
+                                        translate(
+                                                "resource_dashboard_error_loading",
+                                        );
 
                                 // Check for specific error cases and provide user-friendly messages
                                 if (errorMessage.includes("already signed")) {
-                                        this.app.showMessage(translate("permission_slip_already_signed"), "warning");
+                                        this.app.showMessage(
+                                                translate(
+                                                        "permission_slip_already_signed",
+                                                ),
+                                                "warning",
+                                        );
                                         // Refresh the section to show current state
-                                        await this.loadPermissionSlips(participantId);
-                                        this.refreshPermissionSlipSection(participantId);
-                                } else if (errorMessage.includes("only sign permission slips for your own children")) {
-                                        this.app.showMessage(translate("permission_slip_not_your_child"), "error");
+                                        await this.loadPermissionSlips(
+                                                participantId,
+                                        );
+                                        this.refreshPermissionSlipSection(
+                                                participantId,
+                                        );
+                                } else if (
+                                        errorMessage.includes(
+                                                "only sign permission slips for your own children",
+                                        )
+                                ) {
+                                        this.app.showMessage(
+                                                translate(
+                                                        "permission_slip_not_your_child",
+                                                ),
+                                                "error",
+                                        );
                                 } else {
-                                        this.app.showMessage(errorMessage, "error");
+                                        this.app.showMessage(
+                                                errorMessage,
+                                                "error",
+                                        );
                                 }
                         }
                 });
@@ -755,22 +1025,43 @@ export class ParentDashboard {
                 if (!participantId) return;
 
                 const numericId = Number.parseInt(participantId, 10);
-                const existingStatement = this.participantStatements.get(numericId) || await this.loadSingleStatement(numericId);
+                const existingStatement =
+                        this.participantStatements.get(numericId) ||
+                        (await this.loadSingleStatement(numericId));
 
                 if (!existingStatement) {
-                        this.app.showMessage(translate("statement_unavailable"), "error");
+                        this.app.showMessage(
+                                translate("statement_unavailable"),
+                                "error",
+                        );
                         return;
                 }
 
-                const totals = existingStatement.totals || { total_billed: 0, total_paid: 0, total_outstanding: 0 };
-                const feeLines = Array.isArray(existingStatement.fees) && existingStatement.fees.length > 0
-                        ? existingStatement.fees.map((fee) => {
-                                const yearRange = fee.year_start && fee.year_end
-                                        ? `${fee.year_start} – ${fee.year_end}`
-                                        : translate("membership_period");
-                                const safeStatus = escapeHTML(fee.status || translate("status"));
+                const totals = existingStatement.totals || {
+                        total_billed: 0,
+                        total_paid: 0,
+                        total_outstanding: 0,
+                };
+                const feeLines =
+                        Array.isArray(existingStatement.fees) &&
+                        existingStatement.fees.length > 0
+                                ? existingStatement.fees
+                                          .map((fee) => {
+                                                  const yearRange =
+                                                          fee.year_start &&
+                                                          fee.year_end
+                                                                  ? `${fee.year_start} – ${fee.year_end}`
+                                                                  : translate(
+                                                                            "membership_period",
+                                                                    );
+                                                  const safeStatus = escapeHTML(
+                                                          fee.status ||
+                                                                  translate(
+                                                                          "status",
+                                                                  ),
+                                                  );
 
-                                return `
+                                                  return `
                                         <div class="statement-line">
                                                 <div>
                                                         <p class="muted-text">${translate("membership_period")}: ${escapeHTML(yearRange)}</p>
@@ -779,18 +1070,23 @@ export class ParentDashboard {
                                                 <div class="statement-amounts">
                                                         <span>${translate("total_billed")}: ${this.formatCurrency(fee.total_amount)}</span>
                                                         <span>${translate("payments_to_date")}: ${this.formatCurrency(fee.total_paid)}</span>
-                                                        <span class="${fee.outstanding > 0 ? 'text-warning' : 'text-success'}">${translate("amount_due")}: ${this.formatCurrency(fee.outstanding)}</span>
+                                                        <span class="${fee.outstanding > 0 ? "text-warning" : "text-success"}">${translate("amount_due")}: ${this.formatCurrency(fee.outstanding)}</span>
                                                 </div>
                                         </div>
                                 `;
-                        }).join("")
-                        : `<p class="muted-text">${translate("no_financial_activity")}</p>`;
+                                          })
+                                          .join("")
+                                : `<p class="muted-text">${translate("no_financial_activity")}</p>`;
 
-                const participantName = escapeHTML(`${existingStatement.participant.first_name} ${existingStatement.participant.last_name}`);
+                const participantName = escapeHTML(
+                        `${existingStatement.participant.first_name} ${existingStatement.participant.last_name}`,
+                );
 
-                const modal = document.createElement('div');
-                modal.className = 'modal-screen';
-                setContent(modal, `
+                const modal = document.createElement("div");
+                modal.className = "modal-screen";
+                setContent(
+                        modal,
+                        `
                         <div class="modal">
                                 <div class="modal__header">
                                         <div>
@@ -815,16 +1111,21 @@ export class ParentDashboard {
                                 </div>
                                 <div class="statement-lines">${feeLines}</div>
                         </div>
-                `);
+                `,
+                );
 
                 document.body.appendChild(modal);
 
-                const closeButton = modal.querySelector('#close-statement-modal');
+                const closeButton = modal.querySelector(
+                        "#close-statement-modal",
+                );
                 if (closeButton) {
-                        closeButton.addEventListener('click', () => modal.remove());
+                        closeButton.addEventListener("click", () =>
+                                modal.remove(),
+                        );
                 }
 
-                modal.addEventListener('click', (event) => {
+                modal.addEventListener("click", (event) => {
                         if (event.target === modal) {
                                 modal.remove();
                         }
@@ -836,34 +1137,47 @@ export class ParentDashboard {
                         const activities = await getActivities();
                         const now = new Date();
                         now.setHours(0, 0, 0, 0);
-                        const upcomingActivities = activities.filter(a => {
-                                const activityEndDate = getActivityEndDateObj(a);
-                                return activityEndDate && activityEndDate >= now;
+                        const upcomingActivities = activities.filter((a) => {
+                                const activityEndDate =
+                                        getActivityEndDateObj(a);
+                                return (
+                                        activityEndDate &&
+                                        activityEndDate >= now
+                                );
                         });
 
                         if (upcomingActivities.length === 0) {
-                                this.app.showMessage(translate('no_upcoming_activities'), 'info');
+                                this.app.showMessage(
+                                        translate("no_upcoming_activities"),
+                                        "info",
+                                );
                                 return;
                         }
 
-                        const modal = document.createElement('div');
-                        modal.className = 'modal-screen';
-                        setContent(modal, `
+                        const modal = document.createElement("div");
+                        modal.className = "modal-screen";
+                        setContent(
+                                modal,
+                                `
                                 <div class="modal">
                                         <div class="modal__header">
-                                                <h3>${translate('carpool_coordination')}</h3>
-                                                <button type="button" class="ghost-button" id="close-carpool-modal">${translate('close')}</button>
+                                                <h3>${translate("carpool_coordination")}</h3>
+                                                <button type="button" class="ghost-button" id="close-carpool-modal">${translate("close")}</button>
                                         </div>
                                         <div style="padding: 1.5rem;">
-                                                <p style="margin-bottom: 1rem; color: #666;">${translate('select_activity_for_carpool')}</p>
+                                                <p style="margin-bottom: 1rem; color: #666;">${translate("select_activity_for_carpool")}</p>
                                                 <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                                        ${upcomingActivities.map(activity => `
+                                                        ${upcomingActivities
+                                                                .map(
+                                                                        (
+                                                                                activity,
+                                                                        ) => `
                                                                 <a href="/carpool/${activity.id}" class="activity-link" style="padding: 1rem; border: 2px solid #e0e0e0; border-radius: 8px; text-decoration: none; color: inherit; display: block; transition: all 0.2s;">
                                                                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
                                                                                 <div style="flex: 1;">
                                                                                         <h4 style="margin: 0 0 0.5rem 0; color: #333;">${escapeHTML(activity.name)}</h4>
                                                                                         <p style="margin: 0; font-size: 0.9rem; color: #666;">
-                                                                                                ${formatActivityDateRange(activity, this.app.lang || 'fr')}
+                                                                                                ${formatActivityDateRange(activity, this.app.lang || "fr")}
                                                                                         </p>
                                                                                         <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: #999;">
                                                                                                 ${escapeHTML(activity.meeting_location_going)}
@@ -871,70 +1185,82 @@ export class ParentDashboard {
                                                                                 </div>
                                                                                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; font-size: 0.85rem;">
                                                                                         <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px;">
-                                                                                                ${activity.carpool_offer_count || 0} ${translate('vehicles')}
+                                                                                                ${activity.carpool_offer_count || 0} ${translate("vehicles")}
                                                                                         </span>
                                                                                         <span style="color: #666;">
-                                                                                                ${activity.assigned_participant_count || 0} ${translate('assigned')}
+                                                                                                ${activity.assigned_participant_count || 0} ${translate("assigned")}
                                                                                         </span>
                                                                                 </div>
                                                                         </div>
                                                                 </a>
-                                                        `).join('')}
+                                                        `,
+                                                                )
+                                                                .join("")}
                                                 </div>
                                         </div>
                                 </div>
-                        `);
+                        `,
+                        );
 
                         document.body.appendChild(modal);
 
-                        const closeButton = modal.querySelector('#close-carpool-modal');
+                        const closeButton = modal.querySelector(
+                                "#close-carpool-modal",
+                        );
                         if (closeButton) {
-                                closeButton.addEventListener('click', () => modal.remove());
+                                closeButton.addEventListener("click", () =>
+                                        modal.remove(),
+                                );
                         }
 
-                        modal.addEventListener('click', (event) => {
+                        modal.addEventListener("click", (event) => {
                                 if (event.target === modal) {
                                         modal.remove();
                                 }
                         });
 
                         // Add hover effect to activity links
-                        const activityLinks = modal.querySelectorAll('.activity-link');
-                        activityLinks.forEach(link => {
-                                link.addEventListener('mouseenter', (e) => {
-                                        e.target.style.borderColor = '#667eea';
-                                        e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                        const activityLinks =
+                                modal.querySelectorAll(".activity-link");
+                        activityLinks.forEach((link) => {
+                                link.addEventListener("mouseenter", (e) => {
+                                        e.target.style.borderColor = "#667eea";
+                                        e.target.style.boxShadow =
+                                                "0 4px 8px rgba(0,0,0,0.1)";
                                 });
-                                link.addEventListener('mouseleave', (e) => {
-                                        e.target.style.borderColor = '#e0e0e0';
-                                        e.target.style.boxShadow = 'none';
+                                link.addEventListener("mouseleave", (e) => {
+                                        e.target.style.borderColor = "#e0e0e0";
+                                        e.target.style.boxShadow = "none";
                                 });
                         });
-
                 } catch (error) {
-                        debugError('Error loading carpool activities:', error);
-                        this.app.showMessage(translate('error_loading_activities'), 'error');
+                        debugError("Error loading carpool activities:", error);
+                        this.app.showMessage(
+                                translate("error_loading_activities"),
+                                "error",
+                        );
                 }
         }
 
-
-
         async requestNotificationPermission() {
-                if ('Notification' in window) {
+                if ("Notification" in window) {
                         // Proceed with Notification logic
-                        if (Notification.permission === 'granted') {
+                        if (Notification.permission === "granted") {
                                 registerPushSubscription();
-                        } else if (Notification.permission === 'default') {
-                                Notification.requestPermission().then((permission) => {
-                                        if (permission === 'granted') {
-                                                registerPushSubscription();
-                                        }
-                                });
+                        } else if (Notification.permission === "default") {
+                                Notification.requestPermission().then(
+                                        (permission) => {
+                                                if (permission === "granted") {
+                                                        registerPushSubscription();
+                                                }
+                                        },
+                                );
                         }
                 } else {
-                        debugError('This browser does not support notifications.');
+                        debugError(
+                                "This browser does not support notifications.",
+                        );
                 }
-
         }
 
         renderError() {
