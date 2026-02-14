@@ -41,7 +41,12 @@ beforeEach(() => {
   __mClient.release.mockReset();
   __mPool.connect.mockClear();
   __mPool.query.mockReset();
-  __mPool.query.mockResolvedValue({ rows: [] });
+  __mPool.query.mockImplementation((text, params) => {
+    if (typeof text === 'string' && text.includes('organization_domains')) {
+      return Promise.resolve({ rows: [{ organization_id: 7 }] });
+    }
+    return Promise.resolve({ rows: [] });
+  });
 });
 
 afterAll((done) => {
