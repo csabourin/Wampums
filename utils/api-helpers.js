@@ -98,6 +98,21 @@ async function getCurrentOrganizationId(req, pool, logger) {
     return parseInt(req.headers['x-organization-id'], 10);
   }
 
+  // Prefer organization from authenticated JWT context when available.
+  // This keeps multi-tenant access aligned with authenticated claims.
+  const bearerToken = req.headers.authorization?.split(' ')[1];
+  if (bearerToken) {
+    try {
+      const decoded = verifyJWTToken(bearerToken);
+      const tokenOrganizationId = parseInt(decoded?.organizationId ?? decoded?.organization_id, 10);
+      if (!Number.isNaN(tokenOrganizationId)) {
+        return tokenOrganizationId;
+      }
+    } catch {
+      // Ignore token parsing errors here; endpoint-specific auth will handle invalid JWTs.
+    }
+  }
+
   // Try to get from hostname/domain mapping
   const hostname = req.hostname;
 
