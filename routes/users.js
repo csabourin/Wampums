@@ -12,7 +12,7 @@ const router = express.Router();
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/response');
+const { asyncHandler, success, error } = require('../middleware/response');
 
 // Import utilities
 const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
@@ -70,10 +70,7 @@ module.exports = (pool, logger) => {
       [organizationId]
     );
 
-    res.json({
-      success: true,
-      data: result.rows
-    });
+    return success(res, result.rows);
   }));
 
   /**
@@ -115,7 +112,7 @@ module.exports = (pool, logger) => {
       [organizationId]
     );
 
-    res.json({ success: true, data: result.rows });
+    return success(res, result.rows);
   }));
 
   /**
@@ -144,10 +141,7 @@ module.exports = (pool, logger) => {
       [organizationId]
     );
 
-    res.json({
-      success: true,
-      data: result.rows
-    });
+    return success(res, result.rows);
   }));
 
   /**
@@ -176,10 +170,7 @@ module.exports = (pool, logger) => {
       [organizationId]
     );
 
-    res.json({
-      success: true,
-      data: result.rows
-    });
+    return success(res, result.rows);
   }));
 
   /**
@@ -211,7 +202,7 @@ module.exports = (pool, logger) => {
       [organizationId, req.user.id]
     );
 
-    res.json({ success: true, data: result.rows });
+    return success(res, result.rows);
   }));
 
   /**
@@ -245,7 +236,7 @@ module.exports = (pool, logger) => {
     const { user_id } = req.body;
 
     if (!user_id) {
-      return res.status(400).json({ success: false, message: 'User ID is required' });
+      return error(res, 'User ID is required', 400);
     }
 
     // Verify target user exists and belongs to this organization
@@ -257,7 +248,7 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+      return error(res, 'User not found in this organization', 404);
     }
 
     // Update user verification status
@@ -267,7 +258,7 @@ module.exports = (pool, logger) => {
     );
 
     logger.info(`User ${user_id} approved by admin ${req.user.id}`);
-    res.json({ success: true, message: 'User approved successfully' });
+    return success(res, null, 'User approved successfully');
   }));
 
   /**
@@ -305,7 +296,7 @@ module.exports = (pool, logger) => {
     const { user_id, role } = req.body;
 
     if (!user_id || !role) {
-      return res.status(400).json({ success: false, message: 'User ID and role are required' });
+      return error(res, 'User ID and role are required', 400);
     }
 
     // Map old role names to new role names for backwards compatibility
@@ -324,23 +315,17 @@ module.exports = (pool, logger) => {
     const validRoles = rolesResult.rows.map(r => r.role_name);
 
     if (!validRoles.includes(mappedRole)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid role. Valid roles: ${validRoles.join(', ')}`
-      });
+      return error(res, `Invalid role. Valid roles: ${validRoles.join(', ')}`, 400);
     }
 
     // Prevent users from changing their own role
     if (user_id === req.user.id) {
-      return res.status(400).json({ success: false, message: 'Cannot change your own role' });
+      return error(res, 'Cannot change your own role', 400);
     }
 
     // Check if user is trying to assign district role
     if (mappedRole === 'district' && !req.userPermissions.includes('users.assign_district')) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have permission to assign the district administrator role'
-      });
+      return error(res, 'You do not have permission to assign the district administrator role', 403);
     }
 
     // Verify target user belongs to this organization
@@ -350,7 +335,7 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+      return error(res, 'User not found in this organization', 404);
     }
 
     // Get role ID for the new role
@@ -360,7 +345,7 @@ module.exports = (pool, logger) => {
     );
 
     if (roleIdResult.rows.length === 0) {
-      return res.status(400).json({ success: false, message: 'Role not found' });
+      return error(res, 'Role not found', 400);
     }
 
     const roleId = roleIdResult.rows[0].id;
@@ -374,7 +359,7 @@ module.exports = (pool, logger) => {
     );
 
     logger.info(`User ${user_id} role updated to ${mappedRole} (ID: ${roleId}) by user ${req.user.id}`);
-    res.json({ success: true, message: 'User role updated successfully' });
+    return success(res, null, 'User role updated successfully');
   }));
 
   /**
@@ -410,14 +395,14 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+      return error(res, 'User not found in this organization', 404);
     }
 
     const roleIds = userCheck.rows[0].role_ids || [];
 
     // Get role details
     if (roleIds.length === 0) {
-      return res.json({ success: true, data: [] });
+      return success(res, []);
     }
 
     const rolesResult = await pool.query(
@@ -428,7 +413,7 @@ module.exports = (pool, logger) => {
       [roleIds]
     );
 
-    res.json({ success: true, data: rolesResult.rows });
+    return success(res, rolesResult.rows);
   }));
 
   /**
@@ -475,12 +460,12 @@ module.exports = (pool, logger) => {
     const { roleIds } = req.body;
 
     if (!Array.isArray(roleIds) || roleIds.length === 0) {
-      return res.status(400).json({ success: false, message: 'roleIds must be a non-empty array' });
+      return error(res, 'roleIds must be a non-empty array', 400);
     }
 
     // Prevent users from changing their own roles (compare as strings since both are UUIDs)
     if (userId === String(req.user.id)) {
-      return res.status(400).json({ success: false, message: 'Cannot change your own roles' });
+      return error(res, 'Cannot change your own roles', 400);
     }
 
     // Verify all role IDs are valid
@@ -490,16 +475,13 @@ module.exports = (pool, logger) => {
     );
 
     if (rolesResult.rows.length !== roleIds.length) {
-      return res.status(400).json({ success: false, message: 'One or more invalid role IDs' });
+      return error(res, 'One or more invalid role IDs', 400);
     }
 
     // Check if user is trying to assign district role
     const hasDistrictRole = rolesResult.rows.some(r => r.role_name === 'district');
     if (hasDistrictRole && !req.userPermissions.includes('users.assign_district')) {
-      return res.status(403).json({
-        success: false,
-        message: 'You do not have permission to assign the district administrator role'
-      });
+      return error(res, 'You do not have permission to assign the district administrator role', 403);
     }
 
     // Verify target user belongs to this organization
@@ -509,7 +491,7 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+      return error(res, 'User not found in this organization', 404);
     }
 
     // Update user roles
@@ -521,7 +503,7 @@ module.exports = (pool, logger) => {
     );
 
     logger.info(`User ${userId} roles updated to [${roleIds.join(', ')}] by user ${req.user.id}`);
-    res.json({ success: true, message: 'User roles updated successfully' });
+    return success(res, null, 'User roles updated successfully');
   }));
 
   /**
@@ -571,12 +553,12 @@ module.exports = (pool, logger) => {
       // Additional check: must have users.edit permission to link other users
       const { hasAnyPermission } = require('../middleware/auth');
       if (!hasAnyPermission(req, 'users.edit')) {
-        return res.status(403).json({ success: false, message: 'Only admins can link participants to other users' });
+        return error(res, 'Only admins can link participants to other users', 403);
       }
     }
 
     if (!participant_ids || !Array.isArray(participant_ids)) {
-      return res.status(400).json({ success: false, message: 'participant_ids array is required' });
+      return error(res, 'participant_ids array is required', 400);
     }
 
     // Verify target user belongs to this organization
@@ -586,7 +568,7 @@ module.exports = (pool, logger) => {
     );
 
     if (userCheck.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'User not found in this organization' });
+      return error(res, 'User not found in this organization', 404);
     }
 
     const client = await pool.connect();
@@ -625,7 +607,7 @@ module.exports = (pool, logger) => {
 
       await client.query('COMMIT');
       logger.info(`User ${user_id} linked to ${participant_ids.length} participants`);
-      res.json({ success: true, message: 'User linked to participants successfully' });
+      return success(res, null, 'User linked to participants successfully');
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -665,10 +647,7 @@ module.exports = (pool, logger) => {
     const { user_id, participant_id } = req.body;
 
     if (!user_id || !participant_id) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID and participant ID are required'
-      });
+      return error(res, 'User ID and participant ID are required', 400);
     }
 
     await pool.query(
@@ -678,7 +657,7 @@ module.exports = (pool, logger) => {
       [user_id, participant_id]
     );
 
-    res.json({ success: true, message: 'User associated with participant successfully' });
+    return success(res, null, 'User associated with participant successfully');
   }));
 
   /**
@@ -709,13 +688,13 @@ module.exports = (pool, logger) => {
     const { operation } = req.body;
 
     if (!operation) {
-      return res.json({ hasPermission: false });
+      return success(res, { hasPermission: false }, 'Permission check result');
     }
 
     // Use the permission system to check if user has the requested permission
     const hasPermission = req.userPermissions ? req.userPermissions.includes(operation) : false;
 
-    res.json({ hasPermission });
+    return success(res, { hasPermission }, 'Permission check result');
   }));
 
   return router;
