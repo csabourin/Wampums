@@ -763,4 +763,27 @@ describe('Organization Helpers', () => {
     expect(typeof body.timestamp).toBe('string');
     expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
   });
+
+  test('respondWithOrganizationFallback returns inline HTML when fallback file is unavailable', () => {
+    const fs = require('fs');
+    const existsSpy = jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    const mockRes = {
+      req: {
+        path: '/unknown-page',
+        headers: { accept: 'text/html' }
+      },
+      status: jest.fn().mockReturnThis(),
+      type: jest.fn().mockReturnThis(),
+      send: jest.fn()
+    };
+
+    respondWithOrganizationFallback(mockRes);
+
+    expect(mockRes.status).toHaveBeenCalledWith(404);
+    expect(mockRes.type).toHaveBeenCalledWith('html');
+    expect(mockRes.send).toHaveBeenCalledWith(expect.stringContaining('organization_not_found'));
+
+    existsSpy.mockRestore();
+  });
 });
