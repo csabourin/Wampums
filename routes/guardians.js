@@ -1,8 +1,14 @@
 /**
- * Guardian Routes
+ * Guardian Routes - REFACTORED FOR SECURITY
  *
- * Handles parent/guardian management for participants
- * All endpoints in this module are prefixed with /api
+ * Handles parent/guardian management for participants.
+ * All endpoints require JWT authentication via authenticate middleware.
+ * ALL authentication/authorization goes through middleware, not manual JWT verification.
+ *
+ * ARCHITECTURE:
+ * - authenticate middleware: Verifies JWT token, extracts user context
+ * - requirePermission middleware: Checks database role/permission mappings
+ * - getOrganizationId: Extracts org from token (enforced by authenticate)
  *
  * @module routes/guardians
  */
@@ -10,18 +16,18 @@
 const express = require('express');
 const router = express.Router();
 
-// Import utilities
-const { getCurrentOrganizationId, verifyJWT, handleOrganizationResolutionError, verifyOrganizationMembership } = require('../utils/api-helpers');
+// Import middleware and utilities
+const { authenticate, getOrganizationId, requirePermission } = require('../middleware/auth');
+const { success, error, asyncHandler } = require('../middleware/response');
 
 /**
  * Export route factory function
- * Allows dependency injection of pool and logger
+ * Allows dependency injection of pool
  *
  * @param {Object} pool - Database connection pool
- * @param {Object} logger - Winston logger instance
  * @returns {Router} Express router with guardian routes
  */
-module.exports = (pool, logger) => {
+module.exports = (pool) => {
   /**
    * @swagger
    * /api/guardians:
@@ -48,63 +54,41 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Participant not found
    */
-  router.get('/', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.get('/', authenticate, requirePermission('guardians.view'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { participant_id } = req.query;
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      const participantId = req.query.participant_id;
-
-      if (!participantId) {
-        return res.status(400).json({ success: false, message: 'Participant ID is required' });
-      }
-
-      // Verify participant belongs to this organization
-      const participantCheck = await pool.query(
-        `SELECT p.id FROM participants p
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE p.id = $1 AND po.organization_id = $2`,
-        [participantId, organizationId]
-      );
-
-      if (participantCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Participant not found in this organization' });
-      }
-
-      const result = await pool.query(
-        `SELECT pg.guardian_id, pg.participant_id, pg.lien, pg.lien as relationship,
-                g.id, g.nom, g.prenom, g.courriel,
-                g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
-                g.is_primary, g.is_emergency_contact
-         FROM participant_guardians pg
-         JOIN parents_guardians g ON pg.guardian_id = g.id
-         JOIN participants p ON pg.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE pg.participant_id = $1 AND po.organization_id = $2`,
-        [participantId, organizationId]
-      );
-
-      res.json({ success: true, data: result.rows });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching guardians:', error);
-      res.status(500).json({ success: false, message: error.message });
+    if (!participant_id) {
+      return error(res, 'Participant ID is required', 400);
     }
-  });
+
+    // Verify participant belongs to this organization
+    const participantCheck = await pool.query(
+      `SELECT p.id FROM participants p
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE p.id = $1 AND po.organization_id = $2`,
+      [participant_id, organizationId]
+    );
+
+    if (participantCheck.rows.length === 0) {
+      return error(res, 'Participant not found in this organization', 404);
+    }
+
+    const result = await pool.query(
+      `SELECT pg.guardian_id, pg.participant_id, pg.lien, pg.lien as relationship,
+              g.id, g.nom, g.prenom, g.courriel,
+              g.telephone_residence, g.telephone_travail, g.telephone_cellulaire,
+              g.is_primary, g.is_emergency_contact
+       FROM participant_guardians pg
+       JOIN parents_guardians g ON pg.guardian_id = g.id
+       JOIN participants p ON pg.participant_id = p.id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE pg.participant_id = $1 AND po.organization_id = $2`,
+      [participant_id, organizationId]
+    );
+
+    return success(res, result.rows);
+  }));
 
   /**
    * @swagger
@@ -161,126 +145,100 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Participant not found
    */
-  router.post('/', async (req, res) => {
+  router.post('/', authenticate, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { participant_id, guardian_id, nom, prenom, lien, courriel,
+      telephone_residence, telephone_travail, telephone_cellulaire,
+      is_primary, is_emergency_contact } = req.body;
+
+    if (!participant_id || !nom || !prenom) {
+      return error(res, 'Participant ID, nom, and prenom are required', 400);
+    }
+
+    const client = await pool.connect();
     try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+      await client.query('BEGIN');
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      // Verify participant belongs to this organization
+      const participantCheck = await client.query(
+        `SELECT p.id FROM participants p
+         JOIN participant_organizations po ON p.id = po.participant_id
+         WHERE p.id = $1 AND po.organization_id = $2`,
+        [participant_id, organizationId]
+      );
+
+      if (participantCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Participant not found in this organization', 404);
       }
 
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      let guardianIdToLink;
 
-      // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      const { participant_id, guardian_id, nom, prenom, lien, courriel,
-        telephone_residence, telephone_travail, telephone_cellulaire,
-        is_primary, is_emergency_contact } = req.body;
-
-      if (!participant_id || !nom || !prenom) {
-        return res.status(400).json({ success: false, message: 'Participant ID, nom, and prenom are required' });
-      }
-
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-
-        // Verify participant belongs to this organization
-        const participantCheck = await client.query(
-          `SELECT p.id FROM participants p
+      if (guardian_id) {
+        // Verify the guardian is linked to a participant in this organization
+        const guardianCheck = await client.query(
+          `SELECT pg.guardian_id FROM participant_guardians pg
+           JOIN participants p ON pg.participant_id = p.id
            JOIN participant_organizations po ON p.id = po.participant_id
-           WHERE p.id = $1 AND po.organization_id = $2`,
-          [participant_id, organizationId]
+           WHERE pg.guardian_id = $1 AND po.organization_id = $2`,
+          [guardian_id, organizationId]
         );
 
-        if (participantCheck.rows.length === 0) {
+        if (guardianCheck.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ success: false, message: 'Participant not found in this organization' });
+          return error(res, 'Guardian not found in this organization', 403);
         }
 
-        let guardianIdToLink;
+        // Update existing guardian
+        await client.query(
+          `UPDATE parents_guardians
+           SET nom = $1, prenom = $2, courriel = $3,
+               telephone_residence = $4, telephone_travail = $5, telephone_cellulaire = $6,
+               is_primary = $7, is_emergency_contact = $8
+           WHERE id = $9`,
+          [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
+            is_primary || false, is_emergency_contact || false, guardian_id]
+        );
+        guardianIdToLink = guardian_id;
 
-        if (guardian_id) {
-          // Verify the guardian is linked to a participant in this organization
-          const guardianCheck = await client.query(
-            `SELECT pg.guardian_id FROM participant_guardians pg
-             JOIN participants p ON pg.participant_id = p.id
-             JOIN participant_organizations po ON p.id = po.participant_id
-             WHERE pg.guardian_id = $1 AND po.organization_id = $2`,
-            [guardian_id, organizationId]
-          );
-
-          if (guardianCheck.rows.length === 0) {
-            await client.query('ROLLBACK');
-            return res.status(403).json({ success: false, message: 'Guardian not found in this organization' });
-          }
-
-          // Update existing guardian
+        // Update the relationship if provided
+        if (lien) {
           await client.query(
-            `UPDATE parents_guardians
-             SET nom = $1, prenom = $2, courriel = $3,
-                 telephone_residence = $4, telephone_travail = $5, telephone_cellulaire = $6,
-                 is_primary = $7, is_emergency_contact = $8
-             WHERE id = $9`,
-            [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-              is_primary || false, is_emergency_contact || false, guardian_id]
-          );
-          guardianIdToLink = guardian_id;
-
-          // Update the relationship if provided
-          if (lien) {
-            await client.query(
-              `UPDATE participant_guardians SET lien = $1 WHERE guardian_id = $2 AND participant_id = $3`,
-              [lien, guardian_id, participant_id]
-            );
-          }
-        } else {
-          // Insert new guardian
-          const result = await client.query(
-            `INSERT INTO parents_guardians
-             (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-              is_primary, is_emergency_contact)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             RETURNING id`,
-            [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
-              is_primary || false, is_emergency_contact || false]
-          );
-          guardianIdToLink = result.rows[0].id;
-
-          // Link guardian to participant
-          await client.query(
-            `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (guardian_id, participant_id) DO UPDATE SET lien = $3`,
-            [guardianIdToLink, participant_id, lien || null]
+            `UPDATE participant_guardians SET lien = $1 WHERE guardian_id = $2 AND participant_id = $3`,
+            [lien, guardian_id, participant_id]
           );
         }
+      } else {
+        // Insert new guardian
+        const result = await client.query(
+          `INSERT INTO parents_guardians
+           (nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
+            is_primary, is_emergency_contact)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id`,
+          [nom, prenom, courriel, telephone_residence, telephone_travail, telephone_cellulaire,
+            is_primary || false, is_emergency_contact || false]
+        );
+        guardianIdToLink = result.rows[0].id;
 
-        await client.query('COMMIT');
-        logger.info(`[guardian] Guardian ${guardianIdToLink} saved for participant ${participant_id}`);
-        res.json({ success: true, data: { guardian_id: guardianIdToLink }, message: 'Guardian saved successfully' });
-      } catch (error) {
-        if (handleOrganizationResolutionError(res, error, logger)) {
-          return;
-        }
-        await client.query('ROLLBACK');
-        throw error;
-      } finally {
-        client.release();
+        // Link guardian to participant
+        await client.query(
+          `INSERT INTO participant_guardians (guardian_id, participant_id, lien)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (guardian_id, participant_id) DO UPDATE SET lien = $3`,
+          [guardianIdToLink, participant_id, lien || null]
+        );
       }
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error saving guardian:', error);
-      res.status(500).json({ success: false, message: error.message });
+
+      await client.query('COMMIT');
+      return success(res, { guardian_id: guardianIdToLink }, 'Guardian saved successfully');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-  });
+  }));
 
   /**
    * @swagger
@@ -312,57 +270,34 @@ module.exports = (pool, logger) => {
    *       404:
    *         description: Guardian link not found
    */
-  router.delete('/', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
+  router.delete('/', authenticate, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { participant_id, guardian_id } = req.query;
 
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user belongs to this organization
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      const { participant_id, guardian_id } = req.query;
-
-      if (!participant_id || !guardian_id) {
-        return res.status(400).json({ success: false, message: 'Participant ID and Guardian ID are required' });
-      }
-
-      // Verify the guardian-participant link belongs to this organization
-      const linkCheck = await pool.query(
-        `SELECT pg.guardian_id FROM participant_guardians pg
-         JOIN participants p ON pg.participant_id = p.id
-         JOIN participant_organizations po ON p.id = po.participant_id
-         WHERE pg.guardian_id = $1 AND pg.participant_id = $2 AND po.organization_id = $3`,
-        [guardian_id, participant_id, organizationId]
-      );
-
-      if (linkCheck.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Guardian link not found in this organization' });
-      }
-
-      await pool.query(
-        `DELETE FROM participant_guardians WHERE guardian_id = $1 AND participant_id = $2`,
-        [guardian_id, participant_id]
-      );
-
-      logger.info(`[guardian] Guardian ${guardian_id} removed from participant ${participant_id}`);
-      res.json({ success: true, message: 'Guardian removed successfully' });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error removing guardian:', error);
-      res.status(500).json({ success: false, message: error.message });
+    if (!participant_id || !guardian_id) {
+      return error(res, 'Participant ID and Guardian ID are required', 400);
     }
-  });
+
+    // Verify the guardian-participant link belongs to this organization
+    const linkCheck = await pool.query(
+      `SELECT pg.guardian_id FROM participant_guardians pg
+       JOIN participants p ON pg.participant_id = p.id
+       JOIN participant_organizations po ON p.id = po.participant_id
+       WHERE pg.guardian_id = $1 AND pg.participant_id = $2 AND po.organization_id = $3`,
+      [guardian_id, participant_id, organizationId]
+    );
+
+    if (linkCheck.rows.length === 0) {
+      return error(res, 'Guardian link not found in this organization', 404);
+    }
+
+    await pool.query(
+      `DELETE FROM participant_guardians WHERE guardian_id = $1 AND participant_id = $2`,
+      [guardian_id, participant_id]
+    );
+
+    return success(res, null, 'Guardian removed successfully');
+  }));
 
   return router;
 };
