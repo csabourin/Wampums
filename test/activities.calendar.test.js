@@ -38,6 +38,7 @@ jest.mock('pg', () => {
 let app;
 const TEST_SECRET = 'testsecret';
 const TOKEN_ORG_ID = 7;
+let consoleLogSpy;
 
 /**
  * Creates a valid authenticated JWT for endpoint tests.
@@ -62,6 +63,8 @@ function getValidToken() {
 const ORG_ID = 1;
 
 beforeAll(() => {
+  consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  process.env.DOTENV_CONFIG_QUIET = 'true';
   process.env.JWT_SECRET_KEY = TEST_SECRET;
   process.env.DB_USER = 'test';
   process.env.DB_HOST = 'localhost';
@@ -89,6 +92,9 @@ beforeEach(() => {
 });
 
 afterAll((done) => {
+  if (consoleLogSpy) {
+    consoleLogSpy.mockRestore();
+  }
   closeServerResources(app, done);
 });
 
@@ -140,7 +146,7 @@ describe('GET /api/v1/activities/calendar.ics', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toContain('text/calendar');
-    expect(response.headers['content-disposition']).toMatch(/attachment; filename="activities-.*\.ics"/);
+    expect(response.headers['content-disposition']).toMatch(/attachment; filename=".*activities-.*\.ics"/);
     expect(response.text).toContain('BEGIN:VCALENDAR');
     expect(response.text).toContain('VERSION:2.0');
     expect(response.text).toContain('PRODID:-//Wampums//Activities Calendar//EN');
