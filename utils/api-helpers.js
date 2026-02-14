@@ -37,7 +37,16 @@ class OrganizationNotFoundError extends Error {
  */
 function respondWithOrganizationFallback(res) {
   const fallbackPath = path.join(__dirname, '..', 'organization-not-found.html');
+  const isApiRequest = res.req?.path?.startsWith('/api');
   const acceptsHtml = (res.req?.headers?.accept || '').includes('text/html');
+
+  if (isApiRequest) {
+    return res.status(400).json({
+      success: false,
+      message: 'organization_not_found',
+      fallback: '/organization-not-found.html'
+    });
+  }
 
   if (acceptsHtml) {
     return res.status(404).sendFile(fallbackPath);
