@@ -85,6 +85,7 @@ module.exports = (app, pool) => {
     const activitiesRoutes = require("./activities")(pool);
     const offlineRoutes = require("./offline")(pool, logger);
     const carpoolsRoutes = require("./carpools")(pool);
+    const programProgressRoutes = require("./programProgress")(pool, logger);
 
     // ============================================
     // MOUNT MODULAR ROUTES
@@ -160,6 +161,7 @@ module.exports = (app, pool) => {
     app.use("/api/v1/activities", activitiesRoutes);
     app.use("/api/v1/offline", offlineRoutes);
     app.use("/api/v1/carpools", carpoolsRoutes);
+    app.use("/api/v1/program-progress", programProgressRoutes);
 
     // WhatsApp routes already include /v1/* internally.
     app.use("/api", whatsappBaileysRoutes);
