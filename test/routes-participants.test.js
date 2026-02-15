@@ -316,6 +316,10 @@ describe('POST /api/v1/participants', () => {
           rows: [{ permission_key: 'participants.create' }]
         });
       }
+      // Demo role check - must return empty to pass blockDemoRoles
+      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
       if (query.includes('role_name')) {
         return Promise.resolve({
           rows: [{ role_name: 'admin' }]
@@ -492,6 +496,10 @@ describe('POST /api/v1/participants/:id/link-parent', () => {
           rows: [{ permission_key: 'participants.manage' }]
         });
       }
+      // Demo role check - must return empty to pass blockDemoRoles
+      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
+      }
       if (query.includes('role_name')) {
         return Promise.resolve({
           rows: [{ role_name: 'admin' }]
@@ -532,6 +540,10 @@ describe('POST /api/v1/participants/:id/link-parent', () => {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.manage' }]
         });
+      }
+      // Demo role check - must return empty to pass blockDemoRoles
+      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
       }
       if (query.includes('role_name')) {
         return Promise.resolve({
@@ -616,6 +628,10 @@ describe('POST /api/v1/participants/:id/add-group', () => {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.manage' }]
         });
+      }
+      // Demo role check - must return empty to pass blockDemoRoles
+      if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
+        return Promise.resolve({ rows: [] });
       }
       if (query.includes('role_name')) {
         return Promise.resolve({
