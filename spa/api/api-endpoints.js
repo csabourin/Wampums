@@ -1,6 +1,6 @@
 // api-endpoints.js
 // All API endpoint functions organized by category
-import { API } from "./api-core.js";
+import { API, makeApiRequestWithCache } from "./api-core.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "../utils/DebugUtils.js";
 import { CONFIG } from "../config.js";
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";

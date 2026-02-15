@@ -221,6 +221,121 @@ async function legacyTableExists(client, tableName) {
  * @param {object} client - pg client
  * @param {object} catalog - parsed catalog
  */
+
+
+/**
+ * Ensure catalog runtime tables exist so catalog:load works on fresh databases.
+ * This complements SQL migrations and keeps loader idempotent.
+ * @param {object} client - pg client
+ */
+async function ensureCatalogRuntimeTables(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS program_catalog_versions (
+      id BIGSERIAL PRIMARY KEY,
+      program VARCHAR(50) NOT NULL,
+      version VARCHAR(50) NOT NULL,
+      applied_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      checksum TEXT NOT NULL,
+      source_path TEXT NOT NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_program_catalog_versions_program_version UNIQUE (program, version)
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS program_catalog_skills (
+      id BIGSERIAL PRIMARY KEY,
+      program VARCHAR(50) NOT NULL,
+      version VARCHAR(50) NOT NULL,
+      official_key VARCHAR(100) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      display_order INTEGER NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_program_catalog_skills UNIQUE (program, version, official_key),
+      CONSTRAINT fk_program_catalog_skills_version
+        FOREIGN KEY (program, version)
+        REFERENCES program_catalog_versions (program, version)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS program_catalog_stages (
+      id BIGSERIAL PRIMARY KEY,
+      program VARCHAR(50) NOT NULL,
+      version VARCHAR(50) NOT NULL,
+      stage_no INTEGER NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      description TEXT NOT NULL,
+      display_order INTEGER NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_program_catalog_stages UNIQUE (program, version, stage_no),
+      CONSTRAINT fk_program_catalog_stages_version
+        FOREIGN KEY (program, version)
+        REFERENCES program_catalog_versions (program, version)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS program_catalog_competencies (
+      id BIGSERIAL PRIMARY KEY,
+      program VARCHAR(50) NOT NULL,
+      version VARCHAR(50) NOT NULL,
+      code VARCHAR(50) NOT NULL,
+      official_key VARCHAR(100) NOT NULL,
+      stage_no INTEGER NOT NULL,
+      text_en TEXT NOT NULL,
+      text_fr TEXT NOT NULL,
+      display_order INTEGER NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_program_catalog_competencies UNIQUE (program, version, code),
+      CONSTRAINT fk_program_catalog_competencies_version
+        FOREIGN KEY (program, version)
+        REFERENCES program_catalog_versions (program, version)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_program_catalog_competencies_skill
+        FOREIGN KEY (program, version, official_key)
+        REFERENCES program_catalog_skills (program, version, official_key)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_program_catalog_competencies_stage
+        FOREIGN KEY (program, version, stage_no)
+        REFERENCES program_catalog_stages (program, version, stage_no)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS program_catalog_rules (
+      id BIGSERIAL PRIMARY KEY,
+      program VARCHAR(50) NOT NULL,
+      version VARCHAR(50) NOT NULL,
+      rules_json JSONB NOT NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+      CONSTRAINT uq_program_catalog_rules UNIQUE (program, version),
+      CONSTRAINT fk_program_catalog_rules_version
+        FOREIGN KEY (program, version)
+        REFERENCES program_catalog_versions (program, version)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await client.query('CREATE INDEX IF NOT EXISTS idx_program_catalog_versions_program ON program_catalog_versions (program)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_program_catalog_versions_applied_at ON program_catalog_versions (applied_at DESC)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_program_catalog_skills_program_version ON program_catalog_skills (program, version)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_program_catalog_stages_program_version ON program_catalog_stages (program, version)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_program_catalog_competencies_program_version ON program_catalog_competencies (program, version)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_program_catalog_rules_program_version ON program_catalog_rules (program, version)');
+}
+
 async function syncLegacyOasTables(client, catalog) {
   const hasSkills = await legacyTableExists(client, 'oas_skills');
   const hasStages = await legacyTableExists(client, 'oas_stages');
@@ -340,6 +455,7 @@ async function loadCatalog() {
 
   try {
     await client.query('BEGIN');
+    await ensureCatalogRuntimeTables(client);
 
     await client.query(
       `INSERT INTO program_catalog_versions (program, version, applied_at, checksum, source_path)
