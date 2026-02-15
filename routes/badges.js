@@ -38,7 +38,8 @@ const getLevelCount = (levels, levelCount) => {
 async function fetchTemplate(client, templateId, organizationId) {
   if (!templateId) return null;
   const templateResult = await client.query(
-    `SELECT id, name, template_key, translation_key, section, level_count, levels, image
+    `SELECT id, name, template_key, translation_key, section, level_count, levels, image,
+            program_type, official_key, version, requirements
      FROM badge_templates
      WHERE id = $1 AND organization_id = $2`,
     [templateId, organizationId]
@@ -132,6 +133,10 @@ module.exports = (pool, logger) => {
                 bt.translation_key,
                 bt.section AS badge_section,
                 bt.level_count,
+                bt.program_type,
+                bt.official_key,
+                bt.version,
+                bt.requirements,
                 bt.image,
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
@@ -170,6 +175,10 @@ module.exports = (pool, logger) => {
                 p.last_name,
                 bt.name AS badge_name,
                 bt.translation_key,
+                bt.program_type,
+                bt.official_key,
+                bt.version,
+                bt.requirements,
                 bt.section AS badge_section,
                 bt.level_count,
                 bt.image,
@@ -671,7 +680,8 @@ module.exports = (pool, logger) => {
         template = await fetchTemplate(client, templateId, organizationId);
       } else if (territoireName) {
         const templateResult = await client.query(
-          `SELECT id, name, template_key, translation_key, section, level_count, levels, image
+          `SELECT id, name, template_key, translation_key, section, level_count, levels, image,
+                  program_type, official_key, version, requirements
              FROM badge_templates
              WHERE organization_id = $1 AND (name = $2 OR template_key = lower(regexp_replace($2, '[^a-z0-9]+', '_', 'g')))
              LIMIT 1`,
@@ -742,7 +752,8 @@ module.exports = (pool, logger) => {
         [organizationId]
       ),
       pool.query(
-        `SELECT id, name, template_key, translation_key, section, level_count, levels, image, created_at, updated_at
+        `SELECT id, name, template_key, translation_key, section, level_count, levels, image,
+                program_type, official_key, version, requirements, created_at, updated_at
            FROM badge_templates
            WHERE organization_id = $1
            ORDER BY section, name`,
@@ -1054,6 +1065,10 @@ module.exports = (pool, logger) => {
                 bt.translation_key,
                 bt.section AS badge_section,
                 bt.level_count,
+                bt.program_type,
+                bt.official_key,
+                bt.version,
+                bt.requirements,
                 bt.image,
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
@@ -1248,6 +1263,10 @@ module.exports = (pool, logger) => {
                 bt.translation_key,
                 bt.section AS badge_section,
                 bt.level_count,
+                bt.program_type,
+                bt.official_key,
+                bt.version,
+                bt.requirements,
                 bt.image,
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
@@ -1280,6 +1299,10 @@ module.exports = (pool, logger) => {
                 bt.translation_key,
                 bt.section AS badge_section,
                 bt.level_count,
+                bt.program_type,
+                bt.official_key,
+                bt.version,
+                bt.requirements,
                 bt.image,
                 COALESCE(bt.levels, '[]'::jsonb) AS template_levels
          FROM badge_progress bp
@@ -1293,7 +1316,8 @@ module.exports = (pool, logger) => {
 
     // Get templates for the organization
     const templatesResult = await pool.query(
-      `SELECT id, name, template_key, translation_key, section, level_count, levels, image
+      `SELECT id, name, template_key, translation_key, section, level_count, levels, image,
+              program_type, official_key, version, requirements
          FROM badge_templates
          WHERE organization_id = $1
          ORDER BY section, name`,
