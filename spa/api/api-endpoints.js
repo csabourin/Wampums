@@ -1,6 +1,6 @@
 // api-endpoints.js
 // All API endpoint functions organized by category
-import { API } from "./api-core.js";
+import { API, makeApiRequestWithCache } from "./api-core.js";
 import { debugLog, debugError, debugWarn, debugInfo } from "../utils/DebugUtils.js";
 import { CONFIG } from "../config.js";
 import { fetchPublic, getCurrentOrganizationId, getAuthHeader } from "./api-helpers.js";
@@ -2904,3 +2904,11 @@ export async function aiParseReceipt(file) {
 // Expose to window for global access
 window.aiGenerateText = aiGenerateText;
 window.aiParseReceipt = aiParseReceipt;
+
+export async function getProgramProgressStream(params = {}, cacheOptions = {}) {
+  return makeApiRequestWithCache('v1/program-progress/stream', {
+    params,
+    cacheOptions,
+  });
+}
+

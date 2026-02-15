@@ -226,6 +226,7 @@ export {
     updateBadgeStatus,
     updateBadgeProgress,
     getBadgeSystemSettings,
+    getProgramProgressStream,
 
     // Honors
     getHonors,
