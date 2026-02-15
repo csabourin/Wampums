@@ -10,6 +10,7 @@
 const express = require('express');
 const router = express.Router();
 const meetingSectionDefaults = require('../config/meeting_sections.json');
+const bcrypt = require('bcryptjs');
 
 // Import auth middleware
 const { authenticate, requirePermission, blockDemoRoles, getOrganizationId } = require('../middleware/auth');
@@ -134,6 +135,27 @@ function buildPublicOrganizationSettings(settings = {}) {
  * @returns {Router} Express router with organization routes
  */
 module.exports = (pool, logger) => {
+  router.get('/status', asyncHandler(async (req, res) => {
+    try {
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+      const result = await pool.query(
+        'SELECT id, name, domain, created_at FROM organizations WHERE id = $1',
+        [organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Organization not found' });
+      }
+
+      return res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      throw error;
+    }
+  }));
+
   /**
    * @swagger
    * /api/organization-jwt:
@@ -319,6 +341,29 @@ module.exports = (pool, logger) => {
         message: 'Error fetching organization settings'
       });
     }
+  }));
+
+  router.put('/settings', authenticate, requirePermission('organization.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { setting_key, setting_value } = req.body || {};
+
+    if (!setting_key) {
+      return res.status(400).json({ success: false, message: 'setting_key is required' });
+    }
+
+    await pool.query(
+      `UPDATE organization_settings
+       SET setting_value = $1, updated_at = NOW()
+       WHERE organization_id = $2 AND setting_key = $3`,
+      [JSON.stringify(setting_value), organizationId, setting_key]
+    );
+
+    orgSettingsCache.delete(`org_${organizationId}`);
+
+    return res.json({
+      success: true,
+      message: 'Organization setting updated'
+    });
   }));
 
   /**
@@ -627,18 +672,17 @@ module.exports = (pool, logger) => {
    *       403:
    *         description: User not a member of organization
    */
-  router.post('/switch', authenticate, blockDemoRoles, asyncHandler(async (req, res) => {
-    const { organization_id } = req.body;
+  router.post('/switch', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = Number.parseInt(req.body?.organization_id, 10);
 
-    if (!organization_id) {
+    if (!Number.isInteger(organizationId) || organizationId <= 0) {
       return res.status(400).json({ success: false, message: 'Organization ID is required' });
     }
 
     // Verify user belongs to this organization
     const membershipCheck = await pool.query(
-      `SELECT role FROM user_organizations
-         WHERE user_id = $1 AND organization_id = $2`,
-      [req.user.id, organization_id]
+      'SELECT role FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
+      [req.user.id, organizationId]
     );
 
     if (membershipCheck.rows.length === 0) {
@@ -648,21 +692,101 @@ module.exports = (pool, logger) => {
       });
     }
 
+    const rolesResult = await pool.query(
+      `SELECT r.id as role_id, r.role_name
+       FROM user_organizations uo
+       CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+       JOIN roles r ON r.id = role_id_text::integer
+       WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+      [req.user.id, organizationId]
+    );
+
+    const permissionsResult = await pool.query(
+      `SELECT DISTINCT p.permission_key
+       FROM user_organizations uo
+       CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
+       JOIN role_permissions rp ON rp.role_id = role_id_text::integer
+       JOIN permissions p ON p.id = rp.permission_id
+       WHERE uo.user_id = $1 AND uo.organization_id = $2`,
+      [req.user.id, organizationId]
+    );
+
+    const roleIds = rolesResult.rows.map((row) => row.role_id);
+    const roleNames = rolesResult.rows.map((row) => row.role_name);
+    const permissions = permissionsResult.rows.map((row) => row.permission_key);
+
     // Generate new JWT with updated organization
     const newToken = signJWTToken(
       {
         user_id: req.user.id,
-        organization_id: organization_id,
-        role: membershipCheck.rows[0].role
+        organizationId,
+        organization_id: organizationId,
+        role: membershipCheck.rows[0].role,
+        roleIds,
+        roleNames,
+        permissions
       },
       { expiresIn: '24h' }
     );
 
     res.json({
       success: true,
+      token: newToken,
       data: { token: newToken },
       message: 'Organization switched successfully'
     });
+  }));
+
+  router.post('/create', asyncHandler(async (req, res) => {
+    const { organization_name, admin_email, admin_password, admin_full_name } = req.body || {};
+
+    if (!organization_name || typeof organization_name !== 'string' || organization_name.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'organization_name is required' });
+    }
+
+    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,255}$/;
+    if (!passwordPattern.test(admin_password || '')) {
+      return res.status(400).json({ success: false, message: 'admin_password must be strong' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const orgResult = await client.query(
+        `INSERT INTO organizations (name, created_at)
+         VALUES ($1, NOW())
+         RETURNING id, name, created_at`,
+        [organization_name.trim()]
+      );
+
+      const newOrg = orgResult.rows[0];
+      if (!newOrg) {
+        throw new Error('Failed to create organization');
+      }
+
+      const userResult = await client.query(
+        `INSERT INTO users (email, password, full_name, is_verified)
+         VALUES ($1, $2, $3, true)
+         RETURNING id, email`,
+        [admin_email, await bcrypt.hash(admin_password, 10), admin_full_name]
+      );
+
+      if (!userResult.rows[0]) {
+        throw new Error('Failed to create admin user');
+      }
+
+      await client.query('COMMIT');
+      return res.status(201).json({ success: true, data: { organization_id: newOrg.id, user_id: userResult.rows[0].id } });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error.code === '23505' && error.constraint === 'users_email_key') {
+        return res.status(400).json({ success: false, message: 'account_already_exists' });
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }));
 
   return router;

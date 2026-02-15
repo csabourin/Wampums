@@ -226,6 +226,10 @@ module.exports = (pool) => {
    *         description: Participant created
   */
   router.post('/', authenticate, blockDemoRoles, requirePermission('participants.create'), asyncHandler(async (req, res) => {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 

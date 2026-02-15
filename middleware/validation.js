@@ -120,7 +120,9 @@ const validateStrongPassword = check('password')
   .matches(/[a-z]/)
   .withMessage('Password must contain at least one lowercase letter')
   .matches(/[0-9]/)
-  .withMessage('Password must contain at least one number');
+  .withMessage('Password must contain at least one number')
+  .matches(/[^A-Za-z0-9]/)
+  .withMessage('Password must contain at least one special character');
 
 /**
  * Validate password for login (basic check)

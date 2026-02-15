@@ -97,6 +97,7 @@ module.exports = (app, pool) => {
     // Organizations
     app.use("/api/v1/organizations", organizationsRoutes);
     app.use("/public", organizationsRoutes);
+    app.use("/public/organizations", organizationsRoutes);
 
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);
