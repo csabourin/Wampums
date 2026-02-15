@@ -620,7 +620,7 @@ describe('Financial Reports', () => {
       if (query.includes("role_name IN ('demoadmin', 'demoparent')")) {
         return Promise.resolve({ rows: [] });
       }
-      if (query.includes('outstanding')) {
+      if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [
             {

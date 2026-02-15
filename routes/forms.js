@@ -85,32 +85,47 @@ module.exports = (pool, logger) => {
     }
   });
 
-  router.get('/:id', authenticate, async (req, res) => {
+  /**
+   * @swagger
+   * /api/form-types:
+   *   get:
+   *     summary: Get available form types
+   *     description: Retrieve list of public form types available for the organization
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: List of form types
+   *       401:
+   *         description: Unauthorized
+   */
+  router.get('/types', async (req, res) => {
     try {
-      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
-        return error(res, 'Forbidden', 403);
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
-      const organizationId = await getOrganizationId(req, pool);
-      const formId = Number.parseInt(req.params.id, 10);
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
 
       const result = await pool.query(
-        `SELECT id, name, type, version, organization_id, schema, is_active, created_at, updated_at
-         FROM forms
-         WHERE id = $1 AND organization_id = $2`,
-        [formId, organizationId]
+        "SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = $1 AND display_type = 'public' ORDER BY form_type",
+        [organizationId]
       );
 
-      if (result.rows.length === 0) {
-        return error(res, 'Form not found', 404);
+      res.json({
+        success: true,
+        data: result.rows.map(row => row.form_type)
+      });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
       }
-
-      return success(res, {
-        ...result.rows[0],
-        schema: parseFormSchema(result.rows[0].schema)
-      }, 'Form loaded');
-    } catch (err) {
-      logger.error('Error loading form:', err);
-      return error(res, 'Unable to load form', 500);
+      logger.error('Error fetching form types:', error);
+      res.status(500).json({ success: false, message: error.message });
     }
   });
 
@@ -148,6 +163,39 @@ module.exports = (pool, logger) => {
     } catch (err) {
       logger.error('Error creating form:', err);
       return error(res, 'Unable to create form', 500);
+    }
+  });
+
+  router.get('/:id', authenticate, async (req, res) => {
+    try {
+      if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
+        return error(res, 'Forbidden', 403);
+      }
+      const organizationId = await getOrganizationId(req, pool);
+      const formId = Number.parseInt(req.params.id, 10);
+
+      if (!Number.isInteger(formId)) {
+        return error(res, 'Form not found', 404);
+      }
+
+      const result = await pool.query(
+        `SELECT id, name, type, version, organization_id, schema, is_active, created_at, updated_at
+         FROM forms
+         WHERE id = $1 AND organization_id = $2`,
+        [formId, organizationId]
+      );
+
+      if (result.rows.length === 0) {
+        return error(res, 'Form not found', 404);
+      }
+
+      return success(res, {
+        ...result.rows[0],
+        schema: parseFormSchema(result.rows[0].schema)
+      }, 'Form loaded');
+    } catch (err) {
+      logger.error('Error loading form:', err);
+      return error(res, 'Unable to load form', 500);
     }
   });
 
@@ -659,50 +707,6 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error fetching form formats:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
-
-  /**
-   * @swagger
-   * /api/form-types:
-   *   get:
-   *     summary: Get available form types
-   *     description: Retrieve list of public form types available for the organization
-   *     tags: [Forms]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: List of form types
-   *       401:
-   *         description: Unauthorized
-   */
-  router.get('/types', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      const result = await pool.query(
-        "SELECT DISTINCT form_type FROM organization_form_formats WHERE organization_id = $1 AND display_type = 'public' ORDER BY form_type",
-        [organizationId]
-      );
-
-      res.json({
-        success: true,
-        data: result.rows.map(row => row.form_type)
-      });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching form types:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
