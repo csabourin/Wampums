@@ -90,12 +90,12 @@ afterAll((done) => {
 
 describe('Fee Definitions', () => {
   test('GET /api/v1/finance/fee-definitions lists all fee definitions', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM fee_definitions')) {
         return Promise.resolve({
           rows: [
@@ -120,7 +120,8 @@ describe('Fee Definitions', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -172,7 +173,7 @@ describe('Fee Definitions', () => {
     });
 
     __mPool.connect.mockResolvedValue(__mClient);
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'finance.manage' }]
@@ -183,7 +184,8 @@ describe('Fee Definitions', () => {
           rows: [{ role_name: 'finance' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -204,18 +206,19 @@ describe('Fee Definitions', () => {
   });
 
   test('rejects fee definition with invalid registration_fee', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'finance.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -233,18 +236,19 @@ describe('Fee Definitions', () => {
   });
 
   test('rejects negative fee amounts', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'finance.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -262,18 +266,19 @@ describe('Fee Definitions', () => {
   });
 
   test('validates year_start and year_end dates', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'finance.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -291,12 +296,12 @@ describe('Fee Definitions', () => {
   });
 
   test('PUT /api/v1/finance/fee-definitions/:id updates fee definition', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT id FROM fee_definitions WHERE id')) {
         return Promise.resolve({
           rows: [{ id: 1 }]
@@ -324,7 +329,8 @@ describe('Fee Definitions', () => {
           rows: [{ role_name: 'finance' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -342,12 +348,12 @@ describe('Fee Definitions', () => {
   });
 
   test('DELETE /api/v1/finance/fee-definitions/:id deletes fee definition', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT id FROM fee_definitions WHERE id')) {
         return Promise.resolve({
           rows: [{ id: 1 }]
@@ -366,7 +372,8 @@ describe('Fee Definitions', () => {
           rows: [{ role_name: 'finance' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -378,12 +385,12 @@ describe('Fee Definitions', () => {
   });
 
   test('requires finance.manage permission to create/update/delete fee definitions', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.view'] // Can view, not manage
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'finance.view' }]
@@ -394,7 +401,8 @@ describe('Fee Definitions', () => {
           rows: [{ role_name: 'parent' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -418,12 +426,12 @@ describe('Fee Definitions', () => {
 
 describe('Participant Fees and Payments', () => {
   test('GET /api/v1/finance/participant-fees lists fees with balance calculations', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [
@@ -445,7 +453,8 @@ describe('Participant Fees and Payments', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -459,7 +468,7 @@ describe('Participant Fees and Payments', () => {
   });
 
   test('POST /api/v1/finance/payments records payment for participant fee', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage'],
       user_id: 1
@@ -467,7 +476,7 @@ describe('Participant Fees and Payments', () => {
 
     let paymentInserted = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT id FROM participant_fees WHERE id')) {
         return Promise.resolve({
           rows: [{ id: 100 }]
@@ -495,7 +504,8 @@ describe('Participant Fees and Payments', () => {
           rows: [{ role_name: 'finance' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -514,18 +524,19 @@ describe('Participant Fees and Payments', () => {
   });
 
   test('validateMoney rejects invalid amounts', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'finance.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const invalidAmounts = ['invalid', -100, null, undefined];
@@ -551,12 +562,12 @@ describe('Participant Fees and Payments', () => {
 
 describe('Financial Reports', () => {
   test('GET /api/v1/finance/summary returns organization financial overview', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('financial_summary') || query.includes('SUM')) {
         return Promise.resolve({
           rows: [{
@@ -569,7 +580,8 @@ describe('Financial Reports', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -582,12 +594,12 @@ describe('Financial Reports', () => {
   });
 
   test('GET /api/v1/finance/outstanding returns unpaid fees by participant', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('outstanding')) {
         return Promise.resolve({
           rows: [
@@ -610,7 +622,8 @@ describe('Financial Reports', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -629,13 +642,13 @@ describe('Financial Reports', () => {
 
 describe('Demo user protection on financial operations', () => {
   test('blocks demo users from creating/modifying fees', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['demoadmin'],
       permissions: ['finance.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('demoadmin') || query.includes('demoparent')) {
         return Promise.resolve({
           rows: [{ role_name: 'demoadmin' }]
@@ -646,7 +659,8 @@ describe('Demo user protection on financial operations', () => {
           rows: [{ permission_key: 'finance.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)

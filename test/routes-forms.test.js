@@ -97,12 +97,12 @@ afterAll((done) => {
 
 describe('GET /api/v1/forms', () => {
   test('returns list of forms for organization', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms') && query.includes('WHERE')) {
         return Promise.resolve({
           rows: [
@@ -129,7 +129,8 @@ describe('GET /api/v1/forms', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -143,14 +144,14 @@ describe('GET /api/v1/forms', () => {
   });
 
   test('filters by form type if provided', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
     let queryString = '';
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms')) {
         queryString = query;
         if (query.includes('type') || params.includes('health')) {
@@ -163,7 +164,8 @@ describe('GET /api/v1/forms', () => {
           });
         }
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -175,16 +177,17 @@ describe('GET /api/v1/forms', () => {
   });
 
   test('requires forms.view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      if (query.includes('FROM role_permissions')) {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -202,12 +205,12 @@ describe('GET /api/v1/forms', () => {
   });
 
   test('only returns active forms by default', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms')) {
         // Check that query filters for is_active = TRUE
         return Promise.resolve({
@@ -217,7 +220,8 @@ describe('GET /api/v1/forms', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -229,7 +233,7 @@ describe('GET /api/v1/forms', () => {
   });
 
   test('enforces organization isolation', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       organizationId: ORG_ID,
       permissions: ['forms.view']
@@ -237,12 +241,13 @@ describe('GET /api/v1/forms', () => {
 
     let queriedOrgId = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms')) {
         queriedOrgId = params[params.length - 1];
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     await request(app)
@@ -259,12 +264,12 @@ describe('GET /api/v1/forms', () => {
 
 describe('GET /api/v1/forms/:id', () => {
   test('returns form definition and schema', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('WHERE id') && query.includes('forms')) {
         return Promise.resolve({
           rows: [{
@@ -284,7 +289,8 @@ describe('GET /api/v1/forms/:id', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -298,16 +304,17 @@ describe('GET /api/v1/forms/:id', () => {
   });
 
   test('returns 404 when form not found', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('WHERE id')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -318,16 +325,17 @@ describe('GET /api/v1/forms/:id', () => {
   });
 
   test('requires forms.view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: []
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      if (query.includes('FROM role_permissions')) {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -344,12 +352,12 @@ describe('GET /api/v1/forms/:id', () => {
 
 describe('POST /api/v1/forms', () => {
   test('creates new form with schema', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO forms')) {
         return Promise.resolve({
           rows: [{
@@ -361,7 +369,8 @@ describe('POST /api/v1/forms', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -383,16 +392,17 @@ describe('POST /api/v1/forms', () => {
   });
 
   test('requires forms.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      if (query.includes('FROM role_permissions')) {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -408,13 +418,14 @@ describe('POST /api/v1/forms', () => {
   });
 
   test('requires name and type', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      return Promise.resolve({ rows: [] });
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -429,13 +440,14 @@ describe('POST /api/v1/forms', () => {
   });
 
   test('validates schema is valid JSON', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      return Promise.resolve({ rows: [] });
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -457,7 +469,7 @@ describe('POST /api/v1/forms', () => {
 
 describe('POST /api/v1/forms/:id/submit', () => {
   test('parent submits form for their child', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const parentToken = generateToken({
       user_id: PARENT_USER_ID,
       roleNames: ['parent'],
@@ -466,7 +478,7 @@ describe('POST /api/v1/forms/:id/submit', () => {
 
     let insertCalled = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO form_submissions')) {
         insertCalled = true;
         return Promise.resolve({
@@ -485,7 +497,8 @@ describe('POST /api/v1/forms/:id/submit', () => {
           rows: [{ participant_id: PARTICIPANT_ID }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -506,13 +519,13 @@ describe('POST /api/v1/forms/:id/submit', () => {
   });
 
   test('staff can submit form on behalf of parent', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const staffToken = generateToken({
       roleNames: ['animation'],
       permissions: ['forms.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO form_submissions')) {
         return Promise.resolve({
           rows: [{
@@ -523,7 +536,8 @@ describe('POST /api/v1/forms/:id/submit', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -539,18 +553,19 @@ describe('POST /api/v1/forms/:id/submit', () => {
   });
 
   test('parent cannot submit for other parent\'s children', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const parentToken = generateToken({
       user_id: PARENT_USER_ID,
       roleNames: ['parent'],
       permissions: ['forms.submit']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM user_participants')) {
         return Promise.resolve({ rows: [] }); // Not linked to this child
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -565,12 +580,12 @@ describe('POST /api/v1/forms/:id/submit', () => {
   });
 
   test('validates required fields in submission data', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const staffToken = generateToken({
       permissions: ['forms.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -584,7 +599,8 @@ describe('POST /api/v1/forms/:id/submit', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -603,16 +619,17 @@ describe('POST /api/v1/forms/:id/submit', () => {
   });
 
   test('requires forms.submit permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permission
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      if (query.includes('FROM role_permissions')) {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -627,16 +644,17 @@ describe('POST /api/v1/forms/:id/submit', () => {
   });
 
   test('returns 404 when form not found', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -657,12 +675,12 @@ describe('POST /api/v1/forms/:id/submit', () => {
 
 describe('GET /api/v1/forms/:id/submissions', () => {
   test('lists all submissions for a form', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM form_submissions')) {
         return Promise.resolve({
           rows: [
@@ -676,7 +694,8 @@ describe('GET /api/v1/forms/:id/submissions', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -689,14 +708,14 @@ describe('GET /api/v1/forms/:id/submissions', () => {
   });
 
   test('filters submissions by status if provided', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
     let queriedStatus = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM form_submissions')) {
         if (query.includes('status')) {
           queriedStatus = params[params.length - 1];
@@ -708,7 +727,8 @@ describe('GET /api/v1/forms/:id/submissions', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -720,16 +740,17 @@ describe('GET /api/v1/forms/:id/submissions', () => {
   });
 
   test('requires forms.view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: []
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      if (query.includes('FROM role_permissions')) {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -746,14 +767,14 @@ describe('GET /api/v1/forms/:id/submissions', () => {
 
 describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
   test('staff approves form submission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.manage']
     });
 
     let updateCalled = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE form_submissions SET status')) {
         updateCalled = true;
         return Promise.resolve({
@@ -764,7 +785,8 @@ describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -780,16 +802,17 @@ describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
   });
 
   test('requires forms.manage permission to approve', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view'] // Only view
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      if (query.includes('FROM role_permissions')) {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('permission_key') && query.includes('user_organizations')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -801,16 +824,17 @@ describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
   });
 
   test('returns 404 when submission not found', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE form_submissions')) {
         return Promise.resolve({ rows: [] }); // Not found
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -828,12 +852,12 @@ describe('PUT /api/v1/forms/:id/submissions/:submissionId/approve', () => {
 
 describe('Form Permission Enforcement', () => {
   test('forms.view permission allows read-only access', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view'] // View only
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms') && !query.includes('INSERT')) {
         return Promise.resolve({
           rows: [{ id: FORM_ID, name: 'Form' }]
@@ -842,7 +866,8 @@ describe('Form Permission Enforcement', () => {
       if (query.includes('INSERT INTO forms')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     // GET should work
@@ -871,12 +896,12 @@ describe('Form Permission Enforcement', () => {
 
 describe('Form Versioning', () => {
   test('multiple versions of same form can coexist', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms')) {
         return Promise.resolve({
           rows: [
@@ -895,7 +920,8 @@ describe('Form Versioning', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -908,12 +934,12 @@ describe('Form Versioning', () => {
   });
 
   test('only latest version is marked as active', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['forms.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms')) {
         return Promise.resolve({
           rows: [
@@ -923,7 +949,8 @@ describe('Form Versioning', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -942,7 +969,7 @@ describe('Form Versioning', () => {
 
 describe('Form Organization Isolation', () => {
   test('forms from different organizations are isolated', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
 
     const org1Token = generateToken({
       organizationId: 1,
@@ -956,12 +983,13 @@ describe('Form Organization Isolation', () => {
 
     let lastQueriedOrgId = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM forms')) {
         lastQueriedOrgId = params[params.length - 1];
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     await request(app)

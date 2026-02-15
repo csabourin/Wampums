@@ -98,12 +98,12 @@ afterAll((done) => {
 
 describe('GET /api/v1/organizations/status', () => {
   test('returns current organization info with encoded organization_id', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       organizationId: ORG_ID
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM organizations WHERE id')) {
         return Promise.resolve({
           rows: [{
@@ -114,7 +114,8 @@ describe('GET /api/v1/organizations/status', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -133,14 +134,14 @@ describe('GET /api/v1/organizations/status', () => {
 
 describe('POST /api/v1/organizations/switch', () => {
   test('switches to alternate organization and returns new JWT', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const userWithMultipleOrgs = 1;
     const token = generateToken({
       user_id: userWithMultipleOrgs,
       organizationId: ORG_ID
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM user_organizations WHERE user_id')) {
         // User has access to both orgs
         return Promise.resolve({
@@ -169,7 +170,8 @@ describe('POST /api/v1/organizations/switch', () => {
           rows: [{ permission_key: 'organization.view' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -189,20 +191,21 @@ describe('POST /api/v1/organizations/switch', () => {
   });
 
   test('prevents switching to organization user is not member of', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       user_id: 1,
       organizationId: ORG_ID
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM user_organizations WHERE user_id')) {
         // User only has access to ORG_ID, not ORG_ID_2
         return Promise.resolve({
           rows: [{ organization_id: ORG_ID, role: 'admin' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -217,13 +220,14 @@ describe('POST /api/v1/organizations/switch', () => {
   });
 
   test('validates target organization_id is numeric', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       organizationId: ORG_ID
     });
 
-    __mPool.query.mockImplementation((query, params) => {
-      return Promise.resolve({ rows: [] });
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -237,7 +241,7 @@ describe('POST /api/v1/organizations/switch', () => {
   });
 
   test('re-signed token includes user roles for target organization', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const userWithMultipleOrgs = 1;
     const token = generateToken({
       user_id: userWithMultipleOrgs,
@@ -245,7 +249,7 @@ describe('POST /api/v1/organizations/switch', () => {
       roleNames: ['district']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM user_organizations WHERE user_id')) {
         return Promise.resolve({
           rows: [
@@ -275,7 +279,8 @@ describe('POST /api/v1/organizations/switch', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -294,18 +299,19 @@ describe('POST /api/v1/organizations/switch', () => {
   });
 
   test('requires organization.switch permission or membership check', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permissions
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM user_organizations WHERE user_id')) {
         return Promise.resolve({
           rows: [] // User not a member of any org
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -325,14 +331,14 @@ describe('POST /api/v1/organizations/switch', () => {
 
 describe('GET /api/v1/organizations/settings', () => {
   test('returns organization settings with caching', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       organizationId: ORG_ID
     });
 
     let queryCount = 0;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM organization_settings')) {
         queryCount++;
         return Promise.resolve({
@@ -353,7 +359,8 @@ describe('GET /api/v1/organizations/settings', () => {
           rows: []
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     // First request
@@ -377,7 +384,7 @@ describe('GET /api/v1/organizations/settings', () => {
   });
 
   test('PUT /api/v1/organizations/settings updates and clears cache', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       organizationId: ORG_ID,
       permissions: ['organization.manage']
@@ -385,7 +392,7 @@ describe('GET /api/v1/organizations/settings', () => {
 
     let updateCalled = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('UPDATE organization_settings')) {
         updateCalled = true;
         return Promise.resolve({ rows: [{}] });
@@ -400,7 +407,8 @@ describe('GET /api/v1/organizations/settings', () => {
           rows: [{ role_name: 'admin' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -422,18 +430,19 @@ describe('GET /api/v1/organizations/settings', () => {
 
 describe('Organization domain mapping', () => {
   test('resolves organization from custom domain', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
 
     let domainQuery = '';
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM organization_domains')) {
         domainQuery = query;
         return Promise.resolve({
           rows: [{ organization_id: ORG_ID }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -445,9 +454,9 @@ describe('Organization domain mapping', () => {
   });
 
   test('falls back to default organization when domain not found', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM organization_domains')) {
         return Promise.resolve({ rows: [] }); // No domain mapping
       }
@@ -457,7 +466,8 @@ describe('Organization domain mapping', () => {
           rows: [{ id: ORG_ID, name: 'Default Organization' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -529,10 +539,11 @@ describe('POST /public/organizations/create', () => {
   });
 
   test('requires valid organization_name', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
 
-    __mPool.query.mockImplementation((query, params) => {
-      return Promise.resolve({ rows: [] });
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -567,13 +578,13 @@ describe('POST /public/organizations/create', () => {
 
 describe('Multi-tenant isolation in organization operations', () => {
   test('prevents user from accessing other organization settings', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       user_id: 1,
       organizationId: ORG_ID
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM organization_settings')) {
         // Should filter by organization_id
         expect(params).toContain(ORG_ID);
@@ -581,7 +592,8 @@ describe('Multi-tenant isolation in organization operations', () => {
           rows: []
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -593,7 +605,7 @@ describe('Multi-tenant isolation in organization operations', () => {
   });
 
   test('org IDs in path cannot be overridden by headers', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const userOrg = ORG_ID;
     const evilOrg = 999;
     const token = generateToken({
@@ -602,12 +614,13 @@ describe('Multi-tenant isolation in organization operations', () => {
 
     let queriedOrgId = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM organizations WHERE id')) {
         queriedOrgId = params[0];
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     await request(app)
@@ -626,13 +639,13 @@ describe('Multi-tenant isolation in organization operations', () => {
 
 describe('JWT token integrity after organization switch', () => {
   test('new token is properly signed with secret key', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       user_id: 1,
       organizationId: ORG_ID
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM user_organizations WHERE user_id')) {
         return Promise.resolve({
           rows: [
@@ -656,7 +669,8 @@ describe('JWT token integrity after organization switch', () => {
           rows: [{ permission_key: 'organization.view' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -676,7 +690,7 @@ describe('JWT token integrity after organization switch', () => {
   });
 
   test('token with wrong secret cannot be decoded', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const wrongSecret = 'wrong-secret';
 
     // This tests that old tokens don't work with new secrets

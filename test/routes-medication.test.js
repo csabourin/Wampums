@@ -129,7 +129,7 @@ describe('POST /api/v1/medication/requirements', () => {
     });
 
     __mPool.connect.mockResolvedValue(__mClient);
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -139,7 +139,8 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -168,12 +169,12 @@ describe('POST /api/v1/medication/requirements', () => {
   });
 
   test('requires medication name', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -183,7 +184,8 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -200,12 +202,12 @@ describe('POST /api/v1/medication/requirements', () => {
   });
 
   test('requires exactly one participant', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -215,7 +217,8 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -232,12 +235,12 @@ describe('POST /api/v1/medication/requirements', () => {
   });
 
   test('validates dose amount is numeric', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -247,7 +250,8 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -297,7 +301,7 @@ describe('POST /api/v1/medication/requirements', () => {
     });
 
     __mPool.connect.mockResolvedValue(__mClient);
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -307,7 +311,8 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     await request(app)
@@ -324,12 +329,12 @@ describe('POST /api/v1/medication/requirements', () => {
   });
 
   test('requires medication.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.view'] // Can view, not manage
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'medication.view' }]
@@ -343,7 +348,8 @@ describe('POST /api/v1/medication/requirements', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [5], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -365,14 +371,14 @@ describe('POST /api/v1/medication/requirements', () => {
 
 describe('POST /api/v1/medication/distributions', () => {
   test('records medication distribution with required witness', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
     let distributionInserted = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -397,7 +403,8 @@ describe('POST /api/v1/medication/distributions', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -420,12 +427,12 @@ describe('POST /api/v1/medication/distributions', () => {
   });
 
   test('requires witness ID for dose given', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -435,7 +442,8 @@ describe('POST /api/v1/medication/distributions', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [1], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -453,12 +461,12 @@ describe('POST /api/v1/medication/distributions', () => {
   });
 
   test('allows marking dose as missed with reason', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -481,7 +489,8 @@ describe('POST /api/v1/medication/distributions', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -507,14 +516,14 @@ describe('POST /api/v1/medication/distributions', () => {
 
 describe('POST /api/v1/medication/receptions', () => {
   test('logs medication reception with guardian acknowledgment', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
     let receptionInserted = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -536,7 +545,8 @@ describe('POST /api/v1/medication/receptions', () => {
           }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -553,12 +563,12 @@ describe('POST /api/v1/medication/receptions', () => {
   });
 
   test('prevents double-receiving of same dose', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -573,7 +583,8 @@ describe('POST /api/v1/medication/receptions', () => {
           rows: [{ id: 1 }] // Reception already exists
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -598,12 +609,12 @@ describe('POST /api/v1/medication/receptions', () => {
 
 describe('GET /api/v1/medication/requirements', () => {
   test('lists medication requirements for organization with view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['medication.view']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -637,7 +648,8 @@ describe('GET /api/v1/medication/requirements', () => {
           ]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -650,12 +662,12 @@ describe('GET /api/v1/medication/requirements', () => {
   });
 
   test('requires medication.view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permissions
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [] });
       }
@@ -665,7 +677,8 @@ describe('GET /api/v1/medication/requirements', () => {
       if (query.includes('FROM user_organizations')) {
         return Promise.resolve({ rows: [{ role_ids: [5], organization_id: ORG_ID }] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
