@@ -188,7 +188,8 @@ module.exports = (pool) => {
 
     // Get total count
     const countResult = await pool.query(countQuery, countParams);
-    const total = parseInt(countResult.rows[0].total);
+    const totalRow = countResult && Array.isArray(countResult.rows) ? countResult.rows[0] : null;
+    const total = Number.parseInt(totalRow?.total ?? totalRow?.count ?? 0, 10) || 0;
 
     return paginated(res, participants, page, limit, total);
   }));

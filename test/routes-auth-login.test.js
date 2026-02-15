@@ -36,7 +36,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
-const { setupDefaultMocks } = require('./mock-helpers');
+const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -599,7 +599,6 @@ describe('Password reset flow', () => {
 describe('POST /public/register', () => {
   test('creates new user account with valid registration data', async () => {
     const { __mClient, __mPool } = require('pg');
-    const { mockQueryImplementation } = require('./mock-helpers');
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users WHERE email')) {
@@ -661,7 +660,6 @@ describe('POST /public/register', () => {
 
   test('rejects registration with existing email', async () => {
     const { __mClient, __mPool } = require('pg');
-    const { mockQueryImplementation } = require('./mock-helpers');
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO users')) {

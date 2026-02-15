@@ -14,20 +14,39 @@
  */
 
 /**
- * Setup Jest helpers when globals become available
- * This is called from setupJest.js AFTER Jest globals are loaded
+ * Setup Jest helpers when globals become available.
+ * Safe to run multiple times.
+ *
+ * @returns {void}
  */
-if (typeof describe !== 'undefined' && !describe.skipIf) {
-  describe.skipIf = function(condition, name, fn) {
-    if (condition) {
-      // Skip this describe block
-      describe.skip(name, fn);
-    } else {
-      // Run normally
-      describe(name, fn);
-    }
-  };
-}
+function setupConditionalHelpers() {
+  if (typeof describe !== 'undefined' && !describe.skipIf) {
+    /**
+     * Conditionally skip describe blocks.
+     * Supports both call styles:
+     *   describe.skipIf(condition, name, fn)
+     *   describe.skipIf(condition)(name, fn)
+     */
+    describe.skipIf = function(condition, name, fn) {
+      if (typeof name === 'undefined' && typeof fn === 'undefined') {
+        return (suiteName, suiteFn) => {
+          if (condition) {
+            describe.skip(suiteName, suiteFn);
+          } else {
+            describe(suiteName, suiteFn);
+          }
+        };
+      }
+
+      if (condition) {
+        // Skip this describe block
+        describe.skip(name, fn);
+      } else {
+        // Run normally
+        describe(name, fn);
+      }
+    };
+  }
 
 /**
  * Helper to conditionally skip test cases
@@ -35,15 +54,15 @@ if (typeof describe !== 'undefined' && !describe.skipIf) {
  * @example
  * test.skipIf(!HAS_DATABASE)('uses database', () => {});
  */
-if (typeof test !== 'undefined' && !test.skipIf) {
-  test.skipIf = function(condition, name, fn) {
-    if (condition) {
-      test.skip(name, fn);
-    } else {
-      test(name, fn);
-    }
-  };
-}
+  if (typeof test !== 'undefined' && !test.skipIf) {
+    test.skipIf = function(condition, name, fn) {
+      if (condition) {
+        test.skip(name, fn);
+      } else {
+        test(name, fn);
+      }
+    };
+  }
 
 /**
  * Helper to conditionally run test cases
@@ -52,15 +71,15 @@ if (typeof test !== 'undefined' && !test.skipIf) {
  * @example
  * test.onlyIf(HAS_DATABASE)('uses database', () => {});
  */
-if (typeof test !== 'undefined' && !test.onlyIf) {
-  test.onlyIf = function(condition, name, fn) {
-    if (condition) {
-      test(name, fn);
-    } else {
-      test.skip(name, fn);
-    }
-  };
-}
+  if (typeof test !== 'undefined' && !test.onlyIf) {
+    test.onlyIf = function(condition, name, fn) {
+      if (condition) {
+        test(name, fn);
+      } else {
+        test.skip(name, fn);
+      }
+    };
+  }
 
 /**
  * Helper for beforeEach conditional setup
@@ -75,32 +94,35 @@ if (typeof test !== 'undefined' && !test.onlyIf) {
  *   // Only runs if HAS_DATABASE is true
  * });
  */
-if (typeof beforeEach !== 'undefined' && !beforeEach.skipIf) {
-  beforeEach.skipIf = function(condition) {
-    return condition ? () => {} : beforeEach;
-  };
-}
+  if (typeof beforeEach !== 'undefined' && !beforeEach.skipIf) {
+    beforeEach.skipIf = function(condition) {
+      return condition ? () => {} : beforeEach;
+    };
+  }
 
-if (typeof beforeEach !== 'undefined' && !beforeEach.onlyIf) {
-  beforeEach.onlyIf = function(condition) {
-    return condition ? beforeEach : () => {};
-  };
-}
+  if (typeof beforeEach !== 'undefined' && !beforeEach.onlyIf) {
+    beforeEach.onlyIf = function(condition) {
+      return condition ? beforeEach : () => {};
+    };
+  }
 
 /**
  * Similar helpers for afterEach
  */
-if (typeof afterEach !== 'undefined' && !afterEach.skipIf) {
-  afterEach.skipIf = function(condition) {
-    return condition ? () => {} : afterEach;
-  };
+  if (typeof afterEach !== 'undefined' && !afterEach.skipIf) {
+    afterEach.skipIf = function(condition) {
+      return condition ? () => {} : afterEach;
+    };
+  }
+
+  if (typeof afterEach !== 'undefined' && !afterEach.onlyIf) {
+    afterEach.onlyIf = function(condition) {
+      return condition ? afterEach : () => {};
+    };
+  }
 }
 
-if (typeof afterEach !== 'undefined' && !afterEach.onlyIf) {
-  afterEach.onlyIf = function(condition) {
-    return condition ? afterEach : () => {};
-  };
-}
+setupConditionalHelpers();
 
 /**
  * Environment variable check helpers

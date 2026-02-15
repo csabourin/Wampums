@@ -66,15 +66,15 @@ function setupDefaultMocks(__mClient, __mPool) {
 function mockQueryImplementation(__mClient, __mPool, customHandler) {
   const factory = getFactory();
   
-  const handler = (query, params) => {
-    // Try custom handler first
-    const customResult = customHandler(query, params);
+  const handler = async (query, params) => {
+    // Try custom handler first (supports sync + async handlers)
+    const customResult = await customHandler(query, params);
     if (customResult !== undefined && customResult !== null) {
       return customResult;
     }
-    
-    // Fall back to schema-based mock
-    return Promise.resolve(factory.mockQuery(query, params));
+
+    // Fall back to schema-based mock when custom handler yields no result
+    return factory.mockQuery(query, params);
   };
   
   __mClient.query.mockImplementation(handler);

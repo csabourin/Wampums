@@ -350,8 +350,10 @@ describe('FormManager - Form Population & Data Management', () => {
       await formManager.populateForm(meetingData, '2026-02-14');
 
       // When a duration_override is provided, the activity manager should receive it
+      // setMeetingLength accepts (lengthMinutes, durationOverride)
       expect(mockActivityManager.setMeetingLength).toHaveBeenCalledWith(
-        Number(meetingData.duration_override)
+        mockActivityManager.meetingLengthMinutes,
+        meetingData.duration_override
       );
     });
   });
