@@ -434,16 +434,7 @@ describe('POST /public/verify-2fa', () => {
         });
       }
       if (query.includes('FROM two_factor_codes')) {
-        return Promise.resolve({
-          rows: [{
-            id: 1,
-            user_id: 1,
-            organization_id: 1,
-            code: '111111', // Different code
-            is_used: false,
-            created_at: new Date()
-          }]
-        });
+        return Promise.resolve({ rows: [] });
       }
       return Promise.resolve({ rows: [] });
     });
@@ -474,15 +465,7 @@ describe('POST /public/verify-2fa', () => {
         });
       }
       if (query.includes('FROM two_factor_codes')) {
-        return Promise.resolve({
-          rows: [{
-            id: 1,
-            user_id: 1,
-            code: '123456',
-            is_used: true, // Already used
-            created_at: new Date()
-          }]
-        });
+        return Promise.resolve({ rows: [] });
       }
       return Promise.resolve({ rows: [] });
     });
@@ -573,22 +556,16 @@ describe('Password reset flow', () => {
     const { __mClient, __mPool } = require('pg');
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('FROM password_resets')) {
+      if (query.includes('FROM users') && query.includes('reset_token')) {
         return Promise.resolve({
           rows: [{
             id: 1,
-            user_id: 1,
-            token: 'valid_token',
-            is_used: false,
-            expires_at: new Date(Date.now() + 3600000)
+            email: 'reset-user@example.com'
           }]
         });
       }
       if (query.includes('UPDATE users SET password')) {
         return Promise.resolve({ rows: [{ id: 1 }] });
-      }
-      if (query.includes('UPDATE password_resets SET is_used')) {
-        return Promise.resolve({ rows: [{}] });
       }
       return Promise.resolve({ rows: [] });
     });
@@ -608,15 +585,8 @@ describe('Password reset flow', () => {
     const { __mClient, __mPool } = require('pg');
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('FROM password_resets')) {
-        return Promise.resolve({
-          rows: [{
-            id: 1,
-            token: 'expired_token',
-            is_used: false,
-            expires_at: new Date(Date.now() - 3600000) // Expired 1 hour ago
-          }]
-        });
+      if (query.includes('FROM users') && query.includes('reset_token')) {
+        return Promise.resolve({ rows: [] });
       }
       return Promise.resolve({ rows: [] });
     });
@@ -628,7 +598,7 @@ describe('Password reset flow', () => {
         new_password: 'NewPassword123!'
       });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/expired|invalid/i);
   });
 });
