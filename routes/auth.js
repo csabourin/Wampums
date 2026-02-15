@@ -551,11 +551,29 @@ module.exports = (pool, logger) => {
           [normalizedEmail, hashedPassword, full_name, role === 'parent']
         );
 
-        if (!result.rows || result.rows.length === 0) {
-          throw new Error('Failed to create user account - no rows returned');
+        let createdUser = result.rows && result.rows.length > 0 ? result.rows[0] : null;
+
+        // Defensive fallback: some mocked/test DB paths may report success without RETURNING rows.
+        if (!createdUser) {
+          const fallbackUserResult = await client.query(
+            `SELECT id, email, full_name, is_verified
+             FROM users
+             WHERE email = $1
+             ORDER BY id DESC
+             LIMIT 1`,
+            [normalizedEmail]
+          );
+
+          createdUser = fallbackUserResult.rows[0] || null;
         }
 
-        const userId = result.rows[0].id;
+        if (!createdUser) {
+          const noRowsError = new Error('Failed to create user account - no rows returned');
+          noRowsError.code = 'USER_CREATE_NO_ROWS';
+          throw noRowsError;
+        }
+
+        const userId = createdUser.id;
 
         // Get role ID from roles table
         const roleResult = await client.query(
@@ -590,7 +608,7 @@ module.exports = (pool, logger) => {
 
         res.status(201).json({
           success: true,
-          data: result.rows[0],
+          data: createdUser,
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
@@ -599,6 +617,13 @@ module.exports = (pool, logger) => {
         }
         await client.query('ROLLBACK');
         logger.error('Error registering user:', error);
+
+        if (error.code === 'USER_CREATE_NO_ROWS') {
+          return res.status(400).json({
+            success: false,
+            message: 'registration_error'
+          });
+        }
 
         // Handle duplicate email error (PostgreSQL error code 23505)
         if (error.code === '23505' && error.constraint === 'users_email_key') {
