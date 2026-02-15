@@ -2904,3 +2904,11 @@ export async function aiParseReceipt(file) {
 // Expose to window for global access
 window.aiGenerateText = aiGenerateText;
 window.aiParseReceipt = aiParseReceipt;
+
+export async function getProgramProgressStream(params = {}, cacheOptions = {}) {
+  return makeApiRequestWithCache('v1/program-progress/stream', {
+    params,
+    cacheOptions,
+  });
+}
+

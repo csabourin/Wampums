@@ -54,6 +54,7 @@ class OfflineModuleError extends Error {
 const lazyModules = {
   ParentDashboard: () => import('./parent_dashboard.js').then(m => m.ParentDashboard),
   ParentFinance: () => import('./parent_finance.js').then(m => m.ParentFinance),
+  ParentProgramProgress: () => import('./modules/program-progress/ParentProgramProgress.js').then(m => m.ParentProgramProgress),
   FormulaireInscription: () => import('./formulaire_inscription.js').then(m => m.FormulaireInscription),
   ManagePoints: () => import('./manage_points.js').then(m => m.ManagePoints),
   TimeSinceRegistration: () => import('./time_since_registration.js').then(m => m.TimeSinceRegistration),
@@ -68,6 +69,7 @@ const lazyModules = {
   ApproveBadges: () => import('./approve_badges.js').then(m => m.ApproveBadges),
   BadgeDashboard: () => import('./badge_dashboard.js').then(m => m.BadgeDashboard),
   BadgeTracker: () => import('./badge_tracker.js').then(m => m.BadgeTracker),
+  ProgramProgressDashboard: () => import('./modules/program-progress/ProgramProgressDashboard.js').then(m => m.ProgramProgressDashboard),
   FicheSante: () => import('./fiche_sante.js').then(m => m.FicheSante),
   AcceptationRisque: () => import('./acceptation_risque.js').then(m => m.AcceptationRisque),
   BadgeForm: () => import('./badge_form.js').then(m => m.BadgeForm),
@@ -136,6 +138,8 @@ const routes = {
   "/approve-badges": "approveBadges",
   "/badge-dashboard": "badgeDashboard",
   "/badge-tracker": "badgeTracker",
+  "/program-progress": "programProgressDashboard",
+  "/parent-program-progress": "parentProgramProgress",
   "/parent-contact-list": "parentContactList",
   "/mailing-list": "mailingList",
   "/fiche-sante/:id": "ficheSante",
@@ -588,6 +592,18 @@ export class Router {
           }
           await this.loadBadgeTracker();
           break;
+        case "programProgressDashboard":
+          if (!guard(canViewParticipants() || canViewBadges())) {
+            break;
+          }
+          await this.loadProgramProgressDashboard();
+          break;
+        case "parentProgramProgress":
+          if (!guard(isParent() || canViewParticipants())) {
+            break;
+          }
+          await this.loadParentProgramProgress();
+          break;
         case "ficheSante":
           await this.loadFicheSante(param);
           break;
@@ -913,6 +929,18 @@ export class Router {
     const BadgeTracker = await this.loadModule('BadgeTracker');
     const badgeTracker = new BadgeTracker(this.app);
     await badgeTracker.init();
+  }
+
+  async loadProgramProgressDashboard() {
+    const ProgramProgressDashboard = await this.loadModule('ProgramProgressDashboard');
+    const programProgressDashboard = new ProgramProgressDashboard(this.app);
+    await programProgressDashboard.init();
+  }
+
+  async loadParentProgramProgress() {
+    const ParentProgramProgress = await this.loadModule('ParentProgramProgress');
+    const parentProgramProgress = new ParentProgramProgress(this.app);
+    await parentProgramProgress.init();
   }
 
   async loadFicheSante(participantId) {

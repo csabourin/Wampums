@@ -438,6 +438,9 @@ export class ParentDashboard {
                                                 <a href="/account-info" class="dashboard-button dashboard-button--secondary">
                                                         ${translate("account_settings")}
                                                 </a>
+                                                <a href="/parent-program-progress" class="dashboard-button dashboard-button--secondary">
+                                                        ${translate("program_progress_parent_link")}
+                                                </a>
                                                 <button id="downloadCalendarButton" type="button" class="dashboard-button dashboard-button--secondary">
                                                         ${translate("download_activities_calendar")}
                                                 </button>
@@ -616,6 +619,13 @@ export class ParentDashboard {
                 </a>
         `;
 
+                const programProgressButton = `
+                <a href="/parent-program-progress" class="form-btn form-btn--badge">
+                        <span class="form-btn__icon">🧭</span>
+                        <span class="form-btn__label">${translate("program_progress_parent_link")}</span>
+                </a>
+        `;
+
                 const medicationButton = `
                 <a href="/medication-planning/${participant.id}" class="form-btn form-btn--badge">
                         <span class="form-btn__icon">💊</span>
@@ -624,13 +634,14 @@ export class ParentDashboard {
         `;
 
                 debugLog(
-                        `Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + medicationButton).length}`,
+                        `Total form buttons HTML length: ${formButtons.length}, with badge, progress, and medications: ${(formButtons + badgeButton + progressReportButton + programProgressButton + medicationButton).length}`,
                 );
 
                 return (
                         formButtons +
                         badgeButton +
                         progressReportButton +
+                        programProgressButton +
                         medicationButton
                 );
         }
