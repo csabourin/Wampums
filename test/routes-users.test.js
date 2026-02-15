@@ -151,32 +151,33 @@ describe('GET /api/v1/users', () => {
       permissions: ['users.view']
     });
 
+    // Rely on default mocks for permission checks, only customize the pending users query
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
-      if (query.includes('FROM users')) {
-        if (query.includes('status')) {
-          return Promise.resolve({
-            rows: [
-              {
-                id: PENDING_USER_ID,
-                email: 'pending@example.com',
-                status: 'pending'
-              }
-            ]
-          });
-        }
+      if (query.includes('FROM users') && query.includes('is_verified = false')) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: PENDING_USER_ID,
+              email: 'pending@example.com',
+              full_name: 'Pending User',
+              is_verified: false,
+              created_at: new Date().toISOString()
+            }
+          ]
+        });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to use default schema-based mocks for other queries
+      return undefined;
     });
 
     const res = await request(app)
-      .get('/api/v1/users')
-      .query({ status: 'pending' })
+      .get('/api/v1/users/pending')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThan(0);
-    expect(res.body.data[0].status).toBe('pending');
+    expect(res.body.data[0].is_verified).toBe(false);
   });
 
   test('requires users.view permission', async () => {
