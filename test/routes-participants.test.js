@@ -291,7 +291,7 @@ describe('POST /api/v1/participants', () => {
   test('creates new participant with required fields', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
-      permissions: ['participants.manage']
+      permissions: ['participants.create']
     });
 
     let participantInserted = false;
@@ -313,7 +313,7 @@ describe('POST /api/v1/participants', () => {
       }
       if (query.includes('permission_key')) {
         return Promise.resolve({
-          rows: [{ permission_key: 'participants.manage' }]
+          rows: [{ permission_key: 'participants.create' }]
         });
       }
       if (query.includes('role_name')) {
@@ -342,13 +342,13 @@ describe('POST /api/v1/participants', () => {
   test('requires first_name', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
-      permissions: ['participants.manage']
+      permissions: ['participants.create']
     });
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
-          rows: [{ permission_key: 'participants.manage' }]
+          rows: [{ permission_key: 'participants.create' }]
         });
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
@@ -370,13 +370,13 @@ describe('POST /api/v1/participants', () => {
   test('requires last_name', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
-      permissions: ['participants.manage']
+      permissions: ['participants.create']
     });
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
-          rows: [{ permission_key: 'participants.manage' }]
+          rows: [{ permission_key: 'participants.create' }]
         });
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
@@ -395,7 +395,7 @@ describe('POST /api/v1/participants', () => {
     expect(res.status).toBe(400);
   });
 
-  test('requires participants.manage permission', async () => {
+  test('requires participants.create permission', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.view'] // Can view, not manage
@@ -432,7 +432,7 @@ describe('POST /api/v1/participants', () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['demoparent'],
-      permissions: ['participants.manage']
+      permissions: ['participants.create']
     });
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
