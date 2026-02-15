@@ -1,10 +1,10 @@
-import { translate } from "./app.js";
-import { getProgramProgressStream } from "./ajax-functions.js";
-import { debugError } from "./utils/DebugUtils.js";
-import { setContent } from "./utils/DOMUtils.js";
-import { escapeHTML } from "./utils/SecurityUtils.js";
-import { formatDateShort, parseDate } from "./utils/DateUtils.js";
-import { BaseModule } from "./utils/BaseModule.js";
+import { translate } from "../../app.js";
+import { getProgramProgressStream } from "../../ajax-functions.js";
+import { debugError } from "../../utils/DebugUtils.js";
+import { setContent } from "../../utils/DOMUtils.js";
+import { escapeHTML } from "../../utils/SecurityUtils.js";
+import { formatDateShort, parseDate } from "../../utils/DateUtils.js";
+import { BaseModule } from "../../utils/BaseModule.js";
 
 const SOURCE_LABEL_KEYS = {
   badge_presentation: "program_progress_source_badge_presentation",
