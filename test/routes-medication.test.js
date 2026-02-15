@@ -97,7 +97,8 @@ describe('POST /api/v1/medication/requirements', () => {
     let transactionStarted = false;
     let requirementInserted = false;
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mPool.connect.mockResolvedValue(__mClient);
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query === 'BEGIN') {
         transactionStarted = true;
         return Promise.resolve({ rows: [] });
@@ -119,17 +120,9 @@ describe('POST /api/v1/medication/requirements', () => {
           }]
         });
       }
-      if (query.includes('INSERT INTO participant_medications')) {
+      if (query.includes('INSERT INTO participant_medications') || query === 'COMMIT') {
         return Promise.resolve({ rows: [] });
       }
-      if (query === 'COMMIT') {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-
-    __mPool.connect.mockResolvedValue(__mClient);
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }
@@ -279,7 +272,8 @@ describe('POST /api/v1/medication/requirements', () => {
 
     let capturedParams = [];
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mPool.connect.mockResolvedValue(__mClient);
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO medication_requirements')) {
         capturedParams = params;
         return Promise.resolve({
@@ -291,17 +285,9 @@ describe('POST /api/v1/medication/requirements', () => {
           }]
         });
       }
-      if (query === 'BEGIN' || query === 'COMMIT') {
+      if (query === 'BEGIN' || query === 'COMMIT' || query.includes('INSERT INTO participant_medications')) {
         return Promise.resolve({ rows: [] });
       }
-      if (query.includes('INSERT INTO participant_medications')) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.resolve({ rows: [] });
-    });
-
-    __mPool.connect.mockResolvedValue(__mClient);
-    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [{ permission_key: 'medication.manage' }, { permission_key: 'medication.view' }] });
       }

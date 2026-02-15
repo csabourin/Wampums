@@ -179,6 +179,15 @@ module.exports = (pool, logger) => {
       );
 
       const requirement = insertRequirement.rows[0];
+      if (!requirement) {
+        await client.query('ROLLBACK');
+        logger.error('Medication requirement insert did not return an ID', {
+          organizationId,
+          userId: req.user.id,
+          rowsReturned: insertRequirement.rows?.length || 0
+        });
+        return error(res, 'Failed to create medication requirement', 500);
+      }
 
       // Batch insert all participant medications in a single query
       if (participants.length > 0) {
