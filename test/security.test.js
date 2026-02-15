@@ -70,23 +70,24 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
-  setupDefaultMocks(__mClient, __mPool);
+  const { MockFactory } = require('./mock-helpers');
+  
   __mClient.query.mockClear();
   __mClient.release.mockClear();
   __mPool.connect.mockClear();
   __mPool.query.mockClear();
   
-  // Mock organization domain lookup (for getCurrentOrganizationId)
-  // This returns a default organization when hostname lookup occurs
-  __mPool.query.mockImplementation((query, params) => {
+  // Setup mock implementation that handles organization_domains AND falls back to default mocks
+  const factory = new MockFactory();
+  mockQueryImplementation(__mClient, __mPool, (query, params) => {
     // Check if this is an organization_domains query
     if (typeof query === 'string' && query.includes('organization_domains')) {
       return Promise.resolve({
         rows: [{ organization_id: ORG_ID }]
       });
     }
-    // Default: return empty rows for other queries
-    return Promise.resolve({ rows: [] });
+    // Fall back to default schema-based mocks
+    return undefined;
   });
 });
 
@@ -101,7 +102,7 @@ afterAll((done) => {
 describe('Authentication Enforcement', () => {
   const protectedEndpoints = [
     { method: 'get', path: '/api/v1/participants' },
-    { method: 'get', path: '/api/v1/users/users' },
+    { method: 'get', path: '/api/v1/users/me' },
     { method: 'get', path: '/api/v1/meetings/dates' },
     { method: 'get', path: '/api/v1/groups' },
     { method: 'get', path: '/api/v1/attendance' },
@@ -113,7 +114,6 @@ describe('Authentication Enforcement', () => {
     { method: 'get', path: '/api/v1/points' },
     { method: 'get', path: '/api/v1/resources/equipment' },
     { method: 'get', path: '/api/v1/activities' },
-    { method: 'get', path: '/api/v1/users/me' },
     { method: 'get', path: '/api/v1/local-groups' },
   ];
 
@@ -293,29 +293,19 @@ describe('Authorization & Permission Checks', () => {
 // ============================================
 
 describe('Multi-Tenant Isolation', () => {
-  const { __mPool } = require('pg');
+  const { __mPool, __mClient } = require('pg');
 
   test('organization ID from token takes precedence over header override', async () => {
     const tokenOrgId = 1;
     const headerOrgId = 999; // Attacker tries to access different org
 
-    const token = generateToken({ organizationId: tokenOrgId });
+    const token = generateToken({ 
+      organizationId: tokenOrgId,
+      permissions: ['participants.view']
+    });
 
-    // Mock permission queries
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ permission_key: 'participants.view' }]
-    });
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ role_name: 'admin', display_name: 'Admin' }]
-    });
-    // Mock data scope
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ data_scope: 'organization' }]
-    });
-    // Mock participants query
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
-    // Mock count
-    __mPool.query.mockResolvedValueOnce({ rows: [{ count: '0' }] });
+    // Default mocks from beforeEach should handle permission and data scope queries
+    // No need for custom mocking here
 
     const res = await request(app)
       .get('/api/v1/participants')
@@ -340,17 +330,13 @@ describe('Multi-Tenant Isolation', () => {
     const tokenOrgId = 1;
     const bodyOrgId = 999;
 
-    const token = generateToken({ organizationId: tokenOrgId });
+    const token = generateToken({ 
+      organizationId: tokenOrgId,
+      permissions: ['groups.view']
+    });
 
-    // Mock permission queries
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ permission_key: 'groups.view' }]
-    });
-    __mPool.query.mockResolvedValueOnce({
-      rows: [{ role_name: 'admin', display_name: 'Admin' }]
-    });
-    // Mock groups query
-    __mPool.query.mockResolvedValueOnce({ rows: [] });
+    // Default mocks from beforeEach should handle permission and data scope queries
+    // No need for custom mocking here
 
     const res = await request(app)
       .get('/api/v1/groups')
