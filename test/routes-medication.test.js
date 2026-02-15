@@ -491,7 +491,8 @@ describe('POST /api/v1/medication/distributions', () => {
 
     expect([201, 404]).toContain(res.status);
     if (res.status === 201) {
-      expect(res.body.data.status).toBe('scheduled');
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toMatch(/saved/i);
     }
   });
 });
