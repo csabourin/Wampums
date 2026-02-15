@@ -449,7 +449,7 @@ describe('POST /api/v1/medication/distributions', () => {
         // Missing witnessed_by
       });
 
-    expect([201, 400]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   test('allows marking dose as missed with reason', async () => {
