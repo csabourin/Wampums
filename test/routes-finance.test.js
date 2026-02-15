@@ -146,7 +146,9 @@ describe('Fee Definitions', () => {
     let feeInserted = false;
     let participantsAssigned = false;
 
-    __mClient.query.mockImplementation((query, params) => {
+    __mPool.connect.mockResolvedValue(__mClient);
+    
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query === 'BEGIN') {
         transactionStarted = true;
         return Promise.resolve({ rows: [] });
@@ -337,16 +339,6 @@ describe('Fee Definitions', () => {
           }]
         });
       }
-      if (query.includes('permission_key')) {
-        return Promise.resolve({
-          rows: [{ permission_key: 'finance.manage' }]
-        });
-      }
-      if (query.includes('role_name')) {
-        return Promise.resolve({
-          rows: [{ role_name: 'finance' }]
-        });
-      }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -382,16 +374,6 @@ describe('Fee Definitions', () => {
       }
       if (query.includes('DELETE FROM fee_definitions')) {
         return Promise.resolve({ rows: [] });
-      }
-      if (query.includes('permission_key')) {
-        return Promise.resolve({
-          rows: [{ permission_key: 'finance.manage' }]
-        });
-      }
-      if (query.includes('role_name')) {
-        return Promise.resolve({
-          rows: [{ role_name: 'finance' }]
-        });
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
@@ -524,16 +506,6 @@ describe('Participant Fees and Payments', () => {
           }]
         });
       }
-      if (query.includes('permission_key')) {
-        return Promise.resolve({
-          rows: [{ permission_key: 'finance.manage' }]
-        });
-      }
-      if (query.includes('role_name')) {
-        return Promise.resolve({
-          rows: [{ role_name: 'finance' }]
-        });
-      }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
     });
@@ -607,14 +579,23 @@ describe('Financial Reports', () => {
       if (query.includes('total_billed') || query.includes('FROM participant_fees pf')) {
         return Promise.resolve({
           rows: [{
-            total_fees: '10000.00',
+            total_billed: '10000.00',
             total_paid: '6500.00',
-            total_outstanding: '3500.00',
-            unpaid_count: 25,
-            partial_count: 10,
-            paid_count: 65
+            fee_count: 100
           }]
         });
+      }
+      // Mock the participant breakdown query
+      if (query.includes('pf.participant_id') && query.includes('GROUP BY pf.participant_id')) {
+        return Promise.resolve({ rows: [] });
+      }
+      // Mock the by definition query
+      if (query.includes('fd.id, fd.year_start') && query.includes('FROM fee_definitions fd')) {
+        return Promise.resolve({ rows: [] });
+      }
+      // Mock the payment methods query
+      if (query.includes('pay.method') && query.includes('FROM payments pay')) {
+        return Promise.resolve({ rows: [] });
       }
       // Return undefined to fall back to default mocks (permissions, roles, etc.)
       return undefined;
@@ -629,7 +610,7 @@ describe('Financial Reports', () => {
     expect(res.body.data.totals.total_outstanding).toBe(3500);
   });
 
-  test.skip('STALE CONTRACT: GET /api/v1/finance/outstanding returns unpaid fees by participant', async () => {
+  test('GET /api/v1/finance/participant-fees returns fees including outstanding balance', async () => {
     const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['finance.view']
@@ -643,20 +624,38 @@ describe('Financial Reports', () => {
         return Promise.resolve({
           rows: [
             {
+              id: 1,
               participant_id: 50,
+              organization_id: ORG_ID,
+              fee_definition_id: 1,
+              total_registration_fee: '50.00',
+              total_membership_fee: '100.00',
+              total_amount: '150.00',
+              status: 'unpaid',
+              notes: '',
+              created_at: new Date(),
               first_name: 'John',
               last_name: 'Doe',
-              total_amount: '150.00',
-              total_paid: '50.00',
-              outstanding: '100.00'
+              year_start: '2026-01-01',
+              year_end: '2026-12-31',
+              total_paid: '50.00'
             },
             {
+              id: 2,
               participant_id: 51,
+              organization_id: ORG_ID,
+              fee_definition_id: 1,
+              total_registration_fee: '50.00',
+              total_membership_fee: '100.00',
+              total_amount: '150.00',
+              status: 'unpaid',
+              notes: '',
+              created_at: new Date(),
               first_name: 'Jane',
               last_name: 'Smith',
-              total_amount: '150.00',
-              total_paid: '0.00',
-              outstanding: '150.00'
+              year_start: '2026-01-01',
+              year_end: '2026-12-31',
+              total_paid: '0.00'
             }
           ]
         });
@@ -666,12 +665,12 @@ describe('Financial Reports', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/finance/outstanding')
+      .get('/api/v1/finance/participant-fees')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.length).toBeGreaterThan(0);
-    expect(res.body.data[0].outstanding).toBe('100.00');
+    expect(res.body.data[0].outstanding).toBe(100);
   });
 });
 
