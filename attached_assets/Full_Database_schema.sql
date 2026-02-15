@@ -120,6 +120,9 @@ CREATE TABLE public.badge_progress (
   delivered_at timestamp without time zone,
   delivered_by uuid,
   star_type character varying DEFAULT 'proie'::character varying CHECK (star_type::text = ANY (ARRAY['proie'::character varying, 'battue'::character varying]::text[])),
+  source_type character varying,
+  source_id bigint,
+  attempt_no integer NOT NULL DEFAULT 1,
   CONSTRAINT badge_progress_pkey PRIMARY KEY (id),
   CONSTRAINT badge_progress_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
   CONSTRAINT badge_progress_badge_template_id_fkey FOREIGN KEY (badge_template_id) REFERENCES public.badge_templates(id)
@@ -136,6 +139,10 @@ CREATE TABLE public.badge_templates (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   image character varying,
+  program_type character varying NOT NULL DEFAULT 'legacy_badge'::character varying,
+  official_key character varying,
+  version integer NOT NULL DEFAULT 1,
+  requirements jsonb NOT NULL DEFAULT '{}'::jsonb,
   CONSTRAINT badge_templates_pkey PRIMARY KEY (id),
   CONSTRAINT badge_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
@@ -612,6 +619,50 @@ CREATE TABLE public.news (
   CONSTRAINT news_pkey PRIMARY KEY (id),
   CONSTRAINT news_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
+CREATE TABLE public.oas_competencies (
+  id bigint NOT NULL DEFAULT nextval('oas_competencies_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  oas_skill_id bigint NOT NULL,
+  oas_stage_id bigint,
+  code character varying,
+  name character varying NOT NULL,
+  description text,
+  competency_order integer NOT NULL DEFAULT 1,
+  is_required boolean NOT NULL DEFAULT true,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT oas_competencies_pkey PRIMARY KEY (id),
+  CONSTRAINT oas_competencies_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT oas_competencies_oas_skill_id_fkey FOREIGN KEY (oas_skill_id) REFERENCES public.oas_skills(id),
+  CONSTRAINT oas_competencies_oas_stage_id_fkey FOREIGN KEY (oas_stage_id) REFERENCES public.oas_stages(id)
+);
+CREATE TABLE public.oas_skills (
+  id bigint NOT NULL DEFAULT nextval('oas_skills_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  code character varying,
+  name character varying NOT NULL,
+  description text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT oas_skills_pkey PRIMARY KEY (id),
+  CONSTRAINT oas_skills_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.oas_stages (
+  id bigint NOT NULL DEFAULT nextval('oas_stages_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  oas_skill_id bigint NOT NULL,
+  stage_order integer NOT NULL DEFAULT 1,
+  name character varying NOT NULL,
+  description text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT oas_stages_pkey PRIMARY KEY (id),
+  CONSTRAINT oas_stages_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT oas_stages_oas_skill_id_fkey FOREIGN KEY (oas_skill_id) REFERENCES public.oas_skills(id)
+);
 CREATE TABLE public.organization_domains (
   id integer NOT NULL DEFAULT nextval('organization_domains_id_seq'::regclass),
   organization_id integer,
@@ -691,6 +742,73 @@ CREATE TABLE public.organizations (
   CONSTRAINT organizations_program_section_fk FOREIGN KEY (id) REFERENCES public.organization_program_sections(section_key),
   CONSTRAINT organizations_program_section_fk FOREIGN KEY (program_section) REFERENCES public.organization_program_sections(section_key)
 );
+CREATE TABLE public.pab_plan_items (
+  id bigint NOT NULL DEFAULT nextval('pab_plan_items_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  pab_plan_id bigint NOT NULL,
+  item_order integer NOT NULL DEFAULT 1,
+  title character varying NOT NULL,
+  description text,
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'in_progress'::character varying, 'done'::character varying, 'skipped'::character varying]::text[])),
+  due_date date,
+  completed_at timestamp with time zone,
+  evidence text,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT pab_plan_items_pkey PRIMARY KEY (id),
+  CONSTRAINT pab_plan_items_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT pab_plan_items_pab_plan_id_fkey FOREIGN KEY (pab_plan_id) REFERENCES public.pab_plans(id)
+);
+CREATE TABLE public.pab_plans (
+  id bigint NOT NULL DEFAULT nextval('pab_plans_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  pab_theme_id bigint,
+  title character varying NOT NULL,
+  objective text,
+  status character varying NOT NULL DEFAULT 'planned'::character varying CHECK (status::text = ANY (ARRAY['planned'::character varying, 'in_progress'::character varying, 'completed'::character varying, 'cancelled'::character varying]::text[])),
+  planned_start_date date,
+  planned_end_date date,
+  completed_at timestamp with time zone,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT pab_plans_pkey PRIMARY KEY (id),
+  CONSTRAINT pab_plans_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT pab_plans_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT pab_plans_pab_theme_id_fkey FOREIGN KEY (pab_theme_id) REFERENCES public.pab_themes(id),
+  CONSTRAINT pab_plans_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.pab_reviews (
+  id bigint NOT NULL DEFAULT nextval('pab_reviews_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  pab_plan_id bigint NOT NULL,
+  participant_id integer NOT NULL,
+  reviewer_user_id uuid,
+  review_date date NOT NULL DEFAULT CURRENT_DATE,
+  rating integer CHECK (rating >= 1 AND rating <= 5),
+  notes text,
+  next_steps text,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT pab_reviews_pkey PRIMARY KEY (id),
+  CONSTRAINT pab_reviews_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT pab_reviews_pab_plan_id_fkey FOREIGN KEY (pab_plan_id) REFERENCES public.pab_plans(id),
+  CONSTRAINT pab_reviews_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT pab_reviews_reviewer_user_id_fkey FOREIGN KEY (reviewer_user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.pab_themes (
+  id bigint NOT NULL DEFAULT nextval('pab_themes_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  code character varying,
+  name character varying NOT NULL,
+  description text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT pab_themes_pkey PRIMARY KEY (id),
+  CONSTRAINT pab_themes_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
 CREATE TABLE public.parents_guardians (
   id integer NOT NULL DEFAULT nextval('guardians_id_seq'::regclass),
   nom character varying NOT NULL,
@@ -705,6 +823,24 @@ CREATE TABLE public.parents_guardians (
   is_emergency_contact boolean,
   user_uuid uuid,
   CONSTRAINT parents_guardians_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.participant_credentials (
+  id bigint NOT NULL DEFAULT nextval('participant_credentials_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  credential_key character varying NOT NULL,
+  status character varying NOT NULL DEFAULT 'active'::character varying CHECK (status::text = ANY (ARRAY['active'::character varying, 'expired'::character varying, 'revoked'::character varying, 'pending'::character varying]::text[])),
+  issued_at timestamp with time zone,
+  expires_at timestamp with time zone,
+  verified_by uuid,
+  notes text,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT participant_credentials_pkey PRIMARY KEY (id),
+  CONSTRAINT participant_credentials_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT participant_credentials_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT participant_credentials_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.participant_fees (
   id integer NOT NULL DEFAULT nextval('participant_fees_id_seq'::regclass),
@@ -757,6 +893,42 @@ CREATE TABLE public.participant_medications (
   CONSTRAINT participant_medications_medication_requirement_id_fkey FOREIGN KEY (medication_requirement_id) REFERENCES public.medication_requirements(id),
   CONSTRAINT participant_medications_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id)
 );
+CREATE TABLE public.participant_oas_competency (
+  id bigint NOT NULL DEFAULT nextval('participant_oas_competency_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  oas_competency_id bigint NOT NULL,
+  status character varying NOT NULL DEFAULT 'awarded'::character varying CHECK (status::text = ANY (ARRAY['in_progress'::character varying, 'awarded'::character varying, 'revoked'::character varying]::text[])),
+  achieved_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  awarded_by uuid,
+  notes text,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT participant_oas_competency_pkey PRIMARY KEY (id),
+  CONSTRAINT participant_oas_competency_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT participant_oas_competency_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT participant_oas_competency_oas_competency_id_fkey FOREIGN KEY (oas_competency_id) REFERENCES public.oas_competencies(id),
+  CONSTRAINT participant_oas_competency_awarded_by_fkey FOREIGN KEY (awarded_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.participant_oas_stage_award (
+  id bigint NOT NULL DEFAULT nextval('participant_oas_stage_award_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  oas_stage_id bigint NOT NULL,
+  status character varying NOT NULL DEFAULT 'awarded'::character varying CHECK (status::text = ANY (ARRAY['in_progress'::character varying, 'awarded'::character varying, 'revoked'::character varying]::text[])),
+  achieved_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  awarded_by uuid,
+  notes text,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT participant_oas_stage_award_pkey PRIMARY KEY (id),
+  CONSTRAINT participant_oas_stage_award_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT participant_oas_stage_award_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT participant_oas_stage_award_oas_stage_id_fkey FOREIGN KEY (oas_stage_id) REFERENCES public.oas_stages(id),
+  CONSTRAINT participant_oas_stage_award_awarded_by_fkey FOREIGN KEY (awarded_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.participant_organizations (
   participant_id integer NOT NULL,
   organization_id integer NOT NULL,
@@ -764,6 +936,24 @@ CREATE TABLE public.participant_organizations (
   CONSTRAINT participant_organizations_pkey PRIMARY KEY (participant_id, organization_id),
   CONSTRAINT participant_organizations_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
   CONSTRAINT participant_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
+);
+CREATE TABLE public.participant_top_award_progress (
+  id bigint NOT NULL DEFAULT nextval('participant_top_award_progress_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer NOT NULL,
+  top_award_id bigint NOT NULL,
+  status character varying NOT NULL DEFAULT 'in_progress'::character varying CHECK (status::text = ANY (ARRAY['in_progress'::character varying, 'submitted'::character varying, 'approved'::character varying, 'rejected'::character varying, 'completed'::character varying]::text[])),
+  started_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  target_date date,
+  completed_at timestamp with time zone,
+  progress_percent numeric NOT NULL DEFAULT 0,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT participant_top_award_progress_pkey PRIMARY KEY (id),
+  CONSTRAINT participant_top_award_progress_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT participant_top_award_progress_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT participant_top_award_progress_top_award_id_fkey FOREIGN KEY (top_award_id) REFERENCES public.top_awards(id)
 );
 CREATE TABLE public.participants (
   id integer NOT NULL DEFAULT nextval('new_participants_id_seq'::regclass),
@@ -895,6 +1085,136 @@ CREATE TABLE public.profiles (
   CONSTRAINT profiles_pkey PRIMARY KEY (id, email),
   CONSTRAINT profiles_auth_user_id_fkey FOREIGN KEY (auth_user_id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.program_catalog_competencies (
+  id bigint NOT NULL DEFAULT nextval('program_catalog_competencies_id_seq'::regclass),
+  program text NOT NULL,
+  version text NOT NULL,
+  code text NOT NULL,
+  official_key text NOT NULL,
+  stage_no integer NOT NULL,
+  text_en text NOT NULL,
+  text_fr text NOT NULL,
+  display_order integer NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT program_catalog_competencies_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_program_catalog_competencies_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_competencies_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_competencies_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(version),
+  CONSTRAINT fk_program_catalog_competencies_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(version),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (program) REFERENCES public.program_catalog_skills(program),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (version) REFERENCES public.program_catalog_skills(program),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (official_key) REFERENCES public.program_catalog_skills(program),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (program) REFERENCES public.program_catalog_skills(version),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (version) REFERENCES public.program_catalog_skills(version),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (official_key) REFERENCES public.program_catalog_skills(version),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (program) REFERENCES public.program_catalog_skills(official_key),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (version) REFERENCES public.program_catalog_skills(official_key),
+  CONSTRAINT fk_program_catalog_competencies_skill FOREIGN KEY (official_key) REFERENCES public.program_catalog_skills(official_key),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (program) REFERENCES public.program_catalog_stages(program),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (version) REFERENCES public.program_catalog_stages(program),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (stage_no) REFERENCES public.program_catalog_stages(program),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (program) REFERENCES public.program_catalog_stages(version),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (version) REFERENCES public.program_catalog_stages(version),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (stage_no) REFERENCES public.program_catalog_stages(version),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (program) REFERENCES public.program_catalog_stages(stage_no),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (version) REFERENCES public.program_catalog_stages(stage_no),
+  CONSTRAINT fk_program_catalog_competencies_stage FOREIGN KEY (stage_no) REFERENCES public.program_catalog_stages(stage_no)
+);
+CREATE TABLE public.program_catalog_rules (
+  id bigint NOT NULL DEFAULT nextval('program_catalog_rules_id_seq'::regclass),
+  program text NOT NULL,
+  version text NOT NULL,
+  rules_json jsonb NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT program_catalog_rules_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_program_catalog_rules_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_rules_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_rules_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(version),
+  CONSTRAINT fk_program_catalog_rules_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(version)
+);
+CREATE TABLE public.program_catalog_skills (
+  id bigint NOT NULL DEFAULT nextval('program_catalog_skills_id_seq'::regclass),
+  program text NOT NULL,
+  version text NOT NULL,
+  official_key text NOT NULL,
+  name text NOT NULL,
+  display_order integer NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT program_catalog_skills_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_program_catalog_skills_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_skills_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_skills_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(version),
+  CONSTRAINT fk_program_catalog_skills_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(version)
+);
+CREATE TABLE public.program_catalog_stages (
+  id bigint NOT NULL DEFAULT nextval('program_catalog_stages_id_seq'::regclass),
+  program text NOT NULL,
+  version text NOT NULL,
+  stage_no integer NOT NULL,
+  name text NOT NULL,
+  description text NOT NULL,
+  display_order integer NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT program_catalog_stages_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_program_catalog_stages_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_stages_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(program),
+  CONSTRAINT fk_program_catalog_stages_version FOREIGN KEY (program) REFERENCES public.program_catalog_versions(version),
+  CONSTRAINT fk_program_catalog_stages_version FOREIGN KEY (version) REFERENCES public.program_catalog_versions(version)
+);
+CREATE TABLE public.program_catalog_versions (
+  id bigint NOT NULL DEFAULT nextval('program_catalog_versions_id_seq'::regclass),
+  program text NOT NULL,
+  version text NOT NULL,
+  applied_at timestamp with time zone NOT NULL DEFAULT now(),
+  checksum text NOT NULL,
+  source_path text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT program_catalog_versions_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.progress_approvals (
+  id bigint NOT NULL DEFAULT nextval('progress_approvals_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer,
+  source_type character varying NOT NULL,
+  source_id bigint NOT NULL,
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])),
+  reviewed_by uuid,
+  reviewed_at timestamp with time zone,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT progress_approvals_pkey PRIMARY KEY (id),
+  CONSTRAINT progress_approvals_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT progress_approvals_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT progress_approvals_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.progress_evidence (
+  id bigint NOT NULL DEFAULT nextval('progress_evidence_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_id integer,
+  source_type character varying NOT NULL,
+  source_id bigint NOT NULL,
+  evidence_type character varying NOT NULL DEFAULT 'note'::character varying,
+  evidence_url text,
+  notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT progress_evidence_pkey PRIMARY KEY (id),
+  CONSTRAINT progress_evidence_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT progress_evidence_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT progress_evidence_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.rappel_reunion (
   id integer NOT NULL DEFAULT nextval('rappel_reunion_id_seq'::regclass),
   creation_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
@@ -960,6 +1280,75 @@ CREATE TABLE public.sync_log (
   timestamp timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
   synced boolean DEFAULT false,
   CONSTRAINT sync_log_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.top_award_projects (
+  id bigint NOT NULL DEFAULT nextval('top_award_projects_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_top_award_progress_id bigint NOT NULL,
+  participant_id integer NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  status character varying NOT NULL DEFAULT 'draft'::character varying CHECK (status::text = ANY (ARRAY['draft'::character varying, 'in_progress'::character varying, 'submitted'::character varying, 'approved'::character varying, 'rejected'::character varying, 'completed'::character varying]::text[])),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  approved_by uuid,
+  approved_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT top_award_projects_pkey PRIMARY KEY (id),
+  CONSTRAINT top_award_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT top_award_projects_participant_top_award_progress_id_fkey FOREIGN KEY (participant_top_award_progress_id) REFERENCES public.participant_top_award_progress(id),
+  CONSTRAINT top_award_projects_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT top_award_projects_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.top_award_reviews (
+  id bigint NOT NULL DEFAULT nextval('top_award_reviews_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_top_award_progress_id bigint NOT NULL,
+  participant_id integer NOT NULL,
+  reviewer_user_id uuid,
+  review_date date NOT NULL DEFAULT CURRENT_DATE,
+  outcome character varying NOT NULL DEFAULT 'pending'::character varying CHECK (outcome::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'revisions_required'::character varying]::text[])),
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT top_award_reviews_pkey PRIMARY KEY (id),
+  CONSTRAINT top_award_reviews_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT top_award_reviews_participant_top_award_progress_id_fkey FOREIGN KEY (participant_top_award_progress_id) REFERENCES public.participant_top_award_progress(id),
+  CONSTRAINT top_award_reviews_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT top_award_reviews_reviewer_user_id_fkey FOREIGN KEY (reviewer_user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.top_award_service_logs (
+  id bigint NOT NULL DEFAULT nextval('top_award_service_logs_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  participant_top_award_progress_id bigint NOT NULL,
+  participant_id integer NOT NULL,
+  service_date date NOT NULL,
+  hours numeric NOT NULL DEFAULT 0,
+  description text,
+  status character varying NOT NULL DEFAULT 'logged'::character varying CHECK (status::text = ANY (ARRAY['logged'::character varying, 'submitted'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])),
+  approved_by uuid,
+  approved_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT top_award_service_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT top_award_service_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
+  CONSTRAINT top_award_service_logs_participant_top_award_progress_id_fkey FOREIGN KEY (participant_top_award_progress_id) REFERENCES public.participant_top_award_progress(id),
+  CONSTRAINT top_award_service_logs_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participants(id),
+  CONSTRAINT top_award_service_logs_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.top_awards (
+  id bigint NOT NULL DEFAULT nextval('top_awards_id_seq'::regclass),
+  organization_id integer NOT NULL,
+  code character varying,
+  name character varying NOT NULL,
+  description text,
+  requirements jsonb,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT top_awards_pkey PRIMARY KEY (id),
+  CONSTRAINT top_awards_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
 );
 CREATE TABLE public.translations (
   id integer NOT NULL DEFAULT nextval('translations_id_seq'::regclass),
