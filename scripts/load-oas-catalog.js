@@ -217,11 +217,30 @@ async function legacyTableExists(client, tableName) {
 }
 
 /**
- * Optional compatibility projection for deployments that still use OAS legacy tables.
+ * Read a table's column names from the public schema.
  * @param {object} client - pg client
- * @param {object} catalog - parsed catalog
+ * @param {string} tableName - table name in public schema
+ * @returns {Promise<Set<string>>} lowercase column names
  */
+async function getTableColumns(client, tableName) {
+  const result = await client.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName]
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
 
+/**
+ * Compute missing required columns for a table.
+ * @param {Set<string>} actualColumns - columns detected in DB table
+ * @param {string[]} requiredColumns - required compatibility columns
+ * @returns {string[]} missing columns
+ */
+function getMissingColumns(actualColumns, requiredColumns) {
+  return requiredColumns.filter((columnName) => !actualColumns.has(columnName));
+}
 
 /**
  * Ensure catalog runtime tables exist so catalog:load works on fresh databases.
@@ -336,15 +355,12 @@ async function ensureCatalogRuntimeTables(client) {
   await client.query('CREATE INDEX IF NOT EXISTS idx_program_catalog_rules_program_version ON program_catalog_rules (program, version)');
 }
 
-async function syncLegacyOasTables(client, catalog) {
-  const hasSkills = await legacyTableExists(client, 'oas_skills');
-  const hasStages = await legacyTableExists(client, 'oas_stages');
-  const hasCompetencies = await legacyTableExists(client, 'oas_competencies');
-
-  if (!(hasSkills && hasStages && hasCompetencies)) {
-    return;
-  }
-
+/**
+ * Sync catalog into legacy OAS tables that already use catalog-style columns.
+ * @param {object} client - pg client
+ * @param {object} catalog - parsed catalog
+ */
+async function syncCatalogCompatibleLegacyTables(client, catalog) {
   for (const skill of catalog.skills) {
     await client.query(
       `INSERT INTO oas_skills (official_key, name, display_order, is_active, updated_at)
@@ -410,7 +426,160 @@ async function syncLegacyOasTables(client, catalog) {
     );
   }
 
-  console.log('ℹ️ Legacy oas_* compatibility sync executed.');
+  console.log('ℹ️ Legacy oas_* compatibility sync executed for catalog-compatible schema.');
+}
+
+/**
+ * Sync catalog into tenant-scoped OAS tables introduced by program progress migrations.
+ * @param {object} client - pg client
+ * @param {object} catalog - parsed catalog
+ */
+async function syncTenantScopedLegacyTables(client, catalog) {
+  const organizationsResult = await client.query('SELECT id FROM organizations');
+  if (organizationsResult.rowCount === 0) {
+    console.log('ℹ️ Skipping tenant-scoped legacy sync because no organizations were found.');
+    return;
+  }
+
+  const skillIdsByOrgAndKey = new Map();
+  const stageIdsByOrgAndStageNo = new Map();
+
+  for (const org of organizationsResult.rows) {
+    for (const skill of catalog.skills) {
+      const skillResult = await client.query(
+        `INSERT INTO oas_skills (organization_id, code, name, description, is_active, updated_at)
+         VALUES ($1, $2, $3, NULL, $4, NOW())
+         ON CONFLICT (organization_id, code)
+         DO UPDATE SET
+           name = EXCLUDED.name,
+           is_active = EXCLUDED.is_active,
+           updated_at = NOW()
+         RETURNING id`,
+        [org.id, skill.official_key, skill.name, skill.is_active]
+      );
+
+      skillIdsByOrgAndKey.set(`${org.id}:${skill.official_key}`, skillResult.rows[0].id);
+    }
+
+    for (const skill of catalog.skills) {
+      const skillId = skillIdsByOrgAndKey.get(`${org.id}:${skill.official_key}`);
+      for (const stage of catalog.stages) {
+        const stageResult = await client.query(
+          `INSERT INTO oas_stages (organization_id, oas_skill_id, stage_order, name, description, is_active, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())
+           ON CONFLICT (organization_id, oas_skill_id, stage_order)
+           DO UPDATE SET
+             name = EXCLUDED.name,
+             description = EXCLUDED.description,
+             is_active = EXCLUDED.is_active,
+             updated_at = NOW()
+           RETURNING id`,
+          [org.id, skillId, stage.stage_no, stage.name, stage.description, stage.is_active]
+        );
+
+        stageIdsByOrgAndStageNo.set(`${org.id}:${skill.official_key}:${stage.stage_no}`, stageResult.rows[0].id);
+      }
+    }
+
+    for (const competency of catalog.competenciesEn) {
+      const mappedSkillId = skillIdsByOrgAndKey.get(`${org.id}:${competency.official_key}`);
+      const mappedStageId = stageIdsByOrgAndStageNo.get(`${org.id}:${competency.official_key}:${competency.stage_no}`) || null;
+
+      await client.query(
+        `INSERT INTO oas_competencies (
+          organization_id,
+          oas_skill_id,
+          oas_stage_id,
+          code,
+          name,
+          description,
+          competency_order,
+          is_required,
+          is_active,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, NULL, $6, TRUE, $7, NOW())
+        ON CONFLICT (organization_id, code)
+        DO UPDATE SET
+          oas_skill_id = EXCLUDED.oas_skill_id,
+          oas_stage_id = EXCLUDED.oas_stage_id,
+          name = EXCLUDED.name,
+          competency_order = EXCLUDED.competency_order,
+          is_active = EXCLUDED.is_active,
+          updated_at = NOW()`,
+        [
+          org.id,
+          mappedSkillId,
+          mappedStageId,
+          competency.code,
+          competency.text,
+          competency.display_order,
+          competency.is_active
+        ]
+      );
+    }
+  }
+
+  console.log('ℹ️ Legacy oas_* compatibility sync executed for tenant-scoped schema.');
+}
+
+/**
+ * Sync runtime catalog into legacy OAS tables when compatible schemas are present.
+ * Supports both catalog-style and tenant-scoped legacy table variants.
+ * @param {object} client - pg client
+ * @param {object} catalog - parsed catalog
+ */
+async function syncLegacyOasTables(client, catalog) {
+  const hasSkills = await legacyTableExists(client, 'oas_skills');
+  const hasStages = await legacyTableExists(client, 'oas_stages');
+  const hasCompetencies = await legacyTableExists(client, 'oas_competencies');
+
+  if (!(hasSkills && hasStages && hasCompetencies)) {
+    return;
+  }
+
+  const [skillsColumns, stagesColumns, competenciesColumns] = await Promise.all([
+    getTableColumns(client, 'oas_skills'),
+    getTableColumns(client, 'oas_stages'),
+    getTableColumns(client, 'oas_competencies')
+  ]);
+
+  const catalogCompatibleMissing = {
+    oas_skills: getMissingColumns(skillsColumns, ['official_key', 'display_order', 'is_active']),
+    oas_stages: getMissingColumns(stagesColumns, ['stage_no', 'display_order', 'is_active']),
+    oas_competencies: getMissingColumns(competenciesColumns, ['official_key', 'stage_no', 'text_en', 'text_fr', 'display_order', 'is_active'])
+  };
+
+  const isCatalogCompatible = Object.values(catalogCompatibleMissing).every((columns) => columns.length === 0);
+  if (isCatalogCompatible) {
+    await syncCatalogCompatibleLegacyTables(client, catalog);
+    return;
+  }
+
+  const tenantScopedMissing = {
+    oas_skills: getMissingColumns(skillsColumns, ['organization_id', 'code', 'name', 'is_active']),
+    oas_stages: getMissingColumns(stagesColumns, ['organization_id', 'oas_skill_id', 'stage_order', 'name', 'description', 'is_active']),
+    oas_competencies: getMissingColumns(competenciesColumns, ['organization_id', 'oas_skill_id', 'oas_stage_id', 'code', 'name', 'competency_order', 'is_active'])
+  };
+
+  const isTenantScopedCompatible = Object.values(tenantScopedMissing).every((columns) => columns.length === 0);
+  if (isTenantScopedCompatible) {
+    await syncTenantScopedLegacyTables(client, catalog);
+    return;
+  }
+
+  const detail = {
+    oas_skills: [...new Set([...catalogCompatibleMissing.oas_skills, ...tenantScopedMissing.oas_skills])],
+    oas_stages: [...new Set([...catalogCompatibleMissing.oas_stages, ...tenantScopedMissing.oas_stages])],
+    oas_competencies: [...new Set([...catalogCompatibleMissing.oas_competencies, ...tenantScopedMissing.oas_competencies])]
+  };
+
+  const detailText = Object.entries(detail)
+    .filter(([, columns]) => columns.length > 0)
+    .map(([tableName, columns]) => `${tableName}: ${columns.join(', ')}`)
+    .join(' | ');
+
+  console.log(`⚠️ Skipping legacy oas_* compatibility sync because schema is not supported (${detailText}).`);
 }
 
 async function loadCatalog() {
