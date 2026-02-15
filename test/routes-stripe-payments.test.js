@@ -71,7 +71,7 @@ function generateToken(overrides = {}, secret = TEST_SECRET) {
     user_role: 'admin',
     organizationId: ORG_ID,
     roleIds: [1],
-    roleNames: ['district'],
+    roleNames: ['admin'],
     permissions: ['payment.manage'],
     ...overrides
   }, secret);
