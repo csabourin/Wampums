@@ -777,3 +777,39 @@ describe('Multi-organization participant isolation', () => {
     expect(queriedOrgId).toBe(ORG_ID);
   });
 });
+
+// ============================================
+// MALFORMED BODY GUARDS
+// ============================================
+
+describe('Participants malformed JSON body guards', () => {
+  test('PATCH /api/v1/participants/:id/group-membership rejects non-object body', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.edit'] });
+
+    mockQueryImplementation(__mClient, __mPool, () => undefined);
+
+    const res = await request(app)
+      .patch('/api/v1/participants/50/group-membership')
+      .set('Authorization', `Bearer ${token}`)
+      .send([]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/invalid request body/i);
+  });
+
+  test('PUT /api/v1/participants/:id rejects non-object body', async () => {
+    const { __mClient, __mPool } = require('pg');
+    const token = generateToken({ permissions: ['participants.edit'] });
+
+    mockQueryImplementation(__mClient, __mPool, () => undefined);
+
+    const res = await request(app)
+      .put('/api/v1/participants/50')
+      .set('Authorization', `Bearer ${token}`)
+      .send([]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/invalid request body/i);
+  });
+});
