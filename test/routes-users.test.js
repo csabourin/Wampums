@@ -173,7 +173,10 @@ describe('GET /api/v1/users', () => {
       .query({ status: 'pending' })
       .set('Authorization', `Bearer ${token}`);
 
-    expect([200, 403, 404]).toContain(res.status);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(res.body.data[0].status).toBe('pending');
   });
 
   test('requires users.view permission', async () => {
