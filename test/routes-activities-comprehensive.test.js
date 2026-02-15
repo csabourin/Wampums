@@ -65,7 +65,7 @@ const USER_ID = 1;
 function generateToken(overrides = {}, secret = TEST_SECRET) {
   return jwt.sign({
     user_id: USER_ID,
-    user_role: 'admin',
+    user_role: 'district',
     organizationId: ORG_ID,
     roleIds: [1],
     roleNames: ['admin'],

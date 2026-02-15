@@ -52,7 +52,7 @@ const ORG_ID = 1;
 function generateToken(overrides = {}) {
   return jwt.sign({
     user_id: 1,
-    user_role: 'admin',
+    user_role: 'district',
     organizationId: ORG_ID,
     roleIds: [1],
     roleNames: ['admin'],

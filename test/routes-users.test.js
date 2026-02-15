@@ -63,7 +63,7 @@ function generateToken(overrides = {}, secret = TEST_SECRET) {
     user_role: 'admin',
     organizationId: ORG_ID,
     roleIds: [1],
-    roleNames: ['admin'],
+    roleNames: ['district'],
     permissions: ['users.view', 'users.manage', 'users.approve'],
     ...overrides
   }, secret);
