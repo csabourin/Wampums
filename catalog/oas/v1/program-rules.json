@@ -1,0 +1,13 @@
+{
+  "program": "oas",
+  "version": "v1",
+  "rules": {
+    "pab": {
+      "sectionMinimums": {
+        "aventuriers": 3,
+        "eclaireurs": 4,
+        "pionniers": 5
+      }
+    }
+  }
+}

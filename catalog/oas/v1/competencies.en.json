@@ -1,0 +1,26 @@
+[
+  {
+    "code": "OAS-LDR-1",
+    "official_key": "oas-leadership",
+    "stage_no": 1,
+    "text": "Describe two ways to support team decisions in a respectful manner.",
+    "display_order": 1,
+    "is_active": true
+  },
+  {
+    "code": "OAS-OUT-1",
+    "official_key": "oas-outdoor",
+    "stage_no": 1,
+    "text": "Demonstrate safe tool handling for at least one camp task.",
+    "display_order": 2,
+    "is_active": true
+  },
+  {
+    "code": "OAS-COM-1",
+    "official_key": "oas-community",
+    "stage_no": 2,
+    "text": "Plan and complete one service activity that benefits the local community.",
+    "display_order": 3,
+    "is_active": true
+  }
+]

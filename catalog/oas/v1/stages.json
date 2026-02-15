@@ -1,0 +1,23 @@
+[
+  {
+    "stage_no": 1,
+    "name": "Discovery",
+    "description": "Entry stage for foundational competency development.",
+    "display_order": 1,
+    "is_active": true
+  },
+  {
+    "stage_no": 2,
+    "name": "Progression",
+    "description": "Intermediate stage with increased autonomy and challenge.",
+    "display_order": 2,
+    "is_active": true
+  },
+  {
+    "stage_no": 3,
+    "name": "Mastery",
+    "description": "Advanced stage validating independent application.",
+    "display_order": 3,
+    "is_active": true
+  }
+]

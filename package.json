@@ -20,7 +20,9 @@
     "lint:spa-innerhtml": "bash -c \"rg \\\"innerHTML\\\\s*=\\\" spa --glob \\\"!spa/utils/DOMUtils.js\\\" --glob \\\"!spa/utils/SecurityUtils.js\\\" && echo \\\"innerHTML assignment found in SPA\\\" && exit 1 || exit 0\"",
     "lint:sql-params": "node scripts/modernization/check-sql-params.js",
     "lint:non-versioned-mounts": "node scripts/modernization/check-non-versioned-mounts.js",
-    "test:quality": "jest --runInBand --testPathIgnorePatterns=\"/node_modules/|/mobile/|test/api.test.js|test/api-consistency.test.js|test/security.test.js|test/permission-slips.security.test.js|test/landing-host.test.js|test/local-groups.test.js|test/resources.equipment.test.js|tests/manual_budget_test.js\""
+    "test:quality": "jest --runInBand --testPathIgnorePatterns=\"/node_modules/|/mobile/|test/api.test.js|test/api-consistency.test.js|test/security.test.js|test/permission-slips.security.test.js|test/landing-host.test.js|test/local-groups.test.js|test/resources.equipment.test.js|tests/manual_budget_test.js\"",
+    "catalog:load:oas": "node scripts/load-oas-catalog.js",
+    "catalog:load": "node scripts/load-oas-catalog.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",
