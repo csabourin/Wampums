@@ -217,6 +217,32 @@ async function legacyTableExists(client, tableName) {
 }
 
 /**
+ * Read a table's column names from the public schema.
+ * @param {object} client - pg client
+ * @param {string} tableName - table name in public schema
+ * @returns {Promise<Set<string>>} lowercase column names
+ */
+async function getTableColumns(client, tableName) {
+  const result = await client.query(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName]
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
+/**
+ * Compute missing required columns for a table.
+ * @param {Set<string>} actualColumns - columns detected in DB table
+ * @param {string[]} requiredColumns - required compatibility columns
+ * @returns {string[]} missing columns
+ */
+function getMissingColumns(actualColumns, requiredColumns) {
+  return requiredColumns.filter((columnName) => !actualColumns.has(columnName));
+}
+
+/**
  * Optional compatibility projection for deployments that still use OAS legacy tables.
  * @param {object} client - pg client
  * @param {object} catalog - parsed catalog
@@ -342,6 +368,29 @@ async function syncLegacyOasTables(client, catalog) {
   const hasCompetencies = await legacyTableExists(client, 'oas_competencies');
 
   if (!(hasSkills && hasStages && hasCompetencies)) {
+    return;
+  }
+
+  const [skillsColumns, stagesColumns, competenciesColumns] = await Promise.all([
+    getTableColumns(client, 'oas_skills'),
+    getTableColumns(client, 'oas_stages'),
+    getTableColumns(client, 'oas_competencies')
+  ]);
+
+  const missing = {
+    oas_skills: getMissingColumns(skillsColumns, ['official_key', 'display_order', 'is_active']),
+    oas_stages: getMissingColumns(stagesColumns, ['stage_no', 'display_order', 'is_active']),
+    oas_competencies: getMissingColumns(competenciesColumns, ['official_key', 'stage_no', 'text_en', 'text_fr', 'display_order', 'is_active'])
+  };
+
+  const hasMissingColumns = Object.values(missing).some((columns) => columns.length > 0);
+  if (hasMissingColumns) {
+    const detail = Object.entries(missing)
+      .filter(([, columns]) => columns.length > 0)
+      .map(([tableName, columns]) => `${tableName}: ${columns.join(', ')}`)
+      .join(' | ');
+
+    console.log(`⚠️ Skipping legacy oas_* compatibility sync because schema is not catalog-compatible (${detail}).`);
     return;
   }
 
