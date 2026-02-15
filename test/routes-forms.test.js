@@ -479,6 +479,11 @@ describe('POST /api/v1/forms/:id/submit', () => {
     let insertCalled = false;
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM forms WHERE id')) {
+        return Promise.resolve({
+          rows: [{ id: FORM_ID, schema: JSON.stringify({ fields: [] }) }]
+        });
+      }
       if (query.includes('INSERT INTO form_submissions')) {
         insertCalled = true;
         return Promise.resolve({
@@ -526,6 +531,11 @@ describe('POST /api/v1/forms/:id/submit', () => {
     });
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM forms WHERE id')) {
+        return Promise.resolve({
+          rows: [{ id: FORM_ID, schema: JSON.stringify({ fields: [] }) }]
+        });
+      }
       if (query.includes('INSERT INTO form_submissions')) {
         return Promise.resolve({
           rows: [{
@@ -561,6 +571,11 @@ describe('POST /api/v1/forms/:id/submit', () => {
     });
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM forms WHERE id')) {
+        return Promise.resolve({
+          rows: [{ id: FORM_ID, schema: JSON.stringify({ fields: [] }) }]
+        });
+      }
       if (query.includes('FROM user_participants')) {
         return Promise.resolve({ rows: [] }); // Not linked to this child
       }
