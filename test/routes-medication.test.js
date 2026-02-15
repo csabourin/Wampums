@@ -585,7 +585,10 @@ describe('POST /api/v1/medication/receptions', () => {
         status: 'received'
       });
 
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(400);
+    if (res.body && typeof res.body.message === 'string') {
+      expect(res.body.message).toMatch(/duplicate|already received/i);
+    }
   });
 });
 
