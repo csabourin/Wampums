@@ -57,7 +57,7 @@ function generateToken(overrides = {}, secret = TEST_SECRET) {
     user_role: 'admin',
     organizationId: ORG_ID,
     roleIds: [1],
-    roleNames: ['admin'],
+    roleNames: ['district'],
     permissions: ['guardians.view', 'guardians.manage'],
     ...overrides
   }, secret);
@@ -132,7 +132,7 @@ describe('GET /api/guardians', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -159,7 +159,7 @@ describe('GET /api/guardians', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -181,7 +181,7 @@ describe('GET /api/guardians', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -197,7 +197,7 @@ describe('GET /api/guardians', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`);
     // No query parameter
 
@@ -219,7 +219,7 @@ describe('GET /api/guardians', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: 999 })
       .set('Authorization', `Bearer ${token}`);
 
@@ -229,7 +229,7 @@ describe('GET /api/guardians', () => {
 
   test('returns 401 without authentication', async () => {
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID });
 
     expect(res.status).toBe(401);
@@ -256,7 +256,7 @@ describe('GET /api/guardians', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -298,7 +298,7 @@ describe('GET /api/guardians', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -355,7 +355,7 @@ describe('POST /api/guardians', () => {
     __mPool.connect.mockResolvedValue(__mClient);
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: PARTICIPANT_ID,
@@ -404,7 +404,7 @@ describe('POST /api/guardians', () => {
     __mPool.connect.mockResolvedValue(__mClient);
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: PARTICIPANT_ID,
@@ -432,7 +432,7 @@ describe('POST /api/guardians', () => {
     });
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: PARTICIPANT_ID,
@@ -454,7 +454,7 @@ describe('POST /api/guardians', () => {
     });
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         // Missing participant_id
@@ -477,7 +477,7 @@ describe('POST /api/guardians', () => {
     });
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: PARTICIPANT_ID,
@@ -510,7 +510,7 @@ describe('POST /api/guardians', () => {
     __mPool.connect.mockResolvedValue(__mClient);
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: 999,
@@ -546,7 +546,7 @@ describe('POST /api/guardians', () => {
     __mPool.connect.mockResolvedValue(__mClient);
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: PARTICIPANT_ID,
@@ -587,7 +587,7 @@ describe('POST /api/guardians', () => {
     __mPool.connect.mockResolvedValue(__mClient);
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: PARTICIPANT_ID,
@@ -630,7 +630,7 @@ describe('POST /api/guardians', () => {
     __mPool.connect.mockResolvedValue(__mClient);
 
     const res = await request(app)
-      .post('/api/guardians')
+      .post('/api/v1/guardians')
       .set('Authorization', `Bearer ${token}`)
       .send({
         participant_id: PARTICIPANT_ID,
@@ -672,7 +672,7 @@ describe('DELETE /api/guardians', () => {
     });
 
     const res = await request(app)
-      .delete('/api/guardians')
+      .delete('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID, guardian_id: GUARDIAN_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -694,7 +694,7 @@ describe('DELETE /api/guardians', () => {
     });
 
     const res = await request(app)
-      .delete('/api/guardians')
+      .delete('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID, guardian_id: GUARDIAN_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -712,7 +712,7 @@ describe('DELETE /api/guardians', () => {
     });
 
     const res = await request(app)
-      .delete('/api/guardians')
+      .delete('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -734,7 +734,7 @@ describe('DELETE /api/guardians', () => {
     });
 
     const res = await request(app)
-      .delete('/api/guardians')
+      .delete('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID, guardian_id: 999 })
       .set('Authorization', `Bearer ${token}`);
 
@@ -762,7 +762,7 @@ describe('DELETE /api/guardians', () => {
     });
 
     const res = await request(app)
-      .delete('/api/guardians')
+      .delete('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID, guardian_id: GUARDIAN_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -772,7 +772,7 @@ describe('DELETE /api/guardians', () => {
 
   test('returns 401 without authentication', async () => {
     const res = await request(app)
-      .delete('/api/guardians')
+      .delete('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID, guardian_id: GUARDIAN_ID });
 
     expect(res.status).toBe(401);
@@ -806,12 +806,12 @@ describe('Guardian Permission Enforcement', () => {
     });
 
     const res1 = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token1}`);
 
     const res2 = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token2}`);
 
@@ -833,7 +833,7 @@ describe('Guardian Permission Enforcement', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${token}`);
 
@@ -858,7 +858,7 @@ describe('Guardian Permission Enforcement', () => {
     });
 
     const res = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${maliciousToken}`);
 
@@ -897,14 +897,14 @@ describe('Guardian Multi-Tenant Isolation', () => {
     });
 
     const res1 = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${org1Token}`);
 
     expect(lastQueryOrgId).toBe(1);
 
     const res2 = await request(app)
-      .get('/api/guardians')
+      .get('/api/v1/guardians')
       .query({ participant_id: PARTICIPANT_ID })
       .set('Authorization', `Bearer ${org2Token}`);
 

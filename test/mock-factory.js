@@ -174,8 +174,8 @@ class MockFactory {
       return { 
         rows: [{ 
           id: 1,
-          role_name: 'admin',
-          display_name: 'Administrator',
+          role_name: 'district',
+          display_name: 'District Leader',
           data_scope: 'organization'
         }] 
       };

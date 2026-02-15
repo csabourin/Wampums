@@ -50,10 +50,10 @@ const ORG_ID_2 = 2;
 function generateToken(overrides = {}, secret = TEST_SECRET) {
   return jwt.sign({
     user_id: 1,
-    user_role: 'admin',
+    user_role: 'district',
     organizationId: ORG_ID,
     roleIds: [1],
-    roleNames: ['admin'],
+    roleNames: ['district'],
     permissions: ['organization.switch', 'organization.view'],
     ...overrides
   }, secret);
@@ -242,7 +242,7 @@ describe('POST /api/v1/organizations/switch', () => {
     const token = generateToken({
       user_id: userWithMultipleOrgs,
       organizationId: ORG_ID,
-      roleNames: ['admin']
+      roleNames: ['district']
     });
 
     __mPool.query.mockImplementation((query, params) => {

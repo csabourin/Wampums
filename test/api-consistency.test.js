@@ -52,7 +52,7 @@ const ORG_ID = 1;
 function generateToken(overrides = {}) {
   return jwt.sign({
     user_id: 1,
-    user_role: 'admin',
+    user_role: 'district',
     organizationId: ORG_ID,
     roleIds: [1],
     roleNames: ['admin'],
@@ -226,7 +226,7 @@ describe('HTTP Status Code Conventions', () => {
 describe('API Versioning', () => {
   const versionedEndpoints = [
     '/api/v1/participants',
-    '/api/v1/users/users',
+    '/api/v1/users/me',
     '/api/v1/meetings/dates',
     '/api/v1/groups',
     '/api/v1/attendance',
@@ -519,7 +519,7 @@ describe('asyncHandler Error Propagation', () => {
 describe('Route Mounting Integrity', () => {
   const mountedPrefixes = [
     '/api/v1/participants',
-    '/api/v1/users/users',
+    '/api/v1/users/me',
     '/api/v1/meetings/dates',
     '/api/v1/groups',
     '/api/v1/local-groups',
