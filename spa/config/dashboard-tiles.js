@@ -16,6 +16,7 @@ export const DASHBOARD_TILES = {
   // Day-to-Day (sorted alphabetically)
   dayToDay: [
     { href: "/badge-tracker", icon: "fa-chart-bar", label: "badge_tracker_title" },
+    { href: "/program-progress", icon: "fa-timeline", label: "program_progress_nav" },
     { href: "/parent-contact-list", icon: "fa-address-book", label: "parent_contact_list" },
     { href: "/medication-dispensing", icon: "fa-pills", label: "medication_dispensing_link" },
     { href: "/parent-dashboard", icon: "fa-users", label: "vue_parents" },
