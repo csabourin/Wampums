@@ -90,7 +90,7 @@ afterAll((done) => {
 
 describe('GET /api/v1/participants - Data Scope Filtering', () => {
   test('staff (organization scope) sees all participants', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['leader'],
       permissions: ['participants.view']
@@ -98,7 +98,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
 
     let queryUsedOrganizationScope = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participants p')) {
         // Organization-scoped query should NOT have user_participants join
         queryUsedOrganizationScope = !query.includes('user_participants');
@@ -136,7 +136,8 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
           rows: [{ role_name: 'leader' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -150,7 +151,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
   });
 
   test('parent (linked scope) sees only their children', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const parentUserId = 100;
     const token = generateToken({
       user_id: parentUserId,
@@ -160,7 +161,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
 
     let queryDidJoinUserParticipants = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participants p')) {
         // Parent query SHOULD include user_participants join
         queryDidJoinUserParticipants = query.includes('user_participants');
@@ -192,7 +193,8 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
           rows: [{ role_name: 'parent' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -204,7 +206,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
   });
 
   test('filters by group_id parameter', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['leader'],
       permissions: ['participants.view']
@@ -212,7 +214,7 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
 
     let capturedGroupId = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participants p')) {
         if (query.includes('WHERE')) {
           capturedGroupId = params[params.length - 1]; // Last param is group_id in filtered query
@@ -242,7 +244,8 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
           rows: [{ role_name: 'leader' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -253,12 +256,12 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
   });
 
   test('requires participants.view permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: [] // No permissions
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('data_scope')) {
         return Promise.resolve({
           rows: [{ data_scope: 'organization' }]
@@ -267,7 +270,8 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
       if (query.includes('permission_key')) {
         return Promise.resolve({ rows: [] });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -285,14 +289,14 @@ describe('GET /api/v1/participants - Data Scope Filtering', () => {
 
 describe('POST /api/v1/participants', () => {
   test('creates new participant with required fields', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
     let participantInserted = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO participants')) {
         participantInserted = true;
         return Promise.resolve({
@@ -317,7 +321,8 @@ describe('POST /api/v1/participants', () => {
           rows: [{ role_name: 'admin' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -335,18 +340,19 @@ describe('POST /api/v1/participants', () => {
   });
 
   test('requires first_name', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -362,18 +368,19 @@ describe('POST /api/v1/participants', () => {
   });
 
   test('requires last_name', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -389,12 +396,12 @@ describe('POST /api/v1/participants', () => {
   });
 
   test('requires participants.manage permission', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.view'] // Can view, not manage
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.view' }]
@@ -405,7 +412,8 @@ describe('POST /api/v1/participants', () => {
           rows: [{ role_name: 'parent' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -421,19 +429,20 @@ describe('POST /api/v1/participants', () => {
   });
 
   test('blocks demo users from creating participants', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       roleNames: ['demoparent'],
       permissions: ['participants.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('demoadmin') || query.includes('demoparent')) {
         return Promise.resolve({
           rows: [{ role_name: 'demoparent' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -456,14 +465,14 @@ describe('POST /api/v1/participants', () => {
 
 describe('POST /api/v1/participants/:id/link-parent', () => {
   test('links parent user to participant', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
     let linkInserted = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO user_participants')) {
         linkInserted = true;
         return Promise.resolve({
@@ -488,7 +497,8 @@ describe('POST /api/v1/participants/:id/link-parent', () => {
           rows: [{ role_name: 'admin' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -503,12 +513,12 @@ describe('POST /api/v1/participants/:id/link-parent', () => {
   });
 
   test('prevents duplicate parent-child links', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT.*FROM participants WHERE id')) {
         return Promise.resolve({
           rows: [{ id: 50 }]
@@ -528,7 +538,8 @@ describe('POST /api/v1/participants/:id/link-parent', () => {
           rows: [{ role_name: 'admin' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -542,18 +553,19 @@ describe('POST /api/v1/participants/:id/link-parent', () => {
   });
 
   test('requires parent_user_id in request', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
           rows: [{ permission_key: 'participants.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -573,14 +585,14 @@ describe('POST /api/v1/participants/:id/link-parent', () => {
 
 describe('POST /api/v1/participants/:id/add-group', () => {
   test('adds participant to group', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
     let groupMembershipInserted = false;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('INSERT INTO participant_groups')) {
         groupMembershipInserted = true;
         return Promise.resolve({
@@ -610,7 +622,8 @@ describe('POST /api/v1/participants/:id/add-group', () => {
           rows: [{ role_name: 'admin' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -625,12 +638,12 @@ describe('POST /api/v1/participants/:id/add-group', () => {
   });
 
   test('prevents adding participant to non-existent group', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage']
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('SELECT id FROM groups WHERE id')) {
         return Promise.resolve({ rows: [] }); // Group not found
       }
@@ -644,7 +657,8 @@ describe('POST /api/v1/participants/:id/add-group', () => {
           rows: [{ permission_key: 'participants.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -665,13 +679,13 @@ describe('POST /api/v1/participants/:id/add-group', () => {
 
 describe('Multi-organization participant isolation', () => {
   test('prevents participant from being linked to non-existent user in same org', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.manage'],
       organizationId: ORG_ID
     });
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM users WHERE id')) {
         return Promise.resolve({ rows: [] }); // User not found
       }
@@ -685,7 +699,8 @@ describe('Multi-organization participant isolation', () => {
           rows: [{ permission_key: 'participants.manage' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     const res = await request(app)
@@ -699,7 +714,7 @@ describe('Multi-organization participant isolation', () => {
   });
 
   test('filters participant queries by organization_id', async () => {
-    const { __mPool } = require('pg');
+    const { __mClient, __mPool } = require('pg');
     const token = generateToken({
       permissions: ['participants.view'],
       organizationId: ORG_ID
@@ -707,7 +722,7 @@ describe('Multi-organization participant isolation', () => {
 
     let queriedOrgId = null;
 
-    __mPool.query.mockImplementation((query, params) => {
+    mockQueryImplementation(__mClient, __mPool, (query, params) => {
       if (query.includes('FROM participants p')) {
         queriedOrgId = params[0];
         return Promise.resolve({ rows: [] });
@@ -727,7 +742,8 @@ describe('Multi-organization participant isolation', () => {
           rows: [{ role_name: 'admin' }]
         });
       }
-      return Promise.resolve({ rows: [] });
+      // Return undefined to fall back to default mocks (permissions, roles, etc.)
+      return undefined;
     });
 
     await request(app)
