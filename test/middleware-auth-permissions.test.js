@@ -539,6 +539,8 @@ describe('Multi-tenant isolation', () => {
       .set('x-organization-id', evilOrg.toString());
 
     // Even with header override, query params should include token org and never include override org
+    expect(participantQueryParams).toBeDefined();
+    expect(Array.isArray(participantQueryParams)).toBe(true);
     expect(participantQueryParams).toContain(userOrg);
     expect(participantQueryParams).not.toContain(evilOrg);
   });
