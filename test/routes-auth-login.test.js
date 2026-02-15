@@ -101,7 +101,8 @@ describe('POST /public/login', () => {
         return Promise.resolve({ rows: [] }); // Not a demo user
       }
       if (query.includes('trusted_devices')) {
-        return Promise.resolve({ rows: [] }); // No trusted device
+        // Mock a trusted device so the user bypasses 2FA
+        return Promise.resolve({ rows: [{ id: 1, device_token: 'trusted-token' }] });
       }
       if (query.includes('role_name')) {
         return Promise.resolve({
@@ -309,7 +310,7 @@ describe('POST /public/login', () => {
     const res = await request(app)
       .post('/public/login')
       .send({
-        email: 'invalid-email',
+        email: 'invalid-email-format-test',
         password: 'Password123!'
       });
 
@@ -321,7 +322,7 @@ describe('POST /public/login', () => {
     const res = await request(app)
       .post('/public/login')
       .send({
-        email: validEmail,
+        email: 'empty-password-test@example.com',
         password: ''
       });
 
@@ -363,7 +364,7 @@ describe('POST /public/login', () => {
 // 2FA VERIFICATION TESTS
 // ============================================
 
-describe('POST /api/auth/verify-2fa', () => {
+describe('POST /public/verify-2fa', () => {
   test('returns JWT token when 2FA code is correct', async () => {
     const { __mClient, __mPool } = require('pg');
     const validCode = '123456';
@@ -398,7 +399,7 @@ describe('POST /api/auth/verify-2fa', () => {
     });
 
     const res = await request(app)
-      .post('/api/auth/verify-2fa')
+      .post('/public/verify-2fa')
       .send({
         user_id: 1,
         code: validCode
@@ -429,7 +430,7 @@ describe('POST /api/auth/verify-2fa', () => {
     });
 
     const res = await request(app)
-      .post('/api/auth/verify-2fa')
+      .post('/public/verify-2fa')
       .send({
         user_id: 1,
         code: '999999' // Wrong code
@@ -458,7 +459,7 @@ describe('POST /api/auth/verify-2fa', () => {
     });
 
     const res = await request(app)
-      .post('/api/auth/verify-2fa')
+      .post('/public/verify-2fa')
       .send({
         user_id: 1,
         code: '123456'
@@ -473,7 +474,7 @@ describe('POST /api/auth/verify-2fa', () => {
 // ============================================
 
 describe('Password reset flow', () => {
-  test('POST /public/password-reset-request accepts valid email and sends reset link', async () => {
+  test('POST /api/auth/request-reset accepts valid email and sends reset link', async () => {
     const { __mClient, __mPool } = require('pg');
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
@@ -481,21 +482,21 @@ describe('Password reset flow', () => {
         return Promise.resolve({
           rows: [{
             id: 1,
-            email: 'user@example.com',
+            email: 'reset-user@example.com',
             is_verified: true
           }]
         });
       }
-      if (query.includes('INSERT INTO password_reset')) {
+      if (query.includes('INSERT INTO password_resets')) {
         return Promise.resolve({ rows: [{ token: 'reset_token_xyz' }] });
       }
       return Promise.resolve({ rows: [] });
     });
 
     const res = await request(app)
-      .post('/public/password-reset-request')
+      .post('/api/auth/request-reset')
       .send({
-        email: 'user@example.com'
+        email: 'reset-user@example.com'
       });
 
     expect(res.status).toBe(200);
@@ -503,10 +504,19 @@ describe('Password reset flow', () => {
     expect(res.body.message).toMatch(/sent|reset/i);
   });
 
-  test('POST /public/password-reset-request rate limits requests (5 per hour)', async () => {
+  test('POST /api/auth/request-reset rate limits requests (5 per hour)', async () => {
     const { __mClient, __mPool } = require('pg');
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
+      if (query.includes('FROM users u')) {
+        return Promise.resolve({
+          rows: [{
+            id: 2,
+            email: 'ratelimit-reset@example.com',
+            is_verified: true
+          }]
+        });
+      }
       return Promise.resolve({ rows: [] });
     });
 
@@ -515,9 +525,9 @@ describe('Password reset flow', () => {
     for (let i = 0; i < 6; i++) {
       requests.push(
         request(app)
-          .post('/public/password-reset-request')
+          .post('/api/auth/request-reset')
           .send({
-            email: 'user@example.com'
+            email: 'ratelimit-reset@example.com'
           })
       );
     }
@@ -528,7 +538,7 @@ describe('Password reset flow', () => {
     expect(rateLimited.length).toBeGreaterThanOrEqual(1);
   });
 
-  test('POST /public/password-reset-execute updates password with valid token', async () => {
+  test('POST /api/auth/reset-password updates password with valid token', async () => {
     const { __mClient, __mPool } = require('pg');
 
     mockQueryImplementation(__mClient, __mPool, (query, params) => {
@@ -553,7 +563,7 @@ describe('Password reset flow', () => {
     });
 
     const res = await request(app)
-      .post('/public/password-reset-execute')
+      .post('/api/auth/reset-password')
       .send({
         token: 'valid_token',
         new_password: 'NewPassword123!'
@@ -581,7 +591,7 @@ describe('Password reset flow', () => {
     });
 
     const res = await request(app)
-      .post('/public/password-reset-execute')
+      .post('/api/auth/reset-password')
       .send({
         token: 'expired_token',
         new_password: 'NewPassword123!'
