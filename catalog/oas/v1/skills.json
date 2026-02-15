@@ -1,0 +1,20 @@
+[
+  {
+    "official_key": "oas-leadership",
+    "name": "Leadership",
+    "display_order": 1,
+    "is_active": true
+  },
+  {
+    "official_key": "oas-outdoor",
+    "name": "Outdoor Skills",
+    "display_order": 2,
+    "is_active": true
+  },
+  {
+    "official_key": "oas-community",
+    "name": "Community Service",
+    "display_order": 3,
+    "is_active": true
+  }
+]

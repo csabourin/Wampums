@@ -16,6 +16,7 @@ This directory contains technical documentation for the Wampums Scout Management
 - **[readme.md](../readme.md)** - Project overview and feature list
 
 ### Architecture & Planning
+- **[oas-catalog-pipeline.md](./oas-catalog-pipeline.md)** - Versioned OAS catalog data pipeline, bilingual checks, and evolution process
 - **[CODEBASE_ARCHITECTURE_REVIEW.md](./CODEBASE_ARCHITECTURE_REVIEW.md)** - Comprehensive architecture analysis
 - **[CODEBASE_ARCHITECTURE_TODO.md](./CODEBASE_ARCHITECTURE_TODO.md)** - Migration roadmap and modernization tasks
 - **[API_ENDPOINT_USAGE_AUDIT.md](./API_ENDPOINT_USAGE_AUDIT.md)** - API endpoint inventory and usage tracking
