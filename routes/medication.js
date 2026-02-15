@@ -179,6 +179,15 @@ module.exports = (pool, logger) => {
       );
 
       const requirement = insertRequirement.rows[0];
+      if (!requirement) {
+        await client.query('ROLLBACK');
+        logger.error('Medication requirement insert did not return an ID', {
+          organizationId,
+          userId: req.user.id,
+          rowsReturned: insertRequirement.rows?.length || 0
+        });
+        return error(res, 'Failed to create medication requirement', 500);
+      }
 
       // Batch insert all participant medications in a single query
       if (participants.length > 0) {
@@ -490,7 +499,19 @@ module.exports = (pool, logger) => {
           [organizationId, requirementId, participantId]
         );
 
-        const participantMedicationId = assignment.rows[0]?.id || null;
+        let participantMedicationId = assignment.rows[0]?.id || null;
+
+        // Some PostgreSQL/planner combinations may not return rows reliably on upsert,
+        // so fetch the existing assignment id as a safe fallback.
+        if (!participantMedicationId) {
+          const existingAssignment = await client.query(
+            `SELECT id FROM participant_medications
+             WHERE organization_id = $1 AND medication_requirement_id = $2 AND participant_id = $3`,
+            [organizationId, requirementId, participantId]
+          );
+
+          participantMedicationId = existingAssignment.rows[0]?.id || null;
+        }
 
         // Use a SELECT ... FOR UPDATE to lock the existing row (if any) and
         // prevent a race between the duplicate-dose check and the upsert.
@@ -733,6 +754,10 @@ module.exports = (pool, logger) => {
     let result;
 
     if (existingCheck.rows.length > 0) {
+      if (status === 'received' || status === 'partial') {
+        return error(res, 'Medication already received for this participant', 400);
+      }
+
       // Update existing record
       result = await pool.query(
         `UPDATE medication_receptions

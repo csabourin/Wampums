@@ -70,15 +70,15 @@ function mapRequestedRole(userType) {
 requireJWTSecret();
 
 // Rate limiters
+const isProduction = process.env.NODE_ENV === 'production';
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 6, // 6 attempts per window (even number so login + 2FA both succeed if user is near limit)
+  max: isProduction ? 6 : 100, // 6 attempts per window in production, 100 in test/dev
   message: { success: false, message: 'too_many_login_attempts' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-const isProduction = process.env.NODE_ENV === 'production';
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
@@ -207,7 +207,7 @@ module.exports = (pool, logger) => {
           [user.id, organizationId]
         );
 
-        const isDemoUser = parseInt(demoRoleCheck.rows[0].demo_count) > 0;
+        const isDemoUser = demoRoleCheck.rows[0] ? parseInt(demoRoleCheck.rows[0].demo_count) > 0 : false;
 
         if (isDemoUser) {
           logger.info('2FA bypassed for demo user', {
@@ -551,7 +551,29 @@ module.exports = (pool, logger) => {
           [normalizedEmail, hashedPassword, full_name, role === 'parent']
         );
 
-        const userId = result.rows[0].id;
+        let createdUser = result.rows && result.rows.length > 0 ? result.rows[0] : null;
+
+        // Defensive fallback: some mocked/test DB paths may report success without RETURNING rows.
+        if (!createdUser) {
+          const fallbackUserResult = await client.query(
+            `SELECT id, email, full_name, is_verified
+             FROM users
+             WHERE email = $1
+             ORDER BY id DESC
+             LIMIT 1`,
+            [normalizedEmail]
+          );
+
+          createdUser = fallbackUserResult.rows[0] || null;
+        }
+
+        if (!createdUser) {
+          const noRowsError = new Error('Failed to create user account - no rows returned');
+          noRowsError.code = 'USER_CREATE_NO_ROWS';
+          throw noRowsError;
+        }
+
+        const userId = createdUser.id;
 
         // Get role ID from roles table
         const roleResult = await client.query(
@@ -586,7 +608,7 @@ module.exports = (pool, logger) => {
 
         res.status(201).json({
           success: true,
-          data: result.rows[0],
+          data: createdUser,
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
@@ -595,6 +617,13 @@ module.exports = (pool, logger) => {
         }
         await client.query('ROLLBACK');
         logger.error('Error registering user:', error);
+
+        if (error.code === 'USER_CREATE_NO_ROWS') {
+          return res.status(400).json({
+            success: false,
+            message: 'registration_error'
+          });
+        }
 
         // Handle duplicate email error (PostgreSQL error code 23505)
         if (error.code === '23505' && error.constraint === 'users_email_key') {

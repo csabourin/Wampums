@@ -28,6 +28,10 @@ async function getGroupForOrganization(db, groupId, organizationId) {
   return groupResult.rows[0] || null;
 }
 
+function isPlainBodyObject(payload) {
+  return payload && typeof payload === 'object' && !Array.isArray(payload);
+}
+
 module.exports = (pool) => {
   /**
    * @swagger
@@ -188,7 +192,8 @@ module.exports = (pool) => {
 
     // Get total count
     const countResult = await pool.query(countQuery, countParams);
-    const total = parseInt(countResult.rows[0].total);
+    const totalRow = countResult && Array.isArray(countResult.rows) ? countResult.rows[0] : null;
+    const total = Number.parseInt(totalRow?.total ?? totalRow?.count ?? 0, 10) || 0;
 
     return paginated(res, participants, page, limit, total);
   }));
@@ -225,8 +230,17 @@ module.exports = (pool) => {
    *         description: Participant created
   */
   router.post('/', authenticate, blockDemoRoles, requirePermission('participants.create'), asyncHandler(async (req, res) => {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);
+
+    // Validate required fields
+    if (!first_name || !last_name) {
+      return error(res, 'First name and last name are required', 400);
+    }
 
     let groupContext = null;
 
@@ -248,6 +262,12 @@ module.exports = (pool) => {
          VALUES ($1, $2, $3) RETURNING *`,
         [first_name, last_name, date_of_birth]
       );
+
+      // Verify participant was created
+      if (!participantResult.rows[0]) {
+        await client.query('ROLLBACK');
+        return error(res, 'Failed to create participant', 500);
+      }
 
       const participantId = participantResult.rows[0].id;
 
@@ -319,6 +339,10 @@ module.exports = (pool) => {
    *         description: Participant not found
    */
   router.patch('/:id/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const { id } = req.params;
     const { group_id, first_leader, second_leader, roles } = req.body;
     const organizationId = await getOrganizationId(req, pool);
@@ -504,6 +528,10 @@ module.exports = (pool) => {
    *         description: Duplicate participant
    */
   router.post('/save', authenticate, blockDemoRoles, requirePermission('participants.create'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
@@ -682,6 +710,10 @@ module.exports = (pool) => {
    * Update participant group membership and roles (leader/second leader)
    */
   router.post('/group-membership', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
@@ -743,6 +775,10 @@ module.exports = (pool) => {
    * Link participant to organization
    */
   router.post('/link-organization', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const organizationId = await getOrganizationId(req, pool);
 
     const { participant_id, inscription_date } = req.body;
@@ -793,6 +829,10 @@ module.exports = (pool) => {
    * Link user to multiple participants (self-linking or admin linking)
    */
   router.post('/link-users', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const organizationId = await getOrganizationId(req, pool);
 
     // Verify user belongs to this organization
@@ -960,6 +1000,10 @@ module.exports = (pool) => {
    * Requires admin or animation role
    */
   router.post('/associate-user', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const organizationId = await getOrganizationId(req, pool);
 
     const { user_id, participant_id } = req.body;
@@ -984,6 +1028,10 @@ module.exports = (pool) => {
    * Requires admin or animation role
    */
   router.post('/link-parent', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const organizationId = await getOrganizationId(req, pool);
 
     const { parent_id, participant_id, relationship } = req.body;
@@ -1139,6 +1187,10 @@ module.exports = (pool) => {
    *         description: Participant updated
    */
   router.put('/:id', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
     const { id } = req.params;
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);

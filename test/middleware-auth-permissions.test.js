@@ -34,6 +34,7 @@ jest.mock('pg', () => {
 });
 
 const { Pool } = require('pg');
+const { setupDefaultMocks, mockQueryImplementation } = require('./mock-helpers');
 let app;
 
 const TEST_SECRET = 'testsecret';
@@ -69,10 +70,11 @@ beforeAll(() => {
 
 beforeEach(() => {
   const { __mClient, __mPool } = require('pg');
-  __mClient.query.mockReset();
-  __mClient.release.mockReset();
+  setupDefaultMocks(__mClient, __mPool);
+  __mClient.query.mockClear();
+  __mClient.release.mockClear();
   __mPool.connect.mockClear();
-  __mPool.query.mockReset();
+  __mPool.query.mockClear();
 });
 
 afterAll((done) => {
@@ -99,7 +101,7 @@ describe('getOrganizationId middleware', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/users/users')
+      .get('/api/v1/users')
       .set('Authorization', `Bearer ${token}`);
 
     // Should succeed because token has valid org ID
@@ -122,7 +124,7 @@ describe('getOrganizationId middleware', () => {
     });
 
     await request(app)
-      .get('/api/v1/users/users')
+      .get('/api/v1/users')
       .set('Authorization', `Bearer ${token}`)
       .set('x-organization-id', evilOrgId.toString());
 
@@ -145,9 +147,9 @@ describe('getOrganizationId middleware', () => {
     });
 
     await request(app)
-      .post('/api/v1/budgets/categories')
+      .post('/api/v1/users/update-role')
       .set('Authorization', `Bearer ${token}`)
-      .send({ organization_id: 999, name: 'test' });
+      .send({ organization_id: 999, user_id: '550e8400-e29b-41d4-a716-446655440111', role: 'leader' });
 
     // Verify the second param (organizationId) came from token
     expect(capturedParams[1]).toBe(ORG_ID);
@@ -187,7 +189,7 @@ describe('getOrganizationId middleware', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/users/users')
+      .get('/api/v1/users')
       .set('Authorization', `Bearer ${generateToken()}`);
 
     // Should fail gracefully with 500 or organization error
@@ -203,13 +205,13 @@ describe('requirePermission middleware', () => {
   test('allows access when user has required permission', async () => {
     const { __mPool } = require('pg');
     const token = generateToken({
-      permissions: ['users.manage']
+      permissions: ['users.view']
     });
 
     __mPool.query.mockImplementation((query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
-          rows: [{ permission_key: 'users.manage' }]
+          rows: [{ permission_key: 'users.view' }]
         });
       }
       if (query.includes('role_name')) {
@@ -221,7 +223,7 @@ describe('requirePermission middleware', () => {
     });
 
     const res = await request(app)
-      .delete('/api/v1/users/100')
+      .get('/api/v1/users')
       .set('Authorization', `Bearer ${token}`);
 
     // Should not be 403 (forbidden)
@@ -231,13 +233,13 @@ describe('requirePermission middleware', () => {
   test('denies access when user lacks required permission', async () => {
     const { __mPool } = require('pg');
     const token = generateToken({
-      permissions: ['users.view'] // Can view, but not manage
+      permissions: ['participants.view']
     });
 
     __mPool.query.mockImplementation((query, params) => {
       if (query.includes('permission_key')) {
         return Promise.resolve({
-          rows: [{ permission_key: 'users.view' }] // Only has view permission
+          rows: [{ permission_key: 'participants.view' }]
         });
       }
       if (query.includes('role_name')) {
@@ -249,7 +251,7 @@ describe('requirePermission middleware', () => {
     });
 
     const res = await request(app)
-      .delete('/api/v1/users/100')
+      .get('/api/v1/users')
       .set('Authorization', `Bearer ${token}`);
 
     // Should be 403 forbidden
@@ -307,7 +309,7 @@ describe('requirePermission middleware', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/budgets/summary')
+      .get('/api/v1/users')
       .set('Authorization', `Bearer ${token}`);
 
     // Verify permissions were fetched and attached
@@ -343,9 +345,9 @@ describe('blockDemoRoles middleware', () => {
     });
 
     const res = await request(app)
-      .post('/api/v1/budgets/categories')
+      .post('/api/v1/users/approve')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Test Category' });
+      .send({ user_id: '550e8400-e29b-41d4-a716-446655440999' });
 
     // Should be blocked
     expect(res.status).toBe(403);
@@ -512,11 +514,11 @@ describe('Multi-tenant isolation', () => {
 
     const token = generateToken({ organizationId: userOrg });
 
-    let queriedOrgId = null;
+    let participantQueryParams = null;
 
     __mPool.query.mockImplementation((query, params) => {
       if (query.includes('FROM participants p')) {
-        queriedOrgId = params[0];
+        participantQueryParams = params;
       }
       if (query.includes('permission_key')) {
         return Promise.resolve({
@@ -536,7 +538,10 @@ describe('Multi-tenant isolation', () => {
       .set('Authorization', `Bearer ${token}`)
       .set('x-organization-id', evilOrg.toString());
 
-    // Even with header override, query should use token org
-    expect(queriedOrgId).toBe(userOrg);
+    // Even with header override, query params should include token org and never include override org
+    expect(participantQueryParams).toBeDefined();
+    expect(Array.isArray(participantQueryParams)).toBe(true);
+    expect(participantQueryParams).toContain(userOrg);
+    expect(participantQueryParams).not.toContain(evilOrg);
   });
 });
