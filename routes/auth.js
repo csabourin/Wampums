@@ -207,7 +207,7 @@ module.exports = (pool, logger) => {
           [user.id, organizationId]
         );
 
-        const isDemoUser = parseInt(demoRoleCheck.rows[0].demo_count) > 0;
+        const isDemoUser = demoRoleCheck.rows[0] ? parseInt(demoRoleCheck.rows[0].demo_count) > 0 : false;
 
         if (isDemoUser) {
           logger.info('2FA bypassed for demo user', {
@@ -551,12 +551,11 @@ module.exports = (pool, logger) => {
           [normalizedEmail, hashedPassword, full_name, role === 'parent']
         );
 
-        const createdUser = result && Array.isArray(result.rows) ? result.rows[0] : null;
-        const userId = createdUser?.id;
-
-        if (!userId) {
-          throw new Error('Failed to create user account');
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error('Failed to create user account - no rows returned');
         }
+
+        const userId = result.rows[0].id;
 
         // Get role ID from roles table
         const roleResult = await client.query(
@@ -591,7 +590,7 @@ module.exports = (pool, logger) => {
 
         res.status(201).json({
           success: true,
-          data: createdUser,
+          data: result.rows[0],
           message: 'registration_successful_await_verification'
         });
       } catch (error) {
