@@ -229,6 +229,11 @@ module.exports = (pool) => {
     const { first_name, last_name, date_of_birth, group_id } = req.body;
     const organizationId = await getOrganizationId(req, pool);
 
+    // Validate required fields
+    if (!first_name || !last_name) {
+      return error(res, 'First name and last name are required', 400);
+    }
+
     let groupContext = null;
 
     if (group_id) {
@@ -249,6 +254,12 @@ module.exports = (pool) => {
          VALUES ($1, $2, $3) RETURNING *`,
         [first_name, last_name, date_of_birth]
       );
+
+      // Verify participant was created
+      if (!participantResult.rows[0]) {
+        await client.query('ROLLBACK');
+        return error(res, 'Failed to create participant', 500);
+      }
 
       const participantId = participantResult.rows[0].id;
 
