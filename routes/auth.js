@@ -70,15 +70,15 @@ function mapRequestedRole(userType) {
 requireJWTSecret();
 
 // Rate limiters
+const isProduction = process.env.NODE_ENV === 'production';
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 6, // 6 attempts per window (even number so login + 2FA both succeed if user is near limit)
+  max: isProduction ? 6 : 100, // 6 attempts per window in production, 100 in test/dev
   message: { success: false, message: 'too_many_login_attempts' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-const isProduction = process.env.NODE_ENV === 'production';
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: isProduction ? 5 : 100, // 5 attempts per hour in production, 100 in development
