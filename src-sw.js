@@ -93,18 +93,28 @@ const navigationHandler = new NetworkFirst({
   ],
 });
 
+// SSR marketing paths: all /en/* and /fr/* pages are server-rendered static HTML.
+// The SW must NOT intercept these - let them go directly to the network.
+// This ensures Googlebot and other crawlers always receive fresh, complete HTML
+// without being served stale cache from the SW.
+const SSR_PATHS = [
+  /^\/api\//,
+  /^\/public\//,
+  /^\/offline\.html$/,
+  /^\/manifest\.json$/,
+  /^\/manifest\.webmanifest$/,
+  /^\/__replco\//,
+  /^\/robots\.txt$/,
+  /^\/sitemap\.xml$/,
+  // Landing + feature + blog + compare pages (EN)
+  /^\/en($|\/)/,
+  // Landing + feature + blog + compare pages (FR)
+  /^\/fr($|\/)/,
+  /^\/landing\//,
+];
+
 const navigationRoute = new NavigationRoute(navigationHandler, {
-  denylist: [
-    /^\/api\//,
-    /^\/public\//,
-    /^\/offline\.html$/,
-    /^\/manifest\.json$/,
-    /^\/manifest\.webmanifest$/,
-    /^\/__replco\//,
-    /^\/en($|\/)/,          // Allow /en, /en/, /en/index.html etc.
-    /^\/fr($|\/)/,          // Allow /fr, /fr/, /fr/index.html etc.
-    /^\/landing\//,         // Allow /landing/* to serve landing pages
-  ],
+  denylist: SSR_PATHS,
 });
 registerRoute(navigationRoute);
 

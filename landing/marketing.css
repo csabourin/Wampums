@@ -1,0 +1,41 @@
+
+:root {
+  --bg: #f4f8f7;
+  --text: #12312a;
+  --muted: #3f5d55;
+  --brand: #0f7a5a;
+  --brand-dark: #0c5f46;
+  --card: #ffffff;
+  --border: #d9e6e1;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+a { color: var(--brand-dark); }
+img { max-width: 100%; height: auto; border-radius: 12px; }
+.site-header { background: #ffffff; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+.container { width: min(1100px, 92%); margin: 0 auto; }
+.topbar { display: flex; gap: .8rem; align-items: center; justify-content: space-between; padding: .8rem 0; flex-wrap: wrap; }
+.brand { font-weight: 800; text-decoration: none; color: var(--brand-dark); }
+.nav-links { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+.nav-links a { text-decoration: none; padding: .45rem .7rem; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: .93rem; }
+.nav-links a[aria-current="page"] { background: #e5f4ef; border-color: #b7d8cd; }
+.hero { padding: 2.5rem 0 1rem; }
+.hero h1 { margin: 0 0 .6rem; font-size: clamp(1.65rem, 5vw, 2.4rem); line-height: 1.15; }
+.hero p { color: var(--muted); margin-top: 0; }
+.hero-grid, .grid { display: grid; gap: 1rem; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; }
+.section { padding: 1.6rem 0; }
+.section h2 { margin: 0 0 .5rem; font-size: clamp(1.3rem, 4vw, 1.75rem); }
+.kicker { color: var(--brand-dark); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; margin-bottom: .3rem; }
+ul.clean { margin: .2rem 0 0 1rem; padding: 0; }
+.btn { display: inline-block; margin-right: .5rem; margin-top: .6rem; text-decoration: none; border-radius: 10px; padding: .68rem .95rem; border: 1px solid var(--brand); }
+.btn-primary { color: #fff; background: var(--brand); }
+.btn-secondary { color: var(--brand-dark); background: #eaf7f2; }
+.faq-item + .faq-item { margin-top: .8rem; }
+footer { margin-top: 2rem; padding: 1.6rem 0 2.2rem; border-top: 1px solid var(--border); background: #fff; }
+.small { font-size: .92rem; color: var(--muted); }
+@media (min-width: 760px) {
+  .hero-grid { grid-template-columns: 1.2fr .8fr; }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+}

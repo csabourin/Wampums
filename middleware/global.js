@@ -5,6 +5,7 @@ const cors = require("cors");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpecs = require("../config/swagger");
 const logger = require("../config/logger");
+const ejs = require("ejs");
 
 const isProduction = process.env.NODE_ENV === "production";
 const REQUEST_BODY_LIMIT = "20mb";
@@ -41,6 +42,42 @@ function getPreferredLandingPath(req) {
     }
 
     return "/en/";
+}
+
+/** Base URL for all canonical links */
+const BASE_URL = "https://wampums.app";
+
+/** Views directory for EJS templates */
+const VIEWS_DIR = path.join(process.cwd(), "views");
+
+/**
+ * Render an EJS template file with provided locals.
+ * @param {string} template - relative path under views/ (e.g. 'blog/index.ejs')
+ * @param {Object} locals
+ * @returns {Promise<string>}
+ */
+function renderView(template, locals) {
+    return new Promise((resolve, reject) => {
+        ejs.renderFile(path.join(VIEWS_DIR, template), locals, { rmWhitespace: false }, (err, html) => {
+            if (err) reject(err);
+            else resolve(html);
+        });
+    });
+}
+
+/**
+ * Build a sitemap <url> entry with hreflang.
+ */
+function sitemapUrl({ loc, enPath, frPath, lastmod, changefreq = "monthly", priority = "0.8" }) {
+    return `  <url>
+    <loc>${BASE_URL}${loc}</loc>
+    <xhtml:link rel="alternate" hreflang="en-CA" href="${BASE_URL}${enPath}"/>
+    <xhtml:link rel="alternate" hreflang="fr-CA" href="${BASE_URL}${frPath}"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}${enPath}"/>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>${changefreq}</changefreq>
+    <priority>${priority}</priority>
+  </url>`;
 }
 
 module.exports = (app) => {
@@ -129,8 +166,127 @@ module.exports = (app) => {
     const landingDir = path.join(process.cwd(), "landing");
     const landingHosts = new Set(["wampums.app", "www.wampums.app"]);
 
+    // Lazy-load blog service to avoid crashing on startup if content dir is missing
+    let blogService = null;
+    function getBlogService() {
+        if (!blogService) {
+            try {
+                blogService = require("../services/blog");
+            } catch (err) {
+                logger.error("[Blog] Could not load blog service:", err.message);
+            }
+        }
+        return blogService;
+    }
+
+    // Robots.txt (served on all hostnames)
+    app.get("/robots.txt", (req, res) => {
+        const isLanding = landingHosts.has(req.hostname);
+        res.type("text/plain");
+        if (isLanding) {
+            res.send([
+                "User-agent: *",
+                "Allow: /",
+                "",
+                "# Block authenticated app routes",
+                "Disallow: /api/",
+                "Disallow: /api-docs",
+                "Disallow: /dashboard",
+                "Disallow: /attendance",
+                "Disallow: /badges",
+                "Disallow: /activities",
+                "Disallow: /finance",
+                "Disallow: /budgets",
+                "Disallow: /settings",
+                "Disallow: /login",
+                "Disallow: /register",
+                "Disallow: /admin",
+                "Disallow: /reports",
+                "Disallow: /carpool",
+                "Disallow: /communications",
+                "Disallow: /form-builder",
+                "Disallow: /manage-",
+                "Disallow: /badge-",
+                "Disallow: /medication",
+                "Disallow: /permission-slips",
+                "Disallow: /program-progress",
+                "",
+                `Sitemap: ${BASE_URL}/sitemap.xml`,
+            ].join("\n"));
+        } else {
+            res.send("User-agent: *\nDisallow: /\n");
+        }
+    });
+
+    // Dynamic sitemap.xml
+    app.get("/sitemap.xml", (req, res) => {
+        const today = new Date().toISOString().slice(0, 10);
+        const blog = getBlogService();
+        const blogPosts = blog ? blog.getAllPosts() : [];
+
+        const staticPages = [
+            { en: "/en/", fr: "/fr/", freq: "weekly", pri: "1.0" },
+            { en: "/en/features/attendance/", fr: "/fr/fonctionnalites/presences/", freq: "monthly", pri: "0.8" },
+            { en: "/en/features/badges/", fr: "/fr/fonctionnalites/badges/", freq: "monthly", pri: "0.8" },
+            { en: "/en/features/communication/", fr: "/fr/fonctionnalites/communication/", freq: "monthly", pri: "0.8" },
+            { en: "/en/features/finance/", fr: "/fr/fonctionnalites/finances/", freq: "monthly", pri: "0.8" },
+            { en: "/en/features/forms/", fr: "/fr/fonctionnalites/formulaires/", freq: "monthly", pri: "0.8" },
+            { en: "/en/features/logistics/", fr: "/fr/fonctionnalites/logistique/", freq: "monthly", pri: "0.8" },
+            { en: "/en/modules/finance/", fr: "/fr/modules/finance/", freq: "monthly", pri: "0.7" },
+            { en: "/en/modules/carpool/", fr: "/fr/modules/carpool/", freq: "monthly", pri: "0.7" },
+            { en: "/en/modules/on-site/", fr: "/fr/modules/on-site/", freq: "monthly", pri: "0.7" },
+            { en: "/en/modules/offline/", fr: "/fr/modules/offline/", freq: "monthly", pri: "0.7" },
+            { en: "/en/modules/medications/", fr: "/fr/modules/medications/", freq: "monthly", pri: "0.7" },
+            { en: "/en/modules/fundraising/", fr: "/fr/modules/fundraising/", freq: "monthly", pri: "0.7" },
+            { en: "/en/compare/wampums-vs-sporteasy/", fr: "/fr/comparer/wampums-vs-sporteasy/", freq: "monthly", pri: "0.7" },
+            { en: "/en/compare/wampums-vs-trooptrack/", fr: "/fr/comparer/wampums-vs-trooptrack/", freq: "monthly", pri: "0.7" },
+            { en: "/en/compare/wampums-vs-spreadsheets/", fr: "/fr/comparer/wampums-vs-tableurs/", freq: "monthly", pri: "0.7" },
+            { en: "/en/blog/", fr: "/fr/blogue/", freq: "weekly", pri: "0.8" },
+            { en: "/en/faq/", fr: "/fr/faq/", freq: "monthly", pri: "0.6" },
+        ];
+
+        const urlEntries = staticPages.map(p =>
+            sitemapUrl({ loc: p.en, enPath: p.en, frPath: p.fr, lastmod: today, changefreq: p.freq, priority: p.pri })
+        );
+
+        for (const post of blogPosts) {
+            const enSlug = post.lang === "en" ? post.slug : (post.alternate || post.slug);
+            const frSlug = post.lang === "fr" ? post.slug : (post.alternate || post.slug);
+            const enPath = `/en/blog/${enSlug}/`;
+            const frPath = `/fr/blogue/${frSlug}/`;
+            const loc = post.lang === "en" ? enPath : frPath;
+            urlEntries.push(sitemapUrl({ loc, enPath, frPath, lastmod: post.updated || post.date, changefreq: "monthly", priority: "0.7" }));
+        }
+
+        res.type("application/xml");
+        res.send([
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
+            '        xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+            urlEntries.join("\n"),
+            "</urlset>",
+        ].join("\n"));
+    });
+
+    // Blog refresh endpoint (protected by secret)
+    app.post("/api/blog/refresh", (req, res) => {
+        const secret = process.env.BLOG_REFRESH_SECRET;
+        const provided = req.headers["x-refresh-secret"];
+        if (secret && provided !== secret) {
+            return res.status(401).json({ success: false, message: "unauthorized" });
+        }
+        const blog = getBlogService();
+        if (!blog) {
+            return res.status(503).json({ success: false, message: "blog_service_unavailable" });
+        }
+        blog.rebuild();
+        return res.json({ success: true, message: "blog_index_refreshed" });
+    });
+
     const landingStatic = express.static(landingDir);
-    app.use((req, res, next) => {
+
+    // Middleware for wampums.app hostname: blog (SSR) + static landing pages
+    app.use(async (req, res, next) => {
         if (!landingHosts.has(req.hostname)) {
             return next();
         }
@@ -145,6 +301,80 @@ module.exports = (app) => {
 
         if (req.path === "/landing" || req.path === "/landing/" || req.path === "/landing/index.html") {
             return res.redirect(302, getPreferredLandingPath(req));
+        }
+
+        // Trailing slash redirect for clean URLs
+        if (req.path.match(/^\/(?:en|fr)\/.+[^/]$/) && !req.path.match(/\.[a-z]{2,4}$/i)) {
+            return res.redirect(301, `${req.path}/`);
+        }
+
+        // --- Blog EN ---
+        const enBlogIndex = req.path === "/en/blog" || req.path === "/en/blog/";
+        const enBlogPost = req.path.match(/^\/en\/blog\/([^/]+)\/?$/);
+
+        // --- Blog FR ---
+        const frBlogIndex = req.path === "/fr/blogue" || req.path === "/fr/blogue/";
+        const frBlogPost = req.path.match(/^\/fr\/blogue\/([^/]+)\/?$/);
+
+        if (enBlogIndex || frBlogIndex || enBlogPost || frBlogPost) {
+            const blog = getBlogService();
+            if (!blog) {
+                return res.status(503).send("Blog service unavailable");
+            }
+
+            try {
+                const lang = (enBlogIndex || enBlogPost) ? "en" : "fr";
+                const blogBase = lang === "en" ? "/en/blog/" : "/fr/blogue/";
+                const altBase = lang === "en" ? "/fr/blogue/" : "/en/blog/";
+
+                if (enBlogIndex || frBlogIndex) {
+                    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+                    const { posts, total, pages } = blog.getPosts(lang, page, 10);
+                    const html = await renderView("blog/index.ejs", {
+                        lang,
+                        posts,
+                        page,
+                        pages,
+                        total,
+                        canonicalPath: blogBase,
+                        enPath: "/en/blog/",
+                        frPath: "/fr/blogue/",
+                        pageTitle: lang === "fr" ? "Blogue Wampums — Ressources pour chefs scouts" : "Wampums Blog — Resources for Scout Leaders",
+                        pageDescription: lang === "fr"
+                            ? "Guides, conseils et ressources pour les chefs scouts, parents et administrateurs de groupes jeunesse bilingues au Canada."
+                            : "Guides, tips, and resources for scout leaders, parents, and administrators of bilingual youth groups in Canada.",
+                        ogImage: null,
+                    });
+                    return res.send(html);
+                }
+
+                const slug = (enBlogPost || frBlogPost)[1];
+                const post = blog.getPost(lang, slug);
+
+                if (!post) {
+                    return next();
+                }
+
+                const { prev, next: nextPost } = blog.getAdjacentPosts(post);
+                const alternatePost = post.alternate ? blog.getPost(lang === "en" ? "fr" : "en", post.alternate) : null;
+
+                const enPath = lang === "en" ? req.path.endsWith("/") ? req.path : `${req.path}/` : (alternatePost ? `/en/blog/${alternatePost.slug}/` : "/en/blog/");
+                const frPath = lang === "fr" ? req.path.endsWith("/") ? req.path : `${req.path}/` : (alternatePost ? `/fr/blogue/${alternatePost.slug}/` : "/fr/blogue/");
+
+                const html = await renderView("blog/post.ejs", {
+                    post,
+                    prev,
+                    next: nextPost,
+                    alternatePost,
+                    canonicalPath: req.path.endsWith("/") ? req.path : `${req.path}/`,
+                    enPath,
+                    frPath,
+                });
+                return res.send(html);
+            } catch (err) {
+                logger.error("[Blog] Render error:", err);
+                return next(err);
+            }
         }
 
         return landingStatic(req, res, next);
