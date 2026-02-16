@@ -12,6 +12,7 @@
  */
 
 const { BufferJSON, initAuthCreds } = require('@whiskeysockets/baileys');
+const logger = require('../config/logger');
 
 /**
  * Create database-backed auth state for Baileys
@@ -33,7 +34,7 @@ async function useDatabaseAuthState(organizationId, pool) {
       const serialized = typeof value === "string" ? value : JSON.stringify(value);
       return JSON.parse(serialized, BufferJSON.reviver);
     } catch (error) {
-      console.error(`Error reviving Baileys JSON for org ${organizationId}:`, error);
+      logger.error(`Error reviving Baileys JSON for org ${organizationId}:`, error);
       return fallback;
     }
   };
@@ -87,9 +88,9 @@ async function useDatabaseAuthState(organizationId, pool) {
    * @returns {Promise<Object>} The creds stored after reset
    */
   const resetAuthRow = async (freshCreds = initAuthCreds()) => {
-    console.log(`[RESET AUTH] Resetting auth for org ${organizationId}`);
-    console.log(`[RESET AUTH] Fresh creds keys: ${Object.keys(freshCreds).join(', ')}`);
-    console.log(`[RESET AUTH] Has noiseKey: ${!!freshCreds.noiseKey}, registrationId: ${freshCreds.registrationId}`);
+    logger.info(`[RESET AUTH] Resetting auth for org ${organizationId}`);
+    logger.debug(`[RESET AUTH] Fresh creds keys: ${Object.keys(freshCreds).join(', ')}`);
+    logger.debug(`[RESET AUTH] Has noiseKey: ${!!freshCreds.noiseKey}, registrationId: ${freshCreds.registrationId}`);
 
     const serializedCreds = serializeBaileysJson(freshCreds);
 
@@ -106,7 +107,7 @@ async function useDatabaseAuthState(organizationId, pool) {
       [organizationId, serializedCreds]
     );
 
-    console.log(`[RESET AUTH] ✅ Saved fresh credentials to database`);
+    logger.info(`[RESET AUTH] ✅ Saved fresh credentials to database`);
 
     return freshCreds;
   };
@@ -125,7 +126,7 @@ async function useDatabaseAuthState(organizationId, pool) {
 
       if (result.rows.length === 0) {
         // No existing state - initialize new credentials
-        console.log(`[LOAD STATE] No row found, creating fresh credentials for org ${organizationId}`);
+        logger.info(`[LOAD STATE] No row found, creating fresh credentials for org ${organizationId}`);
         const baseCreds = await resetAuthRow();
         return {
           creds: baseCreds,
@@ -137,7 +138,7 @@ async function useDatabaseAuthState(organizationId, pool) {
 
       // Parse stored credentials with BufferJSON to handle Buffer objects
       const revivedCreds = reviveBaileysJson(auth_creds, initAuthCreds());
-      console.log(`[LOAD STATE] Loaded creds keys from DB: ${Object.keys(revivedCreds).join(', ')}`);
+      logger.debug(`[LOAD STATE] Loaded creds keys from DB: ${Object.keys(revivedCreds).join(', ')}`);
 
       const { creds, refreshed } = ensureValidCreds(revivedCreds);
       const keys = reviveBaileysJson(auth_keys, {});
@@ -146,7 +147,7 @@ async function useDatabaseAuthState(organizationId, pool) {
       const isEmptyInDb = !revivedCreds.noiseKey || !revivedCreds.signedIdentityKey;
 
       if (refreshed || isEmptyInDb) {
-        console.warn(`[LOAD STATE] ${refreshed ? 'Refreshing' : 'Initializing'} creds for org ${organizationId} - saving to database`);
+        logger.warn(`[LOAD STATE] ${refreshed ? 'Refreshing' : 'Initializing'} creds for org ${organizationId} - saving to database`);
         await resetAuthRow(creds);
       }
 
@@ -155,7 +156,7 @@ async function useDatabaseAuthState(organizationId, pool) {
         keys: makeKeyStore(keys)
       };
     } catch (error) {
-      console.error(`Error loading auth state for org ${organizationId}:`, error);
+      logger.error(`Error loading auth state for org ${organizationId}:`, error);
       // Clear malformed row so a fresh QR can be generated on next init
       try {
         const baseCreds = await resetAuthRow();
@@ -164,7 +165,7 @@ async function useDatabaseAuthState(organizationId, pool) {
           keys: makeKeyStore({})
         };
       } catch (resetError) {
-        console.error(`Error resetting malformed auth row for org ${organizationId}:`, resetError);
+        logger.error(`Error resetting malformed auth row for org ${organizationId}:`, resetError);
       }
       // Return fresh state if loading fails
       return {
@@ -182,8 +183,8 @@ async function useDatabaseAuthState(organizationId, pool) {
    */
   const saveCredsToDatabase = async (creds) => {
     try {
-      console.log(`[CREDS SAVE] Saving credentials for org ${organizationId}`);
-      console.log(`[CREDS SAVE] Update keys: ${Object.keys(creds).join(', ')}`);
+      logger.debug(`[CREDS SAVE] Saving credentials for org ${organizationId}`);
+      logger.debug(`[CREDS SAVE] Update keys: ${Object.keys(creds).join(', ')}`);
 
       // Load existing credentials from database
       const result = await pool.query(
@@ -194,9 +195,9 @@ async function useDatabaseAuthState(organizationId, pool) {
       let existingCreds = {};
       if (result.rows.length > 0 && result.rows[0].auth_creds) {
         existingCreds = reviveBaileysJson(result.rows[0].auth_creds, {});
-        console.log(`[CREDS SAVE] Existing creds keys: ${Object.keys(existingCreds).join(', ')}`);
+        logger.debug(`[CREDS SAVE] Existing creds keys: ${Object.keys(existingCreds).join(', ')}`);
       } else {
-        console.log(`[CREDS SAVE] No existing credentials found`);
+        logger.debug('[CREDS SAVE] No existing credentials found');
       }
 
       // Merge updates with existing credentials
@@ -205,8 +206,8 @@ async function useDatabaseAuthState(organizationId, pool) {
         ...existingCreds,
         ...creds
       };
-      console.log(`[CREDS SAVE] Merged creds keys: ${Object.keys(mergedCreds).join(', ')}`);
-      console.log(`[CREDS SAVE] Has noiseKey: ${!!mergedCreds.noiseKey}, Has me: ${!!mergedCreds.me}`);
+      logger.debug(`[CREDS SAVE] Merged creds keys: ${Object.keys(mergedCreds).join(', ')}`);
+      logger.debug(`[CREDS SAVE] Has noiseKey: ${!!mergedCreds.noiseKey}, Has me: ${!!mergedCreds.me}`);
 
       const serializedCreds = serializeBaileysJson(mergedCreds);
 
@@ -220,9 +221,9 @@ async function useDatabaseAuthState(organizationId, pool) {
         [organizationId, serializedCreds]
       );
 
-      console.log(`[CREDS SAVE] ✅ Successfully saved merged credentials`);
+      logger.debug('[CREDS SAVE] ✅ Successfully saved merged credentials');
     } catch (error) {
-      console.error(`[CREDS SAVE] ❌ Error saving creds for org ${organizationId}:`, error);
+      logger.error(`[CREDS SAVE] ❌ Error saving creds for org ${organizationId}:`, error);
       throw error;
     }
   };
@@ -285,7 +286,7 @@ async function useDatabaseAuthState(organizationId, pool) {
             [organizationId, serializedKeys]
           );
         } catch (error) {
-          console.error(`Error saving keys for org ${organizationId}:`, error);
+          logger.error(`Error saving keys for org ${organizationId}:`, error);
           throw error;
         }
       }
