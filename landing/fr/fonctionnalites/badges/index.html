@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gestion des badges et distinctions scouts — Système multi-niveau | Wampums</title>
+<meta name="description" content="Suivez les badges, distinctions et points de vos scouts numériquement. Système multi-niveau avec flux d'approbation, visibilité pour les parents et opérations en lot." />
+<link rel="canonical" href="https://wampums.app/fr/fonctionnalites/badges/" />
+<link rel="alternate" hreflang="fr-CA" href="https://wampums.app/fr/fonctionnalites/badges/" />
+<link rel="alternate" hreflang="en-CA" href="https://wampums.app/en/features/badges/" />
+<link rel="alternate" hreflang="x-default" href="https://wampums.app/en/features/badges/" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Gestion des badges et distinctions scouts — Système multi-niveau | Wampums" />
+<meta property="og:description" content="Suivez les badges, distinctions et points de vos scouts numériquement. Système multi-niveau avec flux d'approbation, visibilité pour les parents et opérations en lot." />
+<meta property="og:url" content="https://wampums.app/fr/fonctionnalites/badges/" />
+<meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
+<meta property="og:site_name" content="Wampums" />
+<meta property="og:locale" content="fr_CA" />
+<meta property="og:locale:alternate" content="en_CA" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Gestion des badges scouts — Wampums" />
+<meta name="twitter:description" content="Suivi numérique des badges, distinctions et points. Flux d'approbation en 3 étapes. Visibilité pour les parents. Compatible toutes associations scoutes." />
+<meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
+<meta name="theme-color" content="#0f7a5a" />
+<link rel="stylesheet" href="/landing.css" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "name": "Gestion des badges et distinctions scouts — Wampums",
+      "url": "https://wampums.app/fr/fonctionnalites/badges/",
+      "description": "Suivi numérique des badges et distinctions pour groupes scouts. Système multi-niveau configurable, flux d'approbation, visibilité parentale.",
+      "inLanguage": "fr-CA",
+      "isPartOf": { "@type": "WebSite", "name": "Wampums", "url": "https://wampums.app" },
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Wampums", "item": "https://wampums.app/fr/" },
+          { "@type": "ListItem", "position": 2, "name": "Fonctionnalités", "item": "https://wampums.app/fr/fonctionnalites/badges/" },
+          { "@type": "ListItem", "position": 3, "name": "Badges et distinctions" }
+        ]
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Wampums supporte-t-il les programmes de badges personnalisés?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Vous pouvez créer votre propre structure de badges avec autant de niveaux que nécessaire. Chaque badge peut avoir un nom, une description et des critères d'obtention en français et en anglais." }
+        },
+        {
+          "@type": "Question",
+          "name": "Les parents peuvent-ils voir la progression de leur enfant?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Le tableau de bord parental affiche les badges obtenus, les distinctions en cours d'approbation et le total de points de chaque enfant. Les chefs contrôlent le niveau de détail visible par les parents." }
+        },
+        {
+          "@type": "Question",
+          "name": "Comment fonctionne le flux d'approbation des badges?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Le flux comporte trois étapes : En attente (le chef soumet la demande), Approuvé (un responsable valide les critères) et Remis (le badge est officiellement accordé lors d'une cérémonie). Chaque transition est horodatée et journalisée." }
+        },
+        {
+          "@type": "Question",
+          "name": "Peut-on ajouter les badges dans les deux langues?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Oui. Chaque badge, niveau et critère peut avoir un libellé en français et en anglais. L'interface affiche automatiquement la langue préférée de chaque utilisateur." }
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Passer au contenu principal</a>
+
+<header>
+  <div class="shell">
+    <div class="top-bar">
+      <a class="brand" href="/fr/" aria-label="Wampums — accueil">
+        <img src="/images/defaultImage.webp" width="90" alt="Logo Wampums" />
+        <span>Wampums</span>
+      </a>
+      <div class="nav-actions">
+        <nav class="lang-toggle" aria-label="Pages marketing">
+          <a class="lang-link" href="/fr/blogue/">Blogue</a>
+          <a class="lang-link" href="/fr/fonctionnalites/badges/" aria-current="page">Fonctionnalités</a>
+          <a class="lang-link" href="/fr/comparer/wampums-vs-sporteasy/">Comparer</a>
+        </nav>
+        <nav class="lang-toggle" aria-label="Changer de langue">
+          <a class="lang-link" href="/fr/fonctionnalites/badges/" lang="fr-CA" aria-current="page">Français</a>
+          <a class="lang-link" href="/en/features/badges/" lang="en-CA">English</a>
+        </nav>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="section section-center">
+    <nav aria-label="Fil d'Ariane" class="breadcrumb-nav">
+      <ol>
+        <li><a href="/fr/">Wampums</a></li>
+        <li><a href="/fr/fonctionnalites/badges/">Fonctionnalités</a></li>
+        <li aria-current="page">Badges et distinctions</li>
+      </ol>
+    </nav>
+
+    <p class="pill">Fonctionnalité</p>
+    <h1>Gestion des badges et distinctions — Remplacez le carnet papier par un registre numérique vivant</h1>
+    <p>Dans combien de carnets, de tableurs et de mémos avez-vous consigné les progrès de vos scouts cette année? La gestion des badges est l'une des tâches administratives les plus chronophages pour les chefs, et pourtant c'est aussi l'une des plus motivantes pour les jeunes. Wampums centralise tout : l'attribution des badges, les niveaux d'avancement, le système de points et l'historique complet de chaque participant — le tout accessible en un coup d'œil depuis votre téléphone.</p>
+
+    <div class="actions">
+      <a class="btn-primary" href="mailto:hello@wampums.app">Demander une démo</a>
+      <a class="btn-secondary" href="/fr/">Voir toutes les fonctionnalités</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="grid">
+      <article class="card">
+        <h2>Système multi-niveau entièrement configurable</h2>
+        <p>Wampums ne vous impose aucune structure prédéfinie. Vous créez vos propres catégories de badges, vos niveaux d'avancement et vos critères d'obtention selon le programme de votre association. Que vous suiviez les maîtrises Scouts Canada, les spécialités de l'AGESSC ou un programme maison entièrement personnalisé, le système s'adapte à votre réalité.</p>
+        <p>Chaque niveau peut comporter des prérequis, des critères spécifiques et des documents justificatifs. Vous pouvez organiser les badges par domaine — leadership, plein air, arts, citoyenneté — et les relier à des objectifs de programme annuels. La flexibilité est totale, sans jamais sacrifier la rigueur du suivi.</p>
+      </article>
+
+      <article class="card">
+        <h2>Flux d'approbation en trois étapes claires</h2>
+        <p>L'attribution d'un badge passe par trois étapes transparentes : En attente (le chef de section soumet la demande d'attribution), Approuvé (un responsable ou un chef de groupe valide que tous les critères sont remplis) et Remis (le badge est officiellement accordé, idéalement lors d'une cérémonie ou d'un rassemblement). Chaque transition est horodatée et consignée dans le journal d'activités.</p>
+        <p>Ce flux protège l'intégrité de votre programme : personne ne peut attribuer un badge à lui-même, et chaque décision est traçable. En cas de désaccord ou de question d'un parent, vous pouvez montrer exactement qui a approuvé quoi et quand. C'est particulièrement utile lors des inspections de district ou des vérifications annuelles.</p>
+      </article>
+
+      <article class="card">
+        <h2>Système de points hors-ligne avec mises à jour optimistes</h2>
+        <p>Attribuez des points à vos scouts pour leur participation, leurs accomplissements ou leur comportement exemplaire, même sans connexion internet. Comme pour les présences, Wampums applique les changements immédiatement dans l'interface et les synchronise en arrière-plan dès que le signal revient. Lors d'un camp en forêt où le réseau est inexistant, vous continuez à travailler normalement.</p>
+        <p>Le tableau de bord des points affiche les classements par section, les tendances sur la saison et les jalons importants à célébrer. Vous pouvez configurer des seuils de points déclenchant des récompenses automatiques ou des notifications aux parents. C'est un outil puissant pour maintenir la motivation des jeunes tout au long de l'année scoute.</p>
+      </article>
+
+      <article class="card">
+        <h2>Visibilité pour les parents — transparence totale</h2>
+        <p>Les parents d'aujourd'hui veulent savoir où en est leur enfant, et ils ont raison. Le tableau de bord parental de Wampums leur donne accès à un portrait complet : badges obtenus, distinctions en cours d'approbation, total de points accumulés et prochains objectifs à atteindre. Cette transparence renforce la confiance et encourage les familles à soutenir les efforts de leurs jeunes à la maison.</p>
+        <p>Les chefs gardent le contrôle sur ce qui est visible. Vous pouvez choisir de montrer uniquement les badges officiellement remis, ou également les étapes intermédiaires en cours d'approbation. Les notifications push informent les parents dès qu'un nouveau badge est attribué à leur enfant, ce qui transforme chaque attribution en petit moment de fierté partagée.</p>
+      </article>
+
+      <article class="card">
+        <h2>Rapports de progression et bilans annuels</h2>
+        <p>En fin de saison, générez des rapports complets pour chaque participant : liste de tous les badges obtenus, niveaux atteints, points cumulés et comparaison avec l'année précédente. Ces rapports sont exportables en PDF pour les remettre aux parents lors de la cérémonie de clôture ou pour les soumettre au district dans le cadre des exigences administratives.</p>
+        <p>Les rapports agrégés au niveau du groupe vous donnent une vue d'ensemble de la progression collective : quel pourcentage de vos scouts a complété chaque niveau, quels badges sont les plus populaires, et où se situent les lacunes dans votre programme. Ces données vous aident à planifier des activités ciblées pour la prochaine saison.</p>
+      </article>
+
+      <article class="card">
+        <h2>Compatible avec toutes les associations scoutes</h2>
+        <p>Scouts Canada, Association des Scouts du Canada, Guides du Canada, Éclaireurs et Éclaireuses de France, World Scout Bureau — Wampums a été conçu pour fonctionner avec n'importe quelle structure d'association. Vous n'êtes pas obligé de remplacer votre programme de badges existant; vous l'intégrez simplement dans Wampums en quelques clics.</p>
+        <p>Le support bilingue complet est particulièrement important pour les groupes qui opèrent à la frontière des deux communautés linguistiques. Chaque badge, chaque niveau et chaque critère peut être nommé en français et en anglais. L'interface bascule automatiquement vers la langue préférée de chaque utilisateur, que ce soit un chef, un parent ou un jeune qui consulte son propre profil.</p>
+      </article>
+    </div>
+  </section>
+
+  <div class="screenshot-placeholder screenshot-placeholder--spaced" aria-label="Capture d'écran : tableau de bord des badges avec niveaux et points">
+    <p class="meta">Capture d'écran : gestion des badges — à venir</p>
+  </div>
+
+  <section class="section" itemscope itemtype="https://schema.org/FAQPage">
+    <h2>Questions sur les badges et distinctions</h2>
+    <div class="faq-grid">
+      <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
+        <h3 itemprop="name">Wampums supporte-t-il les programmes de badges personnalisés?</h3>
+        <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
+          <p itemprop="text">Oui. Vous pouvez créer votre propre structure de badges avec autant de niveaux et de catégories que nécessaire. Chaque badge peut avoir un nom, une description, des critères d'obtention et des prérequis, le tout configurable en français et en anglais.</p>
+        </div>
+      </div>
+      <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
+        <h3 itemprop="name">Les parents peuvent-ils voir la progression de leur enfant?</h3>
+        <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
+          <p itemprop="text">Oui. Le tableau de bord parental affiche les badges obtenus, les distinctions en cours d'approbation et le total de points de chaque enfant. Les chefs contrôlent finement le niveau de détail accessible aux parents via les paramètres de permissions.</p>
+        </div>
+      </div>
+      <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
+        <h3 itemprop="name">Comment fonctionne le flux d'approbation des badges?</h3>
+        <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
+          <p itemprop="text">Le flux comporte trois étapes : En attente (le chef soumet la demande), Approuvé (un responsable valide les critères) et Remis (le badge est officiellement accordé). Chaque transition est horodatée et consignée dans le journal d'activités pour une traçabilité complète.</p>
+        </div>
+      </div>
+      <div class="faq-item" itemprop="mainEntity" itemscope itemtype="https://schema.org/Question">
+        <h3 itemprop="name">Peut-on ajouter les badges dans les deux langues?</h3>
+        <div itemprop="acceptedAnswer" itemscope itemtype="https://schema.org/Answer">
+          <p itemprop="text">Oui. Chaque badge, niveau et critère peut avoir un libellé distinct en français et en anglais. L'interface affiche automatiquement la langue préférée de chaque utilisateur, qu'il soit chef, parent ou jeune scout.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="cta-section">
+      <h2>Prêt à moderniser votre registre de badges?</h2>
+      <p>Voyez la gestion des badges en action — demandez une démo et découvrez comment configurer votre programme en moins d'une heure.</p>
+      <a class="btn-primary" href="mailto:hello@wampums.app">Demander une démo</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="shell">
+    <p>Conçu pour les groupes scouts qui se réunissent chaque semaine — simple, bilingue et prêt à déployer.</p>
+    <nav aria-label="Liens vers les fonctionnalités">
+      <a href="/fr/fonctionnalites/presences/">Présences</a> ·
+      <a href="/fr/fonctionnalites/badges/">Badges</a> ·
+      <a href="/fr/fonctionnalites/communication/">Communication</a> ·
+      <a href="/fr/fonctionnalites/finances/">Finances</a> ·
+      <a href="/fr/fonctionnalites/formulaires/">Formulaires</a> ·
+      <a href="/fr/fonctionnalites/logistique/">Logistique</a> ·
+      <a href="/fr/blogue/">Blogue</a>
+    </nav>
+    <p><a href="mailto:hello@wampums.app">hello@wampums.app</a></p>
+  </div>
+</footer>
+</body>
+</html>

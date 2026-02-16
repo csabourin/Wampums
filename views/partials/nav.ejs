@@ -1,0 +1,29 @@
+<header>
+  <div class="shell">
+    <div class="top-bar">
+      <a class="brand" href="/<%= lang %>/" aria-label="Wampums home">
+        <img src="/images/defaultImage.webp" width="90" alt="Wampums - Scout group management app logo" />
+        <span>Wampums</span>
+      </a>
+
+      <div class="nav-actions">
+        <nav class="lang-toggle" aria-label="<%= lang === 'fr' ? 'Pages de navigation' : 'Marketing pages' %>">
+          <% if (lang === 'en') { %>
+            <a class="lang-link" href="/en/blog/">Blog</a>
+            <a class="lang-link" href="/en/features/finance/">Features</a>
+            <a class="lang-link" href="/en/compare/wampums-vs-sporteasy/">Compare</a>
+          <% } else { %>
+            <a class="lang-link" href="/fr/blogue/">Blogue</a>
+            <a class="lang-link" href="/fr/fonctionnalites/finances/">Fonctionnalités</a>
+            <a class="lang-link" href="/fr/comparer/wampums-vs-sporteasy/">Comparer</a>
+          <% } %>
+        </nav>
+
+        <nav class="lang-toggle" aria-label="<%= lang === 'fr' ? 'Changer de langue' : 'Change language' %>">
+          <a class="lang-link" href="<%= frPath %>" lang="fr-CA" <%= lang === 'fr' ? 'aria-current="page"' : '' %>>Français</a>
+          <a class="lang-link" href="<%= enPath %>" lang="en-CA" <%= lang === 'en' ? 'aria-current="page"' : '' %>>English</a>
+        </nav>
+      </div>
+    </div>
+  </div>
+</header>

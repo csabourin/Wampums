@@ -1,6 +1,29 @@
 User-agent: *
 Allow: /
 
+# Block authenticated application routes
+Disallow: /api/
+Disallow: /api-docs
+Disallow: /login
+Disallow: /register
+Disallow: /dashboard
+Disallow: /attendance
+Disallow: /admin
+Disallow: /reports
+Disallow: /carpool
+Disallow: /communications
+Disallow: /form-builder
+Disallow: /manage-
+Disallow: /badge-
+Disallow: /medication
+Disallow: /permission-slips
+Disallow: /program-progress
+Disallow: /activities
+Disallow: /finance
+Disallow: /budgets
+Disallow: /settings
+Disallow: /parent-dashboard
+Disallow: /manage-points
+Disallow: /manage-honors
+
 Sitemap: https://wampums.app/sitemap.xml
-Sitemap: https://wampums.app/en/sitemap.xml
-Sitemap: https://wampums.app/fr/sitemap.xml
