@@ -34,7 +34,7 @@
 		/>
 		<meta
 			property="og:image"
-			content="https://wampums.app/assets/images/og-wampums-1200x630.jpg"
+			content="https://wampums.app/images/og-wampums-1200x630.jpg"
 		/>
 		<meta property="og:image:width" content="1200" />
 		<meta property="og:image:height" content="630" />
@@ -48,7 +48,7 @@
 		/>
 		<meta
 			name="twitter:image"
-			content="https://wampums.app/assets/images/og-wampums-1200x630.jpg"
+			content="https://wampums.app/images/og-wampums-1200x630.jpg"
 		/>
 
 		<!-- PWA -->
@@ -60,9 +60,9 @@
 			rel="icon"
 			type="image/png"
 			sizes="32x32"
-			href="/assets/images/icon-32.png"
+			href="/images/favicon-32x32.png"
 		/>
-		<link rel="apple-touch-icon" href="/assets/images/icon-192x192.png" />
+		<link rel="apple-touch-icon" href="/images/icon-192x192.png" />
 
 		<link rel="stylesheet" href="/landing.css" />
 
@@ -128,7 +128,11 @@
 			<div class="shell">
 				<div class="top-bar">
 					<a class="brand" href="/" aria-label="Wampums">
-						<span class="brand-mark" aria-hidden="true">W</span>
+						<img
+							src="../images/defaultImage.webp"
+							width="90"
+							alt="logo Wampums"
+						/>
 						<span>Wampums</span>
 					</a>
 					<nav class="lang-toggle" aria-label="Changer de langue">
@@ -211,39 +215,76 @@
 			<section class="section section-center" id="problem">
 				<h2 data-i18n="problem_title">Ça vous dit quelque chose?</h2>
 				<p data-i18n="problem_body">
-					Les responsables scouts, les parents et les bénévoles font face aux mêmes défis chaque semaine. Wampums a été conçu pour les résoudre.
+					Les responsables scouts, les parents et les bénévoles font face aux
+					mêmes défis chaque semaine. Wampums a été conçu pour les résoudre.
 				</p>
 
 				<div class="grid" role="list">
 					<article class="card" role="listitem">
-						<h3 data-i18n="problem1_title">&#x1F4CB; Feuilles de présence en papier</h3>
-						<p class="meta" data-i18n="problem1_body">Les formulaires imprimés se perdent, s'abîment ou restent à la maison. Vous devez ressaisir les données à la main à chaque fois.</p>
+						<h3 data-i18n="problem1_title">
+							&#x1F4CB; Feuilles de présence en papier
+						</h3>
+						<p class="meta" data-i18n="problem1_body">
+							Les formulaires imprimés se perdent, s'abîment ou restent à la
+							maison. Vous devez ressaisir les données à la main à chaque fois.
+						</p>
 					</article>
 					<article class="card" role="listitem">
 						<h3 data-i18n="problem2_title">&#x1F4AC; Surcharge WhatsApp</h3>
-						<p class="meta" data-i18n="problem2_body">Les messages importants se perdent dans les conversations de groupe. Aucun historique, aucune structure, impossible de retrouver les détails du covoiturage du mois dernier.</p>
+						<p class="meta" data-i18n="problem2_body">
+							Les messages importants se perdent dans les conversations de
+							groupe. Aucun historique, aucune structure, impossible de
+							retrouver les détails du covoiturage du mois dernier.
+						</p>
 					</article>
 					<article class="card" role="listitem">
-						<h3 data-i18n="problem3_title">&#x1F4CA; Éparpillement des feuilles de calcul</h3>
-						<p class="meta" data-i18n="problem3_body">Un fichier pour les présences, un autre pour les badges, un troisième pour les frais. Différentes versions qui circulent, personne ne sait laquelle est à jour.</p>
+						<h3 data-i18n="problem3_title">
+							&#x1F4CA; Éparpillement des feuilles de calcul
+						</h3>
+						<p class="meta" data-i18n="problem3_body">
+							Un fichier pour les pr �sences, un autre pour les badges, un
+							troisième pour les frais. Différentes versions qui circulent,
+							personne ne sait laquelle est à jour.
+						</p>
 					</article>
 					<article class="card" role="listitem">
-						<h3 data-i18n="problem4_title">&#x2709;&#xFE0F; Chasse aux signatures</h3>
-						<p class="meta" data-i18n="problem4_body">Envoyer des autorisations par courriel, imprimer, scanner, relancer — les allers-retours n'en finissent jamais.</p>
+						<h3 data-i18n="problem4_title">
+							&#x2709;&#xFE0F; Chasse aux signatures
+						</h3>
+						<p class="meta" data-i18n="problem4_body">
+							Envoyer des autorisations par courriel, imprimer, scanner,
+							relancer — les allers-retours n'en finissent jamais.
+						</p>
 					</article>
 					<article class="card" role="listitem">
 						<h3 data-i18n="problem5_title">&#x1F500; Trop d'outils</h3>
-						<p class="meta" data-i18n="problem5_body">Google Sheets pour le suivi, Doodle pour la planification, courriel pour les annonces, un cartable pour les fiches santé. Rien ne communique ensemble.</p>
+						<p class="meta" data-i18n="problem5_body">
+							Google Sheets pour le suivi, Doodle pour la planification,
+							courriel pour les annonces, un cartable pour les fiches santé.
+							Rien ne communique ensemble.
+						</p>
 					</article>
 					<article class="card" role="listitem">
-						<h3 data-i18n="problem6_title">&#x1F310; Barrières linguistiques</h3>
-						<p class="meta" data-i18n="problem6_body">La moitié de vos familles parle français, l'autre moitié parle anglais. Chaque communication doit être faite deux fois — ou quelqu'un est laissé de côté.</p>
+						<h3 data-i18n="problem6_title">
+							&#x1F310; Barrières linguistiques
+						</h3>
+						<p class="meta" data-i18n="problem6_body">
+							La moitié de vos familles parle français, l'autre moitié parle
+							anglais. Chaque communication doit être faite deux fois — ou
+							quelqu'un est laissé de côté.
+						</p>
 					</article>
 				</div>
 
 				<!-- Screenshot placeholder: before/after -->
-				<div class="screenshot-placeholder screenshot-placeholder--spaced" aria-label="Comparaison visuelle : avant et après Wampums">
-					<p class="meta" data-i18n="problem_screenshot">Comparaison visuelle à venir : outils éparpillés vs. tableau de bord unifié</p>
+				<div
+					class="screenshot-placeholder screenshot-placeholder--spaced"
+					aria-label="Comparaison visuelle : avant et après Wampums"
+				>
+					<p class="meta" data-i18n="problem_screenshot">
+						Comparaison visuelle à venir : outils éparpillés vs. tableau de bord
+						unifié
+					</p>
 				</div>
 			</section>
 
@@ -367,258 +408,480 @@
 			</section>
 			<!-- Fonctions par audience -->
 			<section class="section section-center" id="features">
-				<h2 data-i18n="features_title">Tout ce dont votre groupe a besoin, pour chaque rôle</h2>
-				<p data-i18n="features_body">Wampums offre aux responsables, aux parents et aux administrateurs chacun une expérience adaptée. Explorez les fonctions disponibles pour votre rôle.</p>
+				<h2 data-i18n="features_title">
+					Tout ce dont votre groupe a besoin, pour chaque rôle
+				</h2>
+				<p data-i18n="features_body">
+					Wampums offre aux responsables, aux parents et aux administrateurs
+					chacun une expérience adaptée. Explorez les fonctions disponibles pour
+					votre rôle.
+				</p>
 
 				<div class="tabs" role="tablist" aria-label="Fonctions par audience">
-					<button role="tab" aria-selected="true" aria-controls="tab-leaders" id="btn-leaders" class="tab-btn tab-btn--active" data-i18n="tab_leaders">Responsables</button>
-					<button role="tab" aria-selected="false" aria-controls="tab-parents" id="btn-parents" class="tab-btn" data-i18n="tab_parents">Parents</button>
-					<button role="tab" aria-selected="false" aria-controls="tab-admin" id="btn-admin" class="tab-btn" data-i18n="tab_admin">Administrateurs</button>
+					<button
+						role="tab"
+						aria-selected="true"
+						aria-controls="tab-leaders"
+						id="btn-leaders"
+						class="tab-btn tab-btn--active"
+						data-i18n="tab_leaders"
+					>
+						Responsables
+					</button>
+					<button
+						role="tab"
+						aria-selected="false"
+						aria-controls="tab-parents"
+						id="btn-parents"
+						class="tab-btn"
+						data-i18n="tab_parents"
+					>
+						Parents
+					</button>
+					<button
+						role="tab"
+						aria-selected="false"
+						aria-controls="tab-admin"
+						id="btn-admin"
+						class="tab-btn"
+						data-i18n="tab_admin"
+					>
+						Administrateurs
+					</button>
 				</div>
 
 				<!-- Onglet Responsables -->
-				<div role="tabpanel" id="tab-leaders" class="tab-panel tab-panel--active" aria-labelledby="btn-leaders">
+				<div
+					role="tabpanel"
+					id="tab-leaders"
+					class="tab-panel tab-panel--active"
+					aria-labelledby="btn-leaders"
+				>
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_meeting_prep">Préparation des rencontres</h3>
+						<h3 class="feature-group__title" data-i18n="fg_meeting_prep">
+							Préparation des rencontres
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_ai_plans">Plans de réunion assistés par IA</h4>
-								<p class="meta" data-i18n="f_ai_plans_d">Générez des plans complets avec activités, responsables assignés et matériel requis. Réutilisez les réunions précédentes comme modèles.</p>
+								<p class="meta" data-i18n="f_ai_plans_d">
+									Générez des plans complets avec activités, responsables
+									assignés et matériel requis. Réutilisez les réunions
+									précédentes comme modèles.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_calendar">Calendrier des activités</h4>
-								<p class="meta" data-i18n="f_calendar_d">Planifiez et gérez les activités avec dates, heures, lieux et points de rencontre.</p>
+								<p class="meta" data-i18n="f_calendar_d">
+									Planifiez et gérez les activités avec dates, heures, lieux et
+									points de rencontre.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_reminders">Rappels automatiques</h4>
-								<p class="meta" data-i18n="f_reminders_d">Les parents reçoivent un rappel bilingue avant chaque réunion avec la logistique et les autorisations manquantes.</p>
+								<p class="meta" data-i18n="f_reminders_d">
+									Les parents reçoivent un rappel bilingue avant chaque réunion
+									avec la logistique et les autorisations manquantes.
+								</p>
 							</article>
 						</div>
 					</div>
 
 					<!-- Screenshot placeholder: leader meeting prep -->
-					<div class="screenshot-placeholder" aria-label="Capture d'écran : Vue de préparation des réunions">
-						<p class="meta" data-i18n="screenshot_meeting_prep">Capture d'écran : tableau de bord de préparation des réunions</p>
+					<div
+						class="screenshot-placeholder"
+						aria-label="Capture d'écran : Vue de préparation des réunions"
+					>
+						<p class="meta" data-i18n="screenshot_meeting_prep">
+							Capture d'écran : tableau de bord de préparation des réunions
+						</p>
 					</div>
 
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_field_tracking">Suivi terrain</h3>
+						<h3 class="feature-group__title" data-i18n="fg_field_tracking">
+							Suivi terrain
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_attendance">Présences sur mobile</h4>
-								<p class="meta" data-i18n="f_attendance_d">Prenez les présences sur votre téléphone avec gestion des invités, mises à jour optimistes et file d'attente hors-ligne.</p>
+								<p class="meta" data-i18n="f_attendance_d">
+									Prenez les présences sur votre téléphone avec gestion des
+									invités, mises à jour optimistes et file d'attente hors-ligne.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_badges">Suivi des badges et honneurs</h4>
-								<p class="meta" data-i18n="f_badges_d">Système de badges multi-niveaux avec flux d'approbation (en attente, approuvé, remis) et opérations en lot.</p>
+								<p class="meta" data-i18n="f_badges_d">
+									Système de badges multi-niveaux avec flux d'approbation (en
+									attente, approuvé, remis) et opérations en lot.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_points">Système de points</h4>
-								<p class="meta" data-i18n="f_points_d">Attribuez des points par groupe ou individuellement. Vues triables avec support hors-ligne et mises à jour optimistes.</p>
+								<p class="meta" data-i18n="f_points_d">
+									Attribuez des points par groupe ou individuellement. Vues
+									triables avec support hors-ligne et mises à jour optimistes.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_meds">Distribution de médicaments</h4>
-								<p class="meta" data-i18n="f_meds_d">Suivez les exigences médicales, planifiez les fenêtres de distribution avec alertes chronométrées et enregistrez les événements de distribution.</p>
+								<p class="meta" data-i18n="f_meds_d">
+									Suivez les exigences médicales, planifiez les fenêtres de
+									distribution avec alertes chronométrées et enregistrez les
+									événements de distribution.
+								</p>
 							</article>
 						</div>
 					</div>
 
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_communication">Communication</h3>
+						<h3 class="feature-group__title" data-i18n="fg_communication">
+							Communication
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_whatsapp">Intégration WhatsApp</h4>
-								<p class="meta" data-i18n="f_whatsapp_d">Connectez-vous par code QR et envoyez des annonces directement via WhatsApp avec état de livraison en temps réel.</p>
+								<p class="meta" data-i18n="f_whatsapp_d">
+									Connectez-vous par code QR et envoyez des annonces directement
+									via WhatsApp avec état de livraison en temps réel.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_email">Courriel et listes de diffusion</h4>
-								<p class="meta" data-i18n="f_email_d">Listes de diffusion par rôle avec modèles et compositeur d'annonces intégré.</p>
+								<p class="meta" data-i18n="f_email_d">
+									Listes de diffusion par rôle avec modèles et compositeur
+									d'annonces intégré.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_gchat">Google Chat</h4>
-								<p class="meta" data-i18n="f_gchat_d">Configurez des espaces Google Chat pour les notifications automatisées à votre équipe de leadership.</p>
+								<p class="meta" data-i18n="f_gchat_d">
+									Configurez des espaces Google Chat pour les notifications
+									automatisées à votre équipe de leadership.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_perms">Autorisations parentales</h4>
-								<p class="meta" data-i18n="f_perms_d">Créez, envoyez et suivez les formulaires d'autorisation. Voyez qui a signé et envoyez des rappels aux retardataires.</p>
+								<p class="meta" data-i18n="f_perms_d">
+									Créez, envoyez et suivez les formulaires d'autorisation. Voyez
+									qui a signé et envoyez des rappels aux retardataires.
+								</p>
 							</article>
 						</div>
 					</div>
 
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_logistics">Logistique et matériel</h3>
+						<h3 class="feature-group__title" data-i18n="fg_logistics">
+							Logistique et matériel
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_carpool">Coordination du covoiturage</h4>
-								<p class="meta" data-i18n="f_carpool_d">Les parents offrent des places, les responsables assignent les participants. Modal d'accès rapide montrant véhicules et sièges par activité.</p>
+								<p class="meta" data-i18n="f_carpool_d">
+									Les parents offrent des places, les responsables assignent les
+									participants. Modal d'accès rapide montrant véhicules et
+									sièges par activité.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_inventory">Gestion d'inventaire</h4>
-								<p class="meta" data-i18n="f_inventory_d">Cataloguez l'équipement avec photos, suivez les emplacements de rangement et gérez l'état des articles.</p>
+								<p class="meta" data-i18n="f_inventory_d">
+									Cataloguez l'équipement avec photos, suivez les emplacements
+									de rangement et gérez l'état des articles.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_reservations">Réservations de matériel</h4>
-								<p class="meta" data-i18n="f_reservations_d">Réservez l'équipement pour les activités à venir avec détection automatique des conflits pour les réservations qui se chevauchent.</p>
+								<p class="meta" data-i18n="f_reservations_d">
+									Réservez l'équipement pour les activités à venir avec
+									détection automatique des conflits pour les réservations qui
+									se chevauchent.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_resources">Tableau de bord des ressources</h4>
-								<p class="meta" data-i18n="f_resources_d">Vue d'ensemble de l'équipement réservé pour chaque date de réunion.</p>
+								<p class="meta" data-i18n="f_resources_d">
+									Vue d'ensemble de l'équipement réservé pour chaque date de
+									réunion.
+								</p>
 							</article>
 						</div>
 					</div>
 				</div>
 
 				<!-- Onglet Parents -->
-				<div role="tabpanel" id="tab-parents" class="tab-panel" aria-labelledby="btn-parents" hidden>
+				<div
+					role="tabpanel"
+					id="tab-parents"
+					class="tab-panel"
+					aria-labelledby="btn-parents"
+					hidden
+				>
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_my_children">Mes enfants</h3>
+						<h3 class="feature-group__title" data-i18n="fg_my_children">
+							Mes enfants
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_parent_dash">Tableau de bord parent</h4>
-								<p class="meta" data-i18n="f_parent_dash_d">Voyez les activités, la progression des badges, les événements à venir et les documents en attente de tous vos enfants en un seul endroit.</p>
+								<p class="meta" data-i18n="f_parent_dash_d">
+									Voyez les activités, la progression des badges, les événements
+									à venir et les documents en attente de tous vos enfants en un
+									seul endroit.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_badge_progress">Progression des badges</h4>
-								<p class="meta" data-i18n="f_badge_progress_d">Suivez l'avancement des badges et honneurs de chaque enfant avec des indicateurs de progrès visuels.</p>
+								<p class="meta" data-i18n="f_badge_progress_d">
+									Suivez l'avancement des badges et honneurs de chaque enfant
+									avec des indicateurs de progrès visuels.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_reg_forms">Formulaires d'inscription</h4>
-								<p class="meta" data-i18n="f_reg_forms_d">Inscrivez de nouveaux participants ou mettez à jour les informations existantes via des formulaires dynamiques et personnalisables.</p>
+								<p class="meta" data-i18n="f_reg_forms_d">
+									Inscrivez de nouveaux participants ou mettez à jour les
+									informations existantes via des formulaires dynamiques et
+									personnalisables.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_progress_reports">Rapports de progrès</h4>
-								<p class="meta" data-i18n="f_progress_reports_d">Accédez aux rapports individuels par participant couvrant la présence, les badges et la participation.</p>
+								<p class="meta" data-i18n="f_progress_reports_d">
+									Accédez aux rapports individuels par participant couvrant la
+									présence, les badges et la participation.
+								</p>
 							</article>
 						</div>
 					</div>
 
 					<!-- Screenshot placeholder: parent dashboard -->
-					<div class="screenshot-placeholder" aria-label="Capture d'écran : Vue du tableau de bord parent">
-						<p class="meta" data-i18n="screenshot_parent_dash">Capture d'écran : tableau de bord parent avec progrès des enfants</p>
+					<div
+						class="screenshot-placeholder"
+						aria-label="Capture d'écran : Vue du tableau de bord parent"
+					>
+						<p class="meta" data-i18n="screenshot_parent_dash">
+							Capture d'écran : tableau de bord parent avec progrès des enfants
+						</p>
 					</div>
 
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_docs_payments">Documents et formulaires</h3>
+						<h3 class="feature-group__title" data-i18n="fg_docs_payments">
+							Documents et formulaires
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
-								<h4 data-i18n="f_perm_slips_parent">Autorisations parentales</h4>
-								<p class="meta" data-i18n="f_perm_slips_parent_d">Signez les formulaires d'autorisation depuis un lien sécurisé sur votre téléphone. Aucune impression ni numérisation nécessaire.</p>
+								<h4 data-i18n="f_perm_slips_parent">
+									Autorisations parentales
+								</h4>
+								<p class="meta" data-i18n="f_perm_slips_parent_d">
+									Signez les formulaires d'autorisation depuis un lien sécurisé
+									sur votre téléphone. Aucune impression ni numérisation
+									nécessaire.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_health_forms">Fiches santé</h4>
-								<p class="meta" data-i18n="f_health_forms_d">Soumettez et mettez à jour les informations médicales, allergies et contacts d'urgence de votre enfant en format numérique.</p>
+								<p class="meta" data-i18n="f_health_forms_d">
+									Soumettez et mettez à jour les informations médicales,
+									allergies et contacts d'urgence de votre enfant en format
+									numérique.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_financial_statements">États financiers</h4>
-								<p class="meta" data-i18n="f_financial_statements_d">Consultez le total facturé, les paiements effectués et le solde dû par enfant avec le détail complet des frais.</p>
+								<p class="meta" data-i18n="f_financial_statements_d">
+									Consultez le total facturé, les paiements effectués et le
+									solde dû par enfant avec le détail complet des frais.
+								</p>
 							</article>
 						</div>
 					</div>
 
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_stay_connected">Rester connecté</h3>
+						<h3 class="feature-group__title" data-i18n="fg_stay_connected">
+							Rester connecté
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
-								<h4 data-i18n="f_carpool_parent">Coordination du covoiturage</h4>
-								<p class="meta" data-i18n="f_carpool_parent_d">Offrez des places ou consultez votre covoiturage assigné pour chaque activité. Sachez qui conduit votre enfant.</p>
+								<h4 data-i18n="f_carpool_parent">
+									Coordination du covoiturage
+								</h4>
+								<p class="meta" data-i18n="f_carpool_parent_d">
+									Offrez des places ou consultez votre covoiturage assigné pour
+									chaque activité. Sachez qui conduit votre enfant.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_parent_directory">Répertoire des parents</h4>
-								<p class="meta" data-i18n="f_parent_directory_d">Annuaire consultable des autres parents de votre groupe pour la communication directe.</p>
+								<p class="meta" data-i18n="f_parent_directory_d">
+									Annuaire consultable des autres parents de votre groupe pour
+									la communication directe.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_news_feed">Fil de nouvelles</h4>
-								<p class="meta" data-i18n="f_news_feed_d">Restez informé avec les annonces du groupe et les mises à jour des responsables sur votre tableau de bord.</p>
+								<p class="meta" data-i18n="f_news_feed_d">
+									Restez informé avec les annonces du groupe et les mises à jour
+									des responsables sur votre tableau de bord.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_push_notifications">Notifications push</h4>
-								<p class="meta" data-i18n="f_push_notifications_d">Activez les notifications pour recevoir instantanément les infos sur les réunions, rappels et annonces.</p>
+								<p class="meta" data-i18n="f_push_notifications_d">
+									Activez les notifications pour recevoir instantanément les
+									infos sur les réunions, rappels et annonces.
+								</p>
 							</article>
 						</div>
 					</div>
 				</div>
 
 				<!-- Onglet Administrateurs -->
-				<div role="tabpanel" id="tab-admin" class="tab-panel" aria-labelledby="btn-admin" hidden>
+				<div
+					role="tabpanel"
+					id="tab-admin"
+					class="tab-panel"
+					aria-labelledby="btn-admin"
+					hidden
+				>
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_finance">Finances et levées de fonds</h3>
+						<h3 class="feature-group__title" data-i18n="fg_finance">
+							Finances et levées de fonds
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_fee_mgmt">Gestion des frais</h4>
-								<p class="meta" data-i18n="f_fee_mgmt_d">Définissez les cotisations de membre, assignez-les aux participants et créez des plans de paiement avec échéanciers.</p>
+								<p class="meta" data-i18n="f_fee_mgmt_d">
+									Définissez les cotisations de membre, assignez-les aux
+									participants et créez des plans de paiement avec échéanciers.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_expense_tracking">Suivi des dépenses</h4>
-								<p class="meta" data-i18n="f_expense_tracking_d">Enregistrez et catégorisez les dépenses avec suivi des méthodes de paiement. Analyse IA des reçus pour saisie rapide.</p>
+								<p class="meta" data-i18n="f_expense_tracking_d">
+									Enregistrez et catégorisez les dépenses avec suivi des
+									méthodes de paiement. Analyse IA des reçus pour saisie rapide.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_budget_mgmt">Gestion des budgets</h4>
-								<p class="meta" data-i18n="f_budget_mgmt_d">Planifiez les budgets par catégorie et suivez les dépenses par rapport aux prévisions tout au long de l'année.</p>
+								<p class="meta" data-i18n="f_budget_mgmt_d">
+									Planifiez les budgets par catégorie et suivez les dépenses par
+									rapport aux prévisions tout au long de l'année.
+								</p>
 							</article>
 							<article class="card" role="listitem">
-								<h4 data-i18n="f_fundraiser_mgmt">Gestion des levées de fonds</h4>
-								<p class="meta" data-i18n="f_fundraiser_mgmt_d">Créez et gérez les campagnes avec vues calendrier, suivi des ventes par participant et archivage.</p>
+								<h4 data-i18n="f_fundraiser_mgmt">
+									Gestion des levées de fonds
+								</h4>
+								<p class="meta" data-i18n="f_fundraiser_mgmt_d">
+									Créez et gérez les campagnes avec vues calendrier, suivi des
+									ventes par participant et archivage.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_revenue_dash">Tableau de bord des revenus</h4>
-								<p class="meta" data-i18n="f_revenue_dash_d">Vue consolidée de toutes les sources de revenus (cotisations, levées de fonds, externes) avec support d'année fiscale.</p>
+								<p class="meta" data-i18n="f_revenue_dash_d">
+									Vue consolidée de toutes les sources de revenus (cotisations,
+									levées de fonds, externes) avec support d'année fiscale.
+								</p>
 							</article>
 						</div>
 					</div>
 
 					<!-- Screenshot placeholder: admin finance -->
-					<div class="screenshot-placeholder" aria-label="Capture d'écran : Tableau de bord finances et rapports">
-						<p class="meta" data-i18n="screenshot_admin_finance">Capture d'écran : tableau de bord finances et rapports</p>
+					<div
+						class="screenshot-placeholder"
+						aria-label="Capture d'écran : Tableau de bord finances et rapports"
+					>
+						<p class="meta" data-i18n="screenshot_admin_finance">
+							Capture d'écran : tableau de bord finances et rapports
+						</p>
 					</div>
 
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_org_access">Organisation et accès</h3>
+						<h3 class="feature-group__title" data-i18n="fg_org_access">
+							Organisation et accès
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_roles">Système de rôles et permissions</h4>
-								<p class="meta" data-i18n="f_roles_d">40+ permissions granulaires couvrant participants, groupes, activités, finances, badges, covoiturage et formulaires.</p>
+								<p class="meta" data-i18n="f_roles_d">
+									40+ permissions granulaires couvrant participants, groupes,
+									activités, finances, badges, covoiturage et formulaires.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_district">Gestion de district</h4>
-								<p class="meta" data-i18n="f_district_d">Supervision au niveau du district avec assignation de rôles inter-organisations et journalisation d'audit.</p>
+								<p class="meta" data-i18n="f_district_d">
+									Supervision au niveau du district avec assignation de rôles
+									inter-organisations et journalisation d'audit.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_multi_unit">Support multi-unités</h4>
-								<p class="meta" data-i18n="f_multi_unit_d">Gérez plusieurs sections depuis un seul compte. Basculez entre les organisations de façon transparente.</p>
+								<p class="meta" data-i18n="f_multi_unit_d">
+									Gérez plusieurs sections depuis un seul compte. Basculez entre
+									les organisations de façon transparente.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_import">Importation de données SISC</h4>
-								<p class="meta" data-i18n="f_import_d">Importez participants, tuteurs et utilisateurs depuis des fichiers CSV pour une intégration rapide.</p>
+								<p class="meta" data-i18n="f_import_d">
+									Importez participants, tuteurs et utilisateurs depuis des
+									fichiers CSV pour une intégration rapide.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_form_builder">Constructeur de formulaires</h4>
-								<p class="meta" data-i18n="f_form_builder_d">Constructeur glisser-déposer avec logique conditionnelle, traductions et copie de formulaires entre unités.</p>
+								<p class="meta" data-i18n="f_form_builder_d">
+									Constructeur glisser-déposer avec logique conditionnelle,
+									traductions et copie de formulaires entre unités.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_guardians">Gestion des tuteurs</h4>
-								<p class="meta" data-i18n="f_guardians_d">Suivi des relations parent/tuteur avec jumelage de participants et flux d'approbation.</p>
+								<p class="meta" data-i18n="f_guardians_d">
+									Suivi des relations parent/tuteur avec jumelage de
+									participants et flux d'approbation.
+								</p>
 							</article>
 						</div>
 					</div>
 
 					<div class="feature-group">
-						<h3 class="feature-group__title" data-i18n="fg_reporting">Rapports et conformité</h3>
+						<h3 class="feature-group__title" data-i18n="fg_reporting">
+							Rapports et conformité
+						</h3>
 						<div class="grid" role="list">
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_health_reports">Rapports santé et médical</h4>
-								<p class="meta" data-i18n="f_health_reports_d">Fiches santé, allergies, médicaments et statuts de vaccination pour tous les participants.</p>
+								<p class="meta" data-i18n="f_health_reports_d">
+									Fiches santé, allergies, médicaments et statuts de vaccination
+									pour tous les participants.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_compliance">Rapports de conformité</h4>
-								<p class="meta" data-i18n="f_compliance_d">Autorisations de départ seul, autorisations médias et documents manquants en un coup d'œil.</p>
+								<p class="meta" data-i18n="f_compliance_d">
+									Autorisations de départ seul, autorisations médias et
+									documents manquants en un coup d'œil.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_participant_reports">Rapports participants</h4>
-								<p class="meta" data-i18n="f_participant_reports_d">Progrès, âge, points, honneurs, présences et listes de groupe imprimables.</p>
+								<p class="meta" data-i18n="f_participant_reports_d">
+									Progrès, âge, points, honneurs, présences et listes de groupe
+									imprimables.
+								</p>
 							</article>
 							<article class="card" role="listitem">
 								<h4 data-i18n="f_financial_reports">Rapports financiers</h4>
-								<p class="meta" data-i18n="f_financial_reports_d">Revenus par source, suivi budgétaire, ventilation des paiements par méthode et soldes impayés.</p>
+								<p class="meta" data-i18n="f_financial_reports_d">
+									Revenus par source, suivi budgétaire, ventilation des
+									paiements par méthode et soldes impayés.
+								</p>
 							</article>
 						</div>
 					</div>
@@ -714,58 +977,273 @@
 
 			<!-- Comparison Section -->
 			<section class="section section-center" id="compare">
-				<h2 data-i18n="compare_title">Pourquoi choisir Wampums plutôt que...</h2>
-				<p data-i18n="compare_body">Voyez comment une plateforme conçue sur mesure se compare aux outils que vous assemblez actuellement.</p>
+				<h2 data-i18n="compare_title">
+					Pourquoi choisir Wampums plutôt que...
+				</h2>
+				<p data-i18n="compare_body">
+					Voyez comment une plateforme conçue sur mesure se compare aux outils
+					que vous assemblez actuellement.
+				</p>
 
-				<div class="compare-grid" role="table" aria-label="Tableau de comparaison des fonctionnalités">
+				<div
+					class="compare-grid"
+					role="table"
+					aria-label="Tableau de comparaison des fonctionnalités"
+				>
 					<div class="compare-row compare-header" role="row">
-						<div class="compare-cell" role="columnheader" data-i18n="compare_category">Catégorie</div>
-						<div class="compare-cell" role="columnheader" data-i18n="compare_paper">Papier</div>
-						<div class="compare-cell" role="columnheader" data-i18n="compare_spreadsheets">Feuilles de calcul</div>
-						<div class="compare-cell" role="columnheader" data-i18n="compare_single_apps">Applications spécialisées</div>
-						<div class="compare-cell compare-cell--highlight" role="columnheader">Wampums</div>
+						<div
+							class="compare-cell"
+							role="columnheader"
+							data-i18n="compare_category"
+						>
+							Catégorie
+						</div>
+						<div
+							class="compare-cell"
+							role="columnheader"
+							data-i18n="compare_paper"
+						>
+							Papier
+						</div>
+						<div
+							class="compare-cell"
+							role="columnheader"
+							data-i18n="compare_spreadsheets"
+						>
+							Feuilles de calcul
+						</div>
+						<div
+							class="compare-cell"
+							role="columnheader"
+							data-i18n="compare_single_apps"
+						>
+							Applications spécialisées
+						</div>
+						<div
+							class="compare-cell compare-cell--highlight"
+							role="columnheader"
+						>
+							Wampums
+						</div>
 					</div>
 					<div class="compare-row" role="row">
-						<div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_attendance">Présences</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_attendance_paper">Listes papier, ressaisies plus tard</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_attendance_sheets">Saisie manuelle, sujette aux erreurs</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_attendance_apps">Application séparée, sans contexte</div>
-						<div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_attendance_wampums">Un toucher sur mobile, synchronisé avec badges &amp; rapports</div>
+						<div
+							class="compare-cell compare-cell--label"
+							role="rowheader"
+							data-i18n="compare_attendance"
+						>
+							Présences
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_attendance_paper"
+						>
+							Listes papier, ressaisies plus tard
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_attendance_sheets"
+						>
+							Saisie manuelle, sujette aux erreurs
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_attendance_apps"
+						>
+							Application séparée, sans contexte
+						</div>
+						<div
+							class="compare-cell compare-cell--highlight"
+							role="cell"
+							data-i18n="compare_attendance_wampums"
+						>
+							Un toucher sur mobile, synchronisé avec badges &amp; rapports
+						</div>
 					</div>
 					<div class="compare-row" role="row">
-						<div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_badges">Suivi des badges</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_badges_paper">Registres en cartable, facilement perdus</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_badges_sheets">Formules complexes, difficiles à partager</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_badges_apps">Limité à un programme de badges</div>
-						<div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_badges_wampums">Système multi-niveaux, flux d'approbation, visibilité parents</div>
+						<div
+							class="compare-cell compare-cell--label"
+							role="rowheader"
+							data-i18n="compare_badges"
+						>
+							Suivi des badges
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_badges_paper"
+						>
+							Registres en cartable, facilement perdus
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_badges_sheets"
+						>
+							Formules complexes, difficiles à partager
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_badges_apps"
+						>
+							Limité à un programme de badges
+						</div>
+						<div
+							class="compare-cell compare-cell--highlight"
+							role="cell"
+							data-i18n="compare_badges_wampums"
+						>
+							Système multi-niveaux, flux d'approbation, visibilité parents
+						</div>
 					</div>
 					<div class="compare-row" role="row">
-						<div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_comms">Communication</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_comms_paper">Documents distribués, chaînes téléphoniques</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_comms_sheets">Non applicable</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_comms_apps">Un seul canal</div>
-						<div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_comms_wampums">WhatsApp, courriel, Google Chat, push — tous intégrés</div>
+						<div
+							class="compare-cell compare-cell--label"
+							role="rowheader"
+							data-i18n="compare_comms"
+						>
+							Communication
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_comms_paper"
+						>
+							Documents distribués, chaînes téléphoniques
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_comms_sheets"
+						>
+							Non applicable
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_comms_apps"
+						>
+							Un seul canal
+						</div>
+						<div
+							class="compare-cell compare-cell--highlight"
+							role="cell"
+							data-i18n="compare_comms_wampums"
+						>
+							WhatsApp, courriel, Google Chat, push — tous intégrés
+						</div>
 					</div>
 					<div class="compare-row" role="row">
-						<div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_docs">Documents</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_docs_paper">Classeurs, formulaires perdus</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_docs_sheets">Drives partagés, chaos de versions</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_docs_apps">Pas de fonctionnalités documents</div>
-						<div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_docs_wampums">Autorisations numériques, fiches santé, rappels automatiques</div>
+						<div
+							class="compare-cell compare-cell--label"
+							role="rowheader"
+							data-i18n="compare_docs"
+						>
+							Documents
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_docs_paper"
+						>
+							Classeurs, formulaires perdus
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_docs_sheets"
+						>
+							Drives partagés, chaos de versions
+						</div>
+						<div class="compare-cell" role="cell" data-i18n="compare_docs_apps">
+							Pas de fonctionnalités documents
+						</div>
+						<div
+							class="compare-cell compare-cell--highlight"
+							role="cell"
+							data-i18n="compare_docs_wampums"
+						>
+							Autorisations numériques, fiches santé, rappels automatiques
+						</div>
 					</div>
 					<div class="compare-row" role="row">
-						<div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_finance">Finances</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_finance_paper">Enveloppes de reçus, totaux manuels</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_finance_sheets">Formules fragiles, aucune piste d'audit</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_finance_apps">Outil comptable séparé</div>
-						<div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_finance_wampums">Frais, budgets, dépenses, levées de fonds — tout ensemble</div>
+						<div
+							class="compare-cell compare-cell--label"
+							role="rowheader"
+							data-i18n="compare_finance"
+						>
+							Finances
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_finance_paper"
+						>
+							Enveloppes de reçus, totaux manuels
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_finance_sheets"
+						>
+							Formules fragiles, aucune piste d'audit
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_finance_apps"
+						>
+							Outil comptable séparé
+						</div>
+						<div
+							class="compare-cell compare-cell--highlight"
+							role="cell"
+							data-i18n="compare_finance_wampums"
+						>
+							Frais, budgets, dépenses, levées de fonds — tout ensemble
+						</div>
 					</div>
 					<div class="compare-row" role="row">
-						<div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_custom">Personnalisation</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_custom_paper">Aucune</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_custom_sheets">Bricolage, formules fragiles</div>
-						<div class="compare-cell" role="cell" data-i18n="compare_custom_apps">Rigide, taille unique</div>
-						<div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_custom_wampums">Formulaires personnalisés, rôles flexibles, bilingue par conception</div>
+						<div
+							class="compare-cell compare-cell--label"
+							role="rowheader"
+							data-i18n="compare_custom"
+						>
+							Personnalisation
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_custom_paper"
+						>
+							Aucune
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_custom_sheets"
+						>
+							Bricolage, formules fragiles
+						</div>
+						<div
+							class="compare-cell"
+							role="cell"
+							data-i18n="compare_custom_apps"
+						>
+							Rigide, taille unique
+						</div>
+						<div
+							class="compare-cell compare-cell--highlight"
+							role="cell"
+							data-i18n="compare_custom_wampums"
+						>
+							Formulaires personnalisés, rôles flexibles, bilingue par
+							conception
+						</div>
 					</div>
 				</div>
 			</section>
@@ -773,26 +1251,53 @@
 			<!-- Multilingual & Customization -->
 			<section class="section section-center" id="multilingual">
 				<h2 data-i18n="multilingual_title">Conçu bilingue. Conçu flexible.</h2>
-				<p data-i18n="multilingual_body">Wampums parle votre langue — et s'adapte aux besoins uniques de votre organisation.</p>
+				<p data-i18n="multilingual_body">
+					Wampums parle votre langue — et s'adapte aux besoins uniques de votre
+					organisation.
+				</p>
 
 				<div class="grid" role="list">
 					<article class="card" role="listitem">
-						<h3 data-i18n="multilingual_bilingual_title">&#x1F310; Entièrement bilingue (FR/EN)</h3>
-						<p class="meta" data-i18n="multilingual_bilingual_body">Chaque écran, notification, formulaire et rapport est disponible en français et en anglais. Chaque utilisateur choisit sa propre langue — aucune duplication nécessaire.</p>
+						<h3 data-i18n="multilingual_bilingual_title">
+							&#x1F310; Entièrement bilingue (FR/EN)
+						</h3>
+						<p class="meta" data-i18n="multilingual_bilingual_body">
+							Chaque écran, notification, formulaire et rapport est disponible
+							en français et en anglais. Chaque utilisateur choisit sa propre
+							langue — aucune duplication nécessaire.
+						</p>
 					</article>
 					<article class="card" role="listitem">
-						<h3 data-i18n="multilingual_forms_title">&#x1F4DD; Constructeur de formulaires personnalisés</h3>
-						<p class="meta" data-i18n="multilingual_forms_body">Créez des formulaires d'inscription, fiches santé et autorisations avec un constructeur glisser-déposer. Ajoutez logique conditionnelle, libellés bilingues et partagez entre unités.</p>
+						<h3 data-i18n="multilingual_forms_title">
+							&#x1F4DD; Constructeur de formulaires personnalisés
+						</h3>
+						<p class="meta" data-i18n="multilingual_forms_body">
+							Créez des formulaires d'inscription, fiches santé et autorisations
+							avec un constructeur glisser-déposer. Ajoutez logique
+							conditionnelle, libellés bilingues et partagez entre unités.
+						</p>
 					</article>
 					<article class="card" role="listitem">
-						<h3 data-i18n="multilingual_roles_title">&#x1F527; Adaptable à toute organisation</h3>
-						<p class="meta" data-i18n="multilingual_roles_body">40+ permissions, rôles personnalisés, support multi-unités et paramètres configurables. Wampums s'adapte aux Scouts, Guides, Cadets ou tout groupe jeunesse.</p>
+						<h3 data-i18n="multilingual_roles_title">
+							&#x1F527; Adaptable à toute organisation
+						</h3>
+						<p class="meta" data-i18n="multilingual_roles_body">
+							40+ permissions, rôles personnalisés, support multi-unités et
+							paramètres configurables. Wampums s'adapte aux Scouts, Guides,
+							Cadets ou tout groupe jeunesse.
+						</p>
 					</article>
 				</div>
 
 				<!-- Screenshot placeholder: bilingual interface -->
-				<div class="screenshot-placeholder screenshot-placeholder--spaced" aria-label="Capture d'écran : Interface bilingue côte à côte">
-					<p class="meta" data-i18n="screenshot_bilingual">Capture d'écran : interface bilingue — français et anglais côte à côte</p>
+				<div
+					class="screenshot-placeholder screenshot-placeholder--spaced"
+					aria-label="Capture d'écran : Interface bilingue côte à côte"
+				>
+					<p class="meta" data-i18n="screenshot_bilingual">
+						Capture d'écran : interface bilingue — français et anglais côte à
+						côte
+					</p>
 				</div>
 			</section>
 
@@ -828,82 +1333,144 @@
 
 			<!-- Testimonials Section -->
 			<section class="section section-center" id="testimonials">
-				<h2 data-i18n="testimonials_title">Ce que disent les responsables scouts</h2>
-				<p data-i18n="testimonials_body">Commentaires réels de groupes utilisant Wampums chaque semaine.</p>
+				<h2 data-i18n="testimonials_title">
+					Ce que disent les responsables scouts
+				</h2>
+				<p data-i18n="testimonials_body">
+					Commentaires réels de groupes utilisant Wampums chaque semaine.
+				</p>
 
 				<div class="grid" role="list">
 					<article class="card" role="listitem">
 						<div class="testimonial-avatar" aria-hidden="true">&#x1F464;</div>
 						<blockquote>
-							<p class="meta" data-i18n="testimonial1_quote">&#x201C;Avant, on passait une heure avant chaque réunion juste pour s'organiser. Maintenant tout est prêt quand on arrive.&#x201D;</p>
+							<p class="meta" data-i18n="testimonial1_quote">
+								&#x201C;Avant, on passait une heure avant chaque réunion juste
+								pour s'organiser. Maintenant tout est prêt quand on
+								arrive.&#x201D;
+							</p>
 						</blockquote>
-						<p class="testimonial-author" data-i18n="testimonial1_author">&mdash; Responsable scout, Gatineau</p>
+						<p class="testimonial-author" data-i18n="testimonial1_author">
+							&mdash; Responsable scout, Gatineau
+						</p>
 					</article>
 
 					<article class="card" role="listitem">
 						<div class="testimonial-avatar" aria-hidden="true">&#x1F464;</div>
 						<blockquote>
-							<p class="meta" data-i18n="testimonial2_quote">&#x201C;Comme parent, je sais enfin ce qui se passe chaque semaine. Je peux signer les formulaires sur mon téléphone et voir les progrès de badges de ma fille.&#x201D;</p>
+							<p class="meta" data-i18n="testimonial2_quote">
+								&#x201C;Comme parent, je sais enfin ce qui se passe chaque
+								semaine. Je peux signer les formulaires sur mon téléphone et
+								voir les progrès de badges de ma fille.&#x201D;
+							</p>
 						</blockquote>
-						<p class="testimonial-author" data-i18n="testimonial2_author">&mdash; Parent, Gatineau</p>
+						<p class="testimonial-author" data-i18n="testimonial2_author">
+							&mdash; Parent, Gatineau
+						</p>
 					</article>
 
 					<article class="card" role="listitem">
 						<div class="testimonial-avatar" aria-hidden="true">&#x1F464;</div>
 						<blockquote>
-							<p class="meta" data-i18n="testimonial3_quote">&#x201C;La fonction bilingue change la donne. Notre groupe est mixte français/anglais et chacun voit l'application dans sa propre langue.&#x201D;</p>
+							<p class="meta" data-i18n="testimonial3_quote">
+								&#x201C;La fonction bilingue change la donne. Notre groupe est
+								mixte français/anglais et chacun voit l'application dans sa
+								propre langue.&#x201D;
+							</p>
 						</blockquote>
-						<p class="testimonial-author" data-i18n="testimonial3_author">&mdash; Animateur scout, Gatineau</p>
+						<p class="testimonial-author" data-i18n="testimonial3_author">
+							&mdash; Animateur scout, Gatineau
+						</p>
 					</article>
 				</div>
 			</section>
 
-<!-- FAQ Section -->
-<section class="section" id="faq">
-<h2 data-i18n="faq_title">Questions fréquemment posées</h2>
+			<!-- FAQ Section -->
+			<section class="section" id="faq">
+				<h2 data-i18n="faq_title">Questions fréquemment posées</h2>
 
-<div class="faq-grid">
-<div class="faq-item">
-<h4 data-i18n="faq1_q">Comment démarrer?</h4>
-<p data-i18n="faq1_a">Demandez une démo et nous configurerons votre organisation. Vous pouvez importer vos données de participants existantes depuis des fichiers CSV et être opérationnel en une journée.</p>
-</div>
+				<div class="faq-grid">
+					<div class="faq-item">
+						<h4 data-i18n="faq1_q">Comment démarrer?</h4>
+						<p data-i18n="faq1_a">
+							Demandez une démo et nous configurerons votre organisation. Vous
+							pouvez importer vos données de participants existantes depuis des
+							fichiers CSV et être opérationnel en une journée.
+						</p>
+					</div>
 
-<div class="faq-item">
-<h4 data-i18n="faq2_q">Combien coûte Wampums?</h4>
-<p data-i18n="faq2_a">Wampums est gratuit pour les groupes scouts pendant la période d'accès anticipé. Contactez-nous pour les détails sur la tarification future.</p>
-</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq2_q">Combien coûte Wampums?</h4>
+						<p data-i18n="faq2_a">
+							Wampums est gratuit pour les groupes scouts pendant la période
+							d'accès anticipé. Contactez-nous pour les détails sur la
+							tarification future.
+						</p>
+					</div>
 
-<div class="faq-item">
-<h4 data-i18n="faq3_q">Mes données sont-elles sécurisées?</h4>
-<p data-i18n="faq3_a">Oui. Nous utilisons HTTPS (TLS), des sauvegardes chiffrées et des contrôles d'accès basés sur les rôles. Vos données sont isolées par organisation et ne sont jamais partagées avec des tiers.</p>
-</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq3_q">Mes données sont-elles sécurisées?</h4>
+						<p data-i18n="faq3_a">
+							Oui. Nous utilisons HTTPS (TLS), des sauvegardes chiffrées et des
+							contrôles d'accès basés sur les rôles. Vos données sont isolées
+							par organisation et ne sont jamais partagées avec des tiers.
+						</p>
+					</div>
 
-<div class="faq-item">
-<h4 data-i18n="faq4_q">Peut-on travailler en français et en anglais?</h4>
-<p data-i18n="faq4_a">Absolument. Chaque écran, formulaire et notification est entièrement bilingue. Chaque utilisateur choisit sa propre langue et l'interface s'adapte instantanément.</p>
-</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq4_q">
+							Peut-on travailler en français et en anglais?
+						</h4>
+						<p data-i18n="faq4_a">
+							Absolument. Chaque écran, formulaire et notification est
+							entièrement bilingue. Chaque utilisateur choisit sa propre langue
+							et l'interface s'adapte instantanément.
+						</p>
+					</div>
 
-<div class="faq-item">
-<h4 data-i18n="faq5_q">Fonctionne-t-il sur mobile?</h4>
-<p data-i18n="faq5_a">Oui. Wampums est une application web progressive qui fonctionne sur n'importe quel téléphone, tablette ou ordinateur — aucun téléchargement depuis une boutique d'applications requis. Fonctionne même hors-ligne pour les présences et les points.</p>
-</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq5_q">Fonctionne-t-il sur mobile?</h4>
+						<p data-i18n="faq5_a">
+							Oui. Wampums est une application web progressive qui fonctionne
+							sur n'importe quel téléphone, tablette ou ordinateur — aucun
+							téléchargement depuis une boutique d'applications requis.
+							Fonctionne même hors-ligne pour les présences et les points.
+						</p>
+					</div>
 
-<div class="faq-item">
-<h4 data-i18n="faq6_q">Peut-on personnaliser les formulaires et les champs?</h4>
-<p data-i18n="faq6_a">Oui. Le constructeur de formulaires intégré vous permet de créer des formulaires d'inscription, des fiches santé et des autorisations personnalisés avec logique conditionnelle et libellés bilingues.</p>
-</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq6_q">
+							Peut-on personnaliser les formulaires et les champs?
+						</h4>
+						<p data-i18n="faq6_a">
+							Oui. Le constructeur de formulaires intégré vous permet de créer
+							des formulaires d'inscription, des fiches santé et des
+							autorisations personnalisés avec logique conditionnelle et
+							libellés bilingues.
+						</p>
+					</div>
 
-<div class="faq-item">
-<h4 data-i18n="faq7_q">Peut-on importer nos données existantes?</h4>
-<p data-i18n="faq7_a">Oui. Wampums supporte l'importation CSV pour les participants, tuteurs et utilisateurs. Nous pouvons également aider à la migration de données depuis d'autres systèmes.</p>
-</div>
+					<div class="faq-item">
+						<h4 data-i18n="faq7_q">Peut-on importer nos données existantes?</h4>
+						<p data-i18n="faq7_a">
+							Oui. Wampums supporte l'importation CSV pour les participants,
+							tuteurs et utilisateurs. Nous pouvons également aider à la
+							migration de données depuis d'autres systèmes.
+						</p>
+					</div>
 
-<div class="faq-item">
-<h4 data-i18n="faq8_q">Comment l'équipe reste-t-elle alignée chaque semaine?</h4>
-<p data-i18n="faq8_a">Les plans de réunions, rappels automatiques, tableaux de bord partagés et outils de communication gardent les responsables, parents et bénévoles synchronisés sans effort supplémentaire.</p>
-</div>
-</div>
-</section>
+					<div class="faq-item">
+						<h4 data-i18n="faq8_q">
+							Comment l'équipe reste-t-elle alignée chaque semaine?
+						</h4>
+						<p data-i18n="faq8_a">
+							Les plans de réunions, rappels automatiques, tableaux de bord
+							partagés et outils de communication gardent les responsables,
+							parents et bénévoles synchronisés sans effort supplémentaire.
+						</p>
+					</div>
+				</div>
+			</section>
 
 			<!-- CTA Section -->
 			<section class="section">

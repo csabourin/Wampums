@@ -27,28 +27,34 @@
     <meta property="og:site_name" content="Wampums" />
     <meta property="og:locale" content="en_CA" />
     <meta property="og:locale:alternate" content="fr_CA" />
-    <meta property="og:title" content="Wampums — Scout management (bilingual)" />
+    <meta
+      property="og:title"
+      content="Wampums — Scout management (bilingual)"
+    />
     <meta
       property="og:description"
       content="Replace paper chaos and scattered tools with one bilingual app. Plan meetings, track attendance and badges, manage documents, and keep parents informed."
     />
     <meta
       property="og:image"
-      content="https://wampums.app/assets/images/og-wampums-1200x630.jpg"
+      content="https://wampums.app/images/og-wampums-1200x630.jpg"
     />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Wampums — Scout management (bilingual)" />
+    <meta
+      name="twitter:title"
+      content="Wampums — Scout management (bilingual)"
+    />
     <meta
       name="twitter:description"
       content="Replace paper chaos and scattered tools with one bilingual app. Plan meetings, track attendance and badges, manage documents, and keep parents informed."
     />
     <meta
       name="twitter:image"
-      content="https://wampums.app/assets/images/og-wampums-1200x630.jpg"
+      content="https://wampums.app/images/og-wampums-1200x630.jpg"
     />
 
     <!-- PWA -->
@@ -150,7 +156,11 @@
       <div class="shell">
         <div class="top-bar">
           <a class="brand" href="/en/" aria-label="Wampums home">
-            <span class="brand-mark" aria-hidden="true">W</span>
+            <img
+              src="../images/defaultImage.webp"
+              width="90"
+              alt="Wampums logo"
+            />
             <span>Wampums</span>
           </a>
 
@@ -167,29 +177,55 @@
 
         <div class="hero" role="banner">
           <div>
-            <p class="pill" data-i18n="tagline">Bilingual web app for scout units</p>
+            <p class="pill" data-i18n="tagline">
+              Bilingual web app for scout units
+            </p>
 
-            <h1 data-i18n="hero_title">Stop juggling spreadsheets, paper lists, and WhatsApp chaos. Run your scout unit from one place.</h1>
+            <h1 data-i18n="hero_title">
+              Stop juggling spreadsheets, paper lists, and WhatsApp chaos. Run
+              your scout unit from one place.
+            </h1>
 
             <p data-i18n="hero_body">
-              Wampums replaces the binders, the scattered group chats, and the half-forgotten spreadsheets with a single bilingual app. Attendance, badges, permissions, communications, documents, finances &mdash; prepared and organized before every meeting.
+              Wampums replaces the binders, the scattered group chats, and the
+              half-forgotten spreadsheets with a single bilingual app.
+              Attendance, badges, permissions, communications, documents,
+              finances &mdash; prepared and organized before every meeting.
             </p>
 
             <div class="badge-row">
-              <span class="pill" data-i18n="badge1">Replaces paper &amp; spreadsheets</span>
-              <span class="pill" data-i18n="badge2">Attendance, badges &amp; more</span>
-              <span class="pill" data-i18n="badge3">Parents always in the loop</span>
+              <span class="pill" data-i18n="badge1"
+                >Replaces paper &amp; spreadsheets</span
+              >
+              <span class="pill" data-i18n="badge2"
+                >Attendance, badges &amp; more</span
+              >
+              <span class="pill" data-i18n="badge3"
+                >Parents always in the loop</span
+              >
             </div>
 
             <div class="actions">
-              <button type="button" class="btn-primary" data-open-demo-modal data-i18n="cta_primary">See a demo</button>
-              <a class="btn-secondary" href="#problem" data-i18n="cta_secondary">See what changes</a>
+              <button
+                type="button"
+                class="btn-primary"
+                data-open-demo-modal
+                data-i18n="cta_primary"
+              >
+                See a demo
+              </button>
+              <a class="btn-secondary" href="#problem" data-i18n="cta_secondary"
+                >See what changes</a
+              >
             </div>
           </div>
 
           <!-- Screenshot placeholder: hero dashboard -->
           <div class="card" aria-label="App screenshot preview" tabindex="0">
-            <div class="screenshot-placeholder" aria-label="Screenshot: Wampums dashboard overview">
+            <div
+              class="screenshot-placeholder"
+              aria-label="Screenshot: Wampums dashboard overview"
+            >
               <span aria-hidden="true">&#x1F4F1;</span>
               <p class="meta">Dashboard screenshot coming soon</p>
             </div>
@@ -217,39 +253,68 @@
       <section class="section section-center" id="problem">
         <h2 data-i18n="problem_title">Sound familiar?</h2>
         <p data-i18n="problem_body">
-          Scout leaders, parents, and volunteers deal with the same headaches every week. Wampums was built to fix them.
+          Scout leaders, parents, and volunteers deal with the same headaches
+          every week. Wampums was built to fix them.
         </p>
 
         <div class="grid" role="list">
           <article class="card" role="listitem">
             <h3 data-i18n="problem1_title">&#x1F4CB; Paper sign-up sheets</h3>
-            <p class="meta" data-i18n="problem1_body">Printed forms get lost, damaged, or forgotten at home. You end up re-entering data by hand every time.</p>
+            <p class="meta" data-i18n="problem1_body">
+              Printed forms get lost, damaged, or forgotten at home. You end up
+              re-entering data by hand every time.
+            </p>
           </article>
           <article class="card" role="listitem">
             <h3 data-i18n="problem2_title">&#x1F4AC; WhatsApp overload</h3>
-            <p class="meta" data-i18n="problem2_body">Important messages get buried in group chats. No history, no structure, no way to find last month&#x2019;s carpool details.</p>
+            <p class="meta" data-i18n="problem2_body">
+              Important messages get buried in group chats. No history, no
+              structure, no way to find last month&#x2019;s carpool details.
+            </p>
           </article>
           <article class="card" role="listitem">
             <h3 data-i18n="problem3_title">&#x1F4CA; Spreadsheet sprawl</h3>
-            <p class="meta" data-i18n="problem3_body">One file for attendance, another for badges, a third for fees. Different versions floating around, nobody sure which is current.</p>
+            <p class="meta" data-i18n="problem3_body">
+              One file for attendance, another for badges, a third for fees.
+              Different versions floating around, nobody sure which is current.
+            </p>
           </article>
           <article class="card" role="listitem">
-            <h3 data-i18n="problem4_title">&#x2709;&#xFE0F; Chasing signatures</h3>
-            <p class="meta" data-i18n="problem4_body">Emailing permission slips, printing, scanning, reminding &mdash; the back-and-forth never ends.</p>
+            <h3 data-i18n="problem4_title">
+              &#x2709;&#xFE0F; Chasing signatures
+            </h3>
+            <p class="meta" data-i18n="problem4_body">
+              Emailing permission slips, printing, scanning, reminding &mdash;
+              the back-and-forth never ends.
+            </p>
           </article>
           <article class="card" role="listitem">
             <h3 data-i18n="problem5_title">&#x1F500; Too many tools</h3>
-            <p class="meta" data-i18n="problem5_body">Google Sheets for tracking, Doodle for scheduling, email for announcements, a binder for health forms. Nothing talks to anything else.</p>
+            <p class="meta" data-i18n="problem5_body">
+              Google Sheets for tracking, Doodle for scheduling, email for
+              announcements, a binder for health forms. Nothing talks to
+              anything else.
+            </p>
           </article>
           <article class="card" role="listitem">
             <h3 data-i18n="problem6_title">&#x1F310; Language barriers</h3>
-            <p class="meta" data-i18n="problem6_body">Half your families speak French, half speak English. Every communication has to be done twice &mdash; or someone gets left out.</p>
+            <p class="meta" data-i18n="problem6_body">
+              Half your families speak French, half speak English. Every
+              communication has to be done twice &mdash; or someone gets left
+              out.
+            </p>
           </article>
         </div>
 
         <!-- Screenshot placeholder: before/after -->
-        <div class="screenshot-placeholder screenshot-placeholder--spaced" aria-label="Visual comparison: before and after Wampums">
-          <p class="meta" data-i18n="problem_screenshot">Visual comparison coming soon: scattered tools vs. one unified dashboard</p>
+        <div
+          class="screenshot-placeholder screenshot-placeholder--spaced"
+          aria-label="Visual comparison: before and after Wampums"
+        >
+          <p class="meta" data-i18n="problem_screenshot">
+            Visual comparison coming soon: scattered tools vs. one unified
+            dashboard
+          </p>
         </div>
       </section>
 
@@ -257,24 +322,43 @@
       <section class="section section-center" id="solutions">
         <h2 data-i18n="solutions_title">One app to replace them all</h2>
         <p data-i18n="solutions_body">
-          Wampums brings every part of scout management into a single bilingual platform &mdash; so you spend less time on admin and more time with the kids.
+          Wampums brings every part of scout management into a single bilingual
+          platform &mdash; so you spend less time on admin and more time with
+          the kids.
         </p>
 
         <div class="solutions-grid">
           <article class="solution-card">
             <div class="solution-header">
               <h3 data-i18n="solution1_title">Plan &amp; prepare</h3>
-              <p class="solution-note" data-i18n="solution1_note">Replace binders and email chains with structured meeting prep.</p>
+              <p class="solution-note" data-i18n="solution1_note">
+                Replace binders and email chains with structured meeting prep.
+              </p>
             </div>
             <ul class="solution-features">
-              <li data-i18n="solution1_feature1">Shared meeting calendar with all details</li>
-              <li data-i18n="solution1_feature2">Activities, goals, and materials in one place</li>
-              <li data-i18n="solution1_feature3">Assignments by group or leader role</li>
-              <li data-i18n="solution1_feature4">Automatic bilingual reminders to parents</li>
-              <li data-i18n="solution1_feature5">Digital permission collection &mdash; no paper</li>
+              <li data-i18n="solution1_feature1">
+                Shared meeting calendar with all details
+              </li>
+              <li data-i18n="solution1_feature2">
+                Activities, goals, and materials in one place
+              </li>
+              <li data-i18n="solution1_feature3">
+                Assignments by group or leader role
+              </li>
+              <li data-i18n="solution1_feature4">
+                Automatic bilingual reminders to parents
+              </li>
+              <li data-i18n="solution1_feature5">
+                Digital permission collection &mdash; no paper
+              </li>
             </ul>
             <div class="solution-cta">
-              <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
+              <button
+                type="button"
+                class="btn-secondary"
+                data-open-demo-modal
+                data-i18n="solution_cta"
+              >
                 View demo
               </button>
             </div>
@@ -283,17 +367,34 @@
           <article class="solution-card featured">
             <div class="solution-header">
               <h3 data-i18n="solution2_title">Track &amp; record</h3>
-              <p class="solution-note" data-i18n="solution2_note">Replace spreadsheets with live mobile tracking.</p>
+              <p class="solution-note" data-i18n="solution2_note">
+                Replace spreadsheets with live mobile tracking.
+              </p>
             </div>
             <ul class="solution-features">
-              <li data-i18n="solution2_feature1">Badges, honors, and points &mdash; no paper logs</li>
-              <li data-i18n="solution2_feature2">Live attendance on your phone</li>
-              <li data-i18n="solution2_feature3">Equipment reservations and dashboards</li>
-              <li data-i18n="solution2_feature4">Targeted notifications instead of mass texts</li>
-              <li data-i18n="solution2_feature5">Centralized health forms and documents</li>
+              <li data-i18n="solution2_feature1">
+                Badges, honors, and points &mdash; no paper logs
+              </li>
+              <li data-i18n="solution2_feature2">
+                Live attendance on your phone
+              </li>
+              <li data-i18n="solution2_feature3">
+                Equipment reservations and dashboards
+              </li>
+              <li data-i18n="solution2_feature4">
+                Targeted notifications instead of mass texts
+              </li>
+              <li data-i18n="solution2_feature5">
+                Centralized health forms and documents
+              </li>
             </ul>
             <div class="solution-cta">
-              <button type="button" class="btn-primary" data-open-demo-modal data-i18n="solution_cta">
+              <button
+                type="button"
+                class="btn-primary"
+                data-open-demo-modal
+                data-i18n="solution_cta"
+              >
                 View demo
               </button>
             </div>
@@ -302,17 +403,34 @@
           <article class="solution-card">
             <div class="solution-header">
               <h3 data-i18n="solution3_title">Manage &amp; report</h3>
-              <p class="solution-note" data-i18n="solution3_note">Replace manual reporting with real-time dashboards.</p>
+              <p class="solution-note" data-i18n="solution3_note">
+                Replace manual reporting with real-time dashboards.
+              </p>
             </div>
             <ul class="solution-features">
-              <li data-i18n="solution3_feature1">Consolidated reporting across groups</li>
-              <li data-i18n="solution3_feature2">Budget and expense tracking</li>
-              <li data-i18n="solution3_feature3">Communication journal and audit trail</li>
-              <li data-i18n="solution3_feature4">Secure exports for councils</li>
-              <li data-i18n="solution3_feature5">Custom forms and API access</li>
+              <li data-i18n="solution3_feature1">
+                Consolidated reporting across groups
+              </li>
+              <li data-i18n="solution3_feature2">
+                Budget and expense tracking
+              </li>
+              <li data-i18n="solution3_feature3">
+                Communication journal and audit trail
+              </li>
+              <li data-i18n="solution3_feature4">
+                Secure exports for councils
+              </li>
+              <li data-i18n="solution3_feature5">
+                Custom forms and API access
+              </li>
             </ul>
             <div class="solution-cta">
-              <button type="button" class="btn-secondary" data-open-demo-modal data-i18n="solution_cta">
+              <button
+                type="button"
+                class="btn-secondary"
+                data-open-demo-modal
+                data-i18n="solution_cta"
+              >
                 View demo
               </button>
             </div>
@@ -322,258 +440,468 @@
 
       <!-- Features by Audience -->
       <section class="section section-center" id="features">
-        <h2 data-i18n="features_title">Everything your group needs, for every role</h2>
-        <p data-i18n="features_body">Wampums gives leaders, parents, and administrators each their own tailored experience. Explore what&#x2019;s available for your role.</p>
+        <h2 data-i18n="features_title">
+          Everything your group needs, for every role
+        </h2>
+        <p data-i18n="features_body">
+          Wampums gives leaders, parents, and administrators each their own
+          tailored experience. Explore what&#x2019;s available for your role.
+        </p>
 
         <div class="tabs" role="tablist" aria-label="Features by audience">
-          <button role="tab" aria-selected="true" aria-controls="tab-leaders" id="btn-leaders" class="tab-btn tab-btn--active" data-i18n="tab_leaders">Leaders</button>
-          <button role="tab" aria-selected="false" aria-controls="tab-parents" id="btn-parents" class="tab-btn" data-i18n="tab_parents">Parents</button>
-          <button role="tab" aria-selected="false" aria-controls="tab-admin" id="btn-admin" class="tab-btn" data-i18n="tab_admin">Administrators</button>
+          <button
+            role="tab"
+            aria-selected="true"
+            aria-controls="tab-leaders"
+            id="btn-leaders"
+            class="tab-btn tab-btn--active"
+            data-i18n="tab_leaders"
+          >
+            Leaders
+          </button>
+          <button
+            role="tab"
+            aria-selected="false"
+            aria-controls="tab-parents"
+            id="btn-parents"
+            class="tab-btn"
+            data-i18n="tab_parents"
+          >
+            Parents
+          </button>
+          <button
+            role="tab"
+            aria-selected="false"
+            aria-controls="tab-admin"
+            id="btn-admin"
+            class="tab-btn"
+            data-i18n="tab_admin"
+          >
+            Administrators
+          </button>
         </div>
 
         <!-- Leaders Tab -->
-        <div role="tabpanel" id="tab-leaders" class="tab-panel tab-panel--active" aria-labelledby="btn-leaders">
+        <div
+          role="tabpanel"
+          id="tab-leaders"
+          class="tab-panel tab-panel--active"
+          aria-labelledby="btn-leaders"
+        >
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_meeting_prep">Meeting Preparation</h3>
+            <h3 class="feature-group__title" data-i18n="fg_meeting_prep">
+              Meeting Preparation
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_ai_plans">AI-Assisted Meeting Plans</h4>
-                <p class="meta" data-i18n="f_ai_plans_d">Generate full meeting plans with activities, responsible leaders, and required materials. Use previous meetings as templates.</p>
+                <p class="meta" data-i18n="f_ai_plans_d">
+                  Generate full meeting plans with activities, responsible
+                  leaders, and required materials. Use previous meetings as
+                  templates.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_calendar">Activity Calendar</h4>
-                <p class="meta" data-i18n="f_calendar_d">Schedule and manage activities with dates, times, locations, and meeting points.</p>
+                <p class="meta" data-i18n="f_calendar_d">
+                  Schedule and manage activities with dates, times, locations,
+                  and meeting points.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_reminders">Automatic Reminders</h4>
-                <p class="meta" data-i18n="f_reminders_d">Parents receive bilingual reminders before each meeting with logistics and outstanding permissions.</p>
+                <p class="meta" data-i18n="f_reminders_d">
+                  Parents receive bilingual reminders before each meeting with
+                  logistics and outstanding permissions.
+                </p>
               </article>
             </div>
           </div>
 
           <!-- Screenshot placeholder: leader meeting prep -->
-          <div class="screenshot-placeholder" aria-label="Screenshot: Meeting preparation view">
-            <p class="meta" data-i18n="screenshot_meeting_prep">Screenshot: meeting preparation dashboard</p>
+          <div
+            class="screenshot-placeholder"
+            aria-label="Screenshot: Meeting preparation view"
+          >
+            <p class="meta" data-i18n="screenshot_meeting_prep">
+              Screenshot: meeting preparation dashboard
+            </p>
           </div>
 
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_field_tracking">On-the-Ground Tracking</h3>
+            <h3 class="feature-group__title" data-i18n="fg_field_tracking">
+              On-the-Ground Tracking
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_attendance">Mobile Attendance</h4>
-                <p class="meta" data-i18n="f_attendance_d">Take attendance on your phone with guest support, optimistic updates, and offline queuing.</p>
+                <p class="meta" data-i18n="f_attendance_d">
+                  Take attendance on your phone with guest support, optimistic
+                  updates, and offline queuing.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_badges">Badge &amp; Honor Tracking</h4>
-                <p class="meta" data-i18n="f_badges_d">Multi-level star/badge system with approval workflows (pending, approved, delivered) and bulk operations.</p>
+                <p class="meta" data-i18n="f_badges_d">
+                  Multi-level star/badge system with approval workflows
+                  (pending, approved, delivered) and bulk operations.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_points">Points System</h4>
-                <p class="meta" data-i18n="f_points_d">Award points by group or individual. Sortable views with offline support and optimistic updates.</p>
+                <p class="meta" data-i18n="f_points_d">
+                  Award points by group or individual. Sortable views with
+                  offline support and optimistic updates.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_meds">Medication Dispensing</h4>
-                <p class="meta" data-i18n="f_meds_d">Track medication requirements, schedule dispensing windows with timed alerts, and record distribution events.</p>
+                <p class="meta" data-i18n="f_meds_d">
+                  Track medication requirements, schedule dispensing windows
+                  with timed alerts, and record distribution events.
+                </p>
               </article>
             </div>
           </div>
 
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_communication">Communication</h3>
+            <h3 class="feature-group__title" data-i18n="fg_communication">
+              Communication
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_whatsapp">WhatsApp Integration</h4>
-                <p class="meta" data-i18n="f_whatsapp_d">Connect via QR code and send announcements directly through WhatsApp with real-time delivery status.</p>
+                <p class="meta" data-i18n="f_whatsapp_d">
+                  Connect via QR code and send announcements directly through
+                  WhatsApp with real-time delivery status.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_email">Email &amp; Mailing Lists</h4>
-                <p class="meta" data-i18n="f_email_d">Role-based mailing lists with templates and a built-in announcement composer.</p>
+                <p class="meta" data-i18n="f_email_d">
+                  Role-based mailing lists with templates and a built-in
+                  announcement composer.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_gchat">Google Chat</h4>
-                <p class="meta" data-i18n="f_gchat_d">Configure Google Chat spaces for automated notifications to your leadership team.</p>
+                <p class="meta" data-i18n="f_gchat_d">
+                  Configure Google Chat spaces for automated notifications to
+                  your leadership team.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_perms">Permission Slips</h4>
-                <p class="meta" data-i18n="f_perms_d">Create, email, and track permission forms. See who has signed and send reminders to those who haven&#x2019;t.</p>
+                <p class="meta" data-i18n="f_perms_d">
+                  Create, email, and track permission forms. See who has signed
+                  and send reminders to those who haven&#x2019;t.
+                </p>
               </article>
             </div>
           </div>
 
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_logistics">Logistics &amp; Equipment</h3>
+            <h3 class="feature-group__title" data-i18n="fg_logistics">
+              Logistics &amp; Equipment
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_carpool">Carpool Coordination</h4>
-                <p class="meta" data-i18n="f_carpool_d">Parents offer rides, leaders assign participants. Quick-access modal shows vehicles and seats per activity.</p>
+                <p class="meta" data-i18n="f_carpool_d">
+                  Parents offer rides, leaders assign participants. Quick-access
+                  modal shows vehicles and seats per activity.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_inventory">Inventory Management</h4>
-                <p class="meta" data-i18n="f_inventory_d">Catalog equipment with photos, track storage locations, and manage condition status.</p>
+                <p class="meta" data-i18n="f_inventory_d">
+                  Catalog equipment with photos, track storage locations, and
+                  manage condition status.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_reservations">Material Reservations</h4>
-                <p class="meta" data-i18n="f_reservations_d">Reserve equipment for upcoming activities with automatic conflict detection for overlapping bookings.</p>
+                <p class="meta" data-i18n="f_reservations_d">
+                  Reserve equipment for upcoming activities with automatic
+                  conflict detection for overlapping bookings.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_resources">Resource Dashboard</h4>
-                <p class="meta" data-i18n="f_resources_d">At-a-glance view of what equipment is reserved for each meeting date.</p>
+                <p class="meta" data-i18n="f_resources_d">
+                  At-a-glance view of what equipment is reserved for each
+                  meeting date.
+                </p>
               </article>
             </div>
           </div>
         </div>
 
         <!-- Parents Tab -->
-        <div role="tabpanel" id="tab-parents" class="tab-panel" aria-labelledby="btn-parents" hidden>
+        <div
+          role="tabpanel"
+          id="tab-parents"
+          class="tab-panel"
+          aria-labelledby="btn-parents"
+          hidden
+        >
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_my_children">My Children</h3>
+            <h3 class="feature-group__title" data-i18n="fg_my_children">
+              My Children
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_parent_dash">Parent Dashboard</h4>
-                <p class="meta" data-i18n="f_parent_dash_d">See all your children&#x2019;s activities, badge progress, upcoming events, and outstanding documents in one place.</p>
+                <p class="meta" data-i18n="f_parent_dash_d">
+                  See all your children&#x2019;s activities, badge progress,
+                  upcoming events, and outstanding documents in one place.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_badge_progress">Badge Progress</h4>
-                <p class="meta" data-i18n="f_badge_progress_d">View each child&#x2019;s badge and honor advancement with visual progress indicators.</p>
+                <p class="meta" data-i18n="f_badge_progress_d">
+                  View each child&#x2019;s badge and honor advancement with
+                  visual progress indicators.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_reg_forms">Registration Forms</h4>
-                <p class="meta" data-i18n="f_reg_forms_d">Register new participants or update existing information through dynamic, customizable forms.</p>
+                <p class="meta" data-i18n="f_reg_forms_d">
+                  Register new participants or update existing information
+                  through dynamic, customizable forms.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_progress_reports">Progress Reports</h4>
-                <p class="meta" data-i18n="f_progress_reports_d">Access per-participant progress reports covering attendance, badges, and participation.</p>
+                <p class="meta" data-i18n="f_progress_reports_d">
+                  Access per-participant progress reports covering attendance,
+                  badges, and participation.
+                </p>
               </article>
             </div>
           </div>
 
           <!-- Screenshot placeholder: parent dashboard -->
-          <div class="screenshot-placeholder" aria-label="Screenshot: Parent dashboard view">
-            <p class="meta" data-i18n="screenshot_parent_dash">Screenshot: parent dashboard with child progress</p>
+          <div
+            class="screenshot-placeholder"
+            aria-label="Screenshot: Parent dashboard view"
+          >
+            <p class="meta" data-i18n="screenshot_parent_dash">
+              Screenshot: parent dashboard with child progress
+            </p>
           </div>
 
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_docs_payments">Documents &amp; Forms</h3>
+            <h3 class="feature-group__title" data-i18n="fg_docs_payments">
+              Documents &amp; Forms
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_perm_slips_parent">Permission Slips</h4>
-                <p class="meta" data-i18n="f_perm_slips_parent_d">Sign permission forms from a secure link on your phone. No printing or scanning needed.</p>
+                <p class="meta" data-i18n="f_perm_slips_parent_d">
+                  Sign permission forms from a secure link on your phone. No
+                  printing or scanning needed.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_health_forms">Health Forms</h4>
-                <p class="meta" data-i18n="f_health_forms_d">Submit and update your child&#x2019;s health information, allergies, and emergency contacts digitally.</p>
+                <p class="meta" data-i18n="f_health_forms_d">
+                  Submit and update your child&#x2019;s health information,
+                  allergies, and emergency contacts digitally.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_financial_statements">Financial Statements</h4>
-                <p class="meta" data-i18n="f_financial_statements_d">View total billed, total paid, and outstanding balance per child with detailed fee breakdowns.</p>
+                <p class="meta" data-i18n="f_financial_statements_d">
+                  View total billed, total paid, and outstanding balance per
+                  child with detailed fee breakdowns.
+                </p>
               </article>
             </div>
           </div>
 
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_stay_connected">Stay Connected</h3>
+            <h3 class="feature-group__title" data-i18n="fg_stay_connected">
+              Stay Connected
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_carpool_parent">Carpool Coordination</h4>
-                <p class="meta" data-i18n="f_carpool_parent_d">Offer rides or see your assigned carpool for each activity. Know who&#x2019;s driving your child.</p>
+                <p class="meta" data-i18n="f_carpool_parent_d">
+                  Offer rides or see your assigned carpool for each activity.
+                  Know who&#x2019;s driving your child.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_parent_directory">Parent Contact Directory</h4>
-                <p class="meta" data-i18n="f_parent_directory_d">Searchable directory of other parents in your group for direct communication.</p>
+                <p class="meta" data-i18n="f_parent_directory_d">
+                  Searchable directory of other parents in your group for direct
+                  communication.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_news_feed">News Feed</h4>
-                <p class="meta" data-i18n="f_news_feed_d">Stay informed with group announcements and updates from leadership on your dashboard.</p>
+                <p class="meta" data-i18n="f_news_feed_d">
+                  Stay informed with group announcements and updates from
+                  leadership on your dashboard.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_push_notifications">Push Notifications</h4>
-                <p class="meta" data-i18n="f_push_notifications_d">Opt in to receive instant notifications about meetings, reminders, and announcements.</p>
+                <p class="meta" data-i18n="f_push_notifications_d">
+                  Opt in to receive instant notifications about meetings,
+                  reminders, and announcements.
+                </p>
               </article>
             </div>
           </div>
         </div>
 
         <!-- Administrators Tab -->
-        <div role="tabpanel" id="tab-admin" class="tab-panel" aria-labelledby="btn-admin" hidden>
+        <div
+          role="tabpanel"
+          id="tab-admin"
+          class="tab-panel"
+          aria-labelledby="btn-admin"
+          hidden
+        >
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_finance">Finance &amp; Fundraising</h3>
+            <h3 class="feature-group__title" data-i18n="fg_finance">
+              Finance &amp; Fundraising
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_fee_mgmt">Fee Management</h4>
-                <p class="meta" data-i18n="f_fee_mgmt_d">Define membership fees, assign to participants, and create payment plans with installment schedules.</p>
+                <p class="meta" data-i18n="f_fee_mgmt_d">
+                  Define membership fees, assign to participants, and create
+                  payment plans with installment schedules.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_expense_tracking">Expense Tracking</h4>
-                <p class="meta" data-i18n="f_expense_tracking_d">Record and categorize expenses with payment method tracking. AI receipt parsing for quick entry.</p>
+                <p class="meta" data-i18n="f_expense_tracking_d">
+                  Record and categorize expenses with payment method tracking.
+                  AI receipt parsing for quick entry.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_budget_mgmt">Budget Management</h4>
-                <p class="meta" data-i18n="f_budget_mgmt_d">Plan budgets by category and track spending against actuals throughout the year.</p>
+                <p class="meta" data-i18n="f_budget_mgmt_d">
+                  Plan budgets by category and track spending against actuals
+                  throughout the year.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_fundraiser_mgmt">Fundraiser Management</h4>
-                <p class="meta" data-i18n="f_fundraiser_mgmt_d">Create and manage fundraisers with calendar views, per-participant sales tracking, and archiving.</p>
+                <p class="meta" data-i18n="f_fundraiser_mgmt_d">
+                  Create and manage fundraisers with calendar views,
+                  per-participant sales tracking, and archiving.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_revenue_dash">Revenue Dashboard</h4>
-                <p class="meta" data-i18n="f_revenue_dash_d">Consolidated view across all revenue sources (fees, fundraisers, external) with fiscal year support.</p>
+                <p class="meta" data-i18n="f_revenue_dash_d">
+                  Consolidated view across all revenue sources (fees,
+                  fundraisers, external) with fiscal year support.
+                </p>
               </article>
             </div>
           </div>
 
           <!-- Screenshot placeholder: admin finance -->
-          <div class="screenshot-placeholder" aria-label="Screenshot: Finance and reporting dashboard">
-            <p class="meta" data-i18n="screenshot_admin_finance">Screenshot: finance and reporting dashboard</p>
+          <div
+            class="screenshot-placeholder"
+            aria-label="Screenshot: Finance and reporting dashboard"
+          >
+            <p class="meta" data-i18n="screenshot_admin_finance">
+              Screenshot: finance and reporting dashboard
+            </p>
           </div>
 
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_org_access">Organization &amp; Access</h3>
+            <h3 class="feature-group__title" data-i18n="fg_org_access">
+              Organization &amp; Access
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
                 <h4 data-i18n="f_roles">Role &amp; Permission System</h4>
-                <p class="meta" data-i18n="f_roles_d">40+ granular permissions across participants, groups, activities, finance, badges, carpools, and forms.</p>
+                <p class="meta" data-i18n="f_roles_d">
+                  40+ granular permissions across participants, groups,
+                  activities, finance, badges, carpools, and forms.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_district">District Management</h4>
-                <p class="meta" data-i18n="f_district_d">District-level oversight with cross-organization role assignment and audit logging.</p>
+                <p class="meta" data-i18n="f_district_d">
+                  District-level oversight with cross-organization role
+                  assignment and audit logging.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_multi_unit">Multi-Unit Support</h4>
-                <p class="meta" data-i18n="f_multi_unit_d">Manage multiple sections from a single login. Switch between organizations seamlessly.</p>
+                <p class="meta" data-i18n="f_multi_unit_d">
+                  Manage multiple sections from a single login. Switch between
+                  organizations seamlessly.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_import">SISC Data Import</h4>
-                <p class="meta" data-i18n="f_import_d">Import participants, guardians, and users from CSV files for fast onboarding.</p>
+                <p class="meta" data-i18n="f_import_d">
+                  Import participants, guardians, and users from CSV files for
+                  fast onboarding.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_form_builder">Form Builder</h4>
-                <p class="meta" data-i18n="f_form_builder_d">Drag-and-drop form builder with conditional logic, translations, and cross-unit form copying.</p>
+                <p class="meta" data-i18n="f_form_builder_d">
+                  Drag-and-drop form builder with conditional logic,
+                  translations, and cross-unit form copying.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_guardians">Guardian Management</h4>
-                <p class="meta" data-i18n="f_guardians_d">Parent/guardian relationship tracking with participant linking and approval workflows.</p>
+                <p class="meta" data-i18n="f_guardians_d">
+                  Parent/guardian relationship tracking with participant linking
+                  and approval workflows.
+                </p>
               </article>
             </div>
           </div>
 
           <div class="feature-group">
-            <h3 class="feature-group__title" data-i18n="fg_reporting">Reporting &amp; Compliance</h3>
+            <h3 class="feature-group__title" data-i18n="fg_reporting">
+              Reporting &amp; Compliance
+            </h3>
             <div class="grid" role="list">
               <article class="card" role="listitem">
-                <h4 data-i18n="f_health_reports">Health &amp; Medical Reports</h4>
-                <p class="meta" data-i18n="f_health_reports_d">Health forms, allergies, medications, and vaccination status reports across all participants.</p>
+                <h4 data-i18n="f_health_reports">
+                  Health &amp; Medical Reports
+                </h4>
+                <p class="meta" data-i18n="f_health_reports_d">
+                  Health forms, allergies, medications, and vaccination status
+                  reports across all participants.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_compliance">Compliance Reports</h4>
-                <p class="meta" data-i18n="f_compliance_d">Leave-alone authorization, media authorization, and missing documents at a glance.</p>
+                <p class="meta" data-i18n="f_compliance_d">
+                  Leave-alone authorization, media authorization, and missing
+                  documents at a glance.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_participant_reports">Participant Reports</h4>
-                <p class="meta" data-i18n="f_participant_reports_d">Progress, age, points, honors, attendance, and printable group roster reports.</p>
+                <p class="meta" data-i18n="f_participant_reports_d">
+                  Progress, age, points, honors, attendance, and printable group
+                  roster reports.
+                </p>
               </article>
               <article class="card" role="listitem">
                 <h4 data-i18n="f_financial_reports">Financial Reports</h4>
-                <p class="meta" data-i18n="f_financial_reports_d">Revenue by source, budget tracking, payment breakdowns by method, and outstanding balances.</p>
+                <p class="meta" data-i18n="f_financial_reports_d">
+                  Revenue by source, budget tracking, payment breakdowns by
+                  method, and outstanding balances.
+                </p>
               </article>
             </div>
           </div>
@@ -583,57 +911,269 @@
       <!-- Why choose Wampums over... -->
       <section class="section section-center" id="compare">
         <h2 data-i18n="compare_title">Why choose Wampums over...</h2>
-        <p data-i18n="compare_body">See how a purpose-built platform stacks up against the tools you&#x2019;re cobbling together today.</p>
+        <p data-i18n="compare_body">
+          See how a purpose-built platform stacks up against the tools
+          you&#x2019;re cobbling together today.
+        </p>
 
-        <div class="compare-grid" role="table" aria-label="Feature comparison table">
+        <div
+          class="compare-grid"
+          role="table"
+          aria-label="Feature comparison table"
+        >
           <div class="compare-row compare-header" role="row">
-            <div class="compare-cell" role="columnheader" data-i18n="compare_category">Category</div>
-            <div class="compare-cell" role="columnheader" data-i18n="compare_paper">Paper-based</div>
-            <div class="compare-cell" role="columnheader" data-i18n="compare_spreadsheets">Spreadsheets</div>
-            <div class="compare-cell" role="columnheader" data-i18n="compare_single_apps">Single-purpose apps</div>
-            <div class="compare-cell compare-cell--highlight" role="columnheader">Wampums</div>
+            <div
+              class="compare-cell"
+              role="columnheader"
+              data-i18n="compare_category"
+            >
+              Category
+            </div>
+            <div
+              class="compare-cell"
+              role="columnheader"
+              data-i18n="compare_paper"
+            >
+              Paper-based
+            </div>
+            <div
+              class="compare-cell"
+              role="columnheader"
+              data-i18n="compare_spreadsheets"
+            >
+              Spreadsheets
+            </div>
+            <div
+              class="compare-cell"
+              role="columnheader"
+              data-i18n="compare_single_apps"
+            >
+              Single-purpose apps
+            </div>
+            <div
+              class="compare-cell compare-cell--highlight"
+              role="columnheader"
+            >
+              Wampums
+            </div>
           </div>
           <div class="compare-row" role="row">
-            <div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_attendance">Attendance</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_attendance_paper">Paper lists, re-entered later</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_attendance_sheets">Manual entry, error-prone</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_attendance_apps">Separate app, no context</div>
-            <div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_attendance_wampums">One-tap mobile, synced with badges &amp; reports</div>
+            <div
+              class="compare-cell compare-cell--label"
+              role="rowheader"
+              data-i18n="compare_attendance"
+            >
+              Attendance
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_attendance_paper"
+            >
+              Paper lists, re-entered later
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_attendance_sheets"
+            >
+              Manual entry, error-prone
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_attendance_apps"
+            >
+              Separate app, no context
+            </div>
+            <div
+              class="compare-cell compare-cell--highlight"
+              role="cell"
+              data-i18n="compare_attendance_wampums"
+            >
+              One-tap mobile, synced with badges &amp; reports
+            </div>
           </div>
           <div class="compare-row" role="row">
-            <div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_badges">Badge tracking</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_badges_paper">Binder logs, lost easily</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_badges_sheets">Complex formulas, hard to share</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_badges_apps">Limited to one badge program</div>
-            <div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_badges_wampums">Multi-level system, approval workflows, parent visibility</div>
+            <div
+              class="compare-cell compare-cell--label"
+              role="rowheader"
+              data-i18n="compare_badges"
+            >
+              Badge tracking
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_badges_paper"
+            >
+              Binder logs, lost easily
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_badges_sheets"
+            >
+              Complex formulas, hard to share
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_badges_apps"
+            >
+              Limited to one badge program
+            </div>
+            <div
+              class="compare-cell compare-cell--highlight"
+              role="cell"
+              data-i18n="compare_badges_wampums"
+            >
+              Multi-level system, approval workflows, parent visibility
+            </div>
           </div>
           <div class="compare-row" role="row">
-            <div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_comms">Communication</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_comms_paper">Handouts, phone trees</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_comms_sheets">Not applicable</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_comms_apps">One channel only</div>
-            <div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_comms_wampums">WhatsApp, email, Google Chat, push &mdash; all integrated</div>
+            <div
+              class="compare-cell compare-cell--label"
+              role="rowheader"
+              data-i18n="compare_comms"
+            >
+              Communication
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_comms_paper"
+            >
+              Handouts, phone trees
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_comms_sheets"
+            >
+              Not applicable
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_comms_apps"
+            >
+              One channel only
+            </div>
+            <div
+              class="compare-cell compare-cell--highlight"
+              role="cell"
+              data-i18n="compare_comms_wampums"
+            >
+              WhatsApp, email, Google Chat, push &mdash; all integrated
+            </div>
           </div>
           <div class="compare-row" role="row">
-            <div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_docs">Documents</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_docs_paper">Filing cabinets, lost forms</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_docs_sheets">Shared drives, version chaos</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_docs_apps">No document features</div>
-            <div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_docs_wampums">Digital permissions, health forms, auto-reminders</div>
+            <div
+              class="compare-cell compare-cell--label"
+              role="rowheader"
+              data-i18n="compare_docs"
+            >
+              Documents
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_docs_paper"
+            >
+              Filing cabinets, lost forms
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_docs_sheets"
+            >
+              Shared drives, version chaos
+            </div>
+            <div class="compare-cell" role="cell" data-i18n="compare_docs_apps">
+              No document features
+            </div>
+            <div
+              class="compare-cell compare-cell--highlight"
+              role="cell"
+              data-i18n="compare_docs_wampums"
+            >
+              Digital permissions, health forms, auto-reminders
+            </div>
           </div>
           <div class="compare-row" role="row">
-            <div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_finance">Finance</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_finance_paper">Receipt envelopes, manual tallies</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_finance_sheets">Formulas break, no audit trail</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_finance_apps">Separate accounting tool</div>
-            <div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_finance_wampums">Fees, budgets, expenses, fundraisers &mdash; all in one</div>
+            <div
+              class="compare-cell compare-cell--label"
+              role="rowheader"
+              data-i18n="compare_finance"
+            >
+              Finance
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_finance_paper"
+            >
+              Receipt envelopes, manual tallies
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_finance_sheets"
+            >
+              Formulas break, no audit trail
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_finance_apps"
+            >
+              Separate accounting tool
+            </div>
+            <div
+              class="compare-cell compare-cell--highlight"
+              role="cell"
+              data-i18n="compare_finance_wampums"
+            >
+              Fees, budgets, expenses, fundraisers &mdash; all in one
+            </div>
           </div>
           <div class="compare-row" role="row">
-            <div class="compare-cell compare-cell--label" role="rowheader" data-i18n="compare_custom">Customization</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_custom_paper">None</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_custom_sheets">DIY, fragile formulas</div>
-            <div class="compare-cell" role="cell" data-i18n="compare_custom_apps">Rigid, one-size-fits-all</div>
-            <div class="compare-cell compare-cell--highlight" role="cell" data-i18n="compare_custom_wampums">Custom forms, flexible roles, bilingual by design</div>
+            <div
+              class="compare-cell compare-cell--label"
+              role="rowheader"
+              data-i18n="compare_custom"
+            >
+              Customization
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_custom_paper"
+            >
+              None
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_custom_sheets"
+            >
+              DIY, fragile formulas
+            </div>
+            <div
+              class="compare-cell"
+              role="cell"
+              data-i18n="compare_custom_apps"
+            >
+              Rigid, one-size-fits-all
+            </div>
+            <div
+              class="compare-cell compare-cell--highlight"
+              role="cell"
+              data-i18n="compare_custom_wampums"
+            >
+              Custom forms, flexible roles, bilingual by design
+            </div>
           </div>
         </div>
       </section>
@@ -641,59 +1181,141 @@
       <!-- Multilingual & Customization -->
       <section class="section section-center" id="multilingual">
         <h2 data-i18n="multilingual_title">Built bilingual. Built flexible.</h2>
-        <p data-i18n="multilingual_body">Wampums speaks your language &mdash; and adapts to your organization&#x2019;s unique needs.</p>
+        <p data-i18n="multilingual_body">
+          Wampums speaks your language &mdash; and adapts to your
+          organization&#x2019;s unique needs.
+        </p>
 
         <div class="grid" role="list">
           <article class="card" role="listitem">
-            <h3 data-i18n="multilingual_bilingual_title">&#x1F310; Fully bilingual (EN/FR)</h3>
-            <p class="meta" data-i18n="multilingual_bilingual_body">Every screen, notification, form, and report is available in English and French. Each user picks their own language &mdash; no duplication needed.</p>
+            <h3 data-i18n="multilingual_bilingual_title">
+              &#x1F310; Fully bilingual (EN/FR)
+            </h3>
+            <p class="meta" data-i18n="multilingual_bilingual_body">
+              Every screen, notification, form, and report is available in
+              English and French. Each user picks their own language &mdash; no
+              duplication needed.
+            </p>
           </article>
           <article class="card" role="listitem">
-            <h3 data-i18n="multilingual_forms_title">&#x1F4DD; Custom form builder</h3>
-            <p class="meta" data-i18n="multilingual_forms_body">Create registration forms, health forms, and permission slips with a drag-and-drop builder. Add conditional logic, bilingual labels, and share forms across units.</p>
+            <h3 data-i18n="multilingual_forms_title">
+              &#x1F4DD; Custom form builder
+            </h3>
+            <p class="meta" data-i18n="multilingual_forms_body">
+              Create registration forms, health forms, and permission slips with
+              a drag-and-drop builder. Add conditional logic, bilingual labels,
+              and share forms across units.
+            </p>
           </article>
           <article class="card" role="listitem">
-            <h3 data-i18n="multilingual_roles_title">&#x1F527; Adaptable to any organization</h3>
-            <p class="meta" data-i18n="multilingual_roles_body">40+ permissions, custom roles, multi-unit support, and configurable settings. Wampums adapts to Scouts, Guides, Cadets, or any youth group.</p>
+            <h3 data-i18n="multilingual_roles_title">
+              &#x1F527; Adaptable to any organization
+            </h3>
+            <p class="meta" data-i18n="multilingual_roles_body">
+              40+ permissions, custom roles, multi-unit support, and
+              configurable settings. Wampums adapts to Scouts, Guides, Cadets,
+              or any youth group.
+            </p>
           </article>
         </div>
 
         <!-- Screenshot placeholder: bilingual interface -->
-        <div class="screenshot-placeholder screenshot-placeholder--spaced" aria-label="Screenshot: Bilingual interface side by side">
-          <p class="meta" data-i18n="screenshot_bilingual">Screenshot: bilingual interface &mdash; English and French side by side</p>
+        <div
+          class="screenshot-placeholder screenshot-placeholder--spaced"
+          aria-label="Screenshot: Bilingual interface side by side"
+        >
+          <p class="meta" data-i18n="screenshot_bilingual">
+            Screenshot: bilingual interface &mdash; English and French side by
+            side
+          </p>
         </div>
       </section>
 
       <!-- Weekly flow -->
       <section class="section" id="weekly">
         <h2 data-i18n="weekly_title">Your weekly meeting, simplified</h2>
-        <p data-i18n="weekly_body">No more scrambling. A clear workflow that keeps your team prepared, your parents informed, and your records up to date.</p>
+        <p data-i18n="weekly_body">
+          No more scrambling. A clear workflow that keeps your team prepared,
+          your parents informed, and your records up to date.
+        </p>
 
         <div class="grid">
           <article class="card">
-            <h3 data-i18n="weekly_before_title">&#x1F4C5; Before the meeting</h3>
+            <h3 data-i18n="weekly_before_title">
+              &#x1F4C5; Before the meeting
+            </h3>
             <ul class="list">
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_before1">Create the activity plan with goals, materials, and leader assignments.</span></li>
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_before2">Wampums sends bilingual reminders to parents automatically.</span></li>
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_before3">Outstanding permissions and health forms are flagged.</span></li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_before1"
+                  >Create the activity plan with goals, materials, and leader
+                  assignments.</span
+                >
+              </li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_before2"
+                  >Wampums sends bilingual reminders to parents
+                  automatically.</span
+                >
+              </li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_before3"
+                  >Outstanding permissions and health forms are flagged.</span
+                >
+              </li>
             </ul>
           </article>
 
           <article class="card">
-            <h3 data-i18n="weekly_during_title">&#x1F4F1; During the meeting</h3>
+            <h3 data-i18n="weekly_during_title">
+              &#x1F4F1; During the meeting
+            </h3>
             <ul class="list">
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_during1">Take attendance in one tap &mdash; even offline.</span></li>
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_during2">Award points and log badge progress on your phone.</span></li>
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_during3">Track medication dispensing with timed alerts.</span></li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_during1"
+                  >Take attendance in one tap &mdash; even offline.</span
+                >
+              </li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_during2"
+                  >Award points and log badge progress on your phone.</span
+                >
+              </li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_during3"
+                  >Track medication dispensing with timed alerts.</span
+                >
+              </li>
             </ul>
           </article>
 
           <article class="card">
             <h3 data-i18n="weekly_after_title">&#x2705; After the meeting</h3>
             <ul class="list">
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_after1">Share a recap with parents via WhatsApp or email.</span></li>
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_after2">Update budgets and inventory in the same app.</span></li>
-              <li><span class="dot" aria-hidden="true"></span><span data-i18n="weekly_after3">Next week&#x2019;s meeting is already templated and ready.</span></li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_after1"
+                  >Share a recap with parents via WhatsApp or email.</span
+                >
+              </li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_after2"
+                  >Update budgets and inventory in the same app.</span
+                >
+              </li>
+              <li>
+                <span class="dot" aria-hidden="true"></span
+                ><span data-i18n="weekly_after3"
+                  >Next week&#x2019;s meeting is already templated and
+                  ready.</span
+                >
+              </li>
             </ul>
           </article>
         </div>
@@ -701,34 +1323,53 @@
 
       <!-- Benefits -->
       <section class="section" id="benefits">
-        <h2 data-i18n="benefits_title">Real impact for every role in your group</h2>
+        <h2 data-i18n="benefits_title">
+          Real impact for every role in your group
+        </h2>
 
         <div class="grid">
           <article class="card">
-            <h3 data-i18n="benefit1_title">&#x1F3D5;&#xFE0F; Leaders get their evenings back</h3>
+            <h3 data-i18n="benefit1_title">
+              &#x1F3D5;&#xFE0F; Leaders get their evenings back
+            </h3>
             <p class="meta" data-i18n="benefit1_body">
-              Stop spending Sunday nights formatting spreadsheets and chasing parents for forms. Wampums handles the admin so you can focus on building great programs.
+              Stop spending Sunday nights formatting spreadsheets and chasing
+              parents for forms. Wampums handles the admin so you can focus on
+              building great programs.
             </p>
           </article>
 
           <article class="card">
-            <h3 data-i18n="benefit2_title">&#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467; Parents feel connected, not overwhelmed</h3>
+            <h3 data-i18n="benefit2_title">
+              &#x1F468;&#x200D;&#x1F469;&#x200D;&#x1F467; Parents feel
+              connected, not overwhelmed
+            </h3>
             <p class="meta" data-i18n="benefit2_body">
-              One place to see your child&#x2019;s progress, sign permission slips, check carpool details, and get meeting updates &mdash; in the language you prefer.
+              One place to see your child&#x2019;s progress, sign permission
+              slips, check carpool details, and get meeting updates &mdash; in
+              the language you prefer.
             </p>
           </article>
 
           <article class="card">
-            <h3 data-i18n="benefit3_title">&#x1F91D; Volunteers can jump in without training</h3>
+            <h3 data-i18n="benefit3_title">
+              &#x1F91D; Volunteers can jump in without training
+            </h3>
             <p class="meta" data-i18n="benefit3_body">
-              New leaders see exactly what&#x2019;s planned, what&#x2019;s needed, and what happened last time. No more deciphering someone else&#x2019;s binder.
+              New leaders see exactly what&#x2019;s planned, what&#x2019;s
+              needed, and what happened last time. No more deciphering someone
+              else&#x2019;s binder.
             </p>
           </article>
 
           <article class="card">
-            <h3 data-i18n="benefit4_title">&#x1F6E1;&#xFE0F; Safety and compliance built in</h3>
+            <h3 data-i18n="benefit4_title">
+              &#x1F6E1;&#xFE0F; Safety and compliance built in
+            </h3>
             <p class="meta" data-i18n="benefit4_body">
-              Health forms, allergy tracking, medication logs, and permission slips are centralized and always up to date. No more wondering if a form is missing.
+              Health forms, allergy tracking, medication logs, and permission
+              slips are centralized and always up to date. No more wondering if
+              a form is missing.
             </p>
           </article>
         </div>
@@ -737,31 +1378,51 @@
       <!-- Testimonials (placeholder) -->
       <section class="section section-center" id="testimonials">
         <h2 data-i18n="testimonials_title">What scout leaders are saying</h2>
-        <p data-i18n="testimonials_body">Real feedback from groups using Wampums every week.</p>
+        <p data-i18n="testimonials_body">
+          Real feedback from groups using Wampums every week.
+        </p>
 
         <div class="grid" role="list">
           <article class="card" role="listitem">
             <div class="testimonial-avatar" aria-hidden="true">&#x1F464;</div>
             <blockquote>
-              <p class="meta" data-i18n="testimonial1_quote">&#x201C;We used to spend an hour before each meeting just getting organized. Now everything is ready when we walk in.&#x201D;</p>
+              <p class="meta" data-i18n="testimonial1_quote">
+                &#x201C;We used to spend an hour before each meeting just
+                getting organized. Now everything is ready when we walk
+                in.&#x201D;
+              </p>
             </blockquote>
-            <p class="testimonial-author" data-i18n="testimonial1_author">&mdash; Scout Leader, Gatineau</p>
+            <p class="testimonial-author" data-i18n="testimonial1_author">
+              &mdash; Scout Leader, Gatineau
+            </p>
           </article>
 
           <article class="card" role="listitem">
             <div class="testimonial-avatar" aria-hidden="true">&#x1F464;</div>
             <blockquote>
-              <p class="meta" data-i18n="testimonial2_quote">&#x201C;As a parent, I finally know what&#x2019;s going on each week. I can sign forms on my phone and see my daughter&#x2019;s badge progress.&#x201D;</p>
+              <p class="meta" data-i18n="testimonial2_quote">
+                &#x201C;As a parent, I finally know what&#x2019;s going on each
+                week. I can sign forms on my phone and see my daughter&#x2019;s
+                badge progress.&#x201D;
+              </p>
             </blockquote>
-            <p class="testimonial-author" data-i18n="testimonial2_author">&mdash; Parent, Gatineau</p>
+            <p class="testimonial-author" data-i18n="testimonial2_author">
+              &mdash; Parent, Gatineau
+            </p>
           </article>
 
           <article class="card" role="listitem">
             <div class="testimonial-avatar" aria-hidden="true">&#x1F464;</div>
             <blockquote>
-              <p class="meta" data-i18n="testimonial3_quote">&#x201C;The bilingual feature is a game-changer. Our group is mixed English/French and everyone sees the app in their own language.&#x201D;</p>
+              <p class="meta" data-i18n="testimonial3_quote">
+                &#x201C;The bilingual feature is a game-changer. Our group is
+                mixed English/French and everyone sees the app in their own
+                language.&#x201D;
+              </p>
             </blockquote>
-            <p class="testimonial-author" data-i18n="testimonial3_author">&mdash; Scout Leader, Gatineau</p>
+            <p class="testimonial-author" data-i18n="testimonial3_author">
+              &mdash; Scout Leader, Gatineau
+            </p>
           </article>
         </div>
       </section>
@@ -773,42 +1434,74 @@
         <div class="faq-grid">
           <div class="faq-item">
             <h4 data-i18n="faq1_q">How do we get started?</h4>
-            <p data-i18n="faq1_a">Request a demo and we&#x2019;ll set up your organization. You can import existing participant data from CSV files and be running within a day.</p>
+            <p data-i18n="faq1_a">
+              Request a demo and we&#x2019;ll set up your organization. You can
+              import existing participant data from CSV files and be running
+              within a day.
+            </p>
           </div>
 
           <div class="faq-item">
             <h4 data-i18n="faq2_q">How much does Wampums cost?</h4>
-            <p data-i18n="faq2_a">Wampums is free for scout groups during the early-access period. Contact us for details on future pricing.</p>
+            <p data-i18n="faq2_a">
+              Wampums is free for scout groups during the early-access period.
+              Contact us for details on future pricing.
+            </p>
           </div>
 
           <div class="faq-item">
             <h4 data-i18n="faq3_q">Is my data secure?</h4>
-            <p data-i18n="faq3_a">Yes. We use HTTPS (TLS), encrypted backups, and role-based access controls. Your data is isolated per organization and never shared with third parties.</p>
+            <p data-i18n="faq3_a">
+              Yes. We use HTTPS (TLS), encrypted backups, and role-based access
+              controls. Your data is isolated per organization and never shared
+              with third parties.
+            </p>
           </div>
 
           <div class="faq-item">
             <h4 data-i18n="faq4_q">Can we work in English and French?</h4>
-            <p data-i18n="faq4_a">Absolutely. Every screen, form, and notification is fully bilingual. Each user chooses their own language and the interface adapts instantly.</p>
+            <p data-i18n="faq4_a">
+              Absolutely. Every screen, form, and notification is fully
+              bilingual. Each user chooses their own language and the interface
+              adapts instantly.
+            </p>
           </div>
 
           <div class="faq-item">
             <h4 data-i18n="faq5_q">Does it work on mobile?</h4>
-            <p data-i18n="faq5_a">Yes. Wampums is a Progressive Web App that works on any phone, tablet, or computer &mdash; no app store download required. It even works offline for attendance and points.</p>
+            <p data-i18n="faq5_a">
+              Yes. Wampums is a Progressive Web App that works on any phone,
+              tablet, or computer &mdash; no app store download required. It
+              even works offline for attendance and points.
+            </p>
           </div>
 
           <div class="faq-item">
             <h4 data-i18n="faq6_q">Can we customize forms and fields?</h4>
-            <p data-i18n="faq6_a">Yes. The built-in form builder lets you create custom registration forms, health forms, and permission slips with conditional logic and bilingual labels.</p>
+            <p data-i18n="faq6_a">
+              Yes. The built-in form builder lets you create custom registration
+              forms, health forms, and permission slips with conditional logic
+              and bilingual labels.
+            </p>
           </div>
 
           <div class="faq-item">
             <h4 data-i18n="faq7_q">Can we import our existing data?</h4>
-            <p data-i18n="faq7_a">Yes. Wampums supports CSV import for participants, guardians, and users. We can also help with data migration from other systems.</p>
+            <p data-i18n="faq7_a">
+              Yes. Wampums supports CSV import for participants, guardians, and
+              users. We can also help with data migration from other systems.
+            </p>
           </div>
 
           <div class="faq-item">
-            <h4 data-i18n="faq8_q">How does the team stay aligned each week?</h4>
-            <p data-i18n="faq8_a">Meeting plans, automatic reminders, shared dashboards, and communication tools keep leaders, parents, and volunteers in sync without extra effort.</p>
+            <h4 data-i18n="faq8_q">
+              How does the team stay aligned each week?
+            </h4>
+            <p data-i18n="faq8_a">
+              Meeting plans, automatic reminders, shared dashboards, and
+              communication tools keep leaders, parents, and volunteers in sync
+              without extra effort.
+            </p>
           </div>
         </div>
       </section>
@@ -816,40 +1509,85 @@
       <!-- CTA -->
       <section class="section">
         <div class="cta-section">
-          <h2 data-i18n="cta_title">Ready to ditch the paper and spreadsheets?</h2>
-          <p data-i18n="cta_body">Join scout groups across Canada that use Wampums to run better meetings with less admin. Get started in minutes.</p>
-          <button type="button" class="btn-primary" data-open-demo-modal data-i18n="cta_button">Request a demo</button>
+          <h2 data-i18n="cta_title">
+            Ready to ditch the paper and spreadsheets?
+          </h2>
+          <p data-i18n="cta_body">
+            Join scout groups across Canada that use Wampums to run better
+            meetings with less admin. Get started in minutes.
+          </p>
+          <button
+            type="button"
+            class="btn-primary"
+            data-open-demo-modal
+            data-i18n="cta_button"
+          >
+            Request a demo
+          </button>
         </div>
       </section>
     </main>
 
     <footer>
-      <p data-i18n="footer_tagline">Built for scout units that meet every week &mdash; simple, bilingual, and ready to deploy.</p>
+      <p data-i18n="footer_tagline">
+        Built for scout units that meet every week &mdash; simple, bilingual,
+        and ready to deploy.
+      </p>
       <p>Contact: <a href="mailto:rama@meute6a.app">rama@meute6a.app</a></p>
     </footer>
 
     <!-- Demo Request Modal -->
-    <div id="demoModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-hidden="true">
+    <div
+      id="demoModal"
+      class="modal"
+      role="dialog"
+      aria-labelledby="modalTitle"
+      aria-hidden="true"
+    >
       <div class="modal-content">
         <div class="modal-header">
           <h2 id="modalTitle">Request a demo</h2>
-          <button type="button" class="modal-close" aria-label="Close" data-close-modal>&times;</button>
+          <button
+            type="button"
+            class="modal-close"
+            aria-label="Close"
+            data-close-modal
+          >
+            &times;
+          </button>
         </div>
 
         <div class="form-success" id="formSuccess">
-          <p>Thank you! Your request was sent successfully. You&#x2019;ll be redirected to the demo...</p>
+          <p>
+            Thank you! Your request was sent successfully. You&#x2019;ll be
+            redirected to the demo...
+          </p>
         </div>
 
         <form id="demoForm">
           <div class="form-group">
             <label for="name">Name <span aria-label="required">*</span></label>
-            <input type="text" id="name" name="name" required aria-required="true" />
+            <input
+              type="text"
+              id="name"
+              name="name"
+              required
+              aria-required="true"
+            />
             <span class="form-error">Name is required</span>
           </div>
 
           <div class="form-group">
-            <label for="email">Email <span aria-label="required">*</span></label>
-            <input type="email" id="email" name="email" required aria-required="true" />
+            <label for="email"
+              >Email <span aria-label="required">*</span></label
+            >
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              aria-required="true"
+            />
             <span class="form-error">Invalid email</span>
           </div>
 
@@ -864,8 +1602,15 @@
           </div>
 
           <div class="form-group">
-            <label for="message">Message <span aria-label="required">*</span></label>
-            <textarea id="message" name="message" required aria-required="true"></textarea>
+            <label for="message"
+              >Message <span aria-label="required">*</span></label
+            >
+            <textarea
+              id="message"
+              name="message"
+              required
+              aria-required="true"
+            ></textarea>
             <small>Tell us about your needs</small>
             <span class="form-error">Message is required</span>
           </div>
@@ -873,7 +1618,13 @@
           <!-- Honeypot -->
           <div class="honeypot" aria-hidden="true">
             <label for="honeypot">Leave this field empty</label>
-            <input type="text" id="honeypot" name="honeypot" tabindex="-1" autocomplete="off" />
+            <input
+              type="text"
+              id="honeypot"
+              name="honeypot"
+              tabindex="-1"
+              autocomplete="off"
+            />
           </div>
 
           <button type="submit" class="btn-submit">Submit request</button>
