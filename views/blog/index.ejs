@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="<%= lang === 'fr' ? 'fr-CA' : 'en-CA' %>">
+<head>
+<%- include('../partials/head-seo', {
+  pageTitle,
+  pageDescription,
+  canonicalPath,
+  enPath,
+  frPath,
+  ogType: 'website',
+  ogImage,
+  lang
+}) %>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "<%= lang === 'fr' ? 'Blogue Wampums' : 'Wampums Blog' %>",
+  "url": "https://wampums.app<%= canonicalPath %>",
+  "description": "<%= pageDescription %>",
+  "inLanguage": "<%= lang === 'fr' ? 'fr-CA' : 'en-CA' %>",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Wampums",
+    "url": "https://wampums.app"
+  }
+}
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main"><%= lang === 'fr' ? 'Aller au contenu principal' : 'Skip to main content' %></a>
+<%- include('../partials/nav', { lang, enPath, frPath }) %>
+
+<main id="main">
+  <section class="section section-center">
+    <h1><%= lang === 'fr' ? 'Blogue Wampums' : 'Wampums Blog' %></h1>
+    <p class="meta"><%= lang === 'fr' ? 'Guides, conseils et ressources pour les chefs scouts, parents et administrateurs.' : 'Guides, tips, and resources for scout leaders, parents, and administrators.' %></p>
+
+    <% if (posts.length === 0) { %>
+      <p><%= lang === 'fr' ? 'Aucun article pour l\'instant. Revenez bientôt !' : 'No articles yet. Check back soon!' %></p>
+    <% } else { %>
+      <div class="grid" role="list">
+        <% posts.forEach(post => { %>
+        <article class="card" role="listitem">
+          <p class="meta"><%= post.date %> · <%= post.readingTime %> min read</p>
+          <h2><a href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= post.slug %>/"><%- post.title %></a></h2>
+          <p><%= post.description %></p>
+          <a class="btn-secondary btn-sm" href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= post.slug %>/">
+            <%= lang === 'fr' ? 'Lire l\'article →' : 'Read more →' %>
+          </a>
+        </article>
+        <% }) %>
+      </div>
+
+      <% if (pages > 1) { %>
+      <nav class="pagination" aria-label="<%= lang === 'fr' ? 'Pagination' : 'Pagination' %>">
+        <% if (page > 1) { %>
+          <a href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/?page=<%= page - 1 %>">&laquo; <%= lang === 'fr' ? 'Précédent' : 'Previous' %></a>
+        <% } %>
+        <span><%= page %> / <%= pages %></span>
+        <% if (page < pages) { %>
+          <a href="/<%= lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/?page=<%= page + 1 %>"><%= lang === 'fr' ? 'Suivant' : 'Next' %> &raquo;</a>
+        <% } %>
+      </nav>
+      <% } %>
+    <% } %>
+  </section>
+</main>
+
+<%- include('../partials/footer', { lang }) %>
+</body>
+</html>

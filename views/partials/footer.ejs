@@ -1,0 +1,26 @@
+<footer>
+  <div class="shell">
+    <p><%= lang === 'fr' ? 'Conçu pour les groupes scouts qui se réunissent chaque semaine — simple, bilingue et prêt à déployer.' : 'Built for scout units that meet every week — simple, bilingual, and ready to deploy.' %></p>
+    <nav aria-label="<%= lang === 'fr' ? 'Liens du pied de page' : 'Footer links' %>">
+      <a href="/<%= lang %>/">Home</a> ·
+      <% if (lang === 'en') { %>
+        <a href="/en/features/attendance/">Attendance</a> ·
+        <a href="/en/features/badges/">Badges</a> ·
+        <a href="/en/features/communication/">Communication</a> ·
+        <a href="/en/features/finance/">Finance</a> ·
+        <a href="/en/features/forms/">Forms</a> ·
+        <a href="/en/features/logistics/">Logistics</a> ·
+        <a href="/en/blog/">Blog</a> ·
+      <% } else { %>
+        <a href="/fr/fonctionnalites/presences/">Présences</a> ·
+        <a href="/fr/fonctionnalites/badges/">Badges</a> ·
+        <a href="/fr/fonctionnalites/communication/">Communication</a> ·
+        <a href="/fr/fonctionnalites/finances/">Finances</a> ·
+        <a href="/fr/fonctionnalites/formulaires/">Formulaires</a> ·
+        <a href="/fr/fonctionnalites/logistique/">Logistique</a> ·
+        <a href="/fr/blogue/">Blogue</a> ·
+      <% } %>
+      <a href="mailto:hello@wampums.app">Contact</a>
+    </nav>
+  </div>
+</footer>

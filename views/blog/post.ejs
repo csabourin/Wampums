@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="<%= post.lang === 'fr' ? 'fr-CA' : 'en-CA' %>">
+<head>
+<%- include('../partials/head-seo', {
+  pageTitle: post.title + ' — Wampums',
+  pageDescription: post.description,
+  canonicalPath,
+  enPath,
+  frPath,
+  ogType: 'article',
+  ogImage: post.image,
+  lang: post.lang
+}) %>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "<%= post.title.replace(/"/g, '&quot;') %>",
+  "description": "<%= post.description.replace(/"/g, '&quot;') %>",
+  "datePublished": "<%= post.date %>",
+  "dateModified": "<%= post.updated %>",
+  "author": {
+    "@type": "Organization",
+    "name": "<%= post.author || 'Wampums' %>"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Wampums",
+    "url": "https://wampums.app"
+  },
+  "inLanguage": "<%= post.lang === 'fr' ? 'fr-CA' : 'en-CA' %>",
+  "image": "<%= post.image %>",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://wampums.app<%= canonicalPath %>"
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Wampums",
+      "item": "https://wampums.app/<%= post.lang %>/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "<%= post.lang === 'fr' ? 'Blogue' : 'Blog' %>",
+      "item": "https://wampums.app/<%= post.lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "<%= post.title.replace(/"/g, '&quot;') %>",
+      "item": "https://wampums.app<%= canonicalPath %>"
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main"><%= post.lang === 'fr' ? 'Aller au contenu principal' : 'Skip to main content' %></a>
+<%- include('../partials/nav', { lang: post.lang, enPath, frPath }) %>
+
+<main id="main">
+  <article class="section">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="/<%= post.lang %>/">Wampums</a></li>
+        <li><a href="/<%= post.lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/"><%= post.lang === 'fr' ? 'Blogue' : 'Blog' %></a></li>
+        <li aria-current="page"><%= post.title %></li>
+      </ol>
+    </nav>
+
+    <header class="post-header">
+      <p class="meta">
+        <time datetime="<%= post.date %>"><%= post.date %></time>
+        · <%= post.readingTime %> min
+        <% if (post.lang === 'fr') { %>read<% } else { %>read<% } %>
+        <% if (post.category) { %> · <span class="category"><%= post.category %></span><% } %>
+      </p>
+      <h1><%= post.title %></h1>
+      <p class="lead"><%= post.description %></p>
+      <% if (alternatePost) { %>
+        <p class="lang-notice">
+          <% if (post.lang === 'fr') { %>
+            Lire en anglais : <a href="/en/blog/<%= alternatePost.slug %>/"><%= alternatePost.title %></a>
+          <% } else { %>
+            Read in French: <a href="/fr/blogue/<%= alternatePost.slug %>/"><%- alternatePost.title %></a>
+          <% } %>
+        </p>
+      <% } %>
+    </header>
+
+    <% if (post.toc && post.toc.length > 2) { %>
+    <nav class="toc" aria-label="<%= post.lang === 'fr' ? 'Table des matières' : 'Table of contents' %>">
+      <h2><%= post.lang === 'fr' ? 'Sommaire' : 'Contents' %></h2>
+      <ol>
+        <% post.toc.forEach(item => { %>
+          <li class="toc-level-<%= item.level %>">
+            <a href="#<%= item.id %>"><%= item.text %></a>
+          </li>
+        <% }) %>
+      </ol>
+    </nav>
+    <% } %>
+
+    <div class="post-content">
+      <%- post.content %>
+    </div>
+
+    <!-- Adjacent posts -->
+    <nav class="post-nav" aria-label="<%= post.lang === 'fr' ? 'Navigation entre articles' : 'Post navigation' %>">
+      <% if (prev) { %>
+        <a class="post-nav__prev" href="/<%= post.lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= prev.slug %>/">
+          &larr; <%= prev.title %>
+        </a>
+      <% } %>
+      <% if (next) { %>
+        <a class="post-nav__next" href="/<%= post.lang === 'fr' ? 'fr/blogue' : 'en/blog' %>/<%= next.slug %>/">
+          <%= next.title %> &rarr;
+        </a>
+      <% } %>
+    </nav>
+
+    <!-- CTA -->
+    <section class="cta-section" style="margin-top: 3rem;">
+      <h2><%= post.lang === 'fr' ? 'Prêt à essayer Wampums ?' : 'Ready to try Wampums?' %></h2>
+      <p><%= post.lang === 'fr' ? 'Rejoignez les groupes scouts qui utilisent Wampums chaque semaine.' : 'Join scout groups across Canada using Wampums every week.' %></p>
+      <a class="btn-primary" href="mailto:hello@wampums.app"><%= post.lang === 'fr' ? 'Demander une démo' : 'Request a demo' %></a>
+    </section>
+  </article>
+</main>
+
+<%- include('../partials/footer', { lang: post.lang }) %>
+</body>
+</html>
