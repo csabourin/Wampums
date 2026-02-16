@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://wampums.app/fr/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/faq/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/faq/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/faq/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/modules/finance/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/modules/finance/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/modules/finance/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/modules/fundraising/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/modules/fundraising/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/modules/fundraising/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/modules/on-site/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/modules/on-site/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/modules/on-site/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/modules/offline/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/modules/offline/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/modules/offline/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/modules/medications/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/modules/medications/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/modules/medications/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/modules/carpool/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/modules/carpool/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/modules/carpool/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/comparatif/wampums-vs-sporteasy/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/compare/wampums-vs-sporteasy/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/comparatif/wampums-vs-sporteasy/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/comparatif/wampums-vs-trooptrack/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/compare/wampums-vs-trooptrack/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/comparatif/wampums-vs-trooptrack/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/comparatif/wampums-vs-scoutbook/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/compare/wampums-vs-scoutbook/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/comparatif/wampums-vs-scoutbook/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/comparatif/wampums-vs-scouts-digital/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/compare/wampums-vs-scouts-digital/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/comparatif/wampums-vs-scouts-digital/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+  <url>
+    <loc>https://wampums.app/fr/comparatif/wampums-vs-spreadsheets/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://wampums.app/en/compare/wampums-vs-spreadsheets/" />
+    <xhtml:link rel="alternate" hreflang="fr" href="https://wampums.app/fr/comparatif/wampums-vs-spreadsheets/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
+  </url>
+</urlset>
