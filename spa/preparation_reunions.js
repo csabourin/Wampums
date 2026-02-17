@@ -181,7 +181,7 @@ export class PreparationReunions {
                         }),
                         getAnimateurs().catch(error => {
                                 debugError("Error loading animateurs:", error);
-                                return { animateurs: [] };
+                                return { data: [] };
                         }),
                         getBadgeSystemSettings().catch(error => {
                                 debugError("Error loading badge settings:", error);
@@ -195,7 +195,7 @@ export class PreparationReunions {
 
                 // Handle both array response and object response with data property
                 this.activities = Array.isArray(activitiesResponse) ? activitiesResponse : (activitiesResponse?.data || []);
-                this.animateurs = Array.isArray(animateursResponse) ? animateursResponse : (animateursResponse?.animateurs || []);
+                this.animateurs = Array.isArray(animateursResponse) ? animateursResponse : (animateursResponse?.data || []);
 
                 // Debug badge settings response structure
                 debugLog("Badge settings response:", badgeSettingsResponse);
