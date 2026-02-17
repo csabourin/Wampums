@@ -589,6 +589,19 @@ self.addEventListener('push', function (event) {
     data: data.data || {},
   };
 
+  // For medication reminders the server passes a raw ISO timestamp so the
+  // notification body can be rendered in the *device's* local timezone rather
+  // than the server's timezone.
+  if (data.data?.type === 'medication' && data.data?.scheduledFor) {
+    try {
+      const scheduledAt = new Date(data.data.scheduledFor);
+      const timeStr = scheduledAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      options.body = `${options.body} @ ${timeStr}`;
+    } catch (_) {
+      // leave body as-is if date parsing fails
+    }
+  }
+
   event.waitUntil(self.registration.showNotification(title, options));
 });
 

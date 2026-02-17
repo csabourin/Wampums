@@ -6,6 +6,9 @@
  * notification to every subscriber in that organisation who holds the
  * `medication.view` permission.
  *
+ * Reminders are only dispatched while an activity is actively running in the
+ * organisation (guards against waking people up outside of camp hours).
+ *
  * A `reminder_sent_at` timestamp on each distribution row prevents duplicate
  * notifications for the same dose.
  */
@@ -14,15 +17,6 @@
 
 const REMINDER_WINDOW_MINUTES = 15; // notify this many minutes before a dose is due
 const POLL_INTERVAL_MS = 60_000;    // check every 60 seconds
-
-/**
- * Format a scheduled_for Date into a short HH:MM string.
- * @param {Date} date
- * @returns {string}
- */
-function formatTime(date) {
-  return date.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
 
 class MedicationReminderService {
   /**
@@ -69,8 +63,10 @@ class MedicationReminderService {
 
   /**
    * Core logic:
-   * 1. Find distributions due in the next REMINDER_WINDOW_MINUTES that have not
-   *    yet had a reminder sent.
+   * 1. Find distributions due in the next REMINDER_WINDOW_MINUTES that:
+   *    - are still 'scheduled' with no reminder sent yet, AND
+   *    - have a currently-running activity in their organisation (so we
+   *      never notify outside of camp/activity hours).
    * 2. For each unique organisation, fetch push subscribers who hold
    *    `medication.view` permission.
    * 3. Send a Web Push notification to each eligible subscriber.
@@ -80,14 +76,18 @@ class MedicationReminderService {
     const { pool, logger } = this;
 
     // ------------------------------------------------------------------ //
-    // 1. Find upcoming distributions needing a reminder
+    // 1. Find upcoming distributions needing a reminder.
+    //
+    //    The EXISTS sub-query enforces "only during an active activity":
+    //    activities store date and time as separate columns without timezone
+    //    context, so we compare against NOW()::timestamp (server-local).
+    //    This works correctly when the server runs in the same civil timezone
+    //    as the organisations it serves.
     // ------------------------------------------------------------------ //
     const upcomingResult = await pool.query(
       `SELECT
          md.id,
          md.organization_id,
-         md.participant_id,
-         md.medication_requirement_id,
          md.scheduled_for,
          md.activity_name,
          mr.medication_name,
@@ -102,6 +102,13 @@ class MedicationReminderService {
          AND md.reminder_sent_at IS NULL
          AND md.scheduled_for > NOW()
          AND md.scheduled_for <= NOW() + ($1 || ' minutes')::INTERVAL
+         AND EXISTS (
+           SELECT 1
+           FROM activities a
+           WHERE a.organization_id = md.organization_id
+             AND (a.activity_start_date + a.activity_start_time)::timestamp <= NOW()::timestamp
+             AND (a.activity_end_date   + a.activity_end_time  )::timestamp >= NOW()::timestamp
+         )
        ORDER BY md.organization_id, md.scheduled_for`,
       [REMINDER_WINDOW_MINUTES]
     );
@@ -148,7 +155,8 @@ class MedicationReminderService {
       const subscriberResult = await pool.query(
         `SELECT DISTINCT s.endpoint, s.p256dh, s.auth, s.user_id
          FROM subscribers s
-         JOIN user_organizations uo ON uo.user_id = s.user_id AND uo.organization_id = s.organization_id
+         JOIN user_organizations uo
+           ON uo.user_id = s.user_id AND uo.organization_id = s.organization_id
          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
          JOIN role_permissions rp ON rp.role_id = role_id_text::integer
          JOIN permissions perm ON perm.id = rp.permission_id
@@ -159,25 +167,30 @@ class MedicationReminderService {
 
       const subscribers = subscriberResult.rows;
       if (subscribers.length === 0) {
-        logger.debug(`[MedicationReminders] No eligible subscribers for org ${orgId}`);
-        // Still mark as sent so we don't retry forever
-        await this._markSent(distributions.map(d => d.id));
+        // Do NOT mark as sent – a subscriber might register before the dose
+        // window closes, and we should still notify them.
+        logger.debug(`[MedicationReminders] No eligible subscribers for org ${orgId}, will retry`);
         continue;
       }
 
       // ---------------------------------------------------------------- //
-      // 5. Send one notification per distribution to all subscribers
+      // 5. Send one notification per distribution to all subscribers.
+      //
+      //    The payload passes `scheduledFor` as an ISO string so the
+      //    service worker can format the time in the *device's* local
+      //    timezone rather than the server's timezone.
       // ---------------------------------------------------------------- //
       for (const dist of distributions) {
         const scheduledAt = new Date(dist.scheduled_for);
-        const timeStr = formatTime(scheduledAt);
-        const participantName = `${dist.first_name} ${dist.last_name}`.trim();
         const minutesUntil = Math.round((scheduledAt - Date.now()) / 60_000);
+        const participantName = `${dist.first_name} ${dist.last_name}`.trim();
 
-        const title = 'Medication reminder / Rappel de médicament';
+        const title = 'Medication / Médicament';
+        // Body is intentionally kept short; the service worker appends the
+        // formatted local time via data.scheduledFor.
         const body = minutesUntil <= 1
-          ? `${participantName} – ${dist.medication_name} (now / maintenant)`
-          : `${participantName} – ${dist.medication_name} @ ${timeStr} (${minutesUntil} min)`;
+          ? `${participantName} – ${dist.medication_name}`
+          : `${participantName} – ${dist.medication_name} (${minutesUntil} min)`;
 
         const payload = JSON.stringify({
           title,
@@ -185,7 +198,11 @@ class MedicationReminderService {
           tag: `medication-${dist.id}`,
           requireInteraction: true,
           vibrate: [200, 100, 200],
-          data: { url: '/medication-dispensing' },
+          data: {
+            type: 'medication',
+            scheduledFor: scheduledAt.toISOString(), // client formats in its own timezone
+            url: '/medication-dispensing',
+          },
         });
 
         const sendResults = await Promise.allSettled(
@@ -203,12 +220,13 @@ class MedicationReminderService {
             `[MedicationReminders] ${failures.length}/${subscribers.length} push(es) failed for dist ${dist.id}`,
             failures.map(f => f.reason?.message)
           );
-          // Clean up expired subscriptions (410 Gone)
-          await this._removeExpiredSubscriptions(failures, subscribers);
+          await this._removeExpiredSubscriptions(failures);
         }
 
         await this._markSent([dist.id]);
-        logger.info(`[MedicationReminders] Reminder sent for dist ${dist.id} (${participantName} – ${dist.medication_name})`);
+        logger.info(
+          `[MedicationReminders] Reminder sent for dist ${dist.id} (${participantName} – ${dist.medication_name})`
+        );
       }
     }
   }
@@ -230,18 +248,11 @@ class MedicationReminderService {
   /**
    * Remove push subscriptions that returned HTTP 410 (subscription expired/unsubscribed).
    * @param {PromiseSettledResult[]} failures - rejected send results
-   * @param {object[]} subscribers - subscriber rows (same order as sendResults)
    */
-  async _removeExpiredSubscriptions(failures, subscribers) {
-    const expiredEndpoints = [];
-
-    for (const failure of failures) {
-      if (failure.reason?.statusCode === 410) {
-        // Match endpoint by position – web-push throws with statusCode on 410
-        const endpoint = failure.reason?.endpoint;
-        if (endpoint) expiredEndpoints.push(endpoint);
-      }
-    }
+  async _removeExpiredSubscriptions(failures) {
+    const expiredEndpoints = failures
+      .filter(f => f.reason?.statusCode === 410 && f.reason?.endpoint)
+      .map(f => f.reason.endpoint);
 
     if (expiredEndpoints.length === 0) return;
 
