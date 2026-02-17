@@ -1,7 +1,7 @@
 import { getAuthHeader } from "../api/api-helpers.js";
 import { debugError } from "../utils/DebugUtils.js";
 
-const API_BASE = '/api/ai';
+const API_BASE = '/api/v1/ai';
 
 /**
  * Generate text using AI
