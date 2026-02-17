@@ -118,4 +118,4 @@ Rien de tout cela n'est simple, et rien de tout cela n'est terminé — gérer u
 
 ---
 
-Wampums a été conçu spécifiquement pour les groupes scouts bilingues canadiens. Chaque fonctionnalité — présences, badges, communication, finances, formulaires — supporte la préférence de langue par utilisateur. [Demandez une démo](https://wampums.app/fr/) et voyez-le en action avec les données de votre groupe.
+Wampums a été conçu spécifiquement pour les groupes scouts bilingues canadiens. Chaque fonctionnalité — [présences](/fr/fonctionnalites/presences/), [badges](/fr/fonctionnalites/badges/), [communication](/fr/fonctionnalites/communication/), [finances](/fr/fonctionnalites/finances/), [formulaires](/fr/fonctionnalites/formulaires/) — supporte la préférence de langue par utilisateur. [Demandez une démo](https://wampums.app/fr/) et voyez-le en action avec les données de votre groupe.
