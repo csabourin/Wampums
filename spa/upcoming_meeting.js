@@ -34,7 +34,7 @@ export class UpcomingMeeting {
             .closestMeeting,
         );
       }
-      this.render();
+      await this.render();
     } catch (error) {
       debugError(
         "Error initializing upcoming meeting:",
@@ -557,6 +557,10 @@ export class UpcomingMeeting {
           `).join('')}
         </ul>`
       : `<p class="empty-state">${translate("no_upcoming_birthdays")}</p>`;
+
+    const unprocessedAchievements = activities
+      .filter(a => a.badge_template_id && !a.processed);
+    const showAwardButton = canApproveBadges() && unprocessedAchievements.length > 0;
 
     const content = `
                                                 <div class="upcoming-meeting">
