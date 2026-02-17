@@ -147,3 +147,9 @@ The question is not whether to switch — it is when. Every meeting where attend
 The groups that have made the switch report two consistent benefits: they trust their data more, and their leaders spend more evenings on programming rather than administration.
 
 [Wampums is free during the early access period.](https://wampums.app/en/) Request a demo and we'll walk you through setting up your organization from your existing spreadsheet data.
+
+**Related reading:**
+- [Wampums vs Spreadsheets: detailed comparison](/en/compare/wampums-vs-spreadsheets/)
+- [Attendance tracking for scout groups](/en/features/attendance/)
+- [Scout badge tracking software](/en/features/badges/)
+- [Financial management for scout groups](/en/features/finance/)

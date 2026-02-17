@@ -56,7 +56,7 @@ Modern attendance management for scout groups should work like this:
 5. The app works without internet — changes queue locally and sync when connectivity returns
 6. After the meeting, the data is already in the system — no transcription required
 
-This is exactly how Wampums handles attendance. The offline-first architecture is particularly important for groups that meet in community centres with spotty WiFi, outdoor venues, or remote campsites.
+This is exactly how [Wampums handles attendance](/en/features/attendance/). The offline-first architecture is particularly important for groups that meet in community centres with spotty WiFi, outdoor venues, or remote campsites.
 
 ## Badge and Honor Tracking: The Living Record
 
@@ -84,6 +84,8 @@ The most effective badge systems use a three-stage workflow:
 
 Each stage transition should be timestamped and attributed. This creates a complete audit trail — important for council reporting and for resolving any disputes about whether a badge was earned.
 
+Learn more about [Wampums badge and honor tracking](/en/features/badges/).
+
 ## Communication: Reaching Parents Without Drowning in Group Chats
 
 Communication is where many scouting groups struggle most. Parents want to be informed but not overwhelmed. Leaders want to reach everyone without managing five different channels. The language divide — English-speaking families and French-speaking families in the same group — adds an extra layer of complexity.
@@ -108,6 +110,8 @@ The solution is not to replace WhatsApp but to use it more strategically, alongs
 
 **Permission slip tracking**: Instead of sending a PDF and hoping for the best, digital permission slips track exactly who has signed, who hasn't, and send automatic reminders to the unsigned.
 
+See how [Wampums handles parent communication](/en/features/communication/) and [digital forms](/en/features/forms/).
+
 ## Financial Management: Getting the Books in Order
 
 Scout group finances are simple in concept and chaotic in practice. You have income (membership fees, fundraisers, grants) and expenses (program supplies, equipment, activities, insurance). The complexity comes from the volume of small transactions, the difficulty of collecting from many families, and the need to report to a parent council or district body.
@@ -131,6 +135,8 @@ Scout group finances are simple in concept and chaotic in practice. You have inc
 **Fundraiser management**: Create a fundraiser, set a target, assign participants, and track sales per person. A calendar view shows when each fundraiser runs so you don't overlap them accidentally.
 
 **Reporting**: Generate financial statements for council, district, or annual meeting submissions. Export in standard formats that accountants and auditors can work with.
+
+Read more about [Wampums financial management for scout groups](/en/features/finance/).
 
 ## The Bilingual Dimension: Serving English and French Families
 

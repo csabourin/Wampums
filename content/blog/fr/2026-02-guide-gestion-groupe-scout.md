@@ -56,7 +56,7 @@ Un bon outil de gestion des présences pour un groupe scout devrait fonctionner 
 5. L'application fonctionne sans connexion internet — les modifications sont mises en file d'attente localement et synchronisées dès que la connexion revient
 6. Après la réunion, les données sont déjà dans le système — aucune transcription nécessaire
 
-C'est exactement ainsi que Wampums gère les présences. L'architecture hors-ligne est particulièrement précieuse pour les groupes qui se réunissent dans des centres communautaires avec un WiFi instable, des espaces extérieurs ou des camps éloignés.
+C'est exactement ainsi que [Wampums gère les présences](/fr/fonctionnalites/presences/). L'architecture hors-ligne est particulièrement précieuse pour les groupes qui se réunissent dans des centres communautaires avec un WiFi instable, des espaces extérieurs ou des camps éloignés.
 
 ## Le suivi des badges : le registre vivant
 
@@ -99,6 +99,8 @@ La solution n'est pas de remplacer WhatsApp, mais de l'utiliser de façon plus s
 **Notifications push** : Pour les parents qui y consentent, des alertes immédiates pour les mises à jour de réunions, les badges décernés et les demandes de documents.
 
 **Suivi des formulaires de permission** : Plutôt que d'envoyer un PDF et d'espérer, les formulaires numériques suivent exactement qui a signé, qui ne l'a pas fait, et envoient des rappels automatiques aux non-signataires.
+
+Découvrez comment [Wampums gère la communication parentale](/fr/fonctionnalites/communication/) et les [formulaires numériques](/fr/fonctionnalites/formulaires/).
 
 ## La gestion financière : mettre les livres en ordre
 
@@ -153,3 +155,9 @@ L'objectif de meilleurs outils n'est pas de devenir un expert en administration.
 Un bon logiciel de gestion de groupe scout s'efface. Il gère automatiquement les tâches répétitives, stocke les données de façon fiable et affiche les informations dont vous avez besoin au moment où vous en avez besoin. Les réunions restent les mêmes — mais le travail qui les entoure devient une fraction de ce qu'il était.
 
 [Wampums](https://wampums.app/fr/) est gratuit pour les groupes scouts pendant la période d'accès anticipé. Demandez une démo et nous configurerons votre organisation en moins d'une journée.
+
+**À lire également :**
+- [Suivi des présences pour groupes scouts](/fr/fonctionnalites/presences/)
+- [Suivi des badges scouts](/fr/fonctionnalites/badges/)
+- [Gestion financière pour groupes scouts](/fr/fonctionnalites/finances/)
+- [Wampums vs tableurs : comparatif complet](/fr/comparer/wampums-vs-tableurs/)
