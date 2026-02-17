@@ -1793,7 +1793,7 @@ export async function getReunionPreparation(date) {
  * Save meeting (SISC)
  */
 export async function saveReunionPreparation(preparationData) {
-    return API.post('v1/meetings', preparationData);
+    return API.post('v1/meetings/preparation', preparationData);
 }
 
 /**
