@@ -118,4 +118,4 @@ None of this is simple, and none of it is finished — managing a bilingual grou
 
 ---
 
-Wampums was built specifically for bilingual Canadian scout groups. Every feature — attendance, badges, communication, finance, forms — supports per-user language preference. [Request a demo](https://wampums.app/en/) and see it in action with your group's own data.
+Wampums was built specifically for bilingual Canadian scout groups. Every feature — [attendance](/en/features/attendance/), [badges](/en/features/badges/), [communication](/en/features/communication/), [finance](/en/features/finance/), [forms](/en/features/forms/) — supports per-user language preference. [Request a demo](https://wampums.app/en/) and see it in action with your group's own data.

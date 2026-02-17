@@ -241,6 +241,8 @@ module.exports = (app) => {
             { en: "/en/compare/wampums-vs-sporteasy/", fr: "/fr/comparer/wampums-vs-sporteasy/", freq: "monthly", pri: "0.7" },
             { en: "/en/compare/wampums-vs-trooptrack/", fr: "/fr/comparer/wampums-vs-trooptrack/", freq: "monthly", pri: "0.7" },
             { en: "/en/compare/wampums-vs-spreadsheets/", fr: "/fr/comparer/wampums-vs-tableurs/", freq: "monthly", pri: "0.7" },
+            { en: "/en/compare/wampums-vs-scoutbook/", fr: "/fr/comparer/wampums-vs-scoutbook/", freq: "monthly", pri: "0.7" },
+            { en: "/en/compare/wampums-vs-scouts-digital/", fr: "/fr/comparer/wampums-vs-scouts-digital/", freq: "monthly", pri: "0.7" },
             { en: "/en/blog/", fr: "/fr/blogue/", freq: "weekly", pri: "0.8" },
             { en: "/en/faq/", fr: "/fr/faq/", freq: "monthly", pri: "0.6" },
         ];
@@ -306,6 +308,18 @@ module.exports = (app) => {
         // Trailing slash redirect for clean URLs
         if (req.path.match(/^\/(?:en|fr)\/.+[^/]$/) && !req.path.match(/\.[a-z]{2,4}$/i)) {
             return res.redirect(301, `${req.path}/`);
+        }
+
+        // Redirect legacy /fr/comparatif/ URLs to canonical /fr/comparer/
+        const comparatifRedirects = {
+            "/fr/comparatif/wampums-vs-scoutbook/": "/fr/comparer/wampums-vs-scoutbook/",
+            "/fr/comparatif/wampums-vs-scouts-digital/": "/fr/comparer/wampums-vs-scouts-digital/",
+            "/fr/comparatif/wampums-vs-sporteasy/": "/fr/comparer/wampums-vs-sporteasy/",
+            "/fr/comparatif/wampums-vs-spreadsheets/": "/fr/comparer/wampums-vs-tableurs/",
+            "/fr/comparatif/wampums-vs-trooptrack/": "/fr/comparer/wampums-vs-trooptrack/",
+        };
+        if (comparatifRedirects[req.path]) {
+            return res.redirect(301, comparatifRedirects[req.path]);
         }
 
         // --- Blog EN ---

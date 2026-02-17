@@ -139,3 +139,9 @@ La question n'est pas de savoir si on doit changer — c'est de savoir quand. Ch
 Les groupes qui ont fait le changement rapportent deux bénéfices constants : ils font davantage confiance à leurs données, et leurs chefs passent plus de soirées à s'occuper du programme plutôt que de l'administration.
 
 [Wampums est gratuit pendant la période d'accès anticipé.](https://wampums.app/fr/) Demandez une démo et nous vous accompagnerons dans la configuration de votre organisation à partir de vos données de tableur existantes.
+
+**À lire également :**
+- [Wampums vs tableurs : comparatif détaillé](/fr/comparer/wampums-vs-tableurs/)
+- [Suivi des présences pour groupes scouts](/fr/fonctionnalites/presences/)
+- [Suivi des badges scouts](/fr/fonctionnalites/badges/)
+- [Gestion financière pour groupes scouts](/fr/fonctionnalites/finances/)
