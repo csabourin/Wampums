@@ -1,30 +1,335 @@
 <!doctype html><html lang="en-CA"><head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Wampums FAQ | Scout and youth group management</title><meta name="description" content="Frequently asked questions about Wampums, the bilingual scout and youth group management app for Canada." />
+<title>Wampums FAQ — All your questions about scout group management</title>
+<meta name="description" content="Clear answers to all your questions about Wampums: getting started, cost, bilingual features, attendance, badges, security, finances, and more. Scout and youth group management app for Canada." />
 <link rel="canonical" href="https://wampums.app/en/faq/" />
 <link rel="alternate" hreflang="en" href="https://wampums.app/en/faq/" />
 <link rel="alternate" hreflang="fr" href="https://wampums.app/fr/faq/" />
 <link rel="alternate" hreflang="x-default" href="https://wampums.app/" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
-<meta property="og:type" content="website" /><meta property="og:site_name" content="Wampums" /><meta property="og:url" content="https://wampums.app/en/faq/" /><meta property="og:locale" content="en_CA" /><meta property="og:locale:alternate" content="fr_CA" /><meta property="og:title" content="Wampums FAQ | Scout and youth group management" /><meta property="og:description" content="Frequently asked questions about Wampums, the bilingual scout and youth group management app for Canada." /><meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
-<meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content="Wampums FAQ | Scout and youth group management" /><meta name="twitter:description" content="Frequently asked questions about Wampums, the bilingual scout and youth group management app for Canada." /><meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
-<link rel="stylesheet" href="/marketing.css" /><script type="application/ld+json">{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "Wampums",
-  "applicationCategory": "BusinessApplication",
-  "operatingSystem": "Web",
-  "description": "Bilingual scout and youth group management software built for Canada.",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "CAD",
-    "description": "Free during early access"
-  },
-  "inLanguage": ["en", "fr"],
-  "author": {
-    "@type": "Organization",
-    "name": "Wampums",
-    "url": "https://wampums.app"
-  }
-}</script><script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Wampums bilingual by default?","acceptedAnswer":{"@type":"Answer","text":"Yes. Every marketing and product flow has English and French versions with locale-aware content."}}, {"@type":"Question","name":"Who is Wampums for?","acceptedAnswer":{"@type":"Answer","text":"Scout troops, guides, cadets, youth ministries, and community groups needing structured operations."}}, {"@type":"Question","name":"Can we use Wampums offline?","acceptedAnswer":{"@type":"Answer","text":"Yes. The PWA supports offline attendance capture with sync when internet is back."}}, {"@type":"Question","name":"How secure is data?","acceptedAnswer":{"@type":"Answer","text":"Wampums uses HTTPS, role-based access, and organization-level data isolation."}}]}</script></head><body><header class="site-header"><div class="container topbar"><a class="brand" href="/en/">Wampums</a><nav class="nav-links"><a href="/en/">Home</a><a href="/en/faq/">FAQ</a><a href="/en/modules/finance/">Modules</a><a href="/en/compare/wampums-vs-sporteasy/">Compare</a><a href="/fr/">FR</a></nav></div></header><main class="container"><section class="hero"><h1>Wampums FAQ</h1><p>Answers for scout and youth group leaders evaluating a bilingual management platform.</p></section><section class="section"><article class="card faq-item"><h2>Is Wampums bilingual by default?</h2><p>Yes. Every marketing and product flow has English and French versions with locale-aware content.</p></article><article class="card faq-item"><h2>Who is Wampums for?</h2><p>Scout troops, guides, cadets, youth ministries, and community groups needing structured operations.</p></article><article class="card faq-item"><h2>Can we use Wampums offline?</h2><p>Yes. The PWA supports offline attendance capture with sync when internet is back.</p></article><article class="card faq-item"><h2>How secure is data?</h2><p>Wampums uses HTTPS, role-based access, and organization-level data isolation.</p></article></section></main><footer><div class="container"><p class="small">Built for bilingual scout and youth groups in Canada.</p><p class="small"><a href="mailto:hello@wampums.app">hello@wampums.app</a></p></div></footer></body></html>
+<meta property="og:type" content="website" /><meta property="og:site_name" content="Wampums" /><meta property="og:url" content="https://wampums.app/en/faq/" /><meta property="og:locale" content="en_CA" /><meta property="og:locale:alternate" content="fr_CA" /><meta property="og:title" content="Wampums FAQ — All your questions about scout group management" /><meta property="og:description" content="Clear answers to all your questions about Wampums: getting started, cost, bilingual features, attendance, badges, security, finances, and more." /><meta property="og:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
+<meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content="Wampums FAQ — All your questions about scout group management" /><meta name="twitter:description" content="Clear answers to all your questions about Wampums: getting started, cost, bilingual features, attendance, badges, security, finances, and more." /><meta name="twitter:image" content="https://wampums.app/images/og-wampums-1200x630.jpg" />
+<link rel="stylesheet" href="/marketing.css" />
+<style>
+  .faq-nav { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 1.5rem; }
+  .faq-nav a { text-decoration: none; padding: .4rem .8rem; border-radius: 999px; border: 1px solid var(--border); background: #fff; font-size: .9rem; color: var(--brand-dark); }
+  .faq-nav a:hover { background: #eaf7f2; }
+  .faq-category { margin-bottom: 2.5rem; }
+  .faq-category h2 { font-size: 1.2rem; color: var(--brand-dark); border-left: 4px solid var(--brand); padding-left: .7rem; margin-bottom: 1rem; }
+  .faq-item { margin-bottom: .8rem; }
+  .faq-item h3 { font-size: 1rem; margin: 0 0 .4rem; }
+  .faq-item p { margin: 0; color: var(--muted); }
+  .faq-cta { background: var(--brand); color: #fff; border-radius: 14px; padding: 1.5rem; text-align: center; margin-top: 2rem; }
+  .faq-cta h2 { color: #fff; margin: 0 0 .5rem; }
+  .faq-cta p { color: rgba(255,255,255,.85); margin: 0 0 1rem; }
+  .faq-cta a { display: inline-block; background: #fff; color: var(--brand-dark); font-weight: 700; padding: .7rem 1.4rem; border-radius: 10px; text-decoration: none; }
+</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"How do we get started with Wampums?","acceptedAnswer":{"@type":"Answer","text":"Request a demo and we will set up your organization. You can import your existing participants from a CSV file and be running within a day, with no technical training required."}},
+{"@type":"Question","name":"Do we need to install an app from the App Store?","acceptedAnswer":{"@type":"Answer","text":"No. Wampums is a web app you open directly in your browser on your phone, tablet, or computer. No download required, no manual updates."}},
+{"@type":"Question","name":"Can we import our existing data?","acceptedAnswer":{"@type":"Answer","text":"Yes. Wampums accepts CSV files to import participants, guardians, and users. If you are coming from another system, we can also help you migrate your data."}},
+{"@type":"Question","name":"How much does Wampums cost?","acceptedAnswer":{"@type":"Answer","text":"Wampums is free for scout and youth groups during the early-access period. Contact us for details on future pricing."}},
+{"@type":"Question","name":"Does it work on mobile?","acceptedAnswer":{"@type":"Answer","text":"Yes. Wampums is designed mobile-first. It works on any iPhone or Android phone, tablet, or computer, directly from the browser."}},
+{"@type":"Question","name":"Can we use Wampums without an internet connection?","acceptedAnswer":{"@type":"Answer","text":"Yes. Attendance and points can be recorded even without internet, such as in a cabin or basement with no Wi-Fi. Data syncs automatically when your connection is restored."}},
+{"@type":"Question","name":"Is Wampums truly bilingual?","acceptedAnswer":{"@type":"Answer","text":"Yes. Every screen, form, notification, and report is fully available in English and French. This is not a partial translation — both languages are complete and up to date."}},
+{"@type":"Question","name":"Can we have members using French and English in the same group?","acceptedAnswer":{"@type":"Answer","text":"Absolutely. Each parent or leader sets their own language preference. The interface and communications appear in each user's chosen language, without you having to send two separate messages."}},
+{"@type":"Question","name":"How does attendance tracking work?","acceptedAnswer":{"@type":"Answer","text":"Open Wampums on your phone at the start of the meeting and tap once to mark each participant present. It works offline too, and syncs automatically afterwards."}},
+{"@type":"Question","name":"How does badge tracking work?","acceptedAnswer":{"@type":"Answer","text":"You assign badges or honors to each participant through a three-step system: pending, approved, delivered. You can process multiple participants at once. Parents see their child's progress in real time on their dashboard."}},
+{"@type":"Question","name":"How does the points system work?","acceptedAnswer":{"@type":"Answer","text":"You award points to individuals or to a whole group. Rankings are visible to leaders, and parents can see their child's points. Everything works offline and syncs afterwards."}},
+{"@type":"Question","name":"How do we communicate with parents?","acceptedAnswer":{"@type":"Answer","text":"Wampums integrates email, WhatsApp, Google Chat, and push notifications. You pick the right channel for each message — general announcement, reminder, or urgent alert."}},
+{"@type":"Question","name":"How do automatic reminders work?","acceptedAnswer":{"@type":"Answer","text":"Before each meeting, Wampums automatically sends parents a reminder with activity details (time, location, what to bring), outstanding permissions, and carpool information — in each parent's preferred language."}},
+{"@type":"Question","name":"How do permission slips work?","acceptedAnswer":{"@type":"Answer","text":"You create a permission form in Wampums and send a secure link to parents. They sign directly from their phone — no printing or scanning needed. You can see in real time who has signed and send reminders to those who haven't."}},
+{"@type":"Question","name":"How does carpool coordination work?","acceptedAnswer":{"@type":"Answer","text":"Parents enter how many seats they can offer for an activity. Leaders see all the offers and assign participants to cars. Each parent then knows who is driving their child."}},
+{"@type":"Question","name":"Can we manage equipment inventory?","acceptedAnswer":{"@type":"Answer","text":"Yes. You catalog your equipment (tents, first-aid kits, tools, etc.) with photos and storage locations. You reserve equipment for specific activities and the system alerts you to any booking conflicts."}},
+{"@type":"Question","name":"Can we manage the group's finances?","acceptedAnswer":{"@type":"Answer","text":"Yes. Wampums handles membership fees, expenses, category budgets, and fundraisers. A dashboard consolidates all revenue sources and lets you track spending against your budget."}},
+{"@type":"Question","name":"Can parents see their balance?","acceptedAnswer":{"@type":"Answer","text":"Yes. Each parent can view their total billed, payments made, and outstanding balance for each child, with a full breakdown of all fees."}},
+{"@type":"Question","name":"Is my data secure?","acceptedAnswer":{"@type":"Answer","text":"Yes. All data is encrypted in transit (HTTPS/TLS) and at rest. Each organization's data is fully isolated — there is no cross-contamination between groups."}},
+{"@type":"Question","name":"Who can see children's information?","acceptedAnswer":{"@type":"Answer","text":"Only people you have explicitly granted access to. Wampums uses a role and permission system with over 40 levels of control — you decide exactly who sees what."}},
+{"@type":"Question","name":"Is data shared with third parties?","acceptedAnswer":{"@type":"Answer","text":"No. Your data belongs to your organization and is never sold or shared with third parties for commercial purposes."}},
+{"@type":"Question","name":"Does Wampums work for Guides, Cadets, and other youth groups?","acceptedAnswer":{"@type":"Answer","text":"Yes. Wampums is built for any youth group: scouts, guides, cadets, church groups, and community organizations. Forms, roles, and features are fully customizable to match your structure."}},
+{"@type":"Question","name":"Can we manage multiple sections from one account?","acceptedAnswer":{"@type":"Answer","text":"Yes. Multi-unit support lets you manage multiple sections or organizations from one account and switch between them seamlessly."}},
+{"@type":"Question","name":"How do we manage roles and permissions?","acceptedAnswer":{"@type":"Answer","text":"Wampums offers over 40 granular permissions. You create custom roles (leader, parent, treasurer, volunteer, etc.) and control exactly what each user can see or change in the app."}},
+{"@type":"Question","name":"How does the form builder work?","acceptedAnswer":{"@type":"Answer","text":"A visual drag-and-drop editor lets you create custom registration forms, health forms, or permission slips. Add fields, conditional logic, and bilingual labels — no technical skills required."}},
+{"@type":"Question","name":"How do we contact the Wampums team?","acceptedAnswer":{"@type":"Answer","text":"Email us at hello@wampums.app or request a demo from the home page. We respond in both English and French."}}
+]}</script>
+</head>
+<body>
+<header class="site-header"><div class="container topbar">
+  <a class="brand" href="/en/">Wampums</a>
+  <nav class="nav-links" aria-label="Main navigation">
+    <a href="/en/">Home</a>
+    <a href="/en/faq/" aria-current="page">FAQ</a>
+    <a href="/en/modules/finance/">Modules</a>
+    <a href="/en/compare/wampums-vs-sporteasy/">Compare</a>
+    <a href="/fr/faq/" lang="fr-CA">FR</a>
+  </nav>
+</div></header>
+
+<main class="container">
+  <section class="hero">
+    <h1>Frequently asked questions</h1>
+    <p>Plain-language answers for leaders, parents, and administrators evaluating Wampums for their scout or youth group.</p>
+  </section>
+
+  <nav aria-label="FAQ categories">
+    <div class="faq-nav">
+      <a href="#getting-started">Getting started</a>
+      <a href="#cost">Cost</a>
+      <a href="#mobile">Mobile &amp; offline</a>
+      <a href="#bilingual">Bilingual</a>
+      <a href="#attendance-badges">Attendance &amp; badges</a>
+      <a href="#communication">Communication</a>
+      <a href="#logistics">Logistics</a>
+      <a href="#finances">Finances</a>
+      <a href="#security">Security</a>
+      <a href="#organization">Organization</a>
+    </div>
+  </nav>
+
+  <section class="section faq-category" id="getting-started">
+    <h2>Getting started</h2>
+
+    <article class="card faq-item">
+      <h3>How do we get started with Wampums?</h3>
+      <p>Request a demo and we will set up your organization. You can import your existing participants from a CSV file and be running within a day — no technical training required.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Do we need to install an app from the App Store?</h3>
+      <p>No. Wampums is a web app you open directly in your browser (Chrome, Safari, Firefox…) on your phone, tablet, or computer. No download required, no manual updates.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we import our existing data?</h3>
+      <p>Yes. Wampums accepts CSV files to import participants, guardians, and users. If you are coming from another system (spreadsheets, SISC, etc.), we can also help you migrate your data.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How long does it take to set up Wampums?</h3>
+      <p>Most groups are up and running within a day. Basic setup — creating your organization, importing participants, and inviting your team — typically takes less than an hour.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="cost">
+    <h2>Cost and access</h2>
+
+    <article class="card faq-item">
+      <h3>How much does Wampums cost?</h3>
+      <p>Wampums is free for scout and youth groups during the early-access period. Contact us at <a href="mailto:hello@wampums.app">hello@wampums.app</a> for details on future pricing.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Are there any hidden fees?</h3>
+      <p>No. During early access, all features are included at no extra cost. We will let you know well in advance before any pricing changes.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="mobile">
+    <h2>Mobile app and offline use</h2>
+
+    <article class="card faq-item">
+      <h3>Does it work on a phone?</h3>
+      <p>Yes. Wampums is designed mobile-first. It automatically adapts to your screen size and works equally well on iPhone and Android, directly from the browser.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we use Wampums without an internet connection?</h3>
+      <p>Yes. Attendance and points can be recorded even without internet — for example in a cabin or a basement with no Wi-Fi. Data syncs automatically as soon as your connection is restored.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we add Wampums to the phone's home screen?</h3>
+      <p>Yes. Wampums is a Progressive Web App (PWA). On iPhone or Android, you can add it to your home screen from the browser and open it just like a regular app.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="bilingual">
+    <h2>Bilingual and languages</h2>
+
+    <article class="card faq-item">
+      <h3>Is Wampums truly bilingual?</h3>
+      <p>Yes. Every screen, form, notification, and report is fully available in English and French. This is not a partial translation — both languages are complete and kept up to date.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we have members using French and English in the same group?</h3>
+      <p>Absolutely. Each parent or leader sets their own language preference in their profile. The interface and communications appear in each user's chosen language, without you having to send two separate messages.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can forms be bilingual?</h3>
+      <p>Yes. The built-in form builder lets you write field labels in both English and French. Each parent sees the form in their own language.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Are parent notifications sent in their language?</h3>
+      <p>Yes. Automatic reminders before meetings, announcements, and alerts are sent in each parent's preferred language — with no extra effort on your part.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="attendance-badges">
+    <h2>Attendance, badges, and points</h2>
+
+    <article class="card faq-item">
+      <h3>How does attendance tracking work?</h3>
+      <p>At the start of the meeting, open Wampums on your phone and tap once to mark each participant present. You can also add guests. Everything syncs automatically, even if you had no internet at the time.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How does badge tracking work?</h3>
+      <p>You assign badges or honors to each participant through a three-step process: pending, approved, delivered. You can process multiple participants at once with bulk actions. Parents see their child's progress in real time on their dashboard.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How does the points system work?</h3>
+      <p>You award points to individuals or to a whole group. Rankings are visible to leaders, and parents can see their child's points. Everything works offline and syncs once you are connected.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can parents see their child's progress?</h3>
+      <p>Yes. Each parent has a personal dashboard showing attendance records, badges earned, points accumulated, and upcoming activities for each of their children.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="communication">
+    <h2>Parent communication</h2>
+
+    <article class="card faq-item">
+      <h3>How do we communicate with parents?</h3>
+      <p>Wampums integrates several channels: email, WhatsApp, Google Chat, and push notifications on their phone. You pick the channel that fits the message — general announcement, reminder, or urgent alert.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How do automatic reminders work?</h3>
+      <p>Before each meeting, Wampums automatically sends parents a reminder with activity details (time, location, what to bring), any outstanding permissions, and carpool information — all in each parent's preferred language.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How do permission slips work?</h3>
+      <p>You create a permission form in Wampums and send a secure link to parents. They sign directly from their phone — no printing or scanning needed. You can see in real time who has signed and send reminders to those who haven't with one click.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we send messages to a specific sub-group of parents?</h3>
+      <p>Yes. You can target communications by group, role, or mailing list. For example, send a message only to parents of Beavers or only to your leadership team.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Do parents get notifications on their phone?</h3>
+      <p>Yes, if parents opt in to notifications from the app. They then receive instant alerts for meetings, announcements, and important reminders, even when they are not actively using the app.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="logistics">
+    <h2>Logistics and equipment</h2>
+
+    <article class="card faq-item">
+      <h3>How does carpool coordination work?</h3>
+      <p>Parents enter how many seats they can offer for an activity. Leaders see all offers and assign participants to vehicles. Each parent then knows exactly who is driving their child.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we manage equipment inventory?</h3>
+      <p>Yes. You catalog your equipment (tents, first-aid kits, tools, etc.) with photos and storage locations. Reserve equipment for specific activities and the system automatically flags any booking conflicts.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we manage medications for participants?</h3>
+      <p>Yes. Health forms, allergies, emergency contacts, and medications are all centralized. You schedule dispensing windows with timed alerts and log each event for traceability.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="finances">
+    <h2>Finances and fundraising</h2>
+
+    <article class="card faq-item">
+      <h3>Can we manage the group's finances?</h3>
+      <p>Yes. Wampums handles membership fees, expenses, category budgets, and fundraisers. A dashboard consolidates all revenue sources and lets you track spending against your budget throughout the year.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can parents see their balance?</h3>
+      <p>Yes. Each parent can view their total billed, payments made, and outstanding balance for each child, with a full breakdown of all fees.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we run fundraisers (chocolate sales, etc.)?</h3>
+      <p>Yes. Create a fundraising campaign, track sales per participant, and archive completed campaigns. A calendar view helps you plan multiple fundraisers across the year.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we set up payment plans?</h3>
+      <p>Yes. You can define fees with installment schedules so families pay in multiple payments on a timeline you set.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="security">
+    <h2>Security and privacy</h2>
+
+    <article class="card faq-item">
+      <h3>Is my data secure?</h3>
+      <p>Yes. All data is encrypted in transit (HTTPS/TLS) and at rest. Each organization's data is fully isolated — there is no cross-contamination between groups.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Who can see children's information?</h3>
+      <p>Only people you have explicitly granted access to. Wampums uses a role and permission system with over 40 levels of control — you decide exactly who can see or change what.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Is data shared with third parties?</h3>
+      <p>No. Your data belongs to your organization and is never sold or shared with third parties for commercial purposes.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>What happens if there is an outage?</h3>
+      <p>Your data is backed up regularly. If you lose your connection, core features (attendance, points) continue to work offline and resync automatically when you are back online.</p>
+    </article>
+  </section>
+
+  <section class="section faq-category" id="organization">
+    <h2>Organization and management</h2>
+
+    <article class="card faq-item">
+      <h3>Does Wampums work for Guides, Cadets, and other youth groups?</h3>
+      <p>Yes. Wampums is built for any youth organization: scouts, guides, cadets, church groups, and community organizations. Forms, roles, and features are fully customizable to match your structure.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>Can we manage multiple sections from one account?</h3>
+      <p>Yes. Multi-unit support lets you manage multiple sections (Beavers, Cubs, Scouts, Rovers, etc.) or multiple groups from one account and switch between them seamlessly.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How do we manage roles and permissions?</h3>
+      <p>Wampums offers over 40 granular permissions. You create custom roles (leader, parent, treasurer, volunteer, etc.) and control exactly what each person can see or change in the app.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How does the form builder work?</h3>
+      <p>A visual drag-and-drop editor lets you build custom registration forms, health forms, or permission slips. Add fields, conditional logic (show a field based on a previous answer), and bilingual labels — no technical skills required.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>What happens when a leader leaves? Can they hand things over easily?</h3>
+      <p>Yes. All data — meeting plans, attendance history, health records, budgets — is centralized in Wampums. A new leader picks up exactly where the previous one left off, without deciphering someone else's binder or spreadsheets.</p>
+    </article>
+
+    <article class="card faq-item">
+      <h3>How do we contact the Wampums team?</h3>
+      <p>Email us at <a href="mailto:hello@wampums.app">hello@wampums.app</a> or request a demo from the home page. We respond in both English and French.</p>
+    </article>
+  </section>
+
+  <div class="faq-cta">
+    <h2>Still have questions?</h2>
+    <p>Our team is happy to help — in English or French.</p>
+    <a href="mailto:hello@wampums.app">Get in touch</a>
+  </div>
+</main>
+
+<footer><div class="container">
+  <p class="small">Built for bilingual scout and youth groups in Canada.</p>
+  <p class="small"><a href="mailto:hello@wampums.app">hello@wampums.app</a> &nbsp;·&nbsp; <a href="/en/">Home</a> &nbsp;·&nbsp; <a href="/fr/faq/" lang="fr-CA">FAQ en français</a></p>
+</div></footer>
+</body></html>
