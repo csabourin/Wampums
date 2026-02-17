@@ -86,7 +86,7 @@ async function generateText(mode, payload, userContext) {
             messages: messages,
             response_format: { type: "json_object" }, // Enforce JSON
             temperature: 0.7,
-            max_tokens: 2000,
+            max_completion_tokens: 2000,
         });
 
         usage = completion.usage || { prompt_tokens: 0, completion_tokens: 0 };
