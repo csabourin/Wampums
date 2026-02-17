@@ -584,6 +584,9 @@ self.addEventListener('push', function (event) {
     icon: data.icon || '/images/icon-192x192.png',
     badge: '/images/badge-128x128.png',
     tag: data.tag || 'general',
+    requireInteraction: data.requireInteraction || false,
+    vibrate: data.vibrate || undefined,
+    data: data.data || {},
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
