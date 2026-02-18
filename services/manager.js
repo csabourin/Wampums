@@ -1,11 +1,13 @@
 const WhatsAppBaileysService = require("./whatsapp-baileys");
 const GoogleChatService = require("./google-chat");
+const MedicationReminderService = require("./medication-reminders");
 const socketService = require("./socket");
 const logger = require("../config/logger");
 const { isTestEnvironment } = require("../test/test-helpers");
 
 let whatsappService;
 let googleChatService;
+let medicationReminderService;
 
 /**
  * Initialize all application services
@@ -34,6 +36,10 @@ async function init(pool) {
 
     // 2. Google Chat Service
     googleChatService = new GoogleChatService(pool);
+
+    // 3. Medication Reminder Service
+    medicationReminderService = new MedicationReminderService(pool, logger);
+    medicationReminderService.start();
 
     logger.info("✅ Services initialized");
 }
@@ -68,9 +74,19 @@ async function restore() {
     }
 }
 
+/**
+ * Stop all background services (called during graceful shutdown)
+ */
+function shutdown() {
+    if (medicationReminderService) {
+        medicationReminderService.stop();
+    }
+}
+
 module.exports = {
     init,
     restore,
+    shutdown,
     getWhatsAppService,
     getGoogleChatService,
 };

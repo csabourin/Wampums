@@ -21,7 +21,10 @@ async function gracefulShutdown(signal) {
   server.close(async () => {
     logger.info("HTTP server closed.");
 
-    // 2. Close database pool
+    // 2. Stop background services
+    serviceManager.shutdown();
+
+    // 3. Close database pool
     try {
       await pool.end();
       logger.info("Database pool closed.");
@@ -29,7 +32,7 @@ async function gracefulShutdown(signal) {
       logger.error("Error closing database pool:", err);
     }
 
-    // 3. Final cleanup
+    // 4. Final cleanup
     logger.info("Graceful shutdown complete.");
     process.exit(0);
   });
