@@ -683,6 +683,9 @@ export class PreparationReunions {
                                                 </div>
                                         </div>
                                         <div id="activities-container" class="activities-grid">
+                                                <div class="activities-grid__toolbar">
+                                                        <button type="button" id="toggle-quick-edit" class="button button--ghost">${translate("toggle_quick_edit_mode")}</button>
+                                                </div>
                                                 <div class="activities-grid__header">
                                                         <div class="activities-grid__header-cell">${translate("heure_et_duree")}</div>
                                                         <div class="activities-grid__header-cell">${translate("activite_responsable_materiel")}</div>
@@ -697,7 +700,6 @@ export class PreparationReunions {
                                         <div class="form-actions form-actions--mobile">
                                                 <button type="submit" class="button button--primary">${translate("save")}</button>
                                                 <button type="button" id="print-button" class="button button--secondary">${translate("print")}</button>
-                                                <button type="button" id="toggle-quick-edit" class="button button--ghost">${translate("toggle_quick_edit_mode")}</button>
                                         </div>
                                 </form>
 
@@ -797,7 +799,7 @@ export class PreparationReunions {
                                 this.showDescriptionModal(description);
                         } else if (e.target.classList.contains('edit-activity-btn')) {
                                 this.activityManager.toggleActivityEdit(e.target.closest('.activity-row'));
-                        } else if (e.target.classList.contains('add-row-btn')) {
+                        } else if (e.target.classList.contains('insert-here-btn')) {
                                 this.activityManager.addActivityRow(e.target.dataset.position);
                         } else if (e.target.classList.contains('delete-row-btn')) {
                                 this.activityManager.deleteActivityRow(e.target.dataset.position);
@@ -1120,12 +1122,29 @@ export class PreparationReunions {
         }
 
         toggleQuickEditMode() {
-                const rows = document.querySelectorAll('.activity-row');
-                rows.forEach(row => {
-                        row.classList.toggle('compact-view');
-                        row.querySelector('.add-row-btn').classList.toggle('hidden');
-                        row.querySelector('.delete-row-btn').classList.toggle('hidden');
+                const container = document.getElementById('activities-container');
+                if (!container) return;
+
+                // Toggle the flag on ActivityManager
+                this.activityManager.setQuickEditActive(!this.activityManager.quickEditActive);
+
+                // Toggle visibility of all delete buttons in rows
+                const deleteButtons = container.querySelectorAll('.delete-row-btn');
+                deleteButtons.forEach(btn => {
+                        btn.classList.toggle('hidden');
                 });
+
+                // Toggle visibility of all insert-here dividers
+                const dividers = container.querySelectorAll('.insert-here-divider');
+                dividers.forEach(divider => {
+                        divider.classList.toggle('hidden');
+                });
+
+                // Toggle active state on the button for visual feedback
+                const toggleBtn = document.getElementById('toggle-quick-edit');
+                if (toggleBtn) {
+                        toggleBtn.classList.toggle('active');
+                }
         }
 
         showDescriptionModal(description) {
