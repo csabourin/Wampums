@@ -37,9 +37,8 @@ async function init(pool) {
     // 2. Google Chat Service
     googleChatService = new GoogleChatService(pool);
 
-    // 3. Medication Reminder Service
+    // 3. Medication Reminder Service (started in restore())
     medicationReminderService = new MedicationReminderService(pool, logger);
-    medicationReminderService.start();
 
     logger.info("✅ Services initialized");
 }
@@ -61,7 +60,11 @@ function getGoogleChatService() {
 }
 
 /**
- * Restore service state (e.g. WhatsApp connections)
+ * Restore service state and start background services
+ * 
+ * Called after server startup to ensure all dependencies are ready.
+ * - WhatsApp: restore saved connection state
+ * - Medication Reminders: start polling for upcoming doses
  */
 async function restore() {
     if (whatsappService) {
@@ -71,6 +74,20 @@ async function restore() {
         } catch (error) {
             logger.error("Error restoring WhatsApp connections:", error);
         }
+    }
+
+    // Start medication reminder polling after server is fully initialized
+    if (medicationReminderService) {
+        medicationReminderService.start();
+    }
+}
+
+/**
+ * Stop all background services (called during graceful shutdown)
+ */
+function shutdown() {
+    if (medicationReminderService) {
+        medicationReminderService.stop();
     }
 }
 
