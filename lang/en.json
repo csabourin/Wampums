@@ -1008,7 +1008,7 @@
   "medication_one_alert_hint": "You will receive one alert for all participants scheduled at the same time.",
   "medication_reminder_push_title": "Medication reminder",
   "medication_reminder_push_body_due_now": "{participant} – {medication} is due now",
-  "medication_reminder_push_body_due_soon": "{participant} – {medication} @ {time} ({minutes} min)",
+  "medication_reminder_push_body_due_soon": "{participant} – {medication} ({minutes} min)",
   "medication_participant_notes_label": "Note for this participant",
   "medication_pending_sync": "syncing",
   "medication_prefill_from_alert": "Prefill distribution form",

@@ -1027,7 +1027,7 @@
   "medication_one_alert_hint": "Vous recevrez une seule alerte pour tous les participants au même moment.",
   "medication_reminder_push_title": "Rappel de médicament",
   "medication_reminder_push_body_due_now": "{participant} – {medication} est à administrer maintenant",
-  "medication_reminder_push_body_due_soon": "{participant} – {medication} à {time} ({minutes} min)",
+  "medication_reminder_push_body_due_soon": "{participant} – {medication} ({minutes} min)",
   "medication_participant_notes_label": "Note pour ce participant",
   "medication_pending_sync": "synchronisation",
   "medication_prefill_from_alert": "Préremplir le formulaire",

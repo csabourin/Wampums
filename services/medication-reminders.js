@@ -15,6 +15,8 @@
 
 'use strict';
 
+const { getTranslationsByCode } = require('../utils/index');
+
 const REMINDER_WINDOW_MINUTES = 15; // notify this many minutes before a dose is due
 const POLL_INTERVAL_MS = 60_000;    // check every 60 seconds
 
@@ -151,10 +153,12 @@ class MedicationReminderService {
     for (const [orgId, distributions] of byOrg) {
       // ---------------------------------------------------------------- //
       // 4. Find subscribers with medication.view permission in this org
+      //    Include user language preference for localized notifications
       // ---------------------------------------------------------------- //
       const subscriberResult = await pool.query(
-        `SELECT DISTINCT s.endpoint, s.p256dh, s.auth, s.user_id
+        `SELECT DISTINCT s.endpoint, s.p256dh, s.auth, s.user_id, u.language_preference
          FROM subscribers s
+         JOIN users u ON u.id = s.user_id
          JOIN user_organizations uo
            ON uo.user_id = s.user_id AND uo.organization_id = s.organization_id
          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
@@ -176,6 +180,9 @@ class MedicationReminderService {
       // ---------------------------------------------------------------- //
       // 5. Send one notification per distribution to all subscribers.
       //
+      //    Each notification is personalized with the subscriber's language
+      //    preference using the translation system.
+      //
       //    The payload passes `scheduledFor` as an ISO string so the
       //    service worker can format the time in the *device's* local
       //    timezone rather than the server's timezone.
@@ -185,33 +192,44 @@ class MedicationReminderService {
         const minutesUntil = Math.round((scheduledAt - Date.now()) / 60_000);
         const participantName = `${dist.first_name} ${dist.last_name}`.trim();
 
-        const title = 'Medication / Médicament';
-        // Body is intentionally kept short; the service worker appends the
-        // formatted local time via data.scheduledFor.
-        const body = minutesUntil <= 1
-          ? `${participantName} – ${dist.medication_name}`
-          : `${participantName} – ${dist.medication_name} (${minutesUntil} min)`;
-
-        const payload = JSON.stringify({
-          title,
-          body,
-          tag: `medication-${dist.id}`,
-          requireInteraction: true,
-          vibrate: [200, 100, 200],
-          data: {
-            type: 'medication',
-            scheduledFor: scheduledAt.toISOString(), // client formats in its own timezone
-            url: '/medication-dispensing',
-          },
-        });
-
         const sendResults = await Promise.allSettled(
-          subscribers.map(sub =>
-            webpush.sendNotification(
+          subscribers.map(sub => {
+            // Get translations for this subscriber's language
+            const userLang = (sub.language_preference || 'en').toLowerCase();
+            const translations = getTranslationsByCode(userLang);
+            
+            // Use translation keys or fallback to English
+            const title = translations.medication_reminder_push_title || 'Medication reminder';
+            
+            // Note: The service worker appends @ {time} to the body automatically
+            // when scheduledFor is present in the data payload
+            const body = minutesUntil <= 1
+              ? (translations.medication_reminder_push_body_due_now || '{participant} – {medication} is due now')
+                  .replace('{participant}', participantName)
+                  .replace('{medication}', dist.medication_name)
+              : (translations.medication_reminder_push_body_due_soon || '{participant} – {medication} ({minutes} min)')
+                  .replace('{participant}', participantName)
+                  .replace('{medication}', dist.medication_name)
+                  .replace('{minutes}', minutesUntil);
+
+            const payload = JSON.stringify({
+              title,
+              body,
+              tag: `medication-${dist.id}`,
+              requireInteraction: true,
+              vibrate: [200, 100, 200],
+              data: {
+                type: 'medication',
+                scheduledFor: scheduledAt.toISOString(), // client formats in its own timezone
+                url: '/medication-dispensing',
+              },
+            });
+
+            return webpush.sendNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
               payload
-            )
-          )
+            );
+          })
         );
 
         const failures = sendResults.filter(r => r.status === 'rejected');
