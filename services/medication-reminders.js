@@ -257,9 +257,24 @@ class MedicationReminderService {
     if (expiredEndpoints.length === 0) return;
 
     try {
-      await this.pool.query(
-        `DELETE FROM subscribers WHERE endpoint = ANY($1::text[])`,
+      // Derive the affected organization_ids for explicit multi-tenant isolation.
+      const { rows } = await this.pool.query(
+        `SELECT DISTINCT organization_id
+           FROM subscribers
+          WHERE endpoint = ANY($1::text[])`,
         [expiredEndpoints]
+      );
+
+      const organizationIds = rows.map(row => row.organization_id);
+      if (organizationIds.length === 0) {
+        return;
+      }
+
+      await this.pool.query(
+        `DELETE FROM subscribers
+          WHERE endpoint = ANY($1::text[])
+            AND organization_id = ANY($2::int[])`,
+        [expiredEndpoints, organizationIds]
       );
       this.logger.info(`[MedicationReminders] Removed ${expiredEndpoints.length} expired subscription(s)`);
     } catch (err) {
