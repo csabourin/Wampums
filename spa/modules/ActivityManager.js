@@ -27,6 +27,7 @@ export class ActivityManager {
                 this.meetingLengthMinutes = 120; // Default: 2 hours
                 this.durationOverride = null; // Optional override for special meetings
                 this.achievementModal = null; // Will hold the AchievementModal instance
+                this.quickEditActive = false;
         }
 
         /**
@@ -183,6 +184,30 @@ export class ActivityManager {
         }
 
         /**
+         * Set quick edit mode active state
+         * @param {boolean} active - Whether quick edit mode is active
+         */
+        setQuickEditActive(active) {
+                this.quickEditActive = active;
+        }
+
+        /**
+         * Render an insert-here divider between activity rows
+         * @param {number} position - The position where a new row would be inserted
+         * @returns {string} HTML for the insert divider
+         */
+        renderInsertDivider(position) {
+                const hiddenClass = this.quickEditActive ? "" : "hidden";
+                return `
+                        <div class="insert-here-divider ${hiddenClass}" data-position="${position}">
+                                <button type="button" class="insert-here-btn" data-position="${position}">
+                                        ${translate("insert_row_here")}
+                                </button>
+                        </div>
+                `;
+        }
+
+        /**
          * Render the activities table
          */
         renderActivitiesTable() {
@@ -195,11 +220,12 @@ export class ActivityManager {
                         }),
                 );
 
-                const activitiesHtml = activitiesToRender
-                        .map((activity, index) => {
-                                return this.renderActivityRow(activity, index);
-                        })
-                        .join("");
+                // Build HTML with insert dividers interleaved between rows
+                let activitiesHtml = this.renderInsertDivider(0);
+                activitiesToRender.forEach((activity, index) => {
+                        activitiesHtml += this.renderActivityRow(activity, index);
+                        activitiesHtml += this.renderInsertDivider(index + 1);
+                });
 
                 // Get the activities list container
                 const container = document.getElementById("activities-list");
@@ -312,8 +338,7 @@ export class ActivityManager {
                                         </div>
                                         <div class="activity-row__actions">
                                                 <button type="button" class="toggle-achievement-btn ${hasAchievement ? "active" : ""}" title="${translate("badge_add_star") || "Achievement"}" data-activity-index="${index}">★</button>
-                                                <button type="button" class="add-row-btn hidden" data-position="${index}">+ ${translate("Add")}</button>
-                                                <button type="button" class="delete-row-btn hidden" data-position="${index}">- ${translate("Delete")}</button>
+                                                <button type="button" class="delete-row-btn ${this.quickEditActive ? "" : "hidden"}" data-position="${index}" title="${translate("delete_row")}" aria-label="${translate("delete_row")}">🗑️</button>
                                         </div>
                                 </div>
                                 <!-- Achievement summary display -->
@@ -389,40 +414,73 @@ export class ActivityManager {
 
         /**
          * Add a new activity row at the specified position
+         * @param {number|string} position - Position to insert at
          */
         addActivityRow(position) {
                 // Sync from DOM first to preserve any unsaved changes
                 this.selectedActivities = this.getSelectedActivitiesFromDOM();
 
+                const insertAt = parseInt(position);
+                const defaultDuration = "00:30";
+
+                // Calculate start time from the preceding activity's end time
+                let startTime = "";
+                if (insertAt > 0 && this.selectedActivities.length > 0) {
+                        const prevActivity =
+                                this.selectedActivities[insertAt - 1];
+                        const prevTime = prevActivity.time || "";
+                        const prevDuration =
+                                prevActivity.duration || "00:00";
+                        if (prevTime) {
+                                startTime = this.addDurationToTime(
+                                        prevTime,
+                                        prevDuration,
+                                );
+                        }
+                } else if (
+                        insertAt === 0 &&
+                        this.selectedActivities.length > 0
+                ) {
+                        // Inserting before the first row: use its start time
+                        startTime = this.selectedActivities[0].time || "";
+                }
+
                 const newActivity = {
-                        position: parseInt(position) + 1,
-                        time: "",
-                        duration: "",
+                        position: insertAt,
+                        time: startTime,
+                        duration: defaultDuration,
                         activity: "",
                         responsable: "",
                         materiel: "",
                         isDefault: false,
                 };
 
-                this.selectedActivities.splice(
-                        newActivity.position,
-                        0,
-                        newActivity,
-                );
+                this.selectedActivities.splice(insertAt, 0, newActivity);
                 this.recalculatePositions();
                 this.renderActivitiesTable();
+
+                // Recalculate following times from the newly inserted row
+                this.updateFollowingTimes(insertAt);
         }
 
         /**
          * Delete an activity row at the specified position
+         * @param {number|string} position - Position of the row to delete
          */
         deleteActivityRow(position) {
                 // Sync from DOM first to preserve any unsaved changes
                 this.selectedActivities = this.getSelectedActivitiesFromDOM();
 
-                this.selectedActivities.splice(position, 1);
+                const deleteAt = parseInt(position);
+                this.selectedActivities.splice(deleteAt, 1);
                 this.recalculatePositions();
                 this.renderActivitiesTable();
+
+                // Recalculate times starting from the row before the deleted one
+                if (this.selectedActivities.length > 0) {
+                        const recalcFrom = Math.max(0, deleteAt - 1);
+                        this.updateFollowingTimes(recalcFrom);
+                }
         }
 
         /**
