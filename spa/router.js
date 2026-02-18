@@ -110,7 +110,7 @@ const lazyModules = {
   FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
   CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
   OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
-  IncidentReport: () => import('./incident-report.js').then(m => m.IncidentReport)
+  IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport)
 };
 
 // Cache for loaded modules

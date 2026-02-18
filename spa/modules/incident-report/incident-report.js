@@ -8,15 +8,15 @@
  *
  * Views: list | create | edit | view
  */
-import { translate } from './app.js';
-import { debugLog, debugError } from './utils/DebugUtils.js';
-import { setContent } from './utils/DOMUtils.js';
-import { escapeHTML } from './utils/SecurityUtils.js';
-import { formatDate } from './utils/DateUtils.js';
-import { showToast } from './utils/ToastUtils.js';
-import { hasPermission } from './utils/PermissionUtils.js';
-import { JSONFormRenderer } from './JSONFormRenderer.js';
-import { API } from './api/api-core.js';
+import { translate } from '../../app.js';
+import { debugLog, debugError } from '../../utils/DebugUtils.js';
+import { setContent } from '../../utils/DOMUtils.js';
+import { escapeHTML } from '../../utils/SecurityUtils.js';
+import { formatDate } from '../../utils/DateUtils.js';
+import { showToast } from '../../utils/ToastUtils.js';
+import { hasPermission } from '../../utils/PermissionUtils.js';
+import { JSONFormRenderer } from '../../JSONFormRenderer.js';
+import { API } from '../../api/api-core.js';
 import {
   getIncidentReports,
   getIncidentReport,
@@ -30,9 +30,9 @@ import {
   getEscalationContacts,
   addEscalationContact,
   deleteEscalationContact
-} from './api/api-incidents.js';
-import { getParticipants, getUsers } from './api/api-endpoints.js';
-import { getActivities } from './api/api-activities.js';
+} from '../../api/api-incidents.js';
+import { getParticipants, getUsers } from '../../api/api-endpoints.js';
+import { getActivities } from '../../api/api-activities.js';
 
 export class IncidentReport {
   constructor(app, options = {}) {
