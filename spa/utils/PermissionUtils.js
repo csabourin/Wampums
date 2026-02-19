@@ -512,6 +512,24 @@ export function canManageCarpools() {
 }
 
 /**
+ * Determine if the current user can view incident reports
+ *
+ * @returns {boolean} True when any incident access permission is granted
+ */
+export function canViewIncidents() {
+  return hasAnyPermission('incidents.view', 'incidents.manage');
+}
+
+/**
+ * Determine if the current user can manage incident reports
+ *
+ * @returns {boolean} True when incidents manage permission is granted
+ */
+export function canManageIncidents() {
+  return hasPermission('incidents.manage');
+}
+
+/**
  * Determine if the current user can access administrative tools
  *
  * Combines permission checks with leadership roles to keep compatibility

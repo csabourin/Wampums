@@ -53,6 +53,16 @@ if (require.main === module) {
     // Restore long-running services
     await serviceManager.restore();
 
+    // Start incident email queue processor (runs every 60 seconds)
+    const { processEmailQueue } = require('./routes/incidents');
+    setInterval(async () => {
+      try {
+        await processEmailQueue(pool, logger);
+      } catch (err) {
+        logger.error('Incident email queue processing failed:', err.message);
+      }
+    }, 60000);
+
     // Register shutdown handlers
     process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
     process.on("SIGINT", () => gracefulShutdown("SIGINT"));

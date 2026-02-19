@@ -69,12 +69,27 @@ export class JSONFormRenderer {
 							output += `<textarea id="${fieldId}" name="${name}" ${requiredAttr} ${disabled} ${dependsOnAttr}>${value}</textarea>`;
 							break;
 					case 'select':
-							output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${dependsOnAttr}>`;
-							options.forEach(option => {
+							if (field.multiple) {
+								// Multi-select: render as checkbox group
+								const selectedValues = Array.isArray(value) ? value : (value ? String(value).split(',') : []);
+								output += `<div class="checkbox-group" data-field-name="${name}">`;
+								options.forEach(option => {
+									const cbId = this.useUniqueIds ? `${name}_${option.value}-${this.formIndex}-${index}` : `${name}_${option.value}`;
+									const isChecked = selectedValues.includes(option.value) ? 'checked' : '';
+									output += `<div class="checkbox-option">`;
+									output += `<input type="checkbox" id="${cbId}" name="${name}" value="${option.value}" ${isChecked} ${dependsOnAttr}>`;
+									output += `<label for="${cbId}">${translate(option.label)}</label>`;
+									output += `</div>`;
+								});
+								output += `</div>`;
+							} else {
+								output += `<select id="${fieldId}" name="${name}" ${requiredAttr} ${dependsOnAttr}>`;
+								options.forEach(option => {
 									const selected = value === option.value ? 'selected' : '';
 									output += `<option value="${option.value}" ${selected}>${translate(option.label)}</option>`;
-							});
-							output += `</select>`;
+								});
+								output += `</select>`;
+							}
 							break;
 					case 'checkbox':
 							const checked = value === '1' || value === true || value === 'on' ? 'checked' : '';
@@ -151,6 +166,23 @@ export class JSONFormRenderer {
 			throw new Error('Invalid form element provided to getFormData');
 		}
 		const formData = new FormData(formElement);
-		return Object.fromEntries(formData.entries());
+		const result = {};
+
+		// Collect all keys first to detect multi-value fields (checkbox groups)
+		const allKeys = [...formData.keys()];
+		const multiKeys = new Set(allKeys.filter((k, i) => allKeys.indexOf(k) !== i));
+
+		for (const [key, val] of formData.entries()) {
+			if (multiKeys.has(key)) {
+				// Multi-select checkbox group: collect all values as comma-separated string
+				if (!result[key]) {
+					result[key] = formData.getAll(key).join(',');
+				}
+			} else {
+				result[key] = val;
+			}
+		}
+
+		return result;
 	}
 }

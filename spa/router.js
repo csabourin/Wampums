@@ -38,6 +38,8 @@ import {
   canViewParticipants,
   canViewReports,
   canViewUsers,
+  canViewIncidents,
+  canManageIncidents,
   isParent
 } from "./utils/PermissionUtils.js";
 
@@ -107,7 +109,8 @@ const lazyModules = {
   DistrictManagement: () => import('./district_management.js').then(m => m.DistrictManagement),
   FormPermissions: () => import('./form_permissions.js').then(m => m.initFormPermissions),
   CommunicationSettings: () => import('./communication-settings.js').then(m => m.CommunicationSettings),
-  OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation)
+  OfflinePreparation: () => import('./offline_preparation.js').then(m => m.OfflinePreparation),
+  IncidentReport: () => import('./modules/incident-report/incident-report.js').then(m => m.IncidentReport)
 };
 
 // Cache for loaded modules
@@ -183,7 +186,11 @@ const routes = {
   "/district-management": "districtManagement",
   "/form-permissions": "formPermissions",
   "/communications": "communications",
-  "/prepare-offline": "offlinePreparation"
+  "/prepare-offline": "offlinePreparation",
+  "/incident-reports": "incidentReports",
+  "/incident-reports/new": "incidentReportNew",
+  "/incident-reports/:id": "incidentReportView",
+  "/incident-reports/:id/edit": "incidentReportEdit"
 
 };
 
@@ -458,6 +465,34 @@ export class Router {
           const communicationSettings = new CommunicationSettings(this.app);
           this.currentModuleInstance = communicationSettings;
           await communicationSettings.init();
+          break;
+        case "incidentReports":
+          if (!guard(canViewIncidents())) break;
+          const IncidentReportList = await this.loadModule('IncidentReport');
+          const incidentList = new IncidentReportList(this.app, { view: 'list' });
+          this.currentModuleInstance = incidentList;
+          await incidentList.init();
+          break;
+        case "incidentReportNew":
+          if (!guard(canManageIncidents())) break;
+          const IncidentReportCreate = await this.loadModule('IncidentReport');
+          const incidentCreate = new IncidentReportCreate(this.app, { view: 'create' });
+          this.currentModuleInstance = incidentCreate;
+          await incidentCreate.init();
+          break;
+        case "incidentReportView":
+          if (!guard(canViewIncidents())) break;
+          const IncidentReportView = await this.loadModule('IncidentReport');
+          const incidentView = new IncidentReportView(this.app, { view: 'view', incidentId: parseInt(param) });
+          this.currentModuleInstance = incidentView;
+          await incidentView.init();
+          break;
+        case "incidentReportEdit":
+          if (!guard(canManageIncidents())) break;
+          const IncidentReportEdit = await this.loadModule('IncidentReport');
+          const incidentEdit = new IncidentReportEdit(this.app, { view: 'edit', incidentId: parseInt(param) });
+          this.currentModuleInstance = incidentEdit;
+          await incidentEdit.init();
           break;
         case "offlinePreparation":
           // Available to all logged-in users
