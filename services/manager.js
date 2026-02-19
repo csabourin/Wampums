@@ -91,15 +91,6 @@ function shutdown() {
     }
 }
 
-/**
- * Stop all background services (called during graceful shutdown)
- */
-function shutdown() {
-    if (medicationReminderService) {
-        medicationReminderService.stop();
-    }
-}
-
 module.exports = {
     init,
     restore,
