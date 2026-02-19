@@ -13,7 +13,7 @@ import { debugLog, debugError } from '../../utils/DebugUtils.js';
 import { setContent } from '../../utils/DOMUtils.js';
 import { escapeHTML } from '../../utils/SecurityUtils.js';
 import { formatDate } from '../../utils/DateUtils.js';
-import { showToast } from '../../utils/ToastUtils.js';
+
 import { hasPermission } from '../../utils/PermissionUtils.js';
 import { JSONFormRenderer } from '../../JSONFormRenderer.js';
 import { API } from '../../api/api-core.js';
@@ -79,7 +79,7 @@ export class IncidentReport {
       }
     } catch (err) {
       debugError('IncidentReport init error:', err);
-      showToast(translate('error_loading_data'), 'error');
+      this.app.showMessage(translate('error_loading_data'), 'error');
     }
   }
 
@@ -193,11 +193,11 @@ export class IncidentReport {
         if (!confirm(translate('incident_confirm_delete'))) return;
         try {
           await deleteIncidentReport(parseInt(btn.dataset.id));
-          showToast(translate('incident_deleted'), 'success');
+          this.app.showMessage(translate('incident_deleted'), 'success');
           await this.initList();
         } catch (err) {
           debugError('Delete incident failed:', err);
-          showToast(translate('error_generic'), 'error');
+          this.app.showMessage(translate('error_generic'), 'error');
         }
       });
     });
@@ -213,7 +213,7 @@ export class IncidentReport {
     this.formStructure = formStructureResponse?.data?.form_structure || formStructureResponse?.form_structure;
 
     if (!this.formStructure) {
-      showToast(translate('error_loading_data'), 'error');
+      this.app.showMessage(translate('error_loading_data'), 'error');
       return;
     }
 
@@ -372,7 +372,7 @@ export class IncidentReport {
       try {
         const prefill = await getIncidentPrefillParticipant(pid);
         this.applyPrefill(prefill);
-        showToast(translate('incident_prefill_applied'), 'success');
+        this.app.showMessage(translate('incident_prefill_applied'), 'success');
       } catch (err) {
         debugError('Participant prefill failed:', err);
       }
@@ -386,7 +386,7 @@ export class IncidentReport {
       try {
         const prefill = await getIncidentPrefillUser(uid);
         this.applyPrefill(prefill);
-        showToast(translate('incident_prefill_applied'), 'success');
+        this.app.showMessage(translate('incident_prefill_applied'), 'success');
       } catch (err) {
         debugError('User prefill failed:', err);
       }
@@ -403,7 +403,7 @@ export class IncidentReport {
       try {
         const prefill = await getIncidentPrefillActivity(aid);
         this.applyPrefill(prefill);
-        showToast(translate('incident_activity_prefill_applied'), 'success');
+        this.app.showMessage(translate('incident_activity_prefill_applied'), 'success');
       } catch (err) {
         debugError('Activity prefill failed:', err);
       }
@@ -566,18 +566,18 @@ export class IncidentReport {
     try {
       if (this.incidentId) {
         await updateIncidentReport(this.incidentId, payload);
-        showToast(translate('incident_updated'), 'success');
+        this.app.showMessage(translate('incident_updated'), 'success');
       } else {
         const created = await createIncidentReport(payload);
         this.incidentId = created.id;
         this.currentIncident = created;
-        showToast(translate('incident_created'), 'success');
+        this.app.showMessage(translate('incident_created'), 'success');
         // Update URL to edit mode without re-rendering
         history.replaceState(null, '', `/incident-reports/${this.incidentId}/edit`);
       }
     } catch (err) {
       debugError('Save incident failed:', err);
-      showToast(translate('error_generic'), 'error');
+      this.app.showMessage(translate('error_generic'), 'error');
     }
   }
 
@@ -589,7 +589,7 @@ export class IncidentReport {
     await this.handleSave();
 
     if (!this.incidentId) {
-      showToast(translate('error_generic'), 'error');
+      this.app.showMessage(translate('error_generic'), 'error');
       return;
     }
 
@@ -598,9 +598,9 @@ export class IncidentReport {
 
       if (result && result.status === 'submitted') {
         if (!navigator.onLine) {
-          showToast(translate('incident_submitted_offline'), 'info');
+          this.app.showMessage(translate('incident_submitted_offline'), 'info');
         } else {
-          showToast(translate('incident_submitted'), 'success');
+          this.app.showMessage(translate('incident_submitted'), 'success');
         }
         this.app.router.navigate('/incident-reports');
       }
@@ -608,10 +608,10 @@ export class IncidentReport {
       debugError('Submit incident failed:', err);
       // If offline, the mutation was queued by OfflineManager
       if (!navigator.onLine) {
-        showToast(translate('incident_submitted_offline'), 'info');
+        this.app.showMessage(translate('incident_submitted_offline'), 'info');
         this.app.router.navigate('/incident-reports');
       } else {
-        showToast(translate('error_generic'), 'error');
+        this.app.showMessage(translate('error_generic'), 'error');
       }
     }
   }
@@ -624,7 +624,7 @@ export class IncidentReport {
     if (!incidentId) return;
     this.currentIncident = await getIncidentReport(incidentId);
     if (!this.currentIncident) {
-      showToast(translate('error_loading_data'), 'error');
+      this.app.showMessage(translate('error_loading_data'), 'error');
       return;
     }
 
@@ -777,7 +777,7 @@ export class IncidentReport {
       const role_description = document.getElementById('escalation-new-role')?.value?.trim();
 
       if (!email) {
-        showToast(translate('incident_escalation_email') + ' required', 'error');
+        this.app.showMessage(translate('incident_escalation_email') + ' required', 'error');
         return;
       }
 
@@ -787,7 +787,7 @@ export class IncidentReport {
         this.showEscalationModal(); // Refresh
       } catch (err) {
         debugError('Add escalation contact failed:', err);
-        showToast(translate('error_generic'), 'error');
+        this.app.showMessage(translate('error_generic'), 'error');
       }
     });
 
@@ -799,7 +799,7 @@ export class IncidentReport {
           this.showEscalationModal(); // Refresh
         } catch (err) {
           debugError('Delete escalation contact failed:', err);
-          showToast(translate('error_generic'), 'error');
+          this.app.showMessage(translate('error_generic'), 'error');
         }
       });
     });
