@@ -435,12 +435,18 @@ export class IncidentReport {
       if (!select) return;
 
       const currentVal = this.selectedUserId || '';
-      let optionsHtml = `<option value="">-- ${translate('incident_select_victim_type')} --</option>`;
+      select.textContent = '';
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = `-- ${translate('incident_select_victim_type')} --`;
+      select.appendChild(defaultOpt);
       (Array.isArray(this.users) ? this.users : []).forEach(u => {
-        const selected = u.id === currentVal ? 'selected' : '';
-        optionsHtml += `<option value="${u.id}" ${selected}>${escapeHTML(u.full_name || u.email)}</option>`;
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.full_name || u.email;
+        if (u.id === currentVal) opt.selected = true;
+        select.appendChild(opt);
       });
-      select.innerHTML = optionsHtml;
     } catch (err) {
       debugError('Failed to load users:', err);
     }
