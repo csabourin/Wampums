@@ -174,7 +174,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const formId = Number.parseInt(req.params.id, 10);
 
-      if (!Number.isInteger(formId)) {
+      if (!Number.isInteger(formId) || !/^\d+$/.test(req.params.id)) {
         return error(res, 'Form not found', 404);
       }
 
