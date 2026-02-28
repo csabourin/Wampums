@@ -166,7 +166,7 @@ module.exports = (pool, logger) => {
     }
   });
 
-  router.get('/:id([0-9]+)', authenticate, async (req, res) => {
+  router.get('/:id', authenticate, async (req, res) => {
     try {
       if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
         return error(res, 'Forbidden', 403);
@@ -174,7 +174,7 @@ module.exports = (pool, logger) => {
       const organizationId = await getOrganizationId(req, pool);
       const formId = Number.parseInt(req.params.id, 10);
 
-      if (!Number.isInteger(formId)) {
+      if (!Number.isInteger(formId) || !/^\d+$/.test(req.params.id)) {
         return error(res, 'Form not found', 404);
       }
 
