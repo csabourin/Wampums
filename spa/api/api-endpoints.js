@@ -1459,10 +1459,7 @@ export async function updateBadgeStatus(badgeId, status) {
  * Update badge progress fields (stars, description, status, etc.)
  */
 export async function updateBadgeProgress(badgeId, updates) {
-    return API.put(`v1/badges/${badgeId}/progress`, updates, {
-        cacheKey: `badge_progress_${badgeId}`,
-        invalidate: ['badge_summary']
-    });
+    return API.put(`v1/badges/badge-progress/${badgeId}`, updates);
 }
 
 /**
@@ -1486,14 +1483,14 @@ export async function fetchPublicOrganizationSettings() {
  * Get badges awaiting physical delivery
  */
 export async function getBadgesAwaitingDelivery() {
-    return API.getNoCache('v1/badges/awaiting-delivery');
+    return API.getNoCache('v1/badges/badges-awaiting-delivery');
 }
 
 /**
  * Mark badge as physically delivered
  */
 export async function markBadgeDelivered(badgeId) {
-    const result = await API.post('v1/badges/mark-delivered', { badge_id: badgeId });
+    const result = await API.post('v1/badges/mark-badge-delivered', { badge_id: badgeId });
     await clearBadgeRelatedCaches();
     return result;
 }
@@ -1502,7 +1499,7 @@ export async function markBadgeDelivered(badgeId) {
  * Mark multiple badges as delivered in bulk
  */
 export async function markBadgesDeliveredBulk(badgeIds) {
-    const result = await API.post('v1/badges/mark-delivered-bulk', { badge_ids: badgeIds });
+    const result = await API.post('v1/badges/mark-badges-delivered-bulk', { badge_ids: badgeIds });
     await clearBadgeRelatedCaches();
     return result;
 }
