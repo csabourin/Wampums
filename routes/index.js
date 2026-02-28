@@ -104,7 +104,7 @@ module.exports = (app, pool) => {
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);
     app.use("/api/v1/users", usersRoutes);
-    // NOTE: rolesRoutes defines absolute internal /api/* paths.
+    // rolesRoutes defines absolute /api/v1/* paths internally (same pattern as authRoutes)
     app.use("/", rolesRoutes);
 
     // Features
