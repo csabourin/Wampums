@@ -86,7 +86,7 @@ const RoleManagementScreen = ({ navigation }) => {
   };
 
   const fetchRoles = async () => {
-    const response = await fetch(`${CONFIG.API.BASE_URL}/roles`, {
+    const response = await fetch(`${CONFIG.API.BASE_URL}/${CONFIG.API.VERSION}/roles`, {
       headers: {
         Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         'X-Organization-Id': await StorageUtils.getOrganizationId(),
@@ -102,7 +102,7 @@ const RoleManagementScreen = ({ navigation }) => {
   };
 
   const fetchUsers = async () => {
-    const response = await fetch(`${CONFIG.API.BASE_URL}/users`, {
+    const response = await fetch(`${CONFIG.API.BASE_URL}/${CONFIG.API.VERSION}/users`, {
       headers: {
         Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         'X-Organization-Id': await StorageUtils.getOrganizationId(),
@@ -122,7 +122,7 @@ const RoleManagementScreen = ({ navigation }) => {
       return rolePermissions[roleId];
     }
 
-    const response = await fetch(`${CONFIG.API.BASE_URL}/roles/${roleId}/permissions`, {
+    const response = await fetch(`${CONFIG.API.BASE_URL}/${CONFIG.API.VERSION}/roles/${roleId}/permissions`, {
       headers: {
         Authorization: `Bearer ${await StorageUtils.getJWT()}`,
         'X-Organization-Id': await StorageUtils.getOrganizationId(),
@@ -161,7 +161,7 @@ const RoleManagementScreen = ({ navigation }) => {
     setSelectedUserId(user.id);
 
     try {
-      const response = await fetch(`${CONFIG.API.BASE_URL}/users/${user.id}/roles`, {
+      const response = await fetch(`${CONFIG.API.BASE_URL}/${CONFIG.API.VERSION}/users/${user.id}/roles`, {
         headers: {
           Authorization: `Bearer ${await StorageUtils.getJWT()}`,
           'X-Organization-Id': await StorageUtils.getOrganizationId(),
@@ -197,7 +197,7 @@ const RoleManagementScreen = ({ navigation }) => {
     try {
       setSaving(true);
 
-      const response = await fetch(`${CONFIG.API.BASE_URL}/users/${selectedUserId}/roles`, {
+      const response = await fetch(`${CONFIG.API.BASE_URL}/${CONFIG.API.VERSION}/users/${selectedUserId}/roles`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
