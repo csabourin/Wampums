@@ -103,7 +103,8 @@ module.exports = (app, pool) => {
     // User Management
     app.use("/api/v1/users/me", userProfileRoutes);
     app.use("/api/v1/users", usersRoutes);
-    app.use("/api", rolesRoutes);
+    // Roles & permissions management (handles /roles/* and /permissions paths)
+    app.use("/api/v1", rolesRoutes);
 
     // Features
     app.use("/api/v1/meetings", meetingsRoutes);
