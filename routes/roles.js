@@ -9,7 +9,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate, requirePermission, blockDemoRoles, hasAnyRole } = require('../middleware/auth');
+const { authenticate, requirePermission, blockDemoRoles } = require('../middleware/auth');
 const { success, error, asyncHandler } = require('../middleware/response');
 
 /**
@@ -22,11 +22,11 @@ const { success, error, asyncHandler } = require('../middleware/response');
  */
 module.exports = (pool, logger) => {
   /**
-   * GET /api/roles
+   * GET /api/v1/roles
    * Get all available roles
    * Available to: district, unitadmin
    */
-  router.get('/api/roles',
+  router.get('/api/v1/roles',
     authenticate,
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
@@ -77,11 +77,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * GET /api/roles/:roleId/permissions
+   * GET /api/v1/roles/:roleId/permissions
    * Get permissions for a specific role
    * Available to: district, unitadmin
    */
-  router.get('/api/roles/:roleId/permissions',
+  router.get('/api/v1/roles/:roleId/permissions',
     authenticate,
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
@@ -107,11 +107,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * GET /api/permissions
+   * GET /api/v1/permissions
    * Get all available permissions grouped by category
    * Available to: district, unitadmin
    */
-  router.get('/api/permissions',
+  router.get('/api/v1/permissions',
     authenticate,
     requirePermission('roles.view'),
     asyncHandler(async (req, res) => {
@@ -142,110 +142,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * GET /api/users/:userId/roles
-   * Get roles assigned to a specific user in this organization
-   * Available to: district, unitadmin
-   */
-  router.get('/api/users/:userId/roles',
-    authenticate,
-    requirePermission('users.view'),
-    asyncHandler(async (req, res) => {
-      try {
-        const { userId } = req.params;
-        const organizationId = req.organizationId;
-
-        const query = `
-          SELECT r.id, r.role_name, r.display_name, r.description
-          FROM user_organizations uo
-          CROSS JOIN LATERAL jsonb_array_elements_text(uo.role_ids) AS role_id_text
-          JOIN roles r ON r.id = role_id_text::integer
-          WHERE uo.user_id = $1 AND uo.organization_id = $2
-          ORDER BY
-            CASE r.role_name
-              WHEN 'district' THEN 0
-              WHEN 'unitadmin' THEN 1
-              WHEN 'leader' THEN 2
-              WHEN 'parent' THEN 3
-              ELSE 4
-            END
-        `;
-
-        const result = await pool.query(query, [userId, organizationId]);
-
-        return success(res, result.rows, 'User roles retrieved successfully');
-      } catch (error) {
-        logger.error('Error fetching user roles:', error);
-        return error(res, 'Failed to fetch user roles', 500);
-      }
-    })
-  );
-
-  /**
-   * PUT /api/users/:userId/roles
-   * Update roles for a specific user in this organization
-   * Available to: district, unitadmin (unitadmin cannot assign district role)
-   */
-  router.put('/api/users/:userId/roles',
-    authenticate,
-    blockDemoRoles,
-    requirePermission('users.assign_roles'),
-    asyncHandler(async (req, res) => {
-      try {
-        const { userId } = req.params;
-        const { roleIds } = req.body; // Array of role IDs
-        const organizationId = req.organizationId;
-
-        if (!Array.isArray(roleIds) || roleIds.length === 0) {
-          return error(res, 'roleIds must be a non-empty array', 400);
-        }
-
-        // Check if user is trying to assign district role without permission
-        const rolesCheck = await pool.query(
-          'SELECT role_name FROM roles WHERE id = ANY($1)',
-          [roleIds]
-        );
-
-        const roleNames = rolesCheck.rows.map(r => r.role_name);
-        const hasDistrictRole = roleNames.includes('district');
-
-        if (hasDistrictRole && !req.userRoles.includes('district')) {
-          return error(res, 'Only district administrators can assign the district role', 403);
-        }
-
-        // Check if user exists and is member of organization
-        const userCheck = await pool.query(
-          'SELECT user_id FROM user_organizations WHERE user_id = $1 AND organization_id = $2',
-          [userId, organizationId]
-        );
-
-        if (userCheck.rows.length === 0) {
-          return error(res, 'User not found in this organization', 404);
-        }
-
-        // Update user roles
-        await pool.query(
-          `UPDATE user_organizations
-           SET role_ids = $1::jsonb
-           WHERE user_id = $2 AND organization_id = $3`,
-          [JSON.stringify(roleIds), userId, organizationId]
-        );
-
-        logger.info(`User ${req.user.id} updated roles for user ${userId} to: ${roleNames.join(', ')}`);
-
-        return success(res, null, 'User roles updated successfully');
-      } catch (error) {
-        logger.error('Error updating user roles:', error);
-        return error(res, 'Failed to update user roles', 500);
-      }
-    })
-  );
-
-  /**
-   * POST /api/roles/:roleId/permissions
+   * POST /api/v1/roles/:roleId/permissions
    * Add permission to a role (custom roles only)
    * Available to: district only
    */
-  router.post('/api/roles/:roleId/permissions',
+  router.post('/api/v1/roles/:roleId/permissions',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
@@ -291,11 +192,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * DELETE /api/roles/:roleId/permissions/:permissionId
+   * DELETE /api/v1/roles/:roleId/permissions/:permissionId
    * Remove permission from a role (custom roles only)
    * Available to: district only
    */
-  router.delete('/api/roles/:roleId/permissions/:permissionId',
+  router.delete('/api/v1/roles/:roleId/permissions/:permissionId',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
@@ -332,11 +233,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * POST /api/roles
+   * POST /api/v1/roles
    * Create a new custom role
    * Available to: district only
    */
-  router.post('/api/roles',
+  router.post('/api/v1/roles',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
@@ -370,11 +271,11 @@ module.exports = (pool, logger) => {
   );
 
   /**
-   * DELETE /api/roles/:roleId
+   * DELETE /api/v1/roles/:roleId
    * Delete a custom role
    * Available to: district only
    */
-  router.delete('/api/roles/:roleId',
+  router.delete('/api/v1/roles/:roleId',
     authenticate,
     blockDemoRoles,
     requirePermission('roles.manage'),
