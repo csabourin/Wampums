@@ -1751,6 +1751,64 @@ tr:hover {
   }
 }
 
+/* Role Badges & Role Modal */
+
+.roles-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm, 4px);
+  background-color: var(--color-primary-light, #e0e7ff);
+  color: var(--color-primary-dark, #1e40af);
+  white-space: nowrap;
+}
+
+.role-badge--empty {
+  background-color: var(--color-surface-alt, #f3f4f6);
+  color: var(--color-text-muted, #6b7280);
+  font-style: italic;
+}
+
+.manage-roles-btn {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.role-modal-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+}
+
+.role-modal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-xs, 4px) var(--space-sm, 8px);
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.role-modal-checkbox:hover {
+  background-color: var(--color-surface-alt, #f3f4f6);
+}
+
+.role-modal-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary, #3b82f6);
+}
+
 /* ----------------------------------------------------------------------------
    5.13 TOAST NOTIFICATIONS
    ---------------------------------------------------------------------------- */

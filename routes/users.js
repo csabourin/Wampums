@@ -361,12 +361,12 @@ module.exports = (pool, logger) => {
 
     const roleId = roleIdResult.rows[0].id;
 
-    // Update user role in organization (both old and new columns for backwards compatibility)
+    // Update user role in organization
     await pool.query(
       `UPDATE user_organizations
-       SET role = $1, role_ids = jsonb_build_array($2::integer)
-       WHERE user_id = $3 AND organization_id = $4`,
-      [mappedRole, roleId, user_id, organizationId]
+       SET role_ids = jsonb_build_array($1::integer)
+       WHERE user_id = $2 AND organization_id = $3`,
+      [roleId, user_id, organizationId]
     );
 
     logger.info(`User ${user_id} role updated to ${mappedRole} (ID: ${roleId}) by user ${req.user.id}`);
