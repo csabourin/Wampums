@@ -171,6 +171,7 @@ const routes = {
   "/medication-management": "medicationPlanning",
   "/medication-planning": "medicationPlanning",
   "/medication-planning/:id": "medicationPlanningParticipant",
+  "/medication-authorizations/:id": "medicationAuthorizationsParticipant",
   "/medication-dispensing": "medicationDispensing",
   "/medication-reception": "medicationReception",
   "/permission-slips": "permissionSlipDashboard",
@@ -390,6 +391,19 @@ export class Router {
             returnUrl: isParent() ? '/parent-dashboard' : '/medication-reception'
           });
           await medicationManagementParticipant.init();
+          break;
+        case "medicationAuthorizationsParticipant":
+          if (!guard(isParent() || canViewMedication() || canViewAttendance() || canViewParticipants())) {
+            break;
+          }
+          const MedicationManagementAuth = await this.loadModule('MedicationManagement');
+          const authParticipantId = parseInt(param);
+          const medicationManagementAuth = new MedicationManagementAuth(this.app, {
+            view: "authorizations",
+            participantId: authParticipantId,
+            returnUrl: isParent() ? '/parent-dashboard' : '/medication-planning'
+          });
+          await medicationManagementAuth.init();
           break;
         case "medicationReception":
           if (!guard(canViewMedication() || canViewAttendance() || canViewParticipants())) {

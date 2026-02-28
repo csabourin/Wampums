@@ -145,17 +145,28 @@ module.exports = (pool, logger) => {
   }));
 
   /**
-   * @swagger
-   * /api/v1/users/parents:
-   *   get:
-   *     summary: Get list of parent users
-   *     description: Retrieve users with parent role
-   *     tags: [Users]
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: List of parent users
+   * GET /api/v1/users/leaders
+   * Returns users with leader/unitadmin/district roles (for med auth admin selectors)
+   */
+  router.get('/leaders', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+
+    const result = await pool.query(
+      `SELECT u.id, u.full_name, u.email
+       FROM users u
+       JOIN user_organizations uo ON u.id = uo.user_id
+       JOIN roles r ON r.id = ANY(SELECT jsonb_array_elements_text(uo.role_ids)::int)
+       WHERE uo.organization_id = $1 AND r.role_name IN ('district', 'unitadmin', 'leader')
+       ORDER BY u.full_name`,
+      [organizationId]
+    );
+
+    return success(res, { users: result.rows });
+  }));
+
+
+  /**
+   * GET /api/v1/users/parents - Get list of parent users
    */
   router.get('/parents', authenticate, requirePermission('users.view'), asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);

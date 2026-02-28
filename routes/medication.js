@@ -191,10 +191,10 @@ module.exports = (pool, logger) => {
 
       // Batch insert all participant medications in a single query
       if (participants.length > 0) {
-        const values = participants.map((participantId, idx) => 
+        const values = participants.map((participantId, idx) =>
           `($1, $2, $${idx + 3}, NULL)`
         ).join(', ');
-        
+
         await client.query(
           `INSERT INTO participant_medications (
             organization_id, medication_requirement_id, participant_id, participant_notes
@@ -216,11 +216,11 @@ module.exports = (pool, logger) => {
     }
   }));
 
-/**
- * PUT /v1/medication/requirements/:id
- * Update a medication requirement and participant assignments
- * Permission: participants.edit
- */
+  /**
+   * PUT /v1/medication/requirements/:id
+   * Update a medication requirement and participant assignments
+   * Permission: participants.edit
+   */
   router.put('/v1/medication/requirements/:id', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
@@ -328,10 +328,10 @@ module.exports = (pool, logger) => {
 
       // Batch insert all participant medications in a single query
       if (participants.length > 0) {
-        const values = participants.map((participantId, idx) => 
+        const values = participants.map((participantId, idx) =>
           `($1, $2, $${idx + 3}, NULL)`
         ).join(', ');
-        
+
         await client.query(
           `INSERT INTO participant_medications (
             organization_id, medication_requirement_id, participant_id, participant_notes
@@ -361,11 +361,11 @@ module.exports = (pool, logger) => {
     }
   }));
 
-/**
- * GET /v1/medication/participant-medications
- * List participant medication assignments
- * Permission: participants.view
- */
+  /**
+   * GET /v1/medication/participant-medications
+   * List participant medication assignments
+   * Permission: participants.view
+   */
   router.get('/v1/medication/participant-medications', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
@@ -388,11 +388,11 @@ module.exports = (pool, logger) => {
     return success(res, { participant_medications: result.rows }, 'Participant medications loaded');
   }));
 
-/**
- * GET /v1/medication/distributions
- * List scheduled and historical medication distributions
- * Permission: participants.edit
- */
+  /**
+   * GET /v1/medication/distributions
+   * List scheduled and historical medication distributions
+   * Permission: participants.edit
+   */
   router.get('/v1/medication/distributions', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
@@ -424,11 +424,11 @@ module.exports = (pool, logger) => {
     return success(res, { distributions: result.rows }, 'Medication distributions loaded');
   }));
 
-/**
- * POST /v1/medication/distributions
- * Schedule or update medication distributions for a single participant per entry
- * Permission: participants.edit
- */
+  /**
+   * POST /v1/medication/distributions
+   * Schedule or update medication distributions for a single participant per entry
+   * Permission: participants.edit
+   */
   router.post('/v1/medication/distributions', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
@@ -580,11 +580,11 @@ module.exports = (pool, logger) => {
     }
   }));
 
-/**
- * PATCH /v1/medication/distributions/:id
- * Update the status of a medication distribution entry
- * Permission: participants.edit
- */
+  /**
+   * PATCH /v1/medication/distributions/:id
+   * Update the status of a medication distribution entry
+   * Permission: participants.edit
+   */
   router.patch('/v1/medication/distributions/:id', authenticate, asyncHandler(async (req, res) => {
     const organizationId = await getOrganizationId(req, pool);
     const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
@@ -907,6 +907,241 @@ module.exports = (pool, logger) => {
     }
 
     return success(res, null, 'Medication reception deleted');
+  }));
+
+  /**
+   * GET /v1/medication/first-aid-supplies
+     * Lists first aid supplies (for PDF A items)
+     */
+  router.get('/v1/medication/first-aid-supplies', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
+    if (!authCheck.authorized) return error(res, authCheck.message, 403);
+
+    const result = await pool.query(
+      `SELECT id, name, description, administrable_medication 
+       FROM first_aid_supplies 
+       WHERE organization_id = $1 AND is_active = true 
+       ORDER BY id ASC`,
+      [organizationId]
+    );
+
+    return success(res, { supplies: result.rows });
+  }));
+
+  /**
+   * GET /v1/medication/authorizations/:participantId
+   * Gets the latest PDF A and PDF B authorizations for a participant
+   */
+  router.get('/v1/medication/authorizations/:participantId', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const participantId = Number.parseInt(req.params.participantId, 10);
+
+    if (!Number.isInteger(participantId)) {
+      return error(res, 'Invalid participant ID', 400);
+    }
+
+    // Check membership and parent linkage
+    const authCheck = await verifyOrganizationMembership(pool, req.user.id, organizationId, {
+      requiredPermissions: MEDICATION_READ_PERMISSIONS,
+    });
+
+    if (!authCheck.authorized) {
+      // Also check if they are a parent linked to this participant
+      const parentCheck = await pool.query(
+        `SELECT 1 FROM participant_guardians pg
+          JOIN guardian_users gu ON pg.guardian_id = gu.guardian_id
+          WHERE pg.participant_id = $1 AND gu.user_id = $2`,
+        [participantId, req.user.id]
+      );
+      if (parentCheck.rowCount === 0) {
+        return error(res, 'Unauthorized access to participant authorizations', 403);
+      }
+    }
+
+    // PDF A (Treatment) latest
+    const treatmentRes = await pool.query(
+      `SELECT mta.*, 
+              json_agg(json_build_object('id', mtas.first_aid_supply_id, 'is_allowed', mtas.is_allowed)) as supplies
+       FROM medication_treatment_authorizations mta
+       LEFT JOIN medication_treatment_authorization_supplies mtas ON mta.id = mtas.authorization_id
+       WHERE mta.organization_id = $1 AND mta.participant_id = $2
+       GROUP BY mta.id
+       ORDER BY mta.created_at DESC LIMIT 1`,
+      [organizationId, participantId]
+    );
+
+    // PDF B (Admin) latest
+    const adminRes = await pool.query(
+      `SELECT maa.*,
+              json_agg(json_build_object('requirement_id', maar.medication_requirement_id, 'initials', maar.initiales)) as requirements
+       FROM medication_admin_authorizations maa
+       LEFT JOIN medication_admin_authorization_requirements maar ON maa.id = maar.authorization_id
+       WHERE maa.organization_id = $1 AND maa.participant_id = $2
+       GROUP BY maa.id
+       ORDER BY maa.created_at DESC LIMIT 1`,
+      [organizationId, participantId]
+    );
+
+    return success(res, {
+      treatment: treatmentRes.rows[0] || null,
+      administration: adminRes.rows[0] || null
+    });
+  }));
+
+  /**
+   * POST /v1/medication/authorizations/treatment
+   * Saves or updates a PDF A authorization
+   */
+  router.post('/v1/medication/authorizations/treatment', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const {
+      participant_id, guardian_id,
+      autorise_gestes_securite_bien_etre, accepte_soins_medicaux_urgence,
+      autorise_transmission_fiche_medicale, reconnait_responsabilite_aviser_changements_sante,
+      signature_parent_tuteur, nom_en_caractere_d_imprimerie, date_signature, signature_type,
+      supplies // array of { id, is_allowed }
+    } = req.body;
+
+    // Auth check parent
+    const parentCheck = await pool.query(
+      `SELECT pg.guardian_id FROM participant_guardians pg
+          JOIN guardian_users gu ON pg.guardian_id = gu.guardian_id
+          WHERE pg.participant_id = $1 AND gu.user_id = $2 AND pg.guardian_id = $3`,
+      [participant_id, req.user.id, guardian_id]
+    );
+
+    const isParent = parentCheck.rowCount > 0;
+    if (!isParent) {
+      const authAdmin = await verifyOrganizationMembership(pool, req.user.id, organizationId, { requiredPermissions: MEDICATION_MANAGE_PERMISSIONS });
+      if (!authAdmin.authorized) {
+        return error(res, 'Unauthorized to save for this participant/guardian', 403);
+      }
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const mtaResult = await client.query(
+        `INSERT INTO medication_treatment_authorizations (
+          organization_id, participant_id, guardian_id,
+          autorise_gestes_securite_bien_etre, accepte_soins_medicaux_urgence,
+          autorise_transmission_fiche_medicale, reconnait_responsabilite_aviser_changements_sante,
+          signature_parent_tuteur, nom_en_caractere_d_imprimerie, date_signature, signature_type,
+          created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        [
+          organizationId, participant_id, guardian_id,
+          autorise_gestes_securite_bien_etre, accepte_soins_medicaux_urgence,
+          autorise_transmission_fiche_medicale, reconnait_responsabilite_aviser_changements_sante,
+          signature_parent_tuteur, nom_en_caractere_d_imprimerie, date_signature || new Date().toISOString(), signature_type,
+          req.user.id
+        ]
+      );
+
+      const newAuthId = mtaResult.rows[0].id;
+
+      if (Array.isArray(supplies) && supplies.length > 0) {
+        const values = supplies.map((s, idx) => `($1, $${idx * 2 + 2}, $${idx * 2 + 3})`).join(', ');
+        const flatParams = [newAuthId];
+        supplies.forEach((s) => flatParams.push(s.id, s.is_allowed));
+
+        await client.query(
+          `INSERT INTO medication_treatment_authorization_supplies (authorization_id, first_aid_supply_id, is_allowed) VALUES ${values}`,
+          flatParams
+        );
+      }
+
+      await client.query('COMMIT');
+      return success(res, { id: newAuthId }, 'Treatment authorization saved', 201);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      logger.error('Error saving treatment authorization', err);
+      return error(res, 'Failed to save treatment authorization', 500);
+    } finally {
+      client.release();
+    }
+  }));
+
+  /**
+   * POST /v1/medication/authorizations/administration
+   * Saves or updates a PDF B authorization
+   */
+  router.post('/v1/medication/authorizations/administration', authenticate, asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const {
+      participant_id, guardian_id,
+      admin_user_id_1, admin_user_id_2,
+      deja_pris_a_la_maison, remettre_contenant_origine,
+      etiquette_pharmacie_et_avis, reconnait_risques_et_accepte,
+      nom_parent_ou_tuteur_legal, signature_parent_ou_tuteur_legal, date_signature, signature_type,
+      requirements // array of { requirement_id, initials }
+    } = req.body;
+
+    // Auth check parent
+    const parentCheck = await pool.query(
+      `SELECT pg.guardian_id FROM participant_guardians pg
+          JOIN guardian_users gu ON pg.guardian_id = gu.guardian_id
+          WHERE pg.participant_id = $1 AND gu.user_id = $2 AND pg.guardian_id = $3`,
+      [participant_id, req.user.id, guardian_id]
+    );
+
+    const isParent = parentCheck.rowCount > 0;
+    if (!isParent) {
+      const authAdmin = await verifyOrganizationMembership(pool, req.user.id, organizationId, { requiredPermissions: MEDICATION_MANAGE_PERMISSIONS });
+      if (!authAdmin.authorized) {
+        return error(res, 'Unauthorized to save for this participant/guardian', 403);
+      }
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const maaResult = await client.query(
+        `INSERT INTO medication_admin_authorizations (
+          organization_id, participant_id, guardian_id,
+          admin_user_id_1, admin_user_id_2,
+          deja_pris_a_la_maison, remettre_contenant_origine,
+          etiquette_pharmacie_et_avis, reconnait_risques_et_accepte,
+          nom_parent_ou_tuteur_legal, signature_parent_ou_tuteur_legal, date_signature, signature_type,
+          created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+        [
+          organizationId, participant_id, guardian_id,
+          admin_user_id_1 || null, admin_user_id_2 || null,
+          deja_pris_a_la_maison, remettre_contenant_origine,
+          etiquette_pharmacie_et_avis, reconnait_risques_et_accepte,
+          nom_parent_ou_tuteur_legal, signature_parent_ou_tuteur_legal, date_signature || new Date().toISOString(), signature_type,
+          req.user.id
+        ]
+      );
+
+      const newAuthId = maaResult.rows[0].id;
+
+      if (Array.isArray(requirements) && requirements.length > 0) {
+        const values = requirements.map((r, idx) => `($1, $${idx * 2 + 2}, $${idx * 2 + 3})`).join(', ');
+        const flatParams = [newAuthId];
+        requirements.forEach((r) => flatParams.push(r.requirement_id, normalizeText(r.initials, 20)));
+
+        await client.query(
+          `INSERT INTO medication_admin_authorization_requirements (authorization_id, medication_requirement_id, initiales) VALUES ${values}`,
+          flatParams
+        );
+      }
+
+      await client.query('COMMIT');
+      return success(res, { id: newAuthId }, 'Administration authorization saved', 201);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      logger.error('Error saving administration authorization', err);
+      return error(res, 'Failed to save administration authorization', 500);
+    } finally {
+      client.release();
+    }
   }));
 
   return router;

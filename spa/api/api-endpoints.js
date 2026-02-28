@@ -2073,6 +2073,38 @@ export async function deleteMedicationReception(receptionId) {
 }
 
 /**
+ * Get first aid supplies for the organization
+ */
+export async function getFirstAidSupplies() {
+    return API.get('v1/medication/first-aid-supplies', {}, {
+        cacheKey: 'first_aid_supplies',
+        cacheDuration: CONFIG.CACHE_DURATION.LONG
+    });
+}
+
+/**
+ * Get medication authorizations (treatment + administration) for a participant
+ */
+export async function getMedicationAuthorizations(participantId) {
+    return API.get(`v1/medication/authorizations/${participantId}`);
+}
+
+/**
+ * Save a PDF A treatment authorization
+ */
+export async function saveTreatmentAuthorization(payload) {
+    return API.post('v1/medication/authorizations/treatment', payload);
+}
+
+/**
+ * Save a PDF B administration authorization
+ */
+export async function saveAdministrationAuthorization(payload) {
+    return API.post('v1/medication/authorizations/administration', payload);
+}
+
+
+/**
  * Get vaccine report
  */
 export async function getVaccineReport() {
@@ -2903,9 +2935,9 @@ window.aiGenerateText = aiGenerateText;
 window.aiParseReceipt = aiParseReceipt;
 
 export async function getProgramProgressStream(params = {}, cacheOptions = {}) {
-  return makeApiRequestWithCache('v1/program-progress/stream', {
-    params,
-    cacheOptions,
-  });
+    return makeApiRequestWithCache('v1/program-progress/stream', {
+        params,
+        cacheOptions,
+    });
 }
 

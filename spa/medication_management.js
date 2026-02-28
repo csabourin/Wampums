@@ -14,7 +14,11 @@ import {
   recordMedicationDistribution,
   markMedicationDistributionAsGiven,
   getFicheMedications,
-  getMedicationReceptions
+  getMedicationReceptions,
+  getFirstAidSupplies,
+  getMedicationAuthorizations,
+  saveTreatmentAuthorization,
+  saveAdministrationAuthorization
 } from "./api/api-endpoints.js";
 import { buildApiCacheKey } from "./utils/OfflineCacheKeys.js";
 import { offlineManager } from "./modules/OfflineManager.js";
@@ -43,6 +47,12 @@ export class MedicationManagement {
     this.alertRefreshMs = 60000;
     this.offlineStatusHandler = null;
     this.optimisticManager = new OptimisticUpdateManager();
+    // Authorizations state
+    this.firstAidSupplies = [];
+    this.treatmentAuth = null;
+    this.adminAuth = null;
+    this.authGuardians = [];
+    this.authLeaders = [];
   }
 
   async init() {
@@ -52,6 +62,9 @@ export class MedicationManagement {
       this.render();
       this.attachEventListeners();
       this.registerOfflineListener();
+      if (this.view === "authorizations") {
+        this.loadAuthorizationData();
+      }
       if (this.enableAlerts) {
         this.startAlertTicker();
       }
@@ -916,17 +929,32 @@ export class MedicationManagement {
 
     const pageTitle = this.view === "dispensing"
       ? translate("medication_dispensing_title")
-      : translate("medication_planning_title");
+      : this.view === "authorizations"
+        ? translate("medication_authorizations_title")
+        : translate("medication_planning_title");
     const pageDescription = this.view === "dispensing"
       ? translate("medication_dispensing_description")
-      : translate("medication_planning_description");
+      : this.view === "authorizations"
+        ? translate("medication_authorizations_description")
+        : translate("medication_planning_description");
 
     // Hide switch link for parents (they should only see planning view)
     const switchLink = this.participantId
-      ? ''
+      ? `<a class="pill" href="/medication-authorizations/${this.participantId}">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>`
       : this.view === "dispensing"
-        ? `<a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>`
-        : `<a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>`;
+        ? `
+          <a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>
+          <a class="pill" href="/medication-authorizations">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>
+        `
+        : this.view === "authorizations"
+          ? `
+            <a class="pill" href="/medication-planning">${escapeHTML(translate("medication_switch_to_planning"))}</a>
+            <a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>
+          `
+          : `
+            <a class="pill" href="/medication-dispensing">${escapeHTML(translate("medication_switch_to_dispensing"))}</a>
+            <a class="pill" href="/medication-authorizations">${escapeHTML(translate("medication_switch_to_authorizations"))}</a>
+          `;
 
     // Back button goes to returnUrl (set by router based on role), or dashboard
     const backUrl = this.returnUrl || (this.participantId ? '/parent-dashboard' : '/dashboard');
@@ -946,7 +974,9 @@ export class MedicationManagement {
 
         ${this.view === "planning"
         ? this.renderPlanningSection({ medicationSuggestions, participantOptions })
-        : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
+        : this.view === "authorizations"
+          ? this.renderAuthorizationsSection()
+          : this.renderDispensingSection({ today, timeValue, requirementOptions, participantOptions })}
       </section>
     `);
     if (this.view === "dispensing") {
@@ -1040,6 +1070,185 @@ export class MedicationManagement {
       <div class="card">
         <h2>${escapeHTML(translate("medication_existing_requirements_title"))}</h2>
         ${this.renderRequirementTable()}
+      </div>
+    `;
+  }
+
+  renderAuthorizationsSection() {
+    const participant = this.participants[0];
+    if (!participant) {
+      return `<div class="card"><p>${escapeHTML(translate("medication_auth_no_guardian"))}</p></div>`;
+    }
+
+    const guardianOptions = (this.authGuardians || []).map(g =>
+      `<option value="${g.id}" ${this.treatmentAuth?.guardian_id == g.id ? 'selected' : ''}>
+        ${escapeHTML(`${g.first_name || ''} ${g.last_name || ''}`.trim())} — ${escapeHTML(g.phone_mobile || g.phone_home || '')}
+      </option>`
+    ).join('');
+
+    const supplyCheckboxes = (this.firstAidSupplies || []).map(supply => {
+      const existingEntry = (this.treatmentAuth?.supplies || []).find(s => s.id === supply.id);
+      const isAllowed = existingEntry ? existingEntry.is_allowed : false;
+      return `
+        <label class="participant-pill" style="align-items:center; gap:0.75rem;">
+          <input type="checkbox" name="supply_${supply.id}" value="${supply.id}" ${isAllowed ? 'checked' : ''} />
+          <span>${escapeHTML(supply.name)}${supply.description ? `<small style="color:#6b7280;display:block;">${escapeHTML(supply.description)}</small>` : ''}</span>
+        </label>`;
+    }).join('');
+
+    const medicationCheckboxes = (this.requirements || []).map(req => {
+      const existing = (this.adminAuth?.requirements || []).find(r => r.requirement_id === req.id);
+      return `
+        <label class="participant-pill" style="align-items:center; gap:0.75rem;">
+          <input type="checkbox" name="med_req_${req.id}" value="${req.id}" ${existing ? 'checked' : ''} />
+          <span>
+            ${escapeHTML(req.medication_name)}
+            ${req.dosage_instructions ? `<small style="color:#6b7280;display:block;">${escapeHTML(req.dosage_instructions)}</small>` : ''}
+          </span>
+          <input type="text" name="initials_${req.id}"
+            placeholder="${escapeHTML(translate('medication_auth_admin_initials'))}"
+            value="${escapeHTML(existing?.initials || '')}"
+            style="width:60px;border:1px solid #d1d5db;border-radius:6px;padding:0.3rem;" />
+        </label>`;
+    }).join('');
+
+    const ta = this.treatmentAuth;
+    const aa = this.adminAuth;
+
+    return `
+      <div class="card" id="treatment-auth-card">
+        <h2>📋 ${escapeHTML(translate("medication_auth_treatment_title"))}</h2>
+        <p style="color:#6b7280;font-size:0.9rem;font-style:italic;">${escapeHTML(translate("medication_auth_treatment_legal"))}</p>
+
+        <form id="treatmentAuthForm" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
+          <label class="field-group">
+            <span>${escapeHTML(translate("guardian_first_name"))} / ${escapeHTML(translate("guardian_last_name"))}</span>
+            <select name="guardian_id" required style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
+              <option value="">—</option>
+              ${guardianOptions}
+            </select>
+          </label>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_treatment_instruction"))}</legend>
+            <div class="participant-grid" style="gap:0.5rem;margin-top:0.5rem;">
+              ${supplyCheckboxes || `<p style="color:#9ca3af;">${escapeHTML(translate("not_available"))}</p>`}
+            </div>
+          </fieldset>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
+            <legend style="font-weight:600;padding:0 0.5rem;">Consentements</legend>
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">
+              ${[
+        { n: 1, field: 'autorise_gestes_securite_bien_etre' },
+        { n: 2, field: 'accepte_soins_medicaux_urgence' },
+        { n: 3, field: 'autorise_transmission_fiche_medicale' },
+        { n: 4, field: 'reconnait_responsabilite_aviser_changements_sante' }
+      ].map(({ n, field }) => `
+                <label style="display:flex;gap:0.75rem;align-items:flex-start;">
+                  <input type="checkbox" name="${field}" ${ta?.[field] ? 'checked' : ''} style="margin-top:0.2rem;flex-shrink:0;" />
+                  <span style="font-size:0.9rem;">${escapeHTML(translate("medication_auth_treatment_consent_" + n))}</span>
+                </label>`).join('')}
+            </div>
+          </fieldset>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <label class="field-group">
+              <span>${escapeHTML(translate("medication_auth_sign_printed_name"))}</span>
+              <input type="text" name="nom_en_caractere_d_imprimerie" value="${escapeHTML(ta?.nom_en_caractere_d_imprimerie || '')}"
+                style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
+            </label>
+            <label class="field-group">
+              <span>${escapeHTML(translate("medication_auth_sign_date"))}</span>
+              <input type="date" name="date_signature" value="${ta?.date_signature ? ta.date_signature.substring(0, 10) : new Date().toISOString().substring(0, 10)}"
+                style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
+            </label>
+          </div>
+
+          ${ta ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate("signed_on"))} ${formatDate(ta.date_signature)}</p>` : ''}
+
+          <button type="submit" class="btn primary" id="saveTreatmentAuth">
+            ${escapeHTML(translate("save"))}
+          </button>
+        </form>
+      </div>
+
+      <div class="card" id="admin-auth-card" style="margin-top:1rem;">
+        <h2>💊 ${escapeHTML(translate("medication_auth_admin_title"))}</h2>
+        <p style="font-size:0.85rem;color:#6b7280;font-weight:600;">${escapeHTML(translate("medication_auth_admin_subtitle"))}</p>
+        <p style="color:#6b7280;font-size:0.85rem;font-style:italic;margin-top:0.5rem;">${escapeHTML(translate("medication_auth_admin_legal_1"))}</p>
+
+        <form id="adminAuthForm" style="display:flex;flex-direction:column;gap:1rem;margin-top:1rem;">
+          <label class="field-group">
+            <span>${escapeHTML(translate("guardian_first_name"))} / ${escapeHTML(translate("guardian_last_name"))}</span>
+            <select name="guardian_id" required style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
+              <option value="">—</option>
+              ${guardianOptions}
+            </select>
+          </label>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_admin_adults"))}</legend>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.5rem;">
+              <label class="field-group">
+                <span>1.</span>
+                <select name="admin_user_id_1" style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
+                  <option value="">—</option>
+                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${aa?.admin_user_id_1 == l.id ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
+                </select>
+              </label>
+              <label class="field-group">
+                <span>2.</span>
+                <select name="admin_user_id_2" style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;">
+                  <option value="">—</option>
+                  ${(this.authLeaders || []).map(l => `<option value="${l.id}" ${aa?.admin_user_id_2 == l.id ? 'selected' : ''}>${escapeHTML(l.full_name || l.email)}</option>`).join('')}
+                </select>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_admin_meds_posology"))}</legend>
+            <div class="participant-grid" style="gap:0.5rem;margin-top:0.5rem;">
+              ${medicationCheckboxes || `<p style="color:#9ca3af;">${escapeHTML(translate("not_available"))}</p>`}
+            </div>
+          </fieldset>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:8px;padding:1rem;">
+            <legend style="font-weight:600;padding:0 0.5rem;">${escapeHTML(translate("medication_auth_admin_parental"))}</legend>
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:0.5rem;">
+              ${[
+        { key: 'deja_pris_a_la_maison', tKey: 'medication_auth_admin_attest_1' },
+        { key: 'remettre_contenant_origine', tKey: 'medication_auth_admin_attest_2' },
+        { key: 'etiquette_pharmacie_et_avis', tKey: 'medication_auth_admin_attest_3' },
+        { key: 'reconnait_risques_et_accepte', tKey: 'medication_auth_admin_attest_4' }
+      ].map(({ key, tKey }) => `
+                <label style="display:flex;gap:0.75rem;align-items:flex-start;">
+                  <input type="checkbox" name="${key}" ${aa?.[key] ? 'checked' : ''} style="margin-top:0.2rem;flex-shrink:0;" />
+                  <span style="font-size:0.9rem;">${escapeHTML(translate(tKey))}</span>
+                </label>`).join('')}
+            </div>
+          </fieldset>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <label class="field-group">
+              <span>${escapeHTML(translate("medication_auth_name_parent_legal"))}</span>
+              <input type="text" name="nom_parent_ou_tuteur_legal" value="${escapeHTML(aa?.nom_parent_ou_tuteur_legal || '')}"
+                style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
+            </label>
+            <label class="field-group">
+              <span>${escapeHTML(translate("medication_auth_sign_date"))}</span>
+              <input type="date" name="date_signature" value="${aa?.date_signature ? aa.date_signature.substring(0, 10) : new Date().toISOString().substring(0, 10)}"
+                style="border:1px solid #d1d5db;border-radius:8px;padding:0.5rem;" required />
+            </label>
+          </div>
+
+          ${aa ? `<p style="color:#15803d;font-weight:600;">✅ ${escapeHTML(translate("signed_on"))} ${formatDate(aa.date_signature)}</p>` : ''}
+
+          <button type="submit" class="btn primary" id="saveAdminAuth">
+            ${escapeHTML(translate("save"))}
+          </button>
+        </form>
       </div>
     `;
   }
@@ -1715,6 +1924,16 @@ export class MedicationManagement {
 
     requirementForm?.addEventListener("submit", (event) => this.handleRequirementSubmit(event));
 
+    document.getElementById("treatmentAuthForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this.handleTreatmentAuthSubmit(event);
+    });
+
+    document.getElementById("adminAuthForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      this.handleAdminAuthSubmit(event);
+    });
+
     frequencyPresetSelect?.addEventListener("change", (event) => {
       const container = document.getElementById("frequencyPresetFields");
       if (container) {
@@ -2326,4 +2545,115 @@ export class MedicationManagement {
     // Clear notes field
     if (notesField) notesField.value = "";
   }
+
+  /**
+   * Load authorization-specific data: guardians, leaders, first-aid supplies, existing auth records.
+   * Called when view === "authorizations".
+   */
+  async loadAuthorizationData() {
+    if (!this.participantId) return;
+    try {
+      const [suppliesRes, authsRes, guardianRes, leadersRes] = await Promise.all([
+        getFirstAidSupplies(),
+        getMedicationAuthorizations(this.participantId),
+        fetch(`/api/v1/participants/${this.participantId}/guardians`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch('/api/v1/users/leaders', { credentials: 'include' }).then(r => r.json()).catch(() => ({ data: [] }))
+      ]);
+
+      this.firstAidSupplies = suppliesRes?.data?.supplies || suppliesRes?.supplies || [];
+      this.treatmentAuth = authsRes?.data?.treatment || null;
+      this.adminAuth = authsRes?.data?.administration || null;
+      this.authGuardians = guardianRes?.data?.guardians || guardianRes?.guardians || [];
+      this.authLeaders = leadersRes?.data?.users || leadersRes?.users || [];
+
+      this.render();
+      this.attachEventListeners();
+    } catch (err) {
+      debugError("Error loading authorization data", err);
+      this.app.showMessage(translate("error_loading_data"), "error");
+    }
+  }
+
+  async handleTreatmentAuthSubmit(event) {
+    const form = event.target;
+    const fd = new FormData(form);
+    const participant = this.participants[0];
+    if (!participant) return;
+
+    const supplies = this.firstAidSupplies.map(s => ({
+      id: s.id,
+      is_allowed: fd.get(`supply_${s.id}`) !== null
+    }));
+
+    const payload = {
+      participant_id: participant.id,
+      guardian_id: fd.get('guardian_id'),
+      autorise_gestes_securite_bien_etre: fd.get('autorise_gestes_securite_bien_etre') !== null,
+      accepte_soins_medicaux_urgence: fd.get('accepte_soins_medicaux_urgence') !== null,
+      autorise_transmission_fiche_medicale: fd.get('autorise_transmission_fiche_medicale') !== null,
+      reconnait_responsabilite_aviser_changements_sante: fd.get('reconnait_responsabilite_aviser_changements_sante') !== null,
+      nom_en_caractere_d_imprimerie: fd.get('nom_en_caractere_d_imprimerie'),
+      date_signature: fd.get('date_signature'),
+      signature_type: 'typed',
+      supplies
+    };
+
+    try {
+      const btn = form.querySelector('[type="submit"]');
+      if (btn) btn.disabled = true;
+      await saveTreatmentAuthorization(payload);
+      this.app.showMessage(translate("saved"), "success");
+      await this.loadAuthorizationData();
+    } catch (err) {
+      debugError("Error saving treatment authorization", err);
+      this.app.showMessage(translate("error_saving"), "error");
+    } finally {
+      const btn = form.querySelector('[type="submit"]');
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async handleAdminAuthSubmit(event) {
+    const form = event.target;
+    const fd = new FormData(form);
+    const participant = this.participants[0];
+    if (!participant) return;
+
+    const requirements = this.requirements
+      .filter(req => fd.get(`med_req_${req.id}`) !== null)
+      .map(req => ({
+        requirement_id: req.id,
+        initials: fd.get(`initials_${req.id}`) || ''
+      }));
+
+    const payload = {
+      participant_id: participant.id,
+      guardian_id: fd.get('guardian_id'),
+      admin_user_id_1: fd.get('admin_user_id_1') || null,
+      admin_user_id_2: fd.get('admin_user_id_2') || null,
+      deja_pris_a_la_maison: fd.get('deja_pris_a_la_maison') !== null,
+      remettre_contenant_origine: fd.get('remettre_contenant_origine') !== null,
+      etiquette_pharmacie_et_avis: fd.get('etiquette_pharmacie_et_avis') !== null,
+      reconnait_risques_et_accepte: fd.get('reconnait_risques_et_accepte') !== null,
+      nom_parent_ou_tuteur_legal: fd.get('nom_parent_ou_tuteur_legal'),
+      date_signature: fd.get('date_signature'),
+      signature_type: 'typed',
+      requirements
+    };
+
+    try {
+      const btn = form.querySelector('[type="submit"]');
+      if (btn) btn.disabled = true;
+      await saveAdministrationAuthorization(payload);
+      this.app.showMessage(translate("saved"), "success");
+      await this.loadAuthorizationData();
+    } catch (err) {
+      debugError("Error saving admin authorization", err);
+      this.app.showMessage(translate("error_saving"), "error");
+    } finally {
+      const btn = form.querySelector('[type="submit"]');
+      if (btn) btn.disabled = false;
+    }
+  }
 }
+
