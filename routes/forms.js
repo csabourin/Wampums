@@ -166,6 +166,95 @@ module.exports = (pool, logger) => {
     }
   });
 
+  /**
+   * @swagger
+   * /api/v1/forms/formats:
+   *   get:
+   *     summary: Get organization form formats
+   *     description: Retrieve form formats configured for the organization that the user has permission to view, optionally filtered by display context
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: context
+   *         schema:
+   *           type: string
+   *           enum: [participant, organization, admin_panel, public, form_builder]
+   *         description: Filter forms by display context
+   *     responses:
+   *       200:
+   *         description: Form formats retrieved successfully (filtered by permissions and context)
+   *       401:
+   *         description: Unauthorized
+   */
+  router.get('/formats', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      // Verify user belongs to this organization and get their roles
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      // Get context filter from query parameter
+      const { context } = req.query;
+
+      // Build query with optional context filter
+      let query = `SELECT * FROM organization_form_formats WHERE organization_id = $1`;
+      const params = [organizationId];
+
+      if (context) {
+        // Filter by display context using PostgreSQL array containment
+        query += ` AND $2 = ANY(display_context)`;
+        params.push(context);
+      }
+
+      // Get form formats for the organization (optionally filtered by context)
+      const result = await pool.query(query, params);
+
+      // Get form permissions for user's roles
+      const userRoles = authCheck.roles || [];
+      const formPermissions = await getFormPermissionsForRoles(pool, organizationId, userRoles);
+
+      // Transform and filter the data based on permissions
+      const formatsObject = {};
+      result.rows.forEach(row => {
+        const permissions = formPermissions[row.form_type];
+
+        // Only include forms the user can view
+        if (permissions && permissions.can_view) {
+          formatsObject[row.form_type] = {
+            ...row,
+            form_structure: typeof row.form_structure === 'string'
+              ? JSON.parse(row.form_structure)
+              : row.form_structure,
+            // Include the user's permissions for this form
+            permissions: permissions,
+            // Include display_context for frontend use
+            display_context: row.display_context || []
+          };
+        }
+      });
+
+      res.json({ success: true, data: formatsObject });
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error fetching form formats:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
   router.get('/:id', authenticate, async (req, res) => {
     try {
       if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
@@ -692,95 +781,6 @@ module.exports = (pool, logger) => {
         return;
       }
       logger.error('Error deleting form submission:', error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
-
-  /**
-   * @swagger
-   * /api/v1/forms/formats:
-   *   get:
-   *     summary: Get organization form formats
-   *     description: Retrieve form formats configured for the organization that the user has permission to view, optionally filtered by display context
-   *     tags: [Forms]
-   *     security:
-   *       - bearerAuth: []
-   *     parameters:
-   *       - in: query
-   *         name: context
-   *         schema:
-   *           type: string
-   *           enum: [participant, organization, admin_panel, public, form_builder]
-   *         description: Filter forms by display context
-   *     responses:
-   *       200:
-   *         description: Form formats retrieved successfully (filtered by permissions and context)
-   *       401:
-   *         description: Unauthorized
-   */
-  router.get('/formats', async (req, res) => {
-    try {
-      const token = req.headers.authorization?.split(' ')[1];
-      const decoded = verifyJWT(token);
-
-      if (!decoded || !decoded.user_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
-
-      const organizationId = await getCurrentOrganizationId(req, pool, logger);
-
-      // Verify user belongs to this organization and get their roles
-      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
-      if (!authCheck.authorized) {
-        return res.status(403).json({ success: false, message: authCheck.message });
-      }
-
-      // Get context filter from query parameter
-      const { context } = req.query;
-
-      // Build query with optional context filter
-      let query = `SELECT * FROM organization_form_formats WHERE organization_id = $1`;
-      const params = [organizationId];
-
-      if (context) {
-        // Filter by display context using PostgreSQL array containment
-        query += ` AND $2 = ANY(display_context)`;
-        params.push(context);
-      }
-
-      // Get form formats for the organization (optionally filtered by context)
-      const result = await pool.query(query, params);
-
-      // Get form permissions for user's roles
-      const userRoles = authCheck.roles || [];
-      const formPermissions = await getFormPermissionsForRoles(pool, organizationId, userRoles);
-
-      // Transform and filter the data based on permissions
-      const formatsObject = {};
-      result.rows.forEach(row => {
-        const permissions = formPermissions[row.form_type];
-
-        // Only include forms the user can view
-        if (permissions && permissions.can_view) {
-          formatsObject[row.form_type] = {
-            ...row,
-            form_structure: typeof row.form_structure === 'string'
-              ? JSON.parse(row.form_structure)
-              : row.form_structure,
-            // Include the user's permissions for this form
-            permissions: permissions,
-            // Include display_context for frontend use
-            display_context: row.display_context || []
-          };
-        }
-      });
-
-      res.json({ success: true, data: formatsObject });
-    } catch (error) {
-      if (handleOrganizationResolutionError(res, error, logger)) {
-        return;
-      }
-      logger.error('Error fetching form formats:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   });
