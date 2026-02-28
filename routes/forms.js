@@ -166,7 +166,7 @@ module.exports = (pool, logger) => {
     }
   });
 
-  router.get('/:id', authenticate, async (req, res) => {
+  router.get('/:id(\\d+)', authenticate, async (req, res) => {
     try {
       if (!hasAnyPermission(req, ['forms.view', 'forms.manage'])) {
         return error(res, 'Forbidden', 403);
