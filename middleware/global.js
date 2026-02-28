@@ -127,14 +127,14 @@ module.exports = (app) => {
             contentSecurityPolicy: {
                 directives: {
                     defaultSrc: ["'self'"],
-                    scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+                    scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://js.stripe.com"],
                     styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
                     imgSrc: ["'self'", "data:", "blob:", "https://*.supabase.co", "https://www.gravatar.com"],
-                    connectSrc: connectSrc,
+                    connectSrc: connectSrc.concat(["https://api.stripe.com"]),
                     fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
                     objectSrc: ["'none'"],
                     mediaSrc: ["'self'"],
-                    frameSrc: ["'none'"],
+                    frameSrc: ["https://js.stripe.com"],
                 },
             },
             crossOriginResourcePolicy: { policy: "cross-origin" },

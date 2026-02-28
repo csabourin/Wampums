@@ -460,10 +460,10 @@ describe('Security Headers', () => {
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 
-  test('CSP blocks framing (frame-src none)', async () => {
+  test('CSP restricts framing (frame-src allows only Stripe)', async () => {
     const res = await request(app).get('/health');
     const csp = res.headers['content-security-policy'];
-    expect(csp).toMatch(/frame-src\s+'none'/);
+    expect(csp).toMatch(/frame-src\s+https:\/\/js\.stripe\.com/);
   });
 
   test('CSP restricts object-src', async () => {

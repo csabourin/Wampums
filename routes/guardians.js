@@ -234,7 +234,7 @@ module.exports = (pool) => {
       return success(res, { guardian_id: guardianIdToLink }, 'Guardian saved successfully');
     } catch (err) {
       await client.query('ROLLBACK');
-      throw err;
+      return error(res, 'Internal server error', 500);
     } finally {
       client.release();
     }

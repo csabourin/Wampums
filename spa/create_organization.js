@@ -73,6 +73,10 @@ export class CreateOrganization {
 		}
 
 		async handleSubmit() {
+				if (!this.formHandler) {
+						this.app.showMessage(translate("error_loading_form"), "error");
+						return;
+				}
 				const formData = this.formHandler.getFormData();
 				try {
 						const response = await createOrganization(formData);
