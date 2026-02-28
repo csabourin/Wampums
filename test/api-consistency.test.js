@@ -36,7 +36,6 @@ jest.mock('pg', () => {
     __mPool: mPool
   };
 });
-
 const { Pool } = require('pg');
 const { setupDefaultMocks } = require('./mock-helpers');
 let app;
@@ -107,7 +106,7 @@ beforeEach(() => {
   __mClient.release.mockClear();
   __mPool.connect.mockClear();
   __mPool.query.mockClear();
-  
+
   // Mock organization domain lookup (for getCurrentOrganizationId)
   // This returns a default organization when hostname lookup occurs
   __mPool.query.mockImplementation((query, params) => {
@@ -644,16 +643,16 @@ describe('Validation Middleware Integration', () => {
 });
 
 
-  test('request body limit rejects oversized payload with 413', async () => {
-    const oversizedPayload = { payload: 'x'.repeat(21 * 1024 * 1024) };
+test('request body limit rejects oversized payload with 413', async () => {
+  const oversizedPayload = { payload: 'x'.repeat(21 * 1024 * 1024) };
 
-    const res = await request(app)
-      .post('/public/login')
-      .set('x-organization-id', '1')
-      .send(oversizedPayload);
+  const res = await request(app)
+    .post('/public/login')
+    .set('x-organization-id', '1')
+    .send(oversizedPayload);
 
-    expect(res.status).toBe(413);
-  });
+  expect(res.status).toBe(413);
+});
 
 // ============================================
 // 12. WRITE OPERATIONS REQUIRE AUTH

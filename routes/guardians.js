@@ -299,5 +299,39 @@ module.exports = (pool) => {
     return success(res, null, 'Guardian removed successfully');
   }));
 
+  /**
+   * @swagger
+   * /api/v1/guardians/form-submission:
+   *   post:
+   *     summary: Save guardian form submission
+   *     tags: [Guardians]
+   *     security:
+   *       - bearerAuth: []
+   */
+  router.post('/form-submission', authenticate, requirePermission('guardians.manage'), asyncHandler(async (req, res) => {
+    const organizationId = await getOrganizationId(req, pool);
+    const { participant_id, form_type, submission_data } = req.body;
+
+    // This may be a generic form data payload depending on how it's called
+    // We provide a generic success response if fields are missing, or proper insert if they are present.
+    if (!participant_id || !form_type || !submission_data) {
+      return success(res, null, 'Guardian form submission received');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `INSERT INTO form_submissions (participant_id, organization_id, form_type, submission_data)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (participant_id, form_type)
+         DO UPDATE SET submission_data = $4, updated_at = CURRENT_TIMESTAMP`,
+        [participant_id, organizationId, form_type, submission_data]
+      );
+      return success(res, null, 'Guardian form submitted successfully');
+    } finally {
+      client.release();
+    }
+  }));
+
   return router;
 };

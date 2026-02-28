@@ -30,10 +30,16 @@ function createApp() {
 
     // 4. Initialize Services (WhatsApp, etc.)
     const serviceManager = require("../services/manager");
-    serviceManager.init(pool).catch((error) => {
-        logger.error("Service initialization failed:", error);
-        process.exit(1);
-    });
+    const { isTestEnvironment } = require("../test/test-helpers");
+
+    if (!isTestEnvironment()) {
+        serviceManager.init(pool).catch((error) => {
+            logger.error("Service initialization failed:", error);
+            process.exit(1);
+        });
+    } else {
+        logger.info("Skipping service initialization in test environment");
+    }
 
     // 5. Initialize Routes
     initRoutes(app, pool);

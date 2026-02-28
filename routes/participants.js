@@ -900,10 +900,10 @@ module.exports = (pool) => {
 
       // Batch insert all links at once
       if (validParticipantIds.length > 0) {
-        const values = validParticipantIds.map((_, idx) => 
+        const values = validParticipantIds.map((_, idx) =>
           `($1, $${idx + 2})`
         ).join(', ');
-        
+
         await client.query(
           `INSERT INTO user_participants (user_id, participant_id)
            VALUES ${values}
@@ -1049,6 +1049,43 @@ module.exports = (pool) => {
     );
 
     return success(res, null, 'Parent linked to participant successfully');
+  }));
+
+  /**
+   * POST /api/v1/participants/remove-guardians
+   * Remove guardians from participant
+   * Requires admin or animation role
+   */
+  router.post('/remove-guardians', authenticate, blockDemoRoles, requirePermission('participants.edit'), asyncHandler(async (req, res) => {
+    if (!isPlainBodyObject(req.body)) {
+      return error(res, 'Invalid request body. Expected JSON object payload.', 400);
+    }
+
+    const { participant_id, guardian_ids } = req.body;
+
+    if (!participant_id || !Array.isArray(guardian_ids) || guardian_ids.length === 0) {
+      return error(res, 'Participant ID and an array of guardian IDs are required', 400);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `DELETE FROM guardians
+         WHERE participant_id = $1 AND guardian_id = ANY($2::int[])`,
+        [participant_id, guardian_ids]
+      );
+
+      await client.query('COMMIT');
+
+      return success(res, null, 'Guardians removed successfully');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }));
 
   /**

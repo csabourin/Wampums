@@ -624,6 +624,80 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
+   * /api/v1/forms/submissions:
+   *   delete:
+   *     summary: Delete form submission
+   *     tags: [Forms]
+   *     security:
+   *       - bearerAuth: []
+   */
+  router.delete('/submissions', async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      const decoded = verifyJWT(token);
+
+      if (!decoded || !decoded.user_id) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+
+      const organizationId = await getCurrentOrganizationId(req, pool, logger);
+
+      const authCheck = await verifyOrganizationMembership(pool, decoded.user_id, organizationId);
+      if (!authCheck.authorized) {
+        return res.status(403).json({ success: false, message: authCheck.message });
+      }
+
+      const form_type = req.query.form_type || req.body.form_type;
+      const participant_id = req.query.participant_id || req.body.participant_id;
+
+      if (!participant_id || !form_type) {
+        return res.status(400).json({ success: false, message: 'Participant ID and form_type are required' });
+      }
+
+      const userRoles = authCheck.roles || [];
+      const canManage = await checkFormPermission(pool, organizationId, userRoles, form_type, 'edit');
+
+      if (!canManage && !hasStaffRole(userRoles)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to delete this form type'
+        });
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        await client.query(
+          `DELETE FROM form_submissions
+           WHERE participant_id = $1 AND organization_id = $2 AND form_type = $3`,
+          [participant_id, organizationId, form_type]
+        );
+
+        await client.query('COMMIT');
+
+        res.json({
+          success: true,
+          message: 'Form submission deleted successfully',
+          cache: { invalidate: ['forms', 'form-submissions', form_type] }
+        });
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      if (handleOrganizationResolutionError(res, error, logger)) {
+        return;
+      }
+      logger.error('Error deleting form submission:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
+  /**
+   * @swagger
    * /api/v1/forms/formats:
    *   get:
    *     summary: Get organization form formats
