@@ -408,6 +408,13 @@ module.exports = (app) => {
         }
     }));
 
+    // In dev, also serve from assets/ so /images/... resolves to assets/images/...
+    // matching Vite's publicDir: "assets" behaviour. In production Vite copies
+    // publicDir into dist/ so the main staticDir already covers this.
+    if (!isProduction) {
+        app.use(express.static(path.join(process.cwd(), "assets")));
+    }
+
     // Swagger Documentation
     app.use(
         "/api-docs",
