@@ -700,7 +700,7 @@ export async function approveUser(userId) {
  * Update user role (admin only)
  */
 export async function updateUserRole(userId, role) {
-    return API.post('update-user-role', { user_id: userId, role });
+    return API.post('users/update-role', { user_id: userId, role });
 }
 
 /**
