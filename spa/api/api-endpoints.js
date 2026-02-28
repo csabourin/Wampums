@@ -1126,7 +1126,7 @@ export async function getPointsReport() {
 export async function getParticipantProgressReport(participantId = null) {
     const params = participantId ? { participant_id: participantId } : {};
     const cacheKey = participantId ? `participant_progress_${participantId}` : 'participant_progress_participants';
-    return API.get('participant-progress', params, {
+    return API.get('reports/participant-progress', params, {
         cacheKey,
         cacheDuration: CONFIG.CACHE_DURATION.SHORT
     });

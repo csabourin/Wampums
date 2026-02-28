@@ -734,7 +734,7 @@ module.exports = (pool, logger) => {
 
   /**
    * @swagger
-   * /api/participant-progress:
+   * /api/v1/reports/participant-progress:
    *   get:
    *     summary: Get participant progression timeline
    *     description: Retrieve attendance, honors, badge stars, and points timeline for a participant
